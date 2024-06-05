@@ -17,11 +17,8 @@ import functools
 import json
 import logging
 import os
-import pathlib
-import sys
-import typing
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import Dict, Union
 
 import numpy as np
 import tensorstore  # This is important even though not used. Otherwise zarr raises error.
@@ -42,7 +39,7 @@ def is_nemo_file(path):
 
     if path is not None:
         if len(path) > 5:
-            pc = pathlib.Path(path)
+            pc = Path(path)
             if pc.exists():
                 if pc.is_file():
                     if path[-5 : len(path)] == ".nemo":
@@ -275,10 +272,10 @@ def gpu_map_location(storage, loc):
 class UnpackedNemoCheckpointDir:
     def __init__(
         self,
-        checkpoints_dir: typing.Union[pathlib.Path, TarPath],
+        checkpoints_dir: Union[Path, TarPath],
         load_checkpoints_to_cpu: bool = False,
     ):
-        assert isinstance(checkpoints_dir, (pathlib.Path, TarPath))
+        assert isinstance(checkpoints_dir, (Path, TarPath))
         self._checkpoints_dir = checkpoints_dir
         self._load_checkpoints_to_cpu = load_checkpoints_to_cpu
 
@@ -388,7 +385,7 @@ class UnpackedNemoCheckpointDir:
             filename = file_property.split("nemo:")[1]
             filename_pattern = f"*{filename}"
         elif file_property and file_property.startswith("/artifacts/"):
-            filename = pathlib.Path(file_property).name
+            filename = Path(file_property).name
             filename_pattern = f"*{filename}"
         elif file_property is None or file_property == "None":
             filename_pattern = None

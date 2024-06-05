@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utilities for exporting a model to our custom format."""
-
-from typing import List
 
 import numpy as np
 import torch
