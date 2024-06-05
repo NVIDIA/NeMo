@@ -13,4 +13,4 @@
 # limitations under the License.
 
 
-from nemo.export.trt_llm.nemo.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.export.trt_llm.nemo_ckpt_loader.sentencepiece_tokenizer import SentencePieceTokenizer

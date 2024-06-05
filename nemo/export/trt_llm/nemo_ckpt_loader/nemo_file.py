@@ -28,8 +28,8 @@ from torch.distributed.checkpoint import FileSystemReader
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from nemo.export.tarutils import TarPath, ZarrPathStore
-from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir
-from nemo.export.trt_llm.nemo.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo import UnpackedNemoCheckpointDir
+from nemo.export.trt_llm.nemo_ckpt_loader.sentencepiece_tokenizer import SentencePieceTokenizer
 
 LOGGER = logging.getLogger("NeMo")
 
