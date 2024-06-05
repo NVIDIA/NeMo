@@ -23,9 +23,23 @@ import yaml
 from transformers import FalconConfig, GPT2Config, LlamaConfig
 
 from nemo.export.tarutils import TarPath
-from nemo.export.trt_llm.nemo.convert import cpu_map_location, gpu_map_location
 
 LOGGER = logging.getLogger("NeMo")
+
+
+def cpu_map_location(storage, loc):
+    return storage.cpu()
+
+
+def gpu_map_location(storage, loc):
+    if loc.startswith("cuda"):
+        training_gpu_idx = int(loc.split(":")[1])
+        inference_gpu_idx = training_gpu_idx % torch.cuda.device_count()
+        return storage.cuda(inference_gpu_idx)
+    elif loc.startswith("cpu"):
+        return storage.cpu()
+    else:
+        raise ValueError(f"Not handled {loc}")
 
 
 def nemo_to_llm_config(nemo_model_config, vocab_size, eos_id, bos_id, decoder_type):
@@ -106,7 +120,9 @@ def extract_layers_with_prefix(model_, prefix):
 
 class UnpackedNemoCheckpointDir:
     def __init__(
-        self, checkpoints_dir: typing.Union[pathlib.Path, TarPath], load_checkpoints_to_cpu: bool = False,
+        self,
+        checkpoints_dir: typing.Union[pathlib.Path, TarPath],
+        load_checkpoints_to_cpu: bool = False,
     ):
         assert isinstance(checkpoints_dir, (pathlib.Path, TarPath))
         self._checkpoints_dir = checkpoints_dir
@@ -121,11 +137,7 @@ class UnpackedNemoCheckpointDir:
         model_configs_paths = list(self._checkpoints_dir.rglob(model_config_filename))
         if model_configs_paths:
             if len(model_configs_paths) > 1:
-                raise RuntimeError(
-                    f"There are more than single {model_config_filename} in"
-                    f" {self._checkpoints_dir}:"
-                    f" {', '.join(map(lambda p: p.as_posix(), model_configs_paths))}"
-                )
+                LOGGER.debug(f"There are more than single {model_config_filename} in" f" {self._checkpoints_dir}")
             model_config_path = model_configs_paths[0]
             LOGGER.debug("Loading model config from %s", model_config_path)
             with model_config_path.open("r") as model_config_file:
