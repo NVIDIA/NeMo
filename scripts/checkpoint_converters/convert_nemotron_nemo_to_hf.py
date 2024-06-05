@@ -119,7 +119,7 @@ def convert_hf_config(nemo_config, tokenizer, dtype, hf_output_path, hf_url='nvi
         "normalization": nemo_config.normalization,
         "norm_eps": nemo_config.layernorm_epsilon,
         "rope_theta": nemo_config.get('rotary_base', 10000),
-        "rope_percent": nemo_config.get('rope_percent', 1.),
+        "rope_percent": nemo_config.get('rotary_percentage', 1.),
         "rope_scaling": rope_scaling,
         "tie_word_embeddings": False,
         "torch_dtype": DTYPE2HF[dtype],
