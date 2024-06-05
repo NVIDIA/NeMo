@@ -464,7 +464,7 @@ class TransformerCrossAttention(NeuralModule, Exportable):
         self.xattn_decoder = TransformerDecoder(
             hidden_size=xformer_dims,
             num_layers=xformer_num_layers,
-            inner_size=4 * xformer_dims,
+            inner_size=1 * xformer_dims,
             num_attention_heads=cross_attn_cfg.num_attention_heads,
             ffn_dropout=cross_attn_cfg.ffn_dropout,
             attn_score_dropout=cross_attn_cfg.attn_score_dropout,
