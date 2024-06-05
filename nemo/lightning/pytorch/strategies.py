@@ -11,6 +11,7 @@ import torch
 import torch.distributed
 from lightning_fabric.plugins import CheckpointIO, ClusterEnvironment
 from lightning_fabric.utilities.optimizer import _optimizers_to_device
+from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
@@ -27,7 +28,6 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
-from megatron.core.distributed import DistributedDataParallelConfig
 from nemo.lightning import _strategy_lib, io
 from nemo.lightning.io.pl import MegatronCheckpointIO, TrainerCheckpoint, TrainerCkptProtocol
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
@@ -77,7 +77,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             find_unused_parameters=find_unused_parameters,
             **kwargs,
         )
-        
+
         self.megatron_callbacks = CallbackConnector()
         self.data_sampler: Optional['DataSampler'] = data_sampler
         self.tensor_model_parallel_size = tensor_model_parallel_size
@@ -88,7 +88,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.ckpt_type = ckpt_type
         self.lazy_init = lazy_init
         self.ckpt_include_optimizer = ckpt_include_optimizer
-        
+
         if ddp == "megatron":
             self.ddp_config = DistributedDataParallelConfig()
         elif isinstance(ddp, DistributedDataParallelConfig):
@@ -167,9 +167,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
             # set up optimizers after the wrapped module has been moved to the device
             self.setup_optimizers(trainer)
-            
+
             # TODO: Throw an execption if we have a mcore optimizer and no ddp_config
-            
+
             if hasattr(self.precision_plugin, "convert_optimizer"):
                 _optimizers = [*self.optimizers]
                 _optimizers[0] = self.precision_plugin.convert_optimizer(self.optimizers[0])
@@ -229,7 +229,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if hasattr(self.precision_plugin, "convert_module"):
             self.model = self.precision_plugin.convert_module(self.model)
         self.model.callbacks.add(getattr(trainer, "callbacks"))
-        
+
         if hasattr(self, "optimizers") and self.optimizers:
             for optimizer in self.optimizers:
                 self.model.callbacks.add(optimizer)
