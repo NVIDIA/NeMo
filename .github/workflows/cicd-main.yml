@@ -4933,7 +4933,7 @@ jobs:
           SUCCESSFUL=${{ !contains(needs.*.outputs.conclusion, 'failure') && !contains
           (needs.*.outputs.conclusion, 'cancelled') }}
 
-          echo "SUCCESSFUL=$SUCCESSFUL" >> $GITHUB_OUTPUT
+          echo "SUCCESSFUL='$SUCCESSFUL'" >> $GITHUB_OUTPUT
 
       # This should depend on all the tests so we block/unblock based on all tests passing
       - if: ${{ always() && steps.pipeline-conclusion.SUCCESSFUL == 'true' }}
