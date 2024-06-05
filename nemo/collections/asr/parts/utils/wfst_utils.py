@@ -65,8 +65,7 @@ def _kaldilm_maybe_raise():
 
 @dataclass
 class LexiconUnit:
-    """A dataclass encapsulating the name of the language unit (e.g. wordpiece) and its mark (e.g. word begin).
-    """
+    """A dataclass encapsulating the name of the language unit (e.g. wordpiece) and its mark (e.g. word begin)."""
 
     name: str
     mark: str = ""
@@ -180,7 +179,10 @@ def arpa2fst(lm_path: str, attach_symbol_table: bool = True) -> 'kaldifst.StdVec
         words_txt = os.path.join(tempdirname, "words.txt")
         #         with suppress_stdout_stderr():
         kaldilm.arpa2fst(
-            input_arpa=lm_path, output_fst=output_fst, disambig_symbol="#0", write_symbol_table=words_txt,
+            input_arpa=lm_path,
+            output_fst=output_fst,
+            disambig_symbol="#0",
+            write_symbol_table=words_txt,
         )
 
         G = kaldifst.StdVectorFst.read(output_fst)
@@ -241,13 +243,19 @@ def add_tokenwords_(
     g_fst.add_arc(
         state=unigram_state,
         arc=kaldifst.StdArc(
-            ilabel=tokenword_disambig_id, olabel=tokenword_disambig_id, weight=word_weight, nextstate=tokenword_state,
+            ilabel=tokenword_disambig_id,
+            olabel=tokenword_disambig_id,
+            weight=word_weight,
+            nextstate=tokenword_state,
         ),
     )
     g_fst.add_arc(
         state=tokenword_state,
         arc=kaldifst.StdArc(
-            ilabel=tokenword_disambig_id, olabel=tokenword_disambig_id, weight=0.0, nextstate=unigram_state,
+            ilabel=tokenword_disambig_id,
+            olabel=tokenword_disambig_id,
+            weight=0.0,
+            nextstate=unigram_state,
         ),
     )
     label = tokenword_disambig_id + 1
@@ -256,7 +264,10 @@ def add_tokenwords_(
             g_fst.add_arc(
                 state=tokenword_state,
                 arc=kaldifst.StdArc(
-                    ilabel=label, olabel=label, weight=token_unigram_weight, nextstate=tokenword_state,
+                    ilabel=label,
+                    olabel=label,
+                    weight=token_unigram_weight,
+                    nextstate=tokenword_state,
                 ),
             )
             g_fst.output_symbols.add_symbol(f"{t}{TW_BREAK}{tokenword_disambig}", label)
@@ -431,7 +442,10 @@ def add_disambig_symbols(lexicon: Lexicon) -> Lexicon:
     return Lexicon(wordid2tokenid, lexicon.id2word, id2token)
 
 
-def make_lexicon_fst_no_silence(lexicon: Lexicon, attach_symbol_table: bool = True,) -> 'kaldifst.StdVectorFst':
+def make_lexicon_fst_no_silence(
+    lexicon: Lexicon,
+    attach_symbol_table: bool = True,
+) -> 'kaldifst.StdVectorFst':
     """
     Compiles a Lexicon into a lexicon WFST (L.fst).
 
@@ -484,7 +498,10 @@ def make_lexicon_fst_no_silence(lexicon: Lexicon, attach_symbol_table: bool = Tr
                 fst.add_arc(
                     state=cur_state,
                     arc=kaldifst.StdArc(
-                        ilabel=token_id, olabel=word_id if i == 0 else 0, weight=0, nextstate=next_state,
+                        ilabel=token_id,
+                        olabel=word_id if i == 0 else 0,
+                        weight=0,
+                        nextstate=next_state,
                     ),
                 )
                 cur_state = next_state
@@ -514,17 +531,32 @@ def make_lexicon_fst_no_silence(lexicon: Lexicon, attach_symbol_table: bool = Tr
         for token_id, word_id in tokenword_begin:
             fst.add_arc(
                 state=tokenword_state_begin,
-                arc=kaldifst.StdArc(ilabel=token_id, olabel=word_id, weight=0, nextstate=tokenword_state_main,),
+                arc=kaldifst.StdArc(
+                    ilabel=token_id,
+                    olabel=word_id,
+                    weight=0,
+                    nextstate=tokenword_state_main,
+                ),
             )
         tokenword_state_end = fst.add_state()
         for token_id, word_id in tokenword_other:
             fst.add_arc(
                 state=tokenword_state_main,
-                arc=kaldifst.StdArc(ilabel=token_id, olabel=word_id, weight=0, nextstate=tokenword_state_main,),
+                arc=kaldifst.StdArc(
+                    ilabel=token_id,
+                    olabel=word_id,
+                    weight=0,
+                    nextstate=tokenword_state_main,
+                ),
             )
             fst.add_arc(
                 state=tokenword_state_main,
-                arc=kaldifst.StdArc(ilabel=token_id, olabel=word_id, weight=0, nextstate=tokenword_state_end,),
+                arc=kaldifst.StdArc(
+                    ilabel=token_id,
+                    olabel=word_id,
+                    weight=0,
+                    nextstate=tokenword_state_end,
+                ),
             )
         fst.add_arc(
             state=tokenword_state_end,
@@ -592,8 +624,7 @@ def build_topo(
 
 
 def build_default_topo(token2id: Dict[str, int], with_self_loops: bool = True) -> 'kaldifst.StdVectorFst':
-    """Build the default (correct) CTC topology.
-    """
+    """Build the default (correct) CTC topology."""
     disambig_pattern = re.compile(r"^#\d+$")
     blank_id = token2id["<blk>"]
     fst = kaldifst.StdVectorFst()
@@ -603,7 +634,10 @@ def build_default_topo(token2id: Dict[str, int], with_self_loops: bool = True) -
     fst.add_arc(
         state=start_state,
         arc=kaldifst.StdArc(
-            ilabel=blank_id, olabel=0, weight=0, nextstate=start_state,  # token2id["<eps>"] is always 0
+            ilabel=blank_id,
+            olabel=0,
+            weight=0,
+            nextstate=start_state,  # token2id["<eps>"] is always 0
         ),
     )
 
@@ -619,19 +653,31 @@ def build_default_topo(token2id: Dict[str, int], with_self_loops: bool = True) -
             fst.set_final(state=state, weight=0)
             token_ids[state] = i
             fst.add_arc(
-                state=start_state, arc=kaldifst.StdArc(ilabel=i, olabel=i, weight=0, nextstate=state,),
+                state=start_state,
+                arc=kaldifst.StdArc(
+                    ilabel=i,
+                    olabel=i,
+                    weight=0,
+                    nextstate=state,
+                ),
             )
             if with_self_loops:
                 fst.add_arc(
                     state=state,
                     arc=kaldifst.StdArc(
-                        ilabel=i, olabel=0, weight=0, nextstate=state,  # token2id["<eps>"] is always 0
+                        ilabel=i,
+                        olabel=0,
+                        weight=0,
+                        nextstate=state,  # token2id["<eps>"] is always 0
                     ),
                 )
             fst.add_arc(
                 state=state,
                 arc=kaldifst.StdArc(
-                    ilabel=blank_id, olabel=0, weight=0, nextstate=start_state,  # token2id["<eps>"] is always 0
+                    ilabel=blank_id,
+                    olabel=0,
+                    weight=0,
+                    nextstate=start_state,  # token2id["<eps>"] is always 0
                 ),
             )
 
@@ -641,13 +687,22 @@ def build_default_topo(token2id: Dict[str, int], with_self_loops: bool = True) -
                 if ostate > 0 and istate != ostate:
                     label = token_ids[ostate]
                     fst.add_arc(
-                        state=istate, arc=kaldifst.StdArc(ilabel=label, olabel=label, weight=0, nextstate=ostate,),
+                        state=istate,
+                        arc=kaldifst.StdArc(
+                            ilabel=label,
+                            olabel=label,
+                            weight=0,
+                            nextstate=ostate,
+                        ),
                     )
         for disambig_id in disambig_ids:
             fst.add_arc(
                 state=istate,
                 arc=kaldifst.StdArc(
-                    ilabel=0, olabel=disambig_id, weight=0, nextstate=istate,  # token2id["<eps>"] is always 0
+                    ilabel=0,
+                    olabel=disambig_id,
+                    weight=0,
+                    nextstate=istate,  # token2id["<eps>"] is always 0
                 ),
             )
 
@@ -655,8 +710,7 @@ def build_default_topo(token2id: Dict[str, int], with_self_loops: bool = True) -
 
 
 def build_compact_topo(token2id: Dict[str, int], with_self_loops: bool = True) -> 'kaldifst.StdVectorFst':
-    """Build the Compact CTC topology.
-    """
+    """Build the Compact CTC topology."""
     disambig_pattern = re.compile(r"^#\d+$")
     blank_id = token2id["<blk>"]
     fst = kaldifst.StdVectorFst()
@@ -666,7 +720,10 @@ def build_compact_topo(token2id: Dict[str, int], with_self_loops: bool = True) -
     fst.add_arc(
         state=start_state,
         arc=kaldifst.StdArc(
-            ilabel=blank_id, olabel=0, weight=0, nextstate=start_state,  # token2id["<eps>"] is always 0
+            ilabel=blank_id,
+            olabel=0,
+            weight=0,
+            nextstate=start_state,  # token2id["<eps>"] is always 0
         ),
     )
 
@@ -677,19 +734,31 @@ def build_compact_topo(token2id: Dict[str, int], with_self_loops: bool = True) -
             fst.add_arc(
                 state=start_state,
                 arc=kaldifst.StdArc(
-                    ilabel=0, olabel=i, weight=0, nextstate=start_state,  # token2id["<eps>"] is always 0
+                    ilabel=0,
+                    olabel=i,
+                    weight=0,
+                    nextstate=start_state,  # token2id["<eps>"] is always 0
                 ),
             )
         else:
             state = fst.add_state()
             fst.add_arc(
-                state=start_state, arc=kaldifst.StdArc(ilabel=i, olabel=i, weight=0, nextstate=state,),
+                state=start_state,
+                arc=kaldifst.StdArc(
+                    ilabel=i,
+                    olabel=i,
+                    weight=0,
+                    nextstate=state,
+                ),
             )
             if with_self_loops:
                 fst.add_arc(
                     state=state,
                     arc=kaldifst.StdArc(
-                        ilabel=i, olabel=0, weight=0, nextstate=state,  # token2id["<eps>"] is always 0
+                        ilabel=i,
+                        olabel=0,
+                        weight=0,
+                        nextstate=state,  # token2id["<eps>"] is always 0
                     ),
                 )
             fst.add_arc(
@@ -706,8 +775,7 @@ def build_compact_topo(token2id: Dict[str, int], with_self_loops: bool = True) -
 
 
 def build_minimal_topo(token2id: Dict[str, int]) -> 'kaldifst.StdVectorFst':
-    """Build the Minimal CTC topology.
-    """
+    """Build the Minimal CTC topology."""
     disambig_pattern = re.compile(r"^#\d+$")
     blank_id = token2id["<blk>"]
     fst = kaldifst.StdVectorFst()
@@ -717,7 +785,10 @@ def build_minimal_topo(token2id: Dict[str, int]) -> 'kaldifst.StdVectorFst':
     fst.add_arc(
         state=start_state,
         arc=kaldifst.StdArc(
-            ilabel=blank_id, olabel=0, weight=0, nextstate=start_state,  # token2id["<eps>"] is always 0
+            ilabel=blank_id,
+            olabel=0,
+            weight=0,
+            nextstate=start_state,  # token2id["<eps>"] is always 0
         ),
     )
 
@@ -728,12 +799,21 @@ def build_minimal_topo(token2id: Dict[str, int]) -> 'kaldifst.StdVectorFst':
             fst.add_arc(
                 state=start_state,
                 arc=kaldifst.StdArc(
-                    ilabel=0, olabel=i, weight=0, nextstate=start_state,  # token2id["<eps>"] is always 0
+                    ilabel=0,
+                    olabel=i,
+                    weight=0,
+                    nextstate=start_state,  # token2id["<eps>"] is always 0
                 ),
             )
         else:
             fst.add_arc(
-                state=start_state, arc=kaldifst.StdArc(ilabel=i, olabel=i, weight=0, nextstate=start_state,),
+                state=start_state,
+                arc=kaldifst.StdArc(
+                    ilabel=i,
+                    olabel=i,
+                    weight=0,
+                    nextstate=start_state,
+                ),
             )
 
     return fst
@@ -884,8 +964,7 @@ class LatticeProperties(NamedTuple):
 
 
 class AbstractLattice(ABC):
-    """A lattice wrapper with high-level capabilities.
-    """
+    """A lattice wrapper with high-level capabilities."""
 
     def __init__(self, lattice: Any):
         self._lattice = lattice
@@ -1224,11 +1303,23 @@ def levenshtein_graph_kaldi(
     eps = 0
     for state in kaldifst.StateIterator(lfst):
         # epsilon self-loop for insertions and deletions
-        arcs_to_add = [kaldifst.StdArc(ilabel=eps, olabel=eps, weight=ins_del_score, nextstate=state,)]
+        arcs_to_add = [
+            kaldifst.StdArc(
+                ilabel=eps,
+                olabel=eps,
+                weight=ins_del_score,
+                nextstate=state,
+            )
+        ]
         for arc in kaldifst.ArcIterator(lfst, state):
             # epsilon-to-ilabel arc for substitutions
             arcs_to_add.append(
-                kaldifst.StdArc(ilabel=eps, olabel=arc.ilabel, weight=sub_score, nextstate=arc.nextstate,)
+                kaldifst.StdArc(
+                    ilabel=eps,
+                    olabel=arc.ilabel,
+                    weight=sub_score,
+                    nextstate=arc.nextstate,
+                )
             )
             # zero weight for correct ids (redundant for lattices)
             arc.weight = 0.0
