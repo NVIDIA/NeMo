@@ -20,7 +20,7 @@ import warnings
 from typing import List, Set, Tuple
 
 import torch
-
+from transformers import CLIPImageProcessor
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
@@ -69,7 +69,11 @@ class TextGenerationStrategy:
         fwd_bwd_function = get_forward_backward_func()
         output_tensor = fwd_bwd_function(
             forward_step_func=self.model.get_forward_output_only_func(),
-            data_iterator=iter([batch,]),
+            data_iterator=iter(
+                [
+                    batch,
+                ]
+            ),
             model=[self.forward_model],
             num_microbatches=get_num_microbatches(),
             forward_only=True,
@@ -104,7 +108,7 @@ class TextGenerationStrategy:
 
     @abc.abstractclassmethod
     def clip_max_len(self, maxlen: int) -> int:
-        """ clip the max len based on the LM model max sequence length
+        """clip the max len based on the LM model max sequence length
         Args:
             maxlen (int): the max len computed from the context and number of tokens to generate
         returns (int):
@@ -119,7 +123,7 @@ class TextGenerationStrategy:
            context_length (int): the context token length
            compute_attention_mask: bool: set to True to compute attention mask (not needed for FA)
         Args:
-            context_tokens (torch.Tensor):  The padded context tokens including the space for tokens to be generated 
+            context_tokens (torch.Tensor):  The padded context tokens including the space for tokens to be generated
         """
         pass
 
@@ -262,7 +266,7 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         self.forward_model = self.model.model
 
     def clip_max_len(self, maxlen: int) -> int:
-        """ clip the max len based on the LM model max sequence length"""
+        """clip the max len based on the LM model max sequence length"""
 
         # for positional embedding types that allow length extrapolation, don't clip the max length
         if self.model.cfg.get("position_embedding_type", "learned_absolute") == "learned_absolute":
@@ -336,7 +340,7 @@ class GriffinModelTextGenerationStrategy(TextGenerationStrategy):
         self.forward_model = self.model.model
 
     def clip_max_len(self, maxlen: int) -> int:
-        """ clip the max len based on the LM model max sequence length"""
+        """clip the max len based on the LM model max sequence length"""
 
         # for positional embedding types that allow length extrapolation, don't clip the max length
         if self.model.cfg.get("position_embedding_type", "learned_absolute") == "learned_absolute":
@@ -390,7 +394,11 @@ class GriffinModelTextGenerationStrategy(TextGenerationStrategy):
 
         output_tensor = fwd_bwd_function(
             forward_step_func=self.model.get_forward_output_only_func(),
-            data_iterator=iter([batch,]),
+            data_iterator=iter(
+                [
+                    batch,
+                ]
+            ),
             model=[self.forward_model],
             num_microbatches=get_num_microbatches(),
             forward_only=True,
@@ -406,6 +414,7 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
     from nemo.collections.multimodal.data.neva.neva_dataset import (
         DEFAULT_IMAGE_TOKEN,
         preprocess_llama_2,
+        preprocess_llama_3,
         preprocess_multimodal,
         preprocess_nv_dpo,
         preprocess_nvgpt,
@@ -415,10 +424,18 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
     list_data_dict = []
     if multimodal_cfg["conv_template"] in ["nvgpt", "nv_steerlm", "nv_dpo"]:
         record = {
-            'system': '\n'
-            if multimodal_cfg["conv_template"] == 'nv_dpo'
-            else 'A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user\'s questions.\n\n',
-            'conversations': [{'from': 'User', 'value': prompt}, {'from': 'Assistant', 'value': '',},],
+            'system': (
+                '\n'
+                if multimodal_cfg["conv_template"] == 'nv_dpo'
+                else 'A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user\'s questions.\n\n'
+            ),
+            'conversations': [
+                {'from': 'User', 'value': prompt},
+                {
+                    'from': 'Assistant',
+                    'value': '',
+                },
+            ],
         }
 
         for turn in record['conversations']:
@@ -441,7 +458,16 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
 
     elif multimodal_cfg["conv_template"] == "llama_2":
         record = {
-            'conversations': [{'from': 'human', 'value': prompt,}, {'from': 'gpt', 'value': '',},],
+            'conversations': [
+                {
+                    'from': 'human',
+                    'value': prompt,
+                },
+                {
+                    'from': 'gpt',
+                    'value': '',
+                },
+            ],
         }
 
         for turn in record['conversations']:
@@ -453,9 +479,40 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
             copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
         )  # HARDCODED FOR NOW
         data_dict = preprocess_llama_2(sources, tokenizer, multimodal_cfg)
+    elif multimodal_cfg["conv_template"] == "llama_3":
+        record = {
+            'conversations': [
+                {
+                    'from': 'human',
+                    'value': prompt,
+                },
+                {
+                    'from': 'gpt',
+                    'value': '',
+                },
+            ],
+        }
+
+        for turn in record['conversations']:
+            if turn.get('value') is not None:
+                turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
+        list_data_dict.append(record)
+        sources = preprocess_multimodal(
+            copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
+        )  # HARDCODED FOR NOW
+        data_dict = preprocess_llama_3(sources, tokenizer, multimodal_cfg)
     elif multimodal_cfg["conv_template"] == "v1":
         record = {
-            'conversations': [{'from': 'human', 'value': prompt,}, {'from': 'gpt', 'value': '',},],
+            'conversations': [
+                {
+                    'from': 'human',
+                    'value': prompt,
+                },
+                {
+                    'from': 'gpt',
+                    'value': '',
+                },
+            ],
         }
 
         for turn in record['conversations']:
@@ -476,7 +533,6 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model):
         super().__init__(model)
         self.forward_model = self.model.model
-        self.num_media_latents = model.cfg.data.get("image_token_len", 576)
         self.tokenizer = self.model.tokenizer
         self.image_paths = []
         self.cfg = self.model.cfg
@@ -487,8 +543,11 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             is_multimodal=self.data_cfg.is_multimodal,
             sep_image_conv_front=self.data_cfg.sep_image_conv_front,
             conv_template=self.data_cfg.get("conv_template", "nvgpt"),
-            image_token_len=self.data_cfg.image_token_len,
-            image_folder=self.data_cfg.image_folder,
+            model_type=self.cfg.mm_cfg.llm.get("model_type", "nvgpt"),
+            patch_dim=self.cfg.mm_cfg.vision_encoder.patch_dim,
+            crop_size=self.cfg.mm_cfg.vision_encoder.get("crop_size", None),
+            image_folder=self.data_cfg.get('image_folder', None),
+            video_folder=self.data_cfg.get('video_folder', None),
             image_aspect_ratio=self.data_cfg.image_aspect_ratio,
             use_im_start_end=getattr(self.cfg.mm_cfg, 'use_im_start_end', False),
             image_processor=None,
@@ -496,10 +555,31 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             context_length=self.cfg.encoder_seq_length,
             media_type=getattr(self.data_cfg, 'media_type', 'image'),
             num_frames=getattr(self.data_cfg, 'num_frames', 1),
+            mm_mlp_adapter_type=getattr(self.cfg.mm_cfg, 'mm_mlp_adapter_type', 'linear'),
         )
+        if self.multimodal_cfg['crop_size'] is None:
+            image_processor = CLIPImageProcessor.from_pretrained(
+                self.cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+            )
+            self.multimodal_cfg['crop_size'] = (
+                image_processor.crop_size['height'],
+                image_processor.crop_size['width'],
+            )
+
+        patch_dim = self.multimodal_cfg['patch_dim']
+        height_num_patches = self.multimodal_cfg['crop_size'][0] // patch_dim
+        width_num_patches = self.multimodal_cfg['crop_size'][1] // patch_dim
+
+        if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+            if height_num_patches % 2 != 0:
+                height_num_patches += 1
+            if width_num_patches % 2 != 0:
+                width_num_patches += 1
+
+        self.num_media_latents = height_num_patches * width_num_patches
 
     def clip_max_len(self, maxlen: int) -> int:
-        """ clip the max len based on the LM model max sequence length"""
+        """clip the max len based on the LM model max sequence length"""
         if maxlen > self.model.cfg.encoder_seq_length + 1:
             maxlen = self.model.cfg.encoder_seq_length + 1
         return maxlen
@@ -616,7 +696,7 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
         )
 
     def clip_max_len(self, maxlen: int) -> int:
-        """ clip the max len based on the LM model max sequence length"""
+        """clip the max len based on the LM model max sequence length"""
         if maxlen > self.model.frozen_model.cfg.encoder_seq_length + 1:
             maxlen = self.model.frozen_model.cfg.encoder_seq_length + 1
         return maxlen
@@ -681,7 +761,7 @@ class McoreRetroModelTextGenerationStrategy(TextGenerationStrategy):
         self.forward_model = self.model.model
 
     def clip_max_len(self, maxlen: int) -> int:
-        """ clip the max len based on the LM model max sequence length"""
+        """clip the max len based on the LM model max sequence length"""
 
         # for positional embedding types that allow length extrapolation, don't clip the max length
         if self.model.cfg.get("position_embedding_type", "learned_absolute") == "learned_absolute":
@@ -830,21 +910,21 @@ class McoreRetroModelTextGenerationStrategy(TextGenerationStrategy):
 
                 # updating RetroEncoder (RetroEncoderCrossAttention, RetroEncoderBiasDropoutAdd, RetroEncoderLayerNorm)
                 if contain_encoder:  # the first cross-attention decoder layer contain encoder
-                    layer.cross_attention.encoder.layers[
-                        0
-                    ].cross_attention.retro_num_neighbors = inference_retro_num_neighbors
-                    layer.cross_attention.encoder.layers[
-                        0
-                    ].cross_attention.retro_chunk_length = inference_retro_chunk_length
-                    layer.cross_attention.encoder.layers[
-                        0
-                    ].cross_attention.retro_retrieved_length = inference_retro_retrieved_length
-                    layer.cross_attention.encoder.layers[
-                        0
-                    ].cross_attn_bda.retro_num_neighbors = inference_retro_num_neighbors
-                    layer.cross_attention.encoder.layers[
-                        0
-                    ].pre_mlp_layernorm.retro_num_neighbors = inference_retro_num_neighbors
+                    layer.cross_attention.encoder.layers[0].cross_attention.retro_num_neighbors = (
+                        inference_retro_num_neighbors
+                    )
+                    layer.cross_attention.encoder.layers[0].cross_attention.retro_chunk_length = (
+                        inference_retro_chunk_length
+                    )
+                    layer.cross_attention.encoder.layers[0].cross_attention.retro_retrieved_length = (
+                        inference_retro_retrieved_length
+                    )
+                    layer.cross_attention.encoder.layers[0].cross_attn_bda.retro_num_neighbors = (
+                        inference_retro_num_neighbors
+                    )
+                    layer.cross_attention.encoder.layers[0].pre_mlp_layernorm.retro_num_neighbors = (
+                        inference_retro_num_neighbors
+                    )
                     contain_encoder = False
 
         return context_tokens

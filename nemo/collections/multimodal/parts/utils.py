@@ -15,6 +15,7 @@ import os
 import tempfile
 from typing import Any, Callable, Tuple
 
+import decord
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -138,7 +139,8 @@ def load_nemo_model_weights(nemo_path, sharded_state_dict=None):
                 tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
                 assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
                 checkpoint = dist_checkpointing.load(
-                    sharded_state_dict=checkpoint, checkpoint_dir=tmp_model_weights_dir,
+                    sharded_state_dict=checkpoint,
+                    checkpoint_dir=tmp_model_weights_dir,
                 )
                 state_dict = checkpoint["state_dict"]
 
@@ -149,7 +151,9 @@ def load_nemo_model_weights(nemo_path, sharded_state_dict=None):
 
 
 def setup_trainer_and_models_for_inference(
-    model_provider: Any, cfg: DictConfig, model_cfg_modifier: Callable,
+    model_provider: Any,
+    cfg: DictConfig,
+    model_cfg_modifier: Callable,
 ):
     """
     Set up a trainer and NeMo model for inference.
@@ -172,7 +176,10 @@ def setup_trainer_and_models_for_inference(
 
     # Use the NLPDDPStrategy for the distributed data parallel strategy.
     # We don't use DDP for async grad allreduce and don't find unused parameters.
-    strategy = NLPDDPStrategy(no_ddp_communication_hook=True, find_unused_parameters=False,)
+    strategy = NLPDDPStrategy(
+        no_ddp_communication_hook=True,
+        find_unused_parameters=False,
+    )
 
     # Set up the trainer with the specified plugins and strategy.
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
@@ -215,7 +222,9 @@ def setup_trainer_and_models_for_inference(
             )
 
             model = model_provider.load_from_checkpoint(
-                single_model_cfg.restore_from_path, hparams_file=cfg.model.get("hparams_file"), trainer=trainer,
+                single_model_cfg.restore_from_path,
+                hparams_file=cfg.model.get("hparams_file"),
+                trainer=trainer,
             )
             models.append(model)
 
@@ -239,7 +248,9 @@ def setup_trainer_and_models_for_inference(
 
 
 def setup_trainer_and_model_for_inference(
-    model_provider: Any, cfg: DictConfig, model_cfg_modifier: Callable,
+    model_provider: Any,
+    cfg: DictConfig,
+    model_cfg_modifier: Callable,
 ) -> Tuple[Trainer, Any]:
     """
     Set up a trainer and NeMo model for inference.
@@ -261,7 +272,10 @@ def setup_trainer_and_model_for_inference(
 
     # Use the NLPDDPStrategy for the distributed data parallel strategy.
     # We don't use DDP for async grad allreduce and don't find unused parameters.
-    strategy = NLPDDPStrategy(no_ddp_communication_hook=True, find_unused_parameters=False,)
+    strategy = NLPDDPStrategy(
+        no_ddp_communication_hook=True,
+        find_unused_parameters=False,
+    )
 
     # Set up the trainer with the specified plugins and strategy.
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
@@ -299,7 +313,9 @@ def setup_trainer_and_model_for_inference(
         )
 
         model = model_provider.load_from_checkpoint(
-            cfg.model.restore_from_path, hparams_file=cfg.model.get("hparams_file"), trainer=trainer,
+            cfg.model.restore_from_path,
+            hparams_file=cfg.model.get("hparams_file"),
+            trainer=trainer,
         )
 
     else:
@@ -329,20 +345,6 @@ def create_neva_model_and_processor(cfg):
     # trainer required for restoring model parallel models
     trainer = Trainer(plugins=plugins, strategy=NLPDDPStrategy(), **cfg.trainer)
 
-    if (
-        cfg.tensor_model_parallel_size < 0
-        or cfg.pipeline_model_parallel_size < 0
-        or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
-    ):
-        model_config = MegatronNevaModel.restore_from(
-            restore_path=cfg.neva_model_file, trainer=trainer, return_config=True,
-        )
-
-        with open_dict(cfg):
-            cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
-            cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
-            cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
-
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
@@ -366,7 +368,10 @@ def create_neva_model_and_processor(cfg):
             neva_cfg.activations_checkpoint_method = None
             neva_cfg.precision = trainer.precision
             neva_cfg.mm_cfg.llm.from_pretrained = cfg.get('base_model_file', None)
+            neva_cfg.apply_rope_fusion = False
             neva_cfg.fp8 = False
+            neva_cfg.tensor_model_parallel_size = cfg.tensor_model_parallel_size
+            neva_cfg.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
         #    neva_cfg.mm_cfg.vision_encoder.from_pretrained = None
 
         model = MegatronNevaModel.restore_from(
@@ -465,23 +470,23 @@ def create_neva_model_and_processor(cfg):
 
     # add video processor for video neva
     def video_processor(maybe_video_path):
-        from decord import VideoReader
 
         if isinstance(maybe_video_path, str):
-            vr = VideoReader(maybe_video_path)
+            decord.bridge.set_bridge("torch")
+            vr = decord.VideoReader(maybe_video_path)
             if neva_cfg.data.splice_single_frame == 'first':
-                frames = [Image.fromarray(vr[0].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[0].asnumpy()).convert('RGB')]
             elif neva_cfg.data.splice_single_frame == 'middle':
-                frames = [Image.fromarray(vr[len(vr) // 2].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[len(vr) // 2].asnumpy()).convert('RGB')]
             elif neva_cfg.data.splice_single_frame == 'last':
-                frames = [Image.fromarray(vr[-1].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[-1].asnumpy()).convert('RGB')]
             else:
                 if neva_cfg.data.num_frames == -1:
-                    frames = [Image.fromarray(frame.asnumpy()[:, :, ::-1]).convert('RGB') for frame in vr]
+                    frames = [Image.fromarray(frame.asnumpy()).convert('RGB') for frame in vr]
                 else:
                     num_frames = min(len(vr), neva_cfg.data.num_frames)
                     indices = np.linspace(0, len(vr) - 1, num_frames, dtype=int)
-                    frames = [Image.fromarray(vr[i].asnumpy()[:, :, ::-1]).convert('RGB') for i in indices]
+                    frames = vr.get_batch(indices)
 
                     while len(frames) < neva_cfg.data.num_frames:
                         frames.append(frames[-1])

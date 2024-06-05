@@ -28,14 +28,11 @@ import wrapt
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
-from nemo.export.trt_llm.model_config_trt import model_config_to_tensorrt_llm
-from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
-from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_model_config, nemo_to_trtllm_config
+from nemo.export.trt_llm.nemo_utils import get_tokenzier, is_nemo_file, nemo_to_trtllm_config
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
 from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
-from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
-from nemo.export.trt_llm.utils import is_nemo_file
+from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load
 
 use_deploy = True
 try:
@@ -82,15 +79,24 @@ class TensorRTLLM(ITritonDeployable):
 
     """
 
-    def __init__(self, model_dir: str, lora_ckpt_list: List[str] = None, load_model: bool = True):
+    def __init__(
+        self,
+        model_dir: str,
+        lora_ckpt_list: List[str] = None,
+        load_model: bool = True,
+        use_python_runtime: bool = True,
+    ):
         """
         Args:
             model_dir (str): path for storing the TensorRT-LLM model files.
+            lora_ckpt_list (List[str]): lora checkpoint paths.
             load_model (bool): load TensorRT-LLM model if the engine files exist in the model_dir.
+            use_python_runtime (bool): whether to use python or c++ runtime.
         """
 
         self.model_dir = model_dir
         self.lora_ckpt_list = lora_ckpt_list
+        self.use_python_runtime = use_python_runtime
         self.model = None
         self.tokenizer = None
         self.n_gpus = None
@@ -117,15 +123,16 @@ class TensorRTLLM(ITritonDeployable):
         max_batch_size: int = 8,
         max_prompt_embedding_table_size=None,
         use_parallel_embedding: bool = False,
-        use_inflight_batching: bool = False,
-        enable_context_fmha: bool = True,
-        paged_kv_cache: bool = False,
+        paged_kv_cache: bool = True,
+        remove_input_padding: bool = True,
         dtype: str = "bfloat16",
         load_model: bool = True,
         enable_multi_block_mode: bool = False,
         use_lora_plugin: str = None,
         lora_target_modules: List[str] = None,
         max_lora_rank: int = 64,
+        max_num_tokens: int = None,
+        opt_num_tokens: int = None,
         save_nemo_model_config: bool = False,
     ):
         """
@@ -142,12 +149,18 @@ class TensorRTLLM(ITritonDeployable):
             max_output_token (int): max output length.
             max_batch_size (int): max batch size.
             max_prompt_embedding_table_size (int): max prompt embedding size.
-            use_inflight_batching (bool): if True, enables inflight batching for TensorRT-LLM Triton backend.
-            enable_context_fmha (bool): if True, use fused Context MultiHeadedAttention.
+            use_parallel_embedding (bool): whether to use parallel embedding feature of TRT-LLM or not
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
+            remove_input_padding (bool): enables removing input padding or not.
             dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
             load_model (bool): load TensorRT-LLM model after the export.
             enable_multi_block_mode (bool): enable faster decoding in multihead attention. Required for long context.
+            use_lora_plugin (str): use dynamic lora or not.
+            lora_target_modules (List[str]): list of the target lora modules.
+            max_lora_rank (int): maximum lora rank.
+            max_num_tokens (int):
+            opt_num_tokens (int):
+            save_nemo_model_config (bool):
         """
 
         if model_type not in self.get_supported_models_list:
@@ -238,6 +251,10 @@ class TensorRTLLM(ITritonDeployable):
                         lora_target_modules=lora_target_modules,
                         max_prompt_embedding_table_size=max_prompt_embedding_table_size,
                         enable_multi_block_mode=enable_multi_block_mode,
+                        paged_kv_cache=paged_kv_cache,
+                        remove_input_padding=remove_input_padding,
+                        max_num_tokens=max_num_tokens,
+                        opt_num_tokens=opt_num_tokens,
                     )
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
@@ -257,70 +274,6 @@ class TensorRTLLM(ITritonDeployable):
 
         if load_model:
             self._load()
-
-    def build(
-        self,
-        nemo_model,
-        nemo_model_config,
-        tokenizer=None,
-        max_input_token: int = 256,
-        max_output_token: int = 256,
-        max_batch_size: int = 8,
-        use_refit: bool = False,
-        model_type: str = "gptnext",
-    ):
-        from megatron.core import parallel_state
-
-        self.use_refit = use_refit
-        self.stream = torch.cuda.Stream()
-        self.model_type = model_type
-        self.tokenizer = build_tokenizer(tokenizer)
-
-        # Each model shard has its own directory
-        if parallel_state.get_data_parallel_world_size() > 1:
-            self.model_dir = os.path.join(self.model_dir, f"dp{parallel_state.get_data_parallel_rank()}")
-        if parallel_state.get_tensor_model_parallel_world_size() > 1:
-            self.model_dir = os.path.join(self.model_dir, f"tp{parallel_state.get_tensor_model_parallel_rank()}")
-        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            self.model_dir = os.path.join(self.model_dir, f"pp{parallel_state.get_pipeline_model_parallel_rank()}")
-
-        # Build or refit TRT-LLM engine from a nemo model.
-        model_configs = nemo_llm_model_to_model_config(
-            nemo_model=nemo_model,
-            decoder_type=model_type,
-            nemo_model_config=nemo_model_config,
-        )
-
-        model_config_to_tensorrt_llm(
-            model_configs,
-            self.model_dir,
-            max_input_len=max_input_token,
-            max_output_len=max_output_token,
-            max_batch_size=max_batch_size,
-            max_beam_width=1,
-            max_prompt_embedding_table_size=0,
-            use_refit=self.use_refit,
-        )
-        # Use load_refit to handle multiprocessed environment
-        self.model = load_refit(
-            tokenizer=self.tokenizer, engine_dir=self.model_dir, model_configs=model_configs, stream=self.stream
-        )
-
-    def refit(
-        self,
-        nemo_model,
-        nemo_model_config,
-    ):
-        assert self.use_refit, "TRT-LLM model must be built() with refit=True"
-
-        # Build or refit TRT-LLM engine from a nemo model.
-        model_configs = nemo_llm_model_to_model_config(
-            nemo_model=nemo_model, decoder_type=self.model_type, nemo_model_config=nemo_model_config
-        )
-
-        self.model = load_refit(
-            tokenizer=self.tokenizer, engine_dir=self.model_dir, model_configs=model_configs, stream=self.stream
-        )
 
     def forward(
         self,
@@ -612,7 +565,7 @@ class TensorRTLLM(ITritonDeployable):
         if len(vtokens_embeddings) > 0:
             self.p_table = torch.stack(vtokens_embeddings, dim=0).view(-1, self.get_hidden_size)
 
-            max_prompt_embedding_table_size = self.config['builder_config']['max_prompt_embedding_table_size']
+            max_prompt_embedding_table_size = self.config['build_config']['max_prompt_embedding_table_size']
             actual_prompt_table_size = self.p_table.shape[0]
 
             if actual_prompt_table_size > max_prompt_embedding_table_size:
@@ -743,7 +696,10 @@ class TensorRTLLM(ITritonDeployable):
                     self._load_config_file()
                     self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
                     self.model = load(
-                        tokenizer=self.tokenizer, engine_dir=self.model_dir, lora_ckpt_list=self.lora_ckpt_list
+                        tokenizer=self.tokenizer,
+                        engine_dir=self.model_dir,
+                        lora_ckpt_list=self.lora_ckpt_list,
+                        use_python_runtime=self.use_python_runtime,
                     )
                     self._load_prompt_tables()
                 except Exception as error:

@@ -16,23 +16,20 @@
 import json
 import logging
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
+import numpy as np
 import tensorrt_llm
 import torch
 from mpi4py.futures import MPIPoolExecutor
-from tensorrt_llm.logger import logger
 from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
-from tensorrt_llm.runtime import ModelConfig, ModelRunnerCpp, SamplingConfig
+from tensorrt_llm.runtime import ModelConfig, ModelRunner, ModelRunnerCpp, SamplingConfig
 from transformers import PreTrainedTokenizer
 
-from nemo.export.trt_llm.tensor_utils import get_tensor_parallel_group
-from nemo.export.trt_llm.tensorrt_llm_model import LMHeadModelBuilder
-
-from nemo.export.trt_llm.tensorrt_llm_build import get_engine_name, MODEL_NAME, refit_runtime_engine  # isort:skip
 from nemo.export.trt_llm.nemo_utils import to_word_list_format  # isort:skip
 
 
@@ -55,7 +52,7 @@ class TensorrtLLMHostContext:
 class TensorrtLLMWorkerContext:
     """The MPI worker side context for TRT LLM inference."""
 
-    decoder: ModelRunnerCpp = None
+    decoder: ModelRunner = None
     sampling_config: SamplingConfig = None
     lora_manager: LoraManager = None
     max_batch_size: int = 0
@@ -128,7 +125,13 @@ def _read_config(config_path: Path):
     return model_config, world_size, tensor_parallel_size, pipeline_parallel_size, dtype, max_input_len, max_batch_size
 
 
-def _load(tokenizer: PreTrainedTokenizer, engine_dir, lora_ckpt_list=None, num_beams=1):
+def _load(
+    tokenizer: PreTrainedTokenizer,
+    engine_dir,
+    lora_ckpt_list=None,
+    num_beams=1,
+    use_python_runtime: bool = True,
+):
     """The impl of `load` API for on a single GPU worker."""
     try:
         tensorrt_llm.logger.set_level("info")
@@ -147,17 +150,26 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, lora_ckpt_list=None, num_b
 
         runtime_rank = tensorrt_llm.mpi_rank()
 
-        decoder = ModelRunnerCpp.from_dir(
-            engine_dir=engine_dir,
-            lora_dir=lora_ckpt_list,
-            lora_ckpt_source="nemo",
-            rank=runtime_rank,
-            max_batch_size=max_batch_size,
-            max_input_len=max_input_len,
-            max_output_len=max_output_len,
-            max_beam_width=max_beam_width,
-            debug_mode=False,
-        )
+        if use_python_runtime:
+            decoder = ModelRunner.from_dir(
+                engine_dir=engine_dir,
+                lora_dir=lora_ckpt_list,
+                lora_ckpt_source="nemo",
+                rank=runtime_rank,
+                debug_mode=False,
+            )
+        else:
+            decoder = ModelRunnerCpp.from_dir(
+                engine_dir=engine_dir,
+                lora_dir=lora_ckpt_list,
+                lora_ckpt_source="nemo",
+                rank=runtime_rank,
+                max_batch_size=max_batch_size,
+                max_input_len=max_input_len,
+                max_output_len=max_output_len,
+                max_beam_width=max_beam_width,
+                debug_mode=False,
+            )
 
         sampling_config = SamplingConfig(
             end_id=tokenizer.eos_token_id, pad_id=tokenizer.eos_token_id, num_beams=num_beams
@@ -218,6 +230,13 @@ def _forward(
         with torch.no_grad():
             prompt_tasks = None if task_ids is None else ",".join(str(task) for task in task_ids)
 
+            if prompt_table is not None:
+                prompt_table = prompt_table.reshape(1, *prompt_table.shape)
+                tmp_dir = tempfile.TemporaryDirectory()
+                prompt_table_path = os.path.join(tmp_dir.name, 'prompt_table.npy')
+                np.save(prompt_table_path, prompt_table.cpu().float().numpy())
+                prompt_table = prompt_table_path
+
             outputs = decoder.generate(
                 input_tensors,
                 max_new_tokens=max_output_len,
@@ -230,6 +249,7 @@ def _forward(
                 stop_words_list=stop_words_list,
                 bad_words_list=bad_words_list,
                 lora_uids=lora_uids,
+                prompt_table_path=prompt_table,
                 prompt_table=prompt_table,
                 prompt_tasks=prompt_tasks,
                 streaming=streaming,
@@ -238,6 +258,9 @@ def _forward(
             )
 
             torch.cuda.synchronize()
+
+            if prompt_table is not None:
+                tmp_dir.cleanup()
 
         runtime_rank = tensorrt_llm.mpi_rank()
         if runtime_rank == 0 or multiprocessed_env:
@@ -251,7 +274,11 @@ def _forward(
 
 
 def load(
-    tokenizer: PreTrainedTokenizer, engine_dir: str, lora_ckpt_list: List[str] = None, num_beams: int = 1
+    tokenizer: PreTrainedTokenizer,
+    engine_dir: str,
+    lora_ckpt_list: List[str] = None,
+    num_beams: int = 1,
+    use_python_runtime: bool = True,
 ) -> TensorrtLLMHostContext:
     """Loaded the compiled LLM model and run it.
 
@@ -263,24 +290,30 @@ def load(
         config = json.load(f)
     world_size = config["pretrained_config"]["mapping"]["world_size"]
     if world_size == 1:
-        _load(tokenizer, engine_dir, lora_ckpt_list, num_beams)
+        _load(tokenizer, engine_dir, lora_ckpt_list, num_beams, use_python_runtime)
         executor = None
     elif tensorrt_llm.mpi_world_size() > 1:
-        _load(tokenizer, engine_dir, lora_ckpt_list, num_beams)
+        _load(tokenizer, engine_dir, lora_ckpt_list, num_beams, use_python_runtime)
         executor = None
         tensorrt_llm.mpi_barrier()
     else:
         executor = MPIPoolExecutor(max_workers=world_size)
         futures = []
         for _ in range(world_size):
-            future = executor.submit(_load, tokenizer, engine_dir, lora_ckpt_list, num_beams)
+            future = executor.submit(_load, tokenizer, engine_dir, lora_ckpt_list, num_beams, use_python_runtime)
             futures.append(future)
         for future in futures:
             future.result()
 
     max_batch_size = config["build_config"]["max_batch_size"]
     max_input_len = config["build_config"]["max_input_len"]
-    add_bos = True if config["pretrained_config"]["architecture"] == "GemmaForCausalLM" else False
+    architectures_that_need_bos_token = [
+        "GemmaForCausalLM",
+        "LLaMAForCausalLM",
+        "MistralForCausalLM",
+        "MixtralForCausalLM",
+    ]
+    add_bos = config["pretrained_config"]["architecture"] in architectures_that_need_bos_token
 
     return TensorrtLLMHostContext(
         executor=executor,
@@ -289,110 +322,6 @@ def load(
         max_batch_size=max_batch_size,
         max_input_len=max_input_len,
         add_bos=add_bos,
-    )
-
-
-def load_refit(
-    tokenizer,
-    engine_dir: str,
-    lora_ckpt_list: List[str] = None,
-    num_beams: int = 1,
-    model_configs: List = None,
-    stream=None,
-) -> TensorrtLLMHostContext:
-    """Loaded the compiled LLM model and run it.
-
-    It also supports running the TRT LLM model on multi-GPU.
-    """
-
-    config_path = os.path.join(engine_dir, "config.json")
-    with open(config_path, "r") as f:
-        config = json.load(f)
-    """The impl of `load` API for on a single GPU worker."""
-    tensorrt_llm.logger.set_level("error")
-
-    engine_dir = Path(engine_dir)
-    config_path = engine_dir / "config.json"
-
-    (
-        model_config,
-        world_size,
-        tensor_parallel_size,
-        pipeline_parallel_size,
-        dtype,
-        max_input_len,
-        max_batch_size,
-    ) = _read_config(config_path)
-
-    runtime_rank = torch.cuda.current_device()
-    assert runtime_rank < torch.cuda.device_count(), f"Rank {runtime_rank} out of bound"
-
-    # Manipulate the tensorrt_llm mapping to make it compatible with the multiprocessed env.
-    assert tensorrt_llm.mpi_world_size() == torch.distributed.get_world_size(), "MPI world size mismatch"
-    runtime_mapping = tensorrt_llm.Mapping(
-        world_size=tensorrt_llm.mpi_world_size(),
-        rank=runtime_rank,
-        tp_size=tensorrt_llm.mpi_world_size(),
-        pp_size=1,
-    )
-
-    engine_name = get_engine_name(
-        MODEL_NAME, dtype, tensor_parallel_size, pipeline_parallel_size, tensorrt_llm.mpi_rank()
-    )
-
-    logger.info(f"Loading engine: Rank ({tensorrt_llm.mpi_rank()} -> {engine_dir}/{engine_name}")
-
-    serialize_path = os.path.join(engine_dir, engine_name)
-    with open(serialize_path, "rb") as f:
-        engine_buffer = f.read()
-
-    decoder = tensorrt_llm.runtime.GenerationSession(
-        model_config, engine_buffer, runtime_mapping, debug_mode=False, stream=stream
-    )
-    runtime_mapping.rank = runtime_rank
-    runtime_mapping.tp_group = get_tensor_parallel_group(
-        tensor_parallel_size
-    )  # Override the tp_group to support TP+DP
-    runtime_mapping.tp_rank = runtime_rank
-    runtime_mapping.tp_size = tensor_parallel_size
-    runtime_mapping.pp_group = [runtime_rank]
-    runtime_mapping.pp_rank = 0
-
-    sampling_config = SamplingConfig(end_id=tokenizer.eos_token_id, pad_id=tokenizer.eos_token_id, num_beams=num_beams)
-
-    if decoder.use_lora_plugin:
-        lora_manager = LoraManager()
-        if lora_ckpt_list is not None:
-            lora_manager.load_from_nemo(
-                model_files=lora_ckpt_list,
-                model_config=model_config,
-                runtime_mapping=runtime_mapping,
-            )
-    else:
-        lora_manager = None
-
-    # create a new builder and refit the current engine
-    new_builder = LMHeadModelBuilder(model_configs[0])
-    engine = decoder.runtime.engine
-    refit_runtime_engine(new_builder.named_parameters(), engine)
-
-    # Initialize the global context so it can be used during `run` API.
-    global tensorrt_llm_worker_context
-    tensorrt_llm_worker_context.decoder = decoder
-    tensorrt_llm_worker_context.sampling_config = sampling_config
-    tensorrt_llm_worker_context.lora_manager = lora_manager
-    tensorrt_llm_worker_context.max_batch_size = max_batch_size
-    tensorrt_llm_worker_context.max_input_len = max_input_len
-
-    max_batch_size = config["builder_config"]["max_batch_size"]
-    max_input_len = config["builder_config"]["max_input_len"]
-
-    return TensorrtLLMHostContext(
-        executor=None,
-        world_size=world_size,
-        tokenizer=tokenizer,
-        max_batch_size=max_batch_size,
-        max_input_len=max_input_len,
     )
 
 

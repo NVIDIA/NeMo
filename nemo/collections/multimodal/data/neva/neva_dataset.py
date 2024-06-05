@@ -34,17 +34,11 @@ from transformers import CLIPImageProcessor
 import nemo.collections.multimodal.data.neva.conversation as conversation_lib
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.data.neva.conversation import (
-    DEFAULT_BOS_TOKEN,
-    DEFAULT_EOS_TOKEN,
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IMAGE_PATCH_TOKEN,
     DEFAULT_IMAGE_TOKEN,
     DEFAULT_LABELS_TOKEN,
-    DEFAULT_PAD_TOKEN,
-    DEFAULT_SEPARATOR_TOKEN,
-    DEFAULT_SYSTEM_TOKEN,
-    DEFAULT_UNK_TOKEN,
     DEFAULT_VIDEO_TOKEN,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
@@ -151,25 +145,26 @@ class TarOrFolderVideoLoader:
                     cap = decord.VideoReader(f)
                     return self.flatten_frames(cap)
         else:
+            decord.bridge.set_bridge("torch")
             cap = decord.VideoReader(os.path.join(self.video_folder, file_name))
             return self.flatten_frames(cap)
         return None
 
     def flatten_frames(self, cap):
         if self.data_cfg['splice_single_frame'] == 'first':
-            frame = cap[0].asnumpy()[:, :, ::-1]
+            frame = cap[0].asnumpy()
             return Image.fromarray(frame).convert('RGB')
         elif self.data_cfg['splice_single_frame'] == 'middle':
-            frame = cap[len(cap) // 2].asnumpy()[:, :, ::-1]
+            frame = cap[len(cap) // 2].asnumpy()
             return Image.fromarray(frame).convert('RGB')
         elif self.data_cfg['splice_single_frame'] == 'last':
-            frame = cap[-1].asnumpy()[:, :, ::-1]
+            frame = cap[-1].asnumpy()
             return Image.fromarray(frame).convert('RGB')
         else:
             if self.data_cfg['num_frames'] == -1:
                 frames = []
                 for frame in cap:
-                    rgb_frame = frame.asnumpy()[:, :, ::-1]
+                    rgb_frame = frame.asnumpy()
                     img = Image.fromarray(rgb_frame).convert('RGB')
                     frames.append(img)
                 return frames
@@ -177,10 +172,7 @@ class TarOrFolderVideoLoader:
                 num_frames = min(len(cap), self.data_cfg['num_frames'])
                 indices = np.linspace(0, len(cap) - 1, num_frames, dtype=int)
                 frames = []
-                for i in indices:
-                    rgb_frame = cap[i].asnumpy()[:, :, ::-1]
-                    img = Image.fromarray(rgb_frame).convert('RGB')
-                    frames.append(img)
+                frames = cap.get_batch(indices)
 
                 while len(frames) < self.data_cfg['num_frames']:
                     frames.append(frames[-1])
@@ -188,7 +180,10 @@ class TarOrFolderVideoLoader:
 
 
 def tokenize(
-    texts: Union[str, List[str]], tokenizer: Any, context_length: int, add_extra_token: int,
+    texts: Union[str, List[str]],
+    tokenizer: Any,
+    context_length: int,
+    add_extra_token: int,
 ) -> torch.LongTensor:
     """
     Returns the tokenized representation of given input string(s). If the list of tokens exceeds the context
@@ -216,7 +211,7 @@ def tokenize(
     if isinstance(texts, str):
         texts = [texts]
         texts_is_str = True
-    tokens = tokenizer.text_to_ids(texts)
+    tokens = [tokenizer.text_to_ids(t) for t in texts]
     max_len = max([len(token) for token in tokens])
     context_length = min(max_len - add_extra_token, context_length)
     # truncate and padding
@@ -251,6 +246,7 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     - dict: The processed sources dictionary after applying multimodal preprocessing steps.
     """
     is_multimodal = multimodal_cfg['is_multimodal']
+    model_type = multimodal_cfg['model_type']
     media_type = multimodal_cfg['media_type']
     image_token_len = cur_token_len
     if media_type == 'image':
@@ -264,15 +260,18 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
         return sources
 
     num_patches = image_token_len
+
     if media_type == 'video':
         num_patches *= multimodal_cfg['num_frames']
 
-    if multimodal_cfg['use_im_start_end']:
-        replace_token = DEFAULT_IMAGE_PATCH_TOKEN * num_patches
-    else:
-        replace_token = DEFAULT_IMAGE_PATCH_TOKEN * (num_patches - 2)
+    if multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+        num_patches //= 4
 
-    replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
+    if multimodal_cfg['use_im_start_end']:
+        replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * num_patches
+    else:
+        replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * (num_patches - 2)
+    replace_token = DEFAULT_IM_START_TOKEN[model_type] + replace_token + DEFAULT_IM_END_TOKEN[model_type]
 
     for source in sources:
         conversation = source['conversations']
@@ -295,7 +294,103 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     return sources
 
 
-def preprocess_llama_2(sources: dict, tokenizer, cfg,) -> Dict:
+def preprocess_llama_3(
+    sources: dict,
+    tokenizer,
+    cfg,
+) -> Dict:
+    """
+    Preprocesses sources for the LLaMA 3 model configuration.
+
+    The function applies prompt templates and tokenizes the conversations according to the LLaMA 2 model specifications.
+    It involves special handling of tokens, masking of labels, and adjustments based on configuration settings.
+
+    Parameters:
+    - sources (dict): A dictionary of sources containing conversations to be processed.
+    - tokenizer: The tokenizer to be used for processing the text.
+    - cfg: Configuration settings for preprocessing, including context length and additional tokens.
+
+    Returns:
+    - Dict: A dictionary containing tokenized and labeled data suitable for the LLaMA 2 model.
+      This includes tokens, labels, and any special processing as defined in the configuration.
+    """
+    conv = conversation_lib.conv_llava_llama_3.copy()
+    roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
+
+    # Apply prompt templates
+    conversations = []
+    for i, source in enumerate(sources):
+        source = source['conversations']
+        if roles[source[0]["from"]] != conv.roles[0]:
+            # Skip the first one if it is not from human
+            source = source[1:]
+
+        conv.messages = []
+        for j, sentence in enumerate(source):
+            role = roles[sentence["from"]]
+            assert role == conv.roles[j % 2], f"{i}"
+            conv.append_message(role, sentence["value"])
+        conversations.append(conv.get_prompt())
+
+    add_extra_token = cfg.get("add_extra_token")
+
+    # Tokenize conversations
+    tokens = tokenize(
+        texts=conversations,
+        tokenizer=tokenizer,
+        context_length=cfg.get("context_length"),
+        add_extra_token=add_extra_token,
+    )
+    labels = tokens.clone().detach()
+    # Mask labels
+    sep = "<|start_header_id|>assistant<|end_header_id|>\n\n"  # part sep
+    round_sep = "<|start_header_id|>user<|end_header_id|>\n\n"
+    for conversation, target in zip(conversations, labels):
+        # the first match of round sep is going to be the one after system, which is not the intended behavior
+        rounds = conversation.split(round_sep)
+        rounds = [round_sep.join(rounds[:2])] + rounds[2:]
+        cur_len = 0
+        for i, rou in enumerate(rounds):
+
+            if rou == "":
+                break
+
+            parts = rou.split(sep)
+            if len(parts) != 2:
+                break
+            parts[0] += sep
+
+            if i == 0:
+                round_len = len(tokenizer.text_to_ids(rou))
+                instruction_len = len(tokenizer.text_to_ids(parts[0]))
+            else:
+                round_len = len(tokenizer.text_to_ids(round_sep + rou))
+                instruction_len = len(tokenizer.text_to_ids(round_sep + parts[0]))
+            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+            cur_len += round_len
+        target[cur_len:] = IGNORE_INDEX
+
+    # Check if masking working correctly
+    # print([x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())])
+
+    if add_extra_token:
+        tokens = tokens[:, :-1].contiguous()
+        labels = labels[:, 1:].contiguous()
+    else:
+        labels = torch.roll(labels, shifts=-1, dims=-1)
+        labels[:, -1] = IGNORE_INDEX
+
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
+
+
+def preprocess_llama_2(
+    sources: dict,
+    tokenizer,
+    cfg,
+) -> Dict:
     """
     Preprocesses sources for the LLaMA 2 model configuration.
 
@@ -379,10 +474,17 @@ def preprocess_llama_2(sources: dict, tokenizer, cfg,) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels,)
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
 
 
-def preprocess_v1(sources: dict, tokenizer, cfg,) -> Dict:
+def preprocess_v1(
+    sources: dict,
+    tokenizer,
+    cfg,
+) -> Dict:
     """
     Preprocesses sources for the Vicuna V1 model configuration.
 
@@ -462,10 +564,17 @@ def preprocess_v1(sources: dict, tokenizer, cfg,) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels,)
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
 
 
-def preprocess_nvgpt(sources: dict, tokenizer, cfg,) -> Dict:
+def preprocess_nvgpt(
+    sources: dict,
+    tokenizer,
+    cfg,
+) -> Dict:
     """
     Preprocess a given set of conversational sources using nvgpt conversation template
 
@@ -503,9 +612,9 @@ def preprocess_nvgpt(sources: dict, tokenizer, cfg,) -> Dict:
             if i % 2 == 1:
                 turn['from'] = conv.roles[1]
                 if 'label' not in turn:
-                    turn[
-                        'label'
-                    ] = "quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,correctness:4,coherence:4,complexity:4,verbosity:4"
+                    turn['label'] = (
+                        "quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,correctness:4,coherence:4,complexity:4,verbosity:4"
+                    )
                 value = DEFAULT_LABELS_TOKEN + turn['label'] + '\n' + turn['value']
                 conv.append_message(turn['from'], value)
                 if not turn["value"]:
@@ -567,10 +676,17 @@ def preprocess_nvgpt(sources: dict, tokenizer, cfg,) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels,)
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
 
 
-def preprocess_nv_dpo(sources: dict, tokenizer, cfg,) -> Dict:
+def preprocess_nv_dpo(
+    sources: dict,
+    tokenizer,
+    cfg,
+) -> Dict:
     """
     Preprocess a given set of conversational sources using nvgpt conversation template
 
@@ -666,10 +782,17 @@ def preprocess_nv_dpo(sources: dict, tokenizer, cfg,) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels,)
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
 
 
-def preprocess_plain(sources, tokenizer, cfg,) -> Dict:
+def preprocess_plain(
+    sources,
+    tokenizer,
+    cfg,
+) -> Dict:
     """
     Preprocesses plain text sources (no template) for tokenization and label generation.
 
@@ -717,7 +840,10 @@ def preprocess_plain(sources, tokenizer, cfg,) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels,)
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
 
 
 class LazySupervisedDataset(Dataset):
@@ -798,9 +924,19 @@ class LazySupervisedDataset(Dataset):
             media_tensors = torch.tensor([])
             if images:
                 media_tensors = torch.stack(images)
-                cur_token_len = (media_tensors[0].shape[1] // 14) * (
-                    media_tensors[0].shape[2] // 14
-                )  # FIXME: 14 is hardcoded patch size
+                patch_dim = self.multimodal_cfg['patch_dim']
+
+                height_num_patches = media_tensors[0].shape[1] // patch_dim
+                width_num_patches = media_tensors[0].shape[2] // patch_dim
+
+                if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+                    if height_num_patches % 2 != 0:
+                        height_num_patches += 1
+                    if width_num_patches % 2 != 0:
+                        width_num_patches += 1
+
+                cur_token_len = height_num_patches * width_num_patches
+
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
                     self.multimodal_cfg,
@@ -854,9 +990,19 @@ class LazySupervisedDataset(Dataset):
             media_tensors = frames
             if videos:
                 media_tensors = torch.stack(videos)
-                cur_token_len = (media_tensors[0].shape[-1] // 14) * (
-                    media_tensors[0].shape[-2] // 14
-                )  # FIXME: 14 is hardcoded patch size
+                patch_dim = self.multimodal_cfg['patch_dim']
+
+                height_num_patches = media_tensors[0].shape[-2] // patch_dim
+                width_num_patches = media_tensors[0].shape[-1] // patch_dim
+
+                if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+                    if height_num_patches % 2 != 0:
+                        height_num_patches += 1
+                    if width_num_patches % 2 != 0:
+                        width_num_patches += 1
+
+                cur_token_len = height_num_patches * width_num_patches
+
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
                     self.multimodal_cfg,
@@ -865,20 +1011,45 @@ class LazySupervisedDataset(Dataset):
                 )
 
         else:
-            logging.warning("media not found in sources")
             media_tensors = torch.tensor([])
             sources = copy.deepcopy(sources)
 
         if self.conv_template in ["nvgpt", "nv_steerlm"]:
-            data_dict = preprocess_nvgpt(sources, self.tokenizer, self.multimodal_cfg,)
+            data_dict = preprocess_nvgpt(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+            )
         elif self.conv_template == "nv_dpo":
-            data_dict = preprocess_nv_dpo(sources, self.tokenizer, self.multimodal_cfg,)
+            data_dict = preprocess_nv_dpo(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+            )
         elif self.conv_template == "v1":
-            data_dict = preprocess_v1(sources, self.tokenizer, self.multimodal_cfg,)
+            data_dict = preprocess_v1(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+            )
         elif self.conv_template == "llama_2":
-            data_dict = preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg,)
+            data_dict = preprocess_llama_2(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+            )
+        elif self.conv_template == "llama_3":
+            data_dict = preprocess_llama_3(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+            )
         elif self.conv_template == "plain":
-            data_dict = preprocess_plain(sources, self.tokenizer, self.multimodal_cfg,)
+            data_dict = preprocess_plain(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+            )
         else:
             raise ValueError(f"Conversation template `{self.conv_template}` is not supported in Neva now.")
 
@@ -981,7 +1152,7 @@ class DataCollatorForSupervisedDataset(object):
 
         tokens = batch['tokens']
         labels = batch['labels']
-        media_type = model_cfg.data.get('media_type')
+        media_type = model_cfg.data.get('media_type', 'image')
         if media_type == 'image':
             media = batch.get('image')
         elif media_type == 'video':
@@ -1041,14 +1212,23 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
     add_extra_token = 1
     if getattr(model_cfg, 'no_seqlen_plus_one_input_tokens', False):
         add_extra_token = 0
-    crop_size = data_cfg.get("crop_size", (224, 224))
+    crop_size = mm_cfg.vision_encoder.get("crop_size", (224, 224))
     if mm_cfg.vision_encoder.from_hf:
         image_processor = CLIPImageProcessor.from_pretrained(
             mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
         )
+        assert crop_size == (
+            image_processor.crop_size['height'],
+            image_processor.crop_size['width'],
+        ), f"Crop size {crop_size} does not match the HuggingFace CLIP model's crop size {(image_processor.crop_size['height'], image_processor.crop_size['width'])}"
     else:
         # TODO(yuya): Fix this hard-code for our own CLIP
-        image_processor = image_transform(crop_size, is_train=False, mean=None, std=None,)
+        image_processor = image_transform(
+            crop_size,
+            is_train=False,
+            mean=None,
+            std=None,
+        )
 
     train_dataset = NevaDataset(
         tokenizer=tokenizer,
@@ -1056,9 +1236,10 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
         multimodal_cfg=dict(
             is_multimodal=data_cfg.is_multimodal,
             sep_image_conv_front=data_cfg.sep_image_conv_front,
+            model_type=mm_cfg.llm.get("model_type", "nvgpt"),
             conv_template=data_cfg.get("conv_template", "nvgpt"),
+            patch_dim=model_cfg.mm_cfg.vision_encoder.patch_dim,
             crop_size=crop_size,
-            image_token_len=data_cfg.image_token_len,
             image_folder=data_cfg.get('image_folder', None),
             video_folder=data_cfg.get('video_folder', None),
             image_aspect_ratio=data_cfg.image_aspect_ratio,
@@ -1068,6 +1249,7 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             context_length=model_cfg.encoder_seq_length,
             media_type=data_cfg.get('media_type', 'image'),
             num_frames=data_cfg.get('num_frames', -1),
+            mm_mlp_adapter_type=model_cfg.mm_cfg.get('mm_mlp_adapter_type', 'linear'),
         ),
         data_cfg=dict(
             splice_single_frame=data_cfg.get('splice_single_frame', None),
