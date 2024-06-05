@@ -17,11 +17,13 @@ import logging
 import math
 import multiprocessing
 from collections import defaultdict
+from pathlib import Path
+
 import numpy as np
 import torch
-from tqdm import tqdm
 from tensorrt_llm._utils import pad_vocab_size, str_dtype_to_torch, torch_to_numpy
-from pathlib import Path
+from tqdm import tqdm
+
 from nemo.export.trt_llm.converter.utils import split_and_save_weight
 
 LOGGER = logging.getLogger("NeMo")
