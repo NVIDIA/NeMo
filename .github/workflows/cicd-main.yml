@@ -3322,8 +3322,10 @@ jobs:
             trainer.limit_val_batches=2 \
             trainer.accumulate_grad_batches=1 \
             trainer.max_steps=3 \
+            trainer.precision=16 \
             trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+            model.megatron_amp_O2=False \
             model.tensor_model_parallel_size=2 \
             model.optim.name=fused_adam \
             model.optim.lr=2e-4 \
@@ -3355,9 +3357,11 @@ jobs:
             trainer.limit_val_batches=2 \
             trainer.accumulate_grad_batches=1 \
             trainer.max_steps=6 \
+            trainer.precision=16 \
             trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
             exp_manager.resume_if_exists=True \
+            model.megatron_amp_O2=False \
             model.tensor_model_parallel_size=2 \
             model.optim.name=fused_adam \
             model.optim.lr=2e-4 \
