@@ -4932,20 +4932,17 @@ jobs:
         run: |
           SUCCESSFUL=${{ !contains(needs.*.outputs.conclusion, 'failure') && !contains(needs.*.outputs.conclusion, 'cancelled') }}
 
-          echo "SUCCESSFUL='$SUCCESSFUL'" >> $GITHUB_OUTPUT
-
-      - if: ${{ always() }}
-        run: echo ${{ steps.pipeline-conclusion.SUCCESSFUL }}
-
+          echo "SUCCESSFUL=$SUCCESSFUL" >> $GITHUB_OUTPUT
+          
       # This should depend on all the tests so we block/unblock based on all tests passing
-      - if: ${{ always() && steps.pipeline-conclusion.SUCCESSFUL == 'true' }}
+      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESSFUL == 'true' }}
         run: exit 0
 
-      - if: ${{ always() && steps.pipeline-conclusion.SUCCESSFUL == 'false' }}
+      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESSFUL == 'false' }}
         name: Checkout repository
         uses: actions/checkout@v4
       
-      - if: ${{ always() && steps.pipeline-conclusion.SUCCESSFUL == 'false' }}
+      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESSFUL == 'false' }}
         run: |
           source .github/scripts/slackHelper.sh
 
@@ -4954,6 +4951,6 @@ jobs:
 
           sendSlackMessage "$WEBHOOK_URL" "$PIPELINE_URL"
 
-      - if: ${{ always() && steps.pipeline-conclusion.SUCCESSFUL == 'false' }}
+      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESSFUL == 'false' }}
         run: |
           exit 1
