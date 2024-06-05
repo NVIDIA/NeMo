@@ -88,11 +88,10 @@ class NemoModelConfig(ModelConfig):
             'num_attention_heads': 'num_attention_heads',
             'num_key_value_heads': 'num_query_groups',
             # 'hidden_act': 'activation', ## <- vLLM has good defaults for the models, nemo values are wrong
-            'max_position_embeddings': 'max_position_embeddings',
+            'max_position_embeddings': ['max_position_embeddings', 'encoder_seq_length'],
             'rms_norm_eps': 'layernorm_epsilon',
             'attention_dropout': 'attention_dropout',
             'initializer_range': 'init_method_std',
-            'max_position_embeddings': 'encoder_seq_length',
             'norm_epsilon': 'layernorm_epsilon',
             'rope_theta': 'rotary_base',
             'use_bias': 'bias'
@@ -104,9 +103,14 @@ class NemoModelConfig(ModelConfig):
 
                 hf_args = {}
                 for hf_arg, nemo_arg in hf_to_nemo_dict.items():
-                    value = self.nemo_model_config.get(nemo_arg)
-                    if value is not None:
-                        hf_args[hf_arg] = value
+                    if not isinstance(nemo_arg, list):
+                        nemo_arg = [nemo_arg]
+
+                    for nemo_arg_option in nemo_arg:
+                        value = self.nemo_model_config.get(nemo_arg_option)
+                        if value is not None:
+                            hf_args[hf_arg] = value
+                            break
 
                 self.model_converter.convert_config(self.nemo_model_config, hf_args)
 

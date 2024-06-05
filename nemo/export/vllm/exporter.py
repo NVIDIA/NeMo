@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Sequence
+from typing import List
 
 from vllm import RequestOutput, SamplingParams
 from vllm.config import (CacheConfig, DeviceConfig, LoadConfig, LoadFormat, ParallelConfig, SchedulerConfig)
@@ -41,7 +41,6 @@ def noop_decorator(func):
 use_pytriton = True
 try:
     from pytriton.decorators import batch
-    from pytriton.proxy.types import Request
     from pytriton.model_config import Tensor
 except Exception:
     use_pytriton = False

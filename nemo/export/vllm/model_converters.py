@@ -26,7 +26,7 @@ class ModelConverter(ABC):
         self.model_type = model_type
         
     @abstractmethod
-    def get_architecture(self, model_type: str) -> Optional[str]:
+    def get_architecture(self) -> Optional[str]:
         """
         Returns the HF architecture name for the current model, such as 'LlamaForCausalLM'.
         """
