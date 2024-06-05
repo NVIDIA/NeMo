@@ -319,7 +319,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             self.decoding = ctc_beam_decoding.WfstCTCInfer(
                 blank_id=blank_id,
                 beam_size=self.cfg.wfst.get('beam_size', 1),
-                backend=self.cfg.wfst.get('backend', 'riva'),
+                search_type=self.cfg.wfst.get('search_type', 'riva'),
                 return_best_hypothesis=self.cfg.wfst.get('return_best_hypothesis', True),
                 preserve_alignments=self.preserve_alignments,
                 compute_timestamps=self.compute_timestamps,

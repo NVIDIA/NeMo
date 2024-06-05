@@ -29,7 +29,11 @@ from nemo.collections.asr.parts.k2.utils import (
     levenshtein_graph_k2,
     load_graph,
 )
-from nemo.collections.asr.parts.submodules.wfst_decoder import AbstractWFSTDecoder, WfstNbestHypothesis
+from nemo.collections.asr.parts.submodules.wfst_decoder import (
+    AbstractWFSTDecoder,
+    WfstNbestHypothesis,
+    collapse_tokenword_hypotheses,
+)
 from nemo.core.utils.k2_guard import k2
 from nemo.utils import logging
 
@@ -349,15 +353,44 @@ class TokenLMDecoder(BaseDecoder):
 
 
 class K2WfstDecoder(AbstractWFSTDecoder):
+    """
+    Used for performing WFST decoding of the logprobs with the k2 WFST decoder.
+
+    Args:
+      lm_fst:
+        Kaldi-type language model WFST or its path.
+
+      decoding_mode:
+        Decoding mode. Choices: `nbest`, `lattice`.
+
+      beam_size:
+        Beam width (float) for the WFST decoding.
+
+      config:
+        Riva Decoder config.
+
+      tokenword_disambig_id:
+        Tokenword disambiguation index. Set to -1 to disable the tokenword mode.
+
+      lm_weight:
+        Language model weight in decoding.
+
+      nbest_size:
+        N-best size for decoding_mode == `nbest`
+
+      device:
+        Device for running decoding. Choices: `cuda`, `cpu`.
+    """
+
     def __init__(
         self,
         lm_fst: Union['k2.Fsa', Path, str],
-        decoding_mode: str = 'nbest',  # 'nbest', 'mbr', 'lattice'
+        decoding_mode: str = 'nbest',
         beam_size: float = 10.0,
         config: Optional[GraphIntersectDenseConfig] = None,
-        tokenword_disambig_id: int = -1,  # used in post-processing for decoding with open vocabulary
+        tokenword_disambig_id: int = -1,
         lm_weight: float = 1.0,
-        nbest_size: int = 1,  # for decoding_mode == nbest
+        nbest_size: int = 1,
         device: str = "cuda",
     ):
         self._nbest_size = nbest_size
@@ -430,7 +463,16 @@ class K2WfstDecoder(AbstractWFSTDecoder):
 
     @torch.inference_mode(False)
     def _decode_lattice(self, emissions_fsas: 'k2.DenseFsaVec') -> 'k2.Fsa':
-        """TBD"""
+        """
+        Decodes logprobs into k2-type lattices.
+
+        Args:
+          emissions_fsas:
+            A k2.DenseFsaVec of the predicted log-probabilities.
+
+        Returns:
+          k2-type FsaVec.
+        """
         lats = k2.intersect_dense_pruned(
             a_fsas=self._lm_fst,
             b_fsas=emissions_fsas,
@@ -453,7 +495,19 @@ class K2WfstDecoder(AbstractWFSTDecoder):
     def decode(
         self, log_probs: torch.Tensor, log_probs_length: torch.Tensor
     ) -> Union[List[WfstNbestHypothesis], List['k2.Fsa']]:
-        """TBD"""
+        """
+        Decodes logprobs into recognition hypotheses.
+
+        Args:
+          log_probs:
+            A torch.Tensor of the predicted log-probabilities of shape [Batch, Time, Vocabulary].
+
+          log_probs_length:
+            A torch.Tensor of length `Batch` which contains the lengths of the log_probs elements.
+
+        Returns:
+          List of recognition hypotheses.
+        """
         supervisions = create_supervision(log_probs_length).to(device=self._device)
         order = supervisions[:, 0]
         emissions_fsas = k2.DenseFsaVec(log_probs.to(device=self._device), supervisions)
@@ -464,7 +518,16 @@ class K2WfstDecoder(AbstractWFSTDecoder):
 
     @torch.inference_mode(False)
     def _post_decode(self, hypotheses: List['k2.Fsa']) -> Union[List[WfstNbestHypothesis], List['k2.Fsa']]:
-        """TBD"""
+        """
+        Does various post-processing of the recognition hypotheses.
+
+        Args:
+          hypotheses:
+            List of k2-type lattices.
+
+        Returns:
+          List of processed recognition hypotheses.
+        """
         if self._decoding_mode == 'nbest':
             lats = k2.create_fsa_vec(hypotheses)
             hypotheses = []
@@ -508,7 +571,9 @@ class K2WfstDecoder(AbstractWFSTDecoder):
                     timesteps_right[timesteps_right_zero_mask] = timesteps_left[timesteps_right_zero_mask]
                     timesteps[1:] = timesteps_right
                     timesteps = timesteps.tolist()
-                    nbest_hypothesis_list[j].append(tuple([words, timesteps, alignment, -scores[i]]))
+                    nbest_hypothesis_list[j].append(
+                        tuple([tuple(words), tuple(timesteps), tuple(alignment), -scores[i]])
+                    )
                 for nbest_hypothesis in nbest_hypothesis_list:
                     hypotheses.append(WfstNbestHypothesis(tuple(nbest_hypothesis)))
             return (
@@ -523,7 +588,22 @@ class K2WfstDecoder(AbstractWFSTDecoder):
     def calibrate_lm_weight(
         self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]
     ) -> Tuple[float, float]:
-        """TBD"""
+        """
+        Calibrates LM weight to achieve the best WER for given logprob-text pairs.
+
+        Args:
+          log_probs:
+            A torch.Tensor of the predicted log-probabilities of shape [Batch, Time, Vocabulary].
+
+          log_probs_length:
+            A torch.Tensor of length `Batch` which contains the lengths of the log_probs elements.
+
+          reference_texts:
+            List of reference word sequences.
+
+        Returns:
+          Pair of (best_lm_weight, best_wer).
+        """
         assert len(log_probs) == len(reference_texts)
         decoding_mode_backup = self.decoding_mode
         lm_weight_backup = self.lm_weight
@@ -550,7 +630,22 @@ class K2WfstDecoder(AbstractWFSTDecoder):
     def calculate_oracle_wer(
         self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]
     ) -> Tuple[float, List[float]]:
-        """TBD"""
+        """
+        Calculates the oracle (the best possible WER for given logprob-text pairs.
+
+        Args:
+          log_probs:
+            A torch.Tensor of the predicted log-probabilities of shape [Batch, Time, Vocabulary].
+
+          log_probs_length:
+            A torch.Tensor of length `Batch` which contains the lengths of the log_probs elements.
+
+          reference_texts:
+            List of reference word sequences.
+
+        Returns:
+          Pair of (oracle_wer, oracle_wer_per_utterance).
+        """
         if self._open_vocabulary_decoding:
             raise NotImplementedError
         assert len(log_probs) == len(reference_texts)
@@ -581,4 +676,5 @@ class K2WfstDecoder(AbstractWFSTDecoder):
             return -1.0, []
         scores = -alignment.get_tot_scores(True, True).to(dtype=torch.int64)
         wer_per_utt = scores / counts
+        self.decoding_mode = decoding_mode_backup
         return (scores.sum() / counts.sum()).item(), wer_per_utt.tolist()

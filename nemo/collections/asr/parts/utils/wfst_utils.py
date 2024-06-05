@@ -24,6 +24,10 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Union
 
 from nemo.utils import logging
 
+
+TW_BREAK = "‡"
+
+
 # almost every function/method uses kaldifst
 try:
     import kaldifst
@@ -61,7 +65,8 @@ def _kaldilm_maybe_raise():
 
 @dataclass
 class LexiconUnit:
-    """TBD"""
+    """A dataclass encapsulating the name of the language unit (e.g. wordpiece) and its mark (e.g. word begin).
+    """
 
     name: str
     mark: str = ""
@@ -76,46 +81,23 @@ class Lexicon:
         disambig_pattern: str = re.compile(r"^#\d+$"),
     ):
         """
-        Doc is outdated, disregard below
+        Lexicon class which contains word-to-token-sequence, word-to-id, and token-to-id mappings.
 
         Args:
-          lang_dir:
-            The path to the lang directory. We expect that it contains the
-            following files:
-              - lexicon_disambig.txt
-              - tokens.txt
-              - words.txt
+          wordid2tokenid:
+            Lexicon.
+            Mapping from word_id to token1_id token2_id ... tokenN_id.
 
-            The format of the above files is described below.
+          id2word:
+            Word index.
+            Mapping from word_id to word_str.
 
-            (1) lexicon_disambig.txt
+          id2token:
+            Token index.
+            Mapping from token_id to token_str.
 
-            Each line in the lexicon_disambig.txt has the following format:
-
-                word token1 token2 ... tokenN
-
-            That is, the first field is the word, the remaining fields are
-            pronunciations of this word. Fields are separated by space(s).
-
-            (2) tokens.txt
-
-            Each line in tokens.txt has two fields separated by space(s):
-
-                token ID
-
-            The first field is the token symbol and the second filed is the
-            integer ID of the token.
-
-            (3) words.txt
-
-            Each line in words.txt has two fields separated by space(s):
-
-                word ID
-
-            The first field is the word symbol and the second filed is the
-            integer ID of the word.
           disambig_pattern:
-            It contains the pattern for disambiguation symbols.
+            Pattern for disambiguation symbols.
         """
         is_id2token_str = not isinstance(list(id2token.values())[0], LexiconUnit)
         self.id2token = {k: LexiconUnit(v) for k, v in id2token.items()} if is_id2token_str else id2token
@@ -179,7 +161,17 @@ class Lexicon:
 
 def arpa2fst(lm_path: str, attach_symbol_table: bool = True) -> 'kaldifst.StdVectorFst':
     """
-    TBD
+    Compiles an ARPA LM file into a grammar WFST (G.fst).
+
+    Args:
+      lm_path:
+        Path to the ARPA LM file.
+
+      attach_symbol_table:
+        Whether to attach the words for indices of the returned WFST.
+
+    Returns:
+      Kaldi-type grammar WFST.
     """
     _kaldilm_maybe_raise()
 
@@ -205,7 +197,7 @@ def arpa2fst(lm_path: str, attach_symbol_table: bool = True) -> 'kaldifst.StdVec
     return G
 
 
-def add_tokenwords_simple_(
+def add_tokenwords_(
     g_fst: 'kaldifst.StdVectorFst',
     tokens: List[str],
     word_weight: float = 2.0,
@@ -213,7 +205,28 @@ def add_tokenwords_simple_(
     token_oov: str = "<unk>",
 ) -> int:
     """
-    TBD
+    Adds special words representing individual tokens (tokenwords).
+    In-place operation.
+
+    Args:
+      g_fst:
+        Kaldi-type grammar WFST.
+        Will be augmented with the tokenwords.
+
+      tokens:
+        Token vocabulary.
+
+      word_weight:
+        The weight of an Out Of Vocabulary (OOV) word emission.
+
+      token_unigram_weight:
+        The weight of a tokenword emission.
+
+      token_oov:
+        OOV token.
+
+    Returns:
+        The id of the tokenword disambiguation token.
     """
     unigram_state = 0
     # check if 0 is the unigram state (has no outgoing epsilon arcs)
@@ -246,7 +259,7 @@ def add_tokenwords_simple_(
                     ilabel=label, olabel=label, weight=token_unigram_weight, nextstate=tokenword_state,
                 ),
             )
-            g_fst.output_symbols.add_symbol(f"{t}_{tokenword_disambig}", label)
+            g_fst.output_symbols.add_symbol(f"{t}{TW_BREAK}{tokenword_disambig}", label)
             label += 1
 
     return tokenword_disambig_id
@@ -261,22 +274,21 @@ def generate_lexicon_sentencepiece(
     disambig_pattern: str = re.compile(r"^#\d+$"),
 ) -> Lexicon:
     """
-    Doc is outdated, disregard below
-
-    Generate a lexicon from a BPE model.
+    Generate a Lexicon using a SentencePiece tokenizer.
 
     Args:
-      model_file:
-        Path to a sentencepiece model.
-      words:
-        A list of strings representing words.
+      tokenizer:
+        NeMo SentencePiece tokenizer.
+
+      id2word:
+        Word index.
+        Mapping from word_id to word_str.
+
       oov:
-        The out of vocabulary word in lexicon.
+        Out Of Vocabulary word in lexicon.
+
     Returns:
-      Return a tuple with two elements:
-        - A dict whose keys are words and values are the corresponding
-          word pieces.
-        - A dict representing the token symbol, mapping from tokens to IDs.
+      Lexicon object.
     """
     word2id = {v: k for k, v in id2word.items()}
     backoff_disambig = "#0"
@@ -305,13 +317,15 @@ def generate_lexicon_sentencepiece(
         for k, v in vocab.items()
     }
 
-    # Introduce blank and the first disambig ids
+    # Introduce unk, blank, and the first disambig ids
+    unk_id = tokenizer.piece_to_id(oov) + maybe_add_one
+    id2token[unk_id] = LexiconUnit(oov, "unk")
     # We assume blank to have the last output id of the neural network output
-    max_token_id = len(id2token) + int(add_epsilon)
-    id2token[max_token_id] = LexiconUnit("<blk>", "blank")
-    id2token[max_token_id + 1] = LexiconUnit(backoff_disambig, "disambig_backoff")
+    max_token_id = max(id2token.keys())
+    id2token[max_token_id + 1] = LexiconUnit("<blk>", "blank")
+    id2token[max_token_id + 2] = LexiconUnit(backoff_disambig, "disambig_backoff")
     if tokenword_mode:
-        id2token[max_token_id + 2] = LexiconUnit(tokenword_disambig, "disambig_tokenword")
+        id2token[max_token_id + 3] = LexiconUnit(tokenword_disambig, "disambig_tokenword")
     if add_epsilon:
         # insert first
         id2token[0] = LexiconUnit("<eps>", "epsilon")
@@ -319,7 +333,7 @@ def generate_lexicon_sentencepiece(
 
     if tokenword_mode:
         words += tokenwords
-        words_piece_ids += [[vocab[tw.rstrip(f"_{tokenword_disambig}")] - maybe_add_one] for tw in tokenwords]
+        words_piece_ids += [[vocab[tw.rstrip(f"{TW_BREAK}{tokenword_disambig}")] - maybe_add_one] for tw in tokenwords]
 
     wordid2tokenid = defaultdict(list)
 
@@ -343,9 +357,7 @@ def generate_lexicon_sentencepiece(
 
 def add_disambig_symbols(lexicon: Lexicon) -> Lexicon:
     """
-    Doc is outdated, disregard below
-
-    It adds pseudo-token disambiguation symbols #1, #2 and so on
+    Adds pseudo-token disambiguation symbols #1, #2 and so on
     at the ends of tokens to ensure that all pronunciations are different,
     and that none is a prefix of another.
 
@@ -353,21 +365,20 @@ def add_disambig_symbols(lexicon: Lexicon) -> Lexicon:
 
     Args:
       lexicon:
-        It is returned by :func:`read_lexicon`.
-    Returns:
-      Return a tuple with two elements:
+        Lexicon object.
 
-        - The output lexicon with disambiguation symbols
-        - The ID of the max disambiguation symbol that appears
-          in the lexicon
+    Returns:
+      Return Lexicon augmented with subseqence disambiguation symbols.
     """
-    # (0)
+
     tokenword_mode = "#1" in lexicon.word2id
     if tokenword_mode:
         first_tokenword_id = lexicon.word2id["#1"] + 1
+        last_used_disambig_id = lexicon.token2id["#1"]
+    else:
+        last_used_disambig_id = lexicon.token2id["#0"]
 
-    # (1) Work out the count of each token-sequence in the
-    # lexicon.
+    # (1) Work out the count of each token-sequence in the lexicon.
     count = defaultdict(int)
     for _, token_ids in lexicon:
         count[tuple(token_ids)] += 1
@@ -393,7 +404,7 @@ def add_disambig_symbols(lexicon: Lexicon) -> Lexicon:
     id2token = lexicon.id2token.copy()
 
     first_allowed_disambig = lexicon.num_disambigs
-    first_allowed_disambig_id = len(id2token)
+    first_allowed_disambig_id = last_used_disambig_id + 1
     max_disambig = first_allowed_disambig - 1
     last_used_disambig_id_of = defaultdict(int)
 
@@ -413,7 +424,7 @@ def add_disambig_symbols(lexicon: Lexicon) -> Lexicon:
 
         if cur_disambig > max_disambig:
             max_disambig = cur_disambig
-            cur_disambig_id = len(id2token)
+            cur_disambig_id = max(id2token.keys()) + 1
             id2token[cur_disambig_id] = LexiconUnit(f"#{max_disambig}", "disambig_subsequence")
         last_used_disambig_id_of[token_key] = cur_disambig_id
         wordid2tokenid[word_id].append(token_ids + [cur_disambig_id])
@@ -422,7 +433,16 @@ def add_disambig_symbols(lexicon: Lexicon) -> Lexicon:
 
 def make_lexicon_fst_no_silence(lexicon: Lexicon, attach_symbol_table: bool = True,) -> 'kaldifst.StdVectorFst':
     """
-    TBD
+    Compiles a Lexicon into a lexicon WFST (L.fst).
+
+    See also make_lexicon_fst.py from kaldi.
+
+    Args:
+      lexicon:
+        Lexicon object.
+
+    Returns:
+      Kaldi-type lexicon WFST.
     """
     backoff_disambig = "#0"
     tokenword_disambig = "#1"
@@ -481,7 +501,7 @@ def make_lexicon_fst_no_silence(lexicon: Lexicon, attach_symbol_table: bool = Tr
     if tokenword_mode:
         tokenword_begin, tokenword_other = [], []
         for word_id in range(first_tokenword_id, max(lexicon.id2word) + 1):
-            token_id = lexicon.token2id[lexicon.id2word[word_id].name.rstrip(f"_{tokenword_disambig}")]
+            token_id = lexicon.token2id[lexicon.id2word[word_id].name.rstrip(f"{TW_BREAK}{tokenword_disambig}")]
             token_unit = lexicon.id2token[token_id]
             if token_unit.mark.startswith("begin"):
                 tokenword_begin.append((token_id, word_id))
@@ -534,19 +554,24 @@ def make_lexicon_fst_no_silence(lexicon: Lexicon, attach_symbol_table: bool = Tr
 def build_topo(
     name: str, token2id: Dict[str, int], with_self_loops: bool = True, attach_symbol_table: bool = True
 ) -> 'kaldifst.StdVectorFst':
-    """Helper function to build a topology.
-    It allows to build topologies with a non-zero blank ID.
+    """Helper function to build a topology WFST (T.fst).
+
     Args:
       name:
-        The topology name. Choices: default, compact, shared_blank, minimal
-      tokens:
-        A list of tokens, e.g., phones, characters, etc.
-      blank_num:
-        Blank number. Must be in tokens
+        Topology name. Choices: default, compact, minimal
+
+      token2id:
+        Token index.
+        Mapping from token_str to token_id.
+
       with_self_loops:
-        Whether to add token-to-epsilon self-loops to a topology
+        Whether to add token-to-epsilon self-loops to the topology.
+
+      attach_symbol_table:
+        Whether to attach the token names for indices of the returned WFST.
+
     Returns:
-      Returns a topology FST.
+      Kaldi-type topology WFST.
     """
     if name == "default":
         fst = build_default_topo(token2id, with_self_loops)
@@ -567,8 +592,7 @@ def build_topo(
 
 
 def build_default_topo(token2id: Dict[str, int], with_self_loops: bool = True) -> 'kaldifst.StdVectorFst':
-    """
-    TBD
+    """Build the default (correct) CTC topology.
     """
     disambig_pattern = re.compile(r"^#\d+$")
     blank_id = token2id["<blk>"]
@@ -615,7 +639,7 @@ def build_default_topo(token2id: Dict[str, int], with_self_loops: bool = True) -
         if istate > 0:
             for ostate in kaldifst.StateIterator(fst):
                 if ostate > 0 and istate != ostate:
-                    label = token_ids[ostate] if ostate > 0 else blank_id
+                    label = token_ids[ostate]
                     fst.add_arc(
                         state=istate, arc=kaldifst.StdArc(ilabel=label, olabel=label, weight=0, nextstate=ostate,),
                     )
@@ -631,8 +655,7 @@ def build_default_topo(token2id: Dict[str, int], with_self_loops: bool = True) -
 
 
 def build_compact_topo(token2id: Dict[str, int], with_self_loops: bool = True) -> 'kaldifst.StdVectorFst':
-    """
-    TBD
+    """Build the Compact CTC topology.
     """
     disambig_pattern = re.compile(r"^#\d+$")
     blank_id = token2id["<blk>"]
@@ -683,8 +706,7 @@ def build_compact_topo(token2id: Dict[str, int], with_self_loops: bool = True) -
 
 
 def build_minimal_topo(token2id: Dict[str, int]) -> 'kaldifst.StdVectorFst':
-    """
-    TBD
+    """Build the Minimal CTC topology.
     """
     disambig_pattern = re.compile(r"^#\d+$")
     blank_id = token2id["<blk>"]
@@ -727,13 +749,40 @@ def mkgraph_ctc_ov(
     target: str = "kaldi",  # "kaldi", "k2"
 ) -> Tuple[Union['kaldifst.StdVectorFst', 'k2.Fsa'], int]:
     """
-    TBD
+    Builds a decoding WFST (TLG.fst or TLG.pt).
+
+    See also mkgraph.sh from kaldi.
+
+    Args:
+      tokenizer:
+        NeMo SentencePiece tokenizer.
+
+      lm_path:
+        Path to the ARPA LM file.
+
+      topology_name:
+        Topology name. Choices: default, compact, minimal.
+
+      write_tlg_path:
+        Where to buffer the TLG.
+
+      open_vocabulary:
+        Whether to build a decoding WFST suitable for the open vocabulary decoding.
+
+      open_vocabulary_weights:
+        Pair of weights (oov_word_weight, token_unigram_weight).
+
+      target:
+        What type to build the WFST for. Choices: kaldi, k2.
+
+    Returns:
+      A pair of kaldi- or k2-type decoding WFST and its id of the tokenword disambiguation token.
     """
     logging.info("Compiling G.fst ...")
     G = arpa2fst(lm_path)
     if open_vocabulary:
         # in-place for g_fst
-        tokenword_disambig_id = add_tokenwords_simple_(
+        tokenword_disambig_id = add_tokenwords_(
             g_fst=G,
             tokens=tokenizer.tokenizer.get_vocab().keys(),
             word_weight=open_vocabulary_weights[0],
@@ -821,8 +870,6 @@ class KaldiFstMask(Enum):
 
 
 class LatticeProperties(NamedTuple):
-    """TBD"""
-
     Acceptor: bool
     Valid: bool
     Nonempty: bool
@@ -837,7 +884,8 @@ class LatticeProperties(NamedTuple):
 
 
 class AbstractLattice(ABC):
-    """TBD"""
+    """A lattice wrapper with high-level capabilities.
+    """
 
     def __init__(self, lattice: Any):
         self._lattice = lattice
@@ -845,17 +893,51 @@ class AbstractLattice(ABC):
 
     @abstractmethod
     def as_tensor(self) -> 'torch.Tensor':
-        """TBD"""
+        """Represents the lattice as a tensor.
+
+        Returns:
+          torch.Tensor
+        """
+        pass
 
     @abstractmethod
     def draw(
         self, filename: Optional[Union[Path, str]] = None, title: Optional[Union[Path, str]] = None, zoom: float = 1.0
     ) -> Union['graphviz.Digraph', 'IPython.display.HTML']:
-        """TBD"""
+        """Render FSA as an image via graphviz, and return the Digraph object; and optionally save to file filename.
+        filename must have a suffix that graphviz understands, such as pdf, svg or png.
+
+        Note:
+          You need to install graphviz to use this function::
+
+            ./scripts/installers/install_graphviz.sh
+
+        Args:
+          filename:
+            Filename to (optionally) save to, e.g. ‘foo.png’, ‘foo.svg’, ‘foo.png’.
+
+          title:
+            Title to be displayed in image, e.g. ‘A simple lattice example’.
+
+          zoom:
+            Zoom-in lattice in IPython notebook (needed for large lattices).
+
+        Returns:
+          graphviz.Digraph or IPython.display.HTML
+        """
+        pass
 
     @abstractmethod
     def edit_distance(self, reference_sequence: List[int]) -> int:
-        """TBD"""
+        """Get the edit distance from a reference sequence to the lattice.
+
+        Args:
+          reference_sequence:
+            List of word- or token-ids.
+
+        Returns:
+          Number of edits.
+        """
 
     @property
     def lattice(self):
@@ -864,19 +946,19 @@ class AbstractLattice(ABC):
 
     @abstractproperty
     def properties(self) -> LatticeProperties:
-        """TBD"""
+        pass
 
     @abstractproperty
     def symbol_table(self) -> Optional[Dict[int, str]]:
-        """TBD"""
+        pass
 
     @abstractproperty
     def auxiliary_tables(self) -> Optional[Tuple[Any]]:
-        """TBD"""
+        pass
 
 
 class KaldiWordLattice(AbstractLattice):
-    """TBD"""
+    """A Kaldi lattice wrapper with high-level capabilities."""
 
     def __init__(
         self,
@@ -914,7 +996,6 @@ class KaldiWordLattice(AbstractLattice):
 
     @property
     def properties(self) -> LatticeProperties:
-        """TBD"""
         if self._properties is None:
             acceptor = self._lattice.properties(KaldiFstMask.Acceptor.value, True) == KaldiFstMask.Acceptor.value
             valid = self._lattice.properties(KaldiFstMask.Error.value, True) != KaldiFstMask.Error.value
@@ -959,20 +1040,30 @@ class KaldiWordLattice(AbstractLattice):
 
     @property
     def symbol_table(self) -> Optional[Dict[int, str]]:
-        """TBD"""
         return self._symbol_table
 
     @property
     def auxiliary_tables(self) -> Optional[Tuple[Any]]:
-        """TBD"""
         return self._auxiliary_tables
 
     def as_tensor(self) -> 'torch.Tensor':
-        """TBD"""
+        """Represents the lattice as a tensor.
+
+        Returns:
+          torch.Tensor
+        """
         raise NotImplementedError("Tensor representation is not supported yet.")
 
     def edit_distance(self, reference_sequence: List[int]) -> int:
-        """TBD"""
+        """Get the edit distance from a reference sequence to the lattice.
+
+        Args:
+          reference_sequence:
+            List of word- or token-ids.
+
+        Returns:
+          Number of edits.
+        """
         if not self.properties.InputEpsilonFree:
             logging.warning(f"Lattice contains input epsilons. Edit distance calculations may not be accurate.")
         if not all(reference_sequence):
@@ -989,11 +1080,8 @@ class KaldiWordLattice(AbstractLattice):
     def draw(
         self, filename: Optional[Union[Path, str]] = None, title: Optional[Union[Path, str]] = None, zoom: float = 1.0
     ) -> Union['graphviz.Digraph', 'IPython.display.HTML']:
-        '''
-        Render FSA as an image via graphviz, and return the Digraph object;
-        and optionally save to file `filename`.
-        `filename` must have a suffix that graphviz understands, such as
-        `pdf`, `svg` or `png`.
+        """Render FSA as an image via graphviz, and return the Digraph object; and optionally save to file filename.
+        filename must have a suffix that graphviz understands, such as pdf, svg or png.
 
         Note:
           You need to install graphviz to use this function::
@@ -1001,12 +1089,18 @@ class KaldiWordLattice(AbstractLattice):
             ./scripts/installers/install_graphviz.sh
 
         Args:
-           filename:
-              Filename to (optionally) save to, e.g. 'foo.png', 'foo.svg',
-              'foo.png'  (must have a suffix that graphviz understands).
-           title:
-              Title to be displayed in image, e.g. 'A simple FSA example'
-        '''
+          filename:
+            Filename to (optionally) save to, e.g. ‘foo.png’, ‘foo.svg’, ‘foo.png’.
+
+          title:
+            Title to be displayed in image, e.g. ‘A simple lattice example’.
+
+          zoom:
+            Zoom-in lattice in IPython notebook (needed for large lattices).
+
+        Returns:
+          graphviz.Digraph or IPython.display.HTML
+        """
         _graphviz_maybe_raise()
 
         isym, osym = None, None
@@ -1098,8 +1192,20 @@ def _svg_srcdoc_resize(filename: Union[Path, str], zoom: float) -> Tuple[str, Tu
 def levenshtein_graph_kaldi(
     fst: Union['kaldifst.StdFst', 'kaldifst.Lattice'], ins_del_score: float = 0.501
 ) -> 'kaldifst.StdFst':
-    """
-    TBD
+    """Construct the levenshtein graph from a kaldi-type WFST or a lattice.
+
+    See also levenshtein_graph from k2.
+
+    Args:
+      fst:
+        Kaldi-type source WFST or lattice.
+
+      ins_del_score:
+        Insertion and deletion penalty.
+        Should be more than 0.5 for substitutions to be preferred over insertions/deletions, or less otherwise.
+
+    Returns:
+      Kaldi-type levenshtein WFST.
     """
     if fst.properties(KaldiFstMask.Acceptor.value, True) != KaldiFstMask.Acceptor.value:
         logging.warning(
@@ -1135,7 +1241,23 @@ def levenshtein_graph_kaldi(
 def load_word_lattice(
     lat_filename: Union[Path, str], id2word: Optional[Dict[int, str]] = None, id2token: Optional[Dict[int, str]] = None
 ) -> Dict[str, KaldiWordLattice]:
-    """TBD"""
+    """Helper function to load riva-decoder recognition lattices.
+
+    Args:
+      lat_filename:
+        Path to the riva-decoder recognition lattice file.
+
+      id2word:
+        Word index.
+        Mapping from word_id to word_str.
+
+      id2token:
+        Token index.
+        Mapping from token_id to token_str.
+
+    Returns:
+      Dictionary with lattice names and corresponding lattices in KaldiWordLattice format.
+    """
     lattice_dict = {}
     lattice = None
     max_state = 0
@@ -1186,7 +1308,7 @@ def load_word_lattice(
                     nextstate=next_state,
                 )
                 lattice.add_arc(state=state, arc=ark)
-                token_seq_list.append((ark, [int(i) for i in trunk[-1].split('_')] if trunk[-1] != "" else []))
+                token_seq_list.append((ark, [int(i) for i in trunk[-1].split(TW_BREAK)] if trunk[-1] != "" else []))
             elif line_len == 2:  # final state
                 state = int(line_items[0])
                 trunk = line_items[-1].split(',')

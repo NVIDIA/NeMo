@@ -615,11 +615,11 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
         self,
         blank_id: int,
         beam_size: int,
-        backend: str = "riva",  # 'riva', 'k2'
+        search_type: str = "riva",  # 'riva', 'k2'
         return_best_hypothesis: bool = True,
         preserve_alignments: bool = False,
         compute_timestamps: bool = False,
-        decoding_mode: str = 'nbest',  # 'nbest', 'mbr' ('mbr' works only for backend == 'riva' and beam_size == 1)
+        decoding_mode: str = 'nbest',  # 'nbest', 'mbr' ('mbr' works only for search_type == 'riva' and beam_size == 1)
         open_vocabulary_decoding: bool = False,
         beam_width: float = 10.0,
         lm_weight: float = 1.0,
@@ -631,20 +631,20 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
     ):
         super().__init__(blank_id=blank_id, beam_size=beam_size)
 
-        self.backend = backend
+        self.search_type = search_type
         self.return_best_hypothesis = return_best_hypothesis
         self.preserve_alignments = preserve_alignments
         self.compute_timestamps = compute_timestamps
 
         self.decoding_algorithm = None
-        if backend in ("default", "riva"):
+        if search_type in ("default", "riva"):
             self.decoding_algorithm = self._riva_decoding
-        elif backend == "k2":
+        elif search_type == "k2":
             self.decoding_algorithm = self._k2_decoding
 
-        # Log the beam search backend
-        logging.info(f"WFST beam search backend: {backend}")
-        self.backend = backend
+        # Log the WFST search_type
+        logging.info(f"WFST beam search search_type: {search_type}")
+        self.search_type = search_type
 
         if beam_size > 1 and decoding_mode != 'nbest':
             logging.warning(
@@ -696,7 +696,7 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
             raise ValueError("Tokenizer must be provided for subword decoding. Use set_tokenizer().")
         if self.decoding_algorithm is None:
             raise NotImplementedError(
-                f"The decoding backend ({self.backend}) supplied is not supported!\n"
+                f"The decoding search_type ({self.search_type}) supplied is not supported!\n"
                 f"Please use one of : (default, riva, k2)"
             )
 
@@ -750,7 +750,7 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
                 logging.warning("Consider providing a write-permitted `wfst_lm_path` for WFST LM buffering.")
                 write_tlg_path = None
             ctc_topology = "default"  # there is no way to indicate the need of other topologies
-            target = "kaldi" if self.backend == "riva" else "k2"
+            target = "kaldi" if self.search_type == "riva" else "k2"
 
             from nemo.collections.asr.parts.utils.wfst_utils import mkgraph_ctc_ov
 
@@ -790,6 +790,10 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
 
             lm_fst = self._prepare_decoding_lm_wfst()
             if self.open_vocabulary_decoding and self._tokenword_disambig_id == -1:
+                if isinstance(lm_fst, str):
+                    import kaldifst
+
+                    lm_fst = kaldifst.StdVectorFst.read(self.wfst_lm_path)
                 tokenword_disambig_id = lm_fst.output_symbols.find("#1")
                 if tokenword_disambig_id == -1:
                     raise ValueError(
@@ -830,6 +834,11 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
         if self.k2_decoder is None:
             lm_fst = self._prepare_decoding_lm_wfst()
             if self.open_vocabulary_decoding and self._tokenword_disambig_id == -1:
+                if isinstance(lm_fst, str):
+                    from nemo.collections.asr.parts.k2.utils import load_graph
+
+                    with torch.inference_mode(False):
+                        lm_fst = load_graph(lm_fst)
                 try:
                     tokenword_disambig_id = lm_fst.aux_labels_sym.get("#1")
                     self._tokenword_disambig_id = tokenword_disambig_id
@@ -896,11 +905,11 @@ class BeamCTCInferConfig:
 @dataclass
 class WfstCTCInferConfig:
     beam_size: int
-    backend: str = "riva"  # 'riva', 'k2'
+    search_type: str = "riva"  # 'riva', 'k2'
     return_best_hypothesis: bool = True
     preserve_alignments: bool = False
     compute_timestamps: bool = False
-    decoding_mode: str = 'nbest'  # 'nbest', 'mbr' ('mbr' works only for backend == 'riva' and beam_size == 1)
+    decoding_mode: str = 'nbest'  # 'nbest', 'mbr' ('mbr' works only for search_type == 'riva' and beam_size == 1)
     open_vocabulary_decoding: bool = False
     beam_width: float = 10.0
     lm_weight: float = 1.0

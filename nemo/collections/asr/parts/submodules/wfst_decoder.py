@@ -24,8 +24,20 @@ import torch
 from jiwer import wer as word_error_rate
 from omegaconf import DictConfig
 
+from nemo.collections.asr.parts.utils.wfst_utils import TW_BREAK
+
 
 def _riva_config_to_dict(conf: Any) -> Dict[str, Any]:
+    """
+    Helper function for parsing Riva configs (namely BatchedMappedDecoderCudaConfig) into a dictionary.
+
+    Args:
+      conf:
+        Inner Riva config.
+
+    Returns:
+      Dictionary corresponding to the Riva config.
+    """
     result = {}
     for name in conf.__dir__():
         if not name.startswith("__"):
@@ -37,6 +49,19 @@ def _riva_config_to_dict(conf: Any) -> Dict[str, Any]:
 
 
 def _fill_inner_riva_config_(riva_conf, nemo_conf):
+    """
+    Helper function for filling Riva configs (namely BatchedMappedDecoderCudaConfig)
+    according to the corresponding NeMo config.
+
+    Note: in-place for the first argument.
+
+    Args:
+      riva_conf:
+        Inner Riva config.
+
+      nemo_conf:
+        Corresponding NeMo config.
+    """
     for nemo_k, nemo_v in nemo_conf.items():
         if isinstance(nemo_v, DictConfig):
             _fill_inner_riva_config_(getattr(riva_conf, nemo_k), nemo_v)
@@ -45,6 +70,9 @@ def _fill_inner_riva_config_(riva_conf, nemo_conf):
 
 
 class RivaDecoderConfig(DictConfig):
+    """
+    NeMo config for the RivaGpuWfstDecoder.
+    """
     def __init__(self):
         try:
             from riva.asrlib.decoder.python_decoder import BatchedMappedDecoderCudaConfig
@@ -67,7 +95,9 @@ class RivaDecoderConfig(DictConfig):
 
 
 class WfstNbestUnit(NamedTuple):
-    """TBD"""
+    """
+    Container for a single RivaGpuWfstDecoder n-best hypothesis.
+    """
 
     words: Tuple[str]
     timesteps: Tuple[int]
@@ -76,8 +106,16 @@ class WfstNbestUnit(NamedTuple):
 
 
 class WfstNbestHypothesis:
+    """
+    Container for the RivaGpuWfstDecoder n-best results represented as a list of WfstNbestUnit objects.
+    """
+
     def __init__(self, raw_hypotheses: Tuple[Tuple[Tuple[str], Tuple[int], Tuple[int], float]]):
         for i, rh in enumerate(raw_hypotheses):
+            assert isinstance(rh[0], tuple), f"{rh[0]}"
+            assert isinstance(rh[1], tuple), f"{rh[1]}, {rh[0]}"
+            assert isinstance(rh[2], tuple), f"{rh[2]}"
+            assert isinstance(rh[3], float), f"{rh[3]}"
             assert len(rh[0]) == len(rh[1]) or len(rh[1]) == 0, "words do not match timesteps"
 
         self._hypotheses = sorted([WfstNbestUnit(*rh) for rh in raw_hypotheses], key=lambda hyp: hyp.score)
@@ -98,6 +136,18 @@ class WfstNbestHypothesis:
     def replace_unit_(
         self, index: int, new_unit: Union[WfstNbestUnit, Tuple[Tuple[str], Tuple[int], Tuple[int], float]]
     ):
+        """
+        Replaces a WfstNbestUnit by index.
+
+        Note: in-place operation.
+
+        Args:
+          index:
+            Index of the unit to be replaced.
+
+          new_unit:
+            Replacement unit.
+        """
         assert 0 <= index < self.shape0
         assert (
             self.has_timesteps
@@ -138,6 +188,19 @@ class WfstNbestHypothesis:
 def collapse_tokenword_hypotheses(
     hypotheses: List[WfstNbestHypothesis], tokenword_disambig_str: str
 ) -> List[WfstNbestHypothesis]:
+    """
+    Searches for tokenwords in the input hypotheses and collapses them into words.
+
+    Args:
+      hypotheses:
+        List of input WfstNbestHypothesis.
+
+      tokenword_disambig_str:
+        Tokenword disambiguation symbol (e.g. `#1`).
+
+    Returns:
+      List of WfstNbestHypothesis.
+    """
     new_hypotheses = copy.deepcopy(hypotheses)
     for hyp in new_hypotheses:
         for k, h_unit in enumerate(hyp):
@@ -157,7 +220,7 @@ def collapse_tokenword_hypotheses(
                 for i, j in zip(twds_list[::2], twds_list[1::2]):
                     new_words += old_words[j_prev:i]
                     # drop tokenword disambig -> remove token disanbig suffix -> remove word begin mark
-                    new_word = "".join(old_words[i + 1 : j]).replace(f"_{tokenword_disambig_str}", "")[1:]
+                    new_word = "".join(old_words[i + 1 : j]).replace(f"{TW_BREAK}{tokenword_disambig_str}", "")[1:]
                     new_words.append(new_word)
                     new_timesteps += old_timesteps[j_prev:i] + [
                         old_timesteps[i],
@@ -171,6 +234,29 @@ def collapse_tokenword_hypotheses(
 
 
 class AbstractWFSTDecoder(ABC):
+    """
+    Used for performing WFST decoding of the logprobs.
+
+    Args:
+      lm_fst:
+        Language model WFST.
+
+      decoding_mode:
+        Decoding mode. E.g. `nbest`.
+
+      beam_size:
+        Beam width (float) for the WFST decoding.
+
+      config:
+        Decoder config.
+
+      tokenword_disambig_id:
+        Tokenword disambiguation index. Set to -1 to disable the tokenword mode.
+
+      lm_weight:
+        Language model weight in decoding.
+    """
+
     def __init__(
         self,
         lm_fst: Any,
@@ -195,17 +281,14 @@ class AbstractWFSTDecoder(ABC):
 
     @abstractmethod
     def _set_decoder_config(self, config: Optional[Any] = None):
-        """TBD"""
         pass
 
     @abstractmethod
     def _set_decoding_mode(self, decoding_mode: str):
-        """TBD"""
         pass
 
     @abstractmethod
     def _init_decoder(self):
-        """TBD"""
         pass
 
     @property
@@ -254,39 +337,116 @@ class AbstractWFSTDecoder(ABC):
 
     @abstractmethod
     def decode(self, log_probs: torch.Tensor, log_probs_length: torch.Tensor) -> List[Any]:
-        """TBD"""
+        """
+        Decodes logprobs into recognition hypotheses.
+
+        Args:
+          log_probs:
+            A torch.Tensor of the predicted log-probabilities of shape [Batch, Time, Vocabulary].
+
+          log_probs_length:
+            A torch.Tensor of length `Batch` which contains the lengths of the log_probs elements.
+
+        Returns:
+          List of recognition hypotheses.
+        """
         pass
 
     @abstractmethod
     def _post_decode(self, hypotheses: List[Any]) -> List[Any]:
-        """TBD"""
+        """
+        Does various post-processing of the recognition hypotheses.
+
+        Args:
+          hypotheses:
+            List of recognition hypotheses.
+
+        Returns:
+          List of processed recognition hypotheses.
+        """
         pass
 
     @abstractmethod
     def calibrate_lm_weight(
         self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]
     ) -> Tuple[float, float]:
-        """TBD"""
+        """
+        Calibrates LM weight to achieve the best WER for given logprob-text pairs.
+
+        Args:
+          log_probs:
+            A torch.Tensor of the predicted log-probabilities of shape [Batch, Time, Vocabulary].
+
+          log_probs_length:
+            A torch.Tensor of length `Batch` which contains the lengths of the log_probs elements.
+
+          reference_texts:
+            List of reference word sequences.
+
+        Returns:
+          Pair of (best_lm_weight, best_wer).
+        """
         pass
 
     @abstractmethod
     def calculate_oracle_wer(
         self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]
     ) -> Tuple[float, List[float]]:
-        """TBD"""
+        """
+        Calculates the oracle (the best possible WER for given logprob-text pairs.
+
+        Args:
+          log_probs:
+            A torch.Tensor of the predicted log-probabilities of shape [Batch, Time, Vocabulary].
+
+          log_probs_length:
+            A torch.Tensor of length `Batch` which contains the lengths of the log_probs elements.
+
+          reference_texts:
+            List of reference word sequences.
+
+        Returns:
+          Pair of (oracle_wer, oracle_wer_per_utterance).
+        """
         pass
 
 
 class RivaGpuWfstDecoder(AbstractWFSTDecoder):
+    """
+    Used for performing WFST decoding of the logprobs with the Riva WFST decoder.
+
+    Args:
+      lm_fst:
+        Kaldi-type language model WFST or its path.
+
+      decoding_mode:
+        Decoding mode. Choices: `nbest`, `mbr`, `lattice`.
+
+      beam_size:
+        Beam width (float) for the WFST decoding.
+
+      config:
+        Riva Decoder config.
+
+      tokenword_disambig_id:
+        Tokenword disambiguation index. Set to -1 to disable the tokenword mode.
+
+      lm_weight:
+        Language model weight in decoding.
+
+      nbest_size:
+        N-best size for decoding_mode == `nbest`
+    """
+
     def __init__(
         self,
         lm_fst: Union['kaldifst.StdFst', Path, str],
-        decoding_mode: str = 'mbr',  # 'nbest', 'mbr', 'lattice'
+        decoding_mode: str = 'mbr',
         beam_size: float = 10.0,
         config: Optional['RivaDecoderConfig'] = None,
-        tokenword_disambig_id: int = -1,  # used in post-processing for decoding with open vocabulary
+        tokenword_disambig_id: int = -1,
         lm_weight: float = 1.0,
-        nbest_size: int = 1,  # for decoding_mode == nbest
+        nbest_size: int = 1,
     ):
         self._nbest_size = nbest_size
         self._load_word_lattice = None
@@ -303,8 +463,9 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
         self._config = config
 
     def _init_decoder(self):
-        import kaldifst
         from riva.asrlib.decoder.python_decoder import BatchedMappedDecoderCuda, BatchedMappedDecoderCudaConfig
+
+        import kaldifst
         from nemo.collections.asr.parts.utils.wfst_utils import load_word_lattice
 
         self._load_word_lattice = load_word_lattice
@@ -403,41 +564,75 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
     def _decode_nbest(
         self, log_probs: torch.Tensor, log_probs_length: torch.Tensor
     ) -> List[WfstNbestHypothesis]:  # words, timesteps, alignment, score
-        """TBD"""
+        """
+        Decodes logprobs into recognition hypotheses via the N-best decoding decoding.
+
+        Args:
+          log_probs:
+            A torch.Tensor of the predicted log-probabilities of shape [Batch, Time, Vocabulary].
+
+          log_probs_length:
+            A torch.Tensor of length `Batch` which contains the lengths of the log_probs elements.
+
+        Returns:
+          List of WfstNbestHypothesis with empty alignment and trivial score.
+        """
         hypotheses_nbest = self._decoder.decode_nbest(log_probs, log_probs_length)
-        hypotheses = [
-            WfstNbestHypothesis(
-                tuple(
-                    (
-                        *zip(
-                            *[
-                                (self._id2word[w], int(t))
-                                for w, t in zip(h.words, h.word_start_times_seconds)
-                                if w != 0
-                            ]
-                        ),
-                        tuple([ilabel - 1 for ilabel in h.ilabels]),
-                        h.score,
-                    )
-                    for h in nh
-                )
-            )
-            for nh in hypotheses_nbest
-        ]
+        hypotheses = []
+        for nh in hypotheses_nbest:
+            nbest_container = []
+            for h in nh:
+                words, timesteps = [], []
+                for w, t in zip(h.words, h.word_start_times_seconds):
+                    if w != 0:
+                        words.append(self._id2word[w])
+                        timesteps.append(int(t))
+                alignment = [ilabel - 1 for ilabel in h.ilabels]
+                score = h.score
+                nbest_container.append(tuple([tuple(words), tuple(timesteps), tuple(alignment), score]))
+            hypotheses.append(WfstNbestHypothesis(tuple(nbest_container)))
         return hypotheses
 
     def _decode_mbr(
         self, log_probs: torch.Tensor, log_probs_length: torch.Tensor
-    ) -> List[WfstNbestHypothesis]:  # words, timesteps, alignment (empty), score (trivial)
-        """TBD"""
+    ) -> List[WfstNbestHypothesis]:
+        """
+        Decodes logprobs into recognition hypotheses via the Minimum Bayes Risk (MBR) decoding.
+
+        Args:
+          log_probs:
+            A torch.Tensor of the predicted log-probabilities of shape [Batch, Time, Vocabulary].
+
+          log_probs_length:
+            A torch.Tensor of length `Batch` which contains the lengths of the log_probs elements.
+
+        Returns:
+          List of WfstNbestHypothesis with empty alignment and trivial score.
+        """
         hypotheses_mbr = self._decoder.decode_mbr(log_probs, log_probs_length)
-        hypotheses = [
-            WfstNbestHypothesis(((*tuple(zip(*[(e[0], int(e[1])) for e in h])), (), 0.0),)) for h in hypotheses_mbr
-        ]
+        hypotheses = []
+        for h in hypotheses_mbr:
+            words, timesteps = [], []
+            for e in h:
+                words.append(e[0])
+                timesteps.append(int(e[1]))
+            hypotheses.append(WfstNbestHypothesis(tuple([tuple([tuple(words), tuple(timesteps), tuple(), 0.0])])))
         return hypotheses
 
     def _decode_lattice(self, log_probs: torch.Tensor, log_probs_length: torch.Tensor) -> List['KaldiWordLattice']:
-        """TBD"""
+        """
+        Decodes logprobs into kaldi-type lattices.
+
+        Args:
+          log_probs:
+            A torch.Tensor of the predicted log-probabilities of shape [Batch, Time, Vocabulary].
+
+          log_probs_length:
+            A torch.Tensor of length `Batch` which contains the lengths of the log_probs elements.
+
+        Returns:
+          List of KaldiWordLattice.
+        """
         with tempfile.NamedTemporaryFile() as tmp_lat:
             tmp_lat_name = f"{tmp_lat.name}.lats"
             self._decoder.decode_write_lattice(
@@ -452,7 +647,19 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
     def decode(
         self, log_probs: torch.Tensor, log_probs_length: torch.Tensor
     ) -> Union[List[WfstNbestHypothesis], List['KaldiWordLattice']]:
-        """TBD"""
+        """
+        Decodes logprobs into recognition hypotheses.
+
+        Args:
+          log_probs:
+            A torch.Tensor of the predicted log-probabilities of shape [Batch, Time, Vocabulary].
+
+          log_probs_length:
+            A torch.Tensor of length `Batch` which contains the lengths of the log_probs elements.
+
+        Returns:
+          List of recognition hypotheses.
+        """
         log_probs = log_probs.contiguous()
         log_probs_length = log_probs_length.to(torch.long).to('cpu').contiguous()
         hypotheses = self._decode(log_probs, log_probs_length)
@@ -462,6 +669,16 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
     def _post_decode(
         self, hypotheses: Union[List[WfstNbestHypothesis], List['KaldiWordLattice']]
     ) -> Union[List[WfstNbestHypothesis], List['KaldiWordLattice']]:
+        """
+        Does various post-processing of the recognition hypotheses.
+
+        Args:
+          hypotheses:
+            List of recognition hypotheses.
+
+        Returns:
+          List of processed recognition hypotheses.
+        """
         if self._open_vocabulary_decoding and self._decoding_mode in ('nbest', 'mbr'):
             return collapse_tokenword_hypotheses(hypotheses, self._id2word[self._tokenword_disambig_id])
         else:
@@ -470,7 +687,22 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
     def calibrate_lm_weight(
         self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]
     ) -> Tuple[float, float]:
-        """TBD"""
+        """
+        Calibrates LM weight to achieve the best WER for given logprob-text pairs.
+
+        Args:
+          log_probs:
+            A torch.Tensor of the predicted log-probabilities of shape [Batch, Time, Vocabulary].
+
+          log_probs_length:
+            A torch.Tensor of length `Batch` which contains the lengths of the log_probs elements.
+
+          reference_texts:
+            List of reference word sequences.
+
+        Returns:
+          Pair of (best_lm_weight, best_wer).
+        """
         assert len(log_probs) == len(reference_texts)
         decoding_mode_backup = self.decoding_mode
         lm_weight_backup = self.lm_weight
@@ -490,7 +722,22 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
     def calculate_oracle_wer(
         self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]
     ) -> Tuple[float, List[float]]:
-        """TBD"""
+        """
+        Calculates the oracle (the best possible WER for given logprob-text pairs.
+
+        Args:
+          log_probs:
+            A torch.Tensor of the predicted log-probabilities of shape [Batch, Time, Vocabulary].
+
+          log_probs_length:
+            A torch.Tensor of length `Batch` which contains the lengths of the log_probs elements.
+
+          reference_texts:
+            List of reference word sequences.
+
+        Returns:
+          Pair of (oracle_wer, oracle_wer_per_utterance).
+        """
         if self._open_vocabulary_decoding:
             raise NotImplementedError
         assert len(log_probs) == len(reference_texts)
@@ -507,7 +754,9 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
         return sum(scores) / sum(counts), wer_per_utt
 
     def _release_gpu_memory(self):
-        """TBD"""
+        """
+        Forces freeing of GPU memory by deleting the Riva decoder object.
+        """
         try:
             del self._decoder
         except Exception:
