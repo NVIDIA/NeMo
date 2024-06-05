@@ -73,6 +73,7 @@ class RivaDecoderConfig(DictConfig):
     """
     NeMo config for the RivaGpuWfstDecoder.
     """
+
     def __init__(self):
         try:
             from riva.asrlib.decoder.python_decoder import BatchedMappedDecoderCudaConfig
@@ -463,9 +464,9 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
         self._config = config
 
     def _init_decoder(self):
+        import kaldifst
         from riva.asrlib.decoder.python_decoder import BatchedMappedDecoderCuda, BatchedMappedDecoderCudaConfig
 
-        import kaldifst
         from nemo.collections.asr.parts.utils.wfst_utils import load_word_lattice
 
         self._load_word_lattice = load_word_lattice
@@ -593,9 +594,7 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
             hypotheses.append(WfstNbestHypothesis(tuple(nbest_container)))
         return hypotheses
 
-    def _decode_mbr(
-        self, log_probs: torch.Tensor, log_probs_length: torch.Tensor
-    ) -> List[WfstNbestHypothesis]:
+    def _decode_mbr(self, log_probs: torch.Tensor, log_probs_length: torch.Tensor) -> List[WfstNbestHypothesis]:
         """
         Decodes logprobs into recognition hypotheses via the Minimum Bayes Risk (MBR) decoding.
 

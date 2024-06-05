@@ -190,7 +190,9 @@ def beam_search_eval(
                 )
 
             _, beams_batch = decoding.ctc_decoder_predictions_tensor(
-                packed_batch, decoder_lengths=probs_lens, return_hypotheses=True,
+                packed_batch,
+                decoder_lengths=probs_lens,
+                return_hypotheses=True,
             )
 
         for beams_idx, beams in enumerate(beams_batch):
@@ -319,7 +321,6 @@ def main(cfg: EvalWFSTNGramConfig):
                 )
                 all_logits = [h.y_sequence for h in all_hyps]
 
-
         all_probs = all_logits
         if cfg.probs_cache_file:
             os.makedirs(os.path.split(cfg.probs_cache_file)[0], exist_ok=True)
@@ -364,7 +365,9 @@ def main(cfg: EvalWFSTNGramConfig):
 
     asr_model = asr_model.to('cpu')
 
-    if (cfg.arpa_model_file is None or not os.path.exists(cfg.arpa_model_file)) and (cfg.decoding_wfst_file is None or not os.path.exists(cfg.decoding_wfst_file)):
+    if (cfg.arpa_model_file is None or not os.path.exists(cfg.arpa_model_file)) and (
+        cfg.decoding_wfst_file is None or not os.path.exists(cfg.decoding_wfst_file)
+    ):
         raise FileNotFoundError(
             f"Could not find both the ARPA model file `{cfg.arpa_model_file}` "
             f"and the decoding WFST file `{cfg.decoding_wfst_file}`."

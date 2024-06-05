@@ -135,7 +135,8 @@ class BaseDecoder(object):
             return lats
         else:
             shortest_path_fsas = k2.index_fsa(
-                k2.shortest_path(lats, True), invert_permutation(order).to(device=log_probs.device),
+                k2.shortest_path(lats, True),
+                invert_permutation(order).to(device=log_probs.device),
             )
             return self._extract_labels_and_probabilities(shortest_path_fsas, return_ilabels, output_aligned)
 
@@ -550,7 +551,11 @@ class K2WfstDecoder(AbstractWFSTDecoder):
                     timesteps = timesteps.tolist()
                     hypotheses.append(
                         WfstNbestHypothesis(
-                            tuple([tuple([tuple(words), tuple(timesteps), tuple(alignment), -scores[i]]),])
+                            tuple(
+                                [
+                                    tuple([tuple(words), tuple(timesteps), tuple(alignment), -scores[i]]),
+                                ]
+                            )
                         )
                     )
             else:
