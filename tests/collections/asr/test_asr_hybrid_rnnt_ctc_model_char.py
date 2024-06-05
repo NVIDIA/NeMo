@@ -231,7 +231,7 @@ class TestEncDecHybridRNNTCTCModel:
 
         assert hybrid_asr_model.ctc_decoding is not None
         assert isinstance(hybrid_asr_model.ctc_decoding, CTCDecoding)
-        assert hybrid_asr_model.ctc_decoding.cfg.strategy == "greedy"
+        assert hybrid_asr_model.ctc_decoding.cfg.strategy == "greedy_batched"
         assert hybrid_asr_model.ctc_decoding.preserve_alignments is False
         assert hybrid_asr_model.ctc_decoding.compute_timestamps is False
 
@@ -265,7 +265,7 @@ class TestEncDecHybridRNNTCTCModel:
 
     @pytest.mark.unit
     def test_GreedyRNNTInferConfig(self):
-        IGNORE_ARGS = ['decoder_model', 'joint_model', 'blank_index']
+        IGNORE_ARGS = ['decoder_model', 'joint_model', 'blank_index', 'tdt_include_duration_confidence']
 
         result = assert_dataclass_signature_match(
             greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyRNNTInferConfig, ignore_args=IGNORE_ARGS
@@ -279,7 +279,7 @@ class TestEncDecHybridRNNTCTCModel:
 
     @pytest.mark.unit
     def test_GreedyBatchedRNNTInferConfig(self):
-        IGNORE_ARGS = ['decoder_model', 'joint_model', 'blank_index']
+        IGNORE_ARGS = ['decoder_model', 'joint_model', 'blank_index', 'tdt_include_duration_confidence']
 
         result = assert_dataclass_signature_match(
             greedy_decode.GreedyBatchedRNNTInfer, greedy_decode.GreedyBatchedRNNTInferConfig, ignore_args=IGNORE_ARGS

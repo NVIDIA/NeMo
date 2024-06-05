@@ -37,7 +37,7 @@ _CUDA_PROGRAM_NAME = b"while_loop_conditional.cu"
 
 def create_outer_for_loop_kernel():
     """
-    Creates a kernel that evaluates whether or not to enter the for loop body. 
+    Creates a kernel that evaluates whether or not to enter the for loop body.
     Effectively substitutes for `for time_idx in range(trip_count)`
     such that that for loop can run on a GPU.
     """
@@ -171,8 +171,10 @@ class RNNTGreedyDecodeCudaGraph:
 
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.device)
-        with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
-            self.graph, stream=stream_for_graph
+        with (
+            torch.cuda.stream(stream_for_graph),
+            torch.inference_mode(),
+            torch.cuda.graph(self.graph, stream=stream_for_graph, capture_error_mode="thread_local"),
         ):
             # This is failing...
             self.f = torch.zeros(
@@ -292,14 +294,21 @@ class RNNTGreedyDecodeCudaGraph:
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
         if partial_hypotheses is not None:
-            raise NotImplementedError("`partial_hypotheses` support is not available with cuda graphs (but could be)")
+            raise NotImplementedError(
+                "`partial_hypotheses` support is not available "
+                "with Frame-Looping algorithm with Cuda graphs (not implemented yet)"
+            )
 
         if self.caller.preserve_alignments:
-            raise NotImplementedError("`preserve_alignments` support is not available with cuda graphs (but could be)")
+            raise NotImplementedError(
+                "`preserve_alignments` support is not available"
+                "with Frame-Looping algorithm with Cuda graphs (not implemented yet)"
+            )
 
         if self.caller.preserve_frame_confidence:
             raise NotImplementedError(
-                "`preserve_frame_confidence` support is not available with cuda graphs (but could be)"
+                "`preserve_frame_confidence` support is not available"
+                "with Frame-Looping algorithm with Cuda graphs (not implemented yet)"
             )
 
         batch_size = x.shape[0]
