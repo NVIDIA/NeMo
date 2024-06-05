@@ -1,0 +1,242 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+"""
+This script is used to convert the DVC dataset to the format required by the model training script.
+The DVC dataset should have the below structure:
+{
+    "1043215450": {          # video_name is the unique video file name with the extension
+        "duration": 125.0,
+        "timestamps": [
+            [0, 5], 
+            [3, 9]
+        ],
+        "captions": [                  # custom caption
+            "Here is your caption 1",
+            "Here is your caption 2",
+        ],
+        "events": [                   # custom event
+            "Event 1",
+            "Event 2",
+        ]
+    },
+    ...
+}
+
+The converted dataset format is as follows:
+[
+    # 1st example: video question answer, you need to remove the timestamps in the value field
+    {
+        "id": "1043215450",
+        "video": "1043215450.mp4",   # video_path will be prepended
+        "conversations": 
+        [
+            {"from": "human", "value": "<video>\n Write a terse but informative summary of the following video clip."}, 
+            {"from": "gpt", "value": "Oaxaca de juarez, mexico - circa 1970: mexican tourists on the square of the cathedral of our lady of the assumption in the city of oaxaca. archival of mexico in oaxaca state in the 1970s."}
+        ],
+        "duration": 125.0,     
+    },
+    # 2nd example: dense video captioning
+    {
+        "id": "xxxx",
+        "video: "xxxx.mp4",
+        "conversations":
+        [
+            {"from": "human", "value": "<video>\n "Provide a detailed description of the given video.Prepend each sentence with its start and end timestamps."}, 
+            {"from": "gpt", "value": "<t1> <t2> Apply eyeshadow on the crease with brush <t3> <t4> Apply eyeshadow on the outer corner of eyes with brush"}
+        ],
+        "duration": 125.0
+    },
+    # 3rd example: event classification
+    {
+        "id": "xxxx",
+        "video: "xxxx.mp4",
+        "conversations":
+        [
+            {"from": "human", "value": "<video>\n "What is the action performed in this video?"}, 
+            {"from": "gpt", "value": "brush hair"}
+        ],
+        "duration": 34.0
+    }
+    ...
+]
+
+event_prompts.json and caption_prompts.json are optional.
+Example:
+event_prompts.json:
+[
+    "What is the action performed in this video?",
+    "Can you highlight the action performed in this video?",
+    ...
+]
+
+caption_prompts.json:
+[
+    "Provide a detailed description of the given video.",
+    "Write a informative summary of the video.",
+    ...
+]
+
+If the subtask is custom_caption, then the "events" field is not required.
+If the subtask is custom_event, then the "captions" field is not required.
+If you want to do Event Classification, please set "disable_dvc_time_tokens" to true.
+
+## Usage:
+python convert_DVC_dataset.py \
+    --input_dvc_dataset /path/to/dvc_dataset.json \
+    --output_file /path/to/output_dataset.json \
+    --video_path_prefix /path/to/video/folder/ \
+    --subtask custom_caption \   # or custom_event
+    --event_prompts /path/to/event_prompts.json \
+    --caption_prompts /path/to/caption_prompts.json \
+    --num_time_tokens 100 \
+    --disable_dvc_time_tokens
+
+"""
+
+import argparse
+import json
+import os
+import numpy as np
+import random
+from nemo.collections.multimodal.data.neva.conversation import TIME_TOKEN_TEMPLATE
+
+caption_prompts = [
+            "Provide a detailed description of the given video.",
+            "Describe the provided video in detail.",
+            "Summarize the visual content of the video.",
+            "Write a informative summary of the video."
+        ]
+event_prompts = [
+            "What is the action performed in this video?",
+            "Can you highlight the action performed in this video?"
+            "What is the main event or action captured in this video?",
+            "Could you summarize the sequence of events depicted in this video?"
+        ]
+time_prompts = [
+            "Each sentence should begin with the start and end timestamps.",
+            "At the beginning of each sentence, include the start and end timestamps.",
+            "Prepend each sentence with its start and end timestamps."
+        ]
+
+
+def convert(input_dvc_dataset, output_dataset, video_path_prefix, num_time_tokens, disable_dvc_time_tokens, prompts, field, ext=".mp4"):
+    def time_to_string(time):
+        # time is normalized in [0, 1]
+        max_offset = float(num_time_tokens - 1)
+        time = int(np.round(max_offset * time))
+        return TIME_TOKEN_TEMPLATE.format(t=time)
+    
+    def get_prompt():
+        if disable_dvc_time_tokens:
+            task_prompt = random.choice(prompts)
+        else:
+            task_prompt = random.choice(prompts) + ' ' + random.choice(time_prompts)
+
+        return '<video>' + '\n' + task_prompt 
+
+    
+    dvc_dataset = {}
+    with open(input_dvc_dataset, "r") as f:
+        dvc_dataset = json.load(f)
+    
+    list_data_dict = []
+    for video_name, video_info in dvc_dataset.items():
+        out = {}
+        video_file = video_name + ext
+        video_path = os.path.join(video_path_prefix, video_file)
+        if not os.path.exists(video_path):
+            continue
+        vid = video_name.split(".")[0]
+        video = video_file
+        texts = video_info[field]
+        duration = video_info["duration"]
+        timestamps = video_info["timestamps"]
+        gpt_value = ""
+        for i, text in enumerate(texts):
+            start, end = float(timestamps[i][0]), float(timestamps[i][1])
+            start, end = start / duration, end / duration
+            start_str = time_to_string(start)
+            end_str = time_to_string(end)
+            seg_caption = text.strip()
+            if disable_dvc_time_tokens:
+                gpt_value += f"{seg_caption} "
+            else:
+                gpt_value += f"{start_str} {end_str} {seg_caption} "
+        
+        convo = []
+        convo.append({"from": "human", "value": get_prompt()})
+        convo.append({"from": "gpt", "value": gpt_value.strip()})
+        out["id"] = vid
+        out["video"] = video
+        out["conversations"] = convo
+        out["durations"] = duration
+        list_data_dict.append(out)
+    
+    with open(output_dataset, "w") as f:
+        json.dump(list_data_dict, f, indent=4)
+
+
+def load_prompts(prompts_path):
+    prompts = []
+    with open(prompts_path, "r") as f:
+        prompts = json.load(f)
+    assert len(prompts) > 0, "Event prompts should not be empty"
+    return prompts
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input_dvc_dataset", type=str, required=True)
+    parser.add_argument("--output_file", default="dvc_train.json", type=str, required=True)
+    parser.add_argument("--video_path_prefix", type=str, required=True)
+    parser.add_argument("--subtask", choice=["custom_event", "custom_caption"], type=str, required=True)
+    parser.add_argument("--event_prompts", type=str, default=None, required=False, help="Path to the event prompt json file; Optional")
+    parser.add_argument("--caption_prompts", type=str, default=None, required=False, help="Path to the caption prompt json file; Optional")
+    parser.add_argument("--num_time_tokens", dtype=int, default=100, help="Number of time tokens to use for time tokens")
+    parser.add_argument("--disable_dvc_time_tokens", action="store_true")
+    args = parser.parse_args()
+
+    # load event_prompts and caption_prompts
+    custom_event_prompts = []
+    if args.event_prompts:
+        custom_event_prompts = load_prompts(args.event_prompts)
+    else:
+        custom_event_prompts = event_prompts
+    
+    custom_caption_prompts = []
+    if args.caption_prompts:
+        custom_caption_prompts = load_prompts(args.caption_prompts)
+    else:
+        custom_caption_prompts = caption_prompts
+    
+    if args.subtask == "custom_event":
+        prompts = custom_event_prompts
+    else:
+        prompts = custom_caption_prompts
+    
+    field = "events" if args.subtask == "custom_event" else "captions"
+    
+    convert(args.input_dvc_dataset,
+            args.output_mml_dataset,
+            args.video_path_prefix,
+            args.subtask,
+            args.num_time_tokens,
+            args.disable_dvc_time_tokens,
+            prompts,
+            field)
+
+if __name__ == "__main__":
+    main()
