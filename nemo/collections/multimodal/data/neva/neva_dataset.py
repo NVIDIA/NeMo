@@ -407,7 +407,10 @@ def preprocess_llama_2(
     - Dict: A dictionary containing tokenized and labeled data suitable for the LLaMA 2 model.
       This includes tokens, labels, and any special processing as defined in the configuration.
     """
-    conv = conversation_lib.conv_llava_llama_2.copy()
+    if is_mistral:
+        conv = conversation_lib.conv_mistral.copy()
+    else:
+        conv = conversation_lib.conv_llava_llama_2.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
     # Apply prompt templates
@@ -469,7 +472,7 @@ def preprocess_llama_2(
         target[cur_len:] = IGNORE_INDEX
 
     # Check if masking working correctly
-    # print([x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())])
+    print([x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())])
 
     if add_extra_token:
         tokens = tokens[:, :-1].contiguous()

@@ -103,7 +103,7 @@ class Conversation:
             wrap_inst = lambda msg: f"[INST] {msg} [/INST]"
             ret = ""
             if self.sep_style == SeparatorStyle.MISTRAL:
-                ret += "<s>"
+                ret += DEFAULT_BOS_TOKEN
             for i, (role, message) in enumerate(messages):
                 if i == 0:
                     assert message, "first message should not be none"
@@ -465,7 +465,7 @@ conv_mistral = Conversation(
     offset=0,
     sep_style=SeparatorStyle.MISTRAL,
     sep="",
-    sep2="</s>",
+    sep2=DEFAULT_EOS_TOKEN,
 )
 
 default_conversation = conv_vicuna_v1
