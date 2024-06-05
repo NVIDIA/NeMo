@@ -1224,10 +1224,6 @@ def make_supervised_data_module(tokenizer, image_processor, model_cfg) -> Dict:
     if getattr(model_cfg, 'no_seqlen_plus_one_input_tokens', False):
         add_extra_token = 0
     crop_size = mm_cfg.vision_encoder.get("crop_size", (224, 224))
-    assert crop_size == (
-        image_processor.crop_size['height'],
-        image_processor.crop_size['width'],
-    ), f"Crop size {crop_size} does not match the HuggingFace CLIP model's crop size {(image_processor.crop_size['height'], image_processor.crop_size['width'])}"
 
     train_dataset = NevaDataset(
         tokenizer=tokenizer,

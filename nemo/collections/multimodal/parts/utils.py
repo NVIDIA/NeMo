@@ -524,6 +524,14 @@ def create_image_processor(mm_cfg):
             )
         else:
             raise (ValueError("Currently only support CLIPImageProcessor and SiglipImageProcessor from Huggingface"))
+
+        crop_size = mm_cfg.vision_encoder.get("crop_size", (224, 224))
+        if hasattr(image_processor, 'crop_size'):
+            assert crop_size == (
+                image_processor.crop_size['height'],
+                image_processor.crop_size['width'],
+            ), f"Crop size {crop_size} does not match the HuggingFace CLIP model's crop size {(image_processor.crop_size['height'], image_processor.crop_size['width'])}"
+
     else:
         # Corresponds to MegatronCLIPModel
         crop_size = mm_cfg.get("crop_size", (224, 224))
