@@ -27,8 +27,16 @@ import zarr
 from torch.distributed.checkpoint import FileSystemReader
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
+import functools
+import logging
+import pathlib
+import typing
+
+import torch
+import yaml
+
+
 from nemo.export.tarutils import TarPath, ZarrPathStore
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo import UnpackedNemoCheckpointDir
 from nemo.export.trt_llm.nemo_ckpt_loader.sentencepiece_tokenizer import SentencePieceTokenizer
 
 LOGGER = logging.getLogger("NeMo")
@@ -252,3 +260,156 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
             nemo_dir.tarobject.close()
 
     return model, nemo_model_config, tokenizer
+
+
+
+def cpu_map_location(storage, loc):
+    return storage.cpu()
+
+
+def gpu_map_location(storage, loc):
+    if loc.startswith("cuda"):
+        training_gpu_idx = int(loc.split(":")[1])
+        inference_gpu_idx = training_gpu_idx % torch.cuda.device_count()
+        return storage.cuda(inference_gpu_idx)
+    elif loc.startswith("cpu"):
+        return storage.cpu()
+    else:
+        raise ValueError(f"Not handled {loc}")
+
+
+class UnpackedNemoCheckpointDir:
+    def __init__(
+        self,
+        checkpoints_dir: typing.Union[pathlib.Path, TarPath],
+        load_checkpoints_to_cpu: bool = False,
+    ):
+        assert isinstance(checkpoints_dir, (pathlib.Path, TarPath))
+        self._checkpoints_dir = checkpoints_dir
+        self._load_checkpoints_to_cpu = load_checkpoints_to_cpu
+
+    @property
+    @functools.lru_cache
+    def model_config(self):
+        model_config = None
+
+        model_config_filename = "model_config.yaml"
+        model_configs_paths = list(self._checkpoints_dir.rglob(model_config_filename))
+        if model_configs_paths:
+            if len(model_configs_paths) > 1:
+                LOGGER.debug(f"There are more than single {model_config_filename} in" f" {self._checkpoints_dir}")
+            model_config_path = model_configs_paths[0]
+            LOGGER.debug("Loading model config from %s", model_config_path)
+            with model_config_path.open("r") as model_config_file:
+                model_config = yaml.load(model_config_file, Loader=yaml.SafeLoader)
+        else:
+            LOGGER.debug("Searching model config in checkpoints")
+            # try to obtain from checkpoint
+            checkpoint_name = self.checkpoint_name
+            checkpoints_paths = sorted(self._checkpoints_dir.rglob(checkpoint_name))
+            if checkpoints_paths:
+                # assume that parallel ranks 0 checkpoint should have model config embedded
+                checkpoint_path = checkpoints_paths[0]
+
+                map_location_fn = cpu_map_location if self._load_checkpoints_to_cpu else gpu_map_location
+
+                model_00 = torch.load(checkpoint_path, map_location=map_location_fn)
+                if "hyper_parameters" in model_00 and "cfg" in model_00["hyper_parameters"]:
+                    model_config = model_00["hyper_parameters"]["cfg"]
+                    LOGGER.debug("Loaded model config from checkpoint %s", checkpoint_path)
+                else:
+                    LOGGER.debug("Could not find model config in checkpoint %s", checkpoint_path)
+
+                del model_00
+
+        if model_config is None:
+            LOGGER.warning("Could not find checkpoint with NeMo model config in %s", self._checkpoints_dir)
+
+        LOGGER.debug("Loaded model config %s", model_config)
+
+        return model_config
+
+    @property
+    def checkpoints_dir(self):
+        return self._checkpoints_dir
+
+    def get_checkpoints_paths(self, tensor_model_parallel_size=1, pipeline_model_parallel_size=1):
+        """Injects tensor/pipeline model parallel ranks into the filepath.
+        Does nothing if not using model parallelism.
+        """
+        checkpoint_path_without_rank = self.checkpoints_dir / self.checkpoint_name
+
+        def _inject_parallel_ranks(tp_rank, pp_rank):
+            if tensor_model_parallel_size > 1 or pipeline_model_parallel_size > 1:
+                if pipeline_model_parallel_size is None or pipeline_model_parallel_size == 1:
+                    checkpoint_path = (
+                        checkpoint_path_without_rank.parent
+                        / f"mp_rank_{tp_rank:02d}"
+                        / checkpoint_path_without_rank.name
+                    )
+                else:
+                    checkpoint_path = (
+                        checkpoint_path_without_rank.parent
+                        / f"tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}"
+                        / checkpoint_path_without_rank.name
+                    )
+                return checkpoint_path
+            else:
+                return checkpoint_path_without_rank
+
+        return [
+            [
+                _inject_parallel_ranks(tp_rank=tp_rank, pp_rank=pp_rank)
+                for pp_rank in range(pipeline_model_parallel_size)
+            ]
+            for tp_rank in range(tensor_model_parallel_size)
+        ]
+
+    @property
+    @functools.lru_cache
+    def checkpoint_name(self):
+        patterns = [
+            "model_weights.ckpt",  # older megatron checkpoints
+            "*last.ckpt",  # newer format of checkpoints
+        ]
+        for pattern in patterns:
+            model_files = sorted(list(self._checkpoints_dir.rglob(pattern)))
+            if model_files:
+                return model_files[0].name
+
+        raise ValueError(f"Could not find checkpoint files in {self._checkpoints_dir}")
+
+    @functools.lru_cache
+    def get_tokenizer_file_path(self, tokenizer_key, file_key, default_filename_pattern):
+        model_config = self.model_config
+        file_property = None
+        if tokenizer_key in model_config and file_key in model_config[tokenizer_key]:
+            file_property = model_config[tokenizer_key][file_key]
+        elif file_key in model_config:
+            file_property = model_config[file_key]
+
+        LOGGER.debug("model_config[%s][%s]=%s", tokenizer_key, file_key, file_property)
+
+        if file_property and file_property.startswith("nemo:"):
+            filename = file_property.split("nemo:")[1]
+            filename_pattern = f"*{filename}"
+        elif file_property and file_property.startswith("/artifacts/"):
+            filename = pathlib.Path(file_property).name
+            filename_pattern = f"*{filename}"
+        elif file_property is None or file_property == "None":
+            filename_pattern = None
+        else:
+            filename_pattern = default_filename_pattern
+            LOGGER.warning(
+                f"Tokenizer file from config: {tokenizer_key}.{file_key}={file_property} "
+                f"looks like unsupported path. Pattern {filename_pattern} will be used."
+            )
+
+        file_path = None
+        if filename_pattern is not None:
+            files_paths = list(self._checkpoints_dir.glob(filename_pattern))
+            if files_paths:
+                assert len(files_paths) == 1
+                file_path = files_paths[0]
+
+        return file_path
