@@ -213,6 +213,8 @@ jobs:
           model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
           quantization.algorithm=null \
           model_save=/home/TestData/nlp/megatron_llama/ci_baseline
+      AFTER_SCRIPT: |
+        rm -rf /home/TestData/nlp/megatron_llama/ci_baseline
 
   L2_PTQ_Llama2_FP8:
     needs: [cicd-test-container-setup]
