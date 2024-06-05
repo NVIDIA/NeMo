@@ -14,6 +14,7 @@
 
 import os
 import itertools
+import warnings
 from functools import cache, partial
 from typing import Any, Optional
 from contextlib import nullcontext
@@ -63,6 +64,8 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.transformer.custom_layers.transformer_engine import TENorm
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+    from megatron.core.transformer.enums import AttnMaskType as MCoreAttnMaskType
     from megatron.core import parallel_state
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.models.vision.clip_vit_model import CLIPViTModel
@@ -296,11 +299,12 @@ class MCoreCLIPViTModel(CLIPViTModel):
         self.head = torch.nn.Linear(self.config.hidden_size, self.output_dim, bias=False, )
 
     def forward(self, x):
-        x = super().forward(x)
+        x = super().forward(x,)
         x = self.final_layernorm(x)
         x = x[:, 0]
         x = self.head(x)
         return x
+
 
 class MCoreCLIPTextModel(MCoreGPTModel):
     def __init__(self, *args, **kwargs):
@@ -350,7 +354,7 @@ class CLIPModel(MegatronModule):
                 vision_transformer_config.moe_grouped_gemm,
                 model_cfg.get('transformer_engine', True),
             )
-            vision_layer_spec.submodules.self_attention.params['attn_mask_type'] = AttnMaskType.padding
+            vision_layer_spec.submodules.self_attention.params['attn_mask_type'] = MCoreAttnMaskType.no_mask
             self.vision_encoder = MCoreCLIPViTModel(
                 transformer_config=vision_transformer_config,
                 transformer_layer_spec=vision_layer_spec,
