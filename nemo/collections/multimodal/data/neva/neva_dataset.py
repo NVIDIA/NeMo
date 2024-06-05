@@ -492,9 +492,11 @@ def preprocess_llama_2(
             parts[0] += sep
 
             round_len = len(tokenizer.text_to_ids(rou + conv.sep2))
+            instruction_len = len(tokenizer.text_to_ids(parts[0])) - 2
             if i > 0:
                 round_len -= 1  # Remove extra token added by sp tokenizer
-            instruction_len = len(tokenizer.text_to_ids(parts[0])) - 2
+            else:
+                instruction_len += 1
             target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
