@@ -27,18 +27,12 @@ for optimized inference on NVIDIA GPUs.
   Figure 1: Diagram representing the various steps involved in LoRA customization using NVIDIA NeMo Framework and deployment with NVIDIA NIM.
 
 
-NIM supports seamless deployment of multiple LoRA adapters (aka
-“multi-LoRA”) over the same base model by dynamically loading the
-adapter weights based on incoming requests at runtime. This allows
-flexibility in serving inputs belonging to different tasks or usecases
-without having to deploy a bespoke model for each usecase. More
-information on NIM for LLMs can be found it its
-`documentation <https://docs.nvidia.com/nim/large-language-models/latest/introduction.html>`__.
+NIM supports seamless deployment of multiple LoRA adapters (aka “multi-LoRA”) over the same base model by dynamically loading the adapter weights based on incoming requests at runtime. This allows flexibility in serving inputs belonging to different tasks or usecases without having to deploy a bespoke model for each usecase. More information on NIM for LLMs can be found it its `documentation <https://docs.nvidia.com/nim/large-language-models/latest/introduction.html>`__.
 
 Pre-requisites
 --------------
 
-In order to proceed, ensure that you have -
+In order to proceed, ensure that you have the following
 
 * System Configuration
     * Access to at least 1 NVIDIA GPU with a cumulative memory of at least 80GB, for example: 1 x H100-80GB or 1 x A100-80GB.
@@ -108,13 +102,9 @@ with NeMo Framework”) to follow along with this one, it is recommended
 if possible. You can still learn about LoRA deployment with NIM using
 the other adapters downloaded from NGC.
 
-.. _to-get-started-1:
-
-To get started
-^^^^^^^^^^^^^^
 
 1. Download example LoRA adapters
-"""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The following steps assume that you have authenticated with NGC and
 downloaded the CLI tool, as mentioned in pre-requisites.
@@ -136,7 +126,7 @@ downloaded the CLI tool, as mentioned in pre-requisites.
    chmod -R 777 $LOCAL_PEFT_DIRECTORY
 
 2. Prepare the LoRA model store
-"""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Ensure that the the LoRA model store directory has a structure like so -
 with the name of the model as a sub-folder that contains the .nemo file.
@@ -168,7 +158,7 @@ To ensure model store is organized as expected, create a folder named
    cp ./results/Meta-Llama-3-8B-Instruct/checkpoints/megatron_gpt_peft_lora_tuning.nemo $LOCAL_PEFT_DIRECTORY/llama3-8b-pubmed-qa 
 
 3. Set-up NIM
-"""""""""""""
+^^^^^^^^^^^^^
 
 From your host OS environment, start the NIM docker container while
 mounting the LoRA model store, as follows:
@@ -208,11 +198,11 @@ configuration <https://docs.nvidia.com/nim/large-language-models/latest/configur
 documentation.
 
 4. Start the notebook
-"""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^
 
 From another terminal, follow the same instructions as the previous
 notebook to launch Jupyter Lab, and navigate to `this
-notebook <./llama3-lora-deploy-nim.ipynb>`__. You may use the same NeMo
-Framework docker container which has Jupyter installed.
+notebook <./llama3-lora-deploy-nim.ipynb>`__. 
 
-.. |alt text| image:: ./img/e2e-lora-train-and-deploy.png
+You may use the same NeMo
+Framework docker container which already has Jupyter Lab installed.
