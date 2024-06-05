@@ -390,6 +390,7 @@ def preprocess_llama_2(
     sources: dict,
     tokenizer,
     cfg,
+    is_mistral: bool = False,
 ) -> Dict:
     """
     Preprocesses sources for the LLaMA 2 model configuration.
@@ -441,7 +442,10 @@ def preprocess_llama_2(
     labels = tokens.clone().detach()
 
     # Mask labels
-    sep = "[/INST] "
+    if is_mistral:
+        sep = "[/INST]"
+    else:
+        sep = "[/INST] "
     for conversation, target in zip(conversations, labels):
         rounds = conversation.split(conv.sep2)
         cur_len = 0
@@ -1043,6 +1047,13 @@ class LazySupervisedDataset(Dataset):
                 sources,
                 self.tokenizer,
                 self.multimodal_cfg,
+            )
+        elif self.conv_template == "mistral":
+            data_dict = preprocess_llama_2(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+                is_mistral=True,
             )
         elif self.conv_template == "plain":
             data_dict = preprocess_plain(
