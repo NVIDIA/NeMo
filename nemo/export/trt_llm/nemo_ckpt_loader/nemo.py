@@ -20,7 +20,6 @@ import typing
 
 import torch
 import yaml
-from transformers import FalconConfig, GPT2Config, LlamaConfig
 
 from nemo.export.tarutils import TarPath
 
@@ -40,40 +39,6 @@ def gpu_map_location(storage, loc):
         return storage.cpu()
     else:
         raise ValueError(f"Not handled {loc}")
-
-
-def nemo_to_llm_config(nemo_model_config, vocab_size, eos_id, bos_id, decoder_type):
-    convertion_dict = {
-        "activation_function": "activation",
-        "layer_norm_epsilon": "layernorm_epsilon",
-        "n_embd": "hidden_size",
-        "n_head": "num_attention_heads",
-        "n_layer": "num_layers",
-        "n_positions": "max_position_embeddings",
-        "rotary_pct": "rotary_percentage",
-        "rotary_base": "rotary_base",
-        "rotary_scaling": "seq_len_interpolation_factor",
-        "position_embedding_type": "position_embedding_type",
-        "bias": "bias",
-        "intermediate_size": "ffn_hidden_size",
-        "num_kv_heads": "num_query_groups",
-        "moe_num_experts": "num_moe_experts",
-        "moe_top_k": "moe_router_topk",
-        "moe_renorm_mode": "moe_renorm_mode",
-        "kv_channels": "kv_channels",
-        "norm_epsilon": "layernorm_epsilon",
-    }
-
-    kwargs = {key: nemo_model_config[value] for key, value in convertion_dict.items() if value in nemo_model_config}
-    kwargs["vocab_size"] = vocab_size
-    kwargs["eos_token_id"] = eos_id
-    kwargs["bos_token_id"] = eos_id if decoder_type == 'falcon' else bos_id  # in HF falcon eos==bos
-    if "moe_num_experts" not in kwargs:
-        kwargs["moe_num_experts"] = 0
-    config_dict = {"llama": LlamaConfig, "falcon": FalconConfig, "gemma": LlamaConfig}
-    llm_config = config_dict[decoder_type] if decoder_type in config_dict else GPT2Config
-
-    return llm_config(**kwargs)
 
 
 def add_special_tokens_to_tokenizer(tokenizer):
