@@ -15,6 +15,7 @@ import os
 import tempfile
 from typing import Any, Callable, Tuple
 
+import decord
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -344,22 +345,6 @@ def create_neva_model_and_processor(cfg):
     # trainer required for restoring model parallel models
     trainer = Trainer(plugins=plugins, strategy=NLPDDPStrategy(), **cfg.trainer)
 
-    if (
-        cfg.tensor_model_parallel_size < 0
-        or cfg.pipeline_model_parallel_size < 0
-        or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
-    ):
-        model_config = MegatronNevaModel.restore_from(
-            restore_path=cfg.neva_model_file,
-            trainer=trainer,
-            return_config=True,
-        )
-
-        with open_dict(cfg):
-            cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
-            cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
-            cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
-
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
@@ -385,6 +370,8 @@ def create_neva_model_and_processor(cfg):
             neva_cfg.mm_cfg.llm.from_pretrained = cfg.get('base_model_file', None)
             neva_cfg.apply_rope_fusion = False
             neva_cfg.fp8 = False
+            neva_cfg.tensor_model_parallel_size = cfg.tensor_model_parallel_size
+            neva_cfg.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
         #    neva_cfg.mm_cfg.vision_encoder.from_pretrained = None
 
         model = MegatronNevaModel.restore_from(
@@ -483,23 +470,23 @@ def create_neva_model_and_processor(cfg):
 
     # add video processor for video neva
     def video_processor(maybe_video_path):
-        from decord import VideoReader
 
         if isinstance(maybe_video_path, str):
-            vr = VideoReader(maybe_video_path)
+            decord.bridge.set_bridge("torch")
+            vr = decord.VideoReader(maybe_video_path)
             if neva_cfg.data.splice_single_frame == 'first':
-                frames = [Image.fromarray(vr[0].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[0].asnumpy()).convert('RGB')]
             elif neva_cfg.data.splice_single_frame == 'middle':
-                frames = [Image.fromarray(vr[len(vr) // 2].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[len(vr) // 2].asnumpy()).convert('RGB')]
             elif neva_cfg.data.splice_single_frame == 'last':
-                frames = [Image.fromarray(vr[-1].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[-1].asnumpy()).convert('RGB')]
             else:
                 if neva_cfg.data.num_frames == -1:
-                    frames = [Image.fromarray(frame.asnumpy()[:, :, ::-1]).convert('RGB') for frame in vr]
+                    frames = [Image.fromarray(frame.asnumpy()).convert('RGB') for frame in vr]
                 else:
                     num_frames = min(len(vr), neva_cfg.data.num_frames)
                     indices = np.linspace(0, len(vr) - 1, num_frames, dtype=int)
-                    frames = [Image.fromarray(vr[i].asnumpy()[:, :, ::-1]).convert('RGB') for i in indices]
+                    frames = vr.get_batch(indices)
 
                     while len(frames) < neva_cfg.data.num_frames:
                         frames.append(frames[-1])
