@@ -112,8 +112,8 @@ import json
 import os
 import numpy as np
 import random
-from nemo.collections.multimodal.data.neva.conversation import TIME_TOKEN_TEMPLATE
-
+#from nemo.collections.multimodal.data.neva.conversation import TIME_TOKEN_TEMPLATE
+TIME_TOKEN_TEMPLATE = "<t{t}>"
 caption_prompts = [
             "Provide a detailed description of the given video.",
             "Describe the provided video in detail.",
@@ -157,9 +157,9 @@ def convert(input_dvc_dataset, output_dataset, video_path_prefix, num_time_token
     for video_name, video_info in dvc_dataset.items():
         out = {}
         video_file = video_name + ext
-        video_path = os.path.join(video_path_prefix, video_file)
-        if not os.path.exists(video_path):
-            continue
+        #video_path = os.path.join(video_path_prefix, video_file)
+        #if not os.path.exists(video_path):
+        #    continue
         vid = video_name.split(".")[0]
         video = video_file
         texts = video_info[field]
@@ -202,10 +202,10 @@ def main():
     parser.add_argument("--input_dvc_dataset", type=str, required=True)
     parser.add_argument("--output_file", default="dvc_train.json", type=str, required=True)
     parser.add_argument("--video_path_prefix", type=str, required=True)
-    parser.add_argument("--subtask", choice=["custom_event", "custom_caption"], type=str, required=True)
+    parser.add_argument("--subtask", choices=["custom_event", "custom_caption"], type=str, required=True)
     parser.add_argument("--event_prompts", type=str, default=None, required=False, help="Path to the event prompt json file; Optional")
     parser.add_argument("--caption_prompts", type=str, default=None, required=False, help="Path to the caption prompt json file; Optional")
-    parser.add_argument("--num_time_tokens", dtype=int, default=100, help="Number of time tokens to use for time tokens")
+    parser.add_argument("--num_time_tokens", type=int, default=100, help="Number of time tokens to use for time tokens")
     parser.add_argument("--disable_dvc_time_tokens", action="store_true")
     args = parser.parse_args()
 
@@ -230,9 +230,8 @@ def main():
     field = "events" if args.subtask == "custom_event" else "captions"
     
     convert(args.input_dvc_dataset,
-            args.output_mml_dataset,
+            args.output_file,
             args.video_path_prefix,
-            args.subtask,
             args.num_time_tokens,
             args.disable_dvc_time_tokens,
             prompts,
