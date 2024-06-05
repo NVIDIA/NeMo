@@ -15,19 +15,31 @@
 
 import functools
 import logging
-import os
 import pathlib
-import tarfile
 import typing
 
 import torch
 import yaml
 from transformers import FalconConfig, GPT2Config, LlamaConfig
 
-from nemo.export.trt_llm.nemo.convert import cpu_map_location, gpu_map_location
-
+from nemo.export.tarutils import TarPath
 
 LOGGER = logging.getLogger("NeMo")
+
+
+def cpu_map_location(storage, loc):
+    return storage.cpu()
+
+
+def gpu_map_location(storage, loc):
+    if loc.startswith("cuda"):
+        training_gpu_idx = int(loc.split(":")[1])
+        inference_gpu_idx = training_gpu_idx % torch.cuda.device_count()
+        return storage.cuda(inference_gpu_idx)
+    elif loc.startswith("cpu"):
+        return storage.cpu()
+    else:
+        raise ValueError(f"Not handled {loc}")
 
 
 def nemo_to_llm_config(nemo_model_config, vocab_size, eos_id, bos_id, decoder_type):
@@ -100,45 +112,6 @@ def add_special_tokens_to_tokenizer(tokenizer):
         tokenizer.add_special_tokens({"eos_token": "</s>"})
 
 
-def unpack_nemo_ckpt(
-    nemo_archive_path: typing.Union[str, pathlib.Path], out_dir_path: typing.Union[str, pathlib.Path],
-):
-    nemo_archive_path = pathlib.Path(nemo_archive_path)
-    if not nemo_archive_path.exists():
-        raise FileNotFoundError(f"{nemo_archive_path} does not exist")
-
-    for tar_mode in ["r:", "r:gz"]:
-        try:
-            with tarfile.open(nemo_archive_path, mode=tar_mode) as tar_file:
-
-                def is_within_directory(directory, target):
-                    abs_directory = os.path.abspath(directory)
-                    abs_target = os.path.abspath(target)
-
-                    prefix = os.path.commonprefix([abs_directory, abs_target])
-
-                    return prefix == abs_directory
-
-                def safe_members(tar_file):
-                    members = []
-                    for member in tar_file.getmembers():
-                        member_path = os.path.join(out_dir_path, member.name)
-                        if not is_within_directory(out_dir_path, member_path):
-                            raise Exception("Attempted Path Traversal in Tar File")
-                        members.append(member)
-                    return members
-
-                tar_file.extractall(
-                    out_dir_path, members=safe_members(tar_file), numeric_owner=False
-                )  # nosec - tar path has been validated.
-
-            return out_dir_path
-        except tarfile.ReadError:
-            pass
-
-    raise RuntimeError(f"Could not unpack {nemo_archive_path}")
-
-
 def extract_layers_with_prefix(model_, prefix):
     length_to_trim = len(prefix)
     model_state = model_.get("state_dict", model_)
@@ -147,9 +120,12 @@ def extract_layers_with_prefix(model_, prefix):
 
 class UnpackedNemoCheckpointDir:
     def __init__(
-        self, checkpoints_dir: typing.Union[str, pathlib.Path], load_checkpoints_to_cpu: bool = False,
+        self,
+        checkpoints_dir: typing.Union[pathlib.Path, TarPath],
+        load_checkpoints_to_cpu: bool = False,
     ):
-        self._checkpoints_dir = pathlib.Path(checkpoints_dir)
+        assert isinstance(checkpoints_dir, (pathlib.Path, TarPath))
+        self._checkpoints_dir = checkpoints_dir
         self._load_checkpoints_to_cpu = load_checkpoints_to_cpu
 
     @property
@@ -161,11 +137,7 @@ class UnpackedNemoCheckpointDir:
         model_configs_paths = list(self._checkpoints_dir.rglob(model_config_filename))
         if model_configs_paths:
             if len(model_configs_paths) > 1:
-                raise RuntimeError(
-                    f"There are more than single {model_config_filename} in"
-                    f" {self._checkpoints_dir}:"
-                    f" {', '.join(map(lambda p: p.as_posix(), model_configs_paths))}"
-                )
+                LOGGER.debug(f"There are more than single {model_config_filename} in" f" {self._checkpoints_dir}")
             model_config_path = model_configs_paths[0]
             LOGGER.debug("Loading model config from %s", model_config_path)
             with model_config_path.open("r") as model_config_file:

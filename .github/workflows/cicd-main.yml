@@ -15,7 +15,10 @@ name: "CICD NeMo"
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - 'main'
+      - 'r**'
+    types: [ labeled ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -24,6 +27,7 @@ concurrency:
 jobs:
   gpu-test:
     runs-on: self-hosted-azure
+    if: ${{ github.event.label.name == 'Run CICD' }}
     steps:
     - name: Run nvidia-smi test
       run: |
@@ -31,152 +35,72 @@ jobs:
         nvidia-smi
 
   cicd-cluster-clean:
-    runs-on: self-hosted-azure-cpu
+    runs-on: self-hosted-azure-builder
+    if: ${{ github.event.label.name == 'Run CICD' }}
     steps:
     - name: Clean server from old files
       run: |
         docker container prune --filter "until=24h" --force
         docker image prune -a --filter "until=24h" --force
 
-#  checkout-repository:
-#    runs-on: self-hosted-azure
-#    container:
-#      image: nvcr.io/nvidia/pytorch:24.01-py3
-#      volumes:
-#        - ${{ github.workspace }}:/workspace
-#    steps:
-#    - name: Checkout repository
-#      uses: actions/checkout@v2
-#      with:
-#        path: ${{ github.run_id }}
-
 
   cicd-test-container-setup:
     needs: [cicd-cluster-clean]
-    runs-on: self-hosted-azure-cpu
-    # uses: actions/cache@v2
-    #container:
-#      image: nvcr.io/nvidia/pytorch:24.01-py3
-#      options: 
-#        # --user 0:128
-#        --device=/dev/nvidia0
-#        --gpus all
-#        --shm-size=8g 
-#        --env TRANSFORMERS_OFFLINE=0
-#        --env HYDRA_FULL_ERROR=1
+    runs-on: self-hosted-azure-builder
+    if: ${{ github.event.label.name == 'Run CICD' }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
         path: ${{ github.run_id }}
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with: 
+        # We use `docker` driver as this speeds things up for 
+        # trivial (non-multi-stage) builds.
+        driver: docker
 
-    - name: Container setup
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        file: Dockerfile.ci
+        push: true
+        cache-from: nemoci.azurecr.io/nemo_container:latest
+        cache-to: type=inline
+        tags: |
+          nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+          nemoci.azurecr.io/nemo_container:latest
+
+    - name: Run some checks
       run: |
-        # Pull base PyTorch container
-        docker pull nvcr.io/nvidia/pytorch:24.02-py3
-        docker run --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume ${{ github.workspace }}/${{ github.run_id }}:/workspace --volume /mnt/datadrive/TestData:/home/TestData nvcr.io/nvidia/pytorch:24.01-py3 /bin/bash -c '
-            set -x
+        docker run --rm --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container_${{ github.run_id }} bash -c '\
+          # PyTorch Lightning version
+          python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"
 
-            # PyTorch version
-            python -c "import torch; print(torch.__version__)"
-            python -c "import torchvision; print(torchvision.__version__)"
+          # PyTorch Lightning DDP Checks
+          CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py"
 
-            # Install test requirements
-            apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt && pip install -r requirements/requirements_lightning.txt
+          # Basic Import Checks
+          python -c "import nemo.collections.asr as nemo_asr"
+          python -c "import nemo.collections.nlp as nemo_nlp"
+          python -c "import nemo.collections.tts as nemo_tts"
 
-            # Code formatting checks
-            python setup.py style
+          python setup.py style
+          python tests/check_copyright_header.py --dir .
 
-            # Copyright Headers check
-            python tests/check_copyright_header.py --dir .
-
-            # NeMo Installation
-            ./reinstall.sh release
-
-            # Transformer Engine installation
-            git clone https://github.com/NVIDIA/TransformerEngine.git && \
-                pushd TransformerEngine && \
-                git fetch origin bfe21c3d68b0a9951e5716fb520045db53419c5e && \
-                git checkout FETCH_HEAD && \
-                git submodule init && git submodule update && \
-                NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .  && \
-                popd
-
-            # Apex installation
-            git clone https://github.com/NVIDIA/apex.git && \
-                pushd apex && \
-                git checkout 810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c && \
-                cp -R apex /usr/local/lib/python3.10/dist-packages && \
-                popd
-
-            # pip package should be working with main, if not we can update the commit here
-            # until the pip package is updated
-            # Megatron Core installation
-            git clone https://github.com/NVIDIA/Megatron-LM.git && \
-                pushd Megatron-LM && \
-                git checkout fbb375d4b5e88ce52f5f7125053068caff47f93f && \
-                pip install . && \
-                  pushd megatron/core/datasets && \
-                  make && \
-                  popd && \
-                popd
-            export PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
-
-            # Install only for test: L2: Segmentation Tool
-            pushd tools/ctc_segmentation && \
-                pip install -r requirements.txt && \
-                apt-get update && apt-get install libsox-fmt-all -y && \
-                popd
-
-            # PyTorch Lightning version
-            python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"
-
-            # PyTorch Lightning DDP Checks
-            CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py"
-
-            # Basic Import Checks
-            python -c "import nemo.collections.asr as nemo_asr"
-            python -c "import nemo.collections.nlp as nemo_nlp"
-            python -c "import nemo.collections.tts as nemo_tts"
-
-            # set permission
-            chmod 777 -R /workspace
-            '
-            ### \'\'
-
-    - name: Push container to registry for future use
-      run: |
-        # Push container
-        echo "Docker: List containers" && docker ps -a
-        DOCKER_COMMIT=$(docker ps --latest --quiet)  # latest container
-        docker commit $DOCKER_COMMIT nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-        docker tag nemoci.azurecr.io/nemo_container_${{ github.run_id }} nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-        docker push nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-
-    # - name: Build and push to local registry
-    #   uses: docker/build-push-action@v5
-    #   with:
-    #       context: .
-    #       push: true
-    #       tags: nemoci.azurecr.io/name/app:latest
-
-    # - name: Inspect
-    #   run: |
-    #     docker buildx imagetools inspect nemoci.azurecr.io/name/app:latest
-
-    #- name: Post-workflow execution
-    #  uses: gacts/run-and-post-run@v1
-    #  with:
-    #    post: |
-    #      chmod -R 777 .
+          # These checks are not crucial
+          exit 0
+        '
+        ### \'\'
 
 
-  L0_Unit_Tests_GPU:
+  OPTIONAL_L0_Unit_Tests_GPU:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-      options: 
+      options:
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
@@ -186,12 +110,12 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     - name: "L0: Unit Tests GPU"
       run: |
         NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
-    - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-      if: "failure()"
+    #- uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+    #  if: "failure()"
       
 
   L0_Unit_Tests_CPU:
@@ -209,14 +133,34 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     - name: "L0: Unit Tests CPU"
       run: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
     - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
       if: "failure()"
 
-
+  L0_Setup_Test_Data_And_Models:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    timeout-minutes: 10
+    container:
+      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+      options:
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g
+        --env TRANSFORMERS_OFFLINE=0
+        --env HYDRA_FULL_ERROR=1
+        --volume /mnt/datadrive/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+        - run: |
+            python -m tests.setup --save_dir /home/TestData/nlp
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+          if: "failure()"
 
 ##     - name: L2: Multimodal Imagen Train
 
@@ -224,6 +168,36 @@ jobs:
   L2_Community_LLM_Checkpoints_tests_Llama:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
+    container:
+      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /mnt/datadrive/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+        - run: |
+            CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
+            --input_name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf-tiny \
+            --output_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+            --precision=16
+        - name: Cleanup
+          if: "always()"
+          run: |
+            rm -rf /home/TestData/nlp/megatron_llama/model_weights
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+          if: "failure()"
+
+  L2_Community_LLM_Checkpoints_tests_Llama3:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -239,16 +213,21 @@ jobs:
           uses: actions/checkout@v2
         - run: |
             CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
-            --input_name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf \
-            --output_path=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
+            --input_name_or_path=/home/TestData/nlp/megatron_llama/llama3-ci-hf \
+            --output_path=/home/TestData/nlp/megatron_llama/llama3-ci-hf/llama3_ci.nemo \
             --precision=16
-            rm -f /home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo
+            rm -f /home/TestData/nlp/megatron_llama/llama3-ci-hf/llama3_ci.nemo
+        - name: Cleanup
+          if: "always()"
+          run: |
+            rm -rf /home/TestData/nlp/megatron_llama/llama3-ci-hf/model_weights
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
 
   L2_Community_LLM_Checkpoints_tests_StarCoder:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -261,18 +240,25 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
+            mkdir -p /home/TestData/nlp/megatron_gpt/starcoder-ci-hf/${{ github.run_id }};
             python scripts/checkpoint_converters/convert_starcoder_hf_to_nemo.py \
             --input_name_or_path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf \
-            --output_path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf
-            rm -f /home/TestData/nlp/megatron_gpt/starcoder-ci-hf/megatron_starcoder_tp1_pp1.nemo
+            --output_path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf/${{ github.run_id }}
+        - name: Cleanup
+          if: "always()"
+          run: |
+            rm -rf /home/TestData/nlp/megatron_gpt/starcoder-ci-hf/megatron_starcoder_tp1_pp1.nemo; 
+            rm -rf /home/TestData/nlp/megatron_gpt/starcoder-ci-hf/${{ github.run_id }}/
+            rm -rf /home/TestData/nlp/megatron_gpt/starcoder-ci-hf/model_weights
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
 
   L2_Community_LLM_Checkpoints_tests_Falcon:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -285,43 +271,174 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python scripts/checkpoint_converters/convert_falcon_hf_to_nemo.py \
             --input_name_or_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
             --output_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo
             rm -f /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo
+        - name: Cleanup
+          if: "always()"
+          run: |
+            rm -rf /home/TestData/nlp/megatron_gpt/falcon-ci-hf/model_weights
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
 
-  L2_Community_LLM_Checkpoints_tests_Baichuan2:
+  # this test is using a 7B model which is too large for GitHub CI
+  # replace the model in this test with a toy model or move the test
+  # to the nightly CI
+  # OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2:
+  #   needs: [cicd-test-container-setup]
+  #   runs-on: self-hosted-azure
+  #   container:
+  #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #     options: 
+  #       # --user 0:128
+  #       --device=/dev/nvidia0
+  #       --gpus all
+  #       --shm-size=8g
+  #       --env TRANSFORMERS_OFFLINE=0 
+  #       --env HYDRA_FULL_ERROR=1
+  #       --volume /mnt/datadrive/TestData:/home/TestData
+  #   steps:
+  #       - name: Checkout repository
+  #         uses: actions/checkout@v4
+  #       - run: |
+  #           python scripts/checkpoint_converters/convert_baichuan2_hf_to_nemo.py \
+  #           --input_name_or_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base \
+  #           --output_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo
+  #           rm -f /home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo
+  #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+  #         if: "failure()"
+
+  L2_PTQ_Llama2_Export_Only:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-      options: 
+      options:
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
         --shm-size=8g
-        --env TRANSFORMERS_OFFLINE=0 
+        --env TRANSFORMERS_OFFLINE=0
         --env HYDRA_FULL_ERROR=1
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
-            python scripts/checkpoint_converters/convert_baichuan2_hf_to_nemo.py \
-            --input_name_or_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base \
-            --output_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo
-            rm -f /home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo
+            python examples/nlp/language_modeling/megatron_quantization.py \
+            model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+            quantization.algorithm=null \
+            model_save=/home/TestData/nlp/megatron_llama/ci_baseline
+
+            rm -rf /home/TestData/nlp/megatron_llama/ci_baseline
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
+
+  L2_PTQ_Llama2_FP8:
+     needs: [cicd-test-container-setup]
+     runs-on: self-hosted-azure
+     timeout-minutes: 10
+     container:
+       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+       options:
+         # --user 0:128
+         --device=/dev/nvidia0
+         --gpus all
+         --shm-size=8g
+         --env TRANSFORMERS_OFFLINE=0
+         --env HYDRA_FULL_ERROR=1
+         --volume /mnt/datadrive/TestData:/home/TestData
+     steps:
+         - name: Checkout repository
+           uses: actions/checkout@v4
+         - run: |
+             python examples/nlp/language_modeling/megatron_quantization.py \
+             model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+             tensor_model_parallel_size=2 \
+             trainer.devices=2 \
+             quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
+             quantization.algorithm=fp8 \
+             quantization.num_calib_size=8 \
+             inference.batch_size=2 \
+             export.inference_tensor_parallel=2 \
+             model_save=/home/TestData/nlp/megatron_llama/ci_fp8.qnemo
+
+             rm -rf /home/TestData/nlp/megatron_llama/ci_fp8.qnemo
+         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+           if: "failure()"
+
+  L2_PTQ_Llama2_INT8_SQ:
+     needs: [cicd-test-container-setup]
+     runs-on: self-hosted-azure
+     timeout-minutes: 10
+     container:
+       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+       options:
+         # --user 0:128
+         --device=/dev/nvidia0
+         --gpus all
+         --shm-size=8g
+         --env TRANSFORMERS_OFFLINE=0
+         --env HYDRA_FULL_ERROR=1
+         --volume /mnt/datadrive/TestData:/home/TestData
+     steps:
+         - name: Checkout repository
+           uses: actions/checkout@v4
+         - run: |
+             python examples/nlp/language_modeling/megatron_quantization.py \
+             model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+             quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
+             quantization.algorithm=int8_sq \
+             quantization.num_calib_size=8 \
+             inference.batch_size=2 \
+             model_save=/home/TestData/nlp/megatron_llama/ci_int8_sq.qnemo
+
+             rm -rf /home/TestData/nlp/megatron_llama/ci_int8_sq.qnemo
+         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+           if: "failure()"
+
+  # TODO: investigate int4_awq stuck issues and restore the test
+  #L2_PTQ_Llama2_INT4_AWQ:
+  #  needs: [cicd-test-container-setup]
+  #  runs-on: self-hosted-azure
+  #  timeout-minutes: 10
+  #  container:
+  #    image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #    options:
+  #      # --user 0:128
+  #      --device=/dev/nvidia0
+  #      --gpus all
+  #      --shm-size=8g
+  #      --env TRANSFORMERS_OFFLINE=0
+  #      --env HYDRA_FULL_ERROR=1
+  #      --volume /mnt/datadrive/TestData:/home/TestData
+  #  steps:
+  #      - name: Checkout repository
+  #        uses: actions/checkout@v4
+  #      - run: |
+  #          python examples/nlp/language_modeling/megatron_quantization.py \
+  #          model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+  #          tensor_model_parallel_size=1 \
+  #          trainer.devices=1 \
+  #          quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
+  #          quantization.algorithm=int4_awq \
+  #          quantization.num_calib_size=8 \
+  #          inference.batch_size=2 \
+  #          model_save=/home/TestData/nlp/megatron_llama/ci_int4_awq.qnemo
+  #
+  #          rm -rf /home/TestData/nlp/megatron_llama/ci_int4_awq.qnemo
+        #- uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+        #  if: "failure()"
 
   # L2: ASR dev run
   ASR_dev_run_Speech_to_Text:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -334,12 +451,12 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_results
@@ -349,7 +466,8 @@ jobs:
 
   ASR_dev_run_Speech_to_Text_WPE_-_CitriNet:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -362,7 +480,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
             --config-path="../conf/citrinet/" --config-name="config_bpe" \
@@ -370,7 +488,7 @@ jobs:
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
             model.tokenizer.type="wpe" \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_results
@@ -380,7 +498,8 @@ jobs:
 
   ASR_dev_run_Speech_Pre-training_-_CitriNet:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -393,13 +512,13 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/speech_pretraining/speech_pre_training.py \
             --config-path="../conf/ssl/citrinet/" --config-name="citrinet_ssl_ci" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_pre_training_results
@@ -409,7 +528,8 @@ jobs:
 
   ASR_dev_run_Speech_To_Text_Finetuning:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -422,7 +542,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/speech_to_text_finetune.py \
             --config-path="conf/asr_finetune" --config-name="speech_to_text_finetune" \
@@ -430,7 +550,7 @@ jobs:
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             init_from_nemo_model=/home/TestData/asr/stt_en_fastconformer_transducer_large.nemo \
             model.tokenizer.update_tokenizer=False \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_finetuning_results
@@ -438,9 +558,10 @@ jobs:
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
 
-  ASR_dev_run_Speech_To_Text_HF_Finetuning:
+  OPTIONAL_ASR_dev_run_Speech_To_Text_HF_Finetuning:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -453,7 +574,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/speech_to_text_finetune.py \
             --config-path="conf/asr_finetune" --config-name="speech_to_text_hf_finetune" \
@@ -477,17 +598,18 @@ jobs:
             model.optim.sched.warmup_steps=0 \
             +model.optim.sched.max_steps=3 \
             trainer.max_epochs=null \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_finetuning_results
             rm -rf examples/asr/speech_finetuning_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-          if: "failure()"
+        #- uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+        #  if: "failure()"
 
   ASR_dev_run_Speech_to_Text_WPE_-_Conformer:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -500,7 +622,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
             --config-path="../conf/conformer" --config-name="conformer_ctc_bpe" \
@@ -510,7 +632,7 @@ jobs:
             model.tokenizer.type="wpe" \
             model.train_ds.batch_size=4 \
             model.validation_ds.batch_size=4 \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results
@@ -521,7 +643,8 @@ jobs:
   # L2: ASR dev run - part two
   ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -534,7 +657,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
             --config-path="../conf/squeezeformer" --config-name="squeezeformer_ctc_bpe" \
@@ -545,7 +668,7 @@ jobs:
             model.encoder.d_model=144 \
             model.train_ds.batch_size=4 \
             model.validation_ds.batch_size=4 \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_squeezeformer_results
@@ -556,6 +679,7 @@ jobs:
   L2_Speech_to_Text_EMA:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -568,7 +692,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
@@ -584,7 +708,7 @@ jobs:
 
   # L2_Speech_to_Text_AED:
   #   needs: [cicd-test-container-setup]
-  #   runs-on: self-hosted-azure
+  #   runs-on: self-hosted-azure-gpus-1
   #   container:
   #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
   #     options: 
@@ -597,7 +721,7 @@ jobs:
   #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
-  #         uses: actions/checkout@v2
+  #         uses: actions/checkout@v4
   #       - run: |
   #           python examples/asr/speech_multitask/speech_to_text_aed.py \
   #           model.prompt_format=canary \
@@ -623,7 +747,7 @@ jobs:
   #           model.tokenizer.langs.en.type=bpe \
   #           ++model.tokenizer.langs.es.dir=/home/TestData/asr_tokenizers/canary/es/tokenizer_spe_bpe_v1024_max_4 \
   #           ++model.tokenizer.langs.es.type=bpe \
-  #           trainer.devices=[0] \
+  #           trainer.devices=1 \
   #           trainer.accelerator="gpu" \
   #           +trainer.use_distributed_sampler=false \
   #           +trainer.fast_dev_run=True \
@@ -634,7 +758,8 @@ jobs:
   # L2: Speaker dev run
   L2_Speaker_dev_run_Speaker_Recognition:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -647,7 +772,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/speaker_tasks/recognition/speaker_reco.py \
             model.train_ds.batch_size=10 \
@@ -656,7 +781,7 @@ jobs:
             model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
             model.decoder.num_classes=2 \
             trainer.max_epochs=10 \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results
@@ -666,7 +791,8 @@ jobs:
 
   L2_Speaker_dev_run_Speaker_Diarization:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -679,7 +805,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder.py \
             model.diarizer.speaker_embeddings.model_path=titanet_large \
@@ -689,7 +815,7 @@ jobs:
             model.validation_ds.emb_dir=examples/speaker_tasks/diarization/speaker_diarization_results \
             model.train_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_train/msdd_data.50step.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_valid/msdd_data.50step.json \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/speaker_tasks/diarization/speaker_diarization_results
@@ -699,7 +825,8 @@ jobs:
 
   L2_Speaker_dev_run_Speech_to_Label:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -712,13 +839,13 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/speech_classification/speech_to_label.py \
             model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
             model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
             model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
             model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
@@ -736,6 +863,7 @@ jobs:
   L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -748,7 +876,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_with_asr_infer.py \
             diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
@@ -767,6 +895,7 @@ jobs:
   L2_Speaker_dev_run_Clustering_Diarizer_Inference:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -779,7 +908,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |  
             python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_infer.py \
             diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
@@ -798,6 +927,7 @@ jobs:
   L2_Speaker_dev_run_Neural_Diarizer_Inference:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -810,7 +940,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder_infer.py \
             diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
@@ -825,6 +955,7 @@ jobs:
   L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -837,7 +968,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python tools/speech_data_simulator/multispeaker_simulator.py \
             --config-path=conf --config-name=data_simulator.yaml \
@@ -854,7 +985,8 @@ jobs:
   # L2: ASR Multi-dataloader dev run
   L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -867,12 +999,12 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=[/home/TestData/an4_dataset/an4_val.json,/home/TestData/an4_dataset/an4_val.json] \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             trainer.max_epochs=1 \
             trainer.max_steps=1 \
@@ -884,7 +1016,8 @@ jobs:
 
   L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -897,12 +1030,12 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/speech_classification/speech_to_label.py \
             model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
             model.validation_ds.manifest_filepath=[/home/TestData/speech_commands/test_manifest.json,/home/TestData/speech_commands/test_manifest.json] \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             trainer.max_epochs=1 \
             trainer.max_steps=1 \
@@ -923,7 +1056,8 @@ jobs:
   # L2: ASR Adapters
   L2_ASR_Adapters_Linear_Adapters:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -936,7 +1070,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_adapters/train_asr_adapter.py \
             model.pretrained_model="stt_en_conformer_ctc_small" \
@@ -945,7 +1079,7 @@ jobs:
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             trainer.max_steps=5 \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_adapters_results
@@ -955,7 +1089,8 @@ jobs:
 
   L2_ASR_Adapters_RelPos_MHA_Adapters:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -968,7 +1103,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_adapters/train_asr_adapter.py \
             model.pretrained_model="stt_en_conformer_ctc_small" \
@@ -978,7 +1113,7 @@ jobs:
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             trainer.max_steps=5 \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_adapters_mha_results
@@ -991,6 +1126,7 @@ jobs:
   L2_Speech_Transcription_Speech_to_Text_Transcribe:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1003,7 +1139,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/transcribe_speech.py \
             pretrained_name="QuartzNet15x5Base-En" \
@@ -1018,6 +1154,7 @@ jobs:
   L2_Transducer_alignment_Running_pytest:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1030,7 +1167,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -1040,6 +1177,7 @@ jobs:
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1052,7 +1190,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd tools/ctc_segmentation && \
             TIME=`date +"%Y-%m-%d-%T"` && \
@@ -1072,6 +1210,7 @@ jobs:
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1084,7 +1223,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd tools/ctc_segmentation && \
             TIME=`date +"%Y-%m-%d-%T"` && \
@@ -1105,7 +1244,8 @@ jobs:
   # L2: G2P Models
   L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1118,7 +1258,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/tts/g2p && \
                 TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR_CONFORMER=output_ctc_${TIME} && \
@@ -1129,7 +1269,7 @@ jobs:
                     model.tokenizer.dir=/home/TestData/g2p/tokenizer_spe_unigram_v512 \
                     trainer.max_epochs=1 \
                     model.max_source_len=64 \
-                    trainer.devices=[0] \
+                    trainer.devices=1 \
                     do_training=True \
                     do_testing=True \
                     exp_manager.exp_dir=${OUTPUT_DIR_CONFORMER} \
@@ -1154,7 +1294,7 @@ jobs:
     #             model.test_ds.manifest_filepath=/home/TestData/g2p/g2p.json \
     #             trainer.max_epochs=1 \
     #             model.max_source_len=64 \
-    #             trainer.devices=[1] \
+    #             trainer.devices=1 \
     #             do_training=True \
     #             do_testing=True \
     #             exp_manager.exp_dir=${OUTPUT_DIR_T5} \
@@ -1172,6 +1312,7 @@ jobs:
   L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1184,7 +1325,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/tts/g2p && \
                 TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR=output_${TIME} && \
@@ -1213,7 +1354,7 @@ jobs:
   # TODO: pleasefixme
   # L2_Dialogue_Classification_Dialogue_Intent_and_slot_classification_using_GPT:
   #   needs: [cicd-test-container-setup]
-  #   runs-on: self-hosted-azure
+  #   runs-on: self-hosted-azure-gpus-1
   #   container:
   #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
   #     options: 
@@ -1226,7 +1367,7 @@ jobs:
   #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
-  #         uses: actions/checkout@v2
+  #         uses: actions/checkout@v4
   #       - run: |
   #           cd examples/nlp/dialogue && \
   #           python dialogue.py \
@@ -1242,7 +1383,7 @@ jobs:
   #           model.test_ds.batch_size=2 \
   #           model.nemo_path=null \
   #           trainer.val_check_interval=0.0 \
-  #           trainer.devices=[0] \
+  #           trainer.devices=1 \
   #           model.dataset.use_cache=false \
   #           model.tokenizer.special_tokens={pad_token:"endoftext"} \
   #           model.tokenizer.tokenizer_name=gpt2 \
@@ -1254,7 +1395,8 @@ jobs:
 
   L2_Dialogue_Classification_Intent_and_slot_classification_using_SGDQA:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1267,7 +1409,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1282,7 +1424,7 @@ jobs:
             model.dataset.num_tasks=6 \
             model.nemo_path=null \
             trainer.val_check_interval=0.0 \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             model.dataset.use_cache=false \
             model.language_model.pretrained_model_name=bert-base-cased \
             trainer.accelerator=gpu \
@@ -1293,7 +1435,8 @@ jobs:
 
   L2_Dialogue_Classification_Intent_and_slot_classification_using_IntentSlotClassificationModel:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1306,7 +1449,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1320,7 +1463,7 @@ jobs:
             model.test_ds.batch_size=2 \
             model.nemo_path=null \
             trainer.val_check_interval=0.0 \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             model.dataset.use_cache=false \
             model.language_model.pretrained_model_name=bert-base-uncased \
             trainer.accelerator=gpu \
@@ -1331,7 +1474,8 @@ jobs:
 
   L2_Dialogue_Classification_Intent_classification_using_ZeroShotIntentModel:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1344,7 +1488,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1361,7 +1505,7 @@ jobs:
             model.test_ds.batch_size=2 \
             model.nemo_path=null \
             trainer.val_check_interval=0.0 \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             model.dataset.use_cache=false \
             model.language_model.pretrained_model_name=bert-base-uncased \
             trainer.accelerator=gpu \
@@ -1372,7 +1516,8 @@ jobs:
 
   L2_Dialogue_Classification_Design_Intent_classification_using_ZeroShotIntentModel:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1385,7 +1530,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1403,7 +1548,7 @@ jobs:
             model.test_ds.batch_size=2 \
             model.nemo_path=null \
             trainer.val_check_interval=0.0 \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             model.dataset.use_cache=false \
             model.language_model.pretrained_model_name=bert-base-uncased \
             trainer.accelerator=gpu \
@@ -1414,7 +1559,8 @@ jobs:
 
   L2_Dialogue_Classification_Design_Intent_classification_using_ZeroShotIntentModel_BART_Classifier:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1427,7 +1573,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1438,7 +1584,7 @@ jobs:
             model.dataset.task=design \
             model.dataset.prompt_template="This example is related to" \
             model.library=huggingface \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             model.dataset.use_cache=false \
             model.language_model.pretrained_model_name=bert-base-uncased \
             trainer.accelerator=gpu \
@@ -1449,7 +1595,8 @@ jobs:
 
   L2_Dialogue_Classification_Design_Intent_classification_using_DialogueNearestNeighbourModel:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1462,7 +1609,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1472,7 +1619,7 @@ jobs:
             model.dataset.task=design \
             model.dataset.prompt_template="" \
             model.library=huggingface \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             model.dataset.use_cache=false \
             model.language_model.pretrained_model_name=sentence-transformers/all-MiniLM-L6-v2 \
             trainer.accelerator=gpu \
@@ -1484,7 +1631,8 @@ jobs:
   # L2: Dialogue Generation
   L2_Dialogue_Generation_Dialogue_Answer_Extender_using_DialogueS2SGenerationModel:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1497,7 +1645,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1514,7 +1662,7 @@ jobs:
             model.test_ds.batch_size=2 \
             model.nemo_path=null \
             trainer.val_check_interval=0.0 \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             model.dataset.use_cache=false \
             model.language_model.pretrained_model_name=facebook/bart-large \
             trainer.accelerator=gpu \
@@ -1525,7 +1673,8 @@ jobs:
 
   L2_Dialogue_Generation_Dialogue_SGD_Based_Answer_Extender_using_DialogueS2SGenerationModel:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1538,7 +1687,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1561,7 +1710,7 @@ jobs:
             model.test_ds.batch_size=2 \
             model.nemo_path=null \
             trainer.val_check_interval=0.0 \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             model.language_model.pretrained_model_name=facebook/bart-large \
             trainer.accelerator=gpu \
             exp_manager=null  && \
@@ -1589,7 +1738,7 @@ jobs:
 #             model.dataset.task=ms_marco \
 #             model.dataset.debug_mode=True \
 #             trainer.val_check_interval=0.0 \
-#             trainer.devices=[0] \
+#             trainer.devices=1 \
 #             model.dataset.use_cache=false \
 #             model.language_model.pretrained_model_name=gpt2 \
 #             trainer.accelerator=gpu \
@@ -1603,7 +1752,8 @@ jobs:
   # L2: COPY
   L2_COPY_Dialogue_Answer_Extender_using_DialogueGPTGenerationModel:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1616,7 +1766,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1627,7 +1777,7 @@ jobs:
             model.dataset.task=ms_marco \
             model.dataset.debug_mode=True \
             trainer.val_check_interval=0.0 \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             model.dataset.use_cache=false \
             model.language_model.pretrained_model_name=gpt2 \
             trainer.accelerator=gpu \
@@ -1640,6 +1790,7 @@ jobs:
   L2_Duplex_Text_Normalization_with_Tarred_dataset:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1652,7 +1803,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/duplex_text_normalization && \
             python duplex_text_normalization_train.py \
@@ -1699,7 +1850,7 @@ jobs:
 #     trainer.accelerator=gpu \
 #     trainer.strategy=ddp \
 #     trainer.precision=16 \
-#     trainer.devices=[1] \
+#     trainer.devices=1 \
 #     trainer.accelerator="gpu" \
 #     +trainer.fast_dev_run=true \
 #     exp_manager=null
@@ -1709,7 +1860,8 @@ jobs:
   # L2: BERT Text Classification
   L2_BERT_Text_Classification_with_BERT_Test:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1722,7 +1874,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/text_classification && \
             python text_classification_with_bert.py \
@@ -1733,7 +1885,7 @@ jobs:
             model.train_ds.batch_size=10 \
             model.dataset.max_seq_length=50 \
             model.dataset.use_cache=false \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=true \
             exp_manager=null
@@ -1743,7 +1895,8 @@ jobs:
   # L2: Parallel BERT Question-Answering SQUAD v1.1 & v2.0
   L2_Parallel_BERT_Question-Answering_SQUAD_v1_1:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1756,7 +1909,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             # Cannot do fast_dev_run because squad needs whole dev dataset
             cd examples/nlp/question_answering && \
@@ -1776,7 +1929,7 @@ jobs:
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             exp_manager=null
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -1784,7 +1937,8 @@ jobs:
 
   L2_Parallel_BERT_Question-Answering_SQUAD_v2_0:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1797,7 +1951,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             # Cannot do fast_dev_run because squad needs whole dev dataset
             cd examples/nlp/question_answering && \
@@ -1814,7 +1968,7 @@ jobs:
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             exp_manager=null
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -1823,7 +1977,8 @@ jobs:
   # L2: Parallel BART Question-Answering SQUAD v1.1 & v2.0
   L2_Parallel_BART_Question-Answering_SQUAD_v1_1:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1836,7 +1991,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/question_answering && \
             python question_answering.py \
@@ -1856,7 +2011,7 @@ jobs:
             model.language_model.pretrained_model_name=facebook/bart-base \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             exp_manager=null
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -1864,7 +2019,8 @@ jobs:
 
   L2_Parallel_BART_Question-Answering_SQUAD_v2_0:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1877,7 +2033,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/question_answering && \
             python question_answering.py \
@@ -1894,7 +2050,7 @@ jobs:
             model.language_model.pretrained_model_name=facebook/bart-base \
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             exp_manager=null
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -1903,7 +2059,8 @@ jobs:
   # L2: Parallel GPT2 Question-Answering SQUAD v1.1 & v2.0
   L2_Parallel_GPT2_Question-Answering_SQUAD_v1_1:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1916,7 +2073,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/question_answering && \
             python question_answering.py \
@@ -1936,7 +2093,7 @@ jobs:
             model.language_model.pretrained_model_name=gpt2 \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             exp_manager=null
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -1944,7 +2101,8 @@ jobs:
 
   L2_Parallel_GPT2_Question-Answering_SQUAD_v2_0:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1957,7 +2115,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/question_answering && \
             python question_answering.py \
@@ -1974,7 +2132,7 @@ jobs:
             model.language_model.pretrained_model_name=gpt2 \
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
-            trainer.devices=[1] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             exp_manager=null
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -1983,7 +2141,8 @@ jobs:
   # L2: Intent and Slot Classification Tasks
   L2_Intent_and_Slot_Classification_Tasks_Intent_and_Slot_Classification:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -1996,14 +2155,14 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/intent_slot_classification && \
             python intent_slot_classification.py \
             model.data_dir=/home/TestData/nlp/retail \
             model.validation_ds.prefix=dev \
             model.test_ds.prefix=dev \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=true \
             exp_manager.exp_dir=checkpoints
@@ -2013,7 +2172,8 @@ jobs:
 
   L2_Intent_and_Slot_Classification_Tasks_Multi-Label_Intent_and_Slot_Classification:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2026,14 +2186,14 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/intent_slot_classification && \
             python multi_label_intent_slot_classification.py \
             model.data_dir=/home/TestData/nlp/new_multiatis \
             model.validation_ds.prefix=dev \
             model.test_ds.prefix=dev \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             +trainer.fast_dev_run=true \
             exp_manager.exp_dir=checkpoints2
             rm -rf checkpoints2
@@ -2149,7 +2309,8 @@ jobs:
   # L2: Parallel NLP Examples 2
   L2_Parallel_NLP_Examples2_NER_finetuning_from_pretrained_Test:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2162,7 +2323,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/token_classification && \
             python token_classification_train.py \
@@ -2170,7 +2331,7 @@ jobs:
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
             model.train_ds.batch_size=2 \
             model.dataset.use_cache=false \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=true \
             model.dataset.class_balancing="weighted_loss" \
@@ -2180,7 +2341,8 @@ jobs:
 
   L2_Parallel_NLP_Examples2_Punctuation_and_capitalization_finetuning_from_pretrained_test:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2193,7 +2355,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/token_classification && \
             data_dir="$(mktemp -d -p "$(pwd)")" && \
@@ -2206,7 +2368,7 @@ jobs:
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
               +model.test_ds.use_cache=false \
-              trainer.devices=[1] \
+              trainer.devices=1 \
               trainer.accelerator="gpu" \
               +trainer.fast_dev_run=true \
               exp_manager.exp_dir=null && \
@@ -2216,7 +2378,8 @@ jobs:
 
   L2_Parallel_NLP_Examples2_NER_with_TurkuNLP__bert-base-finnish-cased-v1:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2229,12 +2392,12 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/token_classification && \
             python token_classification_train.py \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=true \
             model.dataset.use_cache=false \
@@ -2246,6 +2409,7 @@ jobs:
   L2_Parallel_NLP_Examples2_Evaluation_script_for_Token_Classification:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2258,7 +2422,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/token_classification/token_classification_evaluate.py \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
@@ -2270,6 +2434,7 @@ jobs:
   L2_Parallel_NLP_Examples2_Evaluation_script_for_Punctuation:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2282,7 +2447,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             data_dir="$(mktemp -d -p "$(pwd)")" && \
             cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
@@ -2301,6 +2466,7 @@ jobs:
   L2_Parallel_NLP_Examples2_Punctuation_Capitalization_2GPUs_with_DistilBERT_Finetuning_on_other_data:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2313,7 +2479,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/token_classification && \
             output_dir="$(mktemp -d -p "$(pwd)")" && \
@@ -2361,6 +2527,7 @@ jobs:
   Punctuation_Capitalization_tarred_dataset_create_and_use_tarred_dataset:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2373,7 +2540,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             data_dir="$(mktemp -d -p "$(pwd)")" && \
             cp -r /home/TestData/nlp/token_classification_punctuation/*.txt \
@@ -2426,6 +2593,7 @@ jobs:
   Punctuation_Capitalization_Using_model-common_datasets_parameters-label_vocab_dir:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2438,7 +2606,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/token_classification && \
             work_dir="$(mktemp -d -p "$(pwd)")" && \
@@ -2501,7 +2669,7 @@ jobs:
   #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
-  #         uses: actions/checkout@v2
+  #         uses: actions/checkout@v4
   #       - run: |
   #           cd examples/nlp/token_classification && \
   #           work_dir="$(mktemp -d -p "$(pwd)")" && \
@@ -2552,6 +2720,7 @@ jobs:
   Punctuation_Capitalization_inference_Restore_punctuation_and_capitalization_in_long_text:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2564,7 +2733,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             output_dir="$(mktemp -d -p "$(pwd)")" && \
             python examples/nlp/token_classification/punctuate_capitalize_infer.py \
@@ -2582,7 +2751,8 @@ jobs:
   # L2: Parallel Pretraining BERT pretraining from Text/Preprocessed
   L2_Pretraining_BERT_pretraining_from_Text:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2595,12 +2765,12 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/language_modeling && \
               python bert_pretraining.py \
               --config-name=bert_pretraining_from_text_config.yaml \
-              trainer.devices=[0] \
+              trainer.devices=1 \
               trainer.accelerator="gpu" \
               trainer.precision=16 \
               +trainer.fast_dev_run=true \
@@ -2624,7 +2794,8 @@ jobs:
 
   L2_Pretraining_BERT_from_Preprocessed:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2637,12 +2808,12 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/language_modeling && \
               python bert_pretraining.py \
               --config-name=bert_pretraining_from_preprocessed_config.yaml \
-              trainer.devices=[1] \
+              trainer.devices=1 \
               trainer.accelerator="gpu" \
               trainer.precision=16 \
               +trainer.fast_dev_run=false \
@@ -2667,6 +2838,7 @@ jobs:
   L2_Entity_Linking_Self_Alignment_Pretraining_BERT:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2679,7 +2851,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/entity_linking && \
             python self_alignment_pretraining.py \
@@ -2700,7 +2872,8 @@ jobs:
   # L2: NMT Attention is All You Need Training
   L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2713,7 +2886,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/machine_translation/enc_dec_nmt.py \
               --config-path=conf \
@@ -2734,7 +2907,7 @@ jobs:
               model.decoder.hidden_size=64 \
               model.decoder.inner_size=256 \
               +model.optim.capturable=True \
-              trainer.devices=[0] \
+              trainer.devices=1 \
               trainer.accelerator="gpu" \
               +trainer.val_check_interval=2 \
               +trainer.limit_val_batches=1 \
@@ -2762,7 +2935,7 @@ jobs:
               model.decoder.hidden_size=64 \
               model.decoder.inner_size=256 \
               +model.optim.capturable=True \
-              trainer.devices=[0] \
+              trainer.devices=1 \
               trainer.accelerator="gpu" \
               +trainer.val_check_interval=10 \
               +trainer.limit_val_batches=1 \
@@ -2778,7 +2951,8 @@ jobs:
 
   L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2791,7 +2965,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
               cd examples/nlp/machine_translation && \
               python enc_dec_nmt.py \
@@ -2808,7 +2982,7 @@ jobs:
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_4k_ende.model \
               model.encoder.pre_ln=true \
               model.decoder.pre_ln=true \
-              trainer.devices=[1] \
+              trainer.devices=1 \
               trainer.accelerator="gpu" \
               +trainer.fast_dev_run=true \
               +trainer.limit_test_batches=2 \
@@ -2818,7 +2992,8 @@ jobs:
 
   L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2831,7 +3006,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
               cd examples/nlp/machine_translation && \
               python enc_dec_nmt.py \
@@ -2846,7 +3021,7 @@ jobs:
               model.test_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
               model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_4k_ende.model \
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_4k_ende.model \
-              trainer.devices=[0] \
+              trainer.devices=1 \
               trainer.accelerator="gpu" \
               +trainer.fast_dev_run=true \
               +trainer.limit_test_batches=2 \
@@ -2858,6 +3033,7 @@ jobs:
   L2_NMT_Attention_is_All_You_Need_Inference:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2870,7 +3046,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/machine_translation && \
             python nmt_transformer_infer.py \
@@ -2885,7 +3061,8 @@ jobs:
   # L2: NMT Attention is All You Need Finetuning
   L2_NMT_Attention_is_All_You_Need_Finetuning:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2898,12 +3075,12 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/machine_translation && \
             python enc_dec_nmt_finetune.py \
             model_path=/home/TestData/nlp/nmt/toy_data/enes_v16k_s100k_6x6.nemo \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             ~trainer.max_epochs \
             model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
             model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
@@ -2928,7 +3105,8 @@ jobs:
   # L2: NMT Tarred Dataset Creation
   L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2941,7 +3119,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/machine_translation && \
             python enc_dec_nmt.py \
@@ -2960,7 +3138,7 @@ jobs:
             model.encoder_tokenizer.vocab_size=2000 \
             model.decoder_tokenizer.vocab_size=2000 \
             ~model.test_ds \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=true \
             exp_manager=null \
@@ -2970,6 +3148,7 @@ jobs:
   L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2982,7 +3161,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/machine_translation && \
             python create_tarred_parallel_dataset.py \
@@ -3001,6 +3180,7 @@ jobs:
   L2_Megatron_NMT_Training_TP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -3013,7 +3193,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/machine_translation/megatron_nmt_training.py \
             trainer.devices=2 \
@@ -3110,6 +3290,7 @@ jobs:
   L2_Megatron_BART_Perceiver_MIM_Training_TP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -3122,7 +3303,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_bart_pretraining.py \
             trainer.devices=2 \
@@ -3253,7 +3434,7 @@ jobs:
     #           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref \
     #           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
     #           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-    #           trainer.devices=[1] \
+    #           trainer.devices=1 \
     #           trainer.accelerator="gpu" \
     #           +trainer.fast_dev_run=true \
     #           +trainer.limit_test_batches=2 \
@@ -3299,7 +3480,7 @@ jobs:
     #           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
     #           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
     #           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-    #           trainer.devices=[0] \
+    #           trainer.devices=1 \
     #           trainer.accelerator="gpu" \
     #           +trainer.fast_dev_run=true \
     #           +trainer.limit_test_batches=2 \
@@ -3334,7 +3515,7 @@ jobs:
     #           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
     #           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
     #           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-    #           trainer.devices=[1] \
+    #           trainer.devices=1 \
     #           trainer.accelerator="gpu" \
     #           +trainer.fast_dev_run=true \
     #           +trainer.limit_test_batches=2 \
@@ -3380,7 +3561,7 @@ jobs:
     #           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
     #           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
     #           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-    #           trainer.devices=[0] \
+    #           trainer.devices=1 \
     #           trainer.accelerator="gpu" \
     #           +trainer.fast_dev_run=true \
     #           +trainer.limit_test_batches=2 \
@@ -3415,7 +3596,7 @@ jobs:
     #           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
     #           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
     #           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-    #           trainer.devices=[1] \
+    #           trainer.devices=1 \
     #           trainer.accelerator="gpu" \
     #           +trainer.fast_dev_run=true \
     #           +trainer.limit_test_batches=2 \
@@ -3428,6 +3609,7 @@ jobs:
   L2_Megatron_Bert_Pretraining_and_Resume_Training_with_Pipeline_Parallelism:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -3440,7 +3622,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_bert_pretraining.py \
             trainer.devices=2 \
@@ -3509,6 +3691,7 @@ jobs:
   L2_Megatron_Bert_Pretraining_and_Resume_Training:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -3521,7 +3704,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_bert_pretraining.py \
             trainer.devices=2 \
@@ -3591,6 +3774,7 @@ jobs:
   L2_Megatron_Core_Bert_Pretraining_and_Resume_Training:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -3603,7 +3787,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
             trainer.devices=2 \
@@ -3675,6 +3859,7 @@ jobs:
   L2_Megatron_RETRO_Pretraining_and_Resume_Training:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -3687,7 +3872,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_retro_pretraining.py \
             trainer.num_nodes=1 \
@@ -3744,6 +3929,7 @@ jobs:
   L2_Legacy_Megatron_RETRO_Pretraining_and_Resume_Training:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -3756,7 +3942,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_retro_pretraining_legacy.py \
             trainer.devices=2 \
@@ -3839,7 +4025,7 @@ jobs:
   #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
-  #         uses: actions/checkout@v2
+  #         uses: actions/checkout@v4
   #       - run: |
   #           python examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain.py \
   #               trainer.devices=2 \
@@ -3921,6 +4107,7 @@ jobs:
   L2_BioMegatron_Bert_NER_Task:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -3933,7 +4120,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/token_classification/token_classification_train.py \
             exp_manager.exp_dir=examples/nlp/language_modeling/token_classification_results \
@@ -3948,6 +4135,7 @@ jobs:
   L2_Megatron_GPT_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -3960,7 +4148,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
             trainer.devices=2 \
@@ -4041,6 +4229,7 @@ jobs:
   L2_Megatron_GPT_with_Rope_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -4053,7 +4242,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
            python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
            trainer.devices=2 \
@@ -4231,6 +4420,7 @@ jobs:
   L2_Megatron_GPT_with_ALiBi_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -4243,7 +4433,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
             trainer.devices=2 \
@@ -4327,6 +4517,7 @@ jobs:
   L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -4339,7 +4530,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
             trainer.devices=2 \
@@ -4423,6 +4614,7 @@ jobs:
   L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -4435,7 +4627,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
             trainer.devices=2 \
@@ -4523,6 +4715,7 @@ jobs:
   L2_Megatron_GPT_Finetuning_PP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -4535,7 +4728,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
             trainer.devices=2 \
@@ -4603,7 +4796,8 @@ jobs:
 
   L2_Megatron_GPT_Finetuning_StarCoder_PP1:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -4616,9 +4810,9 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
-            python examples/nlp/language_modeling/tuning/megatron_gpt_sft.py \
+            python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
             trainer.devices=1 \
             trainer.num_nodes=1 \
             trainer.precision=32 \
@@ -4629,6 +4823,7 @@ jobs:
             +trainer.limit_test_batches=2 \
             exp_manager.checkpoint_callback_params.save_best_model=False \
             exp_manager.exp_dir=examples/nlp/language_modeling/gpt_sft_results \
+            model.peft.peft_scheme=none \
             model.optim.name=distributed_fused_adam \
             model.restore_from_path=/home/TestData/nlp/megatron_gpt/starcoder-ci-nemo/megatron_starcoder_tp1_pp1.nemo \
             model.tensor_model_parallel_size=1 \
@@ -4644,10 +4839,11 @@ jobs:
             rm -rf examples/nlp/language_modeling/gpt_sft_results
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
-
-  L2_Megatron_GPT_PEFT_Lora_PP2:
+  
+  L2_Megatron_GPT_Embedding:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -4660,7 +4856,62 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
+        - run: |
+            rm -rf /home/TestData/nlp/megatron_ir/working_dir
+
+            python examples/nlp/information_retrieval/megatron_gpt_embedding_finetuning.py \
+            exp_manager.exp_dir='/home/TestData/nlp/megatron_ir/working_dir' \
+            model.global_batch_size=4 \
+            model.micro_batch_size=4 \
+            trainer.devices=1 \
+            trainer.num_nodes=1 \
+            trainer.max_epochs=null \
+            trainer.max_steps=20 \
+            trainer.val_check_interval=10 \
+            model.restore_from_path='/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo' \
+            model.peft.lora_tuning.adapter_dim=8 \
+            model.data.validation_ds.query_file_names=[/home/TestData/nlp/megatron_ir/test_query.jsonl] \
+            model.data.validation_ds.doc_file_names=[/home/TestData/nlp/megatron_ir/test_doc.jsonl] \
+            model.data.validation_ds.write_embeddings_to_file=True \
+            model.data.validation_ds.output_file_path_prefix='/home/TestData/nlp/megatron_ir/working_dir/val_embs' \
+            model.data.train_ds.file_names=[/home/TestData/nlp/megatron_ir/train.jsonl]
+
+
+            python examples/nlp/information_retrieval/megatron_gpt_embedding_generate.py \
+            trainer.devices=1 \
+            trainer.num_nodes=1 \
+            model.restore_from_path='/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo' \
+            model.peft.restore_from_path='/home/TestData/nlp/megatron_ir/working_dir/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo' \
+            model.global_batch_size=4 \
+            model.micro_batch_size=4 \
+            model.peft.lora_tuning.adapter_dim=8 \
+            model.data.test_ds.write_embeddings_to_file=True \
+            model.data.test_ds.output_file_path_prefix='/home/TestData/nlp/megatron_ir/working_dir/test_embs' \
+            model.data.test_ds.query_file_names=[/home/TestData/nlp/megatron_ir/test_query.jsonl] \
+            model.data.test_ds.doc_file_names=[/home/TestData/nlp/megatron_ir/test_doc.jsonl]
+
+            rm -rf /home/TestData/nlp/megatron_ir/working_dir
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+          if: "failure()"
+
+  L2_Megatron_GPT_PEFT_Lora_PP2:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    timeout-minutes: 10
+    container:
+      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /mnt/datadrive/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
         - run: |
             rm -rf examples/nlp/language_modeling/gpt_peft_lora_results_pp2
 
@@ -4694,6 +4945,7 @@ jobs:
   L2_Megatron_GPT_PEFT_Lora_TP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -4706,7 +4958,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             rm -rf /home/TestData/nlp/lora_tuning_tp2
 
@@ -4756,6 +5008,7 @@ jobs:
   L2_Megatron_GPT_Eval:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -4768,7 +5021,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_eval.py \
                 gpt_model_file=/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo \
@@ -4782,6 +5035,7 @@ jobs:
   L2_Megatron_GPT_Eval_PP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -4794,7 +5048,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_eval.py \
                 gpt_model_file=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
@@ -4810,6 +5064,7 @@ jobs:
   L2_Megatron_GPT_SFT_Eval_inference_seq_len_greaterThan_training_seq_len:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -4822,7 +5077,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
                 model.restore_from_path=/home/TestData/nlp/megatron_gpt_sft/megatron_gpt_rope_sft.nemo \
@@ -4873,6 +5128,7 @@ jobs:
   L2_Megatron_Change_Partitions_Reduce_TP_Num_Partitions_-2_to_1-_and_PP_Num_Partitions_-1_to_2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -4885,7 +5141,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_change_num_partitions.py \
                 --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
@@ -4902,6 +5158,7 @@ jobs:
   L2_Megatron_Change_Partitions_Increase_TP_Num_Partitions_-2_to_4-_and_PP_Num_Partitions_-1_to_2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -4914,7 +5171,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_change_num_partitions.py \
                 --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
@@ -4931,6 +5188,7 @@ jobs:
   L2_Megatron_T5_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -4943,7 +5201,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5038,6 +5296,7 @@ jobs:
   L2_Megatron_T5_with_ALiBi_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5050,7 +5309,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5145,6 +5404,7 @@ jobs:
   L2_Megatron_T5_with_KERPLE_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5157,7 +5417,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5252,6 +5512,7 @@ jobs:
   L2_Megatron_T5_Pretraining_and_Resume_Training_PP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5264,7 +5525,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5333,6 +5594,7 @@ jobs:
   L2_Megatron_T5_w_Mixture_of_Expert_Pretraining:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5345,7 +5607,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5387,6 +5649,7 @@ jobs:
   L2_Megatron_UL2_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5399,7 +5662,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py -cn megatron_ul2_config \
             trainer.devices=2 \
@@ -5478,6 +5741,7 @@ jobs:
   L2_Megatron_T5_Eval:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5490,7 +5754,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_eval.py \
                 --model_file /home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo \
@@ -5502,6 +5766,7 @@ jobs:
   L2_Megatron_BART_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5514,7 +5779,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_bart_pretraining.py \
             trainer.devices=2 \
@@ -5582,6 +5847,7 @@ jobs:
   L2_Megatron_BART_Pretraining_and_Resume_Training_PP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5594,7 +5860,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_bart_pretraining.py \
             trainer.devices=2 \
@@ -5667,7 +5933,8 @@ jobs:
   # TODO(Oktai15): update it in 1.8.0 version
   L2_Megatron_T5_GLUE_RTE:  
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5680,7 +5947,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_seq2seq_finetune.py \
             trainer.devices=1 \
@@ -5711,7 +5978,8 @@ jobs:
   
   L2_Megatron_T5_GLUE_XNLI:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5724,7 +5992,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_seq2seq_finetune.py \
             -cn megatron_t5_config_finetune_glue_xnli \
@@ -5761,6 +6029,7 @@ jobs:
   L2_Megatron_T5_PEFT_Lora_TP2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5773,7 +6042,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             rm -rf /home/TestData/nlp/t5_lora_tuning_tp2
 
@@ -5826,6 +6095,7 @@ jobs:
   L2_Megatron_Mock_Data_Generation_MockGPTDataset:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5838,13 +6108,14 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
                 trainer.max_steps=10 \
                 trainer.limit_val_batches=7 \
                 trainer.val_check_interval=10 \
                 exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+                model.mcore_gpt=True \
                 model.data.data_impl=mock \
                 model.data.data_prefix=[]
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -5853,6 +6124,7 @@ jobs:
   L2_Megatron_Mock_Data_Generation_MockT5Dataset:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5865,7 +6137,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.max_steps=10 \
@@ -5882,7 +6154,8 @@ jobs:
   # L2: TTS Fast dev runs 1
   L2_TTS_Fast_dev_runs_1_Tacotron_2:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5895,12 +6168,12 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/tts/tacotron2.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-            trainer.devices=[0] \
+            trainer.devices=1 \
             trainer.accelerator="gpu" \
             +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
             trainer.strategy=auto \
@@ -5921,6 +6194,7 @@ jobs:
   L2_TTS_Fast_dev_runs_1_WaveGlow:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5933,7 +6207,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/tts/waveglow.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -5955,6 +6229,7 @@ jobs:
   L2_TTS_Fast_dev_runs_1_FastPitch:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -5967,7 +6242,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/tts/fastpitch.py \
             --config-name fastpitch_align_v1.05 \
@@ -5996,50 +6271,52 @@ jobs:
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
 
-  L2_TTS_Fast_dev_runs_1_RADTTS:
-    needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
-    container:
-      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-      options: 
-        # --user 0:128
-        --device=/dev/nvidia0
-        --gpus all
-        --shm-size=8g
-        --env TRANSFORMERS_OFFLINE=0 
-        --env HYDRA_FULL_ERROR=1
-        --volume /mnt/datadrive/TestData:/home/TestData
-    steps:
-        - name: Checkout repository
-          uses: actions/checkout@v2
-        - run: |
-            python examples/tts/radtts.py \
-            train_dataset=/home/TestData/an4_dataset/an4_train.json \
-            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-            sup_data_path=/home/TestData/an4_dataset/radtts_beta_priors \
-            trainer.devices="[0]" \
-            +trainer.limit_train_batches=1 \
-            +trainer.limit_val_batches=1 \
-            trainer.max_epochs=1 \
-            trainer.strategy=auto \
-            model.pitch_mean=212.35873413085938 \
-            model.pitch_std=68.52806091308594 \
-            model.train_ds.dataloader_params.batch_size=4 \
-            model.train_ds.dataloader_params.num_workers=0 \
-            model.validation_ds.dataloader_params.batch_size=4 \
-            model.validation_ds.dataloader_params.num_workers=0 \
-            export_dir=/home/TestData/radtts_test \
-            model.optim.lr=0.0001 \
-            model.modelConfig.decoder_use_partial_padding=True \
-            ~trainer.check_val_every_n_epoch \
-            ~model.text_normalizer \
-            ~model.text_normalizer_call_kwargs
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-          if: "failure()"
+  # OPTIONAL_L2_TTS_Fast_dev_runs_1_RADTTS:
+  #   needs: [cicd-test-container-setup]
+  #   runs-on: self-hosted-azure
+  #   timeout-minutes: 10
+  #   container:
+  #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #     options: 
+  #       # --user 0:128
+  #       --device=/dev/nvidia0
+  #       --gpus all
+  #       --shm-size=8g
+  #       --env TRANSFORMERS_OFFLINE=0 
+  #       --env HYDRA_FULL_ERROR=1
+  #       --volume /mnt/datadrive/TestData:/home/TestData
+  #   steps:
+  #       - name: Checkout repository
+  #         uses: actions/checkout@v4
+  #       - run: |
+  #           python examples/tts/radtts.py \
+  #           train_dataset=/home/TestData/an4_dataset/an4_train.json \
+  #           validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+  #           sup_data_path=/home/TestData/an4_dataset/radtts_beta_priors \
+  #           trainer.devices="[0]" \
+  #           +trainer.limit_train_batches=1 \
+  #           +trainer.limit_val_batches=1 \
+  #           trainer.max_epochs=1 \
+  #           trainer.strategy=auto \
+  #           model.pitch_mean=212.35873413085938 \
+  #           model.pitch_std=68.52806091308594 \
+  #           model.train_ds.dataloader_params.batch_size=4 \
+  #           model.train_ds.dataloader_params.num_workers=0 \
+  #           model.validation_ds.dataloader_params.batch_size=4 \
+  #           model.validation_ds.dataloader_params.num_workers=0 \
+  #           export_dir=/home/TestData/radtts_test \
+  #           model.optim.lr=0.0001 \
+  #           model.modelConfig.decoder_use_partial_padding=True \
+  #           ~trainer.check_val_every_n_epoch \
+  #           ~model.text_normalizer \
+  #           ~model.text_normalizer_call_kwargs
+  #       #- uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+  #       #  if: "failure()"
 
   L2_TTS_Fast_dev_runs_1_Mixer-TTS:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -6052,7 +6329,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/tts/mixer_tts.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -6078,6 +6355,7 @@ jobs:
   L2_TTS_Fast_dev_runs_1_Hifigan:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -6090,7 +6368,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/tts/hifigan.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -6126,7 +6404,7 @@ jobs:
   #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
-  #         uses: actions/checkout@v2
+  #         uses: actions/checkout@v4
   #       - run: |
   #           python examples/multimodal/text_to_image/nerf/main.py \
   #           trainer.num_nodes=1 \
@@ -6142,6 +6420,7 @@ jobs:
   Speech_Checkpoints_tests:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 20
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -6154,7 +6433,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_eval.py \
                 pretrained_name=QuartzNet15x5Base-En  \
@@ -6165,3 +6444,137 @@ jobs:
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
 
+  Nemo_CICD_Test:
+    needs: 
+      #- OPTIONAL_L0_Unit_Tests_GPU
+      - L0_Unit_Tests_CPU
+      - L2_Community_LLM_Checkpoints_tests_Llama
+      - L2_Community_LLM_Checkpoints_tests_StarCoder
+      - L2_Community_LLM_Checkpoints_tests_Falcon
+      #- OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2
+      - ASR_dev_run_Speech_to_Text
+      - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
+      - ASR_dev_run_Speech_Pre-training_-_CitriNet
+      - ASR_dev_run_Speech_To_Text_Finetuning
+      #- OPTIONAL_ASR_dev_run_Speech_To_Text_HF_Finetuning
+      - ASR_dev_run_Speech_to_Text_WPE_-_Conformer
+      - ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer
+      - L2_Speech_to_Text_EMA
+      - L2_Speaker_dev_run_Speaker_Recognition
+      - L2_Speaker_dev_run_Speaker_Diarization
+      - L2_Speaker_dev_run_Speech_to_Label
+      - L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference
+      - L2_Speaker_dev_run_Clustering_Diarizer_Inference
+      - L2_Speaker_dev_run_Neural_Diarizer_Inference
+      - L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
+      - L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader
+      - L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader
+      - L2_ASR_Adapters_Linear_Adapters
+      - L2_ASR_Adapters_RelPos_MHA_Adapters
+      - L2_Speech_Transcription_Speech_to_Text_Transcribe
+      - L2_Transducer_alignment_Running_pytest
+      - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
+      - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
+      - L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
+      - L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference
+      - L2_Dialogue_Classification_Intent_and_slot_classification_using_SGDQA
+      - L2_Dialogue_Classification_Intent_and_slot_classification_using_IntentSlotClassificationModel
+      - L2_Dialogue_Classification_Intent_classification_using_ZeroShotIntentModel
+      - L2_Dialogue_Classification_Design_Intent_classification_using_ZeroShotIntentModel
+      - L2_Dialogue_Classification_Design_Intent_classification_using_ZeroShotIntentModel_BART_Classifier
+      - L2_Dialogue_Classification_Design_Intent_classification_using_DialogueNearestNeighbourModel
+      - L2_Dialogue_Generation_Dialogue_Answer_Extender_using_DialogueS2SGenerationModel
+      - L2_Dialogue_Generation_Dialogue_SGD_Based_Answer_Extender_using_DialogueS2SGenerationModel
+      - L2_COPY_Dialogue_Answer_Extender_using_DialogueGPTGenerationModel
+      - L2_Duplex_Text_Normalization_with_Tarred_dataset
+      - L2_BERT_Text_Classification_with_BERT_Test
+      - L2_Parallel_BERT_Question-Answering_SQUAD_v1_1
+      - L2_Parallel_BERT_Question-Answering_SQUAD_v2_0
+      - L2_Parallel_BART_Question-Answering_SQUAD_v1_1
+      - L2_Parallel_BART_Question-Answering_SQUAD_v2_0
+      - L2_Parallel_GPT2_Question-Answering_SQUAD_v1_1
+      - L2_Parallel_GPT2_Question-Answering_SQUAD_v2_0
+      - L2_Intent_and_Slot_Classification_Tasks_Intent_and_Slot_Classification
+      - L2_Intent_and_Slot_Classification_Tasks_Multi-Label_Intent_and_Slot_Classification
+      - L2_Parallel_NLP_Examples2_NER_finetuning_from_pretrained_Test
+      - L2_Parallel_NLP_Examples2_Punctuation_and_capitalization_finetuning_from_pretrained_test
+      - L2_Parallel_NLP_Examples2_NER_with_TurkuNLP__bert-base-finnish-cased-v1
+      - L2_Parallel_NLP_Examples2_Evaluation_script_for_Token_Classification
+      - L2_Parallel_NLP_Examples2_Evaluation_script_for_Punctuation
+      - L2_Parallel_NLP_Examples2_Punctuation_Capitalization_2GPUs_with_DistilBERT_Finetuning_on_other_data
+      - Punctuation_Capitalization_tarred_dataset_create_and_use_tarred_dataset
+      - Punctuation_Capitalization_Using_model-common_datasets_parameters-label_vocab_dir
+      - Punctuation_Capitalization_inference_Restore_punctuation_and_capitalization_in_long_text
+      - L2_Pretraining_BERT_pretraining_from_Text
+      - L2_Pretraining_BERT_from_Preprocessed
+      - L2_Entity_Linking_Self_Alignment_Pretraining_BERT
+      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN
+      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN
+      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation
+      - L2_NMT_Attention_is_All_You_Need_Inference
+      - L2_NMT_Attention_is_All_You_Need_Finetuning
+      - L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation
+      - L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation
+      - L2_Megatron_NMT_Training_TP2
+      - L2_Megatron_BART_Perceiver_MIM_Training_TP2
+      - L2_Megatron_Bert_Pretraining_and_Resume_Training_with_Pipeline_Parallelism
+      - L2_Megatron_Bert_Pretraining_and_Resume_Training
+      - L2_Megatron_Core_Bert_Pretraining_and_Resume_Training
+      - L2_Legacy_Megatron_RETRO_Pretraining_and_Resume_Training
+      - L2_Megatron_RETRO_Pretraining_and_Resume_Training
+      - L2_BioMegatron_Bert_NER_Task
+      - L2_Megatron_GPT_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_GPT_with_Rope_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_GPT_with_ALiBi_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2
+      - L2_Megatron_GPT_Finetuning_PP2
+      - L2_Megatron_GPT_Finetuning_StarCoder_PP1
+      - L2_Megatron_GPT_Embedding 
+      - L2_Megatron_GPT_PEFT_Lora_PP2
+      - L2_Megatron_GPT_PEFT_Lora_TP2
+      - L2_Megatron_GPT_Eval
+      - L2_Megatron_GPT_Eval_PP2
+      - L2_Megatron_GPT_SFT_Eval_inference_seq_len_greaterThan_training_seq_len
+      - L2_Megatron_Change_Partitions_Reduce_TP_Num_Partitions_-2_to_1-_and_PP_Num_Partitions_-1_to_2
+      - L2_Megatron_Change_Partitions_Increase_TP_Num_Partitions_-2_to_4-_and_PP_Num_Partitions_-1_to_2
+      - L2_Megatron_T5_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_T5_with_ALiBi_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_T5_with_KERPLE_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_T5_Pretraining_and_Resume_Training_PP2
+      - L2_Megatron_T5_w_Mixture_of_Expert_Pretraining
+      - L2_Megatron_UL2_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_T5_Eval
+      - L2_Megatron_BART_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_BART_Pretraining_and_Resume_Training_PP2
+      - L2_Megatron_T5_GLUE_RTE
+      - L2_Megatron_T5_GLUE_XNLI
+      - L2_Megatron_T5_PEFT_Lora_TP2
+      - L2_Megatron_Mock_Data_Generation_MockGPTDataset
+      - L2_Megatron_Mock_Data_Generation_MockT5Dataset
+      - L2_TTS_Fast_dev_runs_1_Tacotron_2
+      - L2_TTS_Fast_dev_runs_1_WaveGlow
+      - L2_TTS_Fast_dev_runs_1_FastPitch
+      #- OPTIONAL_L2_TTS_Fast_dev_runs_1_RADTTS
+      - L2_TTS_Fast_dev_runs_1_Mixer-TTS
+      - L2_TTS_Fast_dev_runs_1_Hifigan
+      - Speech_Checkpoints_tests
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+        # This should depend on all the tests so we block/unblock based on all tests passing
+      - if: ${{ contains(needs.*.result, 'success') }}
+        run: exit 0
+
+      - if: ${{ contains(needs.*.result, 'failure') }}
+        name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - if: ${{ contains(needs.*.result, 'failure') }}
+        run: |
+          source .github/scripts/slackHelper.sh
+
+          WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK }}
+          PIPELINE_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          sendSlackMessage "$WEBHOOK_URL" "$PIPELINE_URL"
