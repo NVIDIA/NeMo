@@ -530,7 +530,12 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 media_end_id=media_end_id,
                 mcore_gpt=self.mcore_gpt,
                 config=self.transformer_config,
-                transformer_layer_spec=get_specs(self.spec_name),
+                transformer_layer_spec=get_specs(
+                    self.spec_name,
+                    self.transformer_config.num_moe_experts,
+                    self.transformer_config.moe_grouped_gemm,
+                    self.transformer_engine,
+                ),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
