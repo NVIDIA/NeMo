@@ -4935,7 +4935,7 @@ jobs:
           echo "SUCCESSFUL='$SUCCESSFUL'" >> $GITHUB_OUTPUT
 
       - if: ${{ always() }}
-        run: echo ${{ steps.pipeline-conclusion.SUCCESSFUL == 'true' }}
+        run: echo ${{ steps.pipeline-conclusion.SUCCESSFUL }}
 
       # This should depend on all the tests so we block/unblock based on all tests passing
       - if: ${{ always() && steps.pipeline-conclusion.SUCCESSFUL == 'true' }}
