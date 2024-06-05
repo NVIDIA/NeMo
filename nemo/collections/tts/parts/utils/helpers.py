@@ -798,6 +798,9 @@ def sample_tts_input(
     pitch = torch.randn(sz, device=device, dtype=torch.float32) * 0.5
     pace = torch.clamp(torch.randn(sz, device=device, dtype=torch.float32) * 0.1 + 1.0, min=0.2)
     inputs = {'text': inp, 'pitch': pitch, 'pace': pace}
+    if export_config["enable_volume"]:
+        volume = torch.clamp(torch.randn(sz, device=device, dtype=torch.float32) * 0.1 + 1, min=0.01)
+        inputs['volume'] = volume
     if export_config["enable_ragged_batches"]:
         batch_lengths = torch.zeros((max_batch + 1), device=device, dtype=torch.int32)
         left_over_size = sz[0]
@@ -819,10 +822,6 @@ def sample_tts_input(
         batch_lengths = torch.randint(max_dim // 2, max_dim, (max_batch,), device=device, dtype=torch.int32)
         batch_lengths[0] = max_dim
     inputs['batch_lengths'] = batch_lengths
-
-    if export_config["enable_volume"]:
-        volume = torch.clamp(torch.randn(sz, device=device, dtype=torch.float32) * 0.1 + 1, min=0.01)
-        inputs['volume'] = volume
 
     if "num_speakers" in export_config:
         inputs['speaker'] = torch.randint(
