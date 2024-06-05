@@ -735,11 +735,11 @@ class SpeechLabel(_Collection):
                 data.sort(key=lambda entity: entity.duration)
 
         if duration_undefined:
-            logging.info(f"Dataset loaded with {len(data)} items. The duration was not defined.")
+            logging.info(f"Dataset loaded with {len(data)} items. The durations were not provided.")
         else:
             logging.info(f"Filtered duration for loading collection is {duration_filtered / 3600: .2f} hours.")
             logging.info(
-                f"Dataset loaded with {len(data)} items. Total duration of {total_duration / 3600: .2f} hours."
+                f"Dataset successfully loaded with {len(data)} items and total duration provided from manifest is {total_duration / 3600: .2f} hours."
             )
 
         self.uniq_labels = sorted(set(map(lambda x: x.label, data)))
