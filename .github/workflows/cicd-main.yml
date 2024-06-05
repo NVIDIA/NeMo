@@ -109,7 +109,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     with:
       RUNNER: self-hosted-azure-cpu
-      TIMEOUT: 360
+      TIMEOUT: 80
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
@@ -121,6 +121,9 @@ jobs:
       SCRIPT: |
         python -m tests.setup --save_dir /home/TestData/nlp
 
+  ##     - name: L2: Multimodal Imagen Train
+
+  # L2: Community LLM Checkpoints tests
   L2_Community_LLM_Checkpoints_tests_Llama:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -636,6 +639,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf ./test_simulator
 
+  # L2: ASR Multi-dataloader dev run
   L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -679,6 +683,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf examples/asr/speech_to_label_results
 
+  # L2: ASR Adapters
   L2_ASR_Adapters_Linear_Adapters:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -720,6 +725,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf examples/asr/speech_to_text_adapters_mha_results
 
+  # L2: Speech Transcription
   L2_Speech_Transcription_Speech_to_Text_Transcribe:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -734,6 +740,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf stt_test_res.json
 
+  # L2: Transducer alignment
   L2_Transducer_alignment_Running_pytest:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -783,6 +790,7 @@ jobs:
 
         rm -rf /home/TestData/ctc_segmentation/eng/output${TIME}
 
+  # L2: G2P Models
   L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -1056,6 +1064,7 @@ jobs:
         exp_manager=null  && \
         rm -rf design_dialogue_nearest_neighbour_classification_outputs
 
+  # L2: Dialogue Generation
   L2_Dialogue_Generation_Dialogue_Answer_Extender_using_DialogueS2SGenerationModel:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -1172,6 +1181,7 @@ jobs:
         exp_manager=null  && \
         rm -rf answer_extender
 
+  # L2: Duplex Text Normalization
   L2_Duplex_Text_Normalization_with_Tarred_dataset:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -1249,6 +1259,7 @@ jobs:
         +trainer.fast_dev_run=true \
         exp_manager=null
 
+  # L2: Parallel BERT Question-Answering SQUAD v1.1 & v2.0
   L2_Parallel_BERT_Question-Answering_SQUAD_v1_1:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -1302,6 +1313,7 @@ jobs:
         trainer.accelerator="gpu" \
         exp_manager=null
 
+  # L2: Parallel BART Question-Answering SQUAD v1.1 & v2.0
   L2_Parallel_BART_Question-Answering_SQUAD_v1_1:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -1355,6 +1367,7 @@ jobs:
         trainer.accelerator="gpu" \
         exp_manager=null
 
+  # L2: Parallel GPT2 Question-Answering SQUAD v1.1 & v2.0
   L2_Parallel_GPT2_Question-Answering_SQUAD_v1_1:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -1408,6 +1421,7 @@ jobs:
         trainer.accelerator="gpu" \
         exp_manager=null
 
+  # L2: Intent and Slot Classification Tasks
   L2_Intent_and_Slot_Classification_Tasks_Intent_and_Slot_Classification:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -1686,6 +1700,7 @@ jobs:
           "${tmp_data_dir_2}" \
           "${output_dir}"
 
+  # Punctuation & Capitalization tarred dataset:
   Punctuation_Capitalization_tarred_dataset_create_and_use_tarred_dataset:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -1738,6 +1753,7 @@ jobs:
 
         rm -rf "${output_dir}" "${data_dir}"
 
+  # Punctuation_Capitalization_Different_ways_of_passing_labels_to_model
   Punctuation_Capitalization_Using_model-common_datasets_parameters-label_vocab_dir:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -1871,6 +1887,7 @@ jobs:
           --batch_size 32;
         rm -rf "${output_dir}"
 
+  # L2: Parallel Pretraining BERT pretraining from Text/Preprocessed
   L2_Pretraining_BERT_pretraining_from_Text:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -1928,6 +1945,7 @@ jobs:
 
             #rm -rf examples/nlp/language_modeling/PretrainingBERTFromPreprocessed
 
+  # L2: Entity Linking        
   L2_Entity_Linking_Self_Alignment_Pretraining_BERT:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -2064,6 +2082,7 @@ jobs:
         +trainer.limit_test_batches=2 \
         exp_manager=null
 
+  # L2: NMT Attention is All You Need Inference
   L2_NMT_Attention_is_All_You_Need_Inference:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -2078,6 +2097,7 @@ jobs:
         --target_lang en \
         --source_lang de
 
+  # L2: NMT Attention is All You Need Finetuning
   L2_NMT_Attention_is_All_You_Need_Finetuning:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
