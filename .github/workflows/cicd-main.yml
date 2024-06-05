@@ -4930,8 +4930,7 @@ jobs:
       - if: ${{ always() }}
         id: pipeline-conclusion
         run: |
-          SUCCESSFUL=${{ !contains(needs.*.outputs.conclusion, 'failure') && !contains
-          (needs.*.outputs.conclusion, 'cancelled') }}
+          SUCCESSFUL=${{ !contains(needs.*.outputs.conclusion, 'failure') && !contains(needs.*.outputs.conclusion, 'cancelled') }}
 
           echo "SUCCESSFUL='$SUCCESSFUL'" >> $GITHUB_OUTPUT
 
