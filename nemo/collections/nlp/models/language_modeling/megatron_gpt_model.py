@@ -1497,6 +1497,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "reset_attention_mask": self.reset_attention_mask,
                 "eod_mask_loss": self.eod_mask_loss,
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
+                "drop_last_partial_validation_sequence": self.cfg.data.get("validation_drop_last", False),
+                "add_extra_token_to_sequence": self.cfg.data.get("add_extra_token", False),
             }
 
             data_prefix = self.cfg.data.data_prefix

@@ -56,7 +56,7 @@ exp_manager:
 
 model:
   # use GPTModel from megatron.core
-  mcore_gpt: False
+  mcore_gpt: True
 
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
@@ -240,9 +240,9 @@ model:
     # Dictionary: can override from CLI "model.data.data_prefix"={"train":[1.0, /path/to/data], "validation":/path/to/data, "test":/path/to/test}
     # Or see example below:
     # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
-    data_prefix: ???
+    data_prefix: []
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
-    data_impl: mmap
+    data_impl: mock
     mmap_bin_files: True
     splits_string: 900,50,50
     seq_length: ${model.encoder_seq_length}
@@ -253,6 +253,7 @@ model:
     reset_attention_mask: False # Reset attention mask after end-of-document token
     eod_mask_loss: False # Mask loss for the end of document tokens
     validation_drop_last: True # Set to false if the last partial validation samples is to be consumed
+    add_extra_token: True # Option to draw sequences with one extra token to ensure the sample input tokens and sample output tokens are both of the desired sequence length
     no_seqlen_plus_one_input_tokens: False # Set to True to disable fetching (sequence length + 1) input tokens, instead get (sequence length) input tokens and mask the last token
     pad_samples_to_global_batch_size: False # Set to True if you want to pad the last partial batch with -1's to equal global batch size
     shuffle_documents: True # Set to False to disable documents shuffling. Sample index will still be shuffled
