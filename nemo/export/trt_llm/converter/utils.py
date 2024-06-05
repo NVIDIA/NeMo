@@ -417,6 +417,3 @@ def split(v, tp_size, idx, dim=0):
         return np.ascontiguousarray(np.split(v, tp_size)[idx])
     else:
         return np.ascontiguousarray(np.split(v, tp_size, axis=dim)[idx])
-
-
-
