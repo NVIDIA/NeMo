@@ -669,7 +669,10 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         global_attn_scores = global_attn_scores.view(batch_size * self.h, max_num_global_attn_indices, seq_len)
 
         # compute global attn probs
-        global_attn_probs_float = nn.functional.softmax(global_attn_scores, dim=-1)
+        if self.training:
+            global_attn_probs_float = nn.functional.softmax(global_attn_scores, dim=-1, dtype=torch.float32)
+        else:
+            global_attn_probs_float = nn.functional.softmax(global_attn_scores, dim=-1)
 
         global_attn_probs = self.dropout(global_attn_probs_float)
 
