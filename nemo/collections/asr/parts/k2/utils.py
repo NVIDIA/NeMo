@@ -327,8 +327,20 @@ def apply_rnnt_prune_ranges(
 
 
 def levenshtein_graph_k2(fsa: 'k2.Fsa', ins_del_score: float = -0.501) -> 'k2.Fsa':
-    """
-    TBD
+    """Construct the levenshtein graph from a k2-type WFST or a lattice.
+
+    See also levenshtein_graph from k2.
+
+    Args:
+      fst:
+        K2-type source WFST or lattice.
+
+      ins_del_score:
+        Insertion and deletion penalty.
+        Should be more than 0.5 for substitutions to be preferred over insertions/deletions, or less otherwise.
+
+    Returns:
+      K2-type levenshtein WFST.
     """
     sub_score = -0.5
     sub_score_int = struct.unpack('@i', struct.pack('@f', sub_score))[0]
