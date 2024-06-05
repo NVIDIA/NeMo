@@ -122,7 +122,7 @@ export LOCAL_PEFT_DIRECTORY=</path/to/LoRA-model-store>
 chmod -R 777 $LOCAL_PEFT_DIRECTORY
 
 export NIM_PEFT_SOURCE=/home/nvs/loras # Path to LoRA models internal to the container
-export NIM_PEFT_REFRESH_INTERVAL=3600  # (in seconds) will check NIM_PEFT_SOURCE for newly added models every hour in this interval
+export NIM_PEFT_REFRESH_INTERVAL=3600  # (in seconds) will check NIM_PEFT_SOURCE for newly added models in this interval
 export CONTAINER_NAME=meta-llama3-8b-instruct
 
 export NIM_CACHE_PATH=</path/to/LoRA-model-store-cache>  # Processed LoRA models will be stored here
