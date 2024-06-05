@@ -12,18 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union, Optional
+from typing import Optional, Union
 
-from vllm.config import (ModelConfig, _get_and_verify_dtype, _get_and_verify_max_len)
-from vllm.transformers_utils.config import get_hf_text_config
-
+import torch
+import yaml
 from transformers import AutoConfig
+from vllm.config import ModelConfig, _get_and_verify_dtype, _get_and_verify_max_len
+from vllm.transformers_utils.config import get_hf_text_config
 
 from nemo.export.tarutils import TarPath
 from nemo.export.vllm.model_converters import get_model_converter
 
-import yaml
-import torch
 
 class NemoModelConfig(ModelConfig):
     """
@@ -94,7 +93,7 @@ class NemoModelConfig(ModelConfig):
             'initializer_range': 'init_method_std',
             'norm_epsilon': 'layernorm_epsilon',
             'rope_theta': 'rotary_base',
-            'use_bias': 'bias'
+            'use_bias': 'bias',
         }
 
         with TarPath(nemo_checkpoint) as archive:
@@ -119,14 +118,15 @@ class NemoModelConfig(ModelConfig):
         self.hf_config.architectures = [self.model_converter.get_architecture()]
         if self.rope_scaling is not None:
             self.hf_config['rope_scaling'] = rope_scaling
-        
+
         self.hf_text_config = get_hf_text_config(self.hf_config)
         self.dtype = _get_and_verify_dtype(self.hf_text_config, dtype)
         self.max_model_len = _get_and_verify_max_len(
             hf_config=self.hf_text_config,
             max_model_len=max_model_len,
             disable_sliding_window=self.disable_sliding_window,
-            sliding_window_len=self.get_hf_config_sliding_window())
+            sliding_window_len=self.get_hf_config_sliding_window(),
+        )
         self._verify_tokenizer_mode()
         self._verify_embedding_mode()
         self._verify_quantization()

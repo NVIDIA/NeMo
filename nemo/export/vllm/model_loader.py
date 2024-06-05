@@ -12,24 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gc
+import logging
+import os.path
 from typing import Optional
 
+import numpy
+import safetensors.torch
+import tensorstore  # needed to register 'bfloat16' dtype with numpy for zarr compatibility
+import torch
+import zarr
+from vllm.config import CacheConfig, DeviceConfig, LoRAConfig, ParallelConfig, SchedulerConfig, VisionLanguageConfig
 from vllm.model_executor.model_loader.loader import BaseModelLoader, _initialize_model
 from vllm.model_executor.model_loader.utils import set_default_torch_dtype
 
-from vllm.config import (DeviceConfig, LoRAConfig, ParallelConfig, SchedulerConfig, CacheConfig, VisionLanguageConfig)
-
-from nemo.export.tarutils import ZarrPathStore, TarPath
+from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.vllm.model_config import NemoModelConfig
-
-import tensorstore # needed to register 'bfloat16' dtype with numpy for zarr compatibility
-import zarr
-import torch
-import numpy
-import gc
-import safetensors.torch
-import os.path
-import logging
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -38,7 +36,7 @@ class NemoModelLoader(BaseModelLoader):
     """
     Implements a custom ModelLoader for vLLM that reads the weights from a Nemo checkpoint
     and converts them to a vLLM compatible format at load time.
-    
+
     Also supports an ahead-of-time conversion that stores new weights in a Safetensors file,
     see convert_and_store_nemo_weights(...)
     """
@@ -62,7 +60,7 @@ class NemoModelLoader(BaseModelLoader):
                     sharded_state_dict[key] = torch.from_numpy(arr[:].view(numpy.int16)).view(torch.bfloat16)
                 else:
                     sharded_state_dict[key] = torch.from_numpy(arr[:])
-                    
+
                 arr = None
                 gc.collect()
 
@@ -70,25 +68,30 @@ class NemoModelLoader(BaseModelLoader):
 
         return sharded_state_dict
 
-    def load_model(self, *, model_config: NemoModelConfig,
-                   device_config: DeviceConfig,
-                   lora_config: Optional[LoRAConfig],
-                   vision_language_config: Optional[VisionLanguageConfig],
-                   parallel_config: ParallelConfig,
-                   scheduler_config: SchedulerConfig,
-                   cache_config: CacheConfig) -> torch.nn.Module:
+    def load_model(
+        self,
+        *,
+        model_config: NemoModelConfig,
+        device_config: DeviceConfig,
+        lora_config: Optional[LoRAConfig],
+        vision_language_config: Optional[VisionLanguageConfig],
+        parallel_config: ParallelConfig,
+        scheduler_config: SchedulerConfig,
+        cache_config: CacheConfig,
+    ) -> torch.nn.Module:
         """
         Overrides the load_model function from BaseModelLoader to convert Nemo weights at load time.
         """
-        
+
         assert isinstance(model_config, NemoModelConfig)
         state_dict = NemoModelLoader._load_nemo_checkpoint_state(model_config.nemo_checkpoint)
 
         with set_default_torch_dtype(model_config.dtype):
             with torch.device(device_config.device):
-                model = _initialize_model(model_config, self.load_config,
-                                          lora_config, vision_language_config, cache_config)
-                
+                model = _initialize_model(
+                    model_config, self.load_config, lora_config, vision_language_config, cache_config
+                )
+
             weights_iterator = model_config.model_converter.convert_weights(model_config.nemo_model_config, state_dict)
 
             model.load_weights(weights_iterator)
@@ -106,9 +109,12 @@ class NemoModelLoader(BaseModelLoader):
 
         state_dict = NemoModelLoader._load_nemo_checkpoint_state(model_config.nemo_checkpoint)
 
-        tensors = { name: tensor for name, tensor in model_config.model_converter.convert_weights(
-            model_config.nemo_model_config, state_dict) }
-        
+        tensors = {
+            name: tensor
+            for name, tensor in model_config.model_converter.convert_weights(
+                model_config.nemo_model_config, state_dict
+            )
+        }
+
         LOGGER.info(f'Saving weights to {safetensors_file}...')
         safetensors.torch.save_file(tensors, safetensors_file)
-    

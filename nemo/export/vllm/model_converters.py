@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from abc import ABC, abstractmethod
 from typing import Optional, Sequence, Tuple
+
+import torch
+
 
 class ModelConverter(ABC):
     """
@@ -24,14 +26,14 @@ class ModelConverter(ABC):
 
     def __init__(self, model_type: str):
         self.model_type = model_type
-        
+
     @abstractmethod
     def get_architecture(self) -> Optional[str]:
         """
         Returns the HF architecture name for the current model, such as 'LlamaForCausalLM'.
         """
         pass
-    
+
     def convert_config(self, nemo_model_config: dict, hf_config: dict) -> None:
         """
         Implements any custom HF configuration adjustments in the 'hf_config' dict that are necessary
@@ -52,7 +54,7 @@ class ModelConverter(ABC):
         NeMo checkpoints do not store this information.
         """
         return False
-    
+
 
 class LlamaConverter(ModelConverter):
 
@@ -96,14 +98,18 @@ class LlamaConverter(ModelConverter):
             linear_proj_weight = state_dict['model.decoder.layers.self_attention.linear_proj.weight'][layer]
             yield (f'model.layers.{layer}.self_attn.o_proj.weight', linear_proj_weight)
 
-            gate_proj_weight, up_proj_weight = torch.chunk(state_dict['model.decoder.layers.mlp.linear_fc1.weight'][layer], 2, dim=0)
+            gate_proj_weight, up_proj_weight = torch.chunk(
+                state_dict['model.decoder.layers.mlp.linear_fc1.weight'][layer], 2, dim=0
+            )
             yield (f'model.layers.{layer}.mlp.gate_proj.weight', gate_proj_weight)
             yield (f'model.layers.{layer}.mlp.up_proj.weight', up_proj_weight)
 
             mlp_up_weight = state_dict['model.decoder.layers.mlp.linear_fc2.weight'][layer]
             yield (f'model.layers.{layer}.mlp.down_proj.weight', mlp_up_weight)
 
-            input_layernorm_weight = state_dict['model.decoder.layers.self_attention.linear_qkv.layer_norm_weight'][layer]
+            input_layernorm_weight = state_dict['model.decoder.layers.self_attention.linear_qkv.layer_norm_weight'][
+                layer
+            ]
             yield (f'model.layers.{layer}.input_layernorm.weight', input_layernorm_weight)
 
             post_attn_layernorm_weight = state_dict['model.decoder.layers.mlp.linear_fc1.layer_norm_weight'][layer]
@@ -111,7 +117,7 @@ class LlamaConverter(ModelConverter):
 
     def requires_bos_token(self):
         return True
-    
+
 
 class MixtralConverter(ModelConverter):
 
@@ -158,15 +164,21 @@ class MixtralConverter(ModelConverter):
             yield (f'model.layers.{layer}.block_sparse_moe.gate.weight', mlp_router_weight)
 
             for expert in range(num_moe_experts):
-                linear_fc1_weight = state_dict['model.decoder.layers.mlp.experts.experts.linear_fc1.weight'][layer][expert]
+                linear_fc1_weight = state_dict['model.decoder.layers.mlp.experts.experts.linear_fc1.weight'][layer][
+                    expert
+                ]
                 gate_proj_weight, up_proj_weight = torch.chunk(linear_fc1_weight, 2, dim=0)
                 yield (f'model.layers.{layer}.block_sparse_moe.experts.{expert}.w1.weight', gate_proj_weight)
                 yield (f'model.layers.{layer}.block_sparse_moe.experts.{expert}.w3.weight', up_proj_weight)
 
-                linear_fc2_weight = state_dict['model.decoder.layers.mlp.experts.experts.linear_fc2.weight'][layer][expert]
+                linear_fc2_weight = state_dict['model.decoder.layers.mlp.experts.experts.linear_fc2.weight'][layer][
+                    expert
+                ]
                 yield (f'model.layers.{layer}.block_sparse_moe.experts.{expert}.w2.weight', linear_fc2_weight)
 
-            input_layernorm_weight = state_dict['model.decoder.layers.self_attention.linear_qkv.layer_norm_weight'][layer]
+            input_layernorm_weight = state_dict['model.decoder.layers.self_attention.linear_qkv.layer_norm_weight'][
+                layer
+            ]
             yield (f'model.layers.{layer}.input_layernorm.weight', input_layernorm_weight)
 
             post_attn_layernorm_weight = state_dict['model.decoder.layers.pre_mlp_layernorm.weight'][layer]
@@ -174,7 +186,7 @@ class MixtralConverter(ModelConverter):
 
     def requires_bos_token(self):
         return True
-    
+
 
 class GemmaConverter(ModelConverter):
 
@@ -182,7 +194,7 @@ class GemmaConverter(ModelConverter):
         if self.model_type == 'gemma':
             return 'GemmaForCausalLM'
         return None
-    
+
     def convert_weights(self, nemo_model_config, state_dict):
         num_layers = nemo_model_config["num_layers"]
         num_query_groups = nemo_model_config["num_query_groups"]
@@ -190,19 +202,23 @@ class GemmaConverter(ModelConverter):
         head_size = nemo_model_config["kv_channels"]
         hidden_size = nemo_model_config["hidden_size"]
         heads_per_group = head_num // num_query_groups
-        
+
         yield ('model.embed_tokens.weight', state_dict['model.embedding.word_embeddings.weight'])
-        
+
         final_layernorm_weight = state_dict['model.decoder.final_layernorm.weight']
         final_layernorm_weight -= 1.0
         yield ('model.norm.weight', final_layernorm_weight)
 
         for layer in range(int(num_layers)):
-            input_layernorm_weight = state_dict['model.decoder.layers.self_attention.linear_qkv.layer_norm_weight'][layer]
+            input_layernorm_weight = state_dict['model.decoder.layers.self_attention.linear_qkv.layer_norm_weight'][
+                layer
+            ]
             input_layernorm_weight -= 1.0
             yield (f'model.layers.{layer}.input_layernorm.weight', input_layernorm_weight)
 
-            post_attention_layernorm_weight = state_dict['model.decoder.layers.mlp.linear_fc1.layer_norm_weight'][layer]
+            post_attention_layernorm_weight = state_dict['model.decoder.layers.mlp.linear_fc1.layer_norm_weight'][
+                layer
+            ]
             post_attention_layernorm_weight -= 1.0
             yield (f'model.layers.{layer}.post_attention_layernorm.weight', post_attention_layernorm_weight)
 
@@ -224,11 +240,12 @@ class GemmaConverter(ModelConverter):
             q_weight = torch.empty((head_num, head_size, hidden_size), dtype=qkv_weight.dtype)
             k_weight = torch.empty((num_query_groups, head_size, hidden_size), dtype=qkv_weight.dtype)
             v_weight = torch.empty((num_query_groups, head_size, hidden_size), dtype=qkv_weight.dtype)
-            
+
             ptr = 0
             for i in range(num_query_groups):
-                q_weight[i * heads_per_group : (i + 1) * heads_per_group, :, :] = \
-                    qkv_weight[ptr : ptr + heads_per_group, : :]
+                q_weight[i * heads_per_group : (i + 1) * heads_per_group, :, :] = qkv_weight[
+                    ptr : ptr + heads_per_group, ::
+                ]
                 ptr += heads_per_group
                 k_weight[i : i + 1, :, :] = qkv_weight[ptr : ptr + 1, :, :]
                 ptr += 1
@@ -239,14 +256,14 @@ class GemmaConverter(ModelConverter):
             q_weight = q_weight.reshape(head_num * head_size, hidden_size)
             k_weight = k_weight.reshape(num_query_groups * head_size, hidden_size)
             v_weight = v_weight.reshape(num_query_groups * head_size, hidden_size)
-            
+
             yield (f'model.layers.{layer}.self_attn.q_proj.weight', q_weight)
             yield (f'model.layers.{layer}.self_attn.k_proj.weight', k_weight)
             yield (f'model.layers.{layer}.self_attn.v_proj.weight', v_weight)
-        
+
     def requires_bos_token(self):
         return True
-    
+
 
 class Starcoder2Converter(ModelConverter):
 
@@ -254,7 +271,7 @@ class Starcoder2Converter(ModelConverter):
         if self.model_type == 'starcoder2':
             return 'Starcoder2ForCausalLM'
         return None
-    
+
     def convert_config(self, nemo_model_config, hf_config):
         window_sizes = nemo_model_config.get('window_size')
         if window_sizes is not None:
@@ -277,7 +294,7 @@ class Starcoder2Converter(ModelConverter):
         heads_per_group = head_num // num_query_groups
         qkv_total_dim = head_num + 2 * num_query_groups
         has_bias = nemo_model_config["bias"]
-        
+
         yield ('model.embed_tokens.weight', state_dict['model.embedding.word_embeddings.weight'])
 
         yield ('model.norm.weight', state_dict['model.decoder.final_layernorm.weight'])
@@ -311,39 +328,59 @@ class Starcoder2Converter(ModelConverter):
                     yield (f'model.layers.{layer}.self_attn.{name}.bias', qkv_bias_slice)
 
             # Attention dense
-            yield (f'model.layers.{layer}.self_attn.o_proj.weight', 
-                state_dict[f'model.decoder.layers.self_attention.linear_proj.weight'][layer])
+            yield (
+                f'model.layers.{layer}.self_attn.o_proj.weight',
+                state_dict[f'model.decoder.layers.self_attention.linear_proj.weight'][layer],
+            )
             if has_bias:
-                yield (f'model.layers.{layer}.self_attn.o_proj.bias', 
-                    state_dict['model.decoder.layers.self_attention.linear_proj.bias'][layer])
-            
+                yield (
+                    f'model.layers.{layer}.self_attn.o_proj.bias',
+                    state_dict['model.decoder.layers.self_attention.linear_proj.bias'][layer],
+                )
+
             # MLP FC1
-            yield (f'model.layers.{layer}.mlp.c_fc.weight', 
-                state_dict['model.decoder.layers.mlp.linear_fc1.weight'][layer])
+            yield (
+                f'model.layers.{layer}.mlp.c_fc.weight',
+                state_dict['model.decoder.layers.mlp.linear_fc1.weight'][layer],
+            )
             if has_bias:
-                yield (f'model.layers.{layer}.mlp.c_fc.bias', 
-                    state_dict['model.decoder.layers.mlp.linear_fc1.bias'][layer])
-                
+                yield (
+                    f'model.layers.{layer}.mlp.c_fc.bias',
+                    state_dict['model.decoder.layers.mlp.linear_fc1.bias'][layer],
+                )
+
             # MLP FC2
-            yield (f'model.layers.{layer}.mlp.c_proj.weight', 
-                state_dict['model.decoder.layers.mlp.linear_fc2.weight'][layer])
+            yield (
+                f'model.layers.{layer}.mlp.c_proj.weight',
+                state_dict['model.decoder.layers.mlp.linear_fc2.weight'][layer],
+            )
             if has_bias:
-                yield (f'model.layers.{layer}.mlp.c_proj.bias', 
-                    state_dict['model.decoder.layers.mlp.linear_fc2.bias'][layer])
-            
+                yield (
+                    f'model.layers.{layer}.mlp.c_proj.bias',
+                    state_dict['model.decoder.layers.mlp.linear_fc2.bias'][layer],
+                )
+
             # Input LayerNorm
-            yield (f'model.layers.{layer}.input_layernorm.weight', 
-                state_dict['model.decoder.layers.self_attention.linear_qkv.layer_norm_weight'][layer])
+            yield (
+                f'model.layers.{layer}.input_layernorm.weight',
+                state_dict['model.decoder.layers.self_attention.linear_qkv.layer_norm_weight'][layer],
+            )
             if has_bias:
-                yield (f'model.layers.{layer}.input_layernorm.bias', 
-                    state_dict['model.decoder.layers.self_attention.linear_qkv.layer_norm_bias'][layer])
+                yield (
+                    f'model.layers.{layer}.input_layernorm.bias',
+                    state_dict['model.decoder.layers.self_attention.linear_qkv.layer_norm_bias'][layer],
+                )
 
             # Post-attention LayerNorm
-            yield (f'model.layers.{layer}.post_attention_layernorm.weight', 
-                state_dict['model.decoder.layers.mlp.linear_fc1.layer_norm_weight'][layer])
+            yield (
+                f'model.layers.{layer}.post_attention_layernorm.weight',
+                state_dict['model.decoder.layers.mlp.linear_fc1.layer_norm_weight'][layer],
+            )
             if has_bias:
-                yield (f'model.layers.{layer}.post_attention_layernorm.bias', 
-                    state_dict['model.decoder.layers.mlp.linear_fc1.layer_norm_bias'][layer])
+                yield (
+                    f'model.layers.{layer}.post_attention_layernorm.bias',
+                    state_dict['model.decoder.layers.mlp.linear_fc1.layer_norm_bias'][layer],
+                )
 
 
 _MODEL_CONVERTERS = {
@@ -354,12 +391,14 @@ _MODEL_CONVERTERS = {
     'starcoder2': Starcoder2Converter,
 }
 
+
 def register_model_converter(model_type, cls):
     """
     Establishes a mapping from short model type to a class that converts the model from Nemo format
     to a vLLM compatible format.
     """
     _MODEL_CONVERTERS[model_type] = cls
+
 
 def get_model_converter(model_type) -> ModelConverter:
     """

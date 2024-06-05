@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+from pathlib import Path
+
 from vllm import LLMEngine
 from vllm.transformers_utils.tokenizer_group.tokenizer_group import TokenizerGroup
 
@@ -19,10 +22,8 @@ from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.export.tarutils import TarPath
 from nemo.export.vllm.tokenizer_group import NemoTokenizerGroup
 
-from pathlib import Path
-import logging
-
 LOGGER = logging.getLogger("NeMo")
+
 
 class NemoLLMEngine(LLMEngine):
     """
@@ -43,8 +44,9 @@ class NemoLLMEngine(LLMEngine):
                     tokenizer_id=tokenizer_type,
                     enable_lora=bool(self.lora_config),
                     max_num_seqs=self.scheduler_config.max_num_seqs,
-                    max_input_length=None)
-                
+                    max_input_length=None,
+                )
+
                 # Update the HF config fields that come from the tokenizer in NeMo
                 self.model_config.hf_config.vocab_size = tokenizer_group.tokenizer.vocab_size
                 self.model_config.hf_config.bos_token_id = tokenizer_group.tokenizer.bos_token_id
@@ -57,11 +59,13 @@ class NemoLLMEngine(LLMEngine):
         with TarPath(self.model_config.nemo_checkpoint) as archive:
             tokenizer_model_file = None
             if isinstance(tokenizer_model, str) and tokenizer_model.startswith('nemo:'):
-                tokenizer_model = tokenizer_model[len('nemo:'):]
+                tokenizer_model = tokenizer_model[len('nemo:') :]
                 tokenizer_model_file = archive / tokenizer_model
                 if not tokenizer_model_file.exists():
-                    LOGGER.warn(f'Tokenizer model file {tokenizer_model} specified in the model_config does not ' +
-                                'exist in the checkpoint.')
+                    LOGGER.warn(
+                        f'Tokenizer model file {tokenizer_model} specified in the model_config does not '
+                        + 'exist in the checkpoint.'
+                    )
                     tokenizer_model_file = None
 
             if tokenizer_model_file is None:
@@ -69,7 +73,7 @@ class NemoLLMEngine(LLMEngine):
                     LOGGER.info(f'Found tokenizer model file {path}.')
                     tokenizer_model_file = path
                     break
-            
+
             if tokenizer_model_file is None:
                 raise RuntimeError('No tokenizer model file found, aborting.')
 
@@ -79,7 +83,7 @@ class NemoLLMEngine(LLMEngine):
             with tokenizer_model_file.open('rb') as infile:
                 with extracted_tokenizer_model.open('wb') as outfile:
                     outfile.write(infile.read())
-            
+
             # Construct the tokenizer object and wrapper
             tokenizer = SentencePieceTokenizer(str(extracted_tokenizer_model))
 

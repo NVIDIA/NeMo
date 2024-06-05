@@ -12,24 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+import os.path
 from typing import List
 
+import numpy
+import wrapt
 from vllm import RequestOutput, SamplingParams
-from vllm.config import (CacheConfig, DeviceConfig, LoadConfig, LoadFormat, ParallelConfig, SchedulerConfig)
+from vllm.config import CacheConfig, DeviceConfig, LoadConfig, LoadFormat, ParallelConfig, SchedulerConfig
 from vllm.executor.ray_utils import initialize_ray_cluster
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output
+from nemo.export.vllm.engine import NemoLLMEngine
 from nemo.export.vllm.model_config import NemoModelConfig
 from nemo.export.vllm.model_loader import NemoModelLoader
-from nemo.export.vllm.engine import NemoLLMEngine
-
-import numpy
-import os.path
-import logging
-import wrapt
 
 LOGGER = logging.getLogger("NeMo")
+
 
 @wrapt.decorator
 def noop_decorator(func):
@@ -37,6 +37,7 @@ def noop_decorator(func):
         return func(*args, **kwargs)
 
     return wrapper
+
 
 use_pytriton = True
 try:
@@ -60,7 +61,7 @@ class Exporter(ITritonDeployable):
             nemo_checkpoint='/path/to/checkpoint.nemo',
             model_dir='/path/to/temp_dir',
             model_type='llama')
-        
+
         server = DeployPyTriton(
             model=exporter,
             triton_model_name='LLAMA')
@@ -86,7 +87,7 @@ class Exporter(ITritonDeployable):
         seed: int = 0,
         log_stats: bool = True,
         weight_storage: str = 'auto',
-        gpu_memory_utilization: float = 0.9
+        gpu_memory_utilization: float = 0.9,
     ):
         """
         Exports the Nemo checkpoint to vLLM and initializes the engine.
@@ -133,21 +134,22 @@ class Exporter(ITritonDeployable):
             code_revision=None,
             tokenizer_revision=None,
             max_model_len=max_model_len,
-            quantization=None, # TODO ???
+            quantization=None,  # TODO ???
             quantization_param_path=None,
             enforce_eager=False,
-            max_seq_len_to_capture=None)
-        
-        parallel_config = ParallelConfig(
-            pipeline_parallel_size=pipeline_parallel_size,
-            tensor_parallel_size=tensor_parallel_size)
+            max_seq_len_to_capture=None,
+        )
 
+        parallel_config = ParallelConfig(
+            pipeline_parallel_size=pipeline_parallel_size, tensor_parallel_size=tensor_parallel_size
+        )
 
         # See if we have an up-to-date safetensors file
         safetensors_file = os.path.join(model_config.model, 'model.safetensors')
-        safetensors_file_valid = os.path.exists(safetensors_file) and \
-                                 os.path.getmtime(safetensors_file) > os.path.getmtime(nemo_checkpoint)
-        
+        safetensors_file_valid = os.path.exists(safetensors_file) and os.path.getmtime(
+            safetensors_file
+        ) > os.path.getmtime(nemo_checkpoint)
+
         # Decide how we're going to convert the weights
         if weight_storage == 'auto':
             if parallel_config.distributed_executor_backend is not None:
@@ -177,7 +179,6 @@ class Exporter(ITritonDeployable):
             NemoModelLoader.convert_and_store_nemo_weights(model_config, safetensors_file)
         elif not inmemory_weight_conversion:
             LOGGER.info(f'Using cached weights in {safetensors_file}')
-        
 
         # TODO: these values are the defaults from vllm.EngineArgs.
         cache_config = CacheConfig(
@@ -185,8 +186,9 @@ class Exporter(ITritonDeployable):
             gpu_memory_utilization=gpu_memory_utilization,
             swap_space=4,
             cache_dtype='auto',
-            sliding_window=model_config.get_sliding_window())
-        
+            sliding_window=model_config.get_sliding_window(),
+        )
+
         # TODO: these values are the defaults from vllm.EngineArgs.
         scheduler_config = SchedulerConfig(
             max_num_batched_tokens=None,
@@ -196,32 +198,37 @@ class Exporter(ITritonDeployable):
             use_v2_block_manager=False,
             num_lookahead_slots=0,
             delay_factor=0.0,
-            enable_chunked_prefill=False)
+            enable_chunked_prefill=False,
+        )
 
         load_config = LoadConfig(
             load_format=NemoModelLoader if inmemory_weight_conversion else LoadFormat.SAFETENSORS,
             download_dir=None,
-            model_loader_extra_config=None)
+            model_loader_extra_config=None,
+        )
 
         # Initialize the cluster and specify the executor class.
         if device_config.device_type == "neuron":
             from vllm.executor.neuron_executor import NeuronExecutor
+
             executor_class = NeuronExecutor
         elif device_config.device_type == "cpu":
             from vllm.executor.cpu_executor import CPUExecutor
+
             executor_class = CPUExecutor
         elif parallel_config.distributed_executor_backend == "ray":
             initialize_ray_cluster(parallel_config)
             from vllm.executor.ray_gpu_executor import RayGPUExecutor
+
             executor_class = RayGPUExecutor
         elif parallel_config.distributed_executor_backend == "mp":
-            from vllm.executor.multiproc_gpu_executor import (
-                MultiprocessingGPUExecutor)
+            from vllm.executor.multiproc_gpu_executor import MultiprocessingGPUExecutor
+
             executor_class = MultiprocessingGPUExecutor
         else:
-            assert parallel_config.world_size == 1, (
-                "Ray is required if parallel_config.world_size > 1.")
+            assert parallel_config.world_size == 1, "Ray is required if parallel_config.world_size > 1."
             from vllm.executor.gpu_executor import GPUExecutor
+
             executor_class = GPUExecutor
 
         # Initialize the engine
@@ -237,9 +244,9 @@ class Exporter(ITritonDeployable):
             speculative_config=None,
             decoding_config=None,
             executor_class=executor_class,
-            log_stats=log_stats
+            log_stats=log_stats,
         )
-        
+
     @property
     def get_triton_input(self):
         inputs = (
@@ -255,7 +262,7 @@ class Exporter(ITritonDeployable):
     def get_triton_output(self):
         outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),)
         return outputs
-    
+
     def add_request_to_engine(self, inputs: numpy.ndarray, index: int) -> str:
         prompt = inputs['prompts'][index][0].decode('UTF-8')
         max_output_token = inputs['max_output_token'][index][0]
@@ -267,18 +274,16 @@ class Exporter(ITritonDeployable):
             top_p = 1.0
 
         sampling_params = SamplingParams(
-            max_tokens=max_output_token,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p)
-        
+            max_tokens=max_output_token, temperature=temperature, top_k=top_k, top_p=top_p
+        )
+
         request_id = str(self.request_id)
         self.request_id += 1
 
         self.engine.add_request(request_id, prompt, sampling_params)
 
         return request_id
-    
+
     @batch
     def triton_infer_fn(self, **inputs: numpy.ndarray):
         request_ids = []
@@ -286,7 +291,7 @@ class Exporter(ITritonDeployable):
         for index in range(num_requests):
             request_id = self.add_request_to_engine(inputs, index)
             request_ids.append(request_id)
-        
+
         responses = [None] * num_requests
         finished = [False] * num_requests
 
@@ -307,8 +312,8 @@ class Exporter(ITritonDeployable):
                 responses[request_index] = output_text
 
         output_tensor = cast_output(responses, numpy.bytes_)
-        return { 'outputs': output_tensor }
-    
+        return {'outputs': output_tensor}
+
     @batch
     def triton_infer_fn_streaming(self, **inputs: numpy.ndarray):
         request_ids = []
@@ -316,13 +321,13 @@ class Exporter(ITritonDeployable):
         for index in range(num_requests):
             request_id = self.add_request_to_engine(inputs, index)
             request_ids.append(request_id)
-        
+
         responses = [None] * num_requests
         finished = [False] * num_requests
 
         while not all(finished):
             request_outputs: List[RequestOutput] = self.engine.step()
-            
+
             for request_output in request_outputs:
                 try:
                     request_index = request_ids.index(request_output.request_id)
@@ -334,5 +339,4 @@ class Exporter(ITritonDeployable):
                 responses[request_index] = output_text
 
             output_tensor = cast_output(responses, numpy.bytes_)
-            yield { 'outputs': output_tensor }
-            
+            yield {'outputs': output_tensor}
