@@ -245,7 +245,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def configure_ddp(self) -> None:
         logging.debug(f"{self.__class__.__name__}: configuring MegatronParallel")
         self.model = self._setup_model(self.model)
-        self._register_ddp_hooks()
+        if self.ddp_config is None:
+            self._register_ddp_hooks()
 
     @override
     def _setup_model(self, model: nn.Module) -> nn.Module:
