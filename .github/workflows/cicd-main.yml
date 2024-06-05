@@ -4930,19 +4930,23 @@ jobs:
       - if: ${{ always() }}
         id: pipeline-conclusion
         run: |
-          SUCCESSFUL=${{ !contains(needs.*.outputs.conclusion, 'failure') && !contains(needs.*.outputs.conclusion, 'cancelled') && !contains(needs.*.result, 'cancelled') }}
+          # Slack notifications are send only on test failure (not cancelled):
+          FAILED=${{ contains(needs.*.outputs.conclusion, 'failure') }}
+          
+          # Mark as successful if no job was cancelled:
+          SUCCESS=${{ !contains(needs.*.result, 'cancelled') }}
 
-          echo "SUCCESSFUL=$SUCCESSFUL" >> $GITHUB_OUTPUT
+          echo "FAILED=$FAILED" >> $GITHUB_OUTPUT
 
       # This should depend on all the tests so we block/unblock based on all tests passing
-      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESSFUL == 'true' }}
+      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' }}
         run: exit 0
 
-      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESSFUL == 'false' }}
+      - if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' }}
         name: Checkout repository
         uses: actions/checkout@v4
       
-      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESSFUL == 'false' }}
+      - if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' }}
         run: |
           source .github/scripts/slackHelper.sh
 
@@ -4951,6 +4955,6 @@ jobs:
 
           sendSlackMessage "$WEBHOOK_URL" "$PIPELINE_URL"
 
-      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESSFUL == 'false' }}
+      - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'false' }}
         run: |
           exit 1
