@@ -742,6 +742,7 @@ jobs:
       SCRIPT: |
         pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1
 
+  # L2: Segmentation Tool
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -759,7 +760,9 @@ jobs:
         python /home/TestData/ctc_segmentation/verify_alignment.py \
         -r /home/TestData/ctc_segmentation/eng/eng_valid_segments_1.7.txt \
         -g /home/TestData/ctc_segmentation/eng/output${TIME}/verified_segments/nv_test_segments.txt;
-
+        
+        echo "TIME=${time}" >> $GITHUB_OUTPUT
+      AFTER_SCRIPT: |
         rm -rf /home/TestData/ctc_segmentation/eng/output${TIME}
 
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3:
@@ -1422,6 +1425,7 @@ jobs:
         trainer.accelerator="gpu" \
         +trainer.fast_dev_run=true \
         exp_manager.exp_dir=checkpoints
+      AFTER_SCRIPT: |
         rm -rf checkpoints
 
   L2_Intent_and_Slot_Classification_Tasks_Multi-Label_Intent_and_Slot_Classification:
@@ -1896,6 +1900,7 @@ jobs:
         exp_manager.exp_dir=PretrainingBERTFromText;
       AFTER_SCRIPT: |
         rm -f /home/TestData/nlp/wikitext-2/*.pkl
+        #rm -rf examples/nlp/language_modeling/PretrainingBERTFromText
 
   L2_Pretraining_BERT_from_Preprocessed:
     needs: [cicd-test-container-setup]
@@ -1921,7 +1926,9 @@ jobs:
             model.optim.weight_decay=0.01 \
             model.optim.sched.warmup_ratio=0.01 \
             exp_manager.exp_dir=PretrainingBERTFromPreprocessed \
-            exp_manager.create_checkpoint_callback=False
+            exp_manager.create_checkpoint_callback=False  \
+
+            #rm -rf examples/nlp/language_modeling/PretrainingBERTFromPreprocessed
 
   L2_Entity_Linking_Self_Alignment_Pretraining_BERT:
     needs: [cicd-test-container-setup]
@@ -1940,6 +1947,9 @@ jobs:
         model.validation_ds.batch_size=8 \
         exp_manager.exp_dir=null
 
+  # TODO: remove +model.optim.capturable=True when Pytorch fix: https://github.com/pytorch/pytorch/pull/81858
+  # is in the release container
+  # L2: NMT Attention is All You Need Training
   L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -2099,6 +2109,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf examples/nlp/machine_translation/nmt_finetune
 
+  # L2: NMT Tarred Dataset Creation
   L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -4452,7 +4463,9 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf examples/nlp/language_modeling/bart_pretrain_results
 
-  L2_Megatron_T5_GLUE_RTE:
+  # L2: Megatron T5 GLUE/XNLI Finetuning 
+  # TODO(Oktai15): update it in 1.8.0 version
+  L2_Megatron_T5_GLUE_RTE:  
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
     with:
@@ -4570,6 +4583,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/t5_lora_tuning_tp2
 
+  # L2: Megatron Mock Data Generation                
   L2_Megatron_Mock_Data_Generation_MockGPTDataset:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -4601,6 +4615,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf examples/nlp/language_modeling/t5_pretrain_results
 
+  # L2: TTS Fast dev runs 1
   L2_TTS_Fast_dev_runs_1_Tacotron_2:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
