@@ -247,7 +247,7 @@ Use this installation mode if you want the latest released version.
 .. code-block:: bash
 
     apt-get update && apt-get install -y libsndfile1 ffmpeg
-    pip install Cython
+    pip install Cython packaging
     pip install nemo_toolkit['all']
 
 Depending on the shell used, you may need to use ``"nemo_toolkit[all]"`` instead in the above command.
@@ -272,7 +272,7 @@ Use this installation mode if you want the version from a particular GitHub bran
 .. code-block:: bash
 
     apt-get update && apt-get install -y libsndfile1 ffmpeg
-    pip install Cython
+    pip install Cython packaging
     python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[all]
 
 
@@ -310,7 +310,7 @@ To install NeMo on Mac with Apple M-Series GPU:
     conda install -c conda-forge pynini
 
     # install Cython manually
-    pip install cython
+    pip install cython packaging
 
     # clone the repo and install in development mode
     git clone https://github.com/NVIDIA/NeMo

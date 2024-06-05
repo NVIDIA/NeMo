@@ -14,7 +14,6 @@
 
 """BERT model."""
 
-import warnings
 from dataclasses import dataclass
 
 import torch
@@ -33,6 +32,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
+from nemo.utils.decorators import deprecated_warning
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -142,7 +142,13 @@ class BertLMHead(MegatronModule):
 
 
 def post_language_model_processing(
-    lm_output, pooled_output, lm_head, binary_head, lm_labels, logit_weights, fp16_lm_cross_entropy,
+    lm_output,
+    pooled_output,
+    lm_head,
+    binary_head,
+    lm_labels,
+    logit_weights,
+    fp16_lm_cross_entropy,
 ):
     # lm_logits: [s, b, vocab_size]
     lm_logits = lm_head(lm_output, logit_weights)
@@ -339,16 +345,14 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
             transformer_block_type=self.transformer_block_type,
         )
 
-        if self.add_pooler:
-            self.pooler = Pooler(
-                self.config.hidden_size, self.config.init_method, self.config, self.config.sequence_parallel
-            )
-
         # Output
         if self.post_process:
             # TODO: Make sure you are passing in the mpu_vocab_size properly
 
-            self.lm_head = MCoreBertLMHead(self.config.hidden_size, self.config,)
+            self.lm_head = MCoreBertLMHead(
+                self.config.hidden_size,
+                self.config,
+            )
 
             self.output_layer = tensor_parallel.ColumnParallelLinear(
                 self.config.hidden_size,
@@ -360,6 +364,11 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
                 gather_output=not self.parallel_output,
                 skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
             )
+
+            if self.add_pooler:
+                self.pooler = Pooler(
+                    self.config.hidden_size, self.config.init_method, self.config, self.config.sequence_parallel
+                )
 
             self.binary_head = None
             if self.add_binary_head:
@@ -476,10 +485,9 @@ class NeMoBertModel(MegatronModule):
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
     ):
-        warnings.warn(
-            "NeMoBertModel will be deprecated mid 2024. Use MCoreBertModelWrapperWithPostLNSupport instead.",
-            DeprecationWarning,
-        )
+        # deprecation warning
+        deprecated_warning("NeMoBertModel", "MCoreBertModelWrapperWithPostLNSupport")
+
         super(NeMoBertModel, self).__init__(config=config)
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
         self.add_binary_head = add_binary_head

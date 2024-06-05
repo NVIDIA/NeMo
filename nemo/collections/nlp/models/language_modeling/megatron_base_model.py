@@ -1140,6 +1140,10 @@ class MegatronBaseModel(NLPModel):
             "tp_comm_overlap": self.cfg.get('ub_tp_comm_overlap', False),
         }
 
+        # Set enable_autocast to False when precision is fp16 and not using bias
+        if not megatron_amp_O2 and not self.cfg.get('bias', True):
+            config_mapping["enable_autocast"] = False
+
         # instantitate ModelParallelConfig from this dict
         mp_config_dict = {}
 
