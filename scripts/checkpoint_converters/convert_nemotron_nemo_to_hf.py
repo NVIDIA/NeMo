@@ -15,37 +15,35 @@
 import os
 from argparse import ArgumentParser
 from collections import OrderedDict
+import json
 
 import torch
 from omegaconf import open_dict
 from pytorch_lightning import Trainer
-from transformers import AutoModelForCausalLM, LlamaTokenizer, LlamaTokenizerFast, convert_slow_tokenizer
+from transformers import AutoModelForCausalLM, convert_slow_tokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
 
 """
-Script to convert a llama2 checkpoint in nemo (mcore path) into a HuggingFace checkpoint.
+Script to convert a nemotron checkpoint in nemo (mcore path) into a HuggingFace checkpoint.
 This script can be used to 1) generate only the HF weights, or 2) generate an entire HF model folder.
 
 1) Generate only HF weights from a nemo file:
 
-    python convert_llama_nemo_to_hf.py \
+    python convert_nemotron_nemo_to_hf.py \
     --input_name_or_path /path/to/file.nemo or /path/to/extracted_folder \
     --output_path /path/to/pytorch_model.bin
     
 2) Generate the full HF model folder
 
-    python convert_llama_nemo_to_hf.py \
+    python convert_nemotron_nemo_to_hf.py \
     --input_name_or_path /path/to/file.nemo or /path/to/extracted_folder \
-    --output_path /path/to/pytorch_model.bin \
     --hf_input_path /path/to/input_hf_folder \
     --hf_output_path /path/to/output_hf_folder \
-    --input_tokenizer /path/to/tokenizer \
-    --hf_output_tokenizer /path/to/output_tokenizer \
 
-    Use the --cpu-only flag if the model cannot fit in the GPU (e.g. Llama2 70b). 
+    Use the --cpu-only flag if the model cannot fit in the GPU (e.g. Nemotron3 70b). 
     However this option makes the conversion script significantly slower.
 """
 
@@ -55,30 +53,18 @@ def get_args():
     parser.add_argument(
         "--input_name_or_path", type=str, default=None, required=True, help="Path to .nemo file or extracted folder",
     )
-    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to HF .bin file")
+    parser.add_argument("--output_path", type=str, default=None, required=False, help="Path to HF .bin file")
     parser.add_argument(
         "--hf_input_path",
         type=str,
         default=None,
-        help="A HF model path, " "e.g. a folder containing https://huggingface.co/meta-llama/Llama-2-7b-hf/tree/main",
+        help="A HF model path, " "e.g. a folder containing https://huggingface.co/nvidia/nemotron-3-8b-base-4k",
     )
     parser.add_argument(
         "--hf_output_path",
         type=str,
         default=None,
         help="Output HF model path, " "with the same format as above but user's own weights",
-    )
-    parser.add_argument(
-        "--input_tokenizer",
-        type=str,
-        default=None,
-        help="Path to tokenizer used for the input nemo model. (need to extract the .nemo file first)",
-    )
-    parser.add_argument(
-        "--hf_output_tokenizer",
-        type=str,
-        default=None,
-        help="Path to save the tokenizer used for the output HF model.",
     )
     parser.add_argument(
         "--precision",
@@ -96,6 +82,53 @@ def get_args():
     args = parser.parse_args()
     return args
 
+def convert_hf_config(nemo_config, tokenizer, dtype, hf_output_path, hf_url='nvidia/nemotron3-8b-base'):
+    """
+    Convert NeMo config to HF config
+    """
+    NEMO_ACT2HF = {
+        "squared-relu": "relu2",
+    }
+    DTYPE2HF = {
+        torch.bfloat16: 'bfloat16',
+        torch.float16: 'float16',
+        torch.float32: 'float32',
+    }
+    if nemo_config.get('seq_len_interpolation_factor', None) is None:
+        rope_scaling = None
+    else:
+        rope_scaling = {
+            'type': 'linear',
+            'factor': nemo_config.seq_len_interpolation_factor
+        }
+    hf_config = {
+        "_name_or_path": hf_url,
+        "architectures": ["NemotronForCausalLM"],
+        "bos_token_id": tokenizer.bos_id,
+        "eos_token_id": tokenizer.eos_id,
+        "hidden_act": NEMO_ACT2HF[nemo_config.activation],
+        "hidden_size": nemo_config.hidden_size,
+        "initializer_range": nemo_config.init_method_std,
+        "intermediate_size": nemo_config.ffn_hidden_size,
+        "max_position_embeddings": nemo_config.max_position_embeddings,
+        "model_type": "nemotron",
+        "num_attention_heads": nemo_config.num_attention_heads,
+        "num_hidden_layers": nemo_config.num_layers,
+        "num_key_value_heads": nemo_config.get('num_query_groups', nemo_config.num_attention_heads),
+        "pretraining_tp": 1,
+        "normalization": nemo_config.normalization,
+        "norm_eps": nemo_config.layernorm_epsilon,
+        "rope_theta": nemo_config.get('rotary_base', 10000),
+        "rope_percent": nemo_config.get('rope_percent', 1.),
+        "rope_scaling": rope_scaling,
+        "tie_word_embeddings": False,
+        "torch_dtype": DTYPE2HF[dtype],
+        "transformers_version": "4.32.0.dev0", # TODO
+        "use_cache": True,
+        "vocab_size": tokenizer.vocab_size
+    }
+    json.dump(hf_config, open(f'{hf_output_path}/config.json', 'w'), indent=2)
+    
 
 def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> None:
     """
@@ -119,7 +152,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     model = MegatronGPTModel.restore_from(
         input_nemo_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location
     )
-    breakpoint()
+
     if precision is None:
         precision = model.cfg.precision
     if precision in [32, "32"]:
@@ -167,11 +200,11 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
         v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
         ## Example of slices
-        ## 7b: num_query_groups = head_num = 32,
+        ## (without GQA): num_query_groups = head_num = 32,
         ## q_slice = [0, 3, 6, 9 , ... 90, 93]
         ## k_slice = [1, 4, 7, 10, ... 91, 94]
         ## v_slice = [2, 5, 8, 11, ... 92, 95]
-        ## 70b (with GQA): num_query_groups = 8, head_num = 64
+        ## (with GQA): num_query_groups = 8, head_num = 64
         ## q_slice = [0, 1, .. 6, 7, 10, 11, .. 16, 17, 20, 21, .. 67, 70, ... 76, 77]
         ## k_slice = [8, 18, 28, ... 68, 78]
         ## v_slice = [9, 19, 29, ... 69, 79]
@@ -249,46 +282,40 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     torch.save(checkpoint, output_hf_file)
     logging.info(f"Weights saved to {output_hf_file}")
 
-    return dtype
+    return model_config, model.tokenizer, dtype
 
 
-def replace_hf_weights_and_tokenizer(
-    weights_file, dtype, input_hf_path, output_hf_path, tokenizer_path, output_hf_tokenizer,
+def extract_nemotron_tokenizer(
+    nemo_file, model_config, output_hf_path,
 ):
-    model = AutoModelForCausalLM.from_pretrained(input_hf_path, local_files_only=True, torch_dtype=dtype,)
-    nemo_exported = torch.load(weights_file)
+    tokenizer_fn = model_config.tokenizer.model[5:]
+    output_tokenizer = f'{output_hf_path}/tokenizer.model'
+    if nemo_file.endswith('.nemo'):
+        import tarfile
+        archive = tarfile.open(nemo_file, 'r')
+        tokenizer_filename = './' + tokenizer_fn # exclude 'nemo:' prefix
+        archive.extract(tokenizer_filename, output_hf_path)
+        archive.close()
+        os.rename(f'{output_hf_path}/{tokenizer_fn}', output_tokenizer)
+    elif os.path.isdir(nemo_file):
+        shutil.copy(f'{nemo_file}/{tokenizer_fn}', output_tokenizer)
+    
+    logging.info(f"Save tokenizer to {output_tokenizer}")
 
-    if tokenizer_path:
-        tokenizer = LlamaTokenizer.from_pretrained(tokenizer_path, local_files_only=True, legacy=False,)
-        tmp_tokenizer = convert_slow_tokenizer.convert_slow_tokenizer(tokenizer)
-        fast_tokenizer = LlamaTokenizerFast(tokenizer_object=tmp_tokenizer)
-        tokenizer_length = len(fast_tokenizer)
-        model.resize_token_embeddings(tokenizer_length)
-
-    model.load_state_dict(nemo_exported)
-    model.save_pretrained(output_hf_path)
-    logging.info(f"Full HF model saved to {output_hf_path}")
-
-    if tokenizer_path:
-        fast_tokenizer.save_pretrained(output_hf_tokenizer)
-        tokenizer.save_pretrained(output_hf_tokenizer)
-        logging.info(f"Tokenizer saved to {output_hf_tokenizer}")
 
 
 if __name__ == '__main__':
     args = get_args()
-    if not args.hf_output_tokenizer and args.hf_output_path:
-        args.hf_output_tokenizer = args.hf_output_path
-    dtype = convert(args.input_name_or_path, args.output_path, precision=args.precision, cpu_only=args.cpu_only)
+    if not args.hf_output_path:
+        assert args.output_path is not None, 'Need to provide either provide output_path or hf_output_path'
+    else:
+        args.output_path = f'{args.hf_output_path}/pytorch_model.bin'
+        logging.info(f'weight will be saved to {args.output_path}')
+    
+    nemo_config, nemo_tokenizer, dtype = convert(args.input_name_or_path, args.output_path, precision=args.precision, cpu_only=args.cpu_only)
     if args.hf_input_path and args.hf_output_path:
-        replace_hf_weights_and_tokenizer(
-            args.output_path,
-            dtype,
-            args.hf_input_path,
-            args.hf_output_path,
-            args.input_tokenizer,
-            args.hf_output_tokenizer,
-        )
+        convert_hf_config(nemo_config, nemo_tokenizer, dtype, args.hf_output_path, args.hf_input_path)
+        extract_nemotron_tokenizer(args.input_name_or_path, nemo_config, args.hf_output_path)
     else:
         logging.info("`hf_input_path` and/or `hf_output_path` not provided, not generating full HF model.")
         logging.info(f".bin file is saved to {args.output_path}")
