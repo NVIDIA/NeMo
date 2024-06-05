@@ -13,28 +13,23 @@
 # limitations under the License.
 
 
+import functools
 import json
 import logging
 import os
+import pathlib
 import sys
+import typing
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import tensorstore  # This is important even though not used. Otherwise zarr raises error.
 import torch
+import yaml
 import zarr
 from torch.distributed.checkpoint import FileSystemReader
 from transformers import AutoTokenizer, PreTrainedTokenizer
-
-import functools
-import logging
-import pathlib
-import typing
-
-import torch
-import yaml
-
 
 from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.trt_llm.nemo_ckpt_loader.sentencepiece_tokenizer import SentencePieceTokenizer
@@ -260,7 +255,6 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
             nemo_dir.tarobject.close()
 
     return model, nemo_model_config, tokenizer
-
 
 
 def cpu_map_location(storage, loc):
