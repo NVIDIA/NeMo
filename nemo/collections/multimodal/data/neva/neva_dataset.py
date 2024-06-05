@@ -456,9 +456,11 @@ def preprocess_llama_2(
             parts[0] += sep
 
             round_len = len(tokenizer.text_to_ids(rou + conv.sep2))
+            instruction_len = len(tokenizer.text_to_ids(parts[0])) - 2
             if i > 0:
                 round_len -= 1  # Remove extra token added by sp tokenizer
-            instruction_len = len(tokenizer.text_to_ids(parts[0])) - 2
+            else:
+                instruction_len += 1
             target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
@@ -1212,16 +1214,19 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
     add_extra_token = 1
     if getattr(model_cfg, 'no_seqlen_plus_one_input_tokens', False):
         add_extra_token = 0
-    crop_size = mm_cfg.vision_encoder.get("crop_size", (224, 224))
     if mm_cfg.vision_encoder.from_hf:
+        crop_size = mm_cfg.vision_encoder.get("crop_size")
         image_processor = CLIPImageProcessor.from_pretrained(
             mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
         )
+        if crop_size is None:
+            crop_size = (image_processor.crop_size['height'], image_processor.crop_size['width'],)
         assert crop_size == (
             image_processor.crop_size['height'],
             image_processor.crop_size['width'],
         ), f"Crop size {crop_size} does not match the HuggingFace CLIP model's crop size {(image_processor.crop_size['height'], image_processor.crop_size['width'])}"
     else:
+        crop_size = mm_cfg.vision_encoder.get("crop_size", (224, 224))
         # TODO(yuya): Fix this hard-code for our own CLIP
         image_processor = image_transform(
             crop_size,
