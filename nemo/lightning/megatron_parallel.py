@@ -24,10 +24,8 @@ from typing import (
 
 import torch
 import torch.distributed
-from torch import Tensor, nn
-
 from megatron.core.distributed import DistributedDataParallelConfig
-
+from torch import Tensor, nn
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 
@@ -133,10 +131,10 @@ class MegatronParallel(nn.ModuleList):
                     if hasattr(_model, "configure_model"):
                         _model.configure_model()
                     _pipeline.append(_model)
-                    
+
             if self.ddp_config is not None:
                 from megatron.core.distributed import DistributedDataParallel as McoreDDP
-                
+
                 _pipeline = [
                     McoreDDP(
                         model_chunk.config,
@@ -150,7 +148,6 @@ class MegatronParallel(nn.ModuleList):
                     )
                     for (model_chunk_idx, model_chunk) in enumerate(_pipeline)
                 ]
-                
 
             for i, model_module in enumerate(_pipeline):
                 if not cpu:
