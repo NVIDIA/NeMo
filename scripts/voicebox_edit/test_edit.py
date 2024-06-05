@@ -52,7 +52,7 @@ class DataProcessor:
         self.model = model
 
     def prepare_val_dl(self, ds_name="libriheavy", corpus_dir="/datasets/LibriLight/", manifest_filepath="data/parsed/LibriHeavy/libriheavy_cuts_dev.jsonl.gz",
-                       old_prefix="download/librilight", min_duration=-1, max_duration=float("inf"), load_audio=True, filter_ids=None):
+                       old_prefix="download/librilight", min_duration=-1, max_duration=float("inf"), load_audio=True, filter_ids=None, shuffle=False):
         # load from val set
         self.model.cfg.ds_name = ds_name
         self.model.cfg.corpus_dir = corpus_dir
@@ -64,6 +64,7 @@ class DataProcessor:
             self.model.cfg.validation_ds.ds_kwargs.load_audio = load_audio
             self.model.cfg.validation_ds.filter_ids = filter_ids
             self.model.cfg.validation_ds.num_workers = 8
+            self.model.cfg.validation_ds.shuffle = shuffle
         with open_dict(self.model.cfg):
             self.model.cfg["old_prefix"] = old_prefix
         self.model.setup_validation_data(self.model.cfg.validation_ds)
@@ -533,6 +534,56 @@ class DataGen:
     def __init__(self, model: VoiceboxModel):
         self.model = model
 
+    def get_dac_statistics(self):
+        # (-0.0350, 2.6780)
+        val_dl = self.model._validation_dl
+        sample_cnt = 0
+
+        mean = 0
+        count = 0
+        for batch in tqdm(val_dl):
+            batch = self.model.transfer_batch_to_device(batch, self.model.device, 0)
+            batch = self.model.parse_val_vb_input(batch)
+
+            ori_mel = batch["mel"]
+            ori_mel_lens = batch['mel_lens']
+            self_attn_mask = batch["self_attn_mask"]
+            self_attn_mask = rearrange(self_attn_mask, '... -> ... 1')
+
+            sample_cnt += ori_mel.shape[0]
+            ori_mel = ori_mel.masked_fill(~self_attn_mask, 0.)
+            mean += ori_mel.sum()
+            count += ori_mel.shape[-1] * ori_mel_lens.sum()
+            if sample_cnt > 30000:
+                break
+        mean = mean / count
+        
+        sample_cnt = 0
+        std = 0
+        mean_std = 0
+        count = 0
+        cnt = 0
+        for batch in tqdm(val_dl):
+            batch = self.model.transfer_batch_to_device(batch, self.model.device, 0)
+            batch = self.model.parse_val_vb_input(batch)
+
+            ori_mel = batch["mel"]
+            ori_mel_lens = batch['mel_lens']
+            self_attn_mask = batch["self_attn_mask"]
+            self_attn_mask = rearrange(self_attn_mask, '... -> ... 1')
+
+            sample_cnt += ori_mel.shape[0]
+            ori_mel = (ori_mel - mean) ** 2
+            ori_mel = ori_mel.masked_fill(~self_attn_mask, 0.)
+            mean_std += (ori_mel.sum() / (ori_mel.shape[-1] * ori_mel_lens.sum() - 1)) ** 0.5
+            std += ori_mel.sum()
+            count += ori_mel.shape[-1] * ori_mel_lens.sum()
+            cnt += 1
+            if sample_cnt > 30000:
+                break
+        std = (std / (count-1)) ** 0.5
+        return mean, std
+
     def gen_v1_dataset_from_val_set(self, out_dir):
         val_dl = self.model._validation_dl
 
@@ -999,7 +1050,7 @@ class MainExc:
         # self.vb_ckpt_path = "nemo_experiments/vb=0.7689-epoch=0-step=75932-last-001.ckpt"
         self.vb_ckpt_path = "nemo_experiments/vb=0.7526-epoch=0-step=130000.ckpt"
         # self.vb_ckpt_path = "nemo_experiments/vb=0.7406-epoch=0-step=163461-last.ckpt"
-        self.dp_ckpt_path = "nemo_experiments/a100-GS_XL-DAC_12-full/checkpoints/a100-GS_XL-DAC_12-full--val_loss/dp_no_sil_spn=1.4410-epoch=8.ckpt"
+        self.dp_ckpt_path = "nemo_experiments/dp_no_sil_spn=1.4410-epoch=8.ckpt"
 
         self.gen_data_dir = "data/gen_dataset"
 
@@ -1096,6 +1147,11 @@ class MainExc:
             self.eval.plot_spectrogram(ori_mel)
             self.eval.plot_spectrogram(edit_mel)
 
+    def calc_dac_stats(self, ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz", shuffle=False):
+        self.dataprocessor.prepare_val_dl(ds_name=ds_name, corpus_dir=corpus_dir, manifest_filepath=manifest_filepath, old_prefix="/home/sungfengh/.cache/huggingface/datasets", shuffle=shuffle)
+        self.datagen.get_dac_statistics()
+
+
 task = "edit"
 task = "gendata"
 
@@ -1107,9 +1163,10 @@ main_exc = MainExc()
 #%%
 if task == "gendata":
     # main_exc.gen_val_v1()
-    main_exc._internal_demo(output_dir="nemo_experiments/internal_demo_gen_gs_163k")
-    main_exc.v4_gs_val_word_edit(ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
-                                    output_dir="nemo_experiments/edit_gen_163k/")
+    # main_exc._internal_demo(output_dir="nemo_experiments/internal_demo_gen_gs_163k")
+    # main_exc.v4_gs_val_word_edit(ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
+    #                                 output_dir="nemo_experiments/edit_gen_163k/")
+    main_exc.calc_dac_stats(ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_XL.speech.jsonl.gz", shuffle=True)
     exit()
 #%%
     

@@ -173,6 +173,7 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
         return_code = False,
         preq_ce = False,
         ce_weights = None,
+        normalize = False,
     ):
         super().__init__()
         if pretrained_path in ["44khz", "24khz", "16khz"]:
@@ -190,6 +191,8 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
         bandwidth_id = self.model.n_codebooks if not bandwidth_id else bandwidth_id
         self.register_buffer('bandwidth_id', torch.tensor([bandwidth_id]))
 
+        self.normalize = normalize
+
         # factorize to 8-dim per code * bandwidth_id codebooks
         self.register_buffer('factorized_latent', torch.BoolTensor([factorized_latent]))
 
@@ -199,6 +202,10 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
         # pre-quantize feature + cross-entropy loss
         self.register_buffer('preq_ce', torch.BoolTensor([preq_ce]))
         self.ce_weights = None if ce_weights is None else torch.tensor(ce_weights[:self.bandwidth_id])
+        if self.normalize:
+            self.global_mean = -0.0350
+            self.global_std = 2.6780
+
         self.freeze()
 
     @property
@@ -236,6 +243,8 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
 
         elif self.preq_ce:
             z = self.model.encoder(audio)
+            if self.normalize:
+                z = (z - self.global_mean) / self.global_std
             return rearrange(z, 'b d n -> b n d')
 
         else:
@@ -255,6 +264,8 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
             z_q, z_p, codes = self.model.quantizer.from_codes(codes)
         elif self.preq_ce:
             z = latents
+            if self.normalize:
+                z = (z * self.global_std) + self.global_mean
             z_q, codes, latents, _, _ = self.model.quantizer(z, self.bandwidth_id)
         else:
             z_q = latents
@@ -272,6 +283,11 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
         """
         z_pred = rearrange(z_pred, 'b n d -> b d n')
         z = rearrange(z, 'b n d -> b d n')
+
+        if self.normalize:
+            z_pred = (z_pred * self.global_std) + self.global_mean
+            z = (z * self.global_std) + self.global_mean
+
         with torch.no_grad():
             _, codes, _, _, _ = self.model.quantizer.forward(z, self.bandwidth_id)
 
@@ -1039,6 +1055,8 @@ class VoiceBox(_VB, LightningModule):
         no_diffusion = False,
         # rmsnorm_shape = -1,
         fix_time_emb = False,
+        text_encode = False,
+        text_enc_depth = 4,
         **kwargs
     ):
         """
@@ -1070,6 +1088,10 @@ class VoiceBox(_VB, LightningModule):
             - p_drop_prob = 0.3, p_drop in paper
             - frac_lengths_mask: Tuple[float, float] = (0.7, 1.),
         """
+        if text_encode:
+            text_enc_depth = min(text_enc_depth, depth//2)
+            depth = depth - text_enc_depth
+
         super().__init__(
             *_args,
             num_cond_tokens=num_cond_tokens,
@@ -1131,16 +1153,29 @@ class VoiceBox(_VB, LightningModule):
             # to_code: 96 -> 12 cls heads
             self.to_code = nn.Linear(self.audio_enc_dec.latent_dim, self.audio_enc_dec.model.n_codebooks * self.audio_enc_dec.model.codebook_size, device=self.device)
 
+        self.text_encode = text_encode
+        if self.text_encode:
+            assert dim == dim_cond_emb
+            self.text_encoder = Transformer(
+                dim = dim,
+                depth = text_enc_depth,
+                dim_head = dim_head,
+                heads = heads,
+                ff_mult = ff_mult,
+                ff_dropout = ff_dropout,
+                attn_dropout= attn_dropout,
+                attn_flash = attn_flash,
+                attn_qk_norm = attn_qk_norm,
+                num_register_tokens = num_register_tokens,
+                adaptive_rmsnorm = False,
+                use_gateloop_layers = use_gateloop_layers
+            )
 
     def create_cond_mask(self, batch, seq_len, cond_token_ids=None, self_attn_mask=None, training=True, frac_lengths_mask=None, phn_bnd_eps=None):
         if training:
             frac_lengths_mask = default(frac_lengths_mask, self.frac_lengths_mask)
             frac_lengths = torch.zeros((batch,), device = self.device).float().uniform_(*frac_lengths_mask)
-            assert phn_bnd_eps is None, "phn_bnd_eps feature work in progress"
-            if phn_bnd_eps is None:
-                cond_mask = mask_from_frac_lengths(seq_len, frac_lengths)
-            else:
-                cond_mask = self.phone_level_mask_from_frac_lengths(seq_len, frac_lengths, cond_token_ids, self_attn_mask, phn_bnd_eps)
+            cond_mask = self.phone_level_mask_from_frac_lengths(seq_len, frac_lengths, cond_token_ids, self_attn_mask, phn_bnd_eps)
         else:
             cond_mask = torch.zeros((batch, seq_len), device = self.device, dtype = torch.bool)
         return cond_mask
@@ -1167,6 +1202,14 @@ class VoiceBox(_VB, LightningModule):
         start = (max_start * rand).clamp(min = 0)
         end = start + lengths
 
+        if phn_bnd_eps is None:
+            if exists(self_attn_mask):
+                end = torch.minimum(end, seq_len)
+                seq_len = _seq_len
+            else:
+                end = end.clamp(max = seq_len)
+            return mask_from_start_end_indices(seq_len, start, end)
+
         # start = torch.floor(start).long()
         start_of_start = self.find_start_of_phone(cond_token_ids, torch.floor(start).long())
         end_of_start = self.find_end_of_phone(cond_token_ids, torch.floor(start).long(), seq_len)
@@ -1181,12 +1224,14 @@ class VoiceBox(_VB, LightningModule):
         prob = (end - start_of_end) / (end_of_end - start_of_end + 1)
         _end = torch.where(prob > 0.5, end_of_end + 1, start_of_end)
 
-        start = torch.minimum(_start, _end)
-        end = torch.maximum(_start, _end)
+        start = (torch.minimum(_start, _end) - phn_bnd_eps).clamp(min = 0)
+        end = torch.maximum(_start, _end) + phn_bnd_eps
 
         if exists(self_attn_mask):
             end = torch.minimum(end, seq_len)
             seq_len = _seq_len
+        else:
+            end = end.clamp(max = seq_len)
 
         return mask_from_start_end_indices(seq_len, start, end)
 
@@ -1361,6 +1406,15 @@ class VoiceBox(_VB, LightningModule):
 
         # concat source signal, semantic / phoneme conditioning embed, and conditioning
         # and project
+
+        if self.text_encode:
+            conv_cond = self.conv_embed(cond)
+            conv_text = self.conv_embed(cond_emb)
+            to_concat = [*filter(exists, (conv_cond, conv_text))]
+            conv_cond_text = torch.cat(to_concat, dim = 1)
+            mask = torch.cat([~cond_mask_with_pad_dim * self_attn_mask, self_attn_mask], dim=1)
+            conv_cond_text = self.text_encoder(conv_cond_text, mask=mask)
+            cond = conv_cond_text[:, seq_len:]
 
         to_concat = [*filter(exists, (x, cond_emb, cond))]
         embed = torch.cat(to_concat, dim = -1)

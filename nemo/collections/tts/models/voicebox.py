@@ -1389,7 +1389,6 @@ class VoiceboxModel(TextToWaveform):
                     cond_mask=cond_mask,
                     steps=100,
                     decode_to_audio=False,
-                    sample_std=0.01,
                 )
             
             audio_len = audio_mask.sum(-1)
