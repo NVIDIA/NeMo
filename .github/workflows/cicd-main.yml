@@ -760,8 +760,6 @@ jobs:
         python /home/TestData/ctc_segmentation/verify_alignment.py \
         -r /home/TestData/ctc_segmentation/eng/eng_valid_segments_1.7.txt \
         -g /home/TestData/ctc_segmentation/eng/output${TIME}/verified_segments/nv_test_segments.txt;
-        
-        echo "TIME=${time}" >> $GITHUB_OUTPUT
       AFTER_SCRIPT: |
         rm -rf /home/TestData/ctc_segmentation/eng/output${TIME}
 
