@@ -151,9 +151,12 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
 
 def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_params, inference_config, **strategy_args):
 
+    model_type = model.cfg.mm_cfg.llm.get("model_type", "nvgpt")
     conv_template = model.cfg.data.get("conv_template", "nvgpt")
     final_response = []
     for idx, prompt_dict in enumerate(prompt_dict_list):
+        # determine the media type in the prompt_dict
+        media_type_token = inference_config.inference.get("media_type", "image")
         response = generate(
             model,
             inputs=prompt_dict.get('prompt'),
@@ -169,15 +172,25 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
             end_strings=sampling_params['end_strings'],
             min_tokens_to_generate=length_params['min_length'],
             compute_attention_mask=sampling_params.get("compute_attention_mask", True),
-            image_list=prompt_dict.get('image'),
+            image_list=prompt_dict.get(media_type_token),
             **strategy_args,
         )
 
+        # Middle stages of PP will return None
+        if response is None:
+            continue
+
         # Regular expression pattern to match the sequence
-        pattern = re.compile(rf'{DEFAULT_IM_START_TOKEN}( ⁇ )+{DEFAULT_IM_END_TOKEN}')
-        pattern_nvgpt = re.compile(rf'{DEFAULT_IM_START_TOKEN}({DEFAULT_IMAGE_PATCH_TOKEN})+{DEFAULT_IM_END_TOKEN}')
+        pattern = re.compile(
+            rf'{DEFAULT_IM_START_TOKEN[model_type]}( ⁇ )+{DEFAULT_IM_END_TOKEN[model_type]}'.replace(r'|', r'\|')
+        )
+        pattern_nvgpt = re.compile(
+            rf'{DEFAULT_IM_START_TOKEN[model_type]}({DEFAULT_IMAGE_PATCH_TOKEN[model_type]})+{DEFAULT_IM_END_TOKEN[model_type]}'.replace(
+                r'|', r'\|'
+            )
+        )
         combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}')
-        clean_text = re.sub(combined_pattern, '<image>', response['sentences'][0])
+        clean_text = re.sub(combined_pattern, f"<{media_type_token}>", response['sentences'][0])
 
         clean_response = clean_text
 
@@ -193,6 +206,9 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
             clean_response = clean_response.split("<extra_id_1>")[-2][10:]  # [10:] for removing "Assistant\n"
         elif conv_template == "llama_2":
             clean_response = clean_response.rsplit("[/INST] ", 1)[-1]
+        elif conv_template == "llama_3":
+            clean_response = clean_response.rsplit("assistant<|end_header_id|>\n\n", 1)[-1]
+            clean_response = clean_response.rstrip("<|eot_id|>")
         elif conv_template == "v1":
             clean_response = clean_response.rsplit("ASSISTANT: ", 1)[-1]
 
@@ -281,17 +297,17 @@ def tab_logits(logits, min_id, max_id, filter_value=-float('Inf')):
 
 def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started=None):
     """
-       This function has been mostly taken from huggingface conversational
-         ai code at
-         https://medium.com/huggingface/how-to-build-a-state-of-the-art-
-              conversational-ai-with-transfer-learning-2d818ac26313
+    This function has been mostly taken from huggingface conversational
+      ai code at
+      https://medium.com/huggingface/how-to-build-a-state-of-the-art-
+           conversational-ai-with-transfer-learning-2d818ac26313
 
-        @param logits: logits tensor
-        @param top_k: keep only top k tokens with highest probability
-        @param top_p: keep the top tokens with cumulative probability
-        @filter_value: value to set filtered tokens to
-        @started: a tensor of bools indicating whether the text generation starts for the batch
-        returns the filtered logits
+     @param logits: logits tensor
+     @param top_k: keep only top k tokens with highest probability
+     @param top_p: keep the top tokens with cumulative probability
+     @filter_value: value to set filtered tokens to
+     @started: a tensor of bools indicating whether the text generation starts for the batch
+     returns the filtered logits
     """
     if top_k > 0:
         # Remove all tokens with a probability less than the
@@ -303,7 +319,7 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started
         else:
             logits[indices_to_remove] = filter_value
 
-    if top_p > 0.0:
+    if 0.0 < top_p < 1.0:
         # Cconvert to 1D
         sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
         cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
@@ -327,7 +343,7 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started
 
 
 def repetition_penalty(logits, repetition_penalty, used_tokens):
-    """ Implement the repetition penalty, check paper
+    """Implement the repetition penalty, check paper
     https://arxiv.org/pdf/1909.05858.pdf
     """
     if used_tokens is not None and repetition_penalty != 1.0:
@@ -473,6 +489,7 @@ def synced_generate(
     end_strings=[],
     min_tokens_to_generate=0,
     image_list=None,
+    **strategy_args,
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -488,6 +505,19 @@ def synced_generate(
             temperature=temperature,
         )
     else:
+
+        extra = {
+            "top_p": top_p,
+            "top_k": top_k,
+            "greedy": greedy,
+            "repetition_penalty": repetition_penalty,
+            "min_tokens_to_generate": min_tokens_to_generate,
+        }
+
+        # if input containing neighbors (for Mcore retrieval RETRO model)
+        if "neighbors_tokens" in strategy_args:
+            extra['neighbors_tokens'] = strategy_args['neighbors_tokens']
+
         batch_token_iterator = sample_sequence_batch(
             model,
             inference_strategy,
@@ -500,13 +530,7 @@ def synced_generate(
             temperature=temperature,
             end_strings=end_strings,
             image_list=image_list,
-            extra={
-                "top_p": top_p,
-                "top_k": top_k,
-                "greedy": greedy,
-                "repetition_penalty": repetition_penalty,
-                "min_tokens_to_generate": min_tokens_to_generate,
-            },
+            extra=extra,
         )
 
     for tokens, lengths, output_logits, full_logits in batch_token_iterator:
@@ -626,6 +650,22 @@ def generate(
             end_strings,
             random_seed,
         )
+
+        # tokenize neighbors and broadcast (for Mcore retrieval RETRO model)
+        if 'neighbors' in strategy_args:
+            # tokenize neighbors
+            neighbors_tokens_tensor, neighbors_tokens_tensor_shape = inference_strategy.tokenize_neighbors_batch(
+                strategy_args['neighbors'], strategy_args['retro_inference']
+            )
+
+            # send neighbors tensors to all ranks
+            model_parallel_group = parallel_state.get_model_parallel_group()
+            src = get_model_parallel_src_rank()
+            torch.distributed.broadcast(neighbors_tokens_tensor_shape, src, model_parallel_group)
+            torch.distributed.broadcast(neighbors_tokens_tensor, src, model_parallel_group)
+        else:
+            neighbors_tokens_tensor = None
+
     else:
         (
             context_length_tensor,
@@ -642,6 +682,27 @@ def generate(
             end_strings,
             random_seed,
         ) = receive_generate_info()
+
+        # receive broadcast (for Mcore retrieval RETRO model)
+        if 'neighbors' in strategy_args:
+            # receive neighbors tensors to all ranks
+            model_parallel_group = parallel_state.get_model_parallel_group()
+            src = get_model_parallel_src_rank()
+            neighbors_tokens_tensor_shape = torch.empty(2, dtype=torch.float32, device=torch.cuda.current_device())
+            torch.distributed.broadcast(neighbors_tokens_tensor_shape, src, model_parallel_group)
+            neighbors_tokens_tensor = torch.empty(
+                neighbors_tokens_tensor_shape[0],
+                neighbors_tokens_tensor_shape[1],
+                dtype=torch.int64,
+                device=torch.cuda.current_device(),
+            )
+            torch.distributed.broadcast(neighbors_tokens_tensor, src, model_parallel_group)
+        else:
+            neighbors_tokens_tensor = None
+
+    # add neighbors to strategy_args (for retrieval RETRO model)
+    if 'neighbors' in strategy_args:
+        strategy_args['neighbors_tokens'] = neighbors_tokens_tensor
 
     if random_seed is not None:
         seed_everything(random_seed)
@@ -663,6 +724,7 @@ def generate(
         end_strings=end_strings,
         min_tokens_to_generate=min_tokens_to_generate,
         image_list=image_list,
+        **strategy_args,
     )
     special_tokens = set()
     if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
@@ -771,7 +833,15 @@ def sample_sequence_batch(
     # initialize the batch
     with torch.no_grad():
         context_length = context_lengths.min().item()
-        inference_strategy.init_batch(context_tokens, context_length, compute_attention_mask)
+        if 'neighbors_tokens' in extra:  # for Mcore retrieval RETRO model
+
+            # For Mcore retrieval RETRO model, context_tokens tensors are updated after init_batch() (the length is doubled after processing)
+            context_tokens = inference_strategy.init_batch(
+                context_tokens, context_length, compute_attention_mask, **extra
+            )
+
+        else:
+            inference_strategy.init_batch(context_tokens, context_length, compute_attention_mask)
         # added eos_id to support the function generate_samples_eval that passes
         # eos_id as an argument and needs termination when that id id found.
         eod_id = tokenizer.eos_id
@@ -809,7 +879,11 @@ def sample_sequence_batch(
                     logits = output[:, -1].view(batch_size, -1).contiguous()
 
                 else:
-                    logits = output[0]['logits'][:, -1].contiguous()
+                    if 'neighbors_tokens' in extra:  # for Mcore retrieval RETRO model
+                        # for Mcore RETRO inference, disimilar to GPT, we will get the logits of the (context_length - 1)th token, instead of the last token
+                        logits = output[0]['logits'][:, context_length - 1].contiguous()
+                    else:
+                        logits = output[0]['logits'][:, -1].contiguous()
                     logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
                     assert logits is not None
                     logits = logits.view(batch_size, -1)

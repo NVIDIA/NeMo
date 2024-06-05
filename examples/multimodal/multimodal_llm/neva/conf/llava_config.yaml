@@ -74,6 +74,7 @@ model:
       from_pretrained: "openai/clip-vit-large-patch14" # path or name
       from_hf: True
       patch_dim: 14
+      crop_size: [224, 224]
       hidden_size: 1024 # could be found from model but tricky in code
       vision_select_layer: -2   # default to the last layer
       class_token_length: 1
@@ -185,6 +186,7 @@ model:
     data_path:
     lazy_preprocess: True
     is_multimodal: True
+    media_type: image # currently supported: image
     sep_image_conv_front: False
     image_token_len: 256
     conv_template: llama_2 # check `nemo/collections/multimodal/data/neva/conversation.py`

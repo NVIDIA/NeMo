@@ -46,12 +46,14 @@ HuggingFace Spaces to try out Parakeet models in your browser:
 * `Parakeet-TDT-1.1B <https://huggingface.co/spaces/nvidia/parakeet-tdt-1.1b>`__ space
 
 .. _Conformer_model:
+
 Conformer
 ---------
+
 .. _Conformer-CTC_model:
+
 Conformer-CTC
 ~~~~~~~~~~~~~
--------------
 
 Conformer-CTC is a CTC-based variant of the Conformer model introduced in :cite:`asr-models-gulati2020conformer`. Conformer-CTC has a
 similar encoder as the original Conformer but uses CTC loss and decoding instead of RNNT/Transducer loss, which makes it a non-autoregressive model.
@@ -314,7 +316,7 @@ For more details about this model, see the `paper <https://arxiv.org/abs/2306.15
 or read our `tutorial <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Confidence_Ensembles.ipynb>`_.
 
 NeMo support Confidence-based Ensembles through the
-:ref:`nemo.collections.asr.models.confidence_ensembles.ConfidenceEnsembleModel <confidence-ensembles-api>` class.
+:ref:`nemo.collections.asr.models.confidence_ensemble.ConfidenceEnsembleModel <confidence-ensembles-api>` class.
 
 A typical workflow to create and use the ensemble is like this
 

@@ -136,12 +136,16 @@ class MegatronBertModel(MegatronBaseModel):
             # Model wrapper to convert both model and inputs to half precision
             self._wrap_model_for_O2()
 
-        if hasattr(self, '_nsys_profile_enabled'):
+        if hasattr(self, '_nsys_profile_enabled') or hasattr(self, '_memory_profile_enabled'):
             mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
             data_parallel_world_size = trainer.world_size // mp_size
             grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
-            self._nsys_profile_start_step *= grad_accum_steps
-            self._nsys_profile_end_step *= grad_accum_steps
+            if hasattr(self, '_nsys_profile_enabled'):
+                self._nsys_profile_start_step *= grad_accum_steps
+                self._nsys_profile_end_step *= grad_accum_steps
+            if hasattr(self, '_memory_profile_enabled'):
+                self._memory_profile_start_step *= grad_accum_steps
+                self._memory_profile_end_step *= grad_accum_steps
 
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
@@ -760,9 +764,11 @@ class MegatronBertModel(MegatronBaseModel):
                 grads.append(grad.data)
 
     def setup(self, stage=None):
-        """ PTL hook that is executed after DDP spawns.
-            We setup datasets here as megatron datasets require DDP to instantiate.
-            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        """
+        PTL hook that is executed after DDP spawns.
+        We setup datasets here as megatron datasets require DDP to instantiate.
+        See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
