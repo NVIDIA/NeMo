@@ -1,13 +1,15 @@
-# Llama-3 LoRA fine-tuning and deployment with NeMo Framework and NVIDIA NIM
+# Llama 3 LoRA fine-tuning and deployment with NeMo Framework and NVIDIA NIM
 
-[Llama-3](https://blogs.nvidia.com/blog/meta-llama3-inference-acceleration/) is an open source large language model by Meta that delivers state-of-the-art performance on popular industry benchmarks. It has been pretrained on 15T+ tokens, and supports 8K context length. Available in two sizes: 8B and 70B, it has two variants for each - base pretrained and instruction tuned.  
+[Llama 3](https://blogs.nvidia.com/blog/meta-llama3-inference-acceleration/) is an open source large language model by Meta that delivers state-of-the-art performance on popular industry benchmarks. It has been pretrained on over 15 trillion tokens, and supports 8K context length. It is available in two sizes: 8B and 70B, and it has two variants for each size - base pretrained and instruction tuned.  
 
 [**Low-Rank Adaptation (LoRA)**](https://arxiv.org/pdf/2106.09685) has emerged as a popular Parameter Efficient Fine-Tuning (PEFT) technique that tunes a very small number of additional parameters as compared to full fine-tuning, thereby reducing the compute required. 
 
-[NVIDIA NeMo Framework](https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html) provides tools to perform LoRA on Llama-3 to fit your usecase, which can then be deployed using [NVIDIA NIM](https://www.nvidia.com/en-us/ai/) for optimized inference on NVIDIA GPUs. 
+[NVIDIA NeMo Framework](https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html) provides tools to perform LoRA on Llama 3 to fit your usecase, which can then be deployed using [NVIDIA NIM](https://www.nvidia.com/en-us/ai/) for optimized inference on NVIDIA GPUs. 
 
-NIM supports seamless deployment of multiple LoRA adapters (aka "multi-LoRA") over the same base model by dynamically loading the adapter weights based on incoming requests at runtime. This allows flexibility in serving inputs belonging to different tasks or usecases without having to deploy a bespoke model for each usecase. More information on NIM for LLMs can be found it it's [documentation](https://docs.nvidia.com/nim/large-language-models/latest/introduction.html).
+NIM supports seamless deployment of multiple LoRA adapters (aka "multi-LoRA") over the same base model by dynamically loading the adapter weights based on incoming requests at runtime. This allows flexibility in serving inputs belonging to different tasks or usecases without having to deploy a bespoke model for each usecase. More information on NIM for LLMs can be found it its [documentation](https://docs.nvidia.com/nim/large-language-models/latest/introduction.html).
 
+![alt text](./img/e2e-lora-train-and-deploy.png "LoRA training with NeMo Framework & Dynamic Loading of LoRA Adapters in NVIDIA NIM")
+Figure 1: Diagram representing the various steps involved in LoRA customization using NVIDIA NeMo Framework and deployment with NVIDIA NIM.
 
 ## Pre-requisites
 
@@ -26,7 +28,7 @@ In order to proceed, ensure that you have -
 
 ## [1. Creating a LoRA adapter with NeMo Framework](./llama3-lora-nemofw.ipynb)
 
-This notebook showcases performing LoRA PEFT **Llama-3 8B** on [PubMedQA](https://pubmedqa.github.io/) using NeMo Framework. PubMedQA is a Question-Answering dataset for biomedical texts.
+This notebook showcases performing LoRA PEFT **Llama 3 8B Instruct** on [PubMedQA](https://pubmedqa.github.io/) using NeMo Framework. PubMedQA is a Question-Answering dataset for biomedical texts.
 
 
 ### To get started
@@ -35,9 +37,11 @@ NeMo Framework is available as a [docker container](https://catalog.ngc.nvidia.c
 
 Run the container using the following command. It assumes that you have the notebook(s) available in the current working directory. If not, mount the appropriate folder to `/workspace`.
 
-```
+```bash
 export FW_VERSION=24.05 ## Make sure to choose the latest available tag
+```
 
+```bash
 docker run \
   --gpus all \
   --shm-size=2g \
@@ -59,7 +63,7 @@ Then, navigate to [this notebook](./llama3-lora-nemofw.ipynb).
 
 
 ## [2. Multi-LoRA inference with NVIDIA NIM](./llama3-lora-deploy-nim.ipynb)
-This is a demonstration of deploying multiple LoRA adapters with NVIDIA NIM. NIM supports LoRA adapters in .nemo (from NeMo Framework), and Hugging Face model formats. We will deploy the PubMedQA LoRA adapter from Notebook 1, alongside two other already trained LoRA adapters ([GSM8K](https://github.com/openai/grade-school-math), [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/)) that are available on NVIDIA NGC as examples.
+This is a demonstration of deploying multiple LoRA adapters with NVIDIA NIM. NIM supports LoRA adapters in `.nemo` (from NeMo Framework), and Hugging Face model formats. We will deploy the PubMedQA LoRA adapter from Notebook 1, alongside two other already trained LoRA adapters ([GSM8K](https://github.com/openai/grade-school-math), [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/)) that are available on NVIDIA NGC as examples.
 
 `NOTE`: While it's not necessary to complete the LoRA training and obtain the adapter from the previous notebook ("Creating a LoRA adapter with NeMo Framework") to follow along with this one, it is recommended if possible. You can still learn about LoRA deployment with NIM using the other adapters downloaded from NGC.
 
@@ -67,7 +71,7 @@ This is a demonstration of deploying multiple LoRA adapters with NVIDIA NIM. NIM
 
 #### 1. Download example LoRA adapters
 
-The following steps assume that you have authenticated with NGC and downloaded the CLI tool, as mention in pre-requisites.
+The following steps assume that you have authenticated with NGC and downloaded the CLI tool, as mentioned in pre-requisites.
 
 ```bash
 # Set path to your LoRA model store
@@ -138,7 +142,7 @@ docker run -it --rm --name=$CONTAINER_NAME \
     -p 8000:8000 \
     nvcr.io/nim/meta/llama3-8b-instruct:1.0.0
 ```
-The first time you run the command, it will download the model 
+The first time you run the command, it will download the model and cache it in $NIM_CACHE_PATH so subsequent deployments are even faster.
 There are several options to configure NIM other than the ones listed above, and you can find a full list in [NIM configuration](https://docs.nvidia.com/nim/large-language-models/latest/configuration.html) documentation.
 
 #### 4. Start the notebook
