@@ -16,6 +16,7 @@ from contextlib import contextmanager
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from nemo.utils import logging
 
 try:
     from taming.modules.vqvae.quantize import VectorQuantizer2 as VectorQuantizer
@@ -338,6 +339,7 @@ class AutoencoderKL(pl.LightningModule):
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
 
         if from_pretrained is not None:
+            logging.info(f"Attempting to load vae weights from {from_pretrained}")
             if from_pretrained.endswith('safetensors'):
                 from safetensors.torch import load_file as load_safetensors
 
