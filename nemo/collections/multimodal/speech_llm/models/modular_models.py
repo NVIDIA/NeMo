@@ -15,7 +15,6 @@
 import itertools
 import json
 import os
-from pathlib import Path
 from typing import List, Optional, Union
 
 import hydra
@@ -43,10 +42,6 @@ from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
 )
 from nemo.collections.multimodal.speech_llm.parts.mixins.adapter_mixin import SpeechLLMAdapterMixin
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import get_nested_dict_value
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-)
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.utils import (

@@ -371,11 +371,11 @@ class TextProcessing:
             input_ids = input_ids[: self.max_seq_length]
 
         processed_example = {
-            'input_ids': torch.as_tensor(input_ids),
-            'answer_start_idx': torch.as_tensor(answer_start_idx),
-            'context_ids': torch.as_tensor(context_ids),
+            'input_ids': (input_ids),
+            'answer_start_idx': (answer_start_idx),
+            'context_ids': (context_ids),
             'context_length': len(context_ids),
-            'answer_ids': torch.as_tensor(answer_ids),
+            'answer_ids': (answer_ids),
             'context_start_idx': context_start_idx,
         }
 

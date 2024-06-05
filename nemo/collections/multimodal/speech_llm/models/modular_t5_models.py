@@ -17,7 +17,7 @@ import itertools
 import json
 import os
 from functools import partial
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union
 
 import sacrebleu
 import torch
@@ -47,7 +47,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.core.classes.mixins import AccessMixin, adapter_mixins
+from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import AppState, logging, model_utils
 
 try:
@@ -65,7 +65,6 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_model import Mega
 
 try:
     from megatron.core import parallel_state, tensor_parallel
-    from megatron.core.enums import ModelType
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
@@ -86,9 +85,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
     def setup_perception_modules(self, cfg):
         if 'target' in cfg.perception:
             imported_cls = model_utils.import_class_by_path(cfg.perception.target)
-            pretrained_audio_model = (
-                cfg.pretrained_canary_model if hasattr(cfg, "pretrained_canary_model") else cfg.pretrained_audio_model
-            )
             self.perception = imported_cls(cfg=cfg.perception)
         else:
             self.perception = (
@@ -409,15 +405,13 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             extra_arg = {}
             # take the batch produced by prepare_batch_at_step
             (
-                tokens,
+                _,
                 input_embeddings,
                 attention_mask,
-                position_ids,
+                _,
                 set_inference_key_value_memory,
                 inference_max_sequence_len,
             ) = batch
-            tokens = tokens.cuda()
-            position_ids = position_ids.cuda()
             if attention_mask is not None:
                 attention_mask = attention_mask.cuda()
                 attention_mask = attention_mask[0:1]
@@ -924,8 +918,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         encoder_input, attention_mask, enc_mask = self.prepare_llm_input(batch)
         # enc_input = speech and text prompt
         # dec_input and label = text output label
-        device = batch['audio_signal'].device
-
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=None,
             enc_mask=enc_mask,
@@ -1174,7 +1166,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
         batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
         _, seq_length = batch['tokens'].shape
-        tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
         # handle asynchronous grad reduction
@@ -1277,13 +1268,6 @@ class DecoderTextPromptModularizedAudioT5Model(ModularizedAudioT5Model):
 
         input_signal = audio_batch['audio_signal']
         input_signal_length = audio_batch['audio_signal_length']
-
-        input_ids, input_length, labels, loss_mask = (
-            audio_batch['contexts'],
-            audio_batch['context_lengths'],
-            audio_batch['labels'],
-            audio_batch['loss_mask'],
-        )
 
         # [b, t, c]
         encoded, encoded_len = self.perception(

@@ -18,11 +18,6 @@ import torch
 from megatron.core import parallel_state
 from omegaconf.omegaconf import OmegaConf
 
-from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
-from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
-    PromptedAudioToTextLhotseDataset,
-    get_prompt_format_fn,
-)
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (

@@ -1,19 +1,12 @@
-import copy
-import random
-from typing import Callable, Optional, Sequence
-
-import numpy as np
 import torch.utils.data
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
 
-from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     TextProcessing,
     build_loss_mask,
     ceil_to_nearest,
 )
-from nemo.utils import logging
 
 
 def collate_vectors(items, max_length: int, padding_value):
@@ -126,12 +119,13 @@ def collate_text_data(
     batch_size = len(cuts)
     pad_id = text_processor.pad_id
     examples = [
-        adjust_input_ids(
-            text_processor._process_example(
+        {
+            k: torch.as_tensor(v)
+            for k, v in text_processor._process_example(
                 context=cut.context,
                 output=cut.supervisions[0].text,
-            )
-        )
+            ).items()
+        }
         for cut in cuts
     ]
     fields = as_dict(examples)
@@ -166,12 +160,6 @@ def collate_text_data(
         "answers": collate_vectors(fields["answer_ids"], max_length=max_length, padding_value=pad_id),
         "max_length": torch.LongTensor([max_length] * batch_size),
     }
-
-
-def adjust_input_ids(item: dict) -> dict:
-    """masked_input_ids is used for masking llm input text. Use when exists."""
-    item["input_ids"] = item.get("masked_input_ids", item["input_ids"])
-    return item
 
 
 def as_dict(arg: list[dict]) -> dict[str, list]:
