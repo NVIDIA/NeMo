@@ -305,7 +305,7 @@ class AdapterModuleMixin(ABC):
             # Skip the global adapter config
             if name == self.adapter_global_cfg_key:
                 continue
-
+                
             # If name is in the current available modules, and it is enabled in the config
             if name in available_module_names and self.adapter_cfg[name]['enabled']:
                 # Check if type is supported (if available) and is an enabled adapter
@@ -340,6 +340,15 @@ class AdapterModuleMixin(ABC):
         if hasattr(self, "adapter_layer"):
             return self.adapter_layer[name] if name in self.adapter_layer else None
         return None
+    
+    def get_adapter_cfg(self, name: str):
+        """ Same logic as `get_adapter_module` but to get the config """
+        _, name = self.resolve_adapter_module_name_(name)
+
+        if hasattr(self, "adapter_cfg"):
+            return self.adapter_cfg[name] if name in self.adapter_cfg else None
+        return None
+
 
     def set_accepted_adapter_types(self, adapter_types: List[Union[type, str]]) -> None:
         """
