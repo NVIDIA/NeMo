@@ -52,6 +52,7 @@ exp_manager:
     save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
     filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
+    async_save: False # Set to True to enable async checkpoint save. Currently works only with distributed checkpoints
 
 model:
   # use GPTModel from megatron.core
@@ -150,8 +151,10 @@ model:
   fsdp_grad_reduce_dtype: 32 # Gradient reduction data type.
   fsdp_sharded_checkpoint: False # Store and load FSDP shared checkpoint.
 
-  # PyTorch distributed checkpoint
-  torch_distributed_checkpoint: False # Set to True to use PyTorch distributed checkpoint format.
+  # Distributed checkpoint setup
+  dist_ckpt_format: 'zarr' # Set to 'torch_dist' to use PyTorch distributed checkpoint format.
+  dist_ckpt_load_on_device: True # whether to load checkpoint weights directly on GPU or to CPU
+  dist_ckpt_parallel_save: False # if true, each worker will write its own part of the dist checkpoint
 
   ## Activation Checkpointing
   # NeMo Megatron supports 'selective' activation checkpointing where only the memory intensive part of attention is checkpointed.
