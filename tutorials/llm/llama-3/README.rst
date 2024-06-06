@@ -195,14 +195,13 @@ From your host OS environment, start the NIM docker container while mounting the
        -p 8000:8000 \
        nvcr.io/nim/meta/llama3-8b-instruct:1.0.0
 
-The first time you run the command, it will download the model and cache it in ``$NIM_CACHE_PATH`` so subsequent deployments are even faster. There are several options to configure NIM other than the ones listed above, and you can find a full list in `NIM configuration <https://docs.nvidia.com/nim large-language-models/latest/configuration.html>`__ documentation.
+The first time you run the command, it will download the model and cache it in ``$NIM_CACHE_PATH`` so subsequent deployments are even faster. There are several options to configure NIM other than the ones listed above, and you can find a full list in `NIM configuration <https://docs.nvidia.com/nim/large-language-models/latest/configuration.html>`__ documentation.
 
 4. Start the notebook
 ^^^^^^^^^^^^^^^^^^^^^
 
 From another terminal, follow the same instructions as the previous
-notebook to launch Jupyter Lab, and navigate to `this
-notebook <./llama3-lora-deploy-nim.ipynb>`__.
+notebook to launch Jupyter Lab, and navigate to `this notebook <./llama3-lora-deploy-nim.ipynb>`__.
 
 You may use the same NeMo
 Framework docker container which already has Jupyter Lab installed.
