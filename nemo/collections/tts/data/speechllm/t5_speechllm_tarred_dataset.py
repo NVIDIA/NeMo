@@ -34,10 +34,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_model import T5Se
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
-from nemo.collections.tts.parts.utils.tts_dataset_utils import (
-    beta_binomial_prior_distribution,
-    general_padding,
-)
+from nemo.collections.tts.parts.utils.tts_dataset_utils import beta_binomial_prior_distribution, general_padding
 from nemo.core.classes import IterableDataset
 from nemo.utils import logging
 
@@ -237,8 +234,7 @@ class _TarredInstructionTuningDataset(IterableDataset):
         return TarredAudioFilter(self.manifest_processor.collection)
 
     def _loop_offsets(self, iterator):
-        """This function is used to iterate through utterances with different offsets for each file.
-        """
+        """This function is used to iterate through utterances with different offsets for each file."""
 
         class TarredAudioLoopOffsets:
             def __init__(self, collection):
@@ -272,8 +268,7 @@ class _TarredInstructionTuningDataset(IterableDataset):
         return _speech_collate_fn(batch)
 
     def _build_sample(self, tup):
-        """Builds the training sample by combining the data from the WebDataset with the manifest info.
-        """
+        """Builds the training sample by combining the data from the WebDataset with the manifest info."""
         audio_filename, encodec, ref_encodec, offset_id = tup
         return audio_filename, encodec, ref_encodec, offset_id
 
@@ -435,7 +430,7 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         self.encodec, self.ref_encodec = None, None
 
     def _insert_virtual_token_placeholders(self, input_example, virtual_token_splits):
-        """ Insert the correct number of pseudo tokens at the <|VIRTUAL_PROMPT_n|> markers """
+        """Insert the correct number of pseudo tokens at the <|VIRTUAL_PROMPT_n|> markers"""
         total_inserted_tokens = 0
 
         for idx in range(len(virtual_token_splits)):
@@ -505,9 +500,11 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
             total_context_len = context_tokens[0].size()[1]
             reduced_len = min(
                 400,
-                int(total_context_len * 0.2)
-                if total_context_len > 600
-                else int(total_context_len * random.uniform(0.2, 0.5)),
+                (
+                    int(total_context_len * 0.2)
+                    if total_context_len > 600
+                    else int(total_context_len * random.uniform(0.2, 0.5))
+                ),
             )
             start_token_index = random.randint(
                 0, total_context_len - reduced_len
@@ -648,9 +645,9 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
                         scaling_factor=self.attention_prior_scaling_factor,
                     )
                 )
-                cross_attention_prior[
-                    :, virtual_tokens_len + context_tokens_len + num_question_offset :
-                ] = cross_attention_question_prior
+                cross_attention_prior[:, virtual_tokens_len + context_tokens_len + num_question_offset :] = (
+                    cross_attention_question_prior
+                )
 
             return (
                 taskname_id,
@@ -794,7 +791,7 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         return field_tokens
 
     def _insert_data_in_template(self, input_example, prompt_template_fields, doc, answer_field):
-        """ Format the input example according to the template """
+        """Format the input example according to the template"""
         out_dict = {}
         for field in prompt_template_fields:
             # discard the last one, {label} / {answer}
@@ -827,7 +824,7 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         return build_position_ids(enc_input_p).contiguous()
 
     def collate_fn(self, batch):
-        """ Prepares enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids for global batch """
+        """Prepares enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids for global batch"""
 
         data_dict = self.pad_batch_and_build_loss_mask(batch)
 
@@ -849,7 +846,7 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         )
 
     def pad_batch_and_build_loss_mask(self, batch):
-        """ Pad enc_input, dec_input, labels in batch to max batch length while building loss_mask, enc_mask, and dec_mask """
+        """Pad enc_input, dec_input, labels in batch to max batch length while building loss_mask, enc_mask, and dec_mask"""
         (
             taskname_ids,
             _,
@@ -972,7 +969,10 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
                 )
 
                 cross_attention_prior_padded = torch.nn.functional.pad(
-                    cross_attention_prior, pad=(0, _p1, 0, _p0), mode="constant", value=1,
+                    cross_attention_prior,
+                    pad=(0, _p1, 0, _p0),
+                    mode="constant",
+                    value=1,
                 )
                 cross_attention_prior_list.append(cross_attention_prior_padded)
 
@@ -987,16 +987,16 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
             "dec_labels_mask": torch.stack(dec_labels_mask_list) if len(dec_labels_mask_list) > 0 else None,
             "speech_mask": torch.stack(speech_mask_list) if len(speech_mask_list) > 0 else None,
             "context_and_question_tokens_lens": context_and_question_tokens_len,
-            "cross_attention_prior": torch.stack(cross_attention_prior_list)
-            if len(cross_attention_prior_list) > 0
-            else None,
+            "cross_attention_prior": (
+                torch.stack(cross_attention_prior_list) if len(cross_attention_prior_list) > 0 else None
+            ),
         }
 
         return data_dict
 
 
 class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
-    """ No support for cross attention here yet"""
+    """No support for cross attention here yet"""
 
     def _build_sample(self, tup):
         audio_filename, self.encodec, self.ref_encodec, offset_id = tup
@@ -1135,7 +1135,14 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
         )
 
     def collate_fn(self, batch):
-        (_, context_tokens_len, _, question_tokens_len, _, input_ids_len,) = zip(*batch)
+        (
+            _,
+            context_tokens_len,
+            _,
+            question_tokens_len,
+            _,
+            input_ids_len,
+        ) = zip(*batch)
 
         decoder_input_len = (
             torch.stack(context_tokens_len) + torch.stack(question_tokens_len) + torch.stack(input_ids_len)
@@ -1145,7 +1152,10 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
         decoder_mask = get_mask_from_lengths(decoder_input_len - 1)
         speech_mask = get_mask_from_lengths(decoder_input_len - 1)
         context_question_mask = torch.ones(speech_mask.shape)
-        (decoder_input_list, decoder_labels_list,) = (
+        (
+            decoder_input_list,
+            decoder_labels_list,
+        ) = (
             [],
             [],
         )
@@ -1168,11 +1178,17 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
 
             complete_input = torch.cat([context_tokens_input, question_tokens, input_ids_shifted], dim=1)
             complete_input_padded = general_padding(
-                complete_input, decoder_input_len[i].item(), max_decoder_input_len, pad_value=self.tokenizer.pad_id,
+                complete_input,
+                decoder_input_len[i].item(),
+                max_decoder_input_len,
+                pad_value=self.tokenizer.pad_id,
             )
             complete_output = torch.cat([context_tokens, question_tokens, input_ids], dim=1)
             complete_output_padded = general_padding(
-                complete_output, decoder_input_len[i].item(), max_decoder_input_len, pad_value=self.tokenizer.pad_id,
+                complete_output,
+                decoder_input_len[i].item(),
+                max_decoder_input_len,
+                pad_value=self.tokenizer.pad_id,
             )
             decoder_labels = complete_output_padded[:, 1:].contiguous()
             decoder_input = complete_input_padded[:, :-1].contiguous()
@@ -1181,9 +1197,9 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
             decoder_labels_list.append(decoder_labels)
 
             decoder_mask[i, : context_tokens_len + question_tokens_len - 1] = 0  # Mask out context and question
-            speech_mask[
-                i, context_tokens_len : context_tokens_len + question_tokens_len
-            ] = 0  # Mask out context and question
+            speech_mask[i, context_tokens_len : context_tokens_len + question_tokens_len] = (
+                0  # Mask out context and question
+            )
             context_question_mask[i, : context_tokens_len + question_tokens_len] = 0
 
         # Using causal attention mask for whole input
