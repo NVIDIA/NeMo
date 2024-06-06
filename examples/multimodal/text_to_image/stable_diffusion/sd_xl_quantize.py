@@ -15,8 +15,8 @@
 import os
 from pathlib import Path
 
-import modelopt.torch.opt as ato
-import modelopt.torch.quantization as atq
+import modelopt.torch.opt as mto
+import modelopt.torch.quantization as mtq
 import torch
 from modelopt.torch.quantization.nn import QuantModuleRegistry
 from torch.onnx import export as onnx_export
@@ -124,15 +124,15 @@ def main(cfg):
                 num_samples=cfg.infer.num_samples,
             )
 
-        atq.quantize(base.model.model.diffusion_model, quant_config, forward_loop)
-        ato.save(base.model.model.diffusion_model, cfg.quantize.quantized_ckpt)
+        mtq.quantize(base.model.model.diffusion_model, quant_config, forward_loop)
+        mto.save(base.model.model.diffusion_model, cfg.quantize.quantized_ckpt)
 
     if cfg.run_onnx_export:
         os.makedirs(cfg.onnx_export.onnx_dir, exist_ok=True)
         output = Path(f"{cfg.onnx_export.onnx_dir}/unet.onnx")
         # Export quantized model to ONNX
         if not cfg.run_quantization:
-            ato.restore(base.model.model.diffusion_model, cfg.onnx_export.quantized_ckpt)
+            mto.restore(base.model.model.diffusion_model, cfg.onnx_export.quantized_ckpt)
         quantize_lvl(base.model.model.diffusion_model, cfg.quantize.quant_level)
 
         # QDQ needs to be in FP32
