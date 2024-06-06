@@ -333,7 +333,7 @@ class GPTSFTDataset(Dataset):
                     iters = range(0, len(template_ids_lengths), 1)
                 elif self.truncation_method == 'right':
                     iters = range(len(template_ids_lengths) - 1, -1, -1)
-                    # Leave space for tokens_to_generate.
+                    # We need to truncate more to let context_ids + tokens_to_generate < self.max_seq_length
                     truncation_length_total += min(len(label_ids), self.tokens_to_generate)
                 else:
                     raise ValueError(f'{self.truncation_method} is not supported')
