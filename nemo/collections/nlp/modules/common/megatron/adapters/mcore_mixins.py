@@ -34,13 +34,13 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraDenseAttentionAdapterConfig,
     LoraHto4HAdapterConfig,
     LoraKQVAdapterConfig,
+    LoraMoe4HtoHAdapterConfig,
+    LoraMoeHto4HAdapterConfig,
     LoraUnfusedHto4HAdapterConfig,
     LoraUnfusedKQVAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     PromptEncoderAdapterConfig,
-    LoraMoeHto4HAdapterConfig,
-    LoraMoe4HtoHAdapterConfig,
 )
 from nemo.core import adapter_mixins
 
@@ -141,11 +141,19 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         if SplitAlongDim is not None:
 
             # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
-            (query, key, value) = SplitAlongDim(mixed_qkv, 3, split_arg_list,)
+            (query, key, value) = SplitAlongDim(
+                mixed_qkv,
+                3,
+                split_arg_list,
+            )
         else:
 
             # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
-            (query, key, value) = torch.split(mixed_qkv, split_arg_list, dim=3,)
+            (query, key, value) = torch.split(
+                mixed_qkv,
+                split_arg_list,
+                dim=3,
+            )
 
         # [sq, b, ng, np/ng * hn] -> [sq, b, np, hn]
         query = query.reshape(query.size(0), query.size(1), -1, self.hidden_size_per_attention_head)
@@ -230,11 +238,21 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
 
         if self.checkpoint_core_attention:
             core_attn_out = self._checkpointed_attention_forward(
-                query, key, value, attention_mask, attn_mask_type=attn_mask_type, packed_seq_params=packed_seq_params,
+                query,
+                key,
+                value,
+                attention_mask,
+                attn_mask_type=attn_mask_type,
+                packed_seq_params=packed_seq_params,
             )
         else:
             core_attn_out = self.core_attention(
-                query, key, value, attention_mask, attn_mask_type=attn_mask_type, packed_seq_params=packed_seq_params,
+                query,
+                key,
+                value,
+                attention_mask,
+                attn_mask_type=attn_mask_type,
+                packed_seq_params=packed_seq_params,
             )
 
         if packed_seq_params is not None:
@@ -324,7 +342,9 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
                     intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
             elif self.activation_func == F.silu and self.config.gated_linear_unit:
                 intermediate_parallel = bias_swiglu_impl(
-                    intermediate_parallel, bias_parallel, self.config.activation_func_fp8_input_store,
+                    intermediate_parallel,
+                    bias_parallel,
+                    self.config.activation_func_fp8_input_store,
                 )
 
             else:
@@ -364,6 +384,7 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
 
         return output, output_bias
 
+
 class MCoreSequentialMLPMixin(SequentialMLP, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
         """
@@ -398,7 +419,6 @@ class MCoreSequentialMLPMixin(SequentialMLP, MCoreAdapterModuleMixin):
                 output_bias_local[start:end, :] = output_bias
 
         return output_local, output_bias_local
-
 
 
 class MCoreGPTEmbeddingMixin(LanguageModelEmbedding, MCoreAdapterModuleMixin):

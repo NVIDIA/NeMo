@@ -277,7 +277,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             raise NotImplementedError("out_init_method should be zero, normal, kaiming or xavier")
         return init_fn
 
-    def adapter_unfreeze(self,):
+    def adapter_unfreeze(
+        self,
+    ):
         """
         Can be customized to allow for selective training of only some params in the PEFT.
         """
@@ -404,7 +406,7 @@ class LoraQAdapter(ParallelLinearAdapter):
 
 class LoraDenseAttentionAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -413,7 +415,7 @@ class LoraDenseAttentionAdapter(ParallelLinearAdapter):
 
 class LoraHto4HAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -422,7 +424,7 @@ class LoraHto4HAdapter(ParallelLinearAdapter):
 
 class Lora4HtoHAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -659,6 +661,7 @@ class LoraMoeAdapter(nn.Module, AdapterModuleUtil):
     def forward(self, x, expert_idx):
         return self.expert_adapters[expert_idx](x)
 
+
 @dataclass
 class LoraMoeHto4HAdapterConfig(AdapterConfig):
     num_moe_experts: int
@@ -677,6 +680,7 @@ class LoraMoeHto4HAdapterConfig(AdapterConfig):
     alpha: float | None = None
     a2a_experimental: bool = False
     _target_: str = "{0}.{1}".format(LoraMoeAdapter.__module__, LoraMoeAdapter.__name__)
+
 
 @dataclass
 class LoraMoe4HtoHAdapterConfig(LoraMoeHto4HAdapterConfig):
@@ -762,14 +766,20 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         self.is_inference_ready = True
         return True
 
-    def clear_inference_table(self,):
+    def clear_inference_table(
+        self,
+    ):
         self.inference_table.fill_(0.0)
         self.is_inference_ready = False
 
-    def get_inference_table(self,):
+    def get_inference_table(
+        self,
+    ):
         return self.inference_table.data
 
-    def inner_forward(self,):
+    def inner_forward(
+        self,
+    ):
         input_embeds = self.embedding(self.indices).unsqueeze(0)
         intermediate_parallel, bias_parallel = self.first(input_embeds)
         intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)

@@ -23,9 +23,9 @@ try:
         MCoreGPTEmbeddingMixin,
         MCoreMLPMixin,
         MCoreSelfAttentionMixin,
-        MCoreTransformerLayerMixin,
         MCoreSequentialMLPMixin,
-)
+        MCoreTransformerLayerMixin,
+    )
 except (ImportError, ModuleNotFoundError):
     MCoreGPTEmbeddingMixin = MCoreSelfAttentionMixin = MCoreTransformerLayerMixin = MCoreMLPMixin = None
 
@@ -37,14 +37,14 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraHto4HAdapterConfig,
     LoraKQVAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
+    LoraMoe4HtoHAdapterConfig,
+    LoraMoeHto4HAdapterConfig,
     LoraUnfusedHto4HAdapterConfig,
     LoraUnfusedKQVAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
     PromptEncoderAdapterConfig,
-    LoraMoeHto4HAdapterConfig,
-    LoraMoe4HtoHAdapterConfig,
 )
 
 PEFT_MODULE_MAP = {
@@ -189,10 +189,11 @@ class LoraPEFTConfig(PEFTConfig):
                 if _adapter_name == AdapterName.LORA_MOE_Hto4H_ADAPTER:
                     name_key_to_mcore_mixins[_adapter_name] = [("mlp.experts", MCoreSequentialMLPMixin)]
                     for i in range(int(cfg.num_moe_experts)):
-                        name_key_to_mcore_mixins[_adapter_name].append((f"mlp.experts.local_experts.{i}", MCoreMLPMixin))
+                        name_key_to_mcore_mixins[_adapter_name].append(
+                            (f"mlp.experts.local_experts.{i}", MCoreMLPMixin)
+                        )
                 else:
                     name_key_to_mcore_mixins[_adapter_name] = [("mlp", MCoreMLPMixin)]
-
 
             elif module == PEFT_MODULE_MAP["4htoh_module"]:
                 if cfg.get('num_moe_experts', None):
@@ -209,7 +210,9 @@ class LoraPEFTConfig(PEFTConfig):
                 if _adapter_name == AdapterName.LORA_MOE_4HtoH_ADAPTER:
                     name_key_to_mcore_mixins[_adapter_name] = [("mlp.experts", MCoreSequentialMLPMixin)]
                     for i in range(int(cfg.num_moe_experts)):
-                        name_key_to_mcore_mixins[_adapter_name].append((f"mlp.experts.local_experts.{i}", MCoreMLPMixin))
+                        name_key_to_mcore_mixins[_adapter_name].append(
+                            (f"mlp.experts.local_experts.{i}", MCoreMLPMixin)
+                        )
                 else:
                     name_key_to_mcore_mixins[_adapter_name] = [("mlp", MCoreMLPMixin)]
             else:
