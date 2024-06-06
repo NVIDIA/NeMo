@@ -1,4 +1,4 @@
-Llama 3 LoRA fine-tuning and deployment with NeMo Framework and NVIDIA NIM
+Llama 3 LoRA Fine-Tuning and Deployment with NeMo Framework and NVIDIA NIM
 ==========================================================================
 
 `Llama 3 <https://blogs.nvidia.com/blog/meta-llama3-inference-acceleration/>`_ is an open source large language model by Meta that delivers state-of-the-art performance on popular industry benchmarks. It has been pretrained on over 15 trillion tokens, and supports an 8K token context length. It is available in two sizes, 8B and 70B, and each size has two variants—base pretrained and instruction tuned.
