@@ -482,8 +482,6 @@ class TransformerCrossAttention(NeuralModule, Exportable):
         input_lengths,
         decoder_mems_list=None,
         return_mems=False,
-        *args,
-        **kwargs,
     ):
         assert input_embeds.shape[-1] == encoder_states.shape[-1]
         enc_mask = lens_to_mask(encoded_len, encoder_states.shape[1]).to(encoder_states.dtype)

@@ -98,7 +98,6 @@ def send_generate_info(
         repetition_penalty,
         min_tokens_to_generate,
     ]
-    input_info.append(0)
     input_info_tensor = torch.cuda.FloatTensor(input_info)
     torch.distributed.broadcast(input_info_tensor, src, model_parallel_group)
 

@@ -97,6 +97,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
         super().__init__(cfg, trainer)
+        # handle the case where the batch size from dynamic bucketting is not divisible in lhotse
+        self.enforce_divisible_batch = False
         self.setup_perception_modules(cfg)
 
         # print out params in more details
@@ -1514,6 +1516,7 @@ class CrossAttendModularAudioGPTModel(ModularAudioGPTModel):
         encoder_input, extra_outputs = self.perception_cross_attn(
             encoded, encoded_len, input_embeds, input_lengths=input_length, return_mems=True
         )
+        # TODO: need separate speech and text methods for inference
         if 'audio_ratio' in audio_batch:
             audio_ratio = audio_batch['audio_ratio'][..., None, None]
             encoder_input = encoder_input * audio_ratio + input_embeds * (1 - audio_ratio)
