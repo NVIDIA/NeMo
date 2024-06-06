@@ -119,6 +119,7 @@ class TensorRTLLM(ITritonDeployable):
         n_gpus: int = 1,
         tensor_parallel_size: int = None,
         pipeline_parallel_size: int = None,
+        gpus_per_node: int = None,
         max_input_token: int = 256,
         max_output_token: int = 256,
         max_batch_size: int = 8,
@@ -146,6 +147,7 @@ class TensorRTLLM(ITritonDeployable):
             n_gpus (int): number of GPUs to use for inference.
             tensor_parallel_size (int): tensor parallelism.
             pipeline_parallel_size (int): pipeline parallelism.
+            gpus_per_node (int): number of gpus per node.
             max_input_token (int): max input length.
             max_output_token (int): max output length.
             max_batch_size (int): max batch size.
@@ -182,6 +184,8 @@ class TensorRTLLM(ITritonDeployable):
         elif tensor_parallel_size is None:
             tensor_parallel_size = 1
             pipeline_parallel_size = n_gpus
+
+        gpus_per_node = tensor_parallel_size if gpus_per_node is None else gpus_per_node
 
         if Path(self.model_dir).exists():
             if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
@@ -235,6 +239,7 @@ class TensorRTLLM(ITritonDeployable):
                     dtype=dtype,
                     tensor_parallel_size=tensor_parallel_size,
                     pipeline_parallel_size=pipeline_parallel_size,
+                    gpus_per_node=gpus_per_node,
                     use_parallel_embedding=use_parallel_embedding,
                 )
 
