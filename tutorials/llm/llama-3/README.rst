@@ -172,7 +172,7 @@ From your host OS environment, start the NIM docker container while mounting the
    # Set these configurations
    export NGC_API_KEY=<YOUR_NGC_API_KEY>
    export NIM_PEFT_REFRESH_INTERVAL=3600  # (in seconds) will check NIM_PEFT_SOURCE for newly added models in this interval
-   export NIM_CACHE_PATH=</path/to/LoRA-model-store-cache>  # Model artifacts (in container) are cached in this directory
+   export NIM_CACHE_PATH=</path/to/NIM-model-store-cache>  # Model artifacts (in container) are cached in this directory
 
 
 .. code:: bash
