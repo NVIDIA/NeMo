@@ -15,11 +15,10 @@
 """Utilities for models."""
 import itertools
 import math
-from typing import Dict, Iterator, List, Tuple, Union
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-
 from torch import Tensor
 
 from nemo.utils import logging, logging_mode
@@ -413,16 +412,19 @@ def get_all_params_for_weight_decay_optimization(
     return tuple(filter(lambda g: len(g['params']) > 0, param_groups))
 
 
-def split_list(inputs, num_chunks):
+def split_list(inputs, num_chunks, enforce_divisible_batch: Optional[bool] = True):
     """
     Split a list into equal sized chunks
     """
-    # if len(inputs) % chunk_size != 0, round down the chunk size
+    if enforce_divisible_batch:
+        assert len(inputs) % chunk_size == 0, "Issue with batch size configuration!"
     chunk_size = len(inputs) // num_chunks
     return [inputs[i : i + chunk_size] for i in range(0, len(inputs), chunk_size)]
 
 
-def get_iterator_k_split(batch: Union[Dict, List[torch.Tensor]], num_microbatches: int) -> Iterator:
+def get_iterator_k_split(
+    batch: Union[Dict, List[torch.Tensor]], num_microbatches: int, enforce_divisible_batch: Optional[bool] = True
+) -> Iterator:
     """
     Split a batch into k microbatches, where the batch size is divisible by k. Batch could be
     a dictionary of tensors or a list of tensors. A dictionary batch could also have items of List type,
@@ -443,6 +445,8 @@ def get_iterator_k_split(batch: Union[Dict, List[torch.Tensor]], num_microbatche
         # Split tensor items
         items = list(tensor_items.items())
         split_batch = [torch.tensor_split(item[1], num_microbatches, dim=0) for item in items]
+        if enforce_divisible_batch:
+            assert items[0][1].shape[0] % num_microbatches == 0, "Issue with batch size configuration!"
         # handle the case where the batch size from dynamic bucketting is not divisible
         if items[0][1].shape[0] % num_microbatches != 0:
             chunk_size = split_batch[0][-1].shape[0]
@@ -456,7 +460,10 @@ def get_iterator_k_split(batch: Union[Dict, List[torch.Tensor]], num_microbatche
         else:
             # Split list items
             list_items = list(list_items.items())
-            split_list_batch = [split_list(item[1], num_microbatches) for item in list_items]
+            split_list_batch = [
+                split_list(item[1], num_microbatches, enforce_divisible_batch=enforce_divisible_batch)
+                for item in list_items
+            ]
             # Merge tensor and list items
             all_keys = [item[0] for item in items] + [item[0] for item in list_items]
             all_split_batch = split_batch + split_list_batch

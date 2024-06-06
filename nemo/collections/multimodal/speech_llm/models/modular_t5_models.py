@@ -1166,7 +1166,8 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
         batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
         _, seq_length = batch['tokens'].shape
-        data_iter = get_iterator_k_split(batch, get_num_microbatches())
+        # handle the case where the batch size from dynamic bucketting is not divisible in lhotse
+        data_iter = get_iterator_k_split(batch, get_num_microbatches(), enforce_divisible_batch=False)
 
         # handle asynchronous grad reduction
         no_sync_func = None
