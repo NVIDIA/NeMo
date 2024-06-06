@@ -1488,6 +1488,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             is_dataset_built_on_rank = lambda: True
 
             mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
+            add_extra_token = False if self.cfg.data.get("no_seqlen_plus_one_input_tokens", False) else True
             kwargs = {
                 "random_seed": self.cfg.seed,
                 "sequence_length": self.cfg.data.seq_length,
@@ -1498,7 +1499,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "eod_mask_loss": self.eod_mask_loss,
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
                 "drop_last_partial_validation_sequence": self.cfg.data.get("validation_drop_last", False),
-                "add_extra_token_to_sequence": self.cfg.data.get("add_extra_token", False),
+                "add_extra_token_to_sequence": add_extra_token,
             }
 
             data_prefix = self.cfg.data.data_prefix
