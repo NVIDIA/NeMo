@@ -109,7 +109,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     with:
       RUNNER: self-hosted-azure-cpu
-      TIMEOUT: 80
+      TIMEOUT: 60
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
@@ -4835,13 +4835,13 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     with:
       RUNNER: self-hosted-azure
+      TIMEOUT: 20
       SCRIPT: |
         CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_eval.py \
             pretrained_name=QuartzNet15x5Base-En  \
             dataset_manifest=/home/TestData/librispeech/librivox-dev-other.json \
             batch_size=64 \
             tolerance=0.1012
-      TIMEOUT: 20
       AFTER_SCRIPT: |
         rm -f examples/asr/evaluation_transcripts.json
 
