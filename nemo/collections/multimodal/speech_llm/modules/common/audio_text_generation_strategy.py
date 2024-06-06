@@ -252,9 +252,8 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
                 speech_encoded,
                 speech_encoded_len,
                 embeddings2use,
-                input_embeds_hidden=self.input_embeds_hidden,
-                decoder_mems_list=decoder_mems_list,
                 input_lengths=tokens2use.squeeze(-1) != self.model.tokenizer.eos_id,
+                decoder_mems_list=decoder_mems_list,
                 return_mems=True,
             )
             self.input_embeds_hidden = self.extra_outputs.get('input_embeds_hidden', None)
