@@ -18,8 +18,9 @@ import os
 import pickle
 import shutil
 import tempfile
+import warnings
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 import tensorrt_llm
@@ -119,8 +120,10 @@ class TensorRTLLM(ITritonDeployable):
         n_gpus: int = 1,
         tensor_parallel_size: int = None,
         pipeline_parallel_size: int = None,
-        max_input_token: int = 256,
-        max_output_token: int = 256,
+        max_input_len: int = 256,
+        max_output_len: int = 256,
+        max_input_token: Optional[int] = None,
+        max_output_token: Optional[int] = None,
         max_batch_size: int = 8,
         max_prompt_embedding_table_size=None,
         use_parallel_embedding: bool = False,
@@ -146,8 +149,10 @@ class TensorRTLLM(ITritonDeployable):
             n_gpus (int): number of GPUs to use for inference.
             tensor_parallel_size (int): tensor parallelism.
             pipeline_parallel_size (int): pipeline parallelism.
-            max_input_token (int): max input length.
-            max_output_token (int): max output length.
+            max_input_len (int): max input length.
+            max_output_len (int): max output length.
+            max_input_token (int): max input length. Deprecated, use max_input_len instead.
+            max_output_token (int): max output length. Deprecated, use max_output_len instead.
             max_batch_size (int): max batch size.
             max_prompt_embedding_table_size (int): max prompt embedding size.
             use_parallel_embedding (bool): whether to use parallel embedding feature of TRT-LLM or not
@@ -204,6 +209,22 @@ class TensorRTLLM(ITritonDeployable):
 
         self.model = None
 
+        if max_input_token is not None:
+            warnings.warn(
+                "Parameter max_input_token is deprecated and will be removed. Please use max_input_len instead.",
+                DeprecationWarning,
+                stacklevel=2
+            )
+            max_input_len = max_input_token
+
+        if max_output_token is not None:
+            warnings.warn(
+                "Parameter max_output_token is deprecated and will be removed. Please use max_output_len instead.",
+                DeprecationWarning,
+                stacklevel=2
+            )
+            max_output_len = max_output_token
+
         if tensorrt_llm.mpi_rank() == 0:
             tmp_dir = tempfile.TemporaryDirectory()
             nemo_export_dir = Path(tmp_dir.name)
@@ -219,8 +240,8 @@ class TensorRTLLM(ITritonDeployable):
                 qnemo_to_tensorrt_llm(
                     nemo_checkpoint_path=nemo_checkpoint_path,
                     engine_dir=self.model_dir,
-                    max_input_len=max_input_token,
-                    max_output_len=max_output_token,
+                    max_input_len=max_input_len,
+                    max_output_len=max_output_len,
                     max_batch_size=max_batch_size,
                     max_prompt_embedding_table_size=max_prompt_embedding_table_size,
                     lora_target_modules=lora_target_modules,
@@ -240,8 +261,8 @@ class TensorRTLLM(ITritonDeployable):
 
                 for weight_dict, model_config in zip(weights_dicts, model_configs):
                     build_and_save_engine(
-                        max_input_len=max_input_token,
-                        max_output_len=max_output_token,
+                        max_input_len=max_input_len,
+                        max_output_len=max_output_len,
                         max_batch_size=max_batch_size,
                         model_config=model_config,
                         model_weights=weight_dict,
