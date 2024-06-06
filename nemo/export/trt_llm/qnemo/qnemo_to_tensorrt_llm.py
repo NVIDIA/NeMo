@@ -27,6 +27,7 @@ def qnemo_to_tensorrt_llm(
     max_input_len: int,
     max_output_len: int,
     max_batch_size: int,
+    use_custom_all_reduce: bool,
     max_prompt_embedding_table_size: int,
     lora_target_modules: Optional[List[str]] = None,
 ):
@@ -60,7 +61,7 @@ def qnemo_to_tensorrt_llm(
         model_config["dtype"],
         "--strongly_typed",
         "--use_custom_all_reduce",
-        "disable",
+        "enable" if use_custom_all_reduce else "disable",
         "--workers",
         str(model_config["mapping"]["world_size"]),
     ]

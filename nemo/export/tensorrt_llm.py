@@ -120,6 +120,7 @@ class TensorRTLLM(ITritonDeployable):
         use_inflight_batching: bool = False,
         enable_context_fmha: bool = True,
         paged_kv_cache: bool = False,
+        use_custom_all_reduce: bool = True,
         dtype: str = "bfloat16",
         load_model: bool = True,
         enable_multi_block_mode: bool = False,
@@ -145,6 +146,7 @@ class TensorRTLLM(ITritonDeployable):
             use_inflight_batching (bool): if True, enables inflight batching for TensorRT-LLM Triton backend.
             enable_context_fmha (bool): if True, use fused Context MultiHeadedAttention.
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
+            use_custom_all_reduce (bool): if True, uses latency-optimized AR plugin instead of native NCCL operator.
             dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
             load_model (bool): load TensorRT-LLM model after the export.
             enable_multi_block_mode (bool): enable faster decoding in multihead attention. Required for long context.
@@ -208,6 +210,7 @@ class TensorRTLLM(ITritonDeployable):
                     max_input_len=max_input_token,
                     max_output_len=max_output_token,
                     max_batch_size=max_batch_size,
+                    use_custom_all_reduce=use_custom_all_reduce,
                     max_prompt_embedding_table_size=max_prompt_embedding_table_size,
                     lora_target_modules=lora_target_modules,
                 )
@@ -238,6 +241,7 @@ class TensorRTLLM(ITritonDeployable):
                         lora_target_modules=lora_target_modules,
                         max_prompt_embedding_table_size=max_prompt_embedding_table_size,
                         enable_multi_block_mode=enable_multi_block_mode,
+                        use_custom_all_reduce=use_custom_all_reduce,
                     )
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
