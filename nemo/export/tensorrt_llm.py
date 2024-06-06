@@ -33,6 +33,7 @@ from nemo.export.trt_llm.model_config_trt import model_config_to_tensorrt_llm
 from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
 from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_model_config, nemo_to_trtllm_config
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
+from nemo.export.trt_llm.qnemo.utils import is_trtllm_checkpoint
 from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
@@ -217,7 +218,7 @@ class TensorRTLLM(ITritonDeployable):
             tmp_dir = tempfile.TemporaryDirectory()
             nemo_export_dir = Path(tmp_dir.name)
 
-            if nemo_checkpoint_path.endswith("qnemo"):
+            if is_trtllm_checkpoint(nemo_checkpoint_path):
                 if os.path.isdir(nemo_checkpoint_path):
                     nemo_export_dir = nemo_checkpoint_path
                 else:
