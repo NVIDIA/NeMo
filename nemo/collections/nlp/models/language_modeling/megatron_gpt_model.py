@@ -549,6 +549,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.with_distributed_adam and not self.use_mcore_dist_optim:
 
             # Special handling for embedding grads
+            with_fp32_embedding_grads = self.cfg.get('with_fp32_embedding_grads', True)
             modules = self.get_model_module_list()
             if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
                 module = modules[0]  # first virtual rank has the embeddings
@@ -558,7 +559,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 word_embeddings = (
                     module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
                 )
-                word_embeddings._with_fp32_optimizer = True
+                word_embeddings._with_fp32_optimizer = with_fp32_embedding_grads
                 if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.get(
                     'share_embeddings_and_output_weights', True
                 ):
@@ -573,7 +574,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 else:
                     position_embeddings = module.position_embeddings_weight()
                 if position_embeddings is not None:
-                    position_embeddings._with_fp32_optimizer = True
+                    position_embeddings._with_fp32_optimizer = with_fp32_embedding_grads
 
             # Handle case where embeddings are used in output layer
             if parallel_state.is_pipeline_last_stage(ignore_virtual=True) and self.cfg.get(
@@ -583,7 +584,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 word_embeddings = (
                     module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
                 )
-                word_embeddings._with_fp32_optimizer = True
+                word_embeddings._with_fp32_optimizer = with_fp32_embedding_grads
                 if parallel_state.get_pipeline_model_parallel_world_size() > 1:
                     word_embeddings._disable_greedy_grad_copy = not self.megatron_amp_O2
                     word_embeddings._disable_overlap_grad_sync = True
@@ -843,9 +844,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
-            self.megatron_timer_start('allreduce_sequence_parallel_gradients', log_level=1)
-            self.allreduce_sequence_parallel_gradients()
-            self.megatron_timer_stop('allreduce_sequence_parallel_gradients')
+            # Mcore DistOpt handles this, so we don't have to
+            if not self.use_mcore_dist_optim:
+                self.megatron_timer_start('allreduce_sequence_parallel_gradients', log_level=1)
+                self.allreduce_sequence_parallel_gradients()
+                self.megatron_timer_stop('allreduce_sequence_parallel_gradients')
 
         self.megatron_timer_start('gradient_allreduce', log_level=1)
         if self.use_fsdp:
@@ -999,8 +1002,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """All-reduce gradients of FSDP-sharding-omitted parameters in sharding domain (data-parallel domain)."""
         assert isinstance(self.model, torch.nn.Module)
         grads = []
-        for param in self.model.parameters():
-            if not isinstance(param, torch.distributed.fsdp.FlatParameter) and param.requires_grad:
+        for param in self.model._ignored_params:
+            if param.requires_grad and param.grad is not None:
                 grad = param.grad
                 grads.append(grad.data)
         if len(grads) > 0:
