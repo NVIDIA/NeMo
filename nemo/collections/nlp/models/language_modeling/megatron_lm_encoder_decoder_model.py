@@ -190,9 +190,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 param._disable_overlap_grad_sync = True
 
             # Make sure embedding grads are reduced in FP32
+            with_fp32_embedding_grads = self.cfg.get('with_fp32_embedding_grads', True)
             for name, param in self.named_parameters():
                 if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
-                    param._with_fp32_optimizer = True
+                    param._with_fp32_optimizer = with_fp32_embedding_grads
 
         return super().configure_optimizers()
 
