@@ -320,13 +320,13 @@ class GPTSFTDataset(Dataset):
                 for i, (ids, key) in enumerate(zip(template_ids, template_ids_keys)):
                     if key in self.truncation_fields:
                         truncation_length = truncation_length_list.pop()
-                        if len(ids) < truncation_length: 
+                        if len(ids) < truncation_length:
                             logging.warning(f'{key} is not long enough to truncate.')
                             truncation_length = len(ids)
-                        
+
                         truncation_length_total -= truncation_length
                         template_ids[i] = self._truncation(ids, len(ids) - truncation_length)
-                        
+
             if truncation_length_total > 0:
                 template_ids_lengths = [len(ids) for ids in template_ids]
                 if self.truncation_method == 'left':
@@ -348,11 +348,11 @@ class GPTSFTDataset(Dataset):
                         truncation_length_total -= template_ids_lengths[i]
                         template_ids_lengths[i] = 0
                         template_ids[i] = self._truncation(template_ids[i], template_ids_lengths[i])
-            
+
         context_ids = [i for ids in template_ids[:-1] for i in ids]
         label_ids = template_ids[-1]
         return context_ids, label_ids
-    
+
     def _truncation(self, ids, expect_length):
         if expect_length == 0:
             return []
@@ -362,7 +362,7 @@ class GPTSFTDataset(Dataset):
             return ids[:expect_length]
         else:
             raise ValueError(f'{self.truncation_method} is not supported')
-    
+
     def _process_example(self, example):
         """
         Create an example by concatenating text and answer.
@@ -402,7 +402,7 @@ class GPTSFTDataset(Dataset):
         # Only training need to consider eos token
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
-        
+
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in self.prompt_template_keys}
         if self.output_original_text:
