@@ -173,6 +173,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         layer_past=None,
         get_key_value=False,
         enc_self_attention_relative_position_bias=None,
+        set_inference_key_value_memory=False,
     ):
         # convert to Megatron mask
         if self.use_flash_attention:
@@ -192,6 +193,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
             get_key_value=get_key_value,
             self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
             cross_attention_relative_position_bias=None,
+            set_inference_key_value_memory=set_inference_key_value_memory,
         )
 
         return enc_output
