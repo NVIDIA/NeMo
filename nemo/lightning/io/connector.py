@@ -1,10 +1,10 @@
+import logging
 import os
 import shutil
 from pathlib import Path, PosixPath, WindowsPath
 from typing import Generic, Optional, Tuple, TypeVar
 
 import pytorch_lightning as pl
-import logging
 from filelock import FileLock, Timeout
 
 # Dynamically inherit from the correct Path subclass based on the operating system.
