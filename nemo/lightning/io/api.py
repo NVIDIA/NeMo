@@ -64,9 +64,7 @@ def load_ckpt(path: Path) -> TrainerCheckpoint:
     return load(path, output_type=TrainerCheckpoint)
 
 
-def model_importer(
-    target: Type[ConnectorMixin], ext: str
-) -> Callable[[Type[ConnT]], Type[ConnT]]:
+def model_importer(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[ConnT]], Type[ConnT]]:
     """
     Registers an importer for a model with a specified file extension and an optional default path.
 
@@ -88,9 +86,7 @@ def model_importer(
     return target.register_importer(ext)
 
 
-def model_exporter(
-    target: Type[ConnectorMixin], ext: str
-) -> Callable[[Type[ConnT]], Type[ConnT]]:
+def model_exporter(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[ConnT]], Type[ConnT]]:
     """
     Registers an exporter for a model with a specified file extension and an optional default path.
 
