@@ -1,7 +1,7 @@
 Llama 3 LoRA fine-tuning and deployment with NeMo Framework and NVIDIA NIM
 ==========================================================================
 
-`Llama 3 <https://blogs.nvidia.com/blog/meta-llama3-inference-acceleration/>`_ 
+`Llama 3 <https://blogs.nvidia.com/blog/meta-llama3-inference-acceleration/>`_
 is an open source large language model by Meta that delivers
 state-of-the-art performance on popular industry benchmarks. It has been
 pretrained on over 15 trillion tokens, and supports an 8K token context length.
@@ -27,7 +27,7 @@ for optimized inference on NVIDIA GPUs.
   Figure 1: Diagram representing the various steps involved in LoRA customization using NVIDIA NeMo Framework and deployment with NVIDIA NIM.
 
 
-NIM supports seamless deployment of multiple LoRA adapters (aka “multi-LoRA”) over the same base model by dynamically loading the adapter weights based on incoming requests at runtime. This allows flexibility in serving inputs belonging to different tasks or usecases without having to deploy a bespoke model for each usecase. More information on NIM for LLMs can be found it its `documentation <https://docs.nvidia.com/nim/large-language-models/latest/introduction.html>`__.
+| NIM supports seamless deployment of multiple LoRA adapters (aka “multi-LoRA”) over the same base model by dynamically loading the adapter weights based on incoming requests at runtime. This allows flexibility in serving inputs belonging to different tasks or usecases without having to deploy a bespoke model for each usecase. More information on NIM for LLMs can be found it its `documentation <https://docs.nvidia.com/nim/large-language-models latest/introduction.html>`__.
 
 Pre-requisites
 --------------
@@ -142,7 +142,7 @@ To ensure model store is organized as expected, create a folder named
    mkdir -p $LOCAL_PEFT_DIRECTORY/llama3-8b-pubmed-qa
 
    # Ensure the source path is correct
-   cp ./results/Meta-Llama-3-8B-Instruct/checkpoints/megatron_gpt_peft_lora_tuning.nemo $LOCAL_PEFT_DIRECTORY/llama3-8b-pubmed-qa 
+   cp ./results/Meta-Llama-3-8B-Instruct/checkpoints/megatron_gpt_peft_lora_tuning.nemo $LOCAL_PEFT_DIRECTORY/llama3-8b-pubmed-qa
 
 
 
@@ -165,21 +165,23 @@ notebook.
 3. Set-up NIM
 ^^^^^^^^^^^^^
 
-From your host OS environment, start the NIM docker container while
-mounting the LoRA model store, as follows:
+From your host OS environment, start the NIM docker container while mounting the LoRA model store, as follows:
 
 .. code:: bash
 
+   # Set these configurations
    export NGC_API_KEY=<YOUR_NGC_API_KEY>
-   export NIM_PEFT_SOURCE=/home/nvs/loras # Path to LoRA models internal to the container
    export NIM_PEFT_REFRESH_INTERVAL=3600  # (in seconds) will check NIM_PEFT_SOURCE for newly added models in this interval
-   export NIM_CACHE_PATH=</path/to/LoRA-model-store-cache>  # Model artifacts (in container) are cached here
-   export CONTAINER_NAME=meta-llama3-8b-instruct
+   export NIM_CACHE_PATH=</path/to/LoRA-model-store-cache>  # Model artifacts (in container) are cached in this directory
 
 
 .. code:: bash
+
    mkdir -p $NIM_CACHE_PATH
    chmod -R 777 $NIM_CACHE_PATH
+
+   export NIM_PEFT_SOURCE=/home/nvs/loras # Path to LoRA models internal to the container
+   export CONTAINER_NAME=meta-llama3-8b-instruct
 
    docker run -it --rm --name=$CONTAINER_NAME \
        --runtime=nvidia \
@@ -193,19 +195,14 @@ mounting the LoRA model store, as follows:
        -p 8000:8000 \
        nvcr.io/nim/meta/llama3-8b-instruct:1.0.0
 
-The first time you run the command, it will download the model and cache
-it in ``$NIM_CACHE_PATH`` so subsequent deployments are even faster. There
-are several options to configure NIM other than the ones listed above,
-and you can find a full list in `NIM
-configuration <https://docs.nvidia.com/nim/large-language-models/latest/configuration.html>`__
-documentation.
+The first time you run the command, it will download the model and cache it in ``$NIM_CACHE_PATH`` so subsequent deployments are even faster. There are several options to configure NIM other than the ones listed above, and you can find a full list in `NIM configuration <https://docs.nvidia.com/nim large-language-models/latest/configuration.html>`__ documentation.
 
 4. Start the notebook
 ^^^^^^^^^^^^^^^^^^^^^
 
 From another terminal, follow the same instructions as the previous
 notebook to launch Jupyter Lab, and navigate to `this
-notebook <./llama3-lora-deploy-nim.ipynb>`__. 
+notebook <./llama3-lora-deploy-nim.ipynb>`__.
 
 You may use the same NeMo
 Framework docker container which already has Jupyter Lab installed.
