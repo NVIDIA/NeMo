@@ -220,7 +220,6 @@ def model_to_trtllm_ckpt(
 
         config["gpus_per_node"] = gpus_per_node
         model_config = PretrainedConfig(**config)
-
         model_config.mapping = mapping
         model_configs.append(model_config)
         weights_dicts.append(weights_dict_local)
