@@ -661,7 +661,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
     def update_max_seq_length(self, seq_length: int, device):
         # Find global max audio length across all nodes
-        if torch.distributed.is_initialized() and (not getattr(self, 'disable_torch_distributed', False)):
+        if torch.distributed.is_initialized():
             global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
 
             # Update across all ranks in the distributed system
@@ -679,7 +679,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         """
         self.max_audio_length = max_audio_length
         device = next(self.parameters()).device
-        self.pos_enc.extend_pe(max_audio_length, device)
+        dtype = next(self.parameters()).dtype
+        self.pos_enc.extend_pe(max_audio_length, device, dtype)
 
     def _create_masks(self, att_context_size, padding_length, max_audio_length, offset, device):
         if self.self_attention_model != "rel_pos_local_attn":

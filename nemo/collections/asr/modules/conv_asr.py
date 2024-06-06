@@ -85,7 +85,8 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports."""
+        """Returns definitions of module input ports.
+        """
         return OrderedDict(
             {
                 "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
@@ -95,7 +96,8 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports."""
+        """Returns definitions of module output ports.
+        """
         return OrderedDict(
             {
                 "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
@@ -200,7 +202,7 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
 
     def update_max_sequence_length(self, seq_length: int, device):
         # Find global max audio length across all nodes
-        if torch.distributed.is_initialized() and (not getattr(self, 'disable_torch_distributed', False)):
+        if torch.distributed.is_initialized():
             global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
 
             # Update across all ranks in the distributed system
@@ -271,7 +273,8 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports."""
+        """Returns definitions of module input ports.
+        """
         return OrderedDict(
             {
                 "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
@@ -281,7 +284,8 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports."""
+        """Returns definitions of module output ports.
+        """
         return OrderedDict(
             {
                 "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
@@ -397,10 +401,10 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
 class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin):
     """Simple ASR Decoder for use with CTC-based models such as JasperNet and QuartzNet
 
-    Based on these papers:
-       https://arxiv.org/pdf/1904.03288.pdf
-       https://arxiv.org/pdf/1910.10261.pdf
-       https://arxiv.org/pdf/2005.04290.pdf
+     Based on these papers:
+        https://arxiv.org/pdf/1904.03288.pdf
+        https://arxiv.org/pdf/1910.10261.pdf
+        https://arxiv.org/pdf/2005.04290.pdf
     """
 
     @property
@@ -498,7 +502,8 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
 
 
 class ConvASRDecoderReconstruction(NeuralModule, Exportable):
-    """ASR Decoder for reconstructing masked regions of spectrogram"""
+    """ASR Decoder for reconstructing masked regions of spectrogram
+    """
 
     @property
     def input_types(self):
@@ -618,8 +623,8 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
 class ConvASRDecoderClassification(NeuralModule, Exportable):
     """Simple ASR Decoder for use with classification models such as JasperNet and QuartzNet
 
-    Based on these papers:
-       https://arxiv.org/pdf/2005.04290.pdf
+     Based on these papers:
+        https://arxiv.org/pdf/2005.04290.pdf
     """
 
     def input_example(self, max_batch=1, max_dim=256):
@@ -700,7 +705,8 @@ class ECAPAEncoder(NeuralModule, Exportable):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports."""
+        """Returns definitions of module input ports.
+        """
         return OrderedDict(
             {
                 "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
@@ -710,7 +716,8 @@ class ECAPAEncoder(NeuralModule, Exportable):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports."""
+        """Returns definitions of module output ports.
+        """
         return OrderedDict(
             {
                 "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
@@ -846,11 +853,7 @@ class SpeakerDecoder(NeuralModule, Exportable):
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
     def affine_layer(
-        self,
-        inp_shape,
-        out_shape,
-        learn_mean=True,
-        affine_type='conv',
+        self, inp_shape, out_shape, learn_mean=True, affine_type='conv',
     ):
         if affine_type == 'conv':
             layer = nn.Sequential(
@@ -916,16 +919,12 @@ class ConvASREncoderAdapter(ConvASREncoder, adapter_mixins.AdapterModuleMixin):
         cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=block.planes)
         return cfg
 
-    def get_accepted_adapter_types(
-        self,
-    ) -> Set[type]:
+    def get_accepted_adapter_types(self,) -> Set[type]:
         types = super().get_accepted_adapter_types()
 
         if len(types) == 0:
             self.set_accepted_adapter_types(
-                [
-                    adapter_utils.LINEAR_ADAPTER_CLASSPATH,
-                ]
+                [adapter_utils.LINEAR_ADAPTER_CLASSPATH,]
             )
             types = self.get_accepted_adapter_types()
         return types
