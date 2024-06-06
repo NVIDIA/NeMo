@@ -12,20 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import OrderedDict
 from typing import List, Optional, Tuple
 
 import torch
 import torch.distributed
 import torch.nn as nn
-from omegaconf import DictConfig, open_dict
 
-from nemo.collections.asr.models import EncDecSpeakerLabelModel
-from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
+from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor, ConformerEncoder, SpectrogramAugmentation
 from nemo.core.classes import Exportable, NeuralModule
-from nemo.core.classes.common import typecheck
 from nemo.core.classes.mixins import AccessMixin
-from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
+from nemo.utils import logging
 
 
 class Aggregator(nn.Module):
@@ -75,10 +71,15 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
         super().__init__()
         self.encoder = encoder
         self.aggregator = aggregator
-        self.layer_idx_list = [int(l) for l in layer_idx_list]
+        self.layer_idx_list = (
+            [int(l) for l in layer_idx_list]
+            if layer_idx_list is not None
+            else [i for i in range(len(self.encoder.layers))]
+        )
         for x in self.layer_idx_list:
             if x < 0 or x >= len(self.encoder.layers):
                 raise ValueError(f"layer index {x} out of range [0, {len(self.encoder.layers)})")
+        logging.info(f"Extracting features from layers {self.layer_idx_list}")
         self.access_cfg = {
             "interctc": {"capture_layers": self.layer_idx_list,},
             "detach": False,
@@ -130,11 +131,11 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
 class ConformerMultiLayerFeaturePreprocessor(NeuralModule, Exportable, AccessMixin):
     def __init__(
         self,
-        layer_idx_list: List[int],
-        aggregator,
-        preprocessor,
-        encoder,
+        aggregator: nn.Module,
+        preprocessor: AudioToMelSpectrogramPreprocessor,
+        encoder: ConformerEncoder,
         spec_augment=None,
+        layer_idx_list: Optional[List[int]] = None,
         freeze_encoder: bool = True,
     ):
         super().__init__()

@@ -127,11 +127,11 @@ if __name__ == "__main__":
     fpr, tpr, thresholds = roc_curve(y, y_score, pos_label=1)
     auroc = roc_auc_score(y_true=y, y_score=y_score)
 
-    eer = brentq(lambda x: 1.0 - x - interp1d(fpr, tpr)(x), 0.0, 1.0)
+    # eer = brentq(lambda x: 1.0 - x - interp1d(fpr, tpr)(x), 0.0, 1.0)
 
     fnr = 1 - tpr
     eer_threshold = thresholds[np.nanargmin(np.absolute((fnr - fpr)))]
-    EER = fpr[np.nanargmin(np.absolute((fnr - fpr)))]
+    eer = fpr[np.nanargmin(np.absolute((fnr - fpr)))]
 
     min_dcf, min_c_det_threshold = compute_MinDcf(
         fnrs=fnr, fprs=fpr, thresholds=thresholds, p_target=0.01, c_miss=1, c_fa=1
