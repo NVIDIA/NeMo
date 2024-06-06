@@ -28,8 +28,8 @@ import zarr
 from torch.distributed.checkpoint import FileSystemReader
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
-from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.export.tarutils import TarPath, ZarrPathStore
 
 LOGGER = logging.getLogger("NeMo")
 
