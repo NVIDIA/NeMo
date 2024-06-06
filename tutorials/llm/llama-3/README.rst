@@ -4,7 +4,7 @@ Llama 3 LoRA fine-tuning and deployment with NeMo Framework and NVIDIA NIM
 `Llama 3 <https://blogs.nvidia.com/blog/meta-llama3-inference-acceleration/>`_ 
 is an open source large language model by Meta that delivers
 state-of-the-art performance on popular industry benchmarks. It has been
-pretrained on over 15 trillion tokens, and supports 8K context length.
+pretrained on over 15 trillion tokens, and supports an 8K token context length.
 It is available in two sizes: 8B and 70B, and it has two variants for
 each size - base pretrained and instruction tuned.
 
@@ -106,18 +106,19 @@ the other adapters downloaded from NGC.
 1. Download example LoRA adapters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The following steps assume that you have authenticated with NGC and
-downloaded the CLI tool, as mentioned in pre-requisites.
+The following steps assume that you have authenticated with NGC and downloaded the CLI tool, as mentioned in pre-requisites.
 
 .. code:: bash
 
    # Set path to your LoRA model store
-   export LOCAL_PEFT_DIRECTORY="./loras"
+   export LOCAL_PEFT_DIRECTORY="$(pwd)/loras"
+
+
+.. code:: bash
+
    mkdir -p $LOCAL_PEFT_DIRECTORY
    pushd $LOCAL_PEFT_DIRECTORY
 
-
-   cd $LORA_MODEL_STORE
    # downloading NeMo-format loras
    ngc registry model download-version "nim/meta/llama3-8b-instruct-lora:nemo-math-v1"
    ngc registry model download-version "nim/meta/llama3-8b-instruct-lora:nemo-squad-v1"
@@ -128,21 +129,7 @@ downloaded the CLI tool, as mentioned in pre-requisites.
 2. Prepare the LoRA model store
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Ensure that the the LoRA model store directory has a structure like so -
-with the name of the model as a sub-folder that contains the .nemo file.
-
-::
-
-   </path/to/LoRA-model-store>
-   ├── llama3-8b-instruct-lora_vnemo-math-v1
-   │   └── llama3_8b_math.nemo
-   ├── llama3-8b-instruct-lora_vnemo-squad-v1
-   │   └── llama3_8b_squad.nemo
-   └── llama3-8b-pubmed-qa
-       └── megatron_gpt_peft_lora_tuning.nemo
-
-The last one was just trained on the PubmedQA dataset in the previous
-notebook. After training is complete, that LoRA model checkpoint will be
+After training is complete, that LoRA model checkpoint will be
 created at
 ``./results/Meta-Llama-3-8B-Instruct/checkpoints/megatron_gpt_peft_lora_tuning.nemo``,
 assuming default paths in the first notebook weren’t modified.
@@ -157,6 +144,24 @@ To ensure model store is organized as expected, create a folder named
    # Ensure the source path is correct
    cp ./results/Meta-Llama-3-8B-Instruct/checkpoints/megatron_gpt_peft_lora_tuning.nemo $LOCAL_PEFT_DIRECTORY/llama3-8b-pubmed-qa 
 
+
+
+The LoRA model store directory should have a structure like so - with the name of the model as a sub-folder that contains the .nemo file.
+
+::
+
+   <$LOCAL_PEFT_DIRECTORY>
+   ├── llama3-8b-instruct-lora_vnemo-math-v1
+   │   └── llama3_8b_math.nemo
+   ├── llama3-8b-instruct-lora_vnemo-squad-v1
+   │   └── llama3_8b_squad.nemo
+   └── llama3-8b-pubmed-qa
+       └── megatron_gpt_peft_lora_tuning.nemo
+
+The last one was just trained on the PubmedQA dataset in the previous
+notebook.
+
+
 3. Set-up NIM
 ^^^^^^^^^^^^^
 
@@ -166,17 +171,15 @@ mounting the LoRA model store, as follows:
 .. code:: bash
 
    export NGC_API_KEY=<YOUR_NGC_API_KEY>
-   export LOCAL_PEFT_DIRECTORY=</path/to/LoRA-model-store>
-   chmod -R 777 $LOCAL_PEFT_DIRECTORY
-
    export NIM_PEFT_SOURCE=/home/nvs/loras # Path to LoRA models internal to the container
    export NIM_PEFT_REFRESH_INTERVAL=3600  # (in seconds) will check NIM_PEFT_SOURCE for newly added models in this interval
+   export NIM_CACHE_PATH=</path/to/LoRA-model-store-cache>  # Model artifacts (in container) are cached here
    export CONTAINER_NAME=meta-llama3-8b-instruct
 
-   export NIM_CACHE_PATH=</path/to/LoRA-model-store-cache>  # Processed LoRA models will be stored here
+
+.. code:: bash
    mkdir -p $NIM_CACHE_PATH
    chmod -R 777 $NIM_CACHE_PATH
-
 
    docker run -it --rm --name=$CONTAINER_NAME \
        --runtime=nvidia \
