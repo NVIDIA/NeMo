@@ -320,29 +320,21 @@ class GPTSFTDataset(Dataset):
                 for i, (ids, key) in enumerate(zip(template_ids, template_ids_keys)):
                     if key in self.truncation_fields:
                         truncation_length = truncation_length_list.pop()
-                        if len(ids) < truncation_length:
+                        if len(ids) < truncation_length: 
                             logging.warning(f'{key} is not long enough to truncate.')
                             truncation_length = len(ids)
-
-                        if self.truncation_method == 'left':
-                            window_offset = truncation_length
-                        elif self.truncation_method == 'right':
-                            window_offset = 0
-                        else:
-                            raise ValueError(f'{self.truncation_method} is not supported')
-
-                        window_length = len(ids) - truncation_length
-                        template_ids[i] = ids[window_offset : window_offset + window_length]
-            else:
-                # If truncation_field is empty, we truncate template_ids (List[List[int]]) to make total ids < self.max_seq_length.
-                logging.warning(
-                    f'`truncation_field` is empty, we truncate input from {self.truncation_method} based on truncation_method.'
-                )
+                        
+                        truncation_length_total -= truncation_length
+                        template_ids[i] = self._truncation(ids, len(ids) - truncation_length)
+                        
+            if truncation_length_total > 0:
                 template_ids_lengths = [len(ids) for ids in template_ids]
                 if self.truncation_method == 'left':
                     iters = range(0, len(template_ids_lengths), 1)
                 elif self.truncation_method == 'right':
                     iters = range(len(template_ids_lengths) - 1, -1, -1)
+                    # Leave space for tokens_to_generate.
+                    truncation_length_total += min(len(label_ids), self.tokens_to_generate)
                 else:
                     raise ValueError(f'{self.truncation_method} is not supported')
 
@@ -350,32 +342,27 @@ class GPTSFTDataset(Dataset):
                 for i in iters:
                     if template_ids_lengths[i] >= truncation_length_total:
                         template_ids_lengths[i] -= truncation_length_total
-                        if self.truncation_method == 'left':
-                            template_ids[i] = template_ids[i][-template_ids_lengths[i] :]
-                        elif self.truncation_method == 'right':
-                            template_ids[i] = template_ids[i][: template_ids_lengths[i]]
-                        else:
-                            raise ValueError(f'{self.truncation_method} is not supported')
+                        template_ids[i] = self._truncation(template_ids[i], template_ids_lengths[i])
                         break
                     else:
                         truncation_length_total -= template_ids_lengths[i]
                         template_ids_lengths[i] = 0
-                        template_ids[i] = []
-
+                        template_ids[i] = self._truncation(template_ids[i], template_ids_lengths[i])
+            
         context_ids = [i for ids in template_ids[:-1] for i in ids]
         label_ids = template_ids[-1]
-        
-        # Leave space for generating tokens.
-        if len(context_ids) + max(len(label_ids), self.tokens_to_generate) > self.max_seq_length:
-            if self.truncation_method == 'left':
-                context_ids = context_ids[-(self.max_seq_length - max(len(label_ids), self.tokens_to_generate)):]
-            elif self.truncation_method == 'right':
-                context_ids = context_ids[:self.max_seq_length - max(len(label_ids), self.tokens_to_generate)]
-            else:
-                raise ValueError(f'{self.truncation_method} is not supported')
-        
         return context_ids, label_ids
-
+    
+    def _truncation(self, ids, expect_length):
+        if expect_length == 0:
+            return []
+        elif self.truncation_method == 'left':
+            return ids[-expect_length:]
+        elif self.truncation_method == 'right':
+            return ids[:expect_length]
+        else:
+            raise ValueError(f'{self.truncation_method} is not supported')
+    
     def _process_example(self, example):
         """
         Create an example by concatenating text and answer.
@@ -415,18 +402,7 @@ class GPTSFTDataset(Dataset):
         # Only training need to consider eos token
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
-
-        if len(input_ids) > self.max_seq_length:
-            # this only happens if tuncation_field is not enough to truncate.
-            # context_ids can be empty if we truncate contexts.
-            # answer_ids can be empty if we truncate answers.
-            logging.warning(
-                f'After truncation, input ids length {len(input_ids)} still exceeds max sequence length {self.max_seq_length}'
-            )
-            context_ids = context_ids[: self.max_seq_length]
-            input_ids = input_ids[: self.max_seq_length]
-            answer_ids = input_ids[len(context_ids) :]
-
+        
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in self.prompt_template_keys}
         if self.output_original_text:
