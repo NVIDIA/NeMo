@@ -100,6 +100,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     with:
       RUNNER: self-hosted-azure
+      TIMEOUT: 30
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
       IS_OPTIONAL: true
