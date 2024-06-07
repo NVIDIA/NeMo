@@ -285,11 +285,6 @@ class MegatronLLMDeployable(ITritonDeployable):
                                 dtype=item.dtype,
                                 device='cuda',
                             )
-                            print("catting two tensors")
-                            print(item.size())
-                            print(item)
-                            print(pad_tensor.size())
-                            print(pad_tensor)
                             padded_item = torch.cat((item, pad_tensor))
                             value[index] = padded_item
                         else:
