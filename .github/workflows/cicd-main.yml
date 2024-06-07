@@ -89,8 +89,8 @@ jobs:
           python setup.py style
           python tests/check_copyright_header.py --dir .
 
-        # These checks are not crucial
-        exit 0
+          # These checks are not crucial
+          exit 0
         '
         ### \'\'
 
