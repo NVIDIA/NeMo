@@ -152,7 +152,10 @@ class SaveRestoreConnector:
                     # can be str path or OmegaConf / DictConfig object
                     config_yaml = override_config_path
                 if not isinstance(config_yaml, (OmegaConf, DictConfig)):
-                    conf = OmegaConf.load(config_yaml)
+                    try:
+                        conf = OmegaConf.load(config_yaml)
+                    except:
+                        conf = OmegaConf.load('/home/workspace/chatusd/tmp_conf/model_config.yaml')
                 else:
                     conf = config_yaml
                     if override_config_path is not None:
@@ -391,7 +394,7 @@ class SaveRestoreConnector:
         # this is the case when artifact must be retried from the nemo file
         # we are assuming that the location of the right nemo file is available from _MODEL_RESTORE_PATH
         elif src.startswith("nemo:"):
-            return_path = os.path.abspath(os.path.join(app_state.nemo_file_folder, src[5:]))
+            return_path = os.path.abspath(os.path.join('/checkpoints/nemo/nemotron_15b_nemo', src[5:]))#app_state.nemo_file_folder, src[5:]))
             artifact_item.path_type = model_utils.ArtifactPathType.TAR_PATH
 
         # backward compatibility implementation
