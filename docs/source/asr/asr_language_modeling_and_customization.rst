@@ -167,7 +167,7 @@ The following is the list of the important arguments for the evaluation script:
 | cuda                                 | str      | None             | The device to load the model onto to calculate log probabilities.       |
 |                                      |          |                  | It can be `None`, `-1` for `cpu`, 0 for `cuda:0`, `1` for `cuda:1`, ... |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| ctc_decoding                         | Dict     | BeamCTC          | Subdict of CTC beam search configs. Values found via                    |
+| ctc_decoding                         | Dict     | CTCDecodingConfig| Subdict of CTCDecodingConfig configs. Values found via                  |
 |                                      | Config   | InferConfig      | python eval_beamsearch_ngram.py --help                                  |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | ctc_decoding.strategy                | str      | beam             | String argument for type of decoding strategy for the model.            |
@@ -178,11 +178,11 @@ The following is the list of the important arguments for the evaluation script:
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | ctc_decoding.beam.beam_beta          | float    | Required         | List of the beta parameter for the beam search decoding.                |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| beam_batch_size                      | int      | 128              | The batch size to be used for beam search decoding.                     |
+| beam_batch_size                      | int      | 1                | The batch size to be used for beam search decoding.                     |
 |                                      |          |                  | Larger batch size can be a little faster, but uses larger memory.       |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| text_processing                      | bool     | ``False``        | Subdict of TextProcessingConfig.                                        |
-|                                      |          |                  | Values found via python eval_beamsearch_ngram.py --help                 |
+| text_processing                      | Dict     |TextProcessingConfig| Subdict of TextProcessingConfig.                                      |
+|                                      | Config   |                  | Values found via python eval_beamsearch_ngram.py --help                 |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 
 Width of the beam search (`ctc_decoding.beam.beam_size`) specifies the number of top candidates/predictions the beam search decoder
