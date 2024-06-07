@@ -876,8 +876,7 @@ class SpeakerDecoder(NeuralModule, Exportable):
         embs = []
 
         for layer in self.emb_layers:
-            emb = layer[: self.emb_id](pool)
-            pool = layer(pool)
+            pool, emb = layer(pool), layer[: self.emb_id](pool)
             embs.append(emb)
 
         pool = pool.squeeze(-1)

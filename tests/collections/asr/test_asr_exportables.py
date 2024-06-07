@@ -144,7 +144,7 @@ class TestExportable:
         with tempfile.TemporaryDirectory() as tmpdir:
             fn = 'citri_rnnt.onnx'
             filename = os.path.join(tmpdir, fn)
-            files, descr = model.export(output=filename, dynamic_axes={}, verbose=False)
+            files, descr = model.export(output=filename, verbose=False)
 
             encoder_filename = os.path.join(tmpdir, 'encoder-' + fn)
             assert files[0] == encoder_filename

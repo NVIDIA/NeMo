@@ -1005,7 +1005,7 @@ class typecheck:
         self.ignore_collections = ignore_collections
 
     def __call__(self, wrapped):
-        return self.unwrapped_call(wrapped) if is_typecheck_enabled() else self.unwrapped_call(wrapped)
+        return self.wrapped_call(wrapped) if is_typecheck_enabled() else self.unwrapped_call(wrapped)
 
     def unwrapped_call(self, wrapped):
         return wrapped
@@ -1128,7 +1128,6 @@ class typecheck:
     def enable_wrapping(enabled: bool = True):
         typecheck.set_typecheck_enabled(enabled)
         if enabled:
-            typecheck.__call__.__code__ = nemo.core.classes.common.typecheck.wrapped_call.__code__
+            typecheck.__call__ = nemo.core.classes.common.typecheck.wrapped_call
         else:
-            typecheck.__call__.__code__ = nemo.core.classes.common.typecheck.unwrapped_call.__code__
-        print(typecheck.__call__)
+            typecheck.__call__ = nemo.core.classes.common.typecheck.unwrapped_call

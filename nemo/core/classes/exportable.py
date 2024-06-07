@@ -14,7 +14,6 @@
 from abc import ABC
 from typing import Dict, List, Optional, Union
 
-import onnx
 import torch
 from pytorch_lightning.core.module import _jit_is_scripting
 
@@ -125,6 +124,7 @@ class Exportable(ABC):
                 check_tolerance=check_tolerance,
                 export_modules_as_functions=export_modules_as_functions,
                 keep_initializers_as_inputs=keep_initializers_as_inputs,
+                use_dynamo=use_dynamo,
             )
             # Propagate input example (default scenario, may need to be overriden)
             if input_example is not None:
@@ -166,7 +166,7 @@ class Exportable(ABC):
 
         # Pytorch's default opset version is too low, using reasonable latest one
         if onnx_opset_version is None:
-            onnx_opset_version = 16
+            onnx_opset_version = 17
 
         try:
             # Disable typechecks
@@ -225,15 +225,15 @@ class Exportable(ABC):
                         dynamic_axes = get_dynamic_axes(self.input_module.input_types_for_export, input_names)
                         if use_dynamo:
                             dynamic_shapes = {}
-                            batch = torch.export.Dim("batch", max=128)
+                            batch = torch.export.Dim("batch")
                             for name, dims in dynamic_axes.items():
                                 ds = {}
                                 for d in dims:
                                     if d == 0:
                                         ds[d] = batch
-                                    # this currently fails, https://github.com/pytorch/pytorch/issues/126127
-                                    # else:
-                                    #     ds[d] = torch.export.Dim(name + '__' + str(d))
+                                    # this currently has issues: https://github.com/pytorch/pytorch/issues/126127
+                                    else:
+                                        ds[d] = torch.export.Dim(name + '__' + str(d))
                                 dynamic_shapes[name] = ds
                     else:
                         dynamic_shapes = dynamic_axes
@@ -245,18 +245,8 @@ class Exportable(ABC):
 
                         # https://github.com/pytorch/pytorch/issues/126339
                         with monkeypatched(torch.nn.RNNBase, "flatten_parameters", lambda *args: None):
-                            logging.info("Running export.export, dynamic shapes:{dynamo_export}\n")
+                            logging.info(f"Running export.export, dynamic shapes:{dynamic_shapes}\n")
 
-                            ex_model = torch.export.export(
-                                self,
-                                tuple(input_list),
-                                kwargs=input_dict,
-                                dynamic_shapes=dynamic_shapes,
-                                strict=False,
-                            )
-                            ex_model = ex_model.run_decompositions()
-
-                            options = torch.onnx.ExportOptions(dynamic_shapes=True, op_level_debug=True)
                             # We have to use different types of arguments for dynamo_export to achieve
                             # same external weights behaviour as onnx.export :
                             # https://github.com/pytorch/pytorch/issues/126479
@@ -266,10 +256,20 @@ class Exportable(ABC):
                             mem = mem_params + mem_bufs
 
                             if mem > 2 * 1000 * 1000 * 1000:
+                                ex_model = torch.export.export(
+                                    self,
+                                    tuple(input_list),
+                                    kwargs=input_dict,
+                                    dynamic_shapes=dynamic_shapes,
+                                    strict=False,
+                                )
+                                ex_model = ex_model.run_decompositions()
                                 model_state = ex_model.state_dict
                             else:
                                 model_state = None
-                                ex_model = ex_model.module()
+                                ex_model = self
+
+                            options = torch.onnx.ExportOptions(dynamic_shapes=True, op_level_debug=True)
                             ex = torch.onnx.dynamo_export(ex_model, *input_list, **input_dict, export_options=options)
                             ex.save(output, model_state=model_state)
 
@@ -277,7 +277,6 @@ class Exportable(ABC):
                             del ex_model
                             # Rename I/O after save - don't want to risk modifying ex._model_proto
                             rename_onnx_io(output, input_names, output_names)
-                            # input_names=None
                     else:
                         torch.onnx.export(
                             self,

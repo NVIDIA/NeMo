@@ -500,8 +500,8 @@ def rename_onnx_io(output, input_names, output_names):
             if n.output[out] in rename_map:
                 n.output[out] = rename_map[n.output[out]]
 
-    for i in range(len(onnx_model.graph.input)):
+    for i in range(len(input_names)):
         onnx_model.graph.input[i].name = input_names[i]
-    for i in range(len(onnx_model.graph.output)):
+    for i in range(len(output_names)):
         onnx_model.graph.output[i].name = output_names[i]
     onnx.save(onnx_model, output)
