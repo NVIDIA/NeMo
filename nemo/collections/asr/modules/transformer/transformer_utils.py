@@ -113,7 +113,14 @@ def get_nemo_transformer(
         else:
             raise ValueError(f"Unknown arch = {arch}")
     else:
-        model = TransformerDecoderNM(
+
+        class_ = TransformerDecoderNM
+
+        if cfg.get('adapter', False):
+            from nemo.core.classes.mixins.adapter_mixins import get_registered_adapter
+            class_ = get_registered_adapter(TransformerDecoderNM).adapter_class
+
+        model = class_(
             vocab_size=cfg.get('vocab_size'),
             hidden_size=cfg.get('hidden_size'),
             num_layers=cfg.get('num_layers'),

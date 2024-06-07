@@ -35,7 +35,7 @@ REL_POS_ENCODING_ADAPTER_CLASSPATH = (
 )
 
 # Transformer Adapters
-TRANSFORMER_ENCODER_MHA_ADAPTER_CLASSPATH = "nemo.collections.asr.parts.submodules.adapters.transformer_multi_head_attention_adapter_module.TransformerEncoderMultiHeadAttentionAdapter"
+TRANSFORMER_MHA_ADAPTER_CLASSPATH = "nemo.collections.asr.parts.submodules.adapters.transformer_multi_head_attention_adapter_module.TransformerEncoderMultiHeadAttentionAdapter"
 
 
 def convert_adapter_cfg_to_dict_config(cfg: DictConfig):

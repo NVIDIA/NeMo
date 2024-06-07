@@ -367,6 +367,7 @@ def multitask_model(test_data_dir):
             "hidden_act": "relu",
             "pre_ln": True,
             "vocab_size": None,  # Will be set by the model at runtime
+            "adapter": True,  # Add support for adapter class
         },
     }
 
@@ -596,7 +597,7 @@ class TestASRAdapterMixin:
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('name', ['adapter_0', 'encoder:adapter_0', 'transf_encoder:adapter_0'])
+    @pytest.mark.parametrize('name', ['adapter_0', 'encoder:adapter_0', 'transf_encoder:adapter_0', 'transf_decoder:adapter_0'])
     def test_canary_forward_mha(self, multitask_model, name):
         multitask_model.eval()
         torch.random.manual_seed(0)
@@ -635,6 +636,34 @@ class TestASRAdapterMixin:
             multitask_model.add_adapter(
                 name="transf_encoder:adapter_1", cfg=get_adapter_cfg(in_features=128, atype='mha')
             )
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('name',
+                             ['transf_decoder:adapter_0'])
+    def test_canary_forward_mha_decoder_fails_without_support(self, multitask_model, name):
+        multitask_model.eval()
+        torch.random.manual_seed(0)
+        input_signal = torch.randn(2, 512)
+        input_signal_length = torch.tensor([512, 512], dtype=torch.int32)
+        transcript = torch.randint(0, multitask_model.tokenizer.vocab_size, size=(2, 10))
+        transcript_len = torch.tensor([10, 9], dtype=torch.int32)
+
+        origial_output = multitask_model(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            transcript=transcript,
+            transcript_length=transcript_len,
+        )
+        og_logprob = origial_output[0]
+        og_enc_out = origial_output[2]
+
+        # Change internal class of transf_decoder module
+        adapter_class = multitask_model.transf_decoder.__class__
+        multitask_model.transf_decoder.__class__ = get_registered_adapter(adapter_class).base_class
+
+        with pytest.raises(AttributeError):
+            adapter_type = 'transf_mha' if 'transf' in name else 'mha'
+            multitask_model.add_adapter(name=name, cfg=get_adapter_cfg(in_features=128, atype=adapter_type))
 
     @pytest.mark.unit
     @pytest.mark.parametrize('name1', ['adapter_0', 'encoder:adapter_0', 'decoder:adapter_0'])

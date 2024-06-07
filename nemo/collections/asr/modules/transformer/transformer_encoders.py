@@ -149,6 +149,20 @@ class TransformerEncoderBlock(nn.Module, AttentionAdapterModuleMixin):
             return self.forward_postln(encoder_query, encoder_mask, encoder_keys)
 
 
+    def get_accepted_adapter_types(self) -> Set[type]:
+        types = super().get_accepted_adapter_types()
+
+        if len(types) == 0:
+            self.set_accepted_adapter_types(
+                [
+                    adapter_utils.LINEAR_ADAPTER_CLASSPATH,
+                    adapter_utils.TRANSFORMER_MHA_ADAPTER_CLASSPATH,
+                ]
+            )
+            types = self.get_accepted_adapter_types()
+        return types
+
+
 class TransformerEncoder(nn.Module):
     def __init__(
         self,
@@ -230,7 +244,6 @@ class TransformerEncoderAdapter(TransformerEncoder, adapter_mixins.AdapterModule
 
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):
-        self.check_supported_adapter_type_(cfg)
         cfg = self._update_adapter_cfg_input_dim(cfg)
         for transformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
             transformer_layer.add_adapter(name, cfg)
@@ -253,19 +266,6 @@ class TransformerEncoderAdapter(TransformerEncoder, adapter_mixins.AdapterModule
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
         cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
         return cfg
-
-    def get_accepted_adapter_types(self) -> Set[type]:
-        types = super().get_accepted_adapter_types()
-
-        if len(types) == 0:
-            self.set_accepted_adapter_types(
-                [
-                    adapter_utils.LINEAR_ADAPTER_CLASSPATH,
-                    adapter_utils.TRANSFORMER_ENCODER_MHA_ADAPTER_CLASSPATH,
-                ]
-            )
-            types = self.get_accepted_adapter_types()
-        return types
 
 
 """
