@@ -318,9 +318,7 @@ class MegatronBaseModel(NLPModel):
 
     def get_model_module_list(self):
         def extract_module(model):
-            if isinstance(model, McoreDDP):
-                return extract_module(model.module)
-            elif isinstance(model, (Float16Module, MCoreFloat16Module)):
+            if isinstance(model, (McoreDDP, Float16Module, MCoreFloat16Module)):
                 return extract_module(model.module)
             else:
                 return model
