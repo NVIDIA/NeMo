@@ -63,6 +63,7 @@ class MHAResidualAddAdapterStrategy(adapter_mixin_strategies.ResidualAddAdapterS
             out = self.apply_stochastic_depth(out, input['value'], adapter, module=module)
 
         # Return the residual connection output = input + adapter(input)
+        print("Out", out.shape, "Input", input['value'].shape)
         result = input['value'] + out
 
         # If l2_lambda is activated, register the loss value
@@ -390,3 +391,4 @@ class RelPositionalEncodingAdapterConfig:
         default_factory=lambda: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
     )
     _target_: str = "{0}.{1}".format(RelPositionalEncodingAdapter.__module__, RelPositionalEncodingAdapter.__name__)
+

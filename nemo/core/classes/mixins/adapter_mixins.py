@@ -15,7 +15,7 @@
 import inspect
 from abc import ABC
 from dataclasses import dataclass, is_dataclass
-from typing import List, Optional, Set, Tuple, Union
+from typing import List, Optional, Set, Tuple, Union, Iterable
 
 import torch
 import torch.nn as nn
@@ -171,21 +171,7 @@ class AdapterModuleMixin(ABC):
             cfg = DictConfig(cfg)
 
         adapter_types = self.get_accepted_adapter_types()
-        _pass_types = False
-        if len(adapter_types) > 0:
-            test = model_utils.import_class_by_path(cfg._target_)
-            for _type in adapter_types:
-                # TODO: (@adithyare) should revisit if subclass is the best check...
-                if issubclass(test, _type):
-                    _pass_types = True
-                    break
-            if not _pass_types:
-                raise ValueError(
-                    f"Config: \n{OmegaConf.to_yaml(cfg)}\n"
-                    f"It creates adapter class {test} \n"
-                    f"that is not in the list of accepted adapter types.\n"
-                    f"Accepted adapters: {[t for t in adapter_types]}"
-                )
+        self.check_supported_adapter_type_(cfg, adapter_types)
 
         # Convert to DictConfig from dict or Dataclass
         if is_dataclass(cfg):
@@ -542,6 +528,34 @@ class AdapterModuleMixin(ABC):
         # (input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin')
         output = adapter_strategy(input, adapter_module, module=self)
         return output
+
+    def check_supported_adapter_type_(self, adapter_cfg: DictConfig,
+                                      supported_adapter_types: Optional[Iterable[type]] = None):
+        """
+        Utility method to check if the adapter module is a supported type by the module.
+
+        This method should be called by the subclass to ensure that the adapter module is a supported type.
+        """
+        _pass_types = False
+
+        if supported_adapter_types is None:
+            supported_adapter_types = self.get_accepted_adapter_types()
+
+        if len(supported_adapter_types) > 0:
+            test = model_utils.import_class_by_path(adapter_cfg['_target_'])
+            for _type in supported_adapter_types:
+                # TODO: (@adithyare) should revisit if subclass is the best check...
+                if issubclass(test, _type):
+                    _pass_types = True
+                    break
+
+            if not _pass_types:
+                raise ValueError(
+                    f"Config: \n{OmegaConf.to_yaml(adapter_cfg)}\n"
+                    f"It creates adapter class {test} \n"
+                    f"that is not in the list of accepted adapter types.\n"
+                    f"Accepted adapters: {[t for t in supported_adapter_types]}"
+                )
 
 
 class AdapterModelPTMixin(AdapterModuleMixin):
@@ -982,6 +996,22 @@ class AdapterModelPTMixin(AdapterModuleMixin):
 
         Returns:
             A list of str, one for each of the adapter modules that are supported. By default, the subclass
-            should support the "global adapter" ('').
+            should support the "default adapter" ('').
         """
         return ['']
+
+    @property
+    def default_adapter_module_name(self) -> Optional[str]:
+        """
+        Name of the adapter module that is used as "default" if a name of '' is provided.
+
+        .. note::
+
+            Subclasses should override this property and return a str name of the module
+            that they wish to denote as the default.
+
+        Returns:
+            A str name of a module, which is denoted as 'default' adapter or None. If None, then no default
+            adapter is supported.
+        """
+        return None

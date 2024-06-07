@@ -24,3 +24,7 @@ from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter
     RelPositionMultiHeadAttentionAdapter,
     RelPositionMultiHeadAttentionAdapterConfig,
 )
+from nemo.collections.asr.parts.submodules.adapters.transformer_multi_head_attention_adapter_module import (
+    TransformerEncoderMultiHeadAttentionAdapter,
+    TransformerEncoderMultiHeadAttentionAdapterConfig,
+)
