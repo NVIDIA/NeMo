@@ -629,15 +629,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             buckets.reverse()
             used_params = set(itertools.chain.from_iterable(buckets))
             buckets[-1].extend(p for p in self.parameters() if p not in used_params)
-
-            # Merge buckets if needed
-            if self.cfg.get('distributed_adam_bucket_merge_size', 1) > 1:
-                stride = self.cfg.get('distributed_adam_bucket_merge_size', 1)
-                buckets = [
-                    list(itertools.chain.from_iterable(buckets[i:i+stride]))
-                    for i in range(0, len(buckets), stride)
-                ]
-
             self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
