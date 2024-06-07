@@ -13,6 +13,11 @@ from typing_extensions import Self, override
 
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
+from megatron.core import mpu
+import os
+
+from nemo.utils.callbacks.torch_dist_async import TorchDistAsyncSaveShardedStrategy
+from megatron.core.dist_checkpointing.strategies.zarr import ZarrSaveShardedStrategy
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.strategies import MegatronStrategy
@@ -95,7 +100,15 @@ class MegatronCheckpointIO(CheckpointIO):
             logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
             return
         fs.makedirs(checkpoint_dir, exist_ok=True)
-        dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=str(checkpoint_dir))
+
+        ## TODO: compare with nemo 1.0
+        dist_checkpointing.save(
+            checkpoint,
+            checkpoint_dir=str(checkpoint_dir),
+            #sharded_strategy=TorchDistAsyncSaveShardedStrategy('torch_dist', 1), ## this does nothing
+            sharded_strategy=ZarrSaveShardedStrategy('zarr', 1), ## this is the default in nemo right now, but
+            ## consider switching ot TorchDist?
+        )
 
     @override
     def load_checkpoint(
