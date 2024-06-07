@@ -865,7 +865,7 @@ class MegatronBaseModel(NLPModel):
                     # Merge buckets if needed
                     stride = self.cfg.get('distributed_adam_bucket_merge_size', 1)
                     buckets = [
-                        list(itertools.chain.from_iterable(buckets[i:i+stride]))
+                        list(itertools.chain.from_iterable(buckets[i : i + stride]))
                         for i in range(0, len(buckets), stride)
                     ]
                 for bucket in buckets:
