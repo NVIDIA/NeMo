@@ -526,7 +526,7 @@ def create_neva_model_and_processor(cfg):
                     result.paste(pil_img, ((height - width) // 2, 0))
                     return result
 
-            frames = expand2square(frames, tuple(int(x * 255) for x in processor.image_mean))
+            frames = [expand2square(frame, tuple(int(x * 255) for x in self.processor.image_mean)) for frame in frames]
             frames = processor.preprocess(frames, return_tensors='pt')['pixel_values']
         else:
             frames = processor.preprocess(frames, return_tensors='pt')['pixel_values']

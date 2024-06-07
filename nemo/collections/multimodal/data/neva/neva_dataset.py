@@ -463,16 +463,25 @@ def preprocess_llama_2(
             parts[0] += sep
 
             round_len = len(tokenizer.text_to_ids(rou + conv.sep2))
+
+            if is_mistral:
+                instruction_len = len(tokenizer.text_to_ids(parts[0])) - 1
+            else :
+                instruction_len = len(tokenizer.text_to_ids(parts[0])) - 2
+                
             if i > 0:
                 round_len -= 1  # Remove extra token added by sp tokenizer
-            instruction_len = len(tokenizer.text_to_ids(parts[0])) - 2
+            else:
+                instruction_len += 1
             target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
-
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
 
     # Check if masking working correctly
-    print([x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())])
+    #masking_test =[x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())]
+    #print(masking_test)
+
+
 
     if add_extra_token:
         tokens = tokens[:, :-1].contiguous()
@@ -984,7 +993,7 @@ class LazySupervisedDataset(Dataset):
                                 result.paste(pil_img, ((height - width) // 2, 0))
                                 return result
 
-                        frames = expand2square(frames, tuple(int(x * 255) for x in self.processor.image_mean))
+                        frames = [expand2square(frame, tuple(int(x * 255) for x in self.processor.image_mean)) for frame in frames]
                         frames = self.processor.preprocess(frames, return_tensors='pt')['pixel_values']
                     else:
                         frames = self.processor.preprocess(frames, return_tensors='pt')['pixel_values']
