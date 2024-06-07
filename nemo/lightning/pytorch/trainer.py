@@ -20,7 +20,10 @@ from nemo.utils.exp_manager import (
     NotFoundError
 )
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
-from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
+## circular import
+#from nemo.lightning import ModelCheckpoint
+from nemo.lightning.pytorch.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
 
 NEMO_ENV_VARNAME_VERSION="NEMO_EXPM_VERSION"
 NEMO_ENV_VARNAME_TESTING="NEMO_TESTING"
@@ -34,6 +37,8 @@ class AutoResume(Resume):
     def __init__(
         self,
         path: Optional[str] = None, ## old resume_from_checkpoint
+        dirpath: Optional[str] = None, ## TODO: difference between this and "path"
+        ## make this fn more clear
         import_path: Optional[str] = None, ## old dirpath
         adapter_path: Optional[str] = None, ## TODO: add support
         log_dir: str = None,
@@ -46,27 +51,26 @@ class AutoResume(Resume):
             raise ValueError("Only one of path or import_path can be set")
 
         self.path = path
+        self.dirpath = dirpath
         self.import_path = import_path
         self.adapter_path = adapter_path
-        self.log_dir = log_dir
+        self.log_dir = log_dir ## TODO: don't set this here.. this should be inferred from AppState!
         self.resume_if_exists = resume_if_exists
         self.resume_past_end = resume_past_end
         self.resume_ignore_no_checkpoint = resume_ignore_no_checkpoint
 
-    ## TODO: add support for importing from hf, other connectors
-    def nemo_path(self, model) -> Optional[Path]:
+    def nemo_path(self, model=None) -> Optional[Path]:
+
         if self.import_path:
-            ### this will not work if path just points to a regular dist ckpt
             return model.import_ckpt(self.import_path)
 
-    ### refactored from exp_manager
-    def __call__(self):
+        ### refactored from exp_manager
         checkpoint = None
         if self.path:
-            checkpoint = self.path ## TODO: import path or path?
+            checkpoint = self.path
         if self.resume_if_exists:
             # Use <log_dir>/checkpoints/ unless `dirpath` is set
-            checkpoint_dir = Path(self.import_path) if self.import_path else Path(Path(self.log_dir) / "checkpoints")
+            checkpoint_dir = Path(self.dirpath) if self.dirpath else Path(Path(self.log_dir) / "checkpoints")
 
             # when using distributed checkpointing, checkpoint_dir is a directory of directories
             # we check for this here
@@ -120,6 +124,7 @@ class Trainer(pl.Trainer, IOMixin):
 
     def setup_nemo(
         self,
+        resume: Resume,
         exp_dir: Optional[str] = None,
         explicit_log_dir: Optional[str] = None,
         name: Optional[str] = None,
@@ -129,6 +134,7 @@ class Trainer(pl.Trainer, IOMixin):
         log_local_rank_0_only: bool = False,
         log_global_rank_0_only: bool = False,
         files_to_copy: Optional[List[str]] = None,
+        update_logger_directory: bool = True,
     ):
         """
         Obtains the log_dir used for exp_manager.
@@ -161,46 +167,46 @@ class Trainer(pl.Trainer, IOMixin):
             _exp_dir = str(Path.cwd() / 'nemo_experiments')
 
         # If the user has already defined a logger for the trainer, use the logger defaults for logging directory
+        ## TODO: update these warnings!
         if self.logger is not None:
-            if self.logger.save_dir:
-                if exp_dir:
-                    raise LoggerMisconfigurationError(
-                        "The pytorch lightning trainer that was passed to exp_manager contained a logger, the logger's "
-                        f"save_dir was not None, and exp_dir ({exp_dir}) was not None. If trainer.logger.save_dir "
-                        "exists, exp_manager will use trainer.logger.save_dir as the logging directory and exp_dir "
-                        "must be None."
-                    )
-                _exp_dir = self.logger.save_dir
+            if update_logger_directory:
+                logging.warning(f'"update_logger_directory" is True. Overwriting logger "save_dir" to write to {exp_dir}')
+                ## TODO: I don't think this will work if we have a lit of loggers
+                ## in that case. will have to iterate through all of them
+                self.logger._root_dir = exp_dir
+
             if name:
                 raise LoggerMisconfigurationError(
-                    "The pytorch lightning trainer that was passed to exp_manager contained a logger, and name: "
-                    f"{name} was also passed to exp_manager. If the trainer contains a "
-                    "logger, exp_manager will use trainer.logger.name, and name passed to exp_manager must be None."
+                    "The pytorch lightning trainer contains a logger, and name: "
+                    f"{name} was also passed to setup_nemo. If the trainer contains a "
+                    "logger, setup_nemo will use trainer.logger.name, and name passed to setup_nemo must be None."
                 )
             name = self.logger.name
-            version = f"version_{self.logger.version}"
-        # Use user-defined exp_dir, project_name, exp_name, and versioning options
-        else:
+
+        if not name:
             name = name or "default"
-            version = version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
 
-            ## TODO: move this to AutoResume?
-            '''if not version:
-                if resume_if_exists:
-                    logging.warning(
-                        "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
-                    )
-                    version = None
-                elif is_global_rank_zero():
-                    if use_datetime_version:
-                        version = time.strftime('%Y-%m-%d_%H-%M-%S')
-                    else:
-                        tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
-                        version = f"version_{tensorboard_logger.version}"
-                    os.environ[NEMO_ENV_VARNAME_VERSION] = "" if version is None else version'''
+        ## TODO: not including verison in path anymore
+        ## behavior changed when logger was passed in manually prior to calling setup_nemo
+        ## maybe just add version in the case that user passes it in manually?
+        log_dir = Path(_exp_dir) / Path(str(name))
 
-        log_dir = Path(_exp_dir) / Path(str(name)) / Path("" if version is None else str(version))
+        ckpt_path = resume.nemo_path()
+        if ckpt_path:
+            self.ckpt_path = ckpt_path
 
+        ## TODO: assert that we only have one checkpoint callback?
+        for callback in self.callbacks:
+            if isinstance(callback, PTLModelCheckpoint):
+                ## TODO: make configurable
+                callback.dirpath = Path(log_dir / "checkpoints") #app_state.exp_dir
+                ## TODO: make confgiurable
+                print(f'MONITOR: {callback.monitor}')
+                print(f'NAME: {name}')
+                callback.filename=f'{name}--{{{callback.monitor}:.4f}}-{{epoch}}-{{step}}'
+                if callback.prefix is None:
+                    callback.prefix = name
+                ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + '-last'
 
         # update app_state with log_dir, exp_dir, etc
         app_state = AppState()
@@ -241,15 +247,4 @@ class Trainer(pl.Trainer, IOMixin):
         AppState.files_to_copy = files_to_copy
         AppState.cmd_args = sys.argv
 
-        return log_dir, str(_exp_dir), name, version
-
-    def add_loggers(self, loggers: List):
-        self._logger_connector.configure_logger(loggers)
-
-    ### TODO: make this compatible with Restore class!
-    ### no longer needed?
-    def set_model_checkpoint_dir(self):
-        app_state = AppState()
-        for callback in self.callbacks:
-            if isinstance(callback, ModelCheckpoint):
-                callback.dirpath = app_state.exp_dir
+        return AppState

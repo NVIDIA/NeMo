@@ -4,6 +4,7 @@ from nemo.lightning.io.connector import Connector, ModelConnector
 from nemo.lightning.io.mixin import ConnectorMixin, IOMixin
 from nemo.lightning.io.pl import TrainerCheckpoint, is_distributed_ckpt
 from nemo.lightning.io.state import TransformCTX, apply_transforms, state_transform
+#from nemo.lightning.pytorch.callbacks.megatron_model_checkpoint import ModelCheckpoint
 
 __all__ = [
     "apply_transforms",
@@ -15,6 +16,7 @@ __all__ = [
     "export_ckpt",
     "load",
     "load_ckpt",
+    #"ModelCheckpoint",
     "ModelConnector",
     "model_importer",
     "model_exporter",

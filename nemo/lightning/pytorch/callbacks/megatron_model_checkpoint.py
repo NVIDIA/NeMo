@@ -32,12 +32,11 @@ from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
+from nemo.utils.model_utils import ckpt_to_dir
 from nemo.utils.exp_manager import get_git_hash, get_git_diff
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from shutil import copy, move
 
-## TODO: I think everything related to dirs containing mp and tp ranks can be removed
 class ModelCheckpoint(PTLModelCheckpoint):
 
     UNFINISHED_CHECKPOINT_SUFFIX = "-unfinished"
@@ -49,8 +48,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         save_best_model: bool = False,
         postfix: str = ".nemo",
         n_resume: bool = False, ## TODO: what is this???
-        #export: Optional[str] = None, ## used for exporting to something like hf.. do we want to include this in this class?
-        # model_parallel_size: int = None, This will be passed by the MegatronStrategy
         async_save: bool = False,  # Should be an arg to the MegatronStrategy
         **kwargs,
     ):
@@ -66,7 +63,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
             )
         self.postfix = postfix
         self.previous_best_path = ""
-        #self.model_parallel_size = model_parallel_size
         self.async_save = async_save
         #self.export = export
         self.async_finalize_cb = None
@@ -137,10 +133,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
             add_filehandlers_to_pl_logger(log_dir / 'lightning_logs.txt', log_dir / 'nemo_error_log.txt')
         torch.distributed.barrier()
 
-    ## I think this extracts the metrics from the checkpoint name
-    ## and uses that to keep only best k
-    ## we should figure out how to keep this functionality in nemo 2.0
-    ## assuming we do, I don't think this code needs to be changed at all
     def nemo_topk_check_previous_run(self):
         try:
             self.best_k_models
@@ -156,12 +148,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         checkpoints = list(path for path in self._saved_checkpoint_paths if not self._is_ema_filepath(path))
         for checkpoint in checkpoints:
-            ## TODO: how does this work with nemo 2.0??
-            ## figure out how to inject mp_rank into the filename!!
-            if 'mp_rank' in str(checkpoint) or 'tp_rank' in str(checkpoint):
-                checkpoint = uninject_model_parallel_rank(checkpoint)
             checkpoint = str(checkpoint)
-            # second case is for distributed checkpoints, since they are a directory there's no extension
             if checkpoint[-10:] == '-last.ckpt' or checkpoint[-5:] == '-last':
                 continue
             index = checkpoint.find(self.monitor) + len(self.monitor) + 1  # Find monitor in str + 1 for '='
@@ -179,15 +166,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         # This section should be ok as rank zero will delete all excess checkpoints, since all other ranks are
         # instantiated after rank zero. models_to_delete should be 0 for all other ranks.
-        if self.model_parallel_size is not None:
-            # check for distributed checkpoint
-            if checkpoints[0].is_dir():
-                models_to_delete = len(best_k_models) - self.save_top_k
-            else:
-                models_to_delete = len(best_k_models) - self.model_parallel_size * self.save_top_k
-        else:
-            models_to_delete = len(best_k_models) - self.save_top_k
-
+        models_to_delete = len(best_k_models) - self.save_top_k
         models_to_delete = max(0, models_to_delete)
         logging.debug(f'Number of models to delete: {models_to_delete}')
 
@@ -210,11 +189,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # Removes invalid (incomplete or not existing) checkpoints from topk checkpoints.
         # This might be needed if the checkpointing was abruptly terminated.
         def __is_ckpt_ok(ckpt_path: str) -> bool:
-            exists = (
-                os.path.isfile(ckpt_path)
-                or os.path.isfile(inject_model_parallel_rank(ckpt_path))
-                or os.path.isdir(ckpt_path.removesuffix('.ckpt'))
-            )
+            exists = os.path.isdir(ckpt_path.removesuffix('.ckpt'))
             return exists and not self.is_checkpoint_unfinished(ckpt_path)
 
         self.best_k_models = {k: v for k, v in self.best_k_models.items() if __is_ckpt_ok(k)}
@@ -248,19 +223,11 @@ class ModelCheckpoint(PTLModelCheckpoint):
     ### old implementation saved .nemo file but we don't have that anymore
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
-        '''if self.export and is_global_rank_zero:
-            ## TODO: optionally tar as .nemo
-            ## TODO: figure out how this works!!!
-            ## not sure of the export() implementation right now
-            io.export_ckpt(export_dir, self.export)
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()'''
         return output
 
     def on_train_end(self, trainer, pl_module):
-        ## TODO: add support! 
-        '''if trainer.fast_dev_run:
-            return None'''
+        if trainer.fast_dev_run:
+            return None
 
         # check if we need to save a last checkpoint manually as validation isn't always run based on the interval
         if self.save_last and trainer.val_check_interval != 0:
@@ -363,24 +330,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 except:
                     logging.info(f"Tried to remove distributed checkpoint: {dist_ckpt} but failed.")
 
-        else:
-            app_state = AppState()
-
-            # legacy model parallel checkpoint
-            if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-                # filepath needs to be updated to include mp_rank
-                filepath = inject_model_parallel_rank(filepath)
-
-            # each model parallel rank needs to remove its model
-            if is_global_rank_zero() or (
-                app_state.model_parallel_size is not None and app_state.data_parallel_rank == 0
-            ):
-                try:
-                    self._fs.rm(filepath)
-                    logging.info(f"Removed checkpoint: {filepath}")
-                except:
-                    logging.info(f"Tried to remove checkpoint: {filepath} but failed.")
-
     def _ema_callback(self, trainer: 'pytorch_lightning.Trainer') -> Optional[EMA]:
         ema_callback = None
         for callback in trainer.callbacks:
@@ -402,8 +351,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         Returns:
             Path to the unfinished checkpoint marker file.
         """
-        marker_filepath = str(uninject_model_parallel_rank(checkpoint_path))
-        marker_filepath = marker_filepath.removesuffix(".nemo")
+        marker_filepath = str(checkpoint_path).removesuffix(".nemo")
         marker_filepath = marker_filepath.removesuffix(".ckpt")
         marker_filepath = marker_filepath.removesuffix("-EMA")
         return Path(marker_filepath + ModelCheckpoint.UNFINISHED_CHECKPOINT_SUFFIX)
