@@ -1047,6 +1047,7 @@ class VoiceBox(_VB, LightningModule):
         attn_dropout = 0,
         attn_flash = False,
         attn_qk_norm = True,
+        use_gateloop_layers = False,
         num_register_tokens = 16,
         p_drop_prob = 0.3, # p_drop in paper
         frac_lengths_mask: Tuple[float, float] = (0.7, 1.),
@@ -1057,6 +1058,8 @@ class VoiceBox(_VB, LightningModule):
         fix_time_emb = False,
         text_encode = False,
         text_enc_depth = 4,
+        text_enc_frame_concat = False,
+        text_enc_vb_masked = True,
         **kwargs
     ):
         """
@@ -1155,7 +1158,6 @@ class VoiceBox(_VB, LightningModule):
 
         self.text_encode = text_encode
         if self.text_encode:
-            assert dim == dim_cond_emb
             self.text_encoder = Transformer(
                 dim = dim,
                 depth = text_enc_depth,
@@ -1170,6 +1172,25 @@ class VoiceBox(_VB, LightningModule):
                 adaptive_rmsnorm = False,
                 use_gateloop_layers = use_gateloop_layers
             )
+            self.text_enc_frame_concat = text_enc_frame_concat
+            if self.text_enc_frame_concat:
+                # audio: self.proj_in -> dim
+                # text: self.to_cond_emb -> dim_cond_emb
+                self.text_audio_to_embed = nn.Linear(dim + dim_cond_emb, dim)
+                self.text_audio_conv_embed = ConvPositionEmbed(
+                    dim = dim,
+                    kernel_size = conv_pos_embed_kernel_size,
+                    groups = conv_pos_embed_groups,
+                )
+            else:
+                self.text_to_embed = nn.Linear(dim_cond_emb, dim)
+                self.text_audio_conv_embed = ConvPositionEmbed(
+                    dim = dim,
+                    kernel_size = conv_pos_embed_kernel_size,
+                    groups = conv_pos_embed_groups,
+                )
+            self.text_enc_vb_masked = text_enc_vb_masked
+            self.proj_out = nn.Linear(dim, audio_enc_dec.latent_dim)
 
     def create_cond_mask(self, batch, seq_len, cond_token_ids=None, self_attn_mask=None, training=True, frac_lengths_mask=None, phn_bnd_eps=None):
         if training:
@@ -1259,6 +1280,37 @@ class VoiceBox(_VB, LightningModule):
             should_continue = post_the_same & (end_of_phone < seq_len - 1)
         return end_of_phone
 
+    def cond_project_and_mask(self, cond, cond_mask_with_pad_dim, self_attn_mask):
+        # discrete code input + regression
+        if self.code_project:
+            # inputs: x=None, cond = discrete code, (b,t,n)
+            # output: code classification
+
+            # mask -> mask token
+            cond = torch.where(
+                cond_mask_with_pad_dim,
+                self.mask_code_id,
+                cond
+            )
+
+            # to emb
+            conds = [
+                self.to_code_embs[i](cond[:, :, i]) * (i < self.audio_enc_dec.bandwidth_id)
+                for i in range(self.audio_enc_dec.model.n_codebooks)
+            ]
+            cond = torch.concat(conds, dim=-1)
+
+            # remove padding
+            cond = cond * rearrange(self_attn_mask, 'b t -> b t 1')
+
+        elif exists(cond):
+            cond = self.proj_in(cond)
+
+            # as described in section 3.2
+            cond = cond * ~cond_mask_with_pad_dim
+        
+        return cond
+
     def forward(
         self,
         x,
@@ -1287,15 +1339,11 @@ class VoiceBox(_VB, LightningModule):
         outputs = {}
 
         if self.no_diffusion:
-
             # x = None, target = cond if training else None
-
             pass
 
         else:
-
             # project in, in case codebook dim is not equal to model dimensions
-            
             x = self.proj_in(x)
 
         cond = default(cond, target)
@@ -1313,34 +1361,8 @@ class VoiceBox(_VB, LightningModule):
         cond_mask_with_pad_dim = rearrange(cond_mask, '... -> ... 1')
         outputs["cond_mask"] = cond_mask_with_pad_dim
 
-        # discrete code input + regression
-
-        if self.code_project:
-            # inputs: x=None, cond = discrete code, (b,t,n)
-            # output: code classification
-
-            # mask -> mask token
-            cond = torch.where(
-                cond_mask_with_pad_dim,
-                self.mask_code_id,
-                cond
-            )
-
-            # to emb
-            conds = [
-                self.to_code_embs[i](cond[:, :, i]) * (i < self.audio_enc_dec.bandwidth_id)
-                for i in range(self.audio_enc_dec.model.n_codebooks)
-            ]
-            cond = torch.concat(conds, dim=-1)
-
-            # remove padding
-            cond = cond * rearrange(self_attn_mask, 'b t -> b t 1')
-
-        elif exists(cond):
-            cond = self.proj_in(cond)
-
-            # as described in section 3.2
-            cond = cond * ~cond_mask_with_pad_dim
+        # as described in section 3.2
+        cond = self.cond_project_and_mask(cond, cond_mask_with_pad_dim, self_attn_mask)
 
         # auto manage shape of times, for odeint times
 
@@ -1408,13 +1430,23 @@ class VoiceBox(_VB, LightningModule):
         # and project
 
         if self.text_encode:
-            conv_cond = self.conv_embed(cond)
-            conv_text = self.conv_embed(cond_emb)
-            to_concat = [*filter(exists, (conv_cond, conv_text))]
-            conv_cond_text = torch.cat(to_concat, dim = 1)
-            mask = torch.cat([~cond_mask_with_pad_dim * self_attn_mask, self_attn_mask], dim=1)
-            conv_cond_text = self.text_encoder(conv_cond_text, mask=mask)
-            cond = conv_cond_text[:, seq_len:]
+            if self.text_enc_frame_concat:
+                to_concat = [*filter(exists, (cond, cond_emb))]
+                conv_cond_text = torch.cat(to_concat, dim = 2)
+                conv_cond_text = self.text_audio_to_embed(conv_cond_text)
+                conv_cond_text = self.text_audio_conv_embed(conv_cond_text)
+                cond = self.text_encoder(conv_cond_text, mask=self_attn_mask)
+            else:
+                conv_text = self.text_to_embed(cond_emb)
+                conv_cond = self.text_audio_conv_embed(cond)
+                conv_text = self.text_audio_conv_embed(conv_text)
+                to_concat = [*filter(exists, (conv_cond, conv_text))]
+                conv_cond_text = torch.cat(to_concat, dim = 1)
+                mask = torch.cat([~cond_mask * self_attn_mask, self_attn_mask], dim=1)
+                cond = self.text_encoder(conv_cond_text, mask=mask)
+                cond = cond[:, seq_len:]
+            pred_ori_cond = self.proj_out(cond)
+            outputs["pred_ori_cond"] = pred_ori_cond
 
         to_concat = [*filter(exists, (x, cond_emb, cond))]
         embed = torch.cat(to_concat, dim = -1)
@@ -1427,11 +1459,18 @@ class VoiceBox(_VB, LightningModule):
 
         # attend
 
-        x = self.transformer(
-            x,
-            mask = self_attn_mask,
-            adaptive_rmsnorm_cond = time_emb
-        )
+        if self.text_encode and self.text_enc_vb_masked:
+            x = self.transformer(
+                x,
+                mask = cond_mask,
+                adaptive_rmsnorm_cond = time_emb
+            )
+        else:
+            x = self.transformer(
+                x,
+                mask = self_attn_mask,
+                adaptive_rmsnorm_cond = time_emb
+            )
 
         x = self.to_pred(x)
 
@@ -1484,6 +1523,16 @@ class VoiceBox(_VB, LightningModule):
 
         outputs["loss_mask"] = loss_mask
         outputs["self_attn_mask"] = self_attn_mask
+
+        if self.text_encode:
+            assert self.loss_masked
+            text_enc_loss = F.mse_loss(pred_ori_cond, outputs["cond"], reduction='none')
+            text_enc_loss = reduce(text_enc_loss, 'b n d -> b n', 'mean')
+            text_enc_loss = text_enc_loss.masked_fill(~loss_mask, 0.)
+            num = reduce(text_enc_loss, 'b n -> b', 'sum')
+            den = loss_mask.sum(dim = -1).clamp(min = 1e-5)
+            text_enc_loss = num / den
+            outputs["text_enc_loss"] = text_enc_loss.mean()
 
         return loss.mean(), outputs
     
@@ -1858,6 +1907,9 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
         outputs = {
             "vb": vb_outputs,
         }
+        if "text_enc_loss" in vb_outputs:
+            losses['text_enc'] = vb_outputs["text_enc_loss"]
+            del vb_outputs["text_enc_loss"]
 
         return loss, losses, outputs
 

@@ -93,7 +93,9 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
         if self.ds_name == "gigaspeech" and not os.path.exists(cut.recording.sources[0].source):
             # HF random path
             old_path = Path(cut.recording.sources[0].source)
-            new_path = glob(str(old_path.parents[2] / "*" / old_path.parts[-2] / old_path.parts[-1]))[0]
+            new_paths = glob(str(old_path.parents[2] / "*" / old_path.parts[-2] / old_path.parts[-1]))
+            assert len(new_paths), str(old_path)
+            new_path = new_paths[0]
             # print(str(old_path), str(new_path))
             cut.recording.sources[0].source = new_path
         return cut
