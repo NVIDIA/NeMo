@@ -61,8 +61,10 @@ class MHAResidualAddAdapterStrategy(adapter_mixin_strategies.ResidualAddAdapterS
         elif 'values' in input:
             value_name = 'values'
         else:
-            raise ValueError("Input dictionary must contain 'value' or 'values' key for residual connection. Input "
-                             f"dictionary keys: {input.keys()}")
+            raise ValueError(
+                "Input dictionary must contain 'value' or 'values' key for residual connection. Input "
+                f"dictionary keys: {input.keys()}"
+            )
 
         # If not in training mode, or probability of stochastic depth is 0, skip step.
         p = self.stochastic_depth

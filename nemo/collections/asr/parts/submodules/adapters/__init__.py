@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#fmt: off
+# fmt: off
 from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import AttentionAdapterModuleMixin
-#fmt: on
-
 from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module import (
     MHAResidualAddAdapterStrategy,
     MHAResidualAddAdapterStrategyConfig,
@@ -32,3 +30,5 @@ from nemo.collections.asr.parts.submodules.adapters.transformer_multi_head_atten
     TransformerEncoderMultiHeadAttentionAdapter,
     TransformerEncoderMultiHeadAttentionAdapterConfig,
 )
+
+# fmt: on

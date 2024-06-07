@@ -108,8 +108,9 @@ class AttentionAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
 
         else:
             # No adapter compatible, skip
-            logging.warning("No adapter compatible with the current module. Skipping adapter forward pass.",
-                            mode=logging_mode.ONCE)
+            logging.warning(
+                "No adapter compatible with the current module. Skipping adapter forward pass.", mode=logging_mode.ONCE
+            )
 
             output = x
 
