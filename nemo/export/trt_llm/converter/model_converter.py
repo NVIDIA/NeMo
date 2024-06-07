@@ -74,6 +74,7 @@ def model_to_trtllm_ckpt(
     pipeline_parallel_size: int = 1,
     gpus_per_node: int = None,
     use_parallel_embedding: bool = False,
+    use_embedding_sharing: bool = False,
 ) -> Tuple[List[Dict], List[PretrainedConfig]]:
 
     weights_dict = convert_model_to_trt_llm_ckpt(
@@ -121,7 +122,7 @@ def model_to_trtllm_ckpt(
         'hidden_act': hidden_act,
         'use_parallel_embedding': use_parallel_embedding,
         'embedding_sharding_dim': 0,
-        'share_embedding_table': False,
+        'share_embedding_table': use_embedding_sharing,
         'quantization': {
             'quant_algo': None,
             'kv_cache_quant_algo': None,

@@ -130,6 +130,7 @@ def run_trt_llm_inference(
     max_batch_size=8,
     max_input_token=128,
     max_output_token=128,
+    use_embedding_sharing=False,
     ptuning=False,
     p_tuning_checkpoint=None,
     lora=False,
@@ -216,6 +217,7 @@ def run_trt_llm_inference(
             lora_target_modules=lora_target_modules,
             max_num_tokens=int(max_input_token * max_batch_size * 0.2),
             opt_num_tokens=60,
+            use_embedding_sharing=use_embedding_sharing,
             save_nemo_model_config=True,
         )
 
@@ -332,6 +334,12 @@ def run_existing_checkpoints(
         else:
             raise Exception("There is not lora checkpoint path defined.")
 
+    if model_info["model_type"] == "gemma":
+        print("*********************")
+        use_embedding_sharing = True
+    else:
+        use_embedding_sharing = False
+
     return run_trt_llm_inference(
         model_name=model_name,
         model_type=model_info["model_type"],
@@ -342,6 +350,7 @@ def run_existing_checkpoints(
         max_batch_size=model_info["max_batch_size"],
         max_input_token=512,
         max_output_token=model_info["max_output_token"],
+        use_embedding_sharing=use_embedding_sharing,
         ptuning=ptuning,
         p_tuning_checkpoint=p_tuning_checkpoint,
         lora=lora,
