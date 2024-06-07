@@ -118,6 +118,7 @@ def get_nemo_transformer(
 
         if cfg.get('adapter', False):
             from nemo.core.classes.mixins.adapter_mixins import get_registered_adapter
+
             class_ = get_registered_adapter(TransformerDecoderNM).adapter_class
 
         model = class_(

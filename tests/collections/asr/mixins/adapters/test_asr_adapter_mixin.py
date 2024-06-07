@@ -597,7 +597,9 @@ class TestASRAdapterMixin:
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('name', ['adapter_0', 'encoder:adapter_0', 'transf_encoder:adapter_0', 'transf_decoder:adapter_0'])
+    @pytest.mark.parametrize(
+        'name', ['adapter_0', 'encoder:adapter_0', 'transf_encoder:adapter_0', 'transf_decoder:adapter_0']
+    )
     def test_canary_forward_mha(self, multitask_model, name):
         multitask_model.eval()
         torch.random.manual_seed(0)
@@ -638,8 +640,7 @@ class TestASRAdapterMixin:
             )
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('name',
-                             ['transf_decoder:adapter_0'])
+    @pytest.mark.parametrize('name', ['transf_decoder:adapter_0'])
     def test_canary_forward_mha_decoder_fails_without_support(self, multitask_model, name):
         multitask_model.eval()
         torch.random.manual_seed(0)

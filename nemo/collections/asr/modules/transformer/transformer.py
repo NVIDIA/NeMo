@@ -212,7 +212,12 @@ class TransformerDecoderNM(DecoderModule, Exportable):
 
     @typecheck()
     def forward(
-        self, input_ids, decoder_mask, encoder_embeddings, encoder_mask, decoder_mems=None,
+        self,
+        input_ids,
+        decoder_mask,
+        encoder_embeddings,
+        encoder_mask,
+        decoder_mems=None,
     ):
         start_pos = 0
         if decoder_mems is not None:
@@ -282,7 +287,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
 
 
 class TransformerDecoderNMAdapter(TransformerDecoderNM, adapter_mixins.AdapterModuleMixin):
-    DECODER_TYPE : type = TransformerDecoderAdapter
+    DECODER_TYPE: type = TransformerDecoderAdapter
 
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):

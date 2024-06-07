@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import copy
-from omegaconf import DictConfig
-from typing import Optional, List, Set
+from typing import List, Optional, Set
 
 import torch
 import torch.nn as nn
+from omegaconf import DictConfig
 
 from nemo.collections.asr.modules.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
 from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import AttentionAdapterModuleMixin
@@ -158,7 +158,6 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
             return self.forward_preln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
         else:
             return self.forward_postln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
-
 
     def get_accepted_adapter_types(self) -> Set[type]:
         types = super().get_accepted_adapter_types()

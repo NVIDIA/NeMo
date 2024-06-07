@@ -148,7 +148,6 @@ class TransformerEncoderBlock(nn.Module, AttentionAdapterModuleMixin):
         else:
             return self.forward_postln(encoder_query, encoder_mask, encoder_keys)
 
-
     def get_accepted_adapter_types(self) -> Set[type]:
         types = super().get_accepted_adapter_types()
 
