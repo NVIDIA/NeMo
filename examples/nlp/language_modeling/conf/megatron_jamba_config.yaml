@@ -49,7 +49,7 @@ model:
   pipeline_model_parallel_size: 1
   virtual_pipeline_model_parallel_size: null
   expert_model_parallel_size: 1 # expert model parallelism
-
+  hybrid_override_pattern: "MMMM"
   vocab_size: 65536
   # model architecture
   encoder_seq_length: 2048
