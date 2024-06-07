@@ -766,20 +766,14 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         self.is_inference_ready = True
         return True
 
-    def clear_inference_table(
-        self,
-    ):
+    def clear_inference_table(self):
         self.inference_table.fill_(0.0)
         self.is_inference_ready = False
 
-    def get_inference_table(
-        self,
-    ):
+    def get_inference_table(self):
         return self.inference_table.data
 
-    def inner_forward(
-        self,
-    ):
+    def inner_forward(self):
         input_embeds = self.embedding(self.indices).unsqueeze(0)
         intermediate_parallel, bias_parallel = self.first(input_embeds)
         intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)

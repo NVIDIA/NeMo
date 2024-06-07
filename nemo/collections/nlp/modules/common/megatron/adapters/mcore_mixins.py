@@ -280,7 +280,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
 class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
         """
-        Setup NeMo IA3 adapter to this MCore layer.
+        Setup NeMo IA3 and LoRA adapter to this MCore layer.
         """
         self.set_accepted_adapter_types(
             [
@@ -388,14 +388,9 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
 class MCoreSequentialMLPMixin(SequentialMLP, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
         """
-        Setup NeMo IA3 adapter to this MCore layer.
+        We don't want the SequentialMLP layer to take any adapters. We only want to override the forward() behavior
         """
-        self.set_accepted_adapter_types(
-            [
-                LoraMoeHto4HAdapterConfig._target_,
-                LoraMoe4HtoHAdapterConfig._target_,
-            ]
-        )
+        pass
 
     def forward(self, permuted_local_hidden_states, tokens_per_expert):
         output_local = torch.zeros_like(permuted_local_hidden_states)
