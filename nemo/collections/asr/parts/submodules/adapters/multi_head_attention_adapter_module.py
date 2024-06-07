@@ -29,7 +29,7 @@ class MHAResidualAddAdapterStrategy(adapter_mixin_strategies.ResidualAddAdapterS
     An implementation of residual addition of an adapter module with its input for the MHA Adapters.
     """
 
-    def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'):
+    def forward(self, input: dict, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'):
         """
         A basic strategy, comprising of a residual connection over the input, after forward pass by
         the underlying adapter. Additional work is done to pack and unpack the dictionary of inputs and outputs.
@@ -55,19 +55,27 @@ class MHAResidualAddAdapterStrategy(adapter_mixin_strategies.ResidualAddAdapterS
         """
         out = self.compute_output(input, adapter, module=module)
 
+        value_name = None
+        if 'value' in input:
+            value_name = 'value'
+        elif 'values' in input:
+            value_name = 'values'
+        else:
+            raise ValueError("Input dictionary must contain 'value' or 'values' key for residual connection. Input "
+                             f"dictionary keys: {input.keys()}")
+
         # If not in training mode, or probability of stochastic depth is 0, skip step.
         p = self.stochastic_depth
         if not module.training or p == 0.0:
             pass
         else:
-            out = self.apply_stochastic_depth(out, input['value'], adapter, module=module)
+            out = self.apply_stochastic_depth(out, input[value_name], adapter, module=module)
 
         # Return the residual connection output = input + adapter(input)
-        print("Out", out.shape, "Input", input['value'].shape)
-        result = input['value'] + out
+        result = input[value_name] + out
 
         # If l2_lambda is activated, register the loss value
-        self.compute_auxiliary_losses(result, input['value'], adapter, module=module)
+        self.compute_auxiliary_losses(result, input[value_name], adapter, module=module)
 
         return result
 

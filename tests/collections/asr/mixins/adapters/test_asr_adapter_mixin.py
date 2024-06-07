@@ -359,7 +359,7 @@ def multitask_model(test_data_dir):
             "learn_positional_encodings": False,
             "hidden_size": "${model_defaults.lm_dec_hidden}",
             "inner_size": "${multiply:${model_defaults.lm_dec_hidden}, 4}",
-            "num_layers": 24,
+            "num_layers": 2,
             "num_attention_heads": 8,
             "ffn_dropout": 0.1,
             "attn_score_dropout": 0.1,
@@ -614,7 +614,8 @@ class TestASRAdapterMixin:
         og_logprob = origial_output[0]
         og_enc_out = origial_output[2]
 
-        multitask_model.add_adapter(name=name, cfg=get_adapter_cfg(in_features=128, atype='transf_mha'))
+        adapter_type = 'transf_mha' if 'transf' in name else 'mha'
+        multitask_model.add_adapter(name=name, cfg=get_adapter_cfg(in_features=128, atype=adapter_type))
 
         new_output = multitask_model(
             input_signal=input_signal,

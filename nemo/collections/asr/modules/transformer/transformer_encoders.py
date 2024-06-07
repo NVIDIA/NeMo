@@ -65,7 +65,7 @@ class TransformerEncoderBlock(nn.Module, AttentionAdapterModuleMixin):
         self.second_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
 
         # Information for the adapter module mixin
-        self.self_attention_model = "abs_pos"
+        self.self_attention_model = "transf_abs"
 
     def forward_preln(self, encoder_query, encoder_mask, encoder_keys):
         """

@@ -1,6 +1,7 @@
 import torch
 
 from nemo.core.classes.mixins import adapter_mixins
+from nemo.utils import logging, logging_mode
 
 
 class AttentionAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
@@ -89,7 +90,7 @@ class AttentionAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         if isinstance(adapter_module, adapter_modules.LinearAdapter) and loc == 'post':
             output = adapter_strategy(x, adapter_module, module=self)
 
-        if isinstance(adapter_module, conformer_mha.MultiHeadAttention) and loc == 'mha':
+        elif isinstance(adapter_module, conformer_mha.MultiHeadAttention) and loc == 'mha':
             if self.self_attention_model == 'rel_pos':
                 x = dict(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
                 output = adapter_strategy(x, adapter_module, module=self)
@@ -101,8 +102,15 @@ class AttentionAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
             else:
                 raise ValueError(f"Unsupported value of self_attention_model , provided {self.self_attention_model}!")
 
+        elif isinstance(adapter_module, transformer_mha.MultiHeadAttention) and loc == 'mha':
+            x = dict(queries=x, keys=x, values=x, attention_mask=att_mask)
+            output = adapter_strategy(x, adapter_module, module=self)
+
         else:
             # No adapter compatible, skip
+            logging.warning("No adapter compatible with the current module. Skipping adapter forward pass.",
+                            mode=logging_mode.ONCE)
+
             output = x
 
         input['x'] = output
