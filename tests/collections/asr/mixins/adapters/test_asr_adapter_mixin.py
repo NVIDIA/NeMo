@@ -13,12 +13,16 @@
 # limitations under the License.
 
 import os
+
 import pytest
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from nemo.collections.asr.models import ASRModel, EncDecCTCModel, EncDecRNNTModel, EncDecMultiTaskModel
-from nemo.collections.asr.parts.submodules.adapters import multi_head_attention_adapter_module, transformer_multi_head_attention_adapter_module
+from nemo.collections.asr.models import ASRModel, EncDecCTCModel, EncDecMultiTaskModel, EncDecRNNTModel
+from nemo.collections.asr.parts.submodules.adapters import (
+    multi_head_attention_adapter_module,
+    transformer_multi_head_attention_adapter_module,
+)
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.collections.common.parts import adapter_modules
 from nemo.core.classes.mixins.access_mixins import AccessMixin
@@ -312,11 +316,7 @@ def multitask_model(test_data_dir):
     }
     # fmt: on
 
-    model_defaults = {
-        "asr_enc_hidden": 128,
-        "lm_enc_hidden": 128,
-        "lm_dec_hidden": 128
-    }
+    model_defaults = {"asr_enc_hidden": 128, "lm_enc_hidden": 128, "lm_dec_hidden": 128}
 
     # Test case where Encoder (default) is not adapter compatible
     encoder = {
@@ -343,7 +343,7 @@ def multitask_model(test_data_dir):
         "attn_layer_dropout": 0.1,
         "mask_future": False,
         "pre_ln": True,
-        "pre_ln_final_layer_norm": True
+        "pre_ln_final_layer_norm": True,
     }
 
     transf_decoder = {
@@ -366,8 +366,8 @@ def multitask_model(test_data_dir):
             "attn_layer_dropout": 0.1,
             "hidden_act": "relu",
             "pre_ln": True,
-            "vocab_size": None  # Will be set by the model at runtime
-        }
+            "vocab_size": None,  # Will be set by the model at runtime
+        },
     }
 
     head = {
@@ -378,7 +378,7 @@ def multitask_model(test_data_dir):
         "hidden_size": "${transf_decoder.config_dict.hidden_size}",
         "num_classes": None,  # Will be set by the model at runtime
         "dropout": 0.0,
-        "use_transformer_init": True
+        "use_transformer_init": True,
     }
 
     decoding = {'strategy': 'beam', 'beam': {'beam_size': 1, 'len_pen': 0.0, 'max_generation_delta': 50}}
@@ -386,7 +386,7 @@ def multitask_model(test_data_dir):
     loss = {
         "_target_": "nemo.collections.common.losses.smoothed_cross_entropy.SmoothedCrossEntropyLoss",
         "label_smoothing": 0.0,
-        "pad_id": None
+        "pad_id": None,
     }
 
     modelConfig = DictConfig(
@@ -507,7 +507,8 @@ class TestASRAdapterMixin:
         assert new_num_params == original_num_params
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_asr_model_constructor_joint_module_rnnt(self, rnnt_model):
@@ -604,15 +605,23 @@ class TestASRAdapterMixin:
         transcript = torch.randint(0, multitask_model.tokenizer.vocab_size, size=(2, 10))
         transcript_len = torch.tensor([10, 9], dtype=torch.int32)
 
-        origial_output = multitask_model(input_signal=input_signal, input_signal_length=input_signal_length,
-                                         transcript=transcript, transcript_length=transcript_len)
+        origial_output = multitask_model(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            transcript=transcript,
+            transcript_length=transcript_len,
+        )
         og_logprob = origial_output[0]
         og_enc_out = origial_output[2]
 
         multitask_model.add_adapter(name=name, cfg=get_adapter_cfg(in_features=128, atype='transf_mha'))
 
-        new_output = multitask_model(input_signal=input_signal, input_signal_length=input_signal_length,
-                                     transcript=transcript, transcript_length=transcript_len)
+        new_output = multitask_model(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            transcript=transcript,
+            transcript_length=transcript_len,
+        )
 
         new_logprob = new_output[0]
         new_enc_out = new_output[2]
@@ -622,7 +631,9 @@ class TestASRAdapterMixin:
 
         # Try to use incorrect adapter
         with pytest.raises(ValueError):
-            multitask_model.add_adapter(name="transf_encoder:adapter_1", cfg=get_adapter_cfg(in_features=128, atype='mha'))
+            multitask_model.add_adapter(
+                name="transf_encoder:adapter_1", cfg=get_adapter_cfg(in_features=128, atype='mha')
+            )
 
     @pytest.mark.unit
     @pytest.mark.parametrize('name1', ['adapter_0', 'encoder:adapter_0', 'decoder:adapter_0'])
@@ -645,7 +656,8 @@ class TestASRAdapterMixin:
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.parametrize('name1', ['decoder:adapter_0', 'joint:adapter_0'])
     @pytest.mark.parametrize('name2', ['decoder:adapter_1', 'joint:adapter_1'])
@@ -739,7 +751,8 @@ class TestASRAdapterMixin:
         assert model.num_weights < 1e5
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads()
     @pytest.mark.unit

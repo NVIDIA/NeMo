@@ -19,26 +19,31 @@ from typing import Any, Optional
 import torch
 from torch import nn as nn
 
-from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module import MHAResidualAddAdapterStrategy, MHAResidualAddAdapterStrategyConfig
 from nemo.collections.asr.modules.transformer import transformer_modules
+from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module import (
+    MHAResidualAddAdapterStrategy,
+    MHAResidualAddAdapterStrategyConfig,
+)
 from nemo.collections.common.parts import adapter_modules
-from nemo.core.classes.mixins import adapter_mixins, adapter_mixin_strategies
+from nemo.core.classes.mixins import adapter_mixin_strategies, adapter_mixins
 
 
-class TransformerEncoderMultiHeadAttentionAdapter(transformer_modules.MultiHeadAttention, adapter_modules.AdapterModuleUtil):
+class TransformerEncoderMultiHeadAttentionAdapter(
+    transformer_modules.MultiHeadAttention, adapter_modules.AdapterModuleUtil
+):
     """Multi-Head Attention layer of Transformer Encoder.
 
-     Args:
-         hidden_size (int): number of heads
-         num_attention_heads (int): size of the features
-         attn_score_dropout (float): dropout rate for the attention scores
-         attn_layer_dropout (float): dropout rate for the layer
-         proj_dim (int, optional): Optional integer value for projection before computing attention.
-            If None, then there is no projection (equivalent to proj_dim = n_feat).
-            If > 0, then will project the n_feat to proj_dim before calculating attention.
-            If <0, then will equal n_head, so that each head has a projected dimension of 1.
-        adapter_strategy: By default, MHAResidualAddAdapterStrategyConfig. An adapter composition function object.
-     """
+    Args:
+        hidden_size (int): number of heads
+        num_attention_heads (int): size of the features
+        attn_score_dropout (float): dropout rate for the attention scores
+        attn_layer_dropout (float): dropout rate for the layer
+        proj_dim (int, optional): Optional integer value for projection before computing attention.
+           If None, then there is no projection (equivalent to proj_dim = n_feat).
+           If > 0, then will project the n_feat to proj_dim before calculating attention.
+           If <0, then will equal n_head, so that each head has a projected dimension of 1.
+       adapter_strategy: By default, MHAResidualAddAdapterStrategyConfig. An adapter composition function object.
+    """
 
     def __init__(
         self,
@@ -49,8 +54,12 @@ class TransformerEncoderMultiHeadAttentionAdapter(transformer_modules.MultiHeadA
         proj_dim: Optional[int] = None,
         adapter_strategy: MHAResidualAddAdapterStrategy = None,
     ):
-        super().__init__(hidden_size=hidden_size, num_attention_heads=num_attention_heads,
-                         attn_score_dropout=attn_score_dropout, attn_layer_dropout=attn_layer_dropout)
+        super().__init__(
+            hidden_size=hidden_size,
+            num_attention_heads=num_attention_heads,
+            attn_score_dropout=attn_score_dropout,
+            attn_layer_dropout=attn_layer_dropout,
+        )
 
         self.pre_norm = nn.LayerNorm(hidden_size)
 
@@ -116,11 +125,13 @@ class TransformerEncoderMultiHeadAttentionAdapterConfig:
     attn_layer_dropout: float = 0.0
     proj_dim: Optional[int] = None
     adapter_strategy: Optional[Any] = field(default_factory=lambda: MHAResidualAddAdapterStrategyConfig())
-    _target_: str = "{0}.{1}".format(TransformerEncoderMultiHeadAttentionAdapter.__module__,
-                                     TransformerEncoderMultiHeadAttentionAdapter.__name__)
+    _target_: str = "{0}.{1}".format(
+        TransformerEncoderMultiHeadAttentionAdapter.__module__, TransformerEncoderMultiHeadAttentionAdapter.__name__
+    )
 
 
 """ Register the Adapter Modules to the Adapter Module Registry """
 if adapter_mixins.get_registered_adapter(TransformerEncoderMultiHeadAttentionAdapter) is None:
-    adapter_mixins.register_adapter(base_class=transformer_modules.MultiHeadAttention,
-                                    adapter_class=TransformerEncoderMultiHeadAttentionAdapter)
+    adapter_mixins.register_adapter(
+        base_class=transformer_modules.MultiHeadAttention, adapter_class=TransformerEncoderMultiHeadAttentionAdapter
+    )

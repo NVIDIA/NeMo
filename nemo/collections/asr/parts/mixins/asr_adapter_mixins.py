@@ -21,7 +21,7 @@ from nemo.utils import logging, logging_mode
 
 
 class ASRAdapterModelMixin(AdapterModelPTMixin):
-    """ ASR Adapter Mixin that can augment any Encoder module with Adapter module support.
+    """ASR Adapter Mixin that can augment any Encoder module with Adapter module support.
 
     This mixin class should be used only with a top level ModelPT subclass, that includes an `encoder` submodule.
     This mixin class adds several utility methods which are propagated to the `encoder`.
@@ -88,8 +88,10 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
 
         # Check if default module name is None or not
         if default_module_name is None:
-            raise ValueError(f"Default module name is None. Class {self.__class__.__name__} must implement "
-                             f"`default_adapter_module_name`")
+            raise ValueError(
+                f"Default module name is None. Class {self.__class__.__name__} must implement "
+                f"`default_adapter_module_name`"
+            )
 
         # Update the model.cfg with information about the new adapter from cfg
         with open_dict(self.cfg):
@@ -162,8 +164,10 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
 
         # Check if default module name is None or not
         if default_module_name is None:
-            raise ValueError(f"Default module name is None. Class {self.__class__.__name__} must implement "
-                             f"`default_adapter_module_name`")
+            raise ValueError(
+                f"Default module name is None. Class {self.__class__.__name__} must implement "
+                f"`default_adapter_module_name`"
+            )
 
         # Forward the method call to the individual modules if they exist
         for module_name in module_names:

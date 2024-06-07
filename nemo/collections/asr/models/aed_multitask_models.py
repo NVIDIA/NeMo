@@ -30,7 +30,7 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
 )
 from nemo.collections.asr.metrics import BLEU, WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRTranscriptionMixin, ASRModuleMixin
+from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRModuleMixin, ASRTranscriptionMixin
 from nemo.collections.asr.parts.mixins.transcription import (
     GenericTranscriptionType,
     InternalTranscribeConfig,

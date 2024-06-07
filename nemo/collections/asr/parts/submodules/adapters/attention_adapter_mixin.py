@@ -68,14 +68,15 @@ class AttentionAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
             The result tensor, after the current active adapter has finished its forward pass.
         """
         if not hasattr(self, 'self_attention_model'):
-            raise RuntimeError("self_attention_model attribute not found in the module! Please set in the module "
-                               "a string attribute 'self_attention_model' with value 'abs_pos', 'rel_pos' or "
-                               "other supported self-attention model types.")
+            raise RuntimeError(
+                "self_attention_model attribute not found in the module! Please set in the module "
+                "a string attribute 'self_attention_model' with value 'abs_pos', 'rel_pos' or "
+                "other supported self-attention model types."
+            )
 
         # Collect imports to prevent circular imports
-        from nemo.collections.asr.parts.submodules import multi_head_attention as conformer_mha
         from nemo.collections.asr.modules.transformer import transformer_modules as transformer_mha
-
+        from nemo.collections.asr.parts.submodules import multi_head_attention as conformer_mha
 
         # (input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin')
         x = input['x']
@@ -84,6 +85,7 @@ class AttentionAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         pos_emb = input.get('pos_emb', None)
 
         from nemo.collections.common.parts import adapter_modules
+
         if isinstance(adapter_module, adapter_modules.LinearAdapter) and loc == 'post':
             output = adapter_strategy(x, adapter_module, module=self)
 

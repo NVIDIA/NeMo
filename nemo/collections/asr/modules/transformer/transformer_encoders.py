@@ -13,17 +13,17 @@
 # limitations under the License.
 
 import copy
-from typing import Optional, List, Set
-from omegaconf import DictConfig
+from typing import List, Optional, Set
 
 import torch
 import torch.nn as nn
+from omegaconf import DictConfig
 
 from nemo.collections.asr.modules.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
 from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import AttentionAdapterModuleMixin
 from nemo.collections.asr.parts.utils import adapter_utils
-from nemo.core.classes.mixins import adapter_mixins
 from nemo.collections.common.parts import form_attention_mask
+from nemo.core.classes.mixins import adapter_mixins
 
 __all__ = ["TransformerEncoder"]
 
@@ -266,7 +266,6 @@ class TransformerEncoderAdapter(TransformerEncoder, adapter_mixins.AdapterModule
             )
             types = self.get_accepted_adapter_types()
         return types
-
 
 
 """
