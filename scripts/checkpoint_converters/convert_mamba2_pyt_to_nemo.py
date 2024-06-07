@@ -8,7 +8,7 @@ from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrai
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 # python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py --input_name_or_path /home/ataghibakhsh/mamba2_ckpts/mamba2-780m --output_path /home/ataghibakhsh/forks/mamba2_780m.nemo
-# python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py --input_name_or_path /home/ataghibakhsh/rogers/mamba_share --output_path /home/ataghibakhsh/forks/mistral_mamba2.nemo
+# python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py --input_name_or_path /home/ataghibakhsh/rogers/mamba_share --output_path /home/ataghibakhsh/forks/mmm_mamba2.nemo
 
 def get_args():
     parser = ArgumentParser()
@@ -30,7 +30,7 @@ def get_args():
 
 def convert(args):
 
-    mistral = True
+    mmm = True
 
     with open(args.input_name_or_path+'/config.json', 'r') as config_file:
         pytorch_config = json.load(config_file)
@@ -39,7 +39,7 @@ def convert(args):
     nemo_config.trainer["precision"] = args.precision
     nemo_config.model.hidden_size=pytorch_config['d_model']
     nemo_config.model.num_layers=pytorch_config['n_layer']
-    if mistral:
+    if mmm:
         nemo_config.model.vocab_size=pytorch_config['vocab_size']
     else:
 
@@ -52,7 +52,7 @@ def convert(args):
     logging.info(f"Loading Mamba2 Pytorch checkpoint : `{args.input_name_or_path}`")
     
 
-    if mistral:
+    if mmm:
         from safetensors.torch import load_file
         pytorch_model = load_file(args.input_name_or_path+'/pytorch_model.bin')
         trainer = MegatronLMPPTrainerBuilder(nemo_config).create_trainer()
@@ -63,7 +63,7 @@ def convert(args):
 
     new_state_dict = {}
 
-    if mistral:
+    if mmm:
         new_state_dict['model.embedding.word_embeddings.weight'] = pytorch_model['tok_embeddings.weight']
         new_state_dict['model.decoder.final_norm.weight'] = pytorch_model['norm.weight']
         new_state_dict['model.output_layer.weight'] = pytorch_model['output.weight']
