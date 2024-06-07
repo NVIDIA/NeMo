@@ -206,6 +206,7 @@ class MegatronBaseModel(NLPModel):
             init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
+            use_te_rng_tracker=self.cfg.get('use_te_rng_tracker', False),
         )
 
         # This must be called after initialize model parallel since it needs to know the data parallel size
@@ -420,7 +421,7 @@ class MegatronBaseModel(NLPModel):
             legacy = True if self._cfg.tokenizer.library == 'sentencepiece' else False
         self.tokenizer = get_nmt_tokenizer(
             library=self._cfg.tokenizer.library,
-            model_name=self._cfg.tokenizer.type,
+            model_name=self._cfg.tokenizer.get("type", None),
             tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)),
             vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.get('vocab_file', None)),
             merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.get('merge_file', None)),
@@ -778,18 +779,21 @@ class MegatronBaseModel(NLPModel):
             model_dtype = torch.float32
             if self.megatron_amp_O2 and hasattr(self, 'autocast_dtype'):
                 model_dtype = self.autocast_dtype
-            optim_kwargs['param_sync_dtype'] = model_dtype
+            # Don't override user desired value
+            if 'param_sync_dtype' not in optim_config:
+                optim_kwargs['param_sync_dtype'] = model_dtype
 
             # Determine whether to store master params in optimizer
-            if self.cfg.get('fp8_params', False):
-                optim_kwargs['store_params'] = True
-            elif optim_dtype == model_dtype:
-                optim_kwargs['store_params'] = False
-            elif optim_dtype == torch.float32 and model_dtype == torch.bfloat16:
-                optim_kwargs['store_params'] = False
-                optim_kwargs['store_param_remainders'] = True
-            else:
-                optim_kwargs['store_params'] = True
+            if 'store_params' not in optim_config:
+                if self.cfg.get('fp8_params', False):
+                    optim_kwargs['store_params'] = True
+                elif optim_dtype == model_dtype:
+                    optim_kwargs['store_params'] = False
+                elif optim_dtype == torch.float32 and model_dtype == torch.bfloat16:
+                    optim_kwargs['store_params'] = False
+                    optim_kwargs['store_param_remainders'] = True
+                else:
+                    optim_kwargs['store_params'] = True
 
         return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
