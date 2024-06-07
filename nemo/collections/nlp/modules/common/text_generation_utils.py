@@ -151,9 +151,12 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
 
 def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_params, inference_config, **strategy_args):
 
+    model_type = model.cfg.mm_cfg.llm.get("model_type", "nvgpt")
     conv_template = model.cfg.data.get("conv_template", "nvgpt")
     final_response = []
     for idx, prompt_dict in enumerate(prompt_dict_list):
+        # determine the media type in the prompt_dict
+        media_type_token = inference_config.inference.get("media_type", "image")
         response = generate(
             model,
             inputs=prompt_dict.get('prompt'),
@@ -169,15 +172,25 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
             end_strings=sampling_params['end_strings'],
             min_tokens_to_generate=length_params['min_length'],
             compute_attention_mask=sampling_params.get("compute_attention_mask", True),
-            image_list=prompt_dict.get('image'),
+            image_list=prompt_dict.get(media_type_token),
             **strategy_args,
         )
 
+        # Middle stages of PP will return None
+        if response is None:
+            continue
+
         # Regular expression pattern to match the sequence
-        pattern = re.compile(rf'{DEFAULT_IM_START_TOKEN}( ⁇ )+{DEFAULT_IM_END_TOKEN}')
-        pattern_nvgpt = re.compile(rf'{DEFAULT_IM_START_TOKEN}({DEFAULT_IMAGE_PATCH_TOKEN})+{DEFAULT_IM_END_TOKEN}')
+        pattern = re.compile(
+            rf'{DEFAULT_IM_START_TOKEN[model_type]}( ⁇ )+{DEFAULT_IM_END_TOKEN[model_type]}'.replace(r'|', r'\|')
+        )
+        pattern_nvgpt = re.compile(
+            rf'{DEFAULT_IM_START_TOKEN[model_type]}({DEFAULT_IMAGE_PATCH_TOKEN[model_type]})+{DEFAULT_IM_END_TOKEN[model_type]}'.replace(
+                r'|', r'\|'
+            )
+        )
         combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}')
-        clean_text = re.sub(combined_pattern, '<image>', response['sentences'][0])
+        clean_text = re.sub(combined_pattern, f"<{media_type_token}>", response['sentences'][0])
 
         clean_response = clean_text
 
@@ -190,9 +203,13 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
                 clean_response = clean_response[last_match_end_position:]
             clean_response = clean_response.strip("<extra_id_1>")
         elif conv_template == 'nv_dpo':
-            clean_response = clean_response.split("<extra_id_1>")[-2][10:]  # [10:] for removing "Assistant\n"
+            clean_response = clean_response.split("<extra_id_1>Assistant\n")[-1]
+            clean_response = clean_response.strip("<extra_id_1>")
         elif conv_template == "llama_2":
             clean_response = clean_response.rsplit("[/INST] ", 1)[-1]
+        elif conv_template == "llama_3":
+            clean_response = clean_response.rsplit("assistant<|end_header_id|>\n\n", 1)[-1]
+            clean_response = clean_response.rstrip("<|eot_id|>")
         elif conv_template == "v1":
             clean_response = clean_response.rsplit("ASSISTANT: ", 1)[-1]
 
@@ -281,17 +298,17 @@ def tab_logits(logits, min_id, max_id, filter_value=-float('Inf')):
 
 def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started=None):
     """
-       This function has been mostly taken from huggingface conversational
-         ai code at
-         https://medium.com/huggingface/how-to-build-a-state-of-the-art-
-              conversational-ai-with-transfer-learning-2d818ac26313
+    This function has been mostly taken from huggingface conversational
+      ai code at
+      https://medium.com/huggingface/how-to-build-a-state-of-the-art-
+           conversational-ai-with-transfer-learning-2d818ac26313
 
-        @param logits: logits tensor
-        @param top_k: keep only top k tokens with highest probability
-        @param top_p: keep the top tokens with cumulative probability
-        @filter_value: value to set filtered tokens to
-        @started: a tensor of bools indicating whether the text generation starts for the batch
-        returns the filtered logits
+     @param logits: logits tensor
+     @param top_k: keep only top k tokens with highest probability
+     @param top_p: keep the top tokens with cumulative probability
+     @filter_value: value to set filtered tokens to
+     @started: a tensor of bools indicating whether the text generation starts for the batch
+     returns the filtered logits
     """
     if top_k > 0:
         # Remove all tokens with a probability less than the
@@ -327,7 +344,7 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started
 
 
 def repetition_penalty(logits, repetition_penalty, used_tokens):
-    """ Implement the repetition penalty, check paper
+    """Implement the repetition penalty, check paper
     https://arxiv.org/pdf/1909.05858.pdf
     """
     if used_tokens is not None and repetition_penalty != 1.0:

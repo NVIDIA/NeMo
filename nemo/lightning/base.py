@@ -8,6 +8,7 @@ import torch.distributed
 from pytorch_lightning import Trainer
 from torch import nn
 
+
 DEFAULT_NEMO_CACHE_HOME = Path.home() / ".cache" / "nemo"
 NEMO_CACHE_HOME = Path(os.getenv("NEMO_HOME", DEFAULT_NEMO_CACHE_HOME))
 DEFAULT_NEMO_DATASETS_CACHE = NEMO_CACHE_HOME / "datasets"
@@ -16,7 +17,11 @@ DEFAULT_NEMO_MODELS_CACHE = NEMO_CACHE_HOME / "models"
 NEMO_MODELS_CACHE = Path(os.getenv("NEMO_MODELS_CACHE", DEFAULT_NEMO_MODELS_CACHE))
 
 
-def get_vocab_size(config, vocab_size: int, make_vocab_size_divisible_by: int = 128,) -> int:
+def get_vocab_size(
+    config,
+    vocab_size: int,
+    make_vocab_size_divisible_by: int = 128,
+) -> int:
     from nemo.utils import logging
 
     after = vocab_size

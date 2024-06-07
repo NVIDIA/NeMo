@@ -69,7 +69,7 @@ class Exportable(ABC):
         check_tolerance=0.01,
         export_modules_as_functions=False,
         keep_initializers_as_inputs=None,
-        use_dynamo=True,
+        use_dynamo=False,
     ):
         """
         Exports the model to the specified format. The format is inferred from the file extension of the output file.
@@ -146,7 +146,7 @@ class Exportable(ABC):
         check_tolerance=0.01,
         export_modules_as_functions=False,
         keep_initializers_as_inputs=None,
-        use_dynamo=True,
+        use_dynamo=False,
     ):
         my_args = locals().copy()
         my_args.pop('self')
@@ -350,7 +350,7 @@ class Exportable(ABC):
 
     def get_export_subnet(self, subnet=None):
         """
-        Returns Exportable subnet model/module to export 
+        Returns Exportable subnet model/module to export
         """
         if subnet is None or subnet == 'self':
             return self

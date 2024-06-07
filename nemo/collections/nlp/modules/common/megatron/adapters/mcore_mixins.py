@@ -37,6 +37,8 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraDenseAttentionAdapterConfig,
     LoraHto4HAdapterConfig,
     LoraKQVAdapterConfig,
+    LoraUnfusedHto4HAdapterConfig,
+    LoraUnfusedKQVAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     PromptEncoderAdapterConfig,
@@ -67,13 +69,18 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         Setup NeMo LoRA or IA3 adapter to this MCore layer.
         """
         self.set_accepted_adapter_types(
-            [LoraKQVAdapterConfig._target_, LoraDenseAttentionAdapterConfig._target_, InfusedAdapterConfig._target_]
+            [
+                LoraUnfusedKQVAdapterConfig._target_,
+                LoraKQVAdapterConfig._target_,
+                LoraDenseAttentionAdapterConfig._target_,
+                InfusedAdapterConfig._target_,
+            ]
         )
         self.linear_qkv.return_layernorm_output = True  # need layernorm output for lora mlp
         if (
             self.config.sequence_parallel
             and hasattr(self.linear_qkv, "return_layernorm_output_gathered")
-            and not self.config.tp_comm_overlap
+            and not self.linear_qkv.ub_overlap_ag
         ):
             # for LoRA SP, TE v1.5 can return layernorm output gathered so there is no need
             # to perform the redundant gather in the adapter module, unless TP communication
@@ -135,11 +142,19 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         if SplitAlongDim is not None:
 
             # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
-            (query, key, value) = SplitAlongDim(mixed_qkv, 3, split_arg_list,)
+            (query, key, value) = SplitAlongDim(
+                mixed_qkv,
+                3,
+                split_arg_list,
+            )
         else:
 
             # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
-            (query, key, value) = torch.split(mixed_qkv, split_arg_list, dim=3,)
+            (query, key, value) = torch.split(
+                mixed_qkv,
+                split_arg_list,
+                dim=3,
+            )
 
         # [sq, b, ng, np/ng * hn] -> [sq, b, np, hn]
         query = query.reshape(query.size(0), query.size(1), -1, self.hidden_size_per_attention_head)
@@ -156,6 +171,14 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
                 vls = value.shape
                 value = value_infused_adapter(value.reshape(vls[0], vls[1], -1)).reshape(vls).to(query.dtype)
 
+            lora_unfused_kqv_adapter = self.get_adapter_module(AdapterName.LORA_UNFUSED_KQV_ADAPTER)
+            if lora_unfused_kqv_adapter and self.adapter_cfg[AdapterName.LORA_UNFUSED_KQV_ADAPTER]['enabled']:
+                assert lora_kqv_adapter is None
+                if layernorm_output is not None:
+                    lq, lk, lv = lora_unfused_kqv_adapter(layernorm_output)
+                else:
+                    lq, lk, lv = lora_unfused_kqv_adapter(hidden_states)
+                query, key, value = query + lq, key + lk, value + lv
         return query, key, value
 
     def forward(
@@ -216,11 +239,21 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
 
         if self.checkpoint_core_attention:
             core_attn_out = self._checkpointed_attention_forward(
-                query, key, value, attention_mask, attn_mask_type=attn_mask_type, packed_seq_params=packed_seq_params,
+                query,
+                key,
+                value,
+                attention_mask,
+                attn_mask_type=attn_mask_type,
+                packed_seq_params=packed_seq_params,
             )
         else:
             core_attn_out = self.core_attention(
-                query, key, value, attention_mask, attn_mask_type=attn_mask_type, packed_seq_params=packed_seq_params,
+                query,
+                key,
+                value,
+                attention_mask,
+                attn_mask_type=attn_mask_type,
+                packed_seq_params=packed_seq_params,
             )
 
         if packed_seq_params is not None:
@@ -251,7 +284,12 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
         Setup NeMo IA3 adapter to this MCore layer.
         """
         self.set_accepted_adapter_types(
-            [LoraHto4HAdapterConfig._target_, Lora4HtoHAdapterConfig._target_, MLPInfusedAdapterConfig._target_]
+            [
+                LoraUnfusedHto4HAdapterConfig._target_,
+                LoraHto4HAdapterConfig._target_,
+                Lora4HtoHAdapterConfig._target_,
+                MLPInfusedAdapterConfig._target_,
+            ]
         )  # only self attn (packed qkv) for now
         self.linear_fc1.return_layernorm_output = True  # need layernorm output for lora mlp
         if (
@@ -274,9 +312,17 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
 
         # LoRA logic
         if self.is_adapter_available():
-            lora_linear_fc1_adapter = self.get_adapter_module(AdapterName.LORA_Hto4H_ADAPTER)
-            if lora_linear_fc1_adapter and self.adapter_cfg[AdapterName.LORA_Hto4H_ADAPTER]['enabled']:
-                lora_output = lora_linear_fc1_adapter(layernorm_output)
+            lora_adapter = None
+            lora_fc1_adapter = self.get_adapter_module(AdapterName.LORA_Hto4H_ADAPTER)
+            lora_unfused_fc1_adapter = self.get_adapter_module(AdapterName.LORA_UNFUSED_Hto4H_ADAPTER)
+            if lora_fc1_adapter and self.adapter_cfg[AdapterName.LORA_Hto4H_ADAPTER]['enabled']:
+                lora_adapter = lora_fc1_adapter
+            if lora_unfused_fc1_adapter and self.adapter_cfg[AdapterName.LORA_UNFUSED_Hto4H_ADAPTER]['enabled']:
+                assert lora_adapter is None, "Expected only one of LORA_Hto4H_ADAPTER or LORA_UNFUSED_Hto4H_ADAPTER"
+                lora_adapter = lora_unfused_fc1_adapter
+
+            if lora_adapter:
+                lora_output = lora_adapter(layernorm_output)
                 intermediate_parallel = intermediate_parallel + lora_output
 
         if self.config.bias_activation_fusion:
@@ -288,7 +334,9 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
                     intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
             elif self.activation_func == F.silu and self.config.gated_linear_unit:
                 intermediate_parallel = bias_swiglu_impl(
-                    intermediate_parallel, bias_parallel, self.config.activation_func_fp8_input_store,
+                    intermediate_parallel,
+                    bias_parallel,
+                    self.config.activation_func_fp8_input_store,
                 )
 
             else:

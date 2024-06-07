@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
-from abc import ABC, abstractmethod
-from typing import List
+from abc import ABC
+from typing import List, Optional
 
 import torch
 
+from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
@@ -171,6 +172,52 @@ class ASRModel(ModelPT, ABC):
                 logging.warning(f'detected inf or nan values in gradients! Setting gradients to zero.')
                 self.zero_grad()
 
+    def on_train_epoch_start(self) -> None:
+        """
+        Decoder with CUDA graphs does not release memory, thus we disable it for training epoch.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
+        """
+        WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+
+    def on_train_epoch_end(self) -> None:
+        """
+        After training, we can enable the decoder with CUDA graphs.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
+        """
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+
+    def on_validation_epoch_start(self) -> None:
+        """
+        For validation, we enable CUDA graphs to speedup validation.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
+        """
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+
+    def on_validation_epoch_end(self) -> Optional[dict[str, dict[str, torch.Tensor]]]:
+        """
+        After validation, we disable CUDA graphs, since `validation` can be called in training loop, and
+        training will continue after validation
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
+        """
+        WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+        return super().on_validation_epoch_end()
+
+    def on_test_epoch_start(self) -> None:
+        """
+        For testing, we enable CUDA graphs to speedup validation.
+        We do not need to disable CUDA graphs after testing, since `test` cannot be called in training loop.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
+        """
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+
+    def on_predict_epoch_start(self) -> None:
+        """
+        For predicting, we enable CUDA graphs to speedup validation.
+        We do not need to disable CUDA graphs after predicting, since `predict` cannot be called in training loop.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
+        """
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+
 
 class ExportableEncDecModel(Exportable):
     """
@@ -203,9 +250,9 @@ class ExportableEncDecModel(Exportable):
         """
         This forward is used when we need to export the model to ONNX format.
         Inputs cache_last_channel and cache_last_time are needed to be passed for exporting streaming models.
+
         Args:
-            input: Tensor that represents a batch of raw audio signals,
-                of shape [B, T]. T here represents timesteps.
+            input: Tensor that represents a batch of raw audio signals of shape [B, T]. T here represents timesteps.
             length: Vector of length B, that contains the individual lengths of the audio sequences.
             cache_last_channel: Tensor of shape [N, B, T, H] which contains the cache for last channel layers
             cache_last_time: Tensor of shape [N, B, H, T] which contains the cache for last time layers

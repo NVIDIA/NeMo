@@ -20,9 +20,13 @@ import pytorch_lightning as pl
 import torch
 import wget
 from omegaconf import DictConfig, OmegaConf
+
+# WAR for https://github.com/pytorch/pytorch/issues/125462
+# Has to be applied before first import of NeMo
 from nemo.core.classes import typecheck
 
 typecheck.enable_wrapping(enabled=False)
+
 from nemo.collections import nlp as nemo_nlp
 from nemo.collections.nlp.models import IntentSlotClassificationModel
 from nemo.collections.nlp.modules.common import (
@@ -37,7 +41,7 @@ def classifier_export(obj):
     with tempfile.TemporaryDirectory() as tmpdir:
         filename = os.path.join(tmpdir, obj.__class__.__name__ + '.onnx')
         obj = obj.cuda()
-        obj.export(output=filename)
+        obj.export(output=filename, use_dynamo=True)
 
 
 class TestExportableClassifiers:
@@ -223,7 +227,7 @@ class TestExportableClassifiers:
         model = nemo_nlp.models.QAModel.from_pretrained(model_name="qa_squadv2.0_bertbase")
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'qa.onnx')
-            model.export(output=filename, check_trace=True)
+            model.export(output=filename, check_trace=True, use_dynamo=True)
             onnx_model = onnx.load(filename)
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.input[1].name == 'attention_mask'
