@@ -351,8 +351,8 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
                 if not self.use_media_start_end:
                     # replace the media start and media end embedding with
                     # vid start embedding and img_end embedding
-                    inputs_embeds[idx, 0] = inputs_embeds[idx, 1]
-                    inputs_embeds[idx, -1] = inputs_embeds[idx, -2]
+                    inputs_embeds[idx, start] = inputs_embeds[idx, start + 1]
+                    inputs_embeds[idx, end] = inputs_embeds[idx, end - 1]
                 assert s_token_end == end
             else:
                 raise ValueError(f"Unsupported visual_token_format {self.visual_token_format}")
