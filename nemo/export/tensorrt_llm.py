@@ -176,9 +176,7 @@ class TensorRTLLM(ITritonDeployable):
             )
 
         if not use_embedding_sharing and model_type in MODELS_FOR_SHARED_EMBEDDING:
-            raise Exception(
-                "Model {0} requires using embedding sharing.".format(model_type)
-            )
+            raise Exception("Model {0} requires using embedding sharing.".format(model_type))
 
         if model_type == "gpt" or model_type == "starcoder":
             model_type = "gptnext"
