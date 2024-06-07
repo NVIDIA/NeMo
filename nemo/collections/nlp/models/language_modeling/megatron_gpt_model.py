@@ -298,6 +298,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.spec_name = cfg.get('name', '')
         if cfg.get('fp8', False):
             self.prev_step_training = True
+        self.continue_training = True if cfg.get("restore_from_ckpt") else False
 
         self.rampup_batch_size = self.cfg.get('rampup_batch_size', None)
         if self.rampup_batch_size:
@@ -1608,7 +1609,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
 
         resume_checkpoint_path = self.trainer.ckpt_path
-        if resume_checkpoint_path:
+        if resume_checkpoint_path and not self.continue_training:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
             init_consumed_samples = 0
