@@ -94,32 +94,6 @@ jobs:
         '
         ### \'\'
 
-    - name: Push container to registry for future use
-      run: |
-        # Push container
-        echo "Docker: List containers" && docker ps -a
-        DOCKER_COMMIT=$(docker ps --latest --quiet)  # latest container
-        docker commit $DOCKER_COMMIT nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-        docker tag nemoci.azurecr.io/nemo_container_${{ github.run_id }} nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-        docker push nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-
-    # - name: Build and push to local registry
-    #   uses: docker/build-push-action@v5
-    #   with:
-    #       context: .
-    #       push: true
-    #       tags: nemoci.azurecr.io/name/app:latest
-
-    # - name: Inspect
-    #   run: |
-    #     docker buildx imagetools inspect nemoci.azurecr.io/name/app:latest
-
-    #- name: Post-workflow execution
-    #  uses: gacts/run-and-post-run@v1
-    #  with:
-    #    post: |
-    #      chmod -R 777 .
-
 
   OPTIONAL_L0_Unit_Tests_GPU:
     needs: [cicd-test-container-setup]
