@@ -521,9 +521,13 @@ class NLPDDPStrategy(DDPStrategy):
                     if key not in ['state_dict', 'optimizer_states']:
                         checkpoint[key] = original_checkpoint[key]
                 if 'optimizer' in checkpoint['optimizer_states'][0]:
-                    checkpoint['optimizer_states'][0]['optimizer']['param_groups'] = original_checkpoint['optimizer_states'][0]['optimizer']['param_groups']
+                    checkpoint['optimizer_states'][0]['optimizer']['param_groups'] = original_checkpoint[
+                        'optimizer_states'
+                    ][0]['optimizer']['param_groups']
                 else:
-                    checkpoint['optimizer_states'][0]['param_groups'] = original_checkpoint['optimizer_states'][0]['optimizer']['param_groups']
+                    checkpoint['optimizer_states'][0]['param_groups'] = original_checkpoint['optimizer_states'][0][
+                        'optimizer'
+                    ]['param_groups']
             return checkpoint
 
         # Legacy model parallel checkpointing logic, does not use megatron core

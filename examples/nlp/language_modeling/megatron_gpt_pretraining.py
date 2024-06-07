@@ -13,10 +13,11 @@
 # limitations under the License.
 
 
+from pathlib import Path
+
 # To suppress BF16 compile related issue in the CI runs with turing/V100
 import torch._dynamo
 import torch.multiprocessing as mp
-from pathlib import Path
 from omegaconf.omegaconf import OmegaConf, open_dict
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
