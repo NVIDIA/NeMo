@@ -1,5 +1,7 @@
-from nemo.collections.llm import fn
 from torch import nn
+
+from nemo.collections.llm import fn
+
 
 class MockModule(nn.Module, fn.FNMixin):
     def __init__(self):
