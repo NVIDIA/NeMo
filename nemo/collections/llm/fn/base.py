@@ -209,7 +209,9 @@ def _map_module(
                 transformed_modules=transformed_modules,
                 i=i,
                 name=name,
-                prefix=kwargs.get("name", "") if not kwargs.get("prefix", "") else f"{kwargs['prefix']}.{kwargs['name']}"
+                prefix=(
+                    kwargs.get("name", "") if not kwargs.get("prefix", "") else f"{kwargs['prefix']}.{kwargs['name']}"
+                ),
             ),
         )
 
