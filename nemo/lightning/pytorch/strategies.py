@@ -27,6 +27,10 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
+from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
+from lightning_fabric.utilities.cloud_io import get_filesystem
+from lightning_fabric.utilities.types import _PATH
+
 from nemo.lightning import _strategy_lib, io
 from nemo.lightning.io.pl import MegatronCheckpointIO, TrainerCheckpoint, TrainerCkptProtocol
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
@@ -98,9 +102,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         from megatron.core.transformer.transformer_config import TransformerConfig
 
-        has_mcore_config = isinstance(getattr(model, "config", None), TransformerConfig)
+        has_mcore_config = isinstance(getattr(model, "mcore_config", None), TransformerConfig)
         if has_mcore_config and is_overridden("configure_model", model):
-            config: TransformerConfig = model.config
+            config: TransformerConfig = model.mcore_config
             config.tensor_model_parallel_size = self.tensor_model_parallel_size
             config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
             config.virtual_pipeline_model_parallel_size = self.virtual_pipeline_model_parallel_size
@@ -355,7 +359,24 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
         if self.enable_nemo_ckpt_io and self.is_global_zero and self.ckpt_type:
-            self.ckpt_type.from_strategy(self).io_dump(ckpt_to_dir(filepath))
+            # self.ckpt_type.from_strategy(self).io_dump(ckpt_to_dir(filepath))
+            # self.model.save_to(ckpt_to_dir(filepath))
+            from megatron.core import dist_checkpointing
+
+            if storage_options is not None:
+                raise TypeError(
+                    "`Trainer.save_checkpoint(..., storage_options=...)` with `storage_options` arg"
+                    f" is not supported for `{self.__class__.__name__}`. Please implement your custom `CheckpointIO`"
+                    " to define how you'd like to use `storage_options`."
+                )
+            checkpoint_dir = ckpt_to_dir(filepath)
+            fs = get_filesystem(checkpoint_dir)
+            if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
+                logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
+                return
+            fs.makedirs(checkpoint_dir, exist_ok=True)
+            dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=str(checkpoint_dir))
+
 
     @override
     def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
@@ -374,7 +395,20 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if self.lightning_module.optimizers(use_pl_optimizer=False):
                 sharded_state_dict["optimizer_states"] = [self.optimizer_sharded_state_dict()]
 
-        checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=sharded_state_dict)
+        # checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=sharded_state_dict)
+        from megatron.core import dist_checkpointing
+
+        # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
+        fs = get_filesystem(checkpoint_path)
+        if not fs.exists(checkpoint_path):
+            raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
+        if not fs.isdir(checkpoint_path):
+            raise ValueError(f"Distributed checkpoints should be a directory. Found: {checkpoint_path}.")
+
+        # return pl_load(path, map_location=map_location)
+
+        checkpoint = dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=str(checkpoint_path))
+        checkpoint = _fix_tensors_device(checkpoint)
 
         return checkpoint
 

@@ -15,6 +15,8 @@ from nemo.collections.llm.gpt.data import (
 from nemo.collections.llm.gpt.model import (
     GPTConfig,
     GPTModel,
+    GPTConfigV2,
+    GPTModelV2,
     MaskedTokenLossReduction,
     Mistral7BConfig,
     Mistral7BModel,
@@ -24,6 +26,7 @@ from nemo.collections.llm.gpt.model import (
     gpt_data_step,
     gpt_forward_step,
 )
+
 
 __all__ = [
     "MockDataModule",

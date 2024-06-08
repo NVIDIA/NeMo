@@ -895,13 +895,25 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
 
             # If the cache dir already exists, delete it to preserve disk space
             if os.path.exists(cache_dir):
-                num_files_in_dir = len(os.listdir(cache_dir))
-                if num_files_in_dir > 0:
+                # Check if the hashed dirnames inside cache dir contain current hashed subfolder name
+                files_in_dir = os.listdir(cache_dir)
+                num_files_in_dir = len(files_in_dir)
+                save_file_exists_in_cache_dir = False
+                for filepath in files_in_dir:
+                    print(filepath)
+                    if cache_subfolder in filepath:
+                        save_file_exists_in_cache_dir = True
+                        break
+
+                # If there exists any file in cache, but the cache doesnt contain the current hash dirname,
+                # it can be assumed these are older versions of the checkpoint, and delete the cache dir
+                # Then redownload a new version.
+                if num_files_in_dir > 0 and not save_file_exists_in_cache_dir:
                     logging.info("Found {} files in cache directory {}".format(num_files_in_dir, cache_dir))
                     logging.info(
                         f"Deleting old cache directory for model `{model_name}` in order to prevent duplicates..."
                     )
-                shutil.rmtree(cache_dir, ignore_errors=True)
+                    shutil.rmtree(cache_dir, ignore_errors=True)
 
             if not os.path.exists(save_path):
                 logging.info(f"Downloading {model_name} from HuggingFace Hub to path: {save_path}")
@@ -914,7 +926,6 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
                 force_download=refresh_cache,
                 cache_dir=save_path,
                 local_dir=save_path,
-                local_dir_use_symlinks=False,
                 token=hf_token,
             )
 

@@ -655,7 +655,7 @@ class ModelPT(LightningModule, Model):
         if self._trainer is None:
             logging.warning(f"Trainer wasn't specified in model constructor. Make sure that you really wanted it.")
 
-        if 'sched' in optim_config and self._trainer is not None:
+        if 'sched' in optim_config and self._trainer is not None and optim_config['sched'] is not None:
 
             if not isinstance(self._trainer.accumulate_grad_batches, int):
                 raise ValueError("We do not currently support gradient acculumation that is not an integer.")
