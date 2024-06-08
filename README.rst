@@ -213,7 +213,7 @@ The NeMo Framework can be installed in a variety of ways, depending on your need
 **Important: We strongly recommended that you start with a base NVIDIA PyTorch container: nvcr.io/nvidia/pytorch:24.02-py3.**
 
 Conda
-~~~~~
+^^^^^
 
 Install NeMo in a fresh Conda environment:
 
@@ -233,7 +233,7 @@ The command to install PyTorch may depend on your system. Use the configurator l
 Then, install NeMo via Pip or from Source. We do not provide NeMo on the conda-forge or any other Conda channel.
 
 Pip
-~~~
+^^^
 
 To install the nemo_toolkit, use the following installation method:
 
@@ -246,7 +246,7 @@ To install the nemo_toolkit, use the following installation method:
 Depending on the shell used, you may need to use the ``"nemo_toolkit[all]"`` specifier instead in the above command.
 
 Pip from a Specific Domain
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To install a specific domain of NeMo, you must first install the nemo_toolkit using the instructions listed above. Then, you run the following domain-specific commands:
 
@@ -259,7 +259,7 @@ To install a specific domain of NeMo, you must first install the nemo_toolkit us
     pip install nemo_toolkit['multimodal']
 
 Pip from a Source Branch
-~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 If you want to work with a specific version of NeMo from a particular GitHub branch (e.g main), use the following installation method:
 
@@ -271,7 +271,7 @@ If you want to work with a specific version of NeMo from a particular GitHub bra
 
 
 Build from Source
-~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^
 
 If you want to clone the NeMo GitHub repository and contribute to NeMo open-source development work, use the following installation method:
 
@@ -285,7 +285,7 @@ If you want to clone the NeMo GitHub repository and contribute to NeMo open-sour
 If you only want the toolkit without the additional Conda-based dependencies, you can replace ``reinstall.sh`` with ``pip install -e .`` when your PWD is the root of the NeMo repository.
 
 Mac Computers with Apple Silicon
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To install NeMo on Mac computers with the Apple M-Series GPU, you need to create a new Conda environment, install PyTorch 2.0 or higher, and then install the nemo_toolkit.
 
@@ -313,7 +313,7 @@ Run the following code:
     # Note that only the ASR toolkit is guaranteed to work on MacBook - so for MacBook use pip install 'nemo_toolkit[asr]'
 
 Windows Computers
-~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^
 
 To install the Windows Subsystem for Linux (WSL), run the following code in PowerShell: 
 
@@ -340,7 +340,7 @@ Next, follow the instructions for Linux systems, as provided above. For example:
     ./reinstall.sh
 
 RNNT
-~~~~
+^^^^
 
 For optimal performance of a Recurrent Neural Network Transducer (RNNT), install the Numba package from Conda.
 
@@ -369,7 +369,7 @@ The most recent working versions of these dependencies are here:
 When using a released version of NeMo, please refer to the `Software Component Versions <https://docs.nvidia.com/nemo-framework/user-guide/latest/softwarecomponentversions.html>`_ for the correct versions.
 
 PyTorch Container
-~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^
 
 We recommended that you start with a base NVIDIA PyTorch container: nvcr.io/nvidia/pytorch:24.02-py3.
 
@@ -389,7 +389,7 @@ If starting with a base NVIDIA PyTorch container, you must first launch the cont
 Next, you need to install the dependencies.
 
 Apex
-~~~~
+^^^^
 
 NVIDIA Apex is required for LLM and MM domains. Although Apex is pre-installed in the NVIDIA PyTorch container, you may need to update it to a newer version.
 
@@ -421,7 +421,7 @@ Finally, install the packaging:
 To install the most recent versions of Apex locally, it might be necessary to remove the `pyproject.toml` file from the Apex directory.
 
 Transformer Engine
-~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^
 
 NVIDIA Transformer Engine is required for LLM and MM domains. Although the Transformer Engine is pre-installed in the NVIDIA PyTorch container, you may need to update it to a newer version.
 
@@ -440,7 +440,7 @@ To install Transformer Engine, run the following code:
 Transformer Engine requires PyTorch to be built with at least CUDA 11.8.
 
 Megatron Core
-~~~~~~~~~~~~~
+^^^^^^^^^^^^^
 
 Megatron Core is required for LLM and MM domains. Megatron Core is a library for scaling large Transformer-based models. NeMo LLMs and MMs leverage Megatron Core for model parallelism, transformer architectures, and optimized PyTorch datasets.
 
