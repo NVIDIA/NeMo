@@ -209,7 +209,7 @@ def _map_module(
                 transformed_modules=transformed_modules,
                 i=i,
                 name=name,
-                **kwargs,
+                prefix=kwargs.get("name", "") if not kwargs.get("prefix", "") else f"{kwargs['prefix']}.{kwargs['name']}"
             ),
         )
 
@@ -229,17 +229,17 @@ def _map_module_list(
         module_list = func(module_list, **f_kwargs)
 
     mapped_modules = []
+    prefix = kwargs.pop('prefix', None)
     for i, module in enumerate(module_list):
-        kwargs["i"] = i
-        kwargs["name"] = str(i)
-
         new_module = map(
             module,
             func,
             recurse=recurse,
             leaf_only=leaf_only,
             transformed_modules=transformed_modules,
-            **kwargs,
+            i=i,
+            name=str(i),
+            prefix='' if not prefix else f"{prefix}.{kwargs['name']}",
         )
         mapped_modules.append(new_module)
 
