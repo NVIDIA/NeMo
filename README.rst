@@ -124,7 +124,7 @@ NeMo Transformer-based LLMs and MMs utilize `NVIDIA Transformer Engine <https://
 
 NeMo LLMs can be aligned with state-of-the-art methods such as SteerLM, Direct Preference Optimization (DPO), and Reinforcement Learning from Human Feedback (RLHF). See `NVIDIA NeMo Aligner <https://github.com/NVIDIA/NeMo-Aligner>`_ for more information.
 
-In addition to supervised fine-tuning (SFT), NeMo also supports the latest parameter efficient fine-tuning (PEFT) techniques such as LoRA, P-Tuning, Adapters, and IA3. Refer to the `NeMo Framework User Guide SFT PEFT <https://docs.nvidia.com/nemo-framework/user-guide/latest/sft_peft/index.html>`_ for the full list of supported models and techniques.
+In addition to supervised fine-tuning (SFT), NeMo also supports the latest parameter efficient fine-tuning (PEFT) techniques such as LoRA, P-Tuning, Adapters, and IA3. Refer to the `NeMo Framework User Guide <https://docs.nvidia.com/nemo-framework/user-guide/latest/sft_peft/index.html>`_ for the full list of supported models and techniques.
 
 LLMs and MMs Deployment and Optimization
 ########################################
