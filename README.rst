@@ -210,10 +210,10 @@ The NeMo Framework can be installed in a variety of ways, depending on your need
 
 * LLMs and MMs Dependencies - Refer to `LLMs and MMs Dependencies <#install-llms-and-mms-dependencies>`_ for installation instructions.
 
-Important: We strongly recommended that you start with a base NVIDIA PyTorch container: nvcr.io/nvidia/pytorch:24.02-py3.
+**Important: We strongly recommended that you start with a base NVIDIA PyTorch container: nvcr.io/nvidia/pytorch:24.02-py3.**
 
 Conda
-^^^^^^
+^^^^^
 
 Install NeMo in a fresh Conda environment:
 
