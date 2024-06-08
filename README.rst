@@ -204,7 +204,7 @@ The NeMo Framework can be installed in a variety of ways, depending on your need
   * This is the recommended method for ASR and TTS domains.
   * When using a Nvidia PyTorch container as the base, this is the recommended method for all domains.
 
-* Docker Containers - Refer to the Docker containers section for installation instructions.
+* Docker Containers - Refer to `Docker containers <#docker-containers>`_ for installation instructions.
 
   * NeMo Framework container - `nvcr.io/nvidia/nemo:24.05`
 
