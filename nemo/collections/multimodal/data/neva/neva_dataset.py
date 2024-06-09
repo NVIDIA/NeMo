@@ -1059,7 +1059,10 @@ class LazySupervisedDataset(Dataset):
             if isinstance(self.processor, CLIPImageProcessor):
                 crop_size = [self.processor.crop_size['height'], self.processor.crop_size['width']]
             else:
-                crop_size = self.multimodal_cfg['crop_size']
+                crop_size = copy.deepcopy(self.multimodal_cfg['crop_size'])
+                if isinstance(self.processor, TiledSiglipImageProcessor):
+                    crop_size[0] *= self.processor.grid_height
+                    crop_size[1] *= self.processor.grid_width
 
             # Image does not exist in the data, but the model is multimodal
             # TODO, if there are different videos on T dimensions.
