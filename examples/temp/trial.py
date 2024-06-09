@@ -19,8 +19,9 @@ if __name__ == '__main__':
 
     config = llm.GPTConfigV2(num_layers=4, hidden_size=256, ffn_hidden_size=256, num_attention_heads=4, seq_length=data.seq_length)
     config.optim.lr = 5e-5
+    config.tokenizer_filepath = None  # using default GPT2 tokenizer or put filepath to spe tokenizer.model
 
-    model = llm.GPTModelV2(config, trainer=trainer, tokenizer=data.tokenizer)
+    model = llm.GPTModelV2(config, trainer=trainer)
 
     trainer.fit(model, data)
     

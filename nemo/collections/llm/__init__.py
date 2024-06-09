@@ -22,7 +22,6 @@ from nemo.collections.llm.gpt.model import (
     Mistral7BModel,
     GPTModelV2,
     GPTConfigV2,
-    NeMoGPTConfig,
     gpt_data_step,
     gpt_forward_step,
 )

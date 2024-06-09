@@ -47,6 +47,7 @@ from nemo.core import ModelPT
 from nemo.collections.nlp.models.nlp_model import NLPModel, NLPSaveRestoreConnector
 from nemo.core.config.modelPT import OptimConfig, SchedConfig
 
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
 from nemo.collections.nlp.parts import utils_funcs
@@ -129,6 +130,15 @@ class GPTOptimConfig(OptimConfig):
 #     def __iter__(self):
 #         keys = set([f.name for f in fields(self)])
 #         yield keys
+
+
+def dataclass_from_dict(klass, d):
+    try:
+        print(klass)
+        fieldtypes = {f.name:f.type for f in fields(klass)}
+        return klass(**{f:dataclass_from_dict(fieldtypes[f],d[f]) for f in d})
+    except Exception as e:
+        return d  # Not a dataclass field
 
 
 @dataclass
@@ -454,6 +464,8 @@ class GPTConfigV2(ModelParallelConfigNeMo):
 
     optim: OptimConfig = OptimConfig(name='fused_adam')
     optimizer_fn: Optional[str] = None
+
+    tokenizer_filepath: Optional[str] = None
 
 
     ####################
@@ -884,18 +896,20 @@ class GPTConfigV2(ModelParallelConfigNeMo):
         if self.apply_rope_fusion and self.rotary_interleaved:
             raise ValueError(f'rotary_interleaved does not work with apply_rope_fusion.')
 
+        # Register a default function for initialization and restoration
+        init_method_fn = init_method_normal(self.init_method_std)
+        register_function(init_method_fn)
+
         if self.init_method is None:
-            init_method_fn = init_method_normal(self.init_method_std)
-            register_function(init_method_fn)
-            
             self.init_method =  init_method_fn.__name__  # init_method_normal(self.init_method_std)
 
-        if self.output_layer_init_method is None:
-            scaled_init_method_normal_fn = scaled_init_method_normal(
-                self.init_method_std, self.num_layers
-            )
-            register_function(scaled_init_method_normal_fn)
+        # Register a default function for initialization and restoration
+        scaled_init_method_normal_fn = scaled_init_method_normal(
+            self.init_method_std, self.num_layers
+        )
+        register_function(scaled_init_method_normal_fn)
 
+        if self.output_layer_init_method is None:
             self.output_layer_init_method = scaled_init_method_normal_fn.__name__
             # scaled_init_method_normal(
             #     self.init_method_std, self.num_layers
@@ -911,8 +925,6 @@ class GPTConfigV2(ModelParallelConfigNeMo):
                 raise ValueError(
                     f'ffn_hidden_size: {self.ffn_hidden_size} must be divisible by extended_tp_size {extended_tp_size}'
                 )
-
-
 
 class LLMSaveRestoreConnector(SaveRestoreConnector):
 
@@ -1079,9 +1091,12 @@ class LLMSaveRestoreConnector(SaveRestoreConnector):
             if trainer.strategy.launcher is not None:
                 trainer.strategy.launcher.launch(dummy, trainer=trainer)
             trainer.strategy.setup_environment()
+        
+        trainer.strategy.model = instance
+        trainer.strategy.setup_megatron_parallel(trainer)
+        trainer.strategy.setup_precision_plugin()
 
-            trainer.strategy.setup_megatron_parallel(trainer)
-            trainer.strategy.setup_precision_plugin()
+        instance.configure_model()
 
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1103,7 +1118,7 @@ class LLMSaveRestoreConnector(SaveRestoreConnector):
             checkpoint = {}
 
             # TODO: @Eric, why does model no longer have sharded state dict?
-            sharded_state_dict = instance.module.sharded_state_dict()
+            sharded_state_dict = instance.trainer.strategy.megatron_parallel.sharded_state_dict()
             checkpoint['state_dict'] = sharded_state_dict
 
             # remove model weights extension
@@ -1132,21 +1147,32 @@ class GPTModelV2(ModelPT,  # NLPModel, # ModelPT,
     def __init__(
         self,
         cfg: GPTConfigV2,
-        # TODO: Add transformer_layer_spec when we update mcore
-        tokenizer: Optional["TokenizerSpec"] = None,
         trainer: L.Trainer = None,
     ):
+        # If you ned the dataclass itself for its util methods, we can rebuild it due to proper serialization to yaml
+        if not isinstance(cfg, GPTConfigV2):
+            model_cfg = OmegaConf.to_object(cfg)
+            model_cfg.pop('nemo_version', None)
+            model_cfg.pop('target', None)
+            cfg = dataclass_from_dict(GPTConfigV2, model_cfg)
+            print(cfg)
+
         # config
         super().__init__(cfg, trainer=trainer)
-
-        if isinstance(cfg, OmegaConf) and not isinstance(cfg, GPTConfigV2):
-            cfg = GPTConfigV2(**OmegaConf.to_object(cfg))
 
         self._save_restore_connector = LLMSaveRestoreConnector()
 
         # Dataclass config here; OmegaConf config is stored under self.cfg
         self.mcore_config = cfg
-        self.tokenizer = tokenizer
+
+        # Handle tokenizer
+        tokenizer_filepath = self.cfg.get("tokenizer_filepath", None)
+        if tokenizer_filepath is not None:
+            tokenizer_filepath = self.register_artifact('tokenizer_filepath', tokenizer_filepath)
+            self.tokenizer = get_nmt_tokenizer(tokenizer_model=tokenizer_filepath)
+        else:
+            # Use default tokenizer
+            self.tokenizer = get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
 
     def configure_model(self) -> None:
         if not hasattr(self, 'module'):
@@ -1212,18 +1238,6 @@ class GPTModelV2(ModelPT,  # NLPModel, # ModelPT,
 
     def setup_test_data(self, cfg):
         pass
-
-    # def state_dict(self, *, prefix: str = '', keep_vars: bool = False):
-    #     current_state_dict = super().state_dict(prefix=prefix, keep_vars=keep_vars)
-
-    #     model_state_dict = self.model.sharded_state_dict()
-    #     current_state_dict['model'] = model_state_dict
-    #     return current_state_dict
-
-    # def load_state_dict(self, state_dict, strict=True, assign=False):
-    #     if 'model' in state_dict:
-    #         model_state_dict = state_dict.pop('model')
-        
 
     def list_available_models(cls):
         return []

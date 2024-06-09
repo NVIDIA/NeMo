@@ -10,8 +10,7 @@ from nemo.collections.llm.gpt.model.mistral_7b import Mistral7BConfig, Mistral7B
 
 from nemo.collections.llm.gpt.model.base_v2 import (
     GPTModelV2,
-    GPTConfigV2,
-    NeMoGPTConfig
+    GPTConfigV2
 )
 
 __all__ = [

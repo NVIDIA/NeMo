@@ -16,18 +16,9 @@ if __name__ == '__main__':
         plugins=nl.MegatronMixedPrecision('bf16-mixed')
     )
 
-    # temp hack
     connector = LLMSaveRestoreConnector()
-    # connector.model_extracted_dir = 'mini_gpt/' 
-
     # model2 = llm.GPTModelV2.restore_from('mini_gpt/', trainer=trainer, save_restore_connector=connector)
     model2 = llm.GPTModelV2.from_pretrained('smajumdar/abc5', trainer=trainer, save_restore_connector=connector)
-    print(list(model2.state_dict().keys()))
     
-    # keys = model.trainer.strategy.megatron_parallel.sharded_state_dict().keys()
-    # sd1 = model.trainer.strategy.megatron_parallel.sharded_state_dict()
-    # sd2 = model2.trainer.strategy.megatron_parallel.sharded_state_dict()
-    # for key in keys:
-    #     v1 = sd1[key]
-    #     v2 = sd2[key]
-    #     assert (v1 - v2).abs().mean() < 1e-5
+    print("Model loaded")
+    print("Num parameters: ", model2.num_weights)
