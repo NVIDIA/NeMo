@@ -1723,9 +1723,10 @@ class ModelPT(LightningModule, Model):
             See more options at: https://docs.nvidia.com/nsight-systems/UserGuide/index.html#cli-profiling
 
             Enables CUDA memory profiling
-            To use, add the following optoins to the model config:
+            To use, add the following options to the model config:
             ## CUDA memory profiling options
-            memory_profile: False
+            memory_profile:
+                enabled: True
                 start_step: 10  # Global batch to start profiling
                 end_step: 10 # Global batch to end profiling
                 rank: 0 # Global rank ID to profile
