@@ -2,7 +2,6 @@ from pathlib import Path
 from pytorch_lightning import Trainer
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.gpt.model.base_v2 import LLMSaveRestoreConnector
 
 
 if __name__ == '__main__':
@@ -17,8 +16,9 @@ if __name__ == '__main__':
     )
 
     connector = None  # To demonstrate that we no longer need 
+    # from nemo.collections.llm.gpt.model.base_v2 import LLMSaveRestoreConnector
     # connector = LLMSaveRestoreConnector()
-
+    
     # model2 = llm.GPTModelV2.restore_from('mini_gpt/', trainer=trainer, save_restore_connector=connector)
     model2 = llm.GPTModelV2.from_pretrained('smajumdar/abc5', trainer=trainer, save_restore_connector=connector)
     
