@@ -16,7 +16,9 @@ if __name__ == '__main__':
         plugins=nl.MegatronMixedPrecision('bf16-mixed')
     )
 
-    connector = LLMSaveRestoreConnector()
+    connector = None  # To demonstrate that we no longer need 
+    # connector = LLMSaveRestoreConnector()
+
     # model2 = llm.GPTModelV2.restore_from('mini_gpt/', trainer=trainer, save_restore_connector=connector)
     model2 = llm.GPTModelV2.from_pretrained('smajumdar/abc5', trainer=trainer, save_restore_connector=connector)
     

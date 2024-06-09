@@ -145,6 +145,10 @@ class NLPModel(ModelPT, Exportable):
             # register encoder config
             self.register_bert_model()
 
+    @classmethod
+    def get_default_save_restore_connector(cls) -> NLPSaveRestoreConnector:
+        return NLPSaveRestoreConnector()
+
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = False,
     ):

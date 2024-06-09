@@ -739,7 +739,7 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
             A model instance of a particular model class or its underlying config (if return_config is set).
         """
         if save_restore_connector is None:
-            save_restore_connector = SaveRestoreConnector()
+            save_restore_connector = cls.get_default_save_restore_connector()
 
         # Resolve if the pretrained model name is from NGC or other sources
         # HF Hub source
@@ -957,6 +957,13 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
 
         else:
             raise ValueError(f"Model card type {type} not supported.")
+
+    @classmethod
+    def get_default_save_restore_connector(cls) -> SaveRestoreConnector:
+        """
+        Returns the default SaveRestoreConnector for the model.
+        """
+        return SaveRestoreConnector()
 
 
 class typecheck:

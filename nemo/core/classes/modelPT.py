@@ -20,7 +20,7 @@ import uuid
 from abc import abstractmethod
 from os import path
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union, Type
 
 import hydra
 import torch
@@ -143,7 +143,7 @@ class ModelPT(LightningModule, Model):
         self._scheduler = None
         self.set_trainer(trainer)
 
-        self._save_restore_connector = SaveRestoreConnector()
+        self._save_restore_connector = self.get_default_save_restore_connector()
 
         self._set_model_guid()
 
@@ -216,7 +216,7 @@ class ModelPT(LightningModule, Model):
         self._memory_profile_complete = False
 
     def __init_subclass__(cls) -> None:
-        cls._save_restore_connector = SaveRestoreConnector()
+        cls._save_restore_connector = cls.get_default_save_restore_connector()
 
     def on_fit_start(self) -> None:
         if self.cfg.get("dump_debug_info", False):
@@ -451,11 +451,19 @@ class ModelPT(LightningModule, Model):
         """
 
         if save_restore_connector is None:
-            save_restore_connector = SaveRestoreConnector()
+            save_restore_connector = cls.get_default_save_restore_connector()
 
         if save_restore_connector.model_extracted_dir is None:
-            restore_path = os.path.abspath(os.path.expanduser(restore_path))
+            # Check if a directory was passed, and the directory contains the config file, then simply
+            # inject model_extracted_dir
+            if os.path.isdir(restore_path) and os.path.exists(os.path.join(restore_path, save_restore_connector.model_config_yaml)):
+                restore_path = os.path.abspath(os.path.expanduser(restore_path))
+                save_restore_connector.model_extracted_dir = restore_path
+            else:
+                # Restore_from path is a path to a file (presumed to be a .nemo file)
+                restore_path = os.path.abspath(os.path.expanduser(restore_path))
         else:
+            # Restore_from path is a path to a directory (presumed to be a directory with extracted .nemo contents)
             restore_path = os.path.abspath(os.path.expanduser(save_restore_connector.model_extracted_dir))
 
         if not path.exists(restore_path):

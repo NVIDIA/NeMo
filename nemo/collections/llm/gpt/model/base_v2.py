@@ -1155,7 +1155,6 @@ class GPTModelV2(ModelPT,  # NLPModel, # ModelPT,
             model_cfg.pop('nemo_version', None)
             model_cfg.pop('target', None)
             cfg = dataclass_from_dict(GPTConfigV2, model_cfg)
-            print(cfg)
 
         # config
         super().__init__(cfg, trainer=trainer)
@@ -1241,6 +1240,11 @@ class GPTModelV2(ModelPT,  # NLPModel, # ModelPT,
 
     def list_available_models(cls):
         return []
+
+    # This enables models to restore from without providing the connector explicitly
+    @classmethod
+    def get_default_save_restore_connector(cls):
+        return LLMSaveRestoreConnector()
 
 def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
