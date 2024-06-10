@@ -1,5 +1,5 @@
 ---
-date: mm/dd/yyyy
+container pulled on date: mm/dd/yyyy
 name: Dev container - Bug report
 about: Create a report to help us improve
 title: ''
