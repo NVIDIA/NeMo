@@ -52,28 +52,29 @@ def transformer_config():
 def hyena_config():
     cfg = {
         # HyenaOperator parameters
-        'l_max': 1024,
+        'max_seq_length': 1024,
         'order': 2,
-        'filter_order': 64,
         'num_heads': 1,
         'dropout': 0.0,
         'short_filter_order': 3,
         'activation': "identity",
-        # HyenaFilter parameters
+        # HyenaConv parameters
         'precision': 'bf16',
+        'bias': True,
         'fftconv_type': None,
+        # HyenaFilter parameters
         'emb_dim': 33,
         'learn_pos_emb_z': True,
-        'w': 1,
-        'bias': True,
-        'normalized': False,
+        'mlp_width': 64,
+        'sine_freq': 1,
         'num_inner_mlps': 2,
+        'normalized': False,
         # ExponentialModulation parameters
+        'modulate': True,
+        'learn_modulation': False,
         'fast_decay_pct': 0.3,
         'slow_decay_pct': 1.5,
         'target': 1e-2,
-        'learn_modulation': False,
-        'modulate': True,
         'shift': 0.0,
     }
     return cfg
@@ -106,12 +107,12 @@ class TestHyenaOperator:
         # short_filter (depthwise-separable 1d conv) --> inner_width * short_filter_order + inner_width
         # long_conv bias --> head_dim
         # filter:
-        #   pos_emb.z --> l_max * emb_dim
-        #   sin activation freqs --> filter_order
+        #   pos_emb.z --> max_seq_len * emb_dim
+        #   sin activation freqs --> mlp_width
         #   mlp:
-        #     input layer -->  emb_dim * filter_order + filter_order
-        #     inner layers --> num_inner_mlps * (filter_order ^ 2 + filter_order)
-        #     output_layer (no bias) --> filter_order * head_dim
+        #     input layer -->  emb_dim * mlp_width + mlp_width
+        #     inner layers --> num_inner_mlps * (mlp_width ^ 2 + mlp_width)
+        #     output_layer (no bias) --> mlp_width * head_dim
         #   modulation: head_dim
 
         hyena_config['fftconv_type'] = 'safari'
@@ -134,7 +135,7 @@ class TestHyenaOperator:
         hyena_module = hyena_module.to(device='cuda', dtype=dtype)
 
         bs = 4
-        seq_len = hyena_config['l_max']
+        seq_len = hyena_config['max_seq_length']
         d_model = transformer_config.hidden_size
 
         x = torch.randn(seq_len, bs, d_model)
