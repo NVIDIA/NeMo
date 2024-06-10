@@ -227,6 +227,4 @@ def model_to_trtllm_ckpt(
         model_configs.append(model_config)
         weights_dicts.append(weights_dict_local)
 
-
-
     return weights_dicts, model_configs
