@@ -213,7 +213,7 @@ class TensorRTLLM(ITritonDeployable):
             warnings.warn(
                 "Parameter max_input_token is deprecated and will be removed. Please use max_input_len instead.",
                 DeprecationWarning,
-                stacklevel=2
+                stacklevel=2,
             )
             max_input_len = max_input_token
 
@@ -221,7 +221,7 @@ class TensorRTLLM(ITritonDeployable):
             warnings.warn(
                 "Parameter max_output_token is deprecated and will be removed. Please use max_output_len instead.",
                 DeprecationWarning,
-                stacklevel=2
+                stacklevel=2,
             )
             max_output_len = max_output_token
 
@@ -346,7 +346,7 @@ class TensorRTLLM(ITritonDeployable):
                 warnings.warn(
                     "Parameter max_output_token is deprecated and will be removed. Please use max_output_len instead.",
                     DeprecationWarning,
-                    stacklevel=2
+                    stacklevel=2,
                 )
                 max_output_len = max_output_token
             if prompt_embeddings_table is not None or prompt_embeddings_checkpoint_path is not None:
