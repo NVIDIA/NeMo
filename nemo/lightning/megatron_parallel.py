@@ -132,13 +132,13 @@ class MegatronParallel(nn.ModuleList):
                         _model.configure_model()
                     _pipeline.append(_model)
 
-            if self.ddp_config is not None:
+            if isinstance(ddp_config, DistributedDataParallelConfig):
                 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 
                 _pipeline = [
                     McoreDDP(
                         model_chunk.config,
-                        self.ddp_config,
+                        ddp_config,
                         model_chunk,
                         data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
                         expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
