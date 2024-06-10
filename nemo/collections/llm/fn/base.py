@@ -197,6 +197,11 @@ def _map_module(
     if not leaf_only or list(module.parameters(recurse=False)):
         new_module = func(new_module, **f_kwargs)
 
+    prefix = kwargs.get("name", "") if not kwargs.get("prefix", "") else f"{kwargs['prefix']}.{kwargs['name']}"
+    kwargs.pop('i', None)
+    kwargs.pop('name', None)
+    kwargs.pop('prefix', None)
+
     for i, (name, child) in enumerate(module.named_children()):
         setattr(
             new_module,
@@ -209,9 +214,8 @@ def _map_module(
                 transformed_modules=transformed_modules,
                 i=i,
                 name=name,
-                prefix=(
-                    kwargs.get("name", "") if not kwargs.get("prefix", "") else f"{kwargs['prefix']}.{kwargs['name']}"
-                ),
+                prefix=prefix,
+                **kwargs,
             ),
         )
 
@@ -231,7 +235,10 @@ def _map_module_list(
         module_list = func(module_list, **f_kwargs)
 
     mapped_modules = []
-    prefix = kwargs.pop('prefix', None)
+    prefix = kwargs.get("name", "") if not kwargs.get('prefix', "") else f"{kwargs['prefix']}.{kwargs['name']}"
+    kwargs.pop('i', None)
+    kwargs.pop('name', None)
+    kwargs.pop('prefix', None)
     for i, module in enumerate(module_list):
         new_module = map(
             module,
@@ -241,7 +248,8 @@ def _map_module_list(
             transformed_modules=transformed_modules,
             i=i,
             name=str(i),
-            prefix='' if not prefix else f"{prefix}.{kwargs['name']}",
+            prefix=prefix,
+            **kwargs,
         )
         mapped_modules.append(new_module)
 
