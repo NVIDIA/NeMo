@@ -31,7 +31,7 @@ on:
         description: Conclusion of main test step
         value: ${{ jobs.main.outputs.conclusion }}
       log:
-        description: Last 5 lines of log
+        description: Last 2000 characters of the test step's log
         value: ${{ jobs.main.outputs.log }} 
 jobs:
   main:
