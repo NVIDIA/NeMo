@@ -302,6 +302,7 @@ class TensorRTLLM(ITritonDeployable):
         self,
         input_texts: List[str],
         max_output_len: int = 64,
+        max_output_token: Optional[int] = None,
         top_k: int = 1,
         top_p: float = 0.0,
         temperature: float = 1.0,
@@ -322,6 +323,7 @@ class TensorRTLLM(ITritonDeployable):
         Args:
             input_texts (List(str)): list of sentences.
             max_output_len (int): max generated tokens.
+            max_output_token (int): max generated tokens. Deprecated, use max_output_len instead.
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
@@ -340,6 +342,13 @@ class TensorRTLLM(ITritonDeployable):
                 "then it should be loaded first to run inference."
             )
         else:
+            if max_output_token is not None:
+                warnings.warn(
+                    "Parameter max_output_token is deprecated and will be removed. Please use max_output_len instead.",
+                    DeprecationWarning,
+                    stacklevel=2
+                )
+                max_output_len = max_output_token
             if prompt_embeddings_table is not None or prompt_embeddings_checkpoint_path is not None:
                 prompt_table = self._get_prompt_embedding_table(
                     prompt_embeddings_table, prompt_embeddings_checkpoint_path
