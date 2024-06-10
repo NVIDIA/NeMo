@@ -17,7 +17,7 @@ trainer:
   max_steps: 100 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 20
-  limit_val_batches: 1.0
+  limit_val_batches: 50
   limit_test_batches: 500
   accumulate_grad_batches: 1 # do not modify, grad acc is automatic for training megatron models
   gradient_clip_val: 1.0
@@ -240,11 +240,11 @@ model:
     # Dictionary: can override from CLI "model.data.data_prefix"={"train":[1.0, /path/to/data], "validation":/path/to/data, "test":/path/to/test}
     # Or see example below:
     # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
-    data_prefix: {train:[1.0,/home/data/test_text_document], validation:[/home/data/test_text_document], test:[/home/data/test_text_document]}
+    data_prefix: [1.0,/home/data/test_text_document]
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     mmap_bin_files: True
-    splits_string: null
+    splits_string: 900,50,50
     seq_length: ${model.encoder_seq_length}
     skip_warmup: True
     num_workers: 2
