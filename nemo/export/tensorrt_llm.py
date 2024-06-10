@@ -301,7 +301,7 @@ class TensorRTLLM(ITritonDeployable):
     def forward(
         self,
         input_texts: List[str],
-        max_output_token: int = 64,
+        max_output_len: int = 64,
         top_k: int = 1,
         top_p: float = 0.0,
         temperature: float = 1.0,
@@ -321,7 +321,7 @@ class TensorRTLLM(ITritonDeployable):
 
         Args:
             input_texts (List(str)): list of sentences.
-            max_output_token (int): max generated tokens.
+            max_output_len (int): max generated tokens.
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
@@ -387,7 +387,7 @@ class TensorRTLLM(ITritonDeployable):
 
                 return generate(
                     input_texts=input_texts,
-                    max_output_len=max_output_token,
+                    max_output_len=max_output_len,
                     host_context=self.model,
                     top_k=top_k,
                     top_p=top_p,
@@ -407,7 +407,7 @@ class TensorRTLLM(ITritonDeployable):
             else:
                 return generate_streaming(
                     input_texts=input_texts,
-                    max_output_len=max_output_token,
+                    max_output_len=max_output_len,
                     host_context=self.model,
                     top_k=top_k,
                     top_p=top_p,
@@ -470,7 +470,7 @@ class TensorRTLLM(ITritonDeployable):
     def get_triton_input(self):
         inputs = (
             Tensor(name="prompts", shape=(-1,), dtype=bytes),
-            Tensor(name="max_output_token", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="max_output_len", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
@@ -492,8 +492,8 @@ class TensorRTLLM(ITritonDeployable):
     def triton_infer_fn(self, **inputs: np.ndarray):
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
-            if "max_output_token" in inputs:
-                infer_input["max_output_token"] = inputs.pop("max_output_token")[0][0]
+            if "max_output_len" in inputs:
+                infer_input["max_output_len"] = inputs.pop("max_output_len")[0][0]
             if "top_k" in inputs:
                 infer_input["top_k"] = inputs.pop("top_k")[0][0]
             if "top_p" in inputs:
@@ -529,8 +529,8 @@ class TensorRTLLM(ITritonDeployable):
     def triton_infer_fn_streaming(self, **inputs: np.ndarray):
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
-            if "max_output_token" in inputs:
-                infer_input["max_output_token"] = inputs.pop("max_output_token")[0][0]
+            if "max_output_len" in inputs:
+                infer_input["max_output_len"] = inputs.pop("max_output_len")[0][0]
             if "top_k" in inputs:
                 infer_input["top_k"] = inputs.pop("top_k")[0][0]
             if "top_p" in inputs:
