@@ -516,18 +516,7 @@ class NLPDDPStrategy(DDPStrategy):
                 checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
 
             if getattr(self.lightning_module, 'continue_training'):
-                original_checkpoint = self.lightning_module.trainer._checkpoint_connector.dump_checkpoint()
-                for key in checkpoint:
-                    if key not in ['state_dict', 'optimizer_states']:
-                        checkpoint[key] = original_checkpoint[key]
-                if 'optimizer' in checkpoint['optimizer_states'][0]:
-                    checkpoint['optimizer_states'][0]['optimizer']['param_groups'] = original_checkpoint[
-                        'optimizer_states'
-                    ][0]['optimizer']['param_groups']
-                else:
-                    checkpoint['optimizer_states'][0]['param_groups'] = original_checkpoint['optimizer_states'][0][
-                        'optimizer'
-                    ]['param_groups']
+                checkpoint = self._integrate_original_checkpoint_data(checkpoint)
             return checkpoint
 
         # Legacy model parallel checkpointing logic, does not use megatron core
@@ -538,6 +527,23 @@ class NLPDDPStrategy(DDPStrategy):
                 raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
             torch.cuda.empty_cache()
             return self.checkpoint_io.load_checkpoint(checkpoint_path)
+
+    def _integrate_original_checkpoint_data(self, checkpoint: Dict[str, Any]) -> Dict[str, Any]:
+        """Integrates additional data into the checkpoint dictionary."""
+
+        original_checkpoint = self.lightning_module.trainer._checkpoint_connector.dump_checkpoint()
+        for key in checkpoint:
+            if key not in ['state_dict', 'optimizer_states']:
+                checkpoint[key] = original_checkpoint[key]
+        if 'optimizer' in checkpoint['optimizer_states'][0]:
+            checkpoint['optimizer_states'][0]['optimizer']['param_groups'] = original_checkpoint[
+                'optimizer_states'
+            ][0]['optimizer']['param_groups']
+        else:
+            checkpoint['optimizer_states'][0]['param_groups'] = original_checkpoint['optimizer_states'][0]['optimizer'][
+                'param_groups']
+
+        return checkpoint
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         # check if filepath is a distributed checkpoint
