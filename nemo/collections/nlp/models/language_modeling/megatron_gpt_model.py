@@ -1508,7 +1508,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "eod_mask_loss": self.eod_mask_loss,
                 "create_attention_mask": not self.get_attention_mask_from_fusion,
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
-                "drop_last_partial_validation_sequence": self.cfg.data.get("validation_drop_last", False),
+                "drop_last_partial_validation_sequence": self.cfg.data.get("validation_drop_last", True),
                 "add_extra_token_to_sequence": add_extra_token,
             }
 
