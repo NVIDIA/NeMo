@@ -143,6 +143,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     if cpu_only:
         map_location = torch.device('cpu')
         model_config.use_cpu_initialization = True
+        model_config.dist_ckpt_load_on_device = False
     else:
         map_location = None
 
