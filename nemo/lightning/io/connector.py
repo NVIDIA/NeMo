@@ -68,6 +68,10 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
         _output_path = output_path or self.local_path()
         lock_path = _output_path.with_suffix(_output_path.suffix + '.lock')
         lock = FileLock(lock_path)
+        
+        # Check if the lock file exists and set overwrite to False if it does
+        if lock_path.exists():
+            overwrite = False
 
         try:
             with lock.acquire(timeout=self.LOCK_TIMEOUT):

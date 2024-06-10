@@ -55,6 +55,8 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
+        
+        print(f"Converted Mistral 7B model to Nemo, model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
