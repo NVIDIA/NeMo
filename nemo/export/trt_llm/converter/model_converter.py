@@ -182,6 +182,8 @@ def model_to_trtllm_ckpt(
             if new_key.endswith(".bin"):  # TP split
                 if new_key.endswith(f"{mapping.tp_rank}.bin"):
                     new_key = new_key.replace(f".{mapping.tp_rank}.bin", "")
+                else:
+                    continue
             if "layers" in new_key:  # PP
                 layer_num = int(new_key.split(".")[2])
                 if layer_num in layers_range:
@@ -224,5 +226,7 @@ def model_to_trtllm_ckpt(
         model_config.mapping = mapping
         model_configs.append(model_config)
         weights_dicts.append(weights_dict_local)
+
+
 
     return weights_dicts, model_configs
