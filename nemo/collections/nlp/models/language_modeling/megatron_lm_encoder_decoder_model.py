@@ -308,24 +308,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
             )
 
-            # DEBUGGING
-            import yaml
-            logging.info("******* Initializing arguments for Mcore T5 *******")
-            logging.info("self.transformer_config: ")
-            for key, value in self.transformer_config.__dict__.items():
-                logging.info("     {}: {}".format(str(key), str(value)))
-            logging.info("vocab_size: {}".format(self.padded_vocab_size))
-            logging.info("max_sequence_length: {}".format(self.cfg.max_position_embeddings))
-            logging.info("pre_process: {}".format(pre_process))
-            logging.info("post_process: {}".format(post_process))
-            logging.info("fp16_lm_cross_entropy: {}".format(self.cfg.get('fp16_lm_cross_entropy', False)))
-            logging.info("parallel_output: {}".format(True))
-            logging.info("share_embeddings_and_output_weights: {}".format(self.cfg.get('share_decoder_tokens_head_embeddings', True)))
-            logging.info("position_embedding_type: {}".format(self.cfg.get('position_embedding_type', 'learned_absolute')))
-            logging.info("rotary_percent: {}".format(self.cfg.get('rotary_percentage', 1.0)))
-            logging.info("seq_len_interpolation_factor: {}".format(self.cfg.get('seq_len_interpolation_factor', None)))
-
-
         else:
             if not hasattr(self.cfg, 'embedding_init_method_std'):
                 embedding_init_method_std = self.cfg.encoder.init_method_std
@@ -359,34 +341,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tokens_head_bias=self.cfg.get('tokens_head_bias', True),
                 hiddens_cfg=self.cfg.get('hiddens', None),
             )
-
-            # DEBUGGING
-            import yaml            
-            logging.info("******* Initializing arguments for Non-mcore T5 *******")
-            logging.info("config: {}".format(self.model_parallel_config))
-            logging.info("encoder_cfg: {}".format(yaml.dump(OmegaConf.to_container(self.cfg.encoder), sort_keys=False)))
-            logging.info("decoder_cfg: {}".format(yaml.dump(OmegaConf.to_container(self.cfg.decoder), sort_keys=False)))
-            logging.info("vocab_size: {}".format(self.padded_vocab_size))
-            logging.info("max_position_embeddings: {}".format(self.cfg.max_position_embeddings))
-            logging.info("num_tokentypes: {}".format(0))
-            logging.info("parallel_output: {}".format(True))
-            logging.info("pre_process: {}".format(pre_process))
-            logging.info("post_process: {}".format(post_process))
-            logging.info("fp16_cross_entropy: {}".format(self.cfg.get('fp16_lm_cross_entropy', False)))
-            logging.info("precision: {}".format(self.cfg.get('precision', 16)))
-            logging.info("embedding_init_method_std: {}".format(embedding_init_method_std))
-            logging.info("embedding_dropout: {}".format(embedding_dropout))
-            logging.info("label_smoothing: {}".format(self.cfg.get('label_smoothing', 0.0)))
-            logging.info("add_encoder: {}".format(add_encoder))
-            logging.info("add_decoder: {}".format(add_decoder))
-            logging.info("share_token_embeddings: {}".format(self.cfg.get('share_token_embeddings', True)))
-            logging.info("share_decoder_tokens_head_embeddings: {}".format(self.cfg.get('share_decoder_tokens_head_embeddings', True)))
-            logging.info("tokens_head_bias: {}".format(self.cfg.get('tokens_head_bias', True)))
-            logging.info("hiddens_cfg: {}".format(self.cfg.get('hiddens', None)))
-
-        # DEBUGGING
-        logging.info("model: ")
-        logging.info(model)
 
         return model
 
@@ -504,20 +458,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # note: not necessary, but reduces performance degradation
             # from multiple simultaneous NCCL calls
             self._optimizer._finish_bucket_grad_sync()
-        # DEBUGGING  
         elif self.megatron_amp_O2:
             # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 # main grads are stored in the MainParamsOptimizer wrapper
                 self._optimizer.allreduce_main_grads()
-
-            # if (
-            #     self.cfg.get('pipeline_model_parallel_size', 1) > 1
-            #     or self.cfg.get('sequence_parallel', False)
-            #     or not self.cfg.get('async_grad_allreduce', True)
-            # ):
-            #     # main grads are stored in the MainParamsOptimizer wrapper
-            #     self._optimizer.allreduce_main_grads()
 
         else:
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
@@ -738,10 +683,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 enc_dec_attn_mask_3d = build_attention_mask_3d(
                     decoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
                 )
-
-                # # DEBUGGING
-                # print("model: ", model)
-                # print("isinstance(model, (Float16Module, MCoreFloat16Module): ", isinstance(model, (Float16Module, MCoreFloat16Module)))
 
                 output = model(  # model is MCoreT5Model
                     encoder_input_ids,  # encoder_input_ids
