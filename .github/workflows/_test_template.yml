@@ -81,7 +81,7 @@ jobs:
             MAX_LENGTH=$(min $MAX_LENGTH 2000)
             MAX_LENGTH=$(( $MAX_LENGTH - 1 ))
 
-            log=$(echo "${log: -${MAX_LENGTH}}" | base64)
+            log=$(echo "${log: -${MAX_LENGTH}}" | base64 -w 0)
             echo "log=$log" | tee -a "$GITHUB_OUTPUT"
             
             exit $EXIT_CODE
