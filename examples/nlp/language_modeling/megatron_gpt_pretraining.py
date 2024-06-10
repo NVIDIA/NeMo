@@ -41,7 +41,7 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     # Continual training
-    if cfg.model.restore_from_path is not None:
+    if cfg.model.get("restore_from_path") is not None:
         # Option 1: Restore only the model weights from a .nemo file
         logging.info(f"Continual training: loading weights from {cfg.model.restore_from_path}")
         model = MegatronGPTModel.restore_from(
@@ -50,7 +50,7 @@ def main(cfg) -> None:
             trainer=trainer,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
-    elif cfg.model.restore_from_ckpt is not None:
+    elif cfg.model.get("restore_from_ckpt") is not None:
         # Option 2: Restore both model weights and optimizer states from a PTL checkpoint
         logging.info(f"Continual training: loading weights and optimizer states from {cfg.model.restore_from_ckpt}")
         trainer.ckpt_path = Path(cfg.model.restore_from_ckpt)
