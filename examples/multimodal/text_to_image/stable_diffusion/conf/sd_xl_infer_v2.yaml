@@ -17,6 +17,7 @@ trainer:
 
 
 infer:
+  num_samples_per_batch: 1
   num_samples: 4
   prompt:
     - "A professional photograph of an astronaut riding a pig"
@@ -70,6 +71,13 @@ model:
   disable_first_stage_autocast: True
   is_legacy: False
   restore_from_path: ""
+
+  fsdp: False
+  fsdp_set_buffer_dtype: null
+  fsdp_sharding_strategy: 'full'
+  use_cpu_initialization: True
+  # hidden_size: 4
+  # pipeline_model_parallel_size: 4
 
   optim:
     name: fused_adam

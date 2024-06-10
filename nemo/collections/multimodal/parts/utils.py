@@ -27,7 +27,7 @@ from nemo.collections.multimodal.data.clip.augmentations.augmentations import im
 
 from nemo.collections.multimodal.data.neva.neva_dataset import process_image
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector, NLPFSDPStrategy
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import AppState, logging
@@ -274,10 +274,23 @@ def setup_trainer_and_model_for_inference(
 
     # Use the NLPDDPStrategy for the distributed data parallel strategy.
     # We don't use DDP for async grad allreduce and don't find unused parameters.
-    strategy = NLPDDPStrategy(
-        no_ddp_communication_hook=True,
-        find_unused_parameters=False,
-    )
+    if not cfg.model.get('fsdp', False):
+        logging.info("FSDP is False, using DDP strategy.")
+        strategy = NLPDDPStrategy(
+            no_ddp_communication_hook=True,
+            find_unused_parameters=False,
+        )
+    else:
+        logging.info("Using FSDP strategy.")
+        strategy = NLPFSDPStrategy(
+                    limit_all_gathers=cfg.model.get('fsdp_limit_all_gathers', True),
+                    sharding_strategy=cfg.model.get('fsdp_sharding_strategy', 'full'),
+                    cpu_offload=cfg.model.get('fsdp_cpu_offload', True),
+                    grad_reduce_dtype=cfg.model.get('fsdp_grad_reduce_dtype', 32),
+                    precision=cfg.trainer.precision,
+                    # use_orig_params=cfg.model.inductor,
+                    set_buffer_dtype=cfg.get('fsdp_set_buffer_dtype', None),
+        )
 
     # Set up the trainer with the specified plugins and strategy.
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)

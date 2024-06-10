@@ -3,6 +3,7 @@
 *.pkl
 #*.ipynb
 output
+output_2048
 result
 *.pt
 tests/data/asr
