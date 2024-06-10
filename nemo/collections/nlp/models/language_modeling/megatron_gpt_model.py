@@ -769,7 +769,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Reset learning rate
         if self.if_init_step and self.reset_lr:
             self._optimizer.param_groups[0]['reset_lr'] = {
-                'num_steps': self.trainer.global_step, 
+                'num_steps': self.trainer.global_step,
                 'reset_lr_steps': True if self.reset_lr_steps else False,
             }
             self.if_init_step = False
