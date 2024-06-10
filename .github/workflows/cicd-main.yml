@@ -5077,7 +5077,7 @@ jobs:
 
           SUMMARY=$(echo '${{ toJSON(needs) }}' | jq --arg pr "<$PR_URL|$PR_TITLE>" '
             to_entries 
-            | .[]
+            | [.[]
             | select(.value.outputs.conclusion == "failure") 
             | {
                 "type": "section",
@@ -5092,10 +5092,10 @@ jobs:
                     + "```\n" + (.value.outputs.log | @base64d) + "\n```" 
                   )
                 }
-              }
+              }]
           ')
 
-          MESSAGE=$(echo $BASE_MESSAGE | jq -c --argjson summary "$SUMMARY" '.blocks += [$summary]')
+          MESSAGE=$(echo $BASE_MESSAGE | jq -c --argjson summary "$SUMMARY" '.blocks += $summary')
 
           curl -X POST -H "Content-type: application/json" --data "$MESSAGE" ${{ secrets.SLACK_WEBHOOK }}
 
