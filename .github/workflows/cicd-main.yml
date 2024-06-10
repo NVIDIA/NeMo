@@ -5075,25 +5075,32 @@ jobs:
             }
           '
 
-          SUMMARY=$(echo '${{ toJSON(needs) }}' | jq --arg pr "<$PR_URL|$PR_TITLE>" '
-            to_entries 
-            | [.[]
-            | select(.value.outputs.conclusion == "failure") 
-            | {
+          JOBS_URL="https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs"  
+          SUMMARY="[]"
+          while IFS= read -r JOB; do
+            JOB_NAME="$(echo $JOB | jq '.key' | tr -d '"') / main"
+            JOB_ID=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" $JOBS_URL | jq --arg job_name "$JOB_NAME" -r '.jobs[] | select(.name == $job_name) | .id')
+            JOB_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/$JOB_ID"
+
+            LOGS=$(echo $JOB | yq '(.value.outputs.log | @base64d)' | tr -d '"')
+
+            SUMMARY=$(echo "$SUMMARY" | jq --arg pr "<$PR_URL|$PR_TITLE>" --arg job "<$JOB_URL|$JOB_NAME>" --arg logs "$LOGS" '. += [
+              {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
                   "text": (
                     "PR: " + $pr
-                    + "\nJob-Name: `" + .key + "`"
+                    + "\nJob: " + $job
                     + "\nAuthor: `${{ github.actor }}`"
                     + "\nBranch: `${{ github.head_ref || github.ref_name }}`"
                     + "\nLogs:" 
-                    + "```\n" + (.value.outputs.log | @base64d) + "\n```" 
+                    + "```\n" + $logs + "\n```" 
                   )
                 }
-              }]
-          ')
+              }
+            ]')
+          done <<<$(echo '${{ toJSON(needs) }}' | jq -c 'to_entries | .[] | select(.value.outputs.conclusion == "failure")')
 
           MESSAGE=$(echo $BASE_MESSAGE | jq -c --argjson summary "$SUMMARY" '.blocks += $summary')
 
