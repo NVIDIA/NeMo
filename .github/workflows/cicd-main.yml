@@ -5084,7 +5084,13 @@ jobs:
 
             LOGS=$(echo $JOB | yq '(.value.outputs.log | @base64d)' | tr -d '"')
 
-            SUMMARY=$(echo "$SUMMARY" | jq --arg pr "<$PR_URL|$PR_TITLE>" --arg job "<$JOB_URL|$JOB_NAME>" --arg logs "$LOGS" '. += [
+            SUMMARY=$(echo "$SUMMARY" | jq \
+              --arg pr "<$PR_URL|$PR_TITLE>" \
+              --arg job "<$JOB_URL|$JOB_NAME>" \
+              --arg logs "$LOGS" \
+              --arg author "<https://github.com/${{ github.actor }}|${{ github.actor }}>" \
+              --arg branch "<https://github.com/${{ github.repository }}/tree/${{ github.head_ref || github.ref_name }}|${{ github.head_ref || github.ref_name }}>"\
+              '. += [
               {
                 "type": "section",
                 "text": {
@@ -5092,8 +5098,8 @@ jobs:
                   "text": (
                     "PR: " + $pr
                     + "\nJob: " + $job
-                    + "\nAuthor: `${{ github.actor }}`"
-                    + "\nBranch: `${{ github.head_ref || github.ref_name }}`"
+                    + "\nAuthor: " + $author
+                    + "\nBranch: " + $branch
                     + "\nLogs:" 
                     + "```\n" + $logs + "\n```" 
                   )
