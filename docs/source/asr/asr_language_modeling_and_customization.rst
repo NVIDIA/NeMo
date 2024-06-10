@@ -5,6 +5,7 @@ ASR Language Modeling and Customization
 Language models have shown to help the accuracy of ASR models. NeMo supports the following two approaches to incorporate language models into the ASR models:
 
 :ref:`ngram_modeling`
+
 :ref:`neural_rescoring`
 
 It is possible to use both approaches on the same ASR model.
@@ -154,8 +155,6 @@ The following is the list of the important arguments for the evaluation script:
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | dataset_manifest                     | str      | Required         | Path to the training file, it can be a text file or JSON manifest.      |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| kenlm_model_file                     | str      | Required         | The path to store the KenLM binary model file.                          |
-+--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | preds_output_folder                  | str      | None             | The path to an optional folder to store the predictions.                |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | cache_file                           | str      | None             | The cache file for storing the outputs of the model.                    |
@@ -173,6 +172,10 @@ The following is the list of the important arguments for the evaluation script:
 | ctc_decoding.strategy                | str      | beam             | String argument for type of decoding strategy for the model.            |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | ctc_decoding.beam.beam_size          | float    | Required         | List of the width or list of the widths of the beam search decoding.    |
++--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
+| ctc_decoding.beam.nemo_kenlm_path    | str      | Required         | The path to store the KenLM binary model file created by ``train_kenlm.py``.|
++--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
+| ctc_decoding.beam.word_kenlm_path    | str      | Required         | The path to store the word-level KenLM binary model file created by ``lmplz``.|
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | ctc_decoding.beam.beam_alpha         | float    | Required         | List of the alpha parameter for the beam search decoding.               |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
@@ -198,7 +201,7 @@ There is also a tutorial to learn more about evaluating the ASR models with N-gr
 `Offline ASR Inference with Beam Search and External Language Model Rescoring <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Offline_ASR.ipynb>`_
 
 CTC Beam Search Decoding Engines
--------------------
+--------------------------------
 
 NeMo ASR CTC supports multiple beam search engines for decoding. The default engine is ``beam`` which is the pyctcdecode
 decoding library.
@@ -235,6 +238,10 @@ Flashlight is a C++ library for ASR decoding provided at `https://github.com/fla
 char and subword models. It requires an ARPA KenLM file.
 
 It supports several advanced features such as lexicon based / lexicon free decoding, beam pruning threshold, and more.
+
+Subword based ASR model requires lexicon based decoding. 
+Lexicon for **nemo_kenlm** is created by using script `train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/train_kenlm.py>`_
+and for **word_kenlm** by using script `create_lexicon_from_arpa.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/ngram_lm/create_lexicon_from_arpa.py>`_.
 
 .. code-block:: python
 
