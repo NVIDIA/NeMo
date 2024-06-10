@@ -55,7 +55,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path=Non
             expected_output = record["last_word"].strip().lower()
             trtllm_output = model.forward(
                 input_texts=[prompt],
-                max_output_token=1,
+                max_output_len=1,
                 top_k=1,
                 top_p=0,
                 temperature=0.1,
@@ -82,7 +82,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path=Non
             if nq is not None:
                 trtllm_deployed_output = nq.query_llm(
                     prompts=[prompt],
-                    max_output_token=1,
+                    max_output_len=1,
                     top_k=1,
                     top_p=0,
                     temperature=0.1,
@@ -128,9 +128,9 @@ def run_trt_llm_inference(
     trt_llm_model_dir,
     n_gpu=1,
     max_batch_size=8,
-    max_input_token=128,
-    max_output_token=128,
     use_embedding_sharing=False,
+    max_input_len=128,
+    max_output_len=128,
     ptuning=False,
     p_tuning_checkpoint=None,
     lora=False,
@@ -209,13 +209,13 @@ def run_trt_llm_inference(
             n_gpus=n_gpu,
             tensor_parallel_size=tp_size,
             pipeline_parallel_size=pp_size,
-            max_input_token=max_input_token,
-            max_output_token=max_output_token,
+            max_input_len=max_input_len,
+            max_output_len=max_output_len,
             max_batch_size=max_batch_size,
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
             use_lora_plugin=use_lora_plugin,
             lora_target_modules=lora_target_modules,
-            max_num_tokens=int(max_input_token * max_batch_size * 0.2),
+            max_num_tokens=int(max_input_len * max_batch_size * 0.2),
             opt_num_tokens=60,
             use_embedding_sharing=use_embedding_sharing,
             save_nemo_model_config=True,
@@ -229,7 +229,7 @@ def run_trt_llm_inference(
 
         output = trt_llm_exporter.forward(
             input_texts=prompt,
-            max_output_token=max_output_token,
+            max_output_len=max_output_len,
             top_k=top_k,
             top_p=top_p,
             temperature=temperature,
@@ -254,7 +254,7 @@ def run_trt_llm_inference(
 
             output_deployed = nq.query_llm(
                 prompts=prompt,
-                max_output_token=max_output_token,
+                max_output_len=max_output_len,
                 top_k=1,
                 top_p=0.0,
                 temperature=1.0,
@@ -348,9 +348,9 @@ def run_existing_checkpoints(
         trt_llm_model_dir=model_info["trt_llm_model_dir"],
         n_gpu=n_gpus,
         max_batch_size=model_info["max_batch_size"],
-        max_input_token=512,
-        max_output_token=model_info["max_output_token"],
         use_embedding_sharing=use_embedding_sharing,
+        max_input_len=512,
+        max_output_len=model_info["max_output_len"],
         ptuning=ptuning,
         p_tuning_checkpoint=p_tuning_checkpoint,
         lora=lora,
@@ -417,12 +417,12 @@ def get_args():
         default=8,
     )
     parser.add_argument(
-        "--max_input_token",
+        "--max_input_len",
         type=int,
         default=256,
     )
     parser.add_argument(
-        "--max_output_token",
+        "--max_output_len",
         type=int,
         default=128,
     )
@@ -560,8 +560,8 @@ def run_inference_tests(args):
                 trt_llm_model_dir=args.trt_llm_model_dir,
                 n_gpu=n_gpus,
                 max_batch_size=args.max_batch_size,
-                max_input_token=args.max_input_token,
-                max_output_token=args.max_output_token,
+                max_input_len=args.max_input_len,
+                max_output_len=args.max_output_len,
                 ptuning=args.ptuning,
                 p_tuning_checkpoint=args.p_tuning_checkpoint,
                 lora=args.lora,
