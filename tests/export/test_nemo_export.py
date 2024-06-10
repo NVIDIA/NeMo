@@ -239,6 +239,14 @@ def run_trt_llm_inference(
             stop_words_list=stop_words_list,
         )
 
+        if not use_lora_plugin and not ptuning:
+            test_cpp_runtime(
+                engine_path=trt_llm_model_dir,
+                prompt=prompt,
+                max_output_len=max_output_len,
+                debug=True,
+            )
+
         nq = None
         nm = None
         output_deployed = ""
@@ -291,6 +299,26 @@ def run_trt_llm_inference(
     else:
         raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
 
+
+def test_cpp_runtime(
+        engine_path,
+        prompt,
+        max_output_len,
+        debug,
+):
+    trt_llm_exporter = TensorRTLLM(engine_path, load_model=True)
+    output = trt_llm_exporter.forward(
+        input_texts=prompt,
+        max_output_len=max_output_len,
+        top_k=1,
+        top_p=0.0,
+        temperature=1.0,
+    )
+
+    if debug:
+        print("")
+        print("--- Output deployed with cpp runtime: ", output)
+        print("")
 
 def run_existing_checkpoints(
     model_name,
