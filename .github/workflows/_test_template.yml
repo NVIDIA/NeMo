@@ -64,7 +64,7 @@ jobs:
 
             EXIT_CODE=$?
 
-            echo "log=$(echo "$(tail -n 5 err.log)" | base64)" >> "$GITHUB_OUTPUT"
+            echo "log=$(tail -n 5 err.log | base64 -w 0)" >> "$GITHUB_OUTPUT"
             
             exit $EXIT_CODE
             
