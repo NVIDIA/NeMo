@@ -301,10 +301,10 @@ def run_trt_llm_inference(
 
 
 def test_cpp_runtime(
-        engine_path,
-        prompt,
-        max_output_len,
-        debug,
+    engine_path,
+    prompt,
+    max_output_len,
+    debug,
 ):
     trt_llm_exporter = TensorRTLLM(engine_path, load_model=True)
     output = trt_llm_exporter.forward(
@@ -319,6 +319,7 @@ def test_cpp_runtime(
         print("")
         print("--- Output deployed with cpp runtime: ", output)
         print("")
+
 
 def run_existing_checkpoints(
     model_name,
