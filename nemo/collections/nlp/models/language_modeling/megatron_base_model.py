@@ -152,6 +152,7 @@ class MegatronBaseModel(NLPModel):
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam' or self.use_mcore_dist_optim
         self.with_megatron_fused_adam = cfg.optim.get('name') == 'megatron_fused_adam'
 
+
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
 
@@ -289,7 +290,7 @@ class MegatronBaseModel(NLPModel):
             Returns:
                 The wrapped model. Returns a list of wrapped modules or a single wrapped module.
         """
-        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
+        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False) or self.__dict__.get('mcore_t5', False)
 
         Float16Wrapper = MCoreFloat16Module if is_mcore_model else Float16Module
 
@@ -1002,7 +1003,7 @@ class MegatronBaseModel(NLPModel):
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self):
         """Returns the total number of parameters across all model parallel groups."""
-        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
+        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False) or self.__dict__.get('mcore_t5', False)
         # log number of parameters
         model = self.get_model_module_list()
         if isinstance(model, list):
