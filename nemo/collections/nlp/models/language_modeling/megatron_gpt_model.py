@@ -343,7 +343,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     model_provider_func=self.model_provider_func,
                     wrap_with_ddp=False,
                     virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
-                    on_cpu=cfg.get('fsdp', False) and cfg.get('use_cpu_initialization', False),
+                    on_cpu=cfg.get('use_cpu_initialization', False),
                 )
 
         # if we're not using interleaved, then self.model is a module.
@@ -885,10 +885,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.megatron_timer_stop('allreduce_first_last_embeddings')
 
         if self.log_memory_usage:
-            mem_reserved = torch.cuda.max_memory_reserved()
+            max_memory_reserved = torch.cuda.max_memory_reserved()
+            memory_allocated = torch.cuda.memory_allocated()
             self.log(
                 'peak_memory_usage',
-                mem_reserved,
+                max_memory_reserved,
+                prog_bar=True,
+                rank_zero_only=True,
+                batch_size=1,
+            )
+            self.log(
+                'memory_allocated',
+                memory_allocated,
                 prog_bar=True,
                 rank_zero_only=True,
                 batch_size=1,
@@ -1124,6 +1132,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'tokens': data["tokens"],
             'labels': data["labels"],
             'loss_mask': data["loss_mask"],
+            'attention_mask': None if "attention_mask" not in data else data["attention_mask"],
             'position_ids': data["position_ids"],
         }
         if "attention_mask" in data:
@@ -1495,6 +1504,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "reset_position_ids": self.reset_position_ids,
                 "reset_attention_mask": self.reset_attention_mask,
                 "eod_mask_loss": self.eod_mask_loss,
+                "create_attention_mask": not self.get_attention_mask_from_fusion,
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
             }
 
@@ -1987,6 +1997,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         as the megatron core TransformerConfig, we will use the value from the nemo model config.
         For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
+
+        if self.cfg.num_layers % self.cfg.get('pipeline_model_parallel_size', 1) != 0:
+            raise ValueError(
+                f"num_layers ({self.cfg.num_layers}) should be divisible by "
+                f"pipeline_model_parallel_size ({self.cfg.get('pipeline_model_parallel_size', 1)})"
+            )
 
         normalization = self.cfg.get('normalization', 'layernorm').lower()
         layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
