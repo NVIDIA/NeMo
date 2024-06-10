@@ -37,7 +37,7 @@ class Mistral7BConfig(GPTConfig):
 
 class Mistral7BModel(GPTModel):
     def __init__(self, config: Optional[Mistral7BConfig] = None, tokenizer=None):
-        _tokenizer = tokenizer or HFMistral7BImporter().tokenizer
+        _tokenizer = tokenizer or HFMistral7BImporter("mistralai/Mistral-7B-v0.1").tokenizer
 
         super().__init__(config or Mistral7BConfig(), _tokenizer)
 
