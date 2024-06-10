@@ -394,7 +394,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.validation_param_sync_overlap = self.cfg.get('validation_param_sync_overlap', False)
 
         self.inference_params = None
+
+        # Reset learning rate params
         self.if_init_step = True
+        self.reset_lr = self.cfg.get('reset_lr', False)
+        self.reset_lr_steps = self.cfg.get('reset_lr_steps', False)
 
         # default to false since this doesn't work with sequence parallelism currently
         self.use_loss_mask = self.cfg.get('use_loss_mask', False)
@@ -763,9 +767,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.initialize_ub_func()
 
         # Reset learning rate
-        if self.if_init_step and self.cfg.get('reset_lr', False):
-            self._optimizer.param_groups[0]['num_steps'] = self.trainer.global_step
-            self._optimizer.param_groups[0]['reset_lr'] = True
+        if self.if_init_step and self.reset_lr:
+            self._optimizer.param_groups[0]['reset_lr'] = {
+                'num_steps': self.trainer.global_step, 
+                'reset_lr_steps': True if self.reset_lr_steps else False,
+            }
             self.if_init_step = False
 
         if self.rampup_batch_size:
