@@ -226,6 +226,7 @@ setuptools.setup(
         'Operating System :: OS Independent',
     ],
     packages=setuptools.find_packages(),
+    python_requires='>=3.10',
     install_requires=install_requires,
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
