@@ -90,12 +90,14 @@ def model_to_trtllm_ckpt(
 
     world_size = tensor_parallel_size * pipeline_parallel_size
 
-    lm_head_weight = weights_dict["lm_head.weight"]
+    has_lm_head = "lm_head.weight" in weights_dict
+    if has_lm_head:
+        lm_head_weight = weights_dict["lm_head.weight"]
 
     vocab_size = weights_dict["transformer.vocab_embedding.weight"].shape[0]
     vocab_size_padded = pad_vocab_size(vocab_size, tensor_parallel_size)
 
-    if vocab_size_padded != vocab_size:
+    if has_lm_head and vocab_size_padded != vocab_size:
         pad_width = vocab_size_padded - vocab_size
         lm_head_weight = np.pad(lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0)
 
@@ -103,6 +105,12 @@ def model_to_trtllm_ckpt(
     hidden_act = (
         hidden_act.split("-")[-1] if nemo_model_config.get('num_moe_experts', 0) else non_gated_version(hidden_act)
     )
+
+    if nemo_model_config.get("share_embeddings_and_output_weights", False) and not use_embedding_sharing:
+        LOGGER.info(
+            "Found share_embeddings_and_output_weights is True in NeMo config, set use_embedding_sharing = True"
+        )
+        use_embedding_sharing = True
 
     config = {
         'architecture': DECODER_MODEL_TYPE[decoder_type],
@@ -212,9 +220,10 @@ def model_to_trtllm_ckpt(
                 weights_dict_local["transformer.position_embedding.weight"] = pos_embedding_weight
 
         if mapping.is_last_pp_rank():
-            weights_dict_local["lm_head.weight"] = np.ascontiguousarray(
-                split(lm_head_weight, mapping.tp_size, mapping.tp_rank)
-            )
+            if has_lm_head:
+                weights_dict_local["lm_head.weight"] = np.ascontiguousarray(
+                    split(lm_head_weight, mapping.tp_size, mapping.tp_rank)
+                )
             weights_dict_local["transformer.ln_f.weight"] = weights_dict["transformer.ln_f.weight"]
 
             ln_f_bias = weights_dict.get("transformer.ln_f.bias")
