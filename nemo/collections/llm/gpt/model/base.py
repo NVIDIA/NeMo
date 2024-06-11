@@ -1,15 +1,18 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional
+from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 
 import pytorch_lightning as L
 import torch
 import torch.distributed
+from torch import nn
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch.optim import Optimizer
+from pytorch_lightning.utilities.types import OptimizerLRScheduler
 
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
+from nemo.lightning.optim import MegatronOptim, OptimizerConfig
 
 
 if TYPE_CHECKING:
@@ -70,20 +73,19 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self,
         config: GPTConfig,
         # TODO: Add transformer_layer_spec when we update mcore
+        optim: Optional[Union[MegatronOptim, Callable[[nn.Module], OptimizerLRScheduler]]] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
     ):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
+        self.optim = optim or MegatronOptim(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
 
     def configure_model(self) -> None:
         self.module = self.config.configure_model(self.tokenizer)
-
-    # def configure_optimizers(self) -> Optimizer:
-    #     if self.config.optimizer_fn is not None:
-    #         return self.config.optimizer_fn(self)
-
-    #     return gpt_default_optimizer(self)
+        
+    def configure_optimizers(self, megatron_parallel=None):
+        return self.optim(megatron_parallel or self)
 
     def forward(
         self,

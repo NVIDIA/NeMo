@@ -85,7 +85,7 @@ class MegatronParallel(nn.ModuleList):
         >>> megatron_model = MegatronParallel(model)
         >>> print(megatron_model)
         MegatronParallel(
-          (0): Linear(in_features=10, out_features=10, bias=True)
+          # (0): Linear(in_features=10, out_features=10, bias=True)
           (1): ReLU()
           (2): Linear(in_features=10, out_features=5, bias=True)
         )
@@ -163,6 +163,9 @@ class MegatronParallel(nn.ModuleList):
                     else:
                         # TODO: What to do here?
                         pass
+                    
+            # if not hasattr(model_module, "sharded_state_dict"):
+            #     model_module.sharded_state_dict = sharded_state_dict    # type: ignore
 
             # Print number of parameters.
             if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
