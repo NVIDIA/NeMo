@@ -7,9 +7,10 @@ from nemo.collections.nlp.models.language_modeling.megatron_jamba_model import M
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
-# python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py --input_name_or_path /home/ataghibakhsh/mamba2_ckpts/mamba2-780m --output_path /home/ataghibakhsh/forks/mamba2_780m.nemo
-# python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py --input_name_or_path /home/ataghibakhsh/rogers/mamba_share --output_path /home/ataghibakhsh/forks/mmm_mamba2.nemo
-
+'''
+CUDA_VISIBLE_DEVICES="0" python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py --input_name_or_path /home/ataghibakhsh/mamba2_ckpt/mamba2-130m --output_path /home/ataghibakhsh/forks/mamba_130m.nemo
+CUDA_VISIBLE_DEVICES="0" python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py --input_name_or_path /home/ataghibakhsh/gitlab/rogers/mamba_share --output_path /home/ataghibakhsh/mmm_mamba2.nemo
+'''
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
@@ -30,7 +31,7 @@ def get_args():
 
 def convert(args):
 
-    mmm = True
+    mmm = False
 
     with open(args.input_name_or_path+'/config.json', 'r') as config_file:
         pytorch_config = json.load(config_file)
@@ -42,7 +43,6 @@ def convert(args):
     if mmm:
         nemo_config.model.vocab_size=pytorch_config['vocab_size']
     else:
-
         nemo_config.model.vocab_size=pytorch_config['vocab_size']+11
     nemo_config.model.make_vocab_size_divisible_by=pytorch_config['pad_vocab_size_multiple']
     nemo_config.model.hybrid_override_pattern="M"*nemo_config.model.num_layers
@@ -52,51 +52,77 @@ def convert(args):
     logging.info(f"Loading Mamba2 Pytorch checkpoint : `{args.input_name_or_path}`")
     
 
-    if mmm:
-        from safetensors.torch import load_file
-        pytorch_model = load_file(args.input_name_or_path+'/pytorch_model.bin')
-        trainer = MegatronLMPPTrainerBuilder(nemo_config).create_trainer()
-    else:
-        pytorch_model = torch.load(args.input_name_or_path+'/pytorch_model.bin', map_location='cpu')
-
+    pytorch_model_weights = torch.load(args.input_name_or_path+'/pytorch_model.bin', map_location='cpu')
+        
+    trainer = MegatronLMPPTrainerBuilder(nemo_config).create_trainer()
     nemo_model_from_pyt = MegatronJambaModel(nemo_config.model, trainer)
 
+    from src.models.mixer_seq_simple import MixerModel, Mamba2LMHeadModel
+    from src.models.config_mamba import MambaConfig
+    
+    mamba_cfg = MambaConfig(            
+            d_model = pytorch_config['d_model'],
+            n_layer = pytorch_config['n_layer'],
+            d_intermediate = 0,#pytorch_config['d_intermediate'],
+            vocab_size = pytorch_config['vocab_size'],
+            ssm_cfg=None,
+            rms_norm = True,
+            fused_add_norm=True,
+            residual_in_fp32=False,
+            )
+    
+    pytorch_model = Mamba2LMHeadModel(
+            config = mamba_cfg,
+            device=None,
+            dtype=None,
+        )
+    
     new_state_dict = {}
+  
+    new_state_dict['model.embedding.word_embeddings.weight'] = pytorch_model_weights['backbone.embedding.weight']
+    new_state_dict['model.decoder.final_norm.weight'] = pytorch_model_weights['backbone.norm_f.weight']
+    new_state_dict['model.output_layer.weight'] = pytorch_model_weights['lm_head.weight']
+    for i in range(nemo_config.model.num_layers):
 
-    if mmm:
-        new_state_dict['model.embedding.word_embeddings.weight'] = pytorch_model['tok_embeddings.weight']
-        new_state_dict['model.decoder.final_norm.weight'] = pytorch_model['norm.weight']
-        new_state_dict['model.output_layer.weight'] = pytorch_model['output.weight']
-        for i in range(nemo_config.model.num_layers):
-            print(f'layer {i}')
-            new_state_dict[f'model.decoder.layers.{i}.mixer.A_log'] = pytorch_model[f'layers.{i}.mixer.A_log']
-            new_state_dict[f'model.decoder.layers.{i}.mixer.D'] = pytorch_model[f'layers.{i}.mixer.D']
-            new_state_dict[f'model.decoder.layers.{i}.mixer.conv1d.weight'] = pytorch_model[f'layers.{i}.mixer.conv1d.weight']
-            new_state_dict[f'model.decoder.layers.{i}.mixer.conv1d.bias'] = pytorch_model[f'layers.{i}.mixer.conv1d.bias']
-            new_state_dict[f'model.decoder.layers.{i}.mixer.in_proj.weight'] = pytorch_model[f'layers.{i}.mixer.in_proj.weight']
-            new_state_dict[f'model.decoder.layers.{i}.mixer.dt_bias'] = pytorch_model[f'layers.{i}.mixer.dt_bias']
-            new_state_dict[f'model.decoder.layers.{i}.mixer.out_proj.weight'] = pytorch_model[f'layers.{i}.mixer.out_proj.weight']
-            new_state_dict[f'model.decoder.layers.{i}.mixer.norm.weight'] = pytorch_model[f'layers.{i}.mixer.norm.weight']
-            new_state_dict[f'model.decoder.layers.{i}.norm.weight'] = pytorch_model[f'layers.{i}.norm.weight']
-
-    else:
-
-        new_state_dict['model.embedding.word_embeddings.weight'] = pytorch_model['backbone.embedding.weight']
-        new_state_dict['model.decoder.final_norm.weight'] = pytorch_model['backbone.norm_f.weight']
-        new_state_dict['model.output_layer.weight'] = pytorch_model['lm_head.weight']
-        for i in range(nemo_config.model.num_layers):
-
-            new_state_dict[f'model.decoder.layers.{i}.mixer.A_log'] = pytorch_model[f'backbone.layers.{i}.mixer.A_log']
-            new_state_dict[f'model.decoder.layers.{i}.mixer.D'] = pytorch_model[f'backbone.layers.{i}.mixer.D']
-            new_state_dict[f'model.decoder.layers.{i}.mixer.conv1d.weight'] = pytorch_model[f'backbone.layers.{i}.mixer.conv1d.weight']
-            new_state_dict[f'model.decoder.layers.{i}.mixer.conv1d.bias'] = pytorch_model[f'backbone.layers.{i}.mixer.conv1d.bias']
-            new_state_dict[f'model.decoder.layers.{i}.mixer.in_proj.weight'] = pytorch_model[f'backbone.layers.{i}.mixer.in_proj.weight']
-            new_state_dict[f'model.decoder.layers.{i}.mixer.dt_bias'] = pytorch_model[f'backbone.layers.{i}.mixer.dt_bias']
-            new_state_dict[f'model.decoder.layers.{i}.mixer.out_proj.weight'] = pytorch_model[f'backbone.layers.{i}.mixer.out_proj.weight']
-            new_state_dict[f'model.decoder.layers.{i}.mixer.norm.weight'] = pytorch_model[f'backbone.layers.{i}.mixer.norm.weight']
-            new_state_dict[f'model.decoder.layers.{i}.norm.weight'] = pytorch_model[f'backbone.layers.{i}.norm.weight']
+        new_state_dict[f'model.decoder.layers.{i}.mixer.A_log'] = pytorch_model_weights[f'backbone.layers.{i}.mixer.A_log']
+        new_state_dict[f'model.decoder.layers.{i}.mixer.D'] = pytorch_model_weights[f'backbone.layers.{i}.mixer.D']
+        new_state_dict[f'model.decoder.layers.{i}.mixer.conv1d.weight'] = pytorch_model_weights[f'backbone.layers.{i}.mixer.conv1d.weight']
+        new_state_dict[f'model.decoder.layers.{i}.mixer.conv1d.bias'] = pytorch_model_weights[f'backbone.layers.{i}.mixer.conv1d.bias']
+        new_state_dict[f'model.decoder.layers.{i}.mixer.in_proj.weight'] = pytorch_model_weights[f'backbone.layers.{i}.mixer.in_proj.weight']
+        new_state_dict[f'model.decoder.layers.{i}.mixer.dt_bias'] = pytorch_model_weights[f'backbone.layers.{i}.mixer.dt_bias']
+        new_state_dict[f'model.decoder.layers.{i}.mixer.out_proj.weight'] = pytorch_model_weights[f'backbone.layers.{i}.mixer.out_proj.weight']
+        new_state_dict[f'model.decoder.layers.{i}.mixer.norm.weight'] = pytorch_model_weights[f'backbone.layers.{i}.mixer.norm.weight']
+        new_state_dict[f'model.decoder.layers.{i}.norm.weight'] = pytorch_model_weights[f'backbone.layers.{i}.norm.weight']
         
+
+
+    pytorch_model.cuda()
+    nemo_model_from_pyt.cuda()
+
+    pytorch_model.load_state_dict(dict(pytorch_model_weights), strict=True)
     nemo_model_from_pyt.load_state_dict(new_state_dict, strict=True)
+    
+    # print((nemo_model_from_pyt.state_dict()['model.embedding.word_embeddings.weight'] - pytorch_model_weights['tok_embeddings.weight'].cuda()).sum())
+    # print((nemo_model_from_pyt.state_dict()['model.decoder.final_norm.weight'] - pytorch_model_weights['norm.weight'].cuda()).sum())
+    # print((nemo_model_from_pyt.state_dict()['model.output_layer.weight'] - pytorch_model_weights['output.weight'].cuda()).sum())
+    # for i in range(nemo_config.model.num_layers):
+    #     print(f'layer {i}')
+    #     print((nemo_model_from_pyt.state_dict()[f'model.decoder.layers.{i}.mixer.A_log'] - pytorch_model_weights[f'layers.{i}.mixer.A_log'].cuda()).sum())
+    #     print((nemo_model_from_pyt.state_dict()[f'model.decoder.layers.{i}.mixer.D'] - pytorch_model_weights[f'layers.{i}.mixer.D'].cuda()).sum())
+    #     print((nemo_model_from_pyt.state_dict()[f'model.decoder.layers.{i}.mixer.conv1d.weight'] - pytorch_model_weights[f'layers.{i}.mixer.conv1d.weight'].cuda()).sum())
+    #     print((nemo_model_from_pyt.state_dict()[f'model.decoder.layers.{i}.mixer.conv1d.bias'] - pytorch_model_weights[f'layers.{i}.mixer.conv1d.bias'].cuda()).sum())
+    #     print((nemo_model_from_pyt.state_dict()[f'model.decoder.layers.{i}.mixer.in_proj.weight'] - pytorch_model_weights[f'layers.{i}.mixer.in_proj.weight'].cuda()).sum())
+    #     print((nemo_model_from_pyt.state_dict()[f'model.decoder.layers.{i}.mixer.dt_bias'] - pytorch_model_weights[f'layers.{i}.mixer.dt_bias'].cuda()).sum())
+    #     print((nemo_model_from_pyt.state_dict()[f'model.decoder.layers.{i}.mixer.out_proj.weight'] - pytorch_model_weights[f'layers.{i}.mixer.out_proj.weight'].cuda()).sum())
+    #     print((nemo_model_from_pyt.state_dict()[f'model.decoder.layers.{i}.mixer.norm.weight']- pytorch_model_weights[f'layers.{i}.mixer.norm.weight'].cuda()).sum())
+    #     print((nemo_model_from_pyt.state_dict()[f'model.decoder.layers.{i}.norm.weight'] - pytorch_model_weights[f'layers.{i}.norm.weight'].cuda()).sum())
+    
+    inpt = torch.randint(10, (1,10)).cuda()
+    out_pyt = pytorch_model.forward(inpt)
+    out_nemo = nemo_model_from_pyt.forward(inpt)
+    print(f"out_pyt = {out_pyt}")
+    print(f"out_nemo = {out_nemo}")
+
     dtype = torch_dtype_from_precision(args.precision)
     nemo_model_from_pyt = nemo_model_from_pyt.to(dtype=dtype)
     nemo_model_from_pyt.save_to(args.output_path)

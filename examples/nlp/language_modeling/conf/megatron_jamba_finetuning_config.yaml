@@ -1,4 +1,4 @@
-name: megatron_griffin
+name: megatron_jamba
 restore_from_path: ${model.restore_from_path} # used when starting from a .nemo file
 
 trainer:
