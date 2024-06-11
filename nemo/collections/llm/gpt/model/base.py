@@ -11,6 +11,7 @@ from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 
+
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
@@ -78,11 +79,11 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def configure_model(self) -> None:
         self.module = self.config.configure_model(self.tokenizer)
 
-    def configure_optimizers(self) -> Optimizer:
-        if self.config.optimizer_fn is not None:
-            return self.config.optimizer_fn(self)
+    # def configure_optimizers(self) -> Optimizer:
+    #     if self.config.optimizer_fn is not None:
+    #         return self.config.optimizer_fn(self)
 
-        return gpt_default_optimizer(self)
+    #     return gpt_default_optimizer(self)
 
     def forward(
         self,
@@ -172,9 +173,15 @@ def gpt_forward_step(model, batch) -> torch.Tensor:
 
 
 def gpt_default_optimizer(module) -> Optimizer:
-    from apex.optimizers import FusedAdam
+    # from apex.optimizers import FusedAdam
+    
+    from megatron.core.optimizer import OptimizerConfig
+    
+    return OptimizerConfig(lr=1e-4)
+    
+    
 
-    return FusedAdam(module.parameters(), lr=1e-4)
+    # return FusedAdam(module.parameters(), lr=1e-4)
 
 
 def get_batch_on_this_context_parallel_rank(batch):
