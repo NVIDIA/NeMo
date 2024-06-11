@@ -24,6 +24,7 @@ from pytorch_lightning import Trainer
 from transformers import AutoModelForCausalLM, convert_slow_tokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
 
@@ -83,7 +84,7 @@ def get_args():
     args = parser.parse_args()
     return args
 
-def convert_hf_config(nemo_config, tokenizer, dtype, hf_output_path, hf_url='nvidia/nemotron3-8b-base'):
+def convert_hf_config(nemo_config, tokenizer, vocab_size, dtype, hf_output_path, hf_url='nvidia/nemotron3-8b-base'):
     """
     Convert NeMo config to HF config
     """
@@ -126,7 +127,7 @@ def convert_hf_config(nemo_config, tokenizer, dtype, hf_output_path, hf_url='nvi
         "torch_dtype": DTYPE2HF[dtype],
         "transformers_version": "4.32.0.dev0", # TODO
         "use_cache": True,
-        "vocab_size": tokenizer.vocab_size
+        "vocab_size": vocab_size
     }
     json.dump(hf_config, open(f'{hf_output_path}/config.json', 'w'), indent=2)
     
@@ -155,6 +156,8 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         input_nemo_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location
     )
 
+    vocab_size = model.padded_vocab_size
+
     if precision is None:
         precision = model.cfg.precision
     if precision in [32, "32"]:
@@ -176,7 +179,8 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     num_layers = model.cfg.num_layers
     ffn_hidden_size = model.cfg.ffn_hidden_size
     num_query_groups = model.cfg.get("num_query_groups", head_num)  # different num_query_groups for 70B
-
+    if num_query_groups is None:
+        num_query_groups = head_num
     head_size = hidden_size // head_num
     heads_per_group = head_num // num_query_groups
     qkv_total_dim = head_num + 2 * num_query_groups
@@ -284,25 +288,31 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     torch.save(checkpoint, output_hf_file)
     logging.info(f"Weights saved to {output_hf_file}")
 
-    return model_config, model.tokenizer, dtype
+    return model_config, model.tokenizer, dtype, vocab_size
 
 
 def extract_nemotron_tokenizer(
-    nemo_file, model_config, output_hf_path,
+    nemo_file, model_config, output_hf_path, nemo_tokenizer
 ):
-    tokenizer_fn = model_config.tokenizer.model[5:]
-    output_tokenizer = f'{output_hf_path}/tokenizer.model'
-    if nemo_file.endswith('.nemo'):
-        import tarfile
-        archive = tarfile.open(nemo_file, 'r')
-        tokenizer_filename = './' + tokenizer_fn # exclude 'nemo:' prefix
-        archive.extract(tokenizer_filename, output_hf_path)
-        archive.close()
-        os.rename(f'{output_hf_path}/{tokenizer_fn}', output_tokenizer)
-    elif os.path.isdir(nemo_file):
-        shutil.copy(f'{nemo_file}/{tokenizer_fn}', output_tokenizer)
-    
-    logging.info(f"Save tokenizer to {output_tokenizer}")
+    tokenizer_cfg = model_config.tokenizer
+    if tokenizer_cfg.library == 'sentencepiece':
+        tokenizer_fn = tokenizer_cfg.model[5:]
+        output_tokenizer = f'{output_hf_path}/tokenizer.model'
+        if nemo_file.endswith('.nemo'):
+            import tarfile
+            archive = tarfile.open(nemo_file, 'r')
+            tokenizer_filename = './' + tokenizer_fn # exclude 'nemo:' prefix
+            archive.extract(tokenizer_filename, output_hf_path)
+            archive.close()
+            os.rename(f'{output_hf_path}/{tokenizer_fn}', output_tokenizer)
+        elif os.path.isdir(nemo_file):
+            shutil.copy(f'{nemo_file}/{tokenizer_fn}', output_tokenizer)
+        logging.info(f'Setencepiece tokenizer has been saved to {output_tokenizer}')
+    elif isinstance(nemo_tokenizer, AutoTokenizer):
+        nemo_tokenizer.tokenizer.save_pretrained(output_hf_path)
+        logging.info(f'HF AutoTokenizer has been saved to {output_hf_path}')
+    else:
+        raise ValueError(f'Unsupported tokenizer type: library: {tokenizer_cfg.library}, type: {tokenizer_cfg.type}')
 
 
 
@@ -314,10 +324,10 @@ if __name__ == '__main__':
         args.output_path = f'{args.hf_output_path}/pytorch_model.bin'
         logging.info(f'weight will be saved to {args.output_path}')
     
-    nemo_config, nemo_tokenizer, dtype = convert(args.input_name_or_path, args.output_path, precision=args.precision, cpu_only=args.cpu_only)
+    nemo_config, nemo_tokenizer, dtype, vocab_size = convert(args.input_name_or_path, args.output_path, precision=args.precision, cpu_only=args.cpu_only)
     if args.hf_input_path and args.hf_output_path:
-        convert_hf_config(nemo_config, nemo_tokenizer, dtype, args.hf_output_path, args.hf_input_path)
-        extract_nemotron_tokenizer(args.input_name_or_path, nemo_config, args.hf_output_path)
+        convert_hf_config(nemo_config, nemo_tokenizer, vocab_size, dtype, args.hf_output_path, args.hf_input_path)
+        extract_nemotron_tokenizer(args.input_name_or_path, nemo_config, args.hf_output_path, nemo_tokenizer)
     else:
         logging.info("`hf_input_path` and/or `hf_output_path` not provided, not generating full HF model.")
         logging.info(f".bin file is saved to {args.output_path}")
