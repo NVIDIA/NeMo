@@ -106,7 +106,7 @@ class MegatronPretrainingSampler(BaseMegatronSampler):
         indices = range(self.consumed_samples, self.total_samples)
         if (not self.drop_last) and self.pad_samples_to_global_batch_size:
             pad_samples_num = -len(indices) % self.global_batch_size
-            pad_indices = [None for _ in range(pad_samples_num)]
+            pad_indices = [None] * pad_samples_num
             indices = chain(indices, pad_indices)
 
         for idx in indices:
