@@ -279,8 +279,8 @@ model:
     - 0.98
     sched:
       name: CosineAnnealing
-      warmup_steps: 10
-      constant_steps: 10
+      warmup_steps: 500
+      constant_steps: 0
       min_lr: 2e-5
 
   gc_interval: 0
