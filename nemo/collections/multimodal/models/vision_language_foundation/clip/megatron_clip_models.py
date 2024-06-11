@@ -35,6 +35,7 @@ from nemo.collections.multimodal.data.clip.clip_dataset import (
     build_train_valid_datasets,
 )
 from nemo.collections.multimodal.losses.clip_loss import ClipLoss
+from nemo.collections.multimodal.losses.siglip_loss import SigLipLoss
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
@@ -439,7 +440,7 @@ class CLIPModel(MegatronModule):
             )
             vision_layer_spec.submodules.self_attention.params['attn_mask_type'] = MCoreAttnMaskType.no_mask
 
-            if model_cfg.vision.get("use_siglip", False):
+            if model_cfg.get("use_siglip", False):
                 vision_module = MCoreCLIPViTModel
             else:
                 vision_module = MCoreSiglipViTModel
@@ -1061,7 +1062,15 @@ class MegatronCLIPModel(MegatronBaseModel):
             buf.copy_(synced)
 
     def get_forward_output_and_loss_func(self):
-        loss_func = ClipLoss(local_loss=self.cfg.local_loss, gather_with_grad=self.cfg.gather_with_grad,)
+        if self.cfg.get("use_siglip", False):
+            #TODO(yuya): fix rank
+            loss_func = SigLipLoss(
+                rank=parallel_state.get_data_parallel_rank(),
+                world_size=parallel_state.get_data_parallel_world_size(),
+                group=parallel_state.get_data_parallel_group(),
+            )
+        else:
+            loss_func = ClipLoss(local_loss=self.cfg.local_loss, gather_with_grad=self.cfg.gather_with_grad,)
 
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch, _, _ = next(dataloader_iter)
