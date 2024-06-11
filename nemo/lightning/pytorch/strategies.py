@@ -544,8 +544,3 @@ class _MegatronAutomaticOptimization(_AutomaticOptimization):
     def __init__(self, trainer: "pl.Trainer") -> None:
         super().__init__(trainer)
         self._skip_backward = True  # megatron will do the backward pass
-
-
-def noop_configure_optimizers(x):
-    """A no-operation function for configure_optimizers."""
-    return x
