@@ -24,8 +24,8 @@ from typing import (
 
 import torch
 import torch.distributed
-from megatron.core.distributed import DistributedDataParallelConfig
 from torch import Tensor, nn
+from megatron.core.distributed import DistributedDataParallelConfig, DistributedDataParallel as McoreDDP
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 
@@ -132,37 +132,37 @@ class MegatronParallel(nn.ModuleList):
                         _model.configure_model()
                     _pipeline.append(_model)
 
-            if isinstance(ddp_config, DistributedDataParallelConfig):
-                from megatron.core.distributed import DistributedDataParallel as McoreDDP
+        if isinstance(ddp_config, DistributedDataParallelConfig):
+            for (model_chunk_idx, model_chunk) in enumerate(_pipeline):
+                module = model_chunk.module
+                ddp = DDP(
+                    module.config,
+                    ddp_config,
+                    module,
+                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                    # Turn off bucketing for model_chunk 2 onwards, since communication for these
+                    # model chunks is overlapped with compute anyway.
+                    disable_bucketing=(model_chunk_idx > 0),
+                )
+                model_chunk.module = ddp
+                model_chunk.buffers = ddp.buffers
+                model_chunk.expert_parallel_buffers = ddp.expert_parallel_buffers
 
-                _pipeline = [
-                    McoreDDP(
-                        model_chunk.config,
-                        ddp_config,
-                        model_chunk,
-                        data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                        expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
-                        # Turn off bucketing for model_chunk 2 onwards, since communication for these
-                        # model chunks is overlapped with compute anyway.
-                        disable_bucketing=(model_chunk_idx > 0),
-                    )
-                    for (model_chunk_idx, model_chunk) in enumerate(_pipeline)
-                ]
+        for i, model_module in enumerate(_pipeline):
+            if not cpu:
+                model_module.cuda(torch.cuda.current_device())
 
-            for i, model_module in enumerate(_pipeline):
-                if not cpu:
-                    model_module.cuda(torch.cuda.current_device())
+            for param in model_module.parameters():
+                set_defaults_if_not_set_tensor_model_parallel_attributes(param)
 
-                for param in model_module.parameters():
-                    set_defaults_if_not_set_tensor_model_parallel_attributes(param)
-
-                if hasattr(model_module, "configure_model"):
-                    if not hasattr(model_module, "set_input_tensor"):
-                        if hasattr(model_module.module, "set_input_tensor"):
-                            model_module.set_input_tensor = model_module.module.set_input_tensor
-                        else:
-                            # TODO: What to do here?
-                            pass
+            if hasattr(model_module, "configure_model"):
+                if not hasattr(model_module, "set_input_tensor"):
+                    if hasattr(model_module.module, "set_input_tensor"):
+                        model_module.set_input_tensor = model_module.module.set_input_tensor
+                    else:
+                        # TODO: What to do here?
+                        pass
 
             # Print number of parameters.
             if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
@@ -536,6 +536,8 @@ class _ModuleStepFunction:
         self.includes_self = includes_self
 
     def __call__(self, module: nn.Module):
+        
+        
         attr = getattr(module, self.name)
 
         if self.is_property:
@@ -552,6 +554,17 @@ class _ModuleStepFunction:
             return wrapped
 
         return attr
+    
+
+class DDP(McoreDDP):
+    def state_dict(self, prefix='', keep_vars=False, **kwargs):
+        self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
+
+    def __getattr__(self, item: Any) -> Any:
+        try:
+            return super().__getattr__(item)
+        except AttributeError:
+            return getattr(self.module, item)
 
 
 class CallbackConnector:
