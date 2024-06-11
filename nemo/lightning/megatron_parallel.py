@@ -572,10 +572,7 @@ class DDP(McoreDDP):
         self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
         
     def __getattr__(self, item: Any) -> Any:
-        try:
-           return super().__getattr__(item)
-        except AttributeError:
-            return getattr(self.module, item)
+        return getattr_proxy(self, item)
 
 
 class CallbackConnector:
