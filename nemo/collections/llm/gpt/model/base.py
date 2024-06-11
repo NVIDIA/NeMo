@@ -1,4 +1,3 @@
-
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, Literal, Optional
 
@@ -222,4 +221,4 @@ def get_packed_seq_params(batch):
     )
 
 
-__all__ = ["GPTModel", "GPTConfig", "gpt_data_step", "gpt_forward_step", "gpt_default_optimizer"]
+__all__ = ["GPTModel", "GPTConfig", "gpt_data_step", "gpt_forward_step"]
