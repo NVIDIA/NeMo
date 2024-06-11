@@ -515,7 +515,7 @@ class NLPDDPStrategy(DDPStrategy):
             else:
                 checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
 
-            if getattr(self.lightning_module, 'continue_training'):
+            if getattr(self.lightning_module, 'continue_training', False):
                 checkpoint = self._integrate_original_checkpoint_data(checkpoint)
             return checkpoint
 
