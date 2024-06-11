@@ -24,8 +24,9 @@ from typing import (
 
 import torch
 import torch.distributed
+from megatron.core.distributed import DistributedDataParallel as McoreDDP
+from megatron.core.distributed import DistributedDataParallelConfig
 from torch import Tensor, nn
-from megatron.core.distributed import DistributedDataParallelConfig, DistributedDataParallel as McoreDDP
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 
@@ -133,7 +134,7 @@ class MegatronParallel(nn.ModuleList):
                     _pipeline.append(_model)
 
         if isinstance(ddp_config, DistributedDataParallelConfig):
-            for (model_chunk_idx, model_chunk) in enumerate(_pipeline):
+            for model_chunk_idx, model_chunk in enumerate(_pipeline):
                 module = model_chunk.module
                 ddp = DDP(
                     module.config,
@@ -163,7 +164,7 @@ class MegatronParallel(nn.ModuleList):
                     else:
                         # TODO: What to do here?
                         pass
-                    
+
             # if not hasattr(model_module, "sharded_state_dict"):
             #     model_module.sharded_state_dict = sharded_state_dict    # type: ignore
 
@@ -539,8 +540,7 @@ class _ModuleStepFunction:
         self.includes_self = includes_self
 
     def __call__(self, module: nn.Module):
-        
-        
+
         attr = getattr(module, self.name)
 
         if self.is_property:
@@ -557,7 +557,7 @@ class _ModuleStepFunction:
             return wrapped
 
         return attr
-    
+
 
 class DDP(McoreDDP):
     def state_dict(self, prefix='', keep_vars=False, **kwargs):

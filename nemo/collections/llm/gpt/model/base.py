@@ -4,16 +4,15 @@ from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 import pytorch_lightning as L
 import torch
 import torch.distributed
-from torch import nn
 from megatron.core.transformer.transformer_config import TransformerConfig
-from torch.optim import Optimizer
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
+from torch import nn
+from torch.optim import Optimizer
 
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.optim import MegatronOptim, OptimizerConfig
-
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
@@ -83,7 +82,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def configure_model(self) -> None:
         self.module = self.config.configure_model(self.tokenizer)
-        
+
     def configure_optimizers(self, megatron_parallel=None):
         return self.optim(megatron_parallel or self)
 
@@ -176,12 +175,10 @@ def gpt_forward_step(model, batch) -> torch.Tensor:
 
 def gpt_default_optimizer(module) -> Optimizer:
     # from apex.optimizers import FusedAdam
-    
+
     from megatron.core.optimizer import OptimizerConfig
-    
+
     return OptimizerConfig(lr=1e-4)
-    
-    
 
     # return FusedAdam(module.parameters(), lr=1e-4)
 

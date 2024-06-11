@@ -1,9 +1,9 @@
-from typing import Optional, Callable, TYPE_CHECKING
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Callable, Optional
 
-from torch.optim import Optimizer
-from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
+from pytorch_lightning.utilities.types import OptimizerLRScheduler
+from torch.optim import Optimizer
 
 if TYPE_CHECKING:
     from nemo.lightning.megatron_parallel import MegatronParallel
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 @dataclass
 class MegatronOptim:
     config: OptimizerConfig
-    
+
     def create_optimizer(
         self,
         megatron_parallel: "MegatronParallel",
@@ -21,7 +21,7 @@ class MegatronOptim:
         lr_mult: float = 1.0,
     ) -> Optimizer:
         from nemo.core.optim import McoreDistributedOptimizer
-        
+
         mcore_opt = get_megatron_optimizer(
             self.config,
             list(megatron_parallel),
@@ -29,14 +29,14 @@ class MegatronOptim:
             scale_lr_cond=scale_lr_cond,
             lr_mult=lr_mult,
         )
-        
+
         return McoreDistributedOptimizer(mcore_opt)
 
     def configure_optimizer(self, megatron_parallel: "MegatronParallel") -> OptimizerLRScheduler:
         from nemo.core.optim.lr_scheduler import CosineAnnealing
 
         opt = self.create_optimizer(megatron_parallel)
-        
+
         # TODO: Make this configurable through the dataclass
         lr_scheduler = CosineAnnealing(opt, max_steps=10, warmup_steps=750, constant_steps=80000, min_lr=int(6e-5))
 

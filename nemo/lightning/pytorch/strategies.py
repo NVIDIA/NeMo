@@ -1,9 +1,9 @@
 import functools
+import inspect
 import logging
 import shutil
 from collections import OrderedDict
 from contextlib import ExitStack
-import inspect
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ContextManager, Dict, List, Literal, Mapping, Optional, TypeVar, Union, cast
 
@@ -106,7 +106,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @override
     def connect(self, model: pl.LightningModule) -> None:
         super().connect(model)
-        
+
         # Right now mcore sub-classes ModelParellelConfig, we should remove that
         # Given Lightning's structure it would be better if parallelism is a different object
         # Since then it can be passed to the Strategy
@@ -224,12 +224,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             cpu=isinstance(trainer.accelerator, CPUAccelerator),
             ddp_config=self.ddp_config,
         )
-        
+
         # check signature-def of self.model.configure_optimizers to check if there's an optional arg: megatron_parallel
         sig = inspect.signature(self.model.configure_optimizers)
         if "megatron_parallel" in sig.parameters:
-            self.model.configure_optimizers = functools.partial(self.model.configure_optimizers, megatron_parallel=self.megatron_parallel)
-        
+            self.model.configure_optimizers = functools.partial(
+                self.model.configure_optimizers, megatron_parallel=self.megatron_parallel
+            )
+
         self.setup_optimizers(trainer)
 
         # TODO: Throw an execption if we have a mcore optimizer and no ddp_config
@@ -240,14 +242,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.optimizers = _optimizers
 
         _optimizers_to_device(self.optimizers, self.root_device)
-        
-        
+
         self.model = self.megatron_parallel
         self.model.trainer = trainer
-        
-        
-        
-        
 
         if hasattr(self.precision_plugin, "convert_module"):
             self.model = self.precision_plugin.convert_module(self.model)
