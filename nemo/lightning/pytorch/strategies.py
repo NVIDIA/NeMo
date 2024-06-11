@@ -230,10 +230,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.optimizers = _optimizers
 
         _optimizers_to_device(self.optimizers, self.root_device)
-        
+
         self.model = self.megatron_parallel
         self.model.trainer = trainer
-        
+
         if hasattr(self.precision_plugin, "convert_module"):
             self.model = self.precision_plugin.convert_module(self.model)
         self.model.callbacks.add(getattr(trainer, "callbacks"))
