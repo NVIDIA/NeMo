@@ -458,6 +458,40 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             self._grad_copy(p)
         self._try_start_bucket_grad_sync(params=params)
 
+    def _finish_bucket_param_sync(self) -> None:
+
+        # Find params that are being synchronized
+        syncing_params = collections.OrderedDict()
+        for bucket_id, bucket in self._params_buckets.items():
+            if bucket.status != self.ParameterStatus.SYNCING:
+                continue
+            for fragment in self.state["buckets"][bucket_id].fragments:
+                syncing_params[self.parameter(fragment)] = None
+        syncing_params = list(syncing_params.keys())
+
+        # Finish param syncs
+        super()._finish_bucket_param_sync()
+
+        # Update params if possible
+        for param in syncing_params:
+
+            # Skip param if it is still waiting on communication
+            skip_copy = False
+            for fragment in self.state[param]["fragments"]:
+                status = self._params_buckets.get(
+                    fragment.bucket_id,
+                    self.ParameterStatus.READY,
+                )
+                if status != self.ParameterStatus.READY:
+                    skip_copy = True
+            if skip_copy:
+                continue
+
+            # Update params
+            param.data_ptr()
+            if is_float8tensor(param):
+                param.transpose_2d(force_compute=True, fill_cache=True)
+
     def zero_grad(self, *args, **kwargs) -> None:
         super().zero_grad(*args, **kwargs)
 
