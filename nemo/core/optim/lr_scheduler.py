@@ -277,7 +277,6 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
         self.decay_steps = max_steps - (self.constant_steps + self.warmup_steps)
 
         self.min_lr = min_lr
-        self.first_step = True
         super().__init__(optimizer, last_epoch)
 
     def get_lr(self):
@@ -290,12 +289,13 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
 
         # Reset learning rate
         if 'reset_lr' in self.optimizer.param_groups[0].keys():
-            num_steps = self.optimizer.param_groups[0]['reset_lr']['num_steps']
+            reset_lr = self.optimizer.param_groups[0]['reset_lr']
+            num_steps = reset_lr['num_steps']
             step -= num_steps
-            if self.first_step and self.optimizer.param_groups[0]['reset_lr']['reset_lr_steps']:
+            if reset_lr['if_init_step'] and reset_lr['reset_lr_steps']:
                 self.decay_steps -= num_steps
                 self.max_steps -= num_steps
-                self.first_step = False
+                self.optimizer.param_groups[0]['reset_lr']['if_init_step'] = False
 
         # Warmup steps
         if self.warmup_steps > 0 and step <= self.warmup_steps:

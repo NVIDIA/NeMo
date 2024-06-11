@@ -9,13 +9,13 @@ trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 16
+  precision: bf16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
   max_epochs: -1 # PTL default. In practice, max_steps will be reached first.
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  log_every_n_steps: 10
+  log_every_n_steps: 1
   val_check_interval: 100
   limit_val_batches: 50
   limit_test_batches: 500
@@ -28,10 +28,10 @@ exp_manager:
   explicit_log_dir: null
   exp_dir: null
   name: megatron_gpt
-  create_wandb_logger: False
+  create_wandb_logger: True
   wandb_logger_kwargs:
-    project: null
-    name: null
+    project: reset_lr_test
+    name: test_run
   create_neptune_logger: false
   neptune_logger_kwargs:
     project: null
@@ -56,7 +56,7 @@ exp_manager:
 
 model:
   # use GPTModel from megatron.core
-  mcore_gpt: False
+  mcore_gpt: True
 
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
@@ -105,8 +105,8 @@ model:
   num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used.
 
   # Reset learning rate schedule.
-  reset_lr: False # Set to True to reset learning rate.
-  reset_lr_steps: False # Set to True to reset learning rate max_steps and decay_steps.
+  reset_lr: False # Set to True to reset learning rate. Only supported with distributed optmizer and megatron_amp_O2.
+  reset_lr_steps: False # Set to True to decrease learning rate's max_steps and decay_steps by number of previously used steps.
 
   tokenizer:
     library: 'megatron'
@@ -125,7 +125,7 @@ model:
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
   # Megatron O2-style half-precision
-  megatron_amp_O2: False # Enable O2-level automatic mixed precision using main parameters
+  megatron_amp_O2: True # Enable O2-level automatic mixed precision using main parameters
   grad_allreduce_chunk_size_mb: 125
 
   # Fusion
@@ -271,7 +271,7 @@ model:
     gen_shape: False # Generate model and kernel details including input shapes
 
   optim:
-    name: fused_adam
+    name: distributed_fused_adam
     lr: 2e-4
     weight_decay: 0.01
     betas:
@@ -279,8 +279,8 @@ model:
     - 0.98
     sched:
       name: CosineAnnealing
-      warmup_steps: 500
-      constant_steps: 0
+      warmup_steps: 10
+      constant_steps: 10
       min_lr: 2e-5
 
   gc_interval: 0
