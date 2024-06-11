@@ -16,6 +16,7 @@ import os
 from argparse import ArgumentParser
 from collections import OrderedDict
 import json
+import shutil
 
 import torch
 from omegaconf import open_dict
