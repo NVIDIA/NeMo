@@ -63,7 +63,24 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.transformer.transformer_config import TransformerConfig
-    from megatron.core.transformer.custom_layers.transformer_engine import TENorm
+    from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+    from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+    from megatron.core.transformer.mlp import MLP, MLPSubmodules
+    from megatron.core.transformer.spec_utils import ModuleSpec
+    from megatron.core.transformer.attention import (
+        CrossAttention,
+        CrossAttentionSubmodules,
+    )
+    from megatron.core.transformer.custom_layers.transformer_engine import (
+        TEColumnParallelLinear,
+        TEDotProductAttention,
+        TELayerNormColumnParallelLinear,
+        TENorm,
+        TERowParallelLinear,
+    )
+    from megatron.core.transformer.spec_utils import build_module
+    from megatron.core.distributed import DistributedDataParallelConfig, finalize_model_grads
+    from megatron.core.distributed import DistributedDataParallel as McoreDDP
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.enums import AttnMaskType as MCoreAttnMaskType
     from megatron.core import parallel_state
@@ -171,7 +188,6 @@ class CLIPTextTransformer(MegatronModule):
         self.pre_process = pre_process
         self.post_process = post_process
         self.fp16_lm_cross_entropy = model_cfg.fp16_lm_cross_entropy
-        self.sequence_parallel = model_cfg.sequence_parallel
         self.gradient_accumulation_fusion = model_cfg.gradient_accumulation_fusion
 
         scaled_init_method = (
@@ -286,6 +302,73 @@ class CLIPTextTransformer(MegatronModule):
         return hidden_states
 
 
+class SiglipMHAPoolingHead(TransformerLayer):
+    """Multihead Attention Pooling."""
+
+    def __init__(self, config: TransformerConfig, submodules: TransformerLayerSubmodules,):
+        super().__init__(config, submodules)
+
+        self.probe = torch.nn.Parameter(torch.randn(1, 1, config.hidden_size))
+
+    def forward(self, hidden_state):
+        batch_size = hidden_state.shape[0]
+        # [s, b, h]
+        import pdb; pdb.set_trace()
+
+        probe = self.probe.repeat(1, batch_size, 1)
+        hidden_state = hidden_state.transpose(0, 1)
+        hidden_state, context = super().forward(
+            probe,
+            attention_mask=None,
+            context=hidden_state,
+        )
+
+        return hidden_state[0]
+
+
+class MCoreSiglipViTModel(CLIPViTModel):
+    def __init__(self, *args, **kwargs):
+        # TODO (yuya): need to handle post_process correctly in order to enable PP
+        self.output_dim = kwargs.pop('output_dim')
+        assert self.output_dim == self.config.hidden_size, "Siglip output_dim needs to be the same as hidden_size."
+        super().__init__(*args, **kwargs)
+        self.final_layernorm = TENorm(
+            config=self.config,
+            hidden_size=self.config.hidden_size,
+            eps=self.config.layernorm_epsilon,
+        )
+
+        self.head = SiglipMHAPoolingHead(
+            self.config,
+            submodules=TransformerLayerSubmodules(
+                cross_attention=ModuleSpec(
+                    module=CrossAttention,
+                    params={"attn_mask_type": MCoreAttnMaskType.no_mask},
+                    submodules=CrossAttentionSubmodules(
+                        linear_q=TEColumnParallelLinear,
+                        linear_kv=TEColumnParallelLinear,
+                        core_attention=TEDotProductAttention,
+                        linear_proj=TERowParallelLinear,
+                    ),
+                ),
+                cross_attn_bda=get_bias_dropout_add,
+                mlp=ModuleSpec(
+                    module=MLP,
+                    submodules=MLPSubmodules(
+                        linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear,
+                    ),
+                ),
+                mlp_bda=get_bias_dropout_add,
+            ),
+        )
+
+    def forward(self, x):
+        x = super().forward(x,)
+        x = self.final_layernorm(x)
+        x = self.head(x)
+        return x
+
+
 class MCoreCLIPViTModel(CLIPViTModel):
     def __init__(self, *args, **kwargs):
         # TODO (yuya): need to handle post_process correctly in order to enable PP
@@ -355,7 +438,12 @@ class CLIPModel(MegatronModule):
                 model_cfg.get('transformer_engine', True),
             )
             vision_layer_spec.submodules.self_attention.params['attn_mask_type'] = MCoreAttnMaskType.no_mask
-            self.vision_encoder = MCoreCLIPViTModel(
+
+            if model_cfg.vision.get("use_siglip", False):
+                vision_module = MCoreCLIPViTModel
+            else:
+                vision_module = MCoreSiglipViTModel
+            self.vision_encoder = vision_module(
                 transformer_config=vision_transformer_config,
                 transformer_layer_spec=vision_layer_spec,
                 patch_dim=model_cfg.vision.get('patch_dim', 16),
@@ -613,9 +701,40 @@ class MegatronCLIPModel(MegatronBaseModel):
         else:
             self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
 
+    def setup_mcore_distributed_parallel(self):
+        """Set up mcore distributed data parallel"""
+        if self.with_distributed_adam and self.use_mcore_dist_optim:
+            config = get_model_config(self.model[0])
+            ddp_config = DistributedDataParallelConfig(
+                grad_reduce_in_fp32=(self.cfg.optim.get('grad_sync_dtype', 'fp32') == 'fp32'),
+                overlap_grad_reduce=self.cfg.optim.get('overlap_grad_sync', False),
+                use_distributed_optimizer=True,
+                check_for_nan_in_grad=self.cfg.optim.get('check_for_nan_in_grad', False),
+                # mcore bucket_size is based on num of parameters, therefore not
+                # using bucket_cap_mb to configure bucket_size here
+                bucket_size=self.cfg.optim.get('ddp_bucket_size', None),
+            )
+
+            self.model = [
+                McoreDDP(
+                    config,
+                    ddp_config,
+                    model_chunk,
+                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                    # Turn off bucketing for model_chunk 2 onwards, since communication for these
+                    # model chunks is overlapped with compute anyway.
+                    disable_bucketing=(model_chunk_idx > 0),
+                )
+                for (model_chunk_idx, model_chunk) in enumerate(self.model)
+            ]
+
+            # (TODO) Broadcast params from data parallel src rank to other data parallel ranks.
+            # by calling model_module.broadcast_params() if the model is randomly initialized.
+
     def configure_optimizers(self):
 
-        if self.with_distributed_adam:
+        if self.with_distributed_adam and not self.use_mcore_dist_optim:
 
             # Disable overlapped grad sync for layer norm grads when
             # sequence parallelism is enabled
@@ -674,7 +793,7 @@ class MegatronCLIPModel(MegatronBaseModel):
         no_sync_func = None
         grad_sync_func = None
         param_sync_func = None
-        if not forward_only and self.with_distributed_adam:
+        if not forward_only and self.with_distributed_adam and not self.use_mcore_dist_optim:
             no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
