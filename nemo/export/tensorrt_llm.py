@@ -30,6 +30,7 @@ import wrapt
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
+from nemo.export.trt_llm.converter.utils import MODELS_FOR_SHARED_EMBEDDING
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import get_tokenzier, is_nemo_file, load_nemo_model
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
 from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
@@ -120,6 +121,7 @@ class TensorRTLLM(ITritonDeployable):
         n_gpus: int = 1,
         tensor_parallel_size: int = None,
         pipeline_parallel_size: int = None,
+        gpus_per_node: int = None,
         max_input_len: int = 256,
         max_output_len: int = 256,
         max_input_token: Optional[int] = None,
@@ -127,6 +129,7 @@ class TensorRTLLM(ITritonDeployable):
         max_batch_size: int = 8,
         max_prompt_embedding_table_size=None,
         use_parallel_embedding: bool = False,
+        use_embedding_sharing: bool = False,
         paged_kv_cache: bool = True,
         remove_input_padding: bool = True,
         dtype: str = "bfloat16",
@@ -149,6 +152,7 @@ class TensorRTLLM(ITritonDeployable):
             n_gpus (int): number of GPUs to use for inference.
             tensor_parallel_size (int): tensor parallelism.
             pipeline_parallel_size (int): pipeline parallelism.
+            gpus_per_node (int): number of gpus per node.
             max_input_len (int): max input length.
             max_output_len (int): max output length.
             max_input_token (int): max input length. Deprecated, use max_input_len instead.
@@ -156,6 +160,7 @@ class TensorRTLLM(ITritonDeployable):
             max_batch_size (int): max batch size.
             max_prompt_embedding_table_size (int): max prompt embedding size.
             use_parallel_embedding (bool): whether to use parallel embedding feature of TRT-LLM or not
+            use_embedding_sharing (bool):
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
             remove_input_padding (bool): enables removing input padding or not.
             dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
@@ -172,8 +177,11 @@ class TensorRTLLM(ITritonDeployable):
         if model_type not in self.get_supported_models_list:
             raise Exception(
                 "Model {0} is not currently a supported model type. "
-                "Supported model types are llama, gptnext, falcon, and starcoder".format(model_type)
+                "Supported model types are llama, gptnext, falcon, and starcoder.".format(model_type)
             )
+
+        if not use_embedding_sharing and model_type in MODELS_FOR_SHARED_EMBEDDING:
+            raise Exception("Model {0} requires using embedding sharing.".format(model_type))
 
         if model_type == "gpt" or model_type == "starcoder":
             model_type = "gptnext"
@@ -187,6 +195,8 @@ class TensorRTLLM(ITritonDeployable):
         elif tensor_parallel_size is None:
             tensor_parallel_size = 1
             pipeline_parallel_size = n_gpus
+
+        gpus_per_node = tensor_parallel_size if gpus_per_node is None else gpus_per_node
 
         if Path(self.model_dir).exists():
             if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
@@ -256,7 +266,9 @@ class TensorRTLLM(ITritonDeployable):
                     dtype=dtype,
                     tensor_parallel_size=tensor_parallel_size,
                     pipeline_parallel_size=pipeline_parallel_size,
+                    gpus_per_node=gpus_per_node,
                     use_parallel_embedding=use_parallel_embedding,
+                    use_embedding_sharing=use_embedding_sharing,
                 )
 
                 for weight_dict, model_config in zip(weights_dicts, model_configs):

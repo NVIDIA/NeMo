@@ -31,6 +31,9 @@ DECODER_MODEL_TYPE = {
 }
 
 
+MODELS_FOR_SHARED_EMBEDDING = ["gemma"]
+
+
 def save_val(val, dir, key, tp_num=None):
     suffix = "" if tp_num is None else f".{tp_num}.bin"
     # Transpose linear layer weights to the correct shape.

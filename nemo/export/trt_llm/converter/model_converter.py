@@ -72,7 +72,9 @@ def model_to_trtllm_ckpt(
     dtype: str = "bfloat16",
     tensor_parallel_size: int = 1,
     pipeline_parallel_size: int = 1,
+    gpus_per_node: int = None,
     use_parallel_embedding: bool = False,
+    use_embedding_sharing: bool = False,
 ) -> Tuple[List[Dict], List[PretrainedConfig]]:
 
     weights_dict = convert_model_to_trt_llm_ckpt(
@@ -120,7 +122,7 @@ def model_to_trtllm_ckpt(
         'hidden_act': hidden_act,
         'use_parallel_embedding': use_parallel_embedding,
         'embedding_sharding_dim': 0,
-        'share_embedding_table': False,
+        'share_embedding_table': use_embedding_sharing,
         'quantization': {
             'quant_algo': None,
             'kv_cache_quant_algo': None,
@@ -160,9 +162,15 @@ def model_to_trtllm_ckpt(
         "transformer.ln_f.bias",
     }
 
+    gpus_per_node = tensor_parallel_size if gpus_per_node is None else gpus_per_node
+
     for i in range(world_size):
         mapping = tensorrt_llm.Mapping(
-            world_size=world_size, rank=i, tp_size=tensor_parallel_size, pp_size=pipeline_parallel_size
+            world_size=world_size,
+            rank=i,
+            tp_size=tensor_parallel_size,
+            pp_size=pipeline_parallel_size,
+            gpus_per_node=gpus_per_node,
         )
         layers_range = mapping.pp_layers(num_layers)
 
@@ -174,6 +182,8 @@ def model_to_trtllm_ckpt(
             if new_key.endswith(".bin"):  # TP split
                 if new_key.endswith(f"{mapping.tp_rank}.bin"):
                     new_key = new_key.replace(f".{mapping.tp_rank}.bin", "")
+                else:
+                    continue
             if "layers" in new_key:  # PP
                 layer_num = int(new_key.split(".")[2])
                 if layer_num in layers_range:
@@ -211,6 +221,7 @@ def model_to_trtllm_ckpt(
             if ln_f_bias is not None:
                 weights_dict_local["transformer.ln_f.bias"] = ln_f_bias
 
+        config["gpus_per_node"] = gpus_per_node
         model_config = PretrainedConfig(**config)
         model_config.mapping = mapping
         model_configs.append(model_config)
