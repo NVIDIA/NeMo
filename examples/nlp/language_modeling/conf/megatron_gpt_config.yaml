@@ -15,7 +15,7 @@ trainer:
   use_distributed_sampler: False
   max_epochs: -1 # PTL default. In practice, max_steps will be reached first.
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  log_every_n_steps: 1
+  log_every_n_steps: 10
   val_check_interval: 100
   limit_val_batches: 50
   limit_test_batches: 500
@@ -28,10 +28,10 @@ exp_manager:
   explicit_log_dir: null
   exp_dir: null
   name: megatron_gpt
-  create_wandb_logger: True
+  create_wandb_logger: False
   wandb_logger_kwargs:
-    project: reset_lr_test
-    name: test_run
+    project: null
+    name: null
   create_neptune_logger: false
   neptune_logger_kwargs:
     project: null
@@ -271,7 +271,7 @@ model:
     gen_shape: False # Generate model and kernel details including input shapes
 
   optim:
-    name: distributed_fused_adam
+    name: fused_adam
     lr: 2e-4
     weight_decay: 0.01
     betas:
