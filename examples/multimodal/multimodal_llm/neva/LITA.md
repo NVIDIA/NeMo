@@ -265,3 +265,15 @@ end = end / duration
 start_time_token_str = time_to_string(start, num_time_tokens)
 end_time_token_str = time_to_string(end, num_time_tokens,)
 ```
+
+We also provide three scripts to help you preprocess your datasets. Please refer to `convert_dvc_dataset.py`, `convert_qa_dataset.py` and `generate_qa_data.py` under `NeMo/scripts/multimodal_dataset_conversion`.
+
+
+### Finetuning
+```
+```
+
+
+## Evaluation
+
+### Reasoning Temporal Task

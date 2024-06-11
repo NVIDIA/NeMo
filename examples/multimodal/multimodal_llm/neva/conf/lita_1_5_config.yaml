@@ -1,4 +1,4 @@
-name: nemo_video_neva
+name: nemo_video_lita_neva
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
@@ -91,7 +91,7 @@ model:
 
   # LLM configs
   # use GPTModel from megatron.core
-  mcore_gpt: False
+  mcore_gpt: True
 
   # model architecture
   encoder_seq_length: 4096
@@ -154,7 +154,7 @@ model:
   bias_activation_fusion: False
   megatron_legacy: False
 
-  transformer_engine: False
+  transformer_engine: True
   fp8: False # enables fp8 in TransformerLayer forward
   fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3
   fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
@@ -202,7 +202,7 @@ model:
     conv_template: v1 # check `nemo/collections/multimodal/data/neva/conversation.py`
     image_folder: null
     video_folder: null
-    image_aspect_ratio: 'square'
+    image_aspect_ratio: 'pad'
 
   # Nsys profiling options
   nsys_profile:
@@ -214,7 +214,7 @@ model:
 
   optim:
     name: fused_adam
-    lr: 2e-3
+    lr: 2e-5
     weight_decay: 0.
     betas:
       - 0.9

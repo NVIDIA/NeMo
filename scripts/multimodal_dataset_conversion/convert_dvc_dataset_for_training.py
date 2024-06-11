@@ -18,7 +18,7 @@
 This script is used to convert the DVC dataset to the format required by the model training script.
 The DVC dataset should have the below structure:
 {
-    "1043215450": {          # video_name is the unique video file name with the extension
+    "1043215450": {          # video_name is the unique video file name (the extension should be .mp4)
         "duration": 125.0,
         "timestamps": [
             [0, 5], 
@@ -157,9 +157,11 @@ def convert(input_dvc_dataset, output_dataset, video_path_prefix, num_time_token
     for video_name, video_info in dvc_dataset.items():
         out = {}
         video_file = video_name + ext
-        #video_path = os.path.join(video_path_prefix, video_file)
-        #if not os.path.exists(video_path):
-        #    continue
+        if video_path_prefix is not None:
+            # do a sanity check to see if the video file exists
+            video_path = os.path.join(video_path_prefix, video_file)
+            if not os.path.exists(video_path):
+                continue
         vid = video_name.split(".")[0]
         video = video_file
         texts = video_info[field]
@@ -178,6 +180,8 @@ def convert(input_dvc_dataset, output_dataset, video_path_prefix, num_time_token
                 gpt_value += f"{start_str} {end_str} {seg_caption} "
         
         convo = []
+        if gpt_value == "":
+            continue
         convo.append({"from": "human", "value": get_prompt()})
         convo.append({"from": "gpt", "value": gpt_value.strip()})
         out["id"] = vid
@@ -201,8 +205,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_dvc_dataset", type=str, required=True)
     parser.add_argument("--output_file", default="dvc_train.json", type=str, required=True)
-    parser.add_argument("--video_path_prefix", type=str, required=True)
     parser.add_argument("--subtask", choices=["custom_event", "custom_caption"], type=str, required=True)
+    parser.add_argument("--video_path_prefix", default=None, type=str, required=False)
     parser.add_argument("--event_prompts", type=str, default=None, required=False, help="Path to the event prompt json file; Optional")
     parser.add_argument("--caption_prompts", type=str, default=None, required=False, help="Path to the caption prompt json file; Optional")
     parser.add_argument("--num_time_tokens", type=int, default=100, help="Number of time tokens to use for time tokens")

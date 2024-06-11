@@ -134,6 +134,7 @@ def load_config(args, llava_config):
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu'
     nemo_config.data.conv_template = args.conv_template
+    nemo_config.data.image_aspect_ratio = llava_config.get('image_aspect_ratio', 'square')
     nemo_config.mm_cfg.model_type = args.conv_template
     if args.tokenizer_model is None:
         nemo_config.tokenizer.model = llava_config['tokenizer_model']

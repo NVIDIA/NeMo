@@ -150,7 +150,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
 
 
 def decode_time_tokens(tokenizer, text: str, duration: float, time_tokens: list[str], time_token_ids: list[int]):
-    """Decode the time tokens <t1>....<t99> in the text to the actual time.
+    """Decode the time tokens <t1>....<t99> in the text to the actual time in seconds.
        TO DO: to do time decoding on output ids instead of text
 
     Args:
@@ -175,7 +175,7 @@ def decode_time_tokens(tokenizer, text: str, duration: float, time_tokens: list[
         time = min(max(time, 0), duration)
         time = round(time, 2)
         # time_str = '<' + str(time) + '>'
-        time_str = '%s s' % str(time)
+        time_str = '<%s>' % str(time)
         new_output_ids.extend(tokenizer.text_to_ids(time_str))
 
         last_processed = indices[j]
@@ -244,10 +244,12 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
         elif conv_template == "v1":
             clean_response = clean_response.rsplit("ASSISTANT: ", 1)[-1]
 
-        if use_lita and prompt_dict.get("duration", None) is not None and use_lita:
-            duration = prompt_dict.get("duration")
-            clean_response = decode_time_tokens(model.tokenizer, clean_response, duration, time_tokens, time_token_ids)
-
+        if use_lita:
+            if prompt_dict.get("duration", None) is not None:
+                duration = prompt_dict.get("duration")
+                clean_response = decode_time_tokens(model.tokenizer, clean_response, duration, time_tokens, time_token_ids)
+            else:
+                print("duration field is not in prompt file, skipping time decoding.")
         clean_response = clean_response.strip()
         response["clean_text"] = clean_text
         response["clean_response"] = clean_response

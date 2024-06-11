@@ -1124,6 +1124,8 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             context_length=model_cfg.encoder_seq_length,
             media_type=data_cfg.get('media_type', 'image'),
             num_frames=data_cfg.get('num_frames', -1),
+            use_lita=getattr(model_cfg.mm_cfg, 'use_lita', False),
+            lita=getattr(model_cfg.mm_cfg, 'lita', {})
         ),
         data_cfg=dict(
             splice_single_frame=data_cfg.get('splice_single_frame', None),
