@@ -204,18 +204,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def setup_megatron_parallel(self, trainer: pl.Trainer) -> None:
         assert self.model is not None, "Model is not set"
-        
-        # # Dynamically create a new class that inherits from both self.model.__class__ and ModuleProxyMixin
-        # LightningModuleWithProxy = type('LightningModuleWithProxy', (self.model.__class__, ModuleProxyMixin), {})
-        # self.model.__class__ = LightningModuleWithProxy
-        
-        # def __getattr__(self, item: Any) -> Any:
-        #     try:
-        #         return super().__getattr__(item)
-        #     except AttributeError:
-        #         return getattr(self.module, item)
-            
-        # self.model.__getattr__ = __getattr__
 
         self.megatron_parallel = MegatronParallel(
             self.model,
@@ -225,8 +213,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             ddp_config=self.ddp_config,
         )
         
-        self.megatron_parallel[0].expert_parallel_buffers
-
         # check signature-def of self.model.configure_optimizers to check if there's an optional arg: megatron_parallel
         sig = inspect.signature(self.model.configure_optimizers)
         if "megatron_parallel" in sig.parameters:

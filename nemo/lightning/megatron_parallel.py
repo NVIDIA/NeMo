@@ -148,18 +148,9 @@ class MegatronParallel(nn.ModuleList):
                     disable_bucketing=(model_chunk_idx > 0),
                 )
                 model_chunk.module = ddp
-                model_chunk.buffers = ddp.buffers
-                
-                model_chunk.__getattr__ = types.MethodType(getattr_proxy, model_chunk)
-                
-                # @add_method(model_chunk.__class__)
-                # def __get_attr__(self, val):
-                #     return getattr_proxy(self, val)
-                
-                
-                a = model_chunk.expert_parallel_buffers
-                # model_chunk.expert_parallel_buffers = ddp.expert_parallel_buffers
-
+                model_chunk.buffers = ddp.buffers   # We need to do this explicitly since this is a attr pytorch uses
+                model_chunk.__class__.__getattr__ = getattr_proxy   # type: ignore
+        
         for i, model_module in enumerate(_pipeline):
             if not cpu:
                 model_module.cuda(torch.cuda.current_device())
@@ -174,9 +165,6 @@ class MegatronParallel(nn.ModuleList):
                     else:
                         # TODO: What to do here?
                         pass
-
-            # if not hasattr(model_module, "sharded_state_dict"):
-            #     model_module.sharded_state_dict = sharded_state_dict    # type: ignore
 
             # Print number of parameters.
             if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
@@ -571,10 +559,13 @@ class _ModuleStepFunction:
         
 def getattr_proxy(self, item: Any) -> Any:
     try:
-        superclass = self.__class__.__mro__[1]
-        return getattr(superclass, item)
+        return super(self.__class__, self).__getattr__(item)
     except AttributeError:
-        return getattr(self.module, item)
+        try:
+            return getattr(self.module, item)
+        except AttributeError:
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}'")
+
 
 class DDP(McoreDDP):
     def state_dict(self, prefix='', keep_vars=False, **kwargs):
