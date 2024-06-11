@@ -21,6 +21,7 @@ from typing import (
     cast,
     runtime_checkable,
 )
+import types
 
 import torch
 import torch.distributed
@@ -148,7 +149,16 @@ class MegatronParallel(nn.ModuleList):
                 )
                 model_chunk.module = ddp
                 model_chunk.buffers = ddp.buffers
-                model_chunk.expert_parallel_buffers = ddp.expert_parallel_buffers
+                
+                model_chunk.__getattr__ = types.MethodType(getattr_proxy, model_chunk)
+                
+                # @add_method(model_chunk.__class__)
+                # def __get_attr__(self, val):
+                #     return getattr_proxy(self, val)
+                
+                
+                a = model_chunk.expert_parallel_buffers
+                # model_chunk.expert_parallel_buffers = ddp.expert_parallel_buffers
 
         for i, model_module in enumerate(_pipeline):
             if not cpu:
@@ -557,15 +567,22 @@ class _ModuleStepFunction:
             return wrapped
 
         return attr
-
+        
+        
+def getattr_proxy(self, item: Any) -> Any:
+    try:
+        superclass = self.__class__.__mro__[1]
+        return getattr(superclass, item)
+    except AttributeError:
+        return getattr(self.module, item)
 
 class DDP(McoreDDP):
     def state_dict(self, prefix='', keep_vars=False, **kwargs):
         self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
-
+        
     def __getattr__(self, item: Any) -> Any:
         try:
-            return super().__getattr__(item)
+           return super().__getattr__(item)
         except AttributeError:
             return getattr(self.module, item)
 
