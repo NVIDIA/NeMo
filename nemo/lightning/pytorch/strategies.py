@@ -166,18 +166,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
             trainer.fit_loop.epoch_loop.automatic_optimization = _MegatronAutomaticOptimization(trainer)
 
-            # # set up optimizers after the wrapped module has been moved to the device
-            # self.setup_optimizers(trainer)
-
-            # # TODO: Throw an execption if we have a mcore optimizer and no ddp_config
-
-            # if hasattr(self.precision_plugin, "convert_optimizer"):
-            #     _optimizers = [*self.optimizers]
-            #     _optimizers[0] = self.precision_plugin.convert_optimizer(self.optimizers[0])
-            #     self.optimizers = _optimizers
-
-            # _optimizers_to_device(self.optimizers, self.root_device)
-
             import torch.distributed.algorithms.ddp_comm_hooks.post_localSGD_hook as post_localSGD
 
             if isinstance(self._ddp_comm_state, post_localSGD.PostLocalSGDState):
@@ -242,10 +230,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.optimizers = _optimizers
 
         _optimizers_to_device(self.optimizers, self.root_device)
-
+        
         self.model = self.megatron_parallel
         self.model.trainer = trainer
-
+        
         if hasattr(self.precision_plugin, "convert_module"):
             self.model = self.precision_plugin.convert_module(self.model)
         self.model.callbacks.add(getattr(trainer, "callbacks"))

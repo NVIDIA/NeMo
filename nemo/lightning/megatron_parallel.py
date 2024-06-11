@@ -86,7 +86,7 @@ class MegatronParallel(nn.ModuleList):
         >>> megatron_model = MegatronParallel(model)
         >>> print(megatron_model)
         MegatronParallel(
-          # (0): Linear(in_features=10, out_features=10, bias=True)
+          (0): Linear(in_features=10, out_features=10, bias=True)
           (1): ReLU()
           (2): Linear(in_features=10, out_features=5, bias=True)
         )
