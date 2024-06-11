@@ -270,7 +270,10 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             sharded_state_dict = self.adjust_non_strict_load(path, sharded_state_dict)
 
         return dist_checkpointing.load(
-            sharded_state_dict=sharded_state_dict, checkpoint_dir=path, sharded_strategy=sharded_strategy, validate_access_integrity=False
+            sharded_state_dict=sharded_state_dict,
+            checkpoint_dir=path,
+            sharded_strategy=sharded_strategy,
+            validate_access_integrity=False,
         )
 
     def adjust_non_strict_load(self, path: _PATH, sharded_state_dict: Dict[str, Any]):
