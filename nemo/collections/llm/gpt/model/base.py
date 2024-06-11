@@ -4,11 +4,11 @@ from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 import pytorch_lightning as L
 import torch
 import torch.distributed
-from megatron.core.transformer.transformer_config import TransformerConfig
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import nn
 from torch.optim import Optimizer
 
+from megatron.core.transformer.transformer_config import TransformerConfig
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
@@ -35,8 +35,6 @@ class GPTConfig(TransformerConfig):
 
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
-
-    optimizer_fn: Optional[Callable[["GPTModel"], Optimizer]] = None
 
     def configure_model(self, tokenizer) -> "MCoreGPTModel":
         vp_size = self.virtual_pipeline_model_parallel_size
