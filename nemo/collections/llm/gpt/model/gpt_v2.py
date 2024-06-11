@@ -20,6 +20,7 @@ import torch.distributed
 from torch.optim import Optimizer
 
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core import InferenceParams
 from megatron.core.model_parallel_config import ModelParallelConfig
 from megatron.core.utils import init_method_normal, scaled_init_method_normal, register_function, get_function_from_registry
 
@@ -57,17 +58,123 @@ from nemo.core.optim.optimizers import init_optimizer_states
 from nemo.utils import AppState, logging
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
+################
+
+import itertools
+import os
+import queue
+import warnings
+from contextlib import nullcontext
+from dataclasses import fields
+from functools import cache, partial
+from importlib.metadata import version
+from typing import Any, Dict, Iterator, List, Optional, Union
+
+import torch
+from omegaconf import OmegaConf
+from omegaconf.dictconfig import DictConfig
+from pkg_resources import packaging
+from pytorch_lightning.accelerators import CPUAccelerator
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
+from pytorch_lightning.trainer.trainer import Trainer
+
+from nemo.collections.common.parts.utils import extend_instance
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
+    MegatronPretrainingRandomSampler,
+    MegatronPretrainingSampler,
+)
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import GPTFIMDataset, GPTFIMDatasetConfig
+from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import (
+    get_gpt_full_te_layer_autocast_spec,
+)
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
+from megatron.core.models.gpt.gpt_layer_specs import (
+        get_gpt_layer_local_spec,
+        get_gpt_layer_with_transformer_engine_spec,
+    )
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common.megatron.build_model import build_model
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
+    average_losses_across_data_parallel_group,
+    get_all_params_for_weight_decay_optimization,
+    get_ltor_masks_and_position_ids,
+    get_params_for_weight_decay_optimization,
+)
+from nemo.collections.nlp.modules.common.text_generation_strategy import TextGenerationStrategy
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    generate,
+    get_computeprob_response,
+    get_default_length_params,
+    get_default_sampling_params,
+    megatron_gpt_generate,
+)
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam,
+    OutputType,
+    SamplingParam,
+    TextGeneration,
+)
+from nemo.collections.nlp.parts import utils_funcs
+from nemo.collections.nlp.parts.utils_funcs import activation_to_func, get_last_rank
+from nemo.core.classes import Exportable
+from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.neural_types import ChannelType, NeuralType
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    TextGeneration,
+)
+from nemo.utils import logging
+from nemo.utils.te_utils import is_float8tensor
+
+
 if TYPE_CHECKING:
-    from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 # Dataclass util methods
 
+
+###########
+
+@cache
+def mcore_supports_moe() -> bool:
+    global HAVE_MEGATRON_CORE
+    if not HAVE_MEGATRON_CORE:
+        return False
+    try:
+        from megatron.core.transformer.moe.router import TopKRouter
+
+        return True
+    except ImportError:
+        return False
+
 def dataclass_from_dict(klass, d, filter_keys=True):
     try:
-        return klass(**{f:dataclass_from_dict(fieldtypes[f],d[f]) for f in d})
+        fieldtypes = {f.name:f.type for f in fields(klass)}
+        # print("fieldtypes", fieldtypes)
+
+        if filter_keys:
+            # print all keys that are not in fieldtypes
+            # print("Filtered keys")
+            for k in d.keys():
+                if k not in fieldtypes:
+                    print(k, d[k])
+
+            # Remove all keys that are not in fieldtypes
+            d = {k:v for k,v in d.items() if k in fieldtypes}
+
+        # Handle nested dataclasses with Optional
+        # If the field is an Optional, we need to check if the value is a dataclass
+        for f in fieldtypes:
+            if fieldtypes[f] is not None and 'Optional' in str(fieldtypes[f]):
+                if f in d and isinstance(d[f], dict):
+                    d[f] = dataclass_from_dict(fieldtypes[f].__args__[0], d[f])
+
+        return klass(**{f:dataclass_from_dict(fieldtypes[f], d[f]) for f in d})
     except Exception as e:
-        raise e
         return d  # Not a dataclass field
 
 def convert_cfg_to_dataclass(cfg, klass):
@@ -282,18 +389,43 @@ class LLMSaveRestoreConnector(SaveRestoreConnector):
         return instance
 
 
+def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True):
+    if num_experts is not None:
+        assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
+
+    if use_te and spec_name == '':
+        spec_name = 'te_gpt'
+    name_spec_dict = {
+        "": get_gpt_layer_local_spec(num_experts, moe_grouped_gemm),
+        "te_gpt": get_gpt_layer_with_transformer_engine_spec(num_experts, moe_grouped_gemm),
+        "megatron_falcon_gpt": get_falcon_layer_spec(),
+        "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(),
+        "modelopt": get_gpt_layer_modelopt_spec(),
+    }
+    if spec_name not in name_spec_dict:
+        raise ValueError(f"Spec name '{spec_name}' is not recognized.")
+    return name_spec_dict[spec_name]
+
+
 @dataclass
 class GPTOptimConfig(OptimConfig):
     name: str = "fused_adam"
     lr: float = 1e-4
     weight_decay: float = 0.0
+    betas: Tuple[float, float] = (0.9, 0.98)
 
     sched: Optional[SchedConfig] = None
 
 
+@dataclass
+class MegatronGPTTokenizerConfig:
+    library: str = 'megatron'
+    type: Optional[str] = None
+    model_name: Optional[str] = None
+    use_fast: bool = True
 
 @dataclass
-class GPTConfigV2(TransformerConfig):
+class MegatronGPTConfigV2(TransformerConfig):
     # From megatron.core.models.gpt.gpt_model.GPTModel
 
     """Configuration object for megatron-core transformers.
@@ -305,16 +437,29 @@ class GPTConfigV2(TransformerConfig):
     parallel_output: bool = True
     share_embeddings_and_output_weights: bool = False
     make_vocab_size_divisible_by: int = 128
-    position_embedding_type: str = "learned_absolute"
+    position_embedding_type: str = "rope"
     rotary_base: int = 10000
-    rotary_percent: float = 1.0
+    rotary_percentage: float = 1.0
+    moe_grouped_gemm: bool = False
+    spec_name: str = ''
+    use_loss_mask: bool = False
+    add_bias_linear: bool = False
     seq_len_interpolation_factor: Optional[float] = None
     seq_length: int = 1024
+    encoder_seq_length: Optional[int] = None
 
-    optim: OptimConfig = OptimConfig(name='fused_adam')
+    activation: Optional[str] = None
+    bias: Optional[bool] = None
+    tokenizer: MegatronGPTTokenizerConfig = MegatronGPTTokenizerConfig()
+
+    optim: GPTOptimConfig = GPTOptimConfig(name='fused_adam')
     optimizer_fn: Optional[str] = None
 
     tokenizer_filepath: Optional[str] = None
+
+    # modules
+    pre_process: bool = True
+    post_process: bool = True
 
     def configure_model(self, tokenizer) -> "MCoreGPTModel":
         vp_size = self.virtual_pipeline_model_parallel_size
@@ -327,28 +472,66 @@ class GPTConfigV2(TransformerConfig):
         from megatron.core import parallel_state
         from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
         from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-        
+
         return MCoreGPTModel(
-            self,
-            transformer_layer_spec=get_gpt_layer_with_transformer_engine_spec(),
-            vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
-            max_sequence_length=self.seq_length,
-            fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
-            parallel_output=self.parallel_output,
-            share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
-            position_embedding_type=self.position_embedding_type,
-            rotary_percent=self.rotary_percent,
-            rotary_base=self.rotary_base,
-            seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-            pre_process=parallel_state.is_pipeline_first_stage(),
-            post_process=parallel_state.is_pipeline_last_stage(),
-        )
+                config=self,
+                transformer_layer_spec=get_specs(
+                    self.spec_name,
+                    self.num_moe_experts,
+                    self.moe_grouped_gemm,
+                    use_te=True,
+                ),
+                vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
+                max_sequence_length=self.seq_length,
+                pre_process=self.pre_process,
+                post_process=self.post_process,
+                parallel_output=True,
+                share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
+                position_embedding_type=self.position_embedding_type,
+                rotary_percent=self.rotary_percentage,
+                seq_len_interpolation_factor=self.seq_len_interpolation_factor,
+                rotary_base=self.rotary_base,
+            )
 
     def __post_init__(self):
         """ Python dataclass method that is used to modify attributes after initialization.
             See https://docs.python.org/3/library/dataclasses.html#post-init-processing for more details.
         """
         super().__post_init__()
+
+        if self.activation is not None:
+            self.activation_func = self.activation
+
+        if self.bias is not None:
+            self.add_bias_linear = self.bias
+
+        if self.normalization == 'layernorm':
+            self.normalization = 'LayerNorm'
+        elif self.normalization == 'rmsnorm':
+            self.normalization = 'RMSNorm'
+
+        # Setup seq length with backward compat
+        if self.seq_length is None and self.encoder_seq_length is None:
+            raise ValueError("One of 'seq_length' or 'encoder_seq_length' must be provided.")
+
+        if self.encoder_seq_length is None:
+            self.encoder_seq_length = self.seq_length
+        
+        if self.seq_length is None:
+            self.seq_length = self.encoder_seq_length
+
+        if self.tokenizer.model_name is None:
+            self.tokenizer.model_name = self.tokenizer.type
+
+        self.rotary_base = int(self.rotary_base)
+
+        # Register fast-swiglu
+        # fast_swiglu = lambda x: bias_swiglu_impl(x, None)
+        # setattr(torch.nn.functional, 'fast-swiglu', fast_swiglu)
+
+        if self.activation_func == 'fast-swiglu':
+            self.activation_func = 'silu'
+            self.gated_linear_unit = True
         
         # Register a default function for initialization and restoration
         init_method_fn = init_method_normal(self.init_method_std)
@@ -367,43 +550,63 @@ class GPTConfigV2(TransformerConfig):
             self.output_layer_init_method = scaled_init_method_normal_fn.__name__
 
 
-class GPTModelV2(ModelPT,  # NLPModel
-                 # io.IOMixin, 
+class MegatronGPTModelV2(ModelPT,  # NLPModel
+                 TextGeneration,
                  # io.ConnectorMixin
                  ):
     def __init__(
         self,
-        cfg: GPTConfigV2,
+        cfg: MegatronGPTConfigV2,
         trainer: L.Trainer = None,
     ):
         # If function registrations are part of dataclass, must come first, but can be done outside dataclass to put this after __init__
-        if not isinstance(cfg, GPTConfigV2):
-            cfg = convert_cfg_to_dataclass(cfg, GPTConfigV2)
+        if not isinstance(cfg, MegatronGPTConfigV2):
+            cfg = convert_cfg_to_dataclass(cfg, MegatronGPTConfigV2)
 
         # ModelPT init
         super().__init__(cfg, trainer=trainer)
 
         # Dataclass config here; OmegaConf config is stored under self.cfg
-        self.mcore_config = cfg
+        self.transformer_config = cfg
+        self.mcore_config = self.transformer_config
+        self.spec_name = self.cfg.get('name', '')
 
         # Handle tokenizer
         tokenizer_filepath = self.cfg.get("tokenizer_filepath", None)
+        tokenizer_cfg = self.cfg.get("tokenizer", None)
         if tokenizer_filepath is not None:
             tokenizer_filepath = self.register_artifact('tokenizer_filepath', tokenizer_filepath)
             self.tokenizer = get_nmt_tokenizer(tokenizer_model=tokenizer_filepath)
+        elif tokenizer_cfg is not None:
+            self.tokenizer = get_nmt_tokenizer(
+                library=self._cfg.tokenizer.library,
+                model_name=self._cfg.tokenizer.type or self._cfg.tokenizer.model_name,
+                tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)),
+                vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.get('vocab_file', None)),
+                merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.get('merge_file', None)),
+                use_fast=self.cfg.tokenizer.get('use_fast', False),
+                delimiter=self.cfg.tokenizer.get('delimiter', None),
+                special_tokens=self.cfg.tokenizer.get('special_tokens', None),
+                trust_remote_code=self.cfg.tokenizer.get('trust_remote_code', False),
+                legacy=False,
+            )
         else:
             # Use default tokenizer
             self.tokenizer = get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
 
+        # configuration used for inference
+        self._inference_config = None
+
+
     def configure_model(self) -> None:
         if not hasattr(self, 'module'):  # ptl demands this function be a no-op after first call
-            self.module = self.mcore_config.configure_model(self.tokenizer)
+            self.model = self.transformer_config.configure_model(self.tokenizer)
 
-    def configure_optimizers(self) -> Optimizer:
-        if self.mcore_config.optimizer_fn is not None:
-            optimizer_fn = get_function_from_registry(self.mcore_config.optimizer_fn)
+    def configure_optimizers(self):
+        if self.transformer_config.optimizer_fn is not None:
+            optimizer_fn = get_function_from_registry(self.transformer_config.optimizer_fn)
             return optimizer_fn(self)
-
+        
         return super().configure_optimizers()
 
     def forward(
@@ -415,7 +618,7 @@ class GPTModelV2(ModelPT,  # NLPModel
         decoder_input: Optional[torch.Tensor] = None,
         inference_params=None,
     ) -> torch.Tensor:
-        output_tensor = self.module(
+        output_tensor = self.model(
             input_ids,
             position_ids,
             attention_mask,
@@ -425,6 +628,10 @@ class GPTModelV2(ModelPT,  # NLPModel
         )
 
         return output_tensor
+
+    def get_forward_output_only_func(self):
+        fwd_output_only_func = get_forward_func_for_inference(self)
+        return fwd_output_only_func
 
     def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
         return gpt_data_step(dataloader_iter)
@@ -462,6 +669,55 @@ class GPTModelV2(ModelPT,  # NLPModel
     # Put NGC models here
     def list_available_models(cls):
         return []
+
+    def set_inference_config(self, inference_config):
+        self._inference_config = inference_config
+
+    def get_inference_config(self):
+        return self._inference_config
+
+    def generate(
+        self,
+        inputs: Union[List[str], torch.Tensor, List[dict]],
+        length_params: LengthParam,
+        sampling_params: SamplingParam = None,
+        *,
+        strategy: Optional[TextGenerationStrategy] = None,
+    ) -> OutputType:
+
+        # Generic code that can be hidden inside a function
+        # check whether the DDP is initialized
+        if not parallel_state.is_initialized():
+
+            def dummy():
+                return
+
+            if self.trainer.strategy.launcher is not None:
+                self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
+            self.trainer.strategy.setup_environment()
+
+            self.trainer.strategy.model = self
+            self.trainer.strategy.setup_megatron_parallel(self.trainer)
+            self.trainer.strategy.setup_precision_plugin()
+
+            self.configure_model()
+
+        # set the default sampling params if it is None.
+        # default do greedy sampling
+        if sampling_params is None:
+            sampling_params = get_default_sampling_params()
+
+        # set the default length params if it is None.
+        # default do greedy sampling
+        if length_params is None:
+            length_params = get_default_length_params()
+
+        strategy_args = {} if strategy is None else {"strategy": strategy}
+
+        return megatron_gpt_generate(
+            self.cuda(), inputs, self.tokenizer, length_params, sampling_params, **strategy_args
+        )
+
 
     # This enables models to restore from without providing the connector explicitly
     @classmethod
@@ -569,5 +825,66 @@ def get_packed_seq_params(batch):
         qkv_format='thd',
     )
 
+def get_forward_func_for_inference(model):
+    from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
+
+    def fwd_output_only_func(dataloader_iter, model):
+        # If tuple, 1st element in it is the batch since dataloader_iter returns batch, batch_idx, dataloader_idx
+        batch = next(dataloader_iter)
+        if isinstance(batch, tuple):
+            batch = batch[0]
+        extra_arg = {}
+        if len(batch) == 3:
+            batch = [x.cuda() for x in batch]
+            tokens, attention_mask, position_ids = batch
+            attention_mask = attention_mask[0:1]
+        else:
+            (
+                tokens,
+                attention_mask,
+                position_ids,
+                set_inference_key_value_memory,
+                inference_max_sequence_len,
+            ) = batch
+            tokens = tokens.cuda()
+            position_ids = position_ids.cuda()
+            if attention_mask is not None:
+                attention_mask = attention_mask.cuda()
+                attention_mask = attention_mask[0:1]
+            if True: # model.mcore_gpt:
+                # if first step, then clear KV cache, otherwise reuse inference_paarms
+                if set_inference_key_value_memory[0].item():
+                    model.inference_params = InferenceParams(
+                        max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
+                    )
+                extra_arg['inference_params'] = model.inference_params
+            else:
+                extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+                extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+        # Currently for all MCore transformer layer specs causal attention mask
+        # is used so we can delegate creating it to MCore/TE and pass None below
+        if (
+                isinstance(model, MCoreGPTModel)
+                or hasattr(model, "module")
+                and isinstance(model.module, MCoreGPTModel)
+        ):
+            attention_mask = None
+
+        output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
+
+        # Advance inference sequence offset.
+        if model.inference_params:
+            # if last stage, then (final) output is [b, s, h], otherwise it's [s, b, h]
+            if parallel_state.is_pipeline_last_stage():
+                model.inference_params.sequence_len_offset += output_tensor.size(1)
+            else:
+                model.inference_params.sequence_len_offset += output_tensor.size(0)
+
+        def id_func(output_tensor):
+            return output_tensor, {'logits': output_tensor}
+
+        return output_tensor, id_func
+    
+    return fwd_output_only_func
 
 __all__ = ["GPTModel", "GPTConfig", "gpt_data_step", "gpt_forward_step", "gpt_default_optimizer"]

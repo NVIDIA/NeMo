@@ -76,7 +76,8 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
         self.tokenizer = tokenizer
 
     def configure_model(self) -> None:
-        self.module = self.config.configure_model(self.tokenizer)
+        if not hasattr(self, 'module') or self.module is None:
+            self.module = self.config.configure_model(self.tokenizer)
 
     def configure_optimizers(self) -> Optimizer:
         if self.config.optimizer_fn is not None:

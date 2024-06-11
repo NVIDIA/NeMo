@@ -967,13 +967,16 @@ def model_inference_strategy_dispatcher(model, **args):
         RetroQAModelTextGenerationStrategy,
     )
 
+    # NeMo 2.0 models
+    from nemo.collections.llm.gpt.model.gpt_v2 import MegatronGPTModelV2
+
     if isinstance(model, MegatronGriffinModel):
         return GriffinModelTextGenerationStrategy(model)
     if isinstance(model, MegatronNevaModel):
         return NevaModelTextGenerationStrategy(model)
     if isinstance(model, MegatronGPTPromptLearningModel):
         return PromptLearningModelTextGenerationStrategy(model, **args)
-    elif isinstance(model, MegatronGPTModel) and not (isinstance(model, MegatronRetroModel)):
+    elif isinstance(model, (MegatronGPTModel, MegatronGPTModelV2)) and not (isinstance(model, MegatronRetroModel)):
         return GPTModelTextGenerationStrategy(model)
     elif isinstance(model, MegatronRetrievalModel):
         strategy_name = args['strategy']

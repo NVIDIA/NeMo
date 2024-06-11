@@ -13,6 +13,11 @@ from nemo.collections.llm.gpt.model.base_v2 import (
     GPTConfigV2
 )
 
+from nemo.collections.llm.gpt.model.gpt_v2 import (
+    MegatronGPTModelV2,
+    MegatronGPTConfigV2
+)
+
 __all__ = [
     "GPTConfig",
     "GPTModel",

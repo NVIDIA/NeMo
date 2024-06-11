@@ -28,5 +28,5 @@ if __name__ == '__main__':
     model.save_to("./mini_gpt")
 
     import os
-    os.environ['HF_TOKEN'] = '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'
+    os.environ['HF_TOKEN'] = ''
     model.push_to_hf_hub("smajumdar/abc5", pack_nemo_file=False)

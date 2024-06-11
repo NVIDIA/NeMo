@@ -490,8 +490,14 @@ class MegatronParallel(nn.ModuleList):
         if hasattr(module, "sharded_state_dict"):
             return module.sharded_state_dict(*args, **kwargs)
         elif hasattr(module, "configure_model"):
-            prefix = "".join([kwargs.pop("prefix", ""), "module."])
-            return self._module_sharded_state_dict(module.module, *args, prefix=prefix, **kwargs)
+            if hasattr(module, "module"):
+                prefix = "".join([kwargs.pop("prefix", ""), "module."])
+                return self._module_sharded_state_dict(module.module, *args, prefix=prefix, **kwargs)
+            elif hasattr(module, "model"):
+                prefix = "".join([kwargs.pop("prefix", ""), "model."])
+                return self._module_sharded_state_dict(module.model, *args, prefix=prefix, **kwargs)
+            else:
+                raise ValueError("Could not find sharded state dict - Model does not posses an MCore model attribute named `model` or `module`")
 
         raise ValueError("Could not find sharded state dict")
 
