@@ -3,6 +3,7 @@ import collections.abc
 import functools
 import inspect
 import queue
+import types
 from collections import defaultdict
 from typing import (
     Any,
@@ -21,7 +22,6 @@ from typing import (
     cast,
     runtime_checkable,
 )
-import types
 
 import torch
 import torch.distributed
@@ -148,9 +148,9 @@ class MegatronParallel(nn.ModuleList):
                     disable_bucketing=(model_chunk_idx > 0),
                 )
                 model_chunk.module = ddp
-                model_chunk.buffers = ddp.buffers   # We need to do this explicitly since this is a attr pytorch uses
-                model_chunk.__class__.__getattr__ = getattr_proxy   # type: ignore
-        
+                model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
+                model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
+
         for i, model_module in enumerate(_pipeline):
             if not cpu:
                 model_module.cuda(torch.cuda.current_device())
@@ -555,8 +555,8 @@ class _ModuleStepFunction:
             return wrapped
 
         return attr
-        
-        
+
+
 def getattr_proxy(self, item: Any) -> Any:
     try:
         return super(self.__class__, self).__getattr__(item)
@@ -570,7 +570,7 @@ def getattr_proxy(self, item: Any) -> Any:
 class DDP(McoreDDP):
     def state_dict(self, prefix='', keep_vars=False, **kwargs):
         self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
-        
+
     def __getattr__(self, item: Any) -> Any:
         return getattr_proxy(self, item)
 
