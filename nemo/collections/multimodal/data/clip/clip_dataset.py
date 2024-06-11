@@ -127,6 +127,12 @@ def build_train_valid_datasets(
     return train_data, val_data
 
 
+def custom_collate(batch):
+    if len(batch) == 0:
+        return None, None
+    else:
+        return default_collate(batch)
+
 # For zero-shot imagenet validation
 def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
     val_image_transform, text_transform = get_preprocess_fns(model_cfg, tokenizer, is_train=False)
@@ -149,12 +155,6 @@ def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
         data_parallel_size=parallel_state.get_data_parallel_world_size(),
         drop_last=False,
     )
-
-    def custom_collate(batch):
-        if len(batch) == 0:
-            return None, None
-        else:
-            return default_collate(batch)
 
     imagenet_val["images"] = torch.utils.data.DataLoader(
         image_dataset,
