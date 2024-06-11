@@ -441,9 +441,9 @@ class CLIPModel(MegatronModule):
             vision_layer_spec.submodules.self_attention.params['attn_mask_type'] = MCoreAttnMaskType.no_mask
 
             if model_cfg.get("use_siglip", False):
-                vision_module = MCoreCLIPViTModel
-            else:
                 vision_module = MCoreSiglipViTModel
+            else:
+                vision_module = MCoreCLIPViTModel
             self.vision_encoder = vision_module(
                 transformer_config=vision_transformer_config,
                 transformer_layer_spec=vision_layer_spec,
