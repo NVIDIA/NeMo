@@ -633,7 +633,7 @@ def check_resume(
                 else:
                     end_checkpoints = []
                     last_checkpoints = []
-            else: # default non-s3 implementation
+            else:  # default non-s3 implementation
                 # Use <log_dir>/checkpoints/ unless `dirpath` is set
                 checkpoint_dir = Path(dirpath) if dirpath else Path(Path(log_dir) / "checkpoints")
                 checkpoint_dir_exists = checkpoint_dir.exists()
@@ -644,9 +644,13 @@ def check_resume(
                 end_dist_checkpoints = [d for d in dist_checkpoints if d.match("*end")]
                 last_dist_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
 
-                end_checkpoints = end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.rglob("*end.ckpt"))
+                end_checkpoints = (
+                    end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.rglob("*end.ckpt"))
+                )
                 end_checkpoints = _filter_out_unfinished_checkpoints(end_checkpoints)
-                last_checkpoints = last_dist_checkpoints if last_dist_checkpoints else list(checkpoint_dir.rglob("*last.ckpt"))
+                last_checkpoints = (
+                    last_dist_checkpoints if last_dist_checkpoints else list(checkpoint_dir.rglob("*last.ckpt"))
+                )
                 last_checkpoints = _filter_out_unfinished_checkpoints(last_checkpoints)
 
             if not checkpoint_dir_exists or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
