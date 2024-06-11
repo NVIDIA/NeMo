@@ -4,13 +4,14 @@ import shutil
 from collections import OrderedDict
 from contextlib import ExitStack
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ContextManager, Dict, List, Mapping, Optional, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, ContextManager, Dict, List, Literal, Mapping, Optional, TypeVar, Union, cast
 
 import pytorch_lightning as pl
 import torch
 import torch.distributed
 from lightning_fabric.plugins import CheckpointIO, ClusterEnvironment
 from lightning_fabric.utilities.optimizer import _optimizers_to_device
+from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
@@ -27,9 +28,8 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
-from nemo import io
-from nemo.io.pl import MegatronCheckpointIO, TrainerCheckpoint, TrainerCkptProtocol
-from nemo.lightning import _strategy_lib
+from nemo.lightning import _strategy_lib, io
+from nemo.lightning.io.pl import MegatronCheckpointIO, TrainerCheckpoint, TrainerCkptProtocol
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar
 
@@ -37,6 +37,9 @@ if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
 
 ConfigT = TypeVar("ConfigT")
+
+
+DDPLiteral = Literal["megatron", "pytorch"]
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -59,10 +62,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         parallel_devices: Optional[List[torch.device]] = None,
         cluster_environment=None,  # TODO: Add type-hint
         checkpoint_io=None,  # TODO: Add type-hint
-        no_ddp_communication_hook: bool = True,
         find_unused_parameters: bool = False,
         enable_nemo_ckpt_io: bool = True,
         ckpt_type: TrainerCkptProtocol = TrainerCheckpoint,
+        ckpt_include_optimizer: bool = False,
+        ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
         lazy_init: bool = False,
         **kwargs,
     ) -> None:
@@ -73,7 +77,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             find_unused_parameters=find_unused_parameters,
             **kwargs,
         )
-        self.no_ddp_communication_hook = no_ddp_communication_hook
+
         self.megatron_callbacks = CallbackConnector()
         self.data_sampler: Optional['DataSampler'] = data_sampler
         self.tensor_model_parallel_size = tensor_model_parallel_size
@@ -83,6 +87,17 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.enable_nemo_ckpt_io = enable_nemo_ckpt_io
         self.ckpt_type = ckpt_type
         self.lazy_init = lazy_init
+        self.ckpt_include_optimizer = ckpt_include_optimizer
+
+        if ddp == "megatron":
+            self.ddp_config = DistributedDataParallelConfig()
+        elif isinstance(ddp, DistributedDataParallelConfig):
+            self.ddp_config = ddp
+        elif ddp == "pytorch":
+            self.ddp_config = None
+            self.no_ddp_communication_hook = False
+        else:
+            raise ValueError(f"Invalid DDP type: {ddp}")
 
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
@@ -152,6 +167,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
             # set up optimizers after the wrapped module has been moved to the device
             self.setup_optimizers(trainer)
+
+            # TODO: Throw an execption if we have a mcore optimizer and no ddp_config
+
             if hasattr(self.precision_plugin, "convert_optimizer"):
                 _optimizers = [*self.optimizers]
                 _optimizers[0] = self.precision_plugin.convert_optimizer(self.optimizers[0])
@@ -174,6 +192,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         super().setup_distributed()
 
         from megatron.core import parallel_state
+
         from nemo.utils import AppState
 
         # init model parallel if needed
@@ -202,6 +221,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             precision_plugin=self.precision_plugin,
             vp_size=self.virtual_pipeline_model_parallel_size,
             cpu=isinstance(trainer.accelerator, CPUAccelerator),
+            ddp_config=self.ddp_config,
         )
         self.model = self.megatron_parallel
         self.model.trainer = trainer
@@ -209,6 +229,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if hasattr(self.precision_plugin, "convert_module"):
             self.model = self.precision_plugin.convert_module(self.model)
         self.model.callbacks.add(getattr(trainer, "callbacks"))
+
+        if hasattr(self, "optimizers") and self.optimizers:
+            for optimizer in self.optimizers:
+                self.model.callbacks.add(optimizer)
 
         if self.data_sampler:
             self.model.callbacks.add(self.data_sampler)
@@ -221,28 +245,33 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def configure_ddp(self) -> None:
         logging.debug(f"{self.__class__.__name__}: configuring MegatronParallel")
         self.model = self._setup_model(self.model)
-        self._register_ddp_hooks()
+        if self.ddp_config is None:
+            self._register_ddp_hooks()
 
     @override
-    def _setup_model(self, model: nn.Module) -> DistributedDataParallel:
+    def _setup_model(self, model: nn.Module) -> nn.Module:
         """Only called when we need to wrap the model for pytorch's ddp."""
         from megatron.core import parallel_state
+
         from nemo.utils import AppState
 
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             self._ddp_kwargs["process_group"] = parallel_state.get_data_parallel_group()
 
-        dist_data_parallel: DistributedDataParallel = super()._setup_model(model)
-        if self.no_ddp_communication_hook:
-            # When using custom gradient accumulation and allreduce, disable
-            # DDP communication hook that works on the gradient bucket.
-            # Instead, use the custom gradient function and communication hook,
-            # which is defined in the master optimizer wrapper.
-            dist_data_parallel.require_backward_grad_sync = False
-            dist_data_parallel.register_comm_hook(None, noop_hook)
+        # Only wrap the model if we are not using Megatron's DDP
+        if not self.ddp_config:
+            dist_data_parallel: DistributedDataParallel = super()._setup_model(model)
+            if self.no_ddp_communication_hook:
+                # When using custom gradient accumulation and allreduce, disable
+                # DDP communication hook that works on the gradient bucket.
+                # Instead, use the custom gradient function and communication hook,
+                # which is defined in the master optimizer wrapper.
+                dist_data_parallel.require_backward_grad_sync = False
+                dist_data_parallel.register_comm_hook(None, noop_hook)
+            model = dist_data_parallel
 
-        return dist_data_parallel
+        return model
 
     def _setup_parallel_ranks(self) -> None:
         self.set_world_ranks()
@@ -257,7 +286,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         kwargs = self._update_step_kwargs(dataloader_iter, kwargs, "training")
 
         with self.precision_plugin.train_step_context():  # TODO: Do we need this?
-            return self.model(dataloader_iter, *args, **kwargs)
+            return self.model(dataloader_iter, forward_only=False, *args, **kwargs)
 
     @override
     def validation_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
@@ -266,7 +295,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         kwargs = self._update_step_kwargs(dataloader_iter, kwargs, "validation")
 
         with self.precision_plugin.val_step_context():  # TODO: Do we need this?
-            return self.model(dataloader_iter, *args, **kwargs)
+            return self.model(dataloader_iter, forward_only=True, *args, **kwargs)
 
     @override
     def test_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
@@ -275,7 +304,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         kwargs = self._update_step_kwargs(dataloader_iter, kwargs, "test")
 
         with self.precision_plugin.test_step_context():  # TODO: Do we need this?
-            return self.model(dataloader_iter, *args, **kwargs)
+            return self.model(dataloader_iter, forward_only=True, *args, **kwargs)
 
     @override
     def predict_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
@@ -284,7 +313,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         kwargs = self._update_step_kwargs(dataloader_iter, kwargs, "predict")
 
         with self.precision_plugin.predict_step_context():  # TODO: Do we need this?
-            return self.model(dataloader_iter, *args, **kwargs)
+            return self.model(dataloader_iter, forward_only=True, *args, **kwargs)
 
     @override
     def teardown(self) -> None:
@@ -345,10 +374,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
-        checkpoint['state_dict'] = OrderedDict([])  # remove device state_dict
-        checkpoint['sharded_state_dict'] = self.megatron_parallel.sharded_state_dict()
+        checkpoint["state_dict"] = OrderedDict([])  # remove device state_dict
+        checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
         if self.trainer.state.fn == TrainerFn.FITTING:
-            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
+            checkpoint["optimizer_states"] = [self.optimizer_sharded_state_dict()]
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
         if self.enable_nemo_ckpt_io and self.is_global_zero and self.ckpt_type:
@@ -367,9 +396,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         sharded_state_dict = {}
         sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict()
 
-        # if self.trainer.state.fn == TrainerFn.FITTING:
-        #     if self.lightning_module.optimizers(use_pl_optimizer=False):
-        #         sharded_state_dict["optimizer_states"] = [self.optimizer_sharded_state_dict()]
+        if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
+            if self.lightning_module.optimizers(use_pl_optimizer=False):
+                sharded_state_dict["optimizer_states"] = [self.optimizer_sharded_state_dict()]
 
         checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=sharded_state_dict)
 

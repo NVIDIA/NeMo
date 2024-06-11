@@ -24,6 +24,7 @@ from typing import (
 
 import torch
 import torch.distributed
+from megatron.core.distributed import DistributedDataParallelConfig
 from torch import Tensor, nn
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
@@ -31,11 +32,9 @@ DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 
 @runtime_checkable
 class PrecisionPluginProtocol(Protocol[DataT]):
-    def convert_input(self, data: DataT) -> DataT:
-        ...
+    def convert_input(self, data: DataT) -> DataT: ...
 
-    def convert_output(self, output: torch.Tensor) -> torch.Tensor:
-        ...
+    def convert_output(self, output: torch.Tensor) -> torch.Tensor: ...
 
 
 def default_data_step(dataloader_iter: Iterator[DataT]) -> DataT:
@@ -107,6 +106,7 @@ class MegatronParallel(nn.ModuleList):
         forward_step: Optional[Callable[[nn.Module, DataT], Tensor]] = None,
         loss_reduction: Optional[Callable[[nn.Module], "MegatronLossReduction"]] = None,
         vp_size: Optional[int] = None,
+        ddp_config: Optional[DistributedDataParallelConfig] = None,
         cpu: bool = False,
     ) -> None:
         from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
@@ -122,7 +122,7 @@ class MegatronParallel(nn.ModuleList):
 
         if vp_size is not None:
             if len(_pipeline) == 1 and parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                from nemo import io
+                from nemo.lightning import io
 
                 parallel_state.set_virtual_pipeline_model_parallel_world_size(vp_size)
                 for i in range(1, vp_size):
@@ -131,6 +131,23 @@ class MegatronParallel(nn.ModuleList):
                     if hasattr(_model, "configure_model"):
                         _model.configure_model()
                     _pipeline.append(_model)
+
+            if isinstance(ddp_config, DistributedDataParallelConfig):
+                from megatron.core.distributed import DistributedDataParallel as McoreDDP
+
+                _pipeline = [
+                    McoreDDP(
+                        model_chunk.config,
+                        ddp_config,
+                        model_chunk,
+                        data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                        expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                        # Turn off bucketing for model_chunk 2 onwards, since communication for these
+                        # model chunks is overlapped with compute anyway.
+                        disable_bucketing=(model_chunk_idx > 0),
+                    )
+                    for (model_chunk_idx, model_chunk) in enumerate(_pipeline)
+                ]
 
             for i, model_module in enumerate(_pipeline):
                 if not cpu:
@@ -164,6 +181,7 @@ class MegatronParallel(nn.ModuleList):
         self.data_step = data_step or default_data_step
         self.forward_step = forward_step or default_forward_step
         self.loss_reduction: MegatronLossReduction = loss_reduction
+        self.ddp_config = ddp_config
 
     def forward(
         self,
@@ -202,7 +220,7 @@ class MegatronParallel(nn.ModuleList):
         _forward_step = forward_step or self.forward_step
         _loss_reduction = loss_reduction or self.loss_reduction
         _micro_batch_size: int = micro_batch_size or self.infer_micro_batch_size(data)
-        _seq_length: int = seq_length or self.infer_seq_lenght(data)
+        _seq_length: int = seq_length or self.infer_seq_length(data)
         _num_microbatches: int = num_microbatches or self.infer_num_microbatches(data)
 
         pipeline = self.pipeline
@@ -212,7 +230,10 @@ class MegatronParallel(nn.ModuleList):
         if wrap_forward_step:
             _data_step = data_step or self.data_step
             forward_step_func = self.wrapped_forward_step(
-                _forward_step, data_step=_data_step, loss_reduction=loss_reduction, context=context,
+                _forward_step,
+                data_step=_data_step,
+                loss_reduction=_loss_reduction,
+                context=context,
             )
         else:
             forward_step_func = _forward_step
@@ -259,7 +280,11 @@ class MegatronParallel(nn.ModuleList):
         return loss_mean
 
     def wrapped_forward_step(
-        self, forward_step, loss_reduction, context, data_step,
+        self,
+        forward_step,
+        loss_reduction,
+        context,
+        data_step,
     ) -> Callable[[nn.Module, DataT], Tuple[torch.Tensor, "MegatronCallbackProtocol"]]:
         """The method wraps the forward step function and returns a callable.
 
@@ -309,7 +334,11 @@ class MegatronParallel(nn.ModuleList):
 
             # callback
             self._setup_module(
-                forward_callback, batch=batch, model=self, forward_module=model, tensor=output_tensor,
+                forward_callback,
+                batch=batch,
+                model=self,
+                forward_module=model,
+                tensor=output_tensor,
             )
 
             if self.precision_plugin and parallel_state.is_pipeline_last_stage():
@@ -387,7 +416,7 @@ class MegatronParallel(nn.ModuleList):
 
         raise ValueError("Cannot infer `micro_batch_size` from data, please specify it manually")
 
-    def infer_seq_lenght(self, data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]]) -> int:
+    def infer_seq_length(self, data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]]) -> int:
         if hasattr(data, "seq_length"):
             return data.seq_length
         if hasattr(data, "data_config"):
@@ -397,10 +426,10 @@ class MegatronParallel(nn.ModuleList):
             # TODO: Check if at least 2 dims
             return data.size(1)
         elif isinstance(data, dict):
-            return self.infer_seq_lenght(next(iter(data.values())))
+            return self.infer_seq_length(next(iter(data.values())))
         elif isinstance(data, (list, tuple)) and len(data) > 0:
             _tensor: Tensor = data[0]
-            return self.infer_seq_lenght(_tensor)
+            return self.infer_seq_length(_tensor)
 
         raise ValueError("Cannot infer `seq_length` from data, please specify it manually")
 
@@ -728,29 +757,21 @@ class CallbackConnector:
 
 
 class CallbackMethods:
-    def on_megatron_step_start(self, *args, **kwargs) -> None:
-        ...
+    def on_megatron_step_start(self, *args, **kwargs) -> None: ...
 
-    def on_megatron_microbatch_start(self, *args, **kwargs) -> None:
-        ...
+    def on_megatron_microbatch_start(self, *args, **kwargs) -> None: ...
 
-    def on_megatron_microbatch_callback(self, *args, **kwargs) -> None:
-        ...
+    def on_megatron_microbatch_callback(self, *args, **kwargs) -> None: ...
 
-    def on_megatron_microbatch_end(self, *args, **kwargs) -> None:
-        ...
+    def on_megatron_microbatch_end(self, *args, **kwargs) -> None: ...
 
-    def on_megatron_reduce_microbatches_start(self, *args, **kwargs) -> None:
-        ...
+    def on_megatron_reduce_microbatches_start(self, *args, **kwargs) -> None: ...
 
-    def on_megatron_reduce_microbatches_end(self, *args, **kwargs) -> None:
-        ...
+    def on_megatron_reduce_microbatches_end(self, *args, **kwargs) -> None: ...
 
-    def on_megatron_log_step_end(self, *args, **kwargs) -> None:
-        ...
+    def on_megatron_log_step_end(self, *args, **kwargs) -> None: ...
 
-    def on_megatron_step_end(self, *args, **kwargs) -> None:
-        ...
+    def on_megatron_step_end(self, *args, **kwargs) -> None: ...
 
 
 ReductionT = TypeVar("ReductionT")
@@ -778,8 +799,7 @@ class MegatronLossReduction(nn.Module, Generic[DataT, ReductionT]):
 
 @runtime_checkable
 class MegatronCallbackProtocol(Protocol):
-    def __call__(self, tensor: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
-        ...
+    def __call__(self, tensor: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]: ...
 
 
 @runtime_checkable
@@ -796,8 +816,7 @@ class MegatronStepProtocol(Protocol):
         decoder_seq_length: Optional[int] = None,
         forward_only: bool = False,
         collect_non_loss_data: bool = False,
-    ) -> list:
-        ...
+    ) -> list: ...
 
 
 def _calc_number_of_params(model: List[nn.Module]) -> int:
