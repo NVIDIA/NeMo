@@ -459,6 +459,7 @@ class NLPModel(ModelPT, Exportable):
         override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = True,
+        validate_access_integrity: bool = True,
         return_config: bool = False,
         save_restore_connector: SaveRestoreConnector = None,
         trainer: Optional[Trainer] = None,
@@ -475,5 +476,5 @@ class NLPModel(ModelPT, Exportable):
             logging.info('use_cpu_initialization is True, loading checkpoint on CPU')
             map_location = 'cpu'
         return super().restore_from(
-            restore_path, override_config_path, map_location, strict, return_config, save_restore_connector, trainer
+            restore_path, override_config_path, map_location, strict,validate_access_integrity, return_config, save_restore_connector, trainer
         )
