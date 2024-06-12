@@ -1,3 +1,4 @@
+
 from typing import Union
 
 from lightning_fabric.plugins.environments import slurm
@@ -13,6 +14,7 @@ from nemo.lightning.base import get_vocab_size, teardown
 from nemo.lightning.pytorch.plugins import MegatronDataSampler, MegatronMixedPrecision
 from nemo.lightning.pytorch.plugins import data_sampler as _data_sampler
 from nemo.lightning.pytorch.strategies import MegatronStrategy
+from nemo.lightning.pytorch.opt import OptimizerModule, LRSchedulerModule, MegatronOptimizerModule
 from nemo.lightning.pytorch.trainer import Trainer
 
 
@@ -29,9 +31,12 @@ _pl_plugins._PLUGIN_INPUT = Union[_pl_plugins._PLUGIN_INPUT, _data_sampler.DataS
 
 
 __all__ = [
+    "LRSchedulerModule",
     "MegatronStrategy",
     "MegatronDataSampler",
     "MegatronMixedPrecision",
+    "MegatronOptimizerModule",
+    "OptimizerModule",
     "Trainer",
     "get_vocab_size",
     "teardown",
