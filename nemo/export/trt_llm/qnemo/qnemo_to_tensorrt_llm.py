@@ -21,7 +21,7 @@ from typing import List, Optional
 CONFIG_NAME = "config.json"
 
 
-def qnemo_to_tensorrt_llm(
+def is_qnemo_checkpoint(
     nemo_checkpoint_path: str,
     engine_dir: str,
     max_input_len: int,
