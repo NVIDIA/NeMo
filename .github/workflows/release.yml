@@ -1,0 +1,89 @@
+name: "Release"
+
+on:
+  pull_request:
+    types: [closed]
+    branches: 
+      - main
+
+jobs: 
+  main:
+    if: startsWith(github.event.pull_request.head.ref, 'release/') # && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.run_id }}
+
+      - name: Get version number
+        id: version-number
+        run: |
+          cd ${{ github.run_id }}
+          VERSION=$(python -c "import nemo; print(nemo.__version__)")
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Extract changelog
+        id: extract-changelog
+        uses: peter-evans/find-comment@v3
+        with:
+          issue-number: ${{ github.event.number }}
+          body-includes: '# Detailed Changelogs'
+      
+      - name: Extract summary
+        id: extract-summary
+        uses: peter-evans/find-comment@v3
+        with:
+          issue-number: ${{ github.event.number }}
+          body-includes: '# Highlights'
+        
+      - name: Create Release doc
+        id: create-release-doc
+        env:
+          SUMMARY: ${{ steps.extract-summary.outputs.comment-body }}
+          CHANGELOG: ${{ steps.extract-changelog.outputs.comment-body }}
+        run: |
+          
+          echo "TITLE<<EOF" >> $GITHUB_ENV
+          echo "NVIDIA Neural Modules ${{ steps.version-number.outputs.VERSION }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          echo "BODY<<EOF" >> $GITHUB_ENV
+          echo "$SUMMARY" >> $GITHUB_ENV
+          echo "$CHANGELOG" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ env.TITLE }}
+          tag_name: ${{ steps.version-number.outputs.VERSION }}
+          body: ${{ env.BODY }}
+      
+      - name: Build, test, and release wheel
+        env:
+          TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+        run: |
+          cd ${{ github.run_id }}
+          python3 -m pip install --upgrade build
+          python3 -m build
+
+          pip install dist/*.whl
+
+          cd ../
+
+          INSTALLED_VERSION=$(python -c 'import nemo; print(nemo.__version__)')
+          EXPECTED_VERSION=${{ steps.version-number.outputs.VERSION }}
+          
+          if [[ "$INSTALLED_VERSION" != "$EXPECTED_VERSION" ]]; then
+            echo 'Wheel has an outdated version, mission abort immediately!'
+            exit 1
+          fi
+
+          echo Proceed with uploading wheel...
+          cd ${{ github.run_id }}
+          python3 -m pip install --upgrade twine
+          python3 -m twine upload --repository pypi dist/*
+
+
