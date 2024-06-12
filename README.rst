@@ -51,8 +51,6 @@ Latest News
         Using NVIDIA NeMo Framework and NVIDIA Hopper GPUs NVIDIA was able to scale to scale to 11,616 H100 GPUs and achieve near-linear performance scaling on LLM pretraining. 
         NVIDIA also achieved the highest LLM fine-tuning performance and raised the bar for text-to-image training.
         <br><br>
-        <a href="https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility"><img src="https://developer-blogs.nvidia.com/wp-content/uploads/2024/06/gpt-3-training-performance.png" alt="NVIDIA maximum-scale performance on the GPT-3 175B workload" style="width: 600px;"></a>
-        <br><br>
       </details>
 
       <details>
