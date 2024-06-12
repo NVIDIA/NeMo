@@ -50,7 +50,6 @@ from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
-from nemo.utils.s3_utils import S3Utils
 
 
 class NotFoundError(NeMoBaseException):
@@ -608,6 +607,16 @@ def check_resume(
 
     if not log_dir:
         raise ValueError(f"Resuming requires the log_dir {log_dir} to be passed to exp_manager")
+    
+    # is_s3_url from here has no dependency requirements
+    from nemo.utils.s3_dirpath_utils import is_s3_url
+    try:
+        # when using an s3 dirpath, we rely on optional dependencies in the S3Utils class. 
+        if dirpath is not None and is_s3_url(dirpath):
+            from nemo.utils.s3_utils import S3Utils
+    except ImportError as err:
+        return False, "Detected S3 dirpath while missing required dependencies.\n{}\n".format(err.output.decode("utf-8"))
+
 
     checkpoint = None
     if resume_from_checkpoint:
@@ -619,9 +628,9 @@ def check_resume(
         '''
 
         # If we are using S3 checkpointing, we want check_resume to only execute on a single rank to avoid throttling S3.
-        if is_global_rank_zero() or not S3Utils.is_s3_url(dirpath):
+        if is_global_rank_zero() or not is_s3_url(dirpath):
             checkpoint_dir_exists = False
-            if S3Utils.is_s3_url(dirpath):
+            if is_s3_url(dirpath):
                 checkpoint_dir = dirpath
                 checkpoint_dir_exists = S3Utils.s3_path_exists(checkpoint_dir, match_directory=True)
 
