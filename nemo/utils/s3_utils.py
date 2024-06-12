@@ -9,6 +9,7 @@ import boto3
 import botocore
 from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError
+from nemo.utils.s3_dirpath_utils import build_s3_url, is_s3_url
 from tenacity import before_sleep_log, retry, retry_if_exception, stop_after_delay, wait_exponential
 
 from nemo.utils import logging
@@ -40,7 +41,6 @@ class S3Utils:
     When the security token expires, the client or resouece will be no longer valid.
     Create a new resource as needed. To avoid multithreading errors, use different session for each thread.
     '''
-    S3_PATH_PREFIX = 's3://'
 
     @staticmethod
     def s3_path_exists(s3_path: str, match_directory: bool = False) -> bool:
@@ -239,13 +239,11 @@ class S3Utils:
 
     @staticmethod
     def build_s3_url(bucket, key) -> str:
-        return f'{S3Utils.S3_PATH_PREFIX}{bucket}/{key}'
+        return build_s3_url(bucket, key)
 
     @staticmethod
     def is_s3_url(path: Optional[str]) -> bool:
-        if isinstance(path, Path):
-            path = str(path)
-        return path is not None and path.strip().startswith(S3Utils.S3_PATH_PREFIX)
+        return is_s3_url(path)
 
     @staticmethod
     def parse_prefix_with_step(path: str) -> str:
