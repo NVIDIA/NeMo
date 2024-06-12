@@ -30,7 +30,6 @@ import wrapt
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
-from nemo.export.trt_llm.converter.utils import MODELS_FOR_SHARED_EMBEDDING
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import get_tokenzier, is_nemo_file, load_nemo_model
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
 from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
@@ -179,9 +178,6 @@ class TensorRTLLM(ITritonDeployable):
                 "Model {0} is not currently a supported model type. "
                 "Supported model types are llama, gptnext, falcon, and starcoder.".format(model_type)
             )
-
-        if not use_embedding_sharing and model_type in MODELS_FOR_SHARED_EMBEDDING:
-            raise Exception("Model {0} requires using embedding sharing.".format(model_type))
 
         if model_type == "gpt" or model_type == "starcoder":
             model_type = "gptnext"
