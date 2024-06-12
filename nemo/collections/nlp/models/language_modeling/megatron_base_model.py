@@ -187,6 +187,8 @@ class MegatronBaseModel(NLPModel):
                 assert (
                     self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
                 ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
+        
+        print(f'DEBUG {self.cfg.get("use_te_rng_tracker", False) = }')
 
         initialize_model_parallel_for_nemo(
             world_size=init_world_size,
