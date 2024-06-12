@@ -435,7 +435,8 @@ class NevaBaseModel:
     def create_vision_encoder_and_processor(self, mm_cfg):
         # Initialize vision encoder and freeze it
         if mm_cfg.vision_encoder.get("from_hf", False):
-            if "clip" in mm_cfg.vision_encoder.from_pretrained:
+            if "clip" in mm_cfg.vision_encoder.from_pretrained \
+                or "vit" in mm_cfg.vision_encoder.from_pretrained:
                 vision_encoder = CLIPVisionModel.from_pretrained(
                     mm_cfg.vision_encoder.from_pretrained,
                     torch_dtype=torch.bfloat16,

@@ -74,6 +74,7 @@ model:
     vision_encoder:
       from_pretrained: "openai/clip-vit-large-patch14" # path or name
       from_hf: True
+      crop_size: [336, 336]
       patch_dim: 14
       hidden_size: 1024 # could be found from model but tricky in code
       vision_select_layer: -2   # default to the last layer

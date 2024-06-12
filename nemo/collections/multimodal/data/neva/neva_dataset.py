@@ -41,7 +41,9 @@ from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_LABELS_TOKEN,
     DEFAULT_VIDEO_TOKEN,
     DEFAULT_VID_START_TOKEN,
-    DEFAULT_VID_END_TOKEN
+    DEFAULT_VID_END_TOKEN,
+    DEFAULT_BOS_TOKEN,
+    DEFAULT_EOS_TOKEN
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
@@ -147,7 +149,7 @@ class TarOrFolderVideoLoader:
                     cap = decord.VideoReader(f)
                     return self.flatten_frames(cap)
         else:
-            decord.bridge.set_bridge("torch")
+            #decord.bridge.set_bridge("torch")
             cap = decord.VideoReader(os.path.join(self.video_folder, file_name))
             return self.flatten_frames(cap)
         return None
@@ -173,9 +175,8 @@ class TarOrFolderVideoLoader:
             else:
                 num_frames = min(len(cap), self.data_cfg['num_frames'])
                 indices = np.linspace(0, len(cap) - 1, num_frames, dtype=int)
-                frames = []
-                frames = cap.get_batch(indices)
-
+                # frames = cap.get_batch(indices)
+                frames = [Image.fromarray(vr[i].asnumpy()).convert('RGB') for i in indices]
                 while len(frames) < self.data_cfg['num_frames']:
                     frames.append(frames[-1])
                 return frames
@@ -524,7 +525,8 @@ def preprocess_llama_2(
 
     # llama tricks
     # 32003, 32006, 32007
-    DEFAULT_TOKENS = [DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_BOS_TOKEN, DEFAULT_EOS_TOKEN]
+    image_patch_token = DEFAULT_IMAGE_PATCH_TOKEN["llama_2"]
+    DEFAULT_TOKENS = [image_patch_token, DEFAULT_BOS_TOKEN, DEFAULT_EOS_TOKEN]
     img_patch_id, bos_id, eos_id = get_tokens_ids(tokenizer, DEFAULT_TOKENS)
     tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
     tokens[tokens == bos_id] = 1  # <s>
@@ -621,7 +623,8 @@ def preprocess_v1(
 
     # llama tricks
     # 32003, 32006, 32007
-    DEFAULT_TOKENS = [DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_BOS_TOKEN, DEFAULT_EOS_TOKEN]
+    image_patch_token = DEFAULT_IMAGE_PATCH_TOKEN["llama_2"]
+    DEFAULT_TOKENS = [image_patch_token, DEFAULT_BOS_TOKEN, DEFAULT_EOS_TOKEN]
     img_patch_id, bos_id, eos_id = get_tokens_ids(tokenizer, DEFAULT_TOKENS)
     tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
     tokens[tokens == bos_id] = 1  # <s>
@@ -1047,8 +1050,7 @@ class LazySupervisedDataset(Dataset):
                                 result = Image.new(pil_img.mode, (height, height), background_color)
                                 result.paste(pil_img, ((height - width) // 2, 0))
                                 return result
-
-                        frames = expand2square(frames, tuple(int(x * 255) for x in self.processor.image_mean))
+                        frames = [expand2square(frame, tuple(int(x * 255) for x in self.processor.image_mean)) for frame in frames]
                         frames = self.processor.preprocess(frames, return_tensors='pt')['pixel_values']
                     else:
                         frames = self.processor.preprocess(frames, return_tensors='pt')['pixel_values']
@@ -1305,7 +1307,7 @@ def make_supervised_data_module(tokenizer, image_processor, model_cfg) -> Dict:
             media_type=data_cfg.get('media_type', 'image'),
             num_frames=data_cfg.get('num_frames', -1),
             use_lita=getattr(model_cfg.mm_cfg, 'use_lita', False),
-            lita=getattr(model_cfg.mm_cfg, 'lita', {})
+            lita=getattr(model_cfg.mm_cfg, 'lita', {}),
             mm_mlp_adapter_type=model_cfg.mm_cfg.get('mm_mlp_adapter_type', 'linear'),
         ),
         data_cfg=dict(

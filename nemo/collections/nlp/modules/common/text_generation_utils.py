@@ -31,6 +31,8 @@ from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IMAGE_PATCH_TOKEN,
+    DEFAULT_VID_START_TOKEN,
+    DEFAULT_VID_END_TOKEN
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
@@ -165,8 +167,8 @@ def decode_time_tokens(tokenizer, text: str, duration: float, time_tokens: list[
     last_processed = -1
     new_output_ids = []
     for j in range(len(indices)):
-        #pred_seq = [int(output_ids[k]) for k in range(last_processed + 1, indices[j])]
-        #new_output_ids.extend(pred_seq)
+        pred_seq = [int(output_ids[k]) for k in range(last_processed + 1, indices[j])]
+        new_output_ids.extend(pred_seq)
 
         max_offset = num_time_tokens - 1
         time_token = tokenizer.ids_to_tokens([output_ids[indices[j]]])[0]
@@ -231,7 +233,8 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
                 r'|', r'\|'
             )
         )
-        combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}')
+        pattern_lita = re.compile(rf'{DEFAULT_IM_START_TOKEN[model_type]}{DEFAULT_VID_START_TOKEN}( ⁇ )+{DEFAULT_VID_END_TOKEN}{DEFAULT_IM_START_TOKEN[model_type]}( ⁇ )+{DEFAULT_IM_END_TOKEN[model_type]}{DEFAULT_IM_END_TOKEN[model_type]}')
+        combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}|{pattern_lita.pattern}')
         clean_text = re.sub(combined_pattern, f"<{media_type_token}>", response['sentences'][0])
 
         clean_response = clean_text
