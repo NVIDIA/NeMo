@@ -1,7 +1,6 @@
-
 import types
 from abc import ABC, abstractmethod
-from typing import Optional, List
+from typing import List, Optional
 
 import pytorch_lightning as L
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
@@ -34,7 +33,7 @@ class LRSchedulerModule(L.Callback, CallbackMethods, ABC):
         scheduler(model, optimizers): Abstract method to define the learning rate scheduler.
         __call__(model, optimizers): Calls the setup and scheduler methods.
     """
-    
+
     def setup(self, model, optimizer) -> None:
         """Sets up the learning rate scheduler.
 
@@ -67,7 +66,7 @@ class LRSchedulerModule(L.Callback, CallbackMethods, ABC):
         Returns:
             OptimizerLRScheduler: The learning rate scheduler.
         """
-        
+
         self.setup(model, optimizers)
 
         scheduler = self.scheduler(model, optimizers)
@@ -109,7 +108,7 @@ class OptimizerModule(L.Callback, CallbackMethods, ABC):
         optimizers(model): Abstract method to define the optimizers.
         __call__(model, megatron_parallel): Calls the setup and optimizers methods.
     """
-    
+
     def __init__(self, lr_scheduler: Optional[LRSchedulerModule]):
         """Initializes the OptimizerModule.
 
@@ -124,7 +123,7 @@ class OptimizerModule(L.Callback, CallbackMethods, ABC):
         Args:
             model (L.LightningModule): The model to which the optimizer module is being connected.
         """
-        
+
         def custom_configure_optimizers(lightning_module_self, megatron_parallel=None):
             opt = self(lightning_module_self, megatron_parallel=megatron_parallel)
             return opt
@@ -167,7 +166,7 @@ class OptimizerModule(L.Callback, CallbackMethods, ABC):
             callbacks.append(self)
         if self.lr_scheduler is not None and self.lr_scheduler not in callbacks:
             callbacks.append(self.lr_scheduler)
-        
+
         self.setup(_model)
         opt = self.optimizers(_model)
 

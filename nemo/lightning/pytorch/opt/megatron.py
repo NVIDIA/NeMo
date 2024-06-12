@@ -1,13 +1,12 @@
-
-from typing import Callable, Optional, List
-
-from torch.optim import Optimizer
+from typing import Callable, List, Optional
 
 from megatron.core.distributed import finalize_model_grads
 from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
 from megatron.core.utils import get_model_config
-from nemo.lightning.pytorch.opt.base import OptimizerModule, LRSchedulerModule
+from torch.optim import Optimizer
+
 from nemo.lightning.megatron_parallel import MegatronParallel
+from nemo.lightning.pytorch.opt.base import LRSchedulerModule, OptimizerModule
 
 
 class MegatronOptimizerModule(OptimizerModule):
@@ -29,7 +28,7 @@ class MegatronOptimizerModule(OptimizerModule):
         setup(model): Sets up the optimizer.
         optimizers(model): Defines the optimizers.
     """
-    
+
     finalize_model_grads = finalize_model_grads
 
     def __init__(
@@ -38,7 +37,7 @@ class MegatronOptimizerModule(OptimizerModule):
         lr_scheduler: Optional[LRSchedulerModule] = None,
         no_weight_decay_cond: Optional[Callable] = None,
         scale_lr_cond: Optional[Callable] = None,
-        lr_mult: float = 1.0
+        lr_mult: float = 1.0,
     ):
         """Initializes the MegatronOptimizerModule.
 
@@ -49,7 +48,7 @@ class MegatronOptimizerModule(OptimizerModule):
             scale_lr_cond (Optional[Callable]): Condition for scaling learning rate.
             lr_mult (float): Learning rate multiplier.
         """
-        
+
         super().__init__(lr_scheduler=lr_scheduler)
         self.config = config
         self.no_weight_decay_cond = no_weight_decay_cond
@@ -76,7 +75,7 @@ class MegatronOptimizerModule(OptimizerModule):
         Raises:
             ValueError: If the model is not an instance of MegatronParallel.
         """
-        
+
         if not isinstance(model, MegatronParallel):
             raise ValueError("Model must be an instance of MegatronParallel")
 

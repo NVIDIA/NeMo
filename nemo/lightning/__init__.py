@@ -1,4 +1,3 @@
-
 from typing import Union
 
 from lightning_fabric.plugins.environments import slurm
@@ -11,10 +10,10 @@ except ImportError:
     pass
 
 from nemo.lightning.base import get_vocab_size, teardown
+from nemo.lightning.pytorch.opt import LRSchedulerModule, MegatronOptimizerModule, OptimizerModule
 from nemo.lightning.pytorch.plugins import MegatronDataSampler, MegatronMixedPrecision
 from nemo.lightning.pytorch.plugins import data_sampler as _data_sampler
 from nemo.lightning.pytorch.strategies import MegatronStrategy
-from nemo.lightning.pytorch.opt import OptimizerModule, LRSchedulerModule, MegatronOptimizerModule
 from nemo.lightning.pytorch.trainer import Trainer
 
 

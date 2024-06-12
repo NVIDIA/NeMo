@@ -4,13 +4,13 @@ from typing import TYPE_CHECKING, Dict, Literal, Optional
 import pytorch_lightning as L
 import torch
 import torch.distributed
+from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.opt import MegatronOptimizerModule, OptimizerModule
-from megatron.core.optimizer import OptimizerConfig
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
@@ -74,10 +74,8 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
-        self.optim = optim or MegatronOptimizerModule(
-            config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True)
-        )
-        self.optim.connect(self)    # This will bind the `configure_optimizers` method
+        self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
+        self.optim.connect(self)  # This will bind the `configure_optimizers` method
 
     def configure_model(self) -> None:
         self.module = self.config.configure_model(self.tokenizer)

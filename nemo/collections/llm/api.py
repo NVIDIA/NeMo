@@ -4,7 +4,7 @@ from typing import Callable, Optional
 import pytorch_lightning as pl
 
 from nemo.collections.llm.utils import task
-from nemo.lightning import MegatronStrategy, Trainer, OptimizerModule, io, teardown
+from nemo.lightning import MegatronStrategy, OptimizerModule, Trainer, io, teardown
 
 
 @task(namespace="llm")
