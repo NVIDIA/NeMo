@@ -1073,6 +1073,7 @@ class VoiceBox(LightningModule):
         text_enc_use_unet_skip_connection = False,
         text_enc_frame_concat = False,
         text_enc_vb_masked = True,
+        text_enc_rec_loss = True,
         **kwargs
     ):
         """
@@ -1247,7 +1248,9 @@ class VoiceBox(LightningModule):
                     groups = conv_pos_embed_groups,
                 )
             self.text_enc_vb_masked = text_enc_vb_masked
-            self.proj_out = nn.Linear(dim, audio_enc_dec.latent_dim)
+            self.text_enc_rec_loss = text_enc_rec_loss
+            if self.text_enc_rec_loss:
+                self.proj_out = nn.Linear(dim, audio_enc_dec.latent_dim)
 
     @property
     def device(self):
@@ -1521,8 +1524,9 @@ class VoiceBox(LightningModule):
                 mask = torch.cat([~cond_mask * self_attn_mask, self_attn_mask], dim=1)
                 cond = self.text_encoder(conv_cond_text, mask=mask)
                 cond = cond[:, seq_len:]
-            pred_ori_cond = self.proj_out(cond)
-            outputs["pred_ori_cond"] = pred_ori_cond
+            if self.text_enc_rec_loss:
+                pred_ori_cond = self.proj_out(cond)
+                outputs["pred_ori_cond"] = pred_ori_cond
 
         to_concat = [*filter(exists, (x, cond_emb, cond))]
         embed = torch.cat(to_concat, dim = -1)
@@ -1600,7 +1604,7 @@ class VoiceBox(LightningModule):
         outputs["loss_mask"] = loss_mask
         outputs["self_attn_mask"] = self_attn_mask
 
-        if self.text_encode:
+        if self.text_encode and self.text_enc_rec_loss:
             assert self.loss_masked
             text_enc_loss = F.mse_loss(pred_ori_cond, outputs["cond"], reduction='none')
             text_enc_loss = reduce(text_enc_loss, 'b n d -> b n', 'mean')

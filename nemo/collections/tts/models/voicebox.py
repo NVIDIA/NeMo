@@ -178,6 +178,7 @@ class VoiceboxModel(TextToWaveform):
         self.cap_vocode = cfg.get("cap_vocode", False)
         self.ce_loss_lambda = 0.1
         self.additional_log_batches = cfg.get("additional_log_batches", 0)
+        self.log_media = cfg.get("log_media", True)
 
     def _download_libriheavy(self, target_dir, dataset_parts):
         """ Download LibriHeavy manifests. """
@@ -1280,7 +1281,7 @@ class VoiceboxModel(TextToWaveform):
             calculate_cond=True
         )
 
-        if self.training and self.trainer._logger_connector.should_update_logs:
+        if self.log_media and self.training and self.trainer._logger_connector.should_update_logs:
             plot_id = 0
             x1 = dp_inputs["mel"]
             dp_pred = dp_outputs['durations']
@@ -1303,18 +1304,14 @@ class VoiceboxModel(TextToWaveform):
         return dp_losses, dp_outputs
 
     def train_vb(self, batch, batch_idx):
+        self.voicebox.train()
+
         # voicebox's sampling rate
         audio = batch["audio"]
         audio_lens = batch["audio_lens"]
         mel_lens = batch["mel_lens"]
-        # tokens = batch["tokens"]
-        # token_lens = batch["token_lens"]
-        # texts = batch["texts"]
 
         # mfa tgt
-        # durations = batch.get("durations", None)
-        # scaled_durations = batch.get("scaled_durations", None)
-        # aligned_tokens = batch.get("aligned_tokens", None)
         tokens = batch.get("aligned_tokens", None)
 
         vb_inputs = self.cfm_wrapper.parse_vb_input(
@@ -1324,13 +1321,15 @@ class VoiceboxModel(TextToWaveform):
             input_sampling_rate=None
         )
 
-        self.voicebox.train()
+        x1 = vb_inputs['x1']
+        cond = vb_inputs['cond']
+        self_attn_mask = vb_inputs['mask']
 
         _, losses, outputs = self.cfm_wrapper.forward(
-            x1=vb_inputs['x1'],
-            mask=vb_inputs['mask'],
+            x1=x1,
+            mask=self_attn_mask,
             phoneme_ids=tokens,
-            cond=vb_inputs['cond'],
+            cond=cond,
             cond_mask=None,
             input_sampling_rate=None
         )
@@ -1344,7 +1343,7 @@ class VoiceboxModel(TextToWaveform):
             waveform_loss = self.cfm_wrapper.waveform_loss(outputs, audio, audio_mask)
             losses['waveform'] = waveform_loss
         
-        if self.training and self.trainer._logger_connector.should_update_logs:
+        if self.log_media and self.training and self.trainer._logger_connector.should_update_logs:
             plot_id = 0
             if not self.voicebox.no_diffusion:
                 x1, x0, w, pred_dx = outputs['vb']['x1'], outputs['vb']['x0'], outputs['vb']['w'], outputs['vb']['pred']
@@ -1386,14 +1385,8 @@ class VoiceboxModel(TextToWaveform):
         audio = batch["audio"]
         audio_lens = batch["audio_lens"]
         mel_lens = batch["mel_lens"]
-        # tokens = batch["tokens"]
-        # token_lens = batch["token_lens"]
-        # texts = batch["texts"]
 
         # mfa tgt
-        # durations = batch.get("durations", None)
-        # scaled_durations = batch.get("scaled_durations", None)
-        # aligned_tokens = batch.get("aligned_tokens", None)
         tokens = batch.get("aligned_tokens", None)
         cuts = batch.get("cuts", None)
 
@@ -1426,7 +1419,7 @@ class VoiceboxModel(TextToWaveform):
             waveform_loss = self.cfm_wrapper.waveform_loss(outputs, audio, audio_mask)
             losses['waveform'] = waveform_loss
         
-        if batch_idx <= self.additional_log_batches:
+        if self.log_media and batch_idx <= self.additional_log_batches:
             # first batch of validation
             self.voicebox.eval()
             cond_mask = self.voicebox.create_cond_mask(
