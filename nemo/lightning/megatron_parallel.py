@@ -4,7 +4,6 @@ import collections.abc
 import functools
 import inspect
 import queue
-import types
 from collections import defaultdict
 from typing import (
     Any,
