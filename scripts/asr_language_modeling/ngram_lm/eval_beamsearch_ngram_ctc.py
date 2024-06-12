@@ -295,6 +295,8 @@ def main(cfg: EvalBeamSearchNGramConfig):
             map_location = torch.device('mps')
         else:
             map_location = torch.device('cpu')
+    elif cfg.cuda == -1:
+        map_location = torch.device('cpu')
     else:
         map_location = torch.device(f'cuda:{cfg.cuda}')
 

@@ -225,14 +225,14 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         # Update preserve alignments
         if self.preserve_alignments is None:
-            if self.cfg.strategy in ['greedy', 'greedy_batched']:
+            if self.cfg.strategy in ['greedy', 'greedy_batch']:
                 self.preserve_alignments = self.cfg.greedy.get('preserve_alignments', False)
             else:
                 self.preserve_alignments = self.cfg.beam.get('preserve_alignments', False)
 
         # Update compute timestamps
         if self.compute_timestamps is None:
-            if self.cfg.strategy in ['greedy', 'greedy_batched']:
+            if self.cfg.strategy in ['greedy', 'greedy_batch']:
                 self.compute_timestamps = self.cfg.greedy.get('compute_timestamps', False)
             elif self.cfg.strategy in ['beam']:
                 self.compute_timestamps = self.cfg.beam.get('compute_timestamps', False)
@@ -240,10 +240,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
         # initialize confidence-related fields
         self._init_confidence(self.cfg.get('confidence_cfg', None))
 
-        # Confidence estimation is not implemented for strategies other than `greedy` and `greedy_batched`
+        # Confidence estimation is not implemented for strategies other than `greedy` and `greedy_batch`
         if (
             not self.preserve_frame_confidence
-            and self.cfg.strategy not in ('greedy', 'greedy_batched')
+            and self.cfg.strategy not in ('greedy', 'greedy_batch')
             and self.cfg.beam.get('preserve_frame_confidence', False)
         ):
             raise NotImplementedError(f"Confidence calculation is not supported for strategy `{self.cfg.strategy}`")
@@ -268,7 +268,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 confidence_method_cfg=self.confidence_method_cfg,
             )
 
-        elif self.cfg.strategy == "greedy_batched":
+        elif self.cfg.strategy == "greedy_batch":
             self.decoding = ctc_greedy_decoding.GreedyBatchedCTCInfer(
                 blank_id=self.blank_id,
                 preserve_alignments=self.preserve_alignments,
