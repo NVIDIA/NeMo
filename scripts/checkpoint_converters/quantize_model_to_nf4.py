@@ -11,9 +11,15 @@ from nemo.collections.nlp.parts.nlp_overrides import MegatronHalfPrecisionPlugin
 from nemo.utils import logging
 
 '''
-This script quantizes the weights of a pretrained base model to NF4 precision, then save them in BF16 precision.
-The resulting model will have the same format as the input, but will be compatible with adapter weights trained
-with QLoRA. This enables deployment of a QLoRA model without further changes downstream.
+This script quantizes the weights of linear layers to NF4 precision, then saves them in BF16 precision.
+The resulting model will have the same format as the input, but have weights compatible with adapters trained
+with QLoRA. 
+Flow of QLoRA inference
+- Path 1 (online quantize): similar to training, set eval peft_scheme to 'qlora' and linear layers will be quantized 
+  immediately after model loading. This is applicable to framework inference only.
+- Path 2 (offline quantize): run this script to get a new pretrained base model, then set eval `peft_scheme` to `lora`.
+Path 1 and Path 2 yield identical inference results, but Path 2 enables deployment of a QLoRA model without further 
+changes downstream.
 
 Example usage:
 python scripts/checkpoint_converters/quantize_model_to_nf4.py \
