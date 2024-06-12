@@ -651,8 +651,13 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 # Loss for a micro-batch (ub)
                 loss_for_ub = 0
 
+                modality_weights = self.cfg.get("modality_loss_weights")
+
                 for key, (output, loss_mask) in multimodal_output.items():
                     cur_loss = self.loss_func(loss_mask.contiguous(), loss_mask.sum(), output.contiguous())
+                    if modality_weights is not None:
+                        assert key in modality_weights, f"Expected cfg.modality_loss_weights={modality_weights} to contain key {key}"
+                        cur_loss = cur_loss * modality_weights[key]
                     loss_for_ub += cur_loss
                     self.log(
                         f'{key}_loss', cur_loss.mean(), prog_bar=True, batch_size=1, rank_zero_only=False,
