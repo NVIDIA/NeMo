@@ -130,7 +130,6 @@ def run_trt_llm_inference(
     max_batch_size=8,
     max_input_token=128,
     max_output_token=128,
-    use_custom_all_reduce=True,
     ptuning=False,
     p_tuning_checkpoint=None,
     lora=False,
@@ -213,7 +212,6 @@ def run_trt_llm_inference(
             max_output_token=max_output_token,
             max_batch_size=max_batch_size,
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-            use_custom_all_reduce=use_custom_all_reduce,
             use_lora_plugin=use_lora_plugin,
             lora_target_modules=lora_target_modules,
             save_nemo_model_config=True,
@@ -418,12 +416,6 @@ def get_args():
         default=128,
     )
     parser.add_argument(
-        "--use_custom_all_reduce",
-        type=str,
-        default="True",
-        choices=["True", "False"],
-    )
-    parser.add_argument(
         "--p_tuning_checkpoint",
         type=str,
     )
@@ -515,9 +507,6 @@ def run_inference_tests(args):
     else:
         args.run_accuracy = False
 
-    if args.use_custom_all_reduce == "True":
-        args.use_custom_all_reduce = True
-
     if args.run_accuracy:
         if args.test_data_path is None:
             raise Exception("test_data_path param cannot be None.")
@@ -562,7 +551,6 @@ def run_inference_tests(args):
                 max_batch_size=args.max_batch_size,
                 max_input_token=args.max_input_token,
                 max_output_token=args.max_output_token,
-                use_custom_all_reduce=args.use_custom_all_reduce,
                 ptuning=args.ptuning,
                 p_tuning_checkpoint=args.p_tuning_checkpoint,
                 lora=args.lora,
