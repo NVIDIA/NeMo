@@ -32,7 +32,8 @@ from voicebox_pytorch.voicebox_pytorch import (
     einsum,
     ConvPositionEmbed,
     Transformer,
-    Rearrange
+    Rearrange,
+    LearnedSinusoidalPosEmb,
 )
 import torchaudio.transforms as T
 from torchaudio.functional import resample
@@ -1025,7 +1026,7 @@ class SinusoidalPosEmb(nn.Module):
         return emb
 
 
-class VoiceBox(_VB, LightningModule):
+class VoiceBox(LightningModule):
     """ Nothing to fix currently. Add some docs.
     """
     def __init__(
@@ -1095,31 +1096,71 @@ class VoiceBox(_VB, LightningModule):
             text_enc_depth = min(text_enc_depth, depth//2)
             depth = depth - text_enc_depth
 
-        super().__init__(
-            *_args,
-            num_cond_tokens=num_cond_tokens,
-            audio_enc_dec=audio_enc_dec,
-            dim_in=dim_in,
-            dim_cond_emb=dim_cond_emb,
-            dim=dim,
-            depth=depth,
-            dim_head=dim_head,
-            heads=heads,
-            ff_mult=ff_mult,
-            ff_dropout=ff_dropout,
-            time_hidden_dim=time_hidden_dim,
-            conv_pos_embed_kernel_size=conv_pos_embed_kernel_size,
-            conv_pos_embed_groups=conv_pos_embed_groups,
-            attn_dropout=attn_dropout,
-            attn_flash=attn_flash,
-            attn_qk_norm=attn_qk_norm,
-            num_register_tokens=num_register_tokens,
-            p_drop_prob=p_drop_prob,
-            frac_lengths_mask=frac_lengths_mask,
-            condition_on_text=condition_on_text,
-            # rmsnorm_shape=rmsnorm_shape,
-            **kwargs,
+        super().__init__()
+        dim_in = default(dim_in, dim)
+
+        time_hidden_dim = default(time_hidden_dim, dim * 4)
+
+        self.audio_enc_dec = audio_enc_dec
+
+        if exists(audio_enc_dec) and dim != audio_enc_dec.latent_dim:
+            self.proj_in = nn.Linear(audio_enc_dec.latent_dim, dim)
+        else:
+            self.proj_in = nn.Identity()
+
+        self.sinu_pos_emb = nn.Sequential(
+            LearnedSinusoidalPosEmb(dim),
+            nn.Linear(dim, time_hidden_dim),
+            nn.SiLU()
         )
+
+        assert not (condition_on_text and not exists(num_cond_tokens)), 'number of conditioning tokens must be specified (whether phonemes or semantic token ids) if training conditional voicebox'
+
+        if not condition_on_text:
+            dim_cond_emb = 0
+
+        self.dim_cond_emb = dim_cond_emb
+        self.condition_on_text = condition_on_text
+        self.num_cond_tokens = num_cond_tokens
+
+        if condition_on_text:
+            self.null_cond_id = num_cond_tokens # use last phoneme token as null token for CFG
+            self.to_cond_emb = nn.Embedding(num_cond_tokens + 1, dim_cond_emb)
+
+        self.p_drop_prob = p_drop_prob
+        self.frac_lengths_mask = frac_lengths_mask
+
+        self.to_embed = nn.Linear(dim_in * 2 + dim_cond_emb, dim)
+
+        self.null_cond = nn.Parameter(torch.zeros(dim_in), requires_grad = False)
+
+        self.conv_embed = ConvPositionEmbed(
+            dim = dim,
+            kernel_size = conv_pos_embed_kernel_size,
+            groups = conv_pos_embed_groups
+        )
+
+        self.transformer = Transformer(
+            dim = dim,
+            depth = depth,
+            dim_head = dim_head,
+            heads = heads,
+            ff_mult = ff_mult,
+            ff_dropout = ff_dropout,
+            attn_dropout= attn_dropout,
+            attn_flash = attn_flash,
+            attn_qk_norm = attn_qk_norm,
+            num_register_tokens = num_register_tokens,
+            adaptive_rmsnorm = True,
+            adaptive_rmsnorm_cond_dim_in = time_hidden_dim,
+            use_gateloop_layers = use_gateloop_layers
+        )
+
+        dim_out = audio_enc_dec.latent_dim if exists(audio_enc_dec) else dim_in
+
+        self.to_pred = nn.Linear(dim, dim_out, bias = False)
+
+        ###
         self.audio_enc_dec.freeze()
         self.loss_masked = loss_masked
 
@@ -1191,6 +1232,25 @@ class VoiceBox(_VB, LightningModule):
                 )
             self.text_enc_vb_masked = text_enc_vb_masked
             self.proj_out = nn.Linear(dim, audio_enc_dec.latent_dim)
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
+    @torch.inference_mode()
+    def forward_with_cond_scale(
+        self,
+        *args,
+        cond_scale = 1.,
+        **kwargs
+    ):
+        logits = self.forward(*args, cond_drop_prob = 0., **kwargs)
+
+        if cond_scale == 1.:
+            return logits
+
+        null_logits = self.forward(*args, cond_drop_prob = 1., **kwargs)
+        return null_logits + (logits - null_logits) * cond_scale
 
     def create_cond_mask(self, batch, seq_len, cond_token_ids=None, self_attn_mask=None, training=True, frac_lengths_mask=None, phn_bnd_eps=None):
         if training:
@@ -1537,13 +1597,14 @@ class VoiceBox(_VB, LightningModule):
         return loss.mean(), outputs
     
 
-class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
+class ConditionalFlowMatcherWrapper(LightningModule):
     """ Deal with `self.forward()` duration prediction and aligner.
     """
     @beartype
     def __init__(
         self,
         voicebox: VoiceBox,
+        text_to_semantic: None = None,
         duration_predictor: Optional[DurationPredictor] = None,
         sigma = 0.,
         ode_atol = 1e-5,
@@ -1586,19 +1647,43 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
 
             - cond_drop_prob = 0.
         """
-        super().__init__(
-            voicebox=voicebox,
-            text_to_semantic=None,
-            duration_predictor=duration_predictor,
-            sigma=sigma,
-            ode_atol=ode_atol,
-            ode_rtol=ode_rtol,
-            use_torchode=use_torchode,
-            torchdiffeq_ode_method=torchdiffeq_ode_method,
-            torchode_method_klass=torchode_method_klass,
-            cond_drop_prob=cond_drop_prob
+        super().__init__()
+        self.sigma = sigma
+
+        self.voicebox = voicebox
+        self.condition_on_text = voicebox.condition_on_text
+
+        assert not (not self.condition_on_text and exists(text_to_semantic)), 'TextToSemantic should not be passed in if not conditioning on text'
+        assert not (exists(text_to_semantic) and not exists(text_to_semantic.wav2vec)), 'the wav2vec module must exist on the TextToSemantic, if being used to condition on text'
+
+        self.text_to_semantic = text_to_semantic
+        self.duration_predictor = duration_predictor
+
+        if self.condition_on_text:
+            assert exists(text_to_semantic) ^ exists(duration_predictor), 'you should use either TextToSemantic from Spear-TTS, or DurationPredictor for the text / phoneme to audio alignment, but not both'
+
+        self.cond_drop_prob = cond_drop_prob
+
+        self.use_torchode = use_torchode
+        self.torchode_method_klass = torchode_method_klass
+
+        self.odeint_kwargs = dict(
+            atol = ode_atol,
+            rtol = ode_rtol,
+            method = torchdiffeq_ode_method
         )
-        self.duration_predictor: DurationPredictor
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
+    def load(self, path, strict = True):
+        # return pkg so the trainer can access it
+        path = Path(path)
+        assert path.exists()
+        pkg = torch.load(str(path), map_location = 'cpu')
+        self.load_state_dict(pkg['model'], strict = strict)
+        return pkg
 
     @torch.inference_mode()
     def sample(
