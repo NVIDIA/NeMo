@@ -317,15 +317,16 @@ class MegatronBaseModel(NLPModel):
         args.pop('module')
 
     def get_model_module_list(self):
+        def extract_module(model):
+            if isinstance(model, (McoreDDP, Float16Module, MCoreFloat16Module)):
+                return extract_module(model.module)
+            else:
+                return model
+
         if isinstance(self.model, list):
-            return [
-                model.module if isinstance(model, (Float16Module, MCoreFloat16Module, McoreDDP)) else model
-                for model in self.model
-            ]
-        elif isinstance(self.model, (Float16Module, MCoreFloat16Module)):
-            return [self.model.module]
+            return list(map(extract_module, self.model))
         else:
-            return [self.model]
+            return [extract_module(self.model)]
 
     def _reconfigure_limit_batches(self, limit_batches, dataloader, mode):
         """
@@ -421,7 +422,7 @@ class MegatronBaseModel(NLPModel):
             legacy = True if self._cfg.tokenizer.library == 'sentencepiece' else False
         self.tokenizer = get_nmt_tokenizer(
             library=self._cfg.tokenizer.library,
-            model_name=self._cfg.tokenizer.type,
+            model_name=self._cfg.tokenizer.get("type", None),
             tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)),
             vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.get('vocab_file', None)),
             merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.get('merge_file', None)),
