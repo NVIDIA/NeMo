@@ -273,9 +273,7 @@ class Exporter(ITritonDeployable):
         if top_p <= 0.0:
             top_p = 1.0
 
-        sampling_params = SamplingParams(
-            max_tokens=max_output_len, temperature=temperature, top_k=top_k, top_p=top_p
-        )
+        sampling_params = SamplingParams(max_tokens=max_output_len, temperature=temperature, top_k=top_k, top_p=top_p)
 
         request_id = str(self.request_id)
         self.request_id += 1
