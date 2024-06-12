@@ -77,6 +77,12 @@ def model_to_trtllm_ckpt(
     use_embedding_sharing: bool = False,
 ) -> Tuple[List[Dict], List[PretrainedConfig]]:
 
+    if nemo_model_config.get("share_embeddings_and_output_weights", False) and not use_embedding_sharing:
+        LOGGER.info(
+            "Found share_embeddings_and_output_weights is True in NeMo config, set use_embedding_sharing = True"
+        )
+        use_embedding_sharing = True
+
     weights_dict = convert_model_to_trt_llm_ckpt(
         model=model,
         nemo_model_config=nemo_model_config,
@@ -95,7 +101,7 @@ def model_to_trtllm_ckpt(
         lm_head_weight = weights_dict["lm_head.weight"]
 
     vocab_size = weights_dict["transformer.vocab_embedding.weight"].shape[0]
-    vocab_size_padded = pad_vocab_size(vocab_size, tensor_parallel_size)
+    vocab_size_padded = pad_vocab_size(vocab_size, tensor_parallel_size) if has_lm_head else vocab_size
 
     if has_lm_head and vocab_size_padded != vocab_size:
         pad_width = vocab_size_padded - vocab_size
@@ -105,12 +111,6 @@ def model_to_trtllm_ckpt(
     hidden_act = (
         hidden_act.split("-")[-1] if nemo_model_config.get('num_moe_experts', 0) else non_gated_version(hidden_act)
     )
-
-    if nemo_model_config.get("share_embeddings_and_output_weights", False) and not use_embedding_sharing:
-        LOGGER.info(
-            "Found share_embeddings_and_output_weights is True in NeMo config, set use_embedding_sharing = True"
-        )
-        use_embedding_sharing = True
 
     config = {
         'architecture': DECODER_MODEL_TYPE[decoder_type],
