@@ -10,7 +10,10 @@ import pytorch_lightning as pl
 import torch
 import torch.distributed
 from lightning_fabric.plugins import CheckpointIO, ClusterEnvironment
+from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
+from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.optimizer import _optimizers_to_device
+from lightning_fabric.utilities.types import _PATH
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
@@ -26,10 +29,6 @@ from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hoo
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from typing_extensions import override
-
-from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
-from lightning_fabric.utilities.cloud_io import get_filesystem
-from lightning_fabric.utilities.types import _PATH
 
 from nemo.lightning import _strategy_lib, io
 from nemo.lightning.io.pl import MegatronCheckpointIO, TrainerCheckpoint, TrainerCkptProtocol
@@ -377,7 +376,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             fs.makedirs(checkpoint_dir, exist_ok=True)
             dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=str(checkpoint_dir))
 
-
     @override
     def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
         """PTL method which we override to integrate distributed checkpoints for model parallel models.
@@ -407,7 +405,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         # return pl_load(path, map_location=map_location)
 
-        checkpoint = dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=str(checkpoint_path))
+        checkpoint = dist_checkpointing.load(
+            sharded_state_dict=sharded_state_dict, checkpoint_dir=str(checkpoint_path)
+        )
         checkpoint = _fix_tensors_device(checkpoint)
 
         return checkpoint

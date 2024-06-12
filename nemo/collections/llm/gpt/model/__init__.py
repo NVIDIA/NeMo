@@ -6,17 +6,8 @@ from nemo.collections.llm.gpt.model.base import (
     gpt_forward_step,
 )
 from nemo.collections.llm.gpt.model.base_v2 import GPTConfigV2, GPTModelV2
+from nemo.collections.llm.gpt.model.gpt_v2 import MegatronGPTConfigV2, MegatronGPTModelV2
 from nemo.collections.llm.gpt.model.mistral_7b import Mistral7BConfig, Mistral7BModel
-
-from nemo.collections.llm.gpt.model.base_v2 import (
-    GPTModelV2,
-    GPTConfigV2
-)
-
-from nemo.collections.llm.gpt.model.gpt_v2 import (
-    MegatronGPTModelV2,
-    MegatronGPTConfigV2
-)
 
 __all__ = [
     "GPTConfig",

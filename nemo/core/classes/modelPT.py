@@ -20,7 +20,7 @@ import uuid
 from abc import abstractmethod
 from os import path
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union, Type
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Type, Union
 
 import hydra
 import torch
@@ -104,7 +104,6 @@ class ModelPT(LightningModule, Model):
         # set global vars in AppState
         app_state = AppState()
 
-        
         # try:
         # Convert config to a DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
@@ -224,37 +223,40 @@ class ModelPT(LightningModule, Model):
         return super().on_fit_start()
 
     def register_artifact(
-        self, config_path: str, src: str, verify_src_exists: bool = True,
+        self,
+        config_path: str,
+        src: str,
+        verify_src_exists: bool = True,
     ):
-        """ Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
-            when model.save_to("mymodel.nemo") is called.
+        """Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
+        when model.save_to("mymodel.nemo") is called.
 
-            How it works:
+        How it works:
 
-            1. It always returns existing absolute path which can be used during Model constructor call
-                EXCEPTION: src is None or "" in which case nothing will be done and src will be returned
-            2. It will add (config_path, model_utils.ArtifactItem()) pair to self.artifacts
+        1. It always returns existing absolute path which can be used during Model constructor call
+            EXCEPTION: src is None or "" in which case nothing will be done and src will be returned
+        2. It will add (config_path, model_utils.ArtifactItem()) pair to self.artifacts
 
-                .. code-block::
+            .. code-block::
 
-                    If "src" is local existing path:
-                        then it will be returned in absolute path form.
-                    elif "src" starts with "nemo_file:unique_artifact_name":
-                        .nemo will be untarred to a temporary folder location and an actual existing path will be returned
-                    else:
-                        an error will be raised.
+                If "src" is local existing path:
+                    then it will be returned in absolute path form.
+                elif "src" starts with "nemo_file:unique_artifact_name":
+                    .nemo will be untarred to a temporary folder location and an actual existing path will be returned
+                else:
+                    an error will be raised.
 
-            WARNING: use .register_artifact calls in your models' constructors.
-            The returned path is not guaranteed to exist after you have exited your model's constructor.
+        WARNING: use .register_artifact calls in your models' constructors.
+        The returned path is not guaranteed to exist after you have exited your model's constructor.
 
-            Args:
-                config_path (str): Artifact key. Usually corresponds to the model config.
-                src (str): Path to artifact.
-                verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if
-                                          src is not found. Defaults to True.
+        Args:
+            config_path (str): Artifact key. Usually corresponds to the model config.
+            src (str): Path to artifact.
+            verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if
+                                      src is not found. Defaults to True.
 
-            Returns:
-                str: If src is not None or empty it always returns absolute path which is guaranteed to exist during model instance life
+        Returns:
+            str: If src is not None or empty it always returns absolute path which is guaranteed to exist during model instance life
         """
 
         if src is None or src == "":
@@ -456,7 +458,9 @@ class ModelPT(LightningModule, Model):
         if save_restore_connector.model_extracted_dir is None:
             # Check if a directory was passed, and the directory contains the config file, then simply
             # inject model_extracted_dir
-            if os.path.isdir(restore_path) and os.path.exists(os.path.join(restore_path, save_restore_connector.model_config_yaml)):
+            if os.path.isdir(restore_path) and os.path.exists(
+                os.path.join(restore_path, save_restore_connector.model_config_yaml)
+            ):
                 restore_path = os.path.abspath(os.path.expanduser(restore_path))
                 save_restore_connector.model_extracted_dir = restore_path
             else:
@@ -622,7 +626,9 @@ class ModelPT(LightningModule, Model):
         return megatron_optim_config
 
     def setup_optimization(
-        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
+        self,
+        optim_config: Optional[Union[DictConfig, Dict]] = None,
+        optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """Prepares an optimizer from a string name and its optional config parameters.
 
@@ -772,7 +778,10 @@ class ModelPT(LightningModule, Model):
             if optimizer_name == 'mcore_distributed_optim':
                 # setup megatron_optim_config and get Mcore based optimizer with the wrapper
                 megatron_optim_config = self.setup_megatron_optimization(optimizer_args)
-                _megatron_optimizer = get_megatron_optimizer(megatron_optim_config, self.model,)
+                _megatron_optimizer = get_megatron_optimizer(
+                    megatron_optim_config,
+                    self.model,
+                )
                 optimizer = McoreDistributedOptimizer(_megatron_optimizer)
 
             else:
@@ -793,30 +802,30 @@ class ModelPT(LightningModule, Model):
 
     def setup_optimizer_param_groups(self):
         """
-            Used to create param groups for the optimizer.
-            As an example, this can be used to specify per-layer learning rates:
+        Used to create param groups for the optimizer.
+        As an example, this can be used to specify per-layer learning rates:
 
-            optim.SGD([
-                        {'params': model.base.parameters()},
-                        {'params': model.classifier.parameters(), 'lr': 1e-3}
-                        ], lr=1e-2, momentum=0.9)
+        optim.SGD([
+                    {'params': model.base.parameters()},
+                    {'params': model.classifier.parameters(), 'lr': 1e-3}
+                    ], lr=1e-2, momentum=0.9)
 
-            See https://pytorch.org/docs/stable/optim.html for more information.
-            By default, ModelPT will use self.parameters().
-            Override this method to add custom param groups.
-            In the config file, add 'optim_param_groups' to support different LRs
-            for different components (unspecified params will use the default LR):
+        See https://pytorch.org/docs/stable/optim.html for more information.
+        By default, ModelPT will use self.parameters().
+        Override this method to add custom param groups.
+        In the config file, add 'optim_param_groups' to support different LRs
+        for different components (unspecified params will use the default LR):
 
-            model:
-                optim_param_groups:
-                    encoder:
-                        lr: 1e-4
-                        momentum: 0.8
-                    decoder:
-                        lr: 1e-3
-                optim:
-                    lr: 3e-3
-                    momentum: 0.9
+        model:
+            optim_param_groups:
+                encoder:
+                    lr: 1e-4
+                    momentum: 0.8
+                decoder:
+                    lr: 1e-3
+            optim:
+                lr: 3e-3
+                momentum: 0.9
         """
         if not hasattr(self, "parameters"):
             self._optimizer_param_groups = None
@@ -1722,26 +1731,26 @@ class ModelPT(LightningModule, Model):
             setattr(cls, '_save_restore_connector', save_restore_connector)
 
     def _setup_profiling(self):
-        """ Enables nsys profiling
-            To use, add the following optoins to the model config:
-            ## Nsys profiling options
-            nsys_profile: False
-                start_step: 10  # Global batch to start profiling
-                end_step: 10 # Global batch to end profiling
-                ranks: [0] # Global rank IDs to profile
-                gen_shape: False # Generate model and kernel details including input shapes
-            And then wrap the model training script with:
-            nsys profile -s none -o <profile filepath>  -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop python ./examples/...
-            See more options at: https://docs.nvidia.com/nsight-systems/UserGuide/index.html#cli-profiling
+        """Enables nsys profiling
+        To use, add the following optoins to the model config:
+        ## Nsys profiling options
+        nsys_profile: False
+            start_step: 10  # Global batch to start profiling
+            end_step: 10 # Global batch to end profiling
+            ranks: [0] # Global rank IDs to profile
+            gen_shape: False # Generate model and kernel details including input shapes
+        And then wrap the model training script with:
+        nsys profile -s none -o <profile filepath>  -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop python ./examples/...
+        See more options at: https://docs.nvidia.com/nsight-systems/UserGuide/index.html#cli-profiling
 
-            Enables CUDA memory profiling
-            To use, add the following optoins to the model config:
-            ## CUDA memory profiling options
-            memory_profile: False
-                start_step: 10  # Global batch to start profiling
-                end_step: 10 # Global batch to end profiling
-                rank: 0 # Global rank ID to profile
-                output_path: None # Path to store the profile output file
+        Enables CUDA memory profiling
+        To use, add the following optoins to the model config:
+        ## CUDA memory profiling options
+        memory_profile: False
+            start_step: 10  # Global batch to start profiling
+            end_step: 10 # Global batch to end profiling
+            rank: 0 # Global rank ID to profile
+            output_path: None # Path to store the profile output file
         """
         if self.cfg.get('nsys_profile', None) is not None:
             if self.cfg.nsys_profile.get('enabled', False):
@@ -1803,9 +1812,9 @@ class ModelPT(LightningModule, Model):
                     )
 
     def on_train_start(self):
-        """ PyTorch Lightning hook:
-            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-start
-            We use it here to copy the relevant config for dynamic freezing.
+        """PyTorch Lightning hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-start
+        We use it here to copy the relevant config for dynamic freezing.
         """
 
         # dynamic freezing
@@ -1822,9 +1831,9 @@ class ModelPT(LightningModule, Model):
                 setattr(self, '_freeze_cfg', None)
 
     def on_train_batch_start(self, batch: Any, batch_idx: int, unused: int = 0) -> Optional[int]:
-        """ PyTorch Lightning hook:
-            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
-            We use it here to enable nsys profiling and dynamic freezing.
+        """PyTorch Lightning hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
+        We use it here to enable nsys profiling and dynamic freezing.
         """
 
         # nsys profiling
@@ -1868,9 +1877,9 @@ class ModelPT(LightningModule, Model):
                         self._freeze_cfg['is_frozen'][ml] = False
 
     def on_train_batch_end(self, outputs, batch: Any, batch_idx: int, unused: int = 0) -> None:
-        """ PyTorch Lightning hook:
-            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-end
-            We use it here to enable nsys profiling.
+        """PyTorch Lightning hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-end
+        We use it here to enable nsys profiling.
         """
 
         if self.device.type == 'cuda':
@@ -1905,23 +1914,23 @@ class ModelPT(LightningModule, Model):
         self._test_step_outputs = None
 
     def on_train_end(self):
-        """ PyTorch Lightning hook:
-            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-end
-            We use it here to cleanup the dynamic freezing config.
+        """PyTorch Lightning hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-end
+        We use it here to cleanup the dynamic freezing config.
         """
 
         self._cleanup_on_execution_end()
 
     def on_test_end(self):
-        """ PyTorch Lightning hook:
-            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-test-end
+        """PyTorch Lightning hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-test-end
         """
 
         self._cleanup_on_execution_end()
 
     def on_predict_end(self):
-        """ PyTorch Lightning hook:
-            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-test-end
+        """PyTorch Lightning hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-test-end
         """
 
         self._cleanup_on_execution_end()

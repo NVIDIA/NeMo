@@ -1,30 +1,37 @@
-from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, List, Tuple
-
 import functools
 import itertools
 import os
+import queue
 import re
 import shutil
 import tempfile
+import warnings
 from collections import OrderedDict, defaultdict
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
+from dataclasses import dataclass, fields
+from functools import cache, partial
+from importlib.metadata import version
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
-from omegaconf import OmegaConf
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Generator,
+    Iterator,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sized,
+    Tuple,
+    Union,
+)
 
 import pytorch_lightning as L
-from pytorch_lightning import Trainer
 import torch
 import torch.distributed
-from torch.optim import Optimizer
-
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core import InferenceParams
-from megatron.core.model_parallel_config import ModelParallelConfig
-from megatron.core.utils import init_method_normal, scaled_init_method_normal, register_function, get_function_from_registry
-
-from megatron.core import dist_checkpointing, parallel_state
+from megatron.core import InferenceParams, dist_checkpointing, parallel_state
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
 from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject
 from megatron.core.dist_checkpointing.optimizer import (
@@ -33,50 +40,29 @@ from megatron.core.dist_checkpointing.optimizer import (
     optim_state_to_sharding_state,
 )
 from megatron.core.dist_checkpointing.strategies import tensorstore
+from megatron.core.model_parallel_config import ModelParallelConfig
+from megatron.core.models.gpt.gpt_layer_specs import (
+    get_gpt_layer_local_spec,
+    get_gpt_layer_with_transformer_engine_spec,
+)
 from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
-from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
-
-
-
-from nemo.lightning import get_vocab_size, io
-# from nemo.lightning.base import ModelConfig
-from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
-
-from nemo.core import ModelPT
-from nemo.collections.nlp.models.nlp_model import NLPModel, NLPSaveRestoreConnector
-from nemo.core.config.modelPT import OptimConfig, SchedConfig
-
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
-from nemo.collections.nlp.parts import utils_funcs
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-from nemo.core.optim import MainParamsOptimizerWrapper
-from nemo.core.optim.optimizers import init_optimizer_states
-from nemo.utils import AppState, logging
-from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
-
-################
-
-import itertools
-import os
-import queue
-import warnings
-from contextlib import nullcontext
-from dataclasses import fields
-from functools import cache, partial
-from importlib.metadata import version
-from typing import Any, Dict, Iterator, List, Optional, Union
-
-import torch
+from megatron.core.utils import (
+    get_function_from_registry,
+    init_method_normal,
+    register_function,
+    scaled_init_method_normal,
+)
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
+from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
+from torch.optim import Optimizer
 
 from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -90,14 +76,12 @@ from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_au
     get_gpt_full_te_layer_autocast_spec,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
-from megatron.core.models.gpt.gpt_layer_specs import (
-        get_gpt_layer_local_spec,
-        get_gpt_layer_with_transformer_engine_spec,
-    )
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.models.nlp_model import NLPModel, NLPSaveRestoreConnector
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
@@ -113,6 +97,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_sampling_params,
     megatron_gpt_generate,
 )
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer.text_generation import (
     LengthParam,
     OutputType,
@@ -121,14 +106,27 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 )
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.parts.utils_funcs import activation_to_func, get_last_rank
+from nemo.core import ModelPT
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.config.modelPT import OptimConfig, SchedConfig
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import ChannelType, NeuralType
-from nemo.collections.nlp.modules.common.transformer.text_generation import (
-    TextGeneration,
-)
-from nemo.utils import logging
+from nemo.core.optim import MainParamsOptimizerWrapper
+from nemo.core.optim.optimizers import init_optimizer_states
+from nemo.lightning import get_vocab_size, io
+
+# from nemo.lightning.base import ModelConfig
+from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
+from nemo.utils import AppState, logging
+from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
+from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 from nemo.utils.te_utils import is_float8tensor
+
+################
+
+
+
 
 
 if TYPE_CHECKING:
@@ -138,6 +136,7 @@ if TYPE_CHECKING:
 
 
 ###########
+
 
 @cache
 def mcore_supports_moe() -> bool:
@@ -151,9 +150,10 @@ def mcore_supports_moe() -> bool:
     except ImportError:
         return False
 
+
 def dataclass_from_dict(klass, d, filter_keys=True):
     try:
-        fieldtypes = {f.name:f.type for f in fields(klass)}
+        fieldtypes = {f.name: f.type for f in fields(klass)}
         # print("fieldtypes", fieldtypes)
 
         if filter_keys:
@@ -164,7 +164,7 @@ def dataclass_from_dict(klass, d, filter_keys=True):
                     print(k, d[k])
 
             # Remove all keys that are not in fieldtypes
-            d = {k:v for k,v in d.items() if k in fieldtypes}
+            d = {k: v for k, v in d.items() if k in fieldtypes}
 
         # Handle nested dataclasses with Optional
         # If the field is an Optional, we need to check if the value is a dataclass
@@ -173,9 +173,10 @@ def dataclass_from_dict(klass, d, filter_keys=True):
                 if f in d and isinstance(d[f], dict):
                     d[f] = dataclass_from_dict(fieldtypes[f].__args__[0], d[f])
 
-        return klass(**{f:dataclass_from_dict(fieldtypes[f], d[f]) for f in d})
+        return klass(**{f: dataclass_from_dict(fieldtypes[f], d[f]) for f in d})
     except Exception as e:
         return d  # Not a dataclass field
+
 
 def convert_cfg_to_dataclass(cfg, klass):
     model_cfg = OmegaConf.to_object(cfg)
@@ -199,7 +200,7 @@ class LLMSaveRestoreConnector(SaveRestoreConnector):
 
         if '.nemo' in save_path and not self.pack_nemo_file:
             dir_name = os.path.dirname(save_path)
-        
+
         elif '.nemo' in save_path and self.pack_nemo_file:
             dir_name = os.path.dirname(save_path)
 
@@ -223,10 +224,9 @@ class LLMSaveRestoreConnector(SaveRestoreConnector):
             model.trainer.strategy.setup_megatron_parallel(trainer)
             model.trainer.strategy.setup_precision_plugin()
 
-
         # TODO: @Eric - Why does model not have self.sharded_state_dict() anymore?
         sharded_state_dict = model.trainer.strategy.megatron_parallel.sharded_state_dict()
-        
+
         checkpoint_io = DistributedCheckpointIO(model.cfg.get('dist_ckpt_format', 'zarr'))
         checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_dir)
 
@@ -264,7 +264,6 @@ class LLMSaveRestoreConnector(SaveRestoreConnector):
 
                     for file in os.listdir(tmpdir):
                         shutil.move(os.path.join(tmpdir, file), folder_path)
-        
 
     def _load_state_dict_from_disk(self, model_weights, map_location=None):
         # if model_weights with the extension removed is a directory, we assume it is a distributed checkpoint
@@ -341,7 +340,7 @@ class LLMSaveRestoreConnector(SaveRestoreConnector):
             if trainer.strategy.launcher is not None:
                 trainer.strategy.launcher.launch(dummy, trainer=trainer)
             trainer.strategy.setup_environment()
-        
+
         trainer.strategy.model = instance
         trainer.strategy.setup_megatron_parallel(trainer)
         trainer.strategy.setup_precision_plugin()
@@ -424,6 +423,7 @@ class MegatronGPTTokenizerConfig:
     model_name: Optional[str] = None
     use_fast: bool = True
 
+
 @dataclass
 class MegatronGPTConfigV2(TransformerConfig):
     # From megatron.core.models.gpt.gpt_model.GPTModel
@@ -474,28 +474,28 @@ class MegatronGPTConfigV2(TransformerConfig):
         from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
         return MCoreGPTModel(
-                config=self,
-                transformer_layer_spec=get_specs(
-                    self.spec_name,
-                    self.num_moe_experts,
-                    self.moe_grouped_gemm,
-                    use_te=True,
-                ),
-                vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
-                max_sequence_length=self.seq_length,
-                pre_process=self.pre_process,
-                post_process=self.post_process,
-                parallel_output=True,
-                share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
-                position_embedding_type=self.position_embedding_type,
-                rotary_percent=self.rotary_percentage,
-                seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-                rotary_base=self.rotary_base,
-            )
+            config=self,
+            transformer_layer_spec=get_specs(
+                self.spec_name,
+                self.num_moe_experts,
+                self.moe_grouped_gemm,
+                use_te=True,
+            ),
+            vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
+            max_sequence_length=self.seq_length,
+            pre_process=self.pre_process,
+            post_process=self.post_process,
+            parallel_output=True,
+            share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
+            position_embedding_type=self.position_embedding_type,
+            rotary_percent=self.rotary_percentage,
+            seq_len_interpolation_factor=self.seq_len_interpolation_factor,
+            rotary_base=self.rotary_base,
+        )
 
     def __post_init__(self):
-        """ Python dataclass method that is used to modify attributes after initialization.
-            See https://docs.python.org/3/library/dataclasses.html#post-init-processing for more details.
+        """Python dataclass method that is used to modify attributes after initialization.
+        See https://docs.python.org/3/library/dataclasses.html#post-init-processing for more details.
         """
         super().__post_init__()
 
@@ -516,7 +516,7 @@ class MegatronGPTConfigV2(TransformerConfig):
 
         if self.encoder_seq_length is None:
             self.encoder_seq_length = self.seq_length
-        
+
         if self.seq_length is None:
             self.seq_length = self.encoder_seq_length
 
@@ -532,28 +532,27 @@ class MegatronGPTConfigV2(TransformerConfig):
         if self.activation_func == 'fast-swiglu':
             self.activation_func = 'silu'
             self.gated_linear_unit = True
-        
+
         # Register a default function for initialization and restoration
         init_method_fn = init_method_normal(self.init_method_std)
         register_function(init_method_fn)
 
         if self.init_method is None:
-            self.init_method =  init_method_fn.__name__  # init_method_normal(self.init_method_std)
+            self.init_method = init_method_fn.__name__  # init_method_normal(self.init_method_std)
 
         # Register a default function for initialization and restoration
-        scaled_init_method_normal_fn = scaled_init_method_normal(
-            self.init_method_std, self.num_layers
-        )
+        scaled_init_method_normal_fn = scaled_init_method_normal(self.init_method_std, self.num_layers)
         register_function(scaled_init_method_normal_fn)
 
         if self.output_layer_init_method is None:
             self.output_layer_init_method = scaled_init_method_normal_fn.__name__
 
 
-class MegatronGPTModelV2(ModelPT,  # NLPModel
-                 TextGeneration,
-                 # io.ConnectorMixin
-                 ):
+class MegatronGPTModelV2(
+    ModelPT,  # NLPModel
+    TextGeneration,
+    # io.ConnectorMixin
+):
     def __init__(
         self,
         cfg: MegatronGPTConfigV2,
@@ -583,7 +582,9 @@ class MegatronGPTModelV2(ModelPT,  # NLPModel
                 model_name=self._cfg.tokenizer.type or self._cfg.tokenizer.model_name,
                 tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)),
                 vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.get('vocab_file', None)),
-                merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.get('merge_file', None)),
+                merges_file=self.register_artifact(
+                    "tokenizer.merge_file", self._cfg.tokenizer.get('merge_file', None)
+                ),
                 use_fast=self.cfg.tokenizer.get('use_fast', False),
                 delimiter=self.cfg.tokenizer.get('delimiter', None),
                 special_tokens=self.cfg.tokenizer.get('special_tokens', None),
@@ -597,7 +598,6 @@ class MegatronGPTModelV2(ModelPT,  # NLPModel
         # configuration used for inference
         self._inference_config = None
 
-
     def configure_model(self) -> None:
         if not hasattr(self, 'module'):  # ptl demands this function be a no-op after first call
             self.model = self.transformer_config.configure_model(self.tokenizer)
@@ -606,7 +606,7 @@ class MegatronGPTModelV2(ModelPT,  # NLPModel
         if self.transformer_config.optimizer_fn is not None:
             optimizer_fn = get_function_from_registry(self.transformer_config.optimizer_fn)
             return optimizer_fn(self)
-        
+
         return super().configure_optimizers()
 
     def forward(
@@ -655,7 +655,7 @@ class MegatronGPTModelV2(ModelPT,  # NLPModel
 
     def copy(self) -> "GPTModel":
         return self.__class__(self.config, self.trainer)
-    
+
     # Can be aliased to support config based dataloaders (1.x style for backward compat)
     def setup_training_data(self, cfg):
         pass
@@ -718,11 +718,11 @@ class MegatronGPTModelV2(ModelPT,  # NLPModel
             self.cuda(), inputs, self.tokenizer, length_params, sampling_params, **strategy_args
         )
 
-
     # This enables models to restore from without providing the connector explicitly
     @classmethod
     def get_default_save_restore_connector(cls):
         return LLMSaveRestoreConnector()
+
 
 def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
@@ -825,6 +825,7 @@ def get_packed_seq_params(batch):
         qkv_format='thd',
     )
 
+
 def get_forward_func_for_inference(model):
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
@@ -851,7 +852,7 @@ def get_forward_func_for_inference(model):
             if attention_mask is not None:
                 attention_mask = attention_mask.cuda()
                 attention_mask = attention_mask[0:1]
-            if True: # model.mcore_gpt:
+            if True:  # model.mcore_gpt:
                 # if first step, then clear KV cache, otherwise reuse inference_paarms
                 if set_inference_key_value_memory[0].item():
                     model.inference_params = InferenceParams(
@@ -863,11 +864,7 @@ def get_forward_func_for_inference(model):
                 extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
         # Currently for all MCore transformer layer specs causal attention mask
         # is used so we can delegate creating it to MCore/TE and pass None below
-        if (
-                isinstance(model, MCoreGPTModel)
-                or hasattr(model, "module")
-                and isinstance(model.module, MCoreGPTModel)
-        ):
+        if isinstance(model, MCoreGPTModel) or hasattr(model, "module") and isinstance(model.module, MCoreGPTModel):
             attention_mask = None
 
         output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
@@ -884,7 +881,8 @@ def get_forward_func_for_inference(model):
             return output_tensor, {'logits': output_tensor}
 
         return output_tensor, id_func
-    
+
     return fwd_output_only_func
+
 
 __all__ = ["GPTModel", "GPTConfig", "gpt_data_step", "gpt_forward_step", "gpt_default_optimizer"]

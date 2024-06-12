@@ -953,6 +953,8 @@ class McoreRetroModelTextGenerationStrategy(TextGenerationStrategy):
 
 
 def model_inference_strategy_dispatcher(model, **args):
+    # NeMo 2.0 models
+    from nemo.collections.llm.gpt.model.gpt_v2 import MegatronGPTModelV2
     from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
@@ -966,9 +968,6 @@ def model_inference_strategy_dispatcher(model, **args):
         RetroModelTextGenerationStrategy,
         RetroQAModelTextGenerationStrategy,
     )
-
-    # NeMo 2.0 models
-    from nemo.collections.llm.gpt.model.gpt_v2 import MegatronGPTModelV2
 
     if isinstance(model, MegatronGriffinModel):
         return GriffinModelTextGenerationStrategy(model)
