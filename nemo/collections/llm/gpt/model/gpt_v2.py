@@ -126,9 +126,6 @@ from nemo.utils.te_utils import is_float8tensor
 ################
 
 
-
-
-
 if TYPE_CHECKING:
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
