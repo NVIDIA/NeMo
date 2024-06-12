@@ -251,7 +251,7 @@ class Exporter(ITritonDeployable):
     def get_triton_input(self):
         inputs = (
             Tensor(name="prompts", shape=(-1,), dtype=bytes),
-            Tensor(name="max_output_token", shape=(-1,), dtype=numpy.int_, optional=True),
+            Tensor(name="max_output_len", shape=(-1,), dtype=numpy.int_, optional=True),
             Tensor(name="top_k", shape=(-1,), dtype=numpy.int_, optional=True),
             Tensor(name="top_p", shape=(-1,), dtype=numpy.single, optional=True),
             Tensor(name="temperature", shape=(-1,), dtype=numpy.single, optional=True),
@@ -265,7 +265,7 @@ class Exporter(ITritonDeployable):
 
     def add_request_to_engine(self, inputs: numpy.ndarray, index: int) -> str:
         prompt = inputs['prompts'][index][0].decode('UTF-8')
-        max_output_token = inputs['max_output_token'][index][0]
+        max_output_len = inputs['max_output_len'][index][0]
         temperature = inputs['temperature'][index][0]
         top_k = inputs['top_k'][index][0]
         top_p = inputs['top_p'][index][0]
@@ -274,7 +274,7 @@ class Exporter(ITritonDeployable):
             top_p = 1.0
 
         sampling_params = SamplingParams(
-            max_tokens=max_output_token, temperature=temperature, top_k=top_k, top_p=top_p
+            max_tokens=max_output_len, temperature=temperature, top_k=top_k, top_p=top_p
         )
 
         request_id = str(self.request_id)
