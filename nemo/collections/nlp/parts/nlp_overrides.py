@@ -1170,6 +1170,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = True,
+        validate_access_integrity: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
     ):
@@ -1248,7 +1249,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
                 checkpoint_io = DistributedCheckpointIO.from_config(conf)
                 checkpoint = checkpoint_io.load_checkpoint(
-                    tmp_model_weights_dir, sharded_state_dict=checkpoint, strict=strict
+                    tmp_model_weights_dir, sharded_state_dict=checkpoint, strict=strict,validate_access_integrity=validate_access_integrity
                 )
                 instance.on_load_checkpoint(checkpoint)
                 if hasattr(instance, 'setup_transformer_engine_tp_groups'):

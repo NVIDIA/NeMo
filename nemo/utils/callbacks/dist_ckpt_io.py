@@ -242,6 +242,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         map_location: Optional[Any] = None,
         sharded_state_dict: Dict[str, Any] = None,
         strict: Optional[bool] = True,
+        validate_access_integrity: Optional[bool] = True,
     ) -> Dict[str, Any]:
         """Loads a distributed checkpoint.
 
@@ -270,7 +271,17 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             sharded_state_dict = self.adjust_non_strict_load(path, sharded_state_dict)
 
         return dist_checkpointing.load(
-            sharded_state_dict=sharded_state_dict, checkpoint_dir=path, sharded_strategy=sharded_strategy, validate_access_integrity=False
+<<<<<<< HEAD
+            sharded_state_dict=sharded_state_dict, 
+            checkpoint_dir=path, 
+            sharded_strategy=sharded_strategy, 
+            validate_access_integrity=validate_access_integrity
+=======
+            sharded_state_dict=sharded_state_dict,
+            checkpoint_dir=path,
+            sharded_strategy=sharded_strategy,
+            validate_access_integrity=False,
+>>>>>>> 50049f30d (Apply isort and black reformatting)
         )
 
     def adjust_non_strict_load(self, path: _PATH, sharded_state_dict: Dict[str, Any]):
