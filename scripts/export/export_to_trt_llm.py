@@ -45,26 +45,28 @@ def get_args(argv):
     parser.add_argument(
         "-dt",
         "--dtype",
-        choices=["bf16", "fp16", "fp8", "int8"],
-        default="bf16",
+        choices=["bfloat16", "float16", "fp8", "int8"],
+        default="bfloat16",
         type=str,
         help="dtype of the model on TensorRT-LLM",
     )
     parser.add_argument("-mil", "--max_input_len", default=256, type=int, help="Max input length of the model")
     parser.add_argument("-mol", "--max_output_len", default=256, type=int, help="Max output length of the model")
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
+    parser.add_argument("-mnt", "--max_num_tokens", default=None, type=int, help="Max number of tokens")
+    parser.add_argument("-ont", "--opt_num_tokens", default=None, type=int, help="Optimum number of tokens")
     parser.add_argument(
         "-mpet", "--max_prompt_embedding_table_size", default=None, type=int, help="Max prompt embedding table size"
     )
     parser.add_argument(
-        "-uib",
-        "--use_inflight_batching",
-        default=False,
-        action='store_true',
-        help="Enable inflight batching for TensorRT-LLM Triton backend.",
+        "-npkc", "--no_paged_kv_cache", default=False, action='store_true', help="Enable paged kv cache."
     )
     parser.add_argument(
-        "-upkc", "--use_paged_kv_cache", default=False, action='store_true', help="Enable paged kv cache."
+        "-drip",
+        "--disable_remove_input_padding",
+        default=False,
+        action='store_true',
+        help="Disables the remove input padding option.",
     )
     parser.add_argument(
         "-mbm",
@@ -121,7 +123,7 @@ def nemo_export_trt_llm(argv):
     LOGGER.info("Logging level set to {}".format(loglevel))
     LOGGER.info(args)
 
-    if args.dtype != "bf16":
+    if args.dtype != "bfloat16":
         LOGGER.error(
             "Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
             "Support for the other precisions will be added in the coming releases."
@@ -129,7 +131,7 @@ def nemo_export_trt_llm(argv):
         return
 
     try:
-        trt_llm_exporter = TensorRTLLM(model_dir=args.model_repository)
+        trt_llm_exporter = TensorRTLLM(model_dir=args.model_repository, load_model=False)
 
         LOGGER.info("Export to TensorRT-LLM function is called.")
         trt_llm_exporter.export(
@@ -138,12 +140,15 @@ def nemo_export_trt_llm(argv):
             n_gpus=args.num_gpus,
             tensor_parallel_size=args.tensor_parallelism_size,
             pipeline_parallel_size=args.pipeline_parallelism_size,
-            max_input_token=args.max_input_len,
-            max_output_token=args.max_output_len,
+            max_input_len=args.max_input_len,
+            max_output_len=args.max_output_len,
             max_batch_size=args.max_batch_size,
+            max_num_tokens=args.max_num_tokens,
+            opt_num_tokens=args.opt_num_tokens,
             max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
-            use_inflight_batching=args.use_inflight_batching,
-            paged_kv_cache=args.use_paged_kv_cache,
+            paged_kv_cache=(not args.no_paged_kv_cache),
+            remove_input_padding=(not args.disable_remove_input_padding),
+            dtype=args.dtype,
             enable_multi_block_mode=args.multi_block_mode,
             use_lora_plugin=args.use_lora_plugin,
             lora_target_modules=args.lora_target_modules,
