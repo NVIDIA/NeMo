@@ -31,8 +31,6 @@ from nemo.utils import logging
 try:
     from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
 
-    from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
-
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
