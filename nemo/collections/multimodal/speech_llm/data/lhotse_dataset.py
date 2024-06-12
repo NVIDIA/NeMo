@@ -117,7 +117,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 text_input_ids=collate_vectors_lhotse([e.input_ids for e in text_examples], padding_value=pad_id),
                 text_answer_ids=collate_vectors_lhotse([e.answer_ids for e in text_examples], padding_value=pad_id),
                 text_context_ids=collate_vectors_lhotse([e.context_ids for e in text_examples], padding_value=pad_id),
-                text_masks=collate_vectors_lhotse([e.mask for e in text_examples], padding_value=pad_id),
+                text_masks=collate_vectors_lhotse([e.mask for e in text_examples], padding_value=0),
             )
             ans.update(text_minibatch)
 
