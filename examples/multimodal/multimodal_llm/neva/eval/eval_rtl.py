@@ -15,31 +15,31 @@
 
 """
 This script is used for evaluating RTL (Reasoning Temporal Localization) task.
-It accepts two JSON files, one for the ground truth and another one for the predictions.
-The two JSON files should have the following structure:
+It accepts one JSON file. The JSON file should have the following structure:
 [
     {
     "video": "rY7eLyJF31M_6.mp4",
     "question_id": "rY7eLyJF31M_6_0",
     "question": "When is \"Apply mascara , false lashes on the lashes \" depicted in the video? Convey your answer using start and end timestamps exclusively.",
-    "answer": "<0> <53> Apply mascara , false lashes on the lashes ",
-    "duration": 102.002002002002
+    "ref_answer": "<0> <53> Apply mascara , false lashes on the lashes ",
+    "duration": 102.002002002002,
+    "pred_answer": "<1> <53> Apply mascara , false lashes on the lashes ",
     },
   {
     "video": "rY7eLyJF31M_6.mp4",
     "question_id": "rY7eLyJF31M_6_1",
     "question": "When is \"Apply foundation on the face with a brush\" depicted in the video? Provide a response using only start and end timestamps.",
-    "answer": "<56> <97> Apply foundation on the face with a brush",
-    "duration": 102.002002002002
+    "ref_answer": "<56> <97> Apply foundation on the face with a brush",
+    "duration": 102.002002002002,
+    "pred_answer": "<50> <97> Apply foundation on the face with a brush",
   },
 ]
 
-The `answer` field should contain the start and end timestamps such as `<56>` and `<97>` of the event along with the sentence.
+The `xxx_answer` field should contain the start and end timestamps such as `<56>` and `<97>` of the event along with the sentence.
 If not, the [0, duration] will be used as the predicted timestamps.
 
 USAGE:
-python eval_rtl.py --pred_file <path_to_predictions.json> \
-    --ref_file <path_to_ground_truth.json> \
+python eval_rtl.py --input_file <path_to_predictions.json> \
     --output_dir <path_to_output_dir> \
     --save_mid_result
 """
@@ -117,12 +117,11 @@ def parse_start_end_timestamps(outputs, duration, strict=False):
     return sentence, [min(timestamps), max(timestamps)]
 
 
-def eval(pred_file, ref_file, output_dir, save_mid_result=True):
+def eval(pred_file, output_dir, save_mid_result=True):
     """Evaluate the predictions against the ground truth.
 
     Args:
         pred_file (str): path to the predictions JSON file
-        ref_file (str): path to the ground truth JSON file
         output_dir (str): path to the output directory, 
             where the `answers.json` and `metrics.json` result will be saved.
     """
@@ -138,18 +137,13 @@ def eval(pred_file, ref_file, output_dir, save_mid_result=True):
     with open(pred_file, 'r') as f:
         pred_data = json.load(f)
     
-    with open(ref_file, 'r') as f:
-        ref_data = json.load(f)
-    
-    assert len(pred_data) == len(ref_data)
-    
     out_list = []
-    for pred, ref in zip(pred_data, ref_data):
-        assert pred['video'] == ref['video']
-        assert pred['question_id'] == ref['question_id']
-        duration = ref['duration']
-        pred_answer, pred_timestamps = parse_start_end_timestamps(pred['answer'], duration, strict=True)
-        ref_answer, ref_timestamps = parse_start_end_timestamps(ref['answer'], duration, strict=True)
+    for pred in pred_data:
+        assert "pred_answer" in pred, "pred_answer field is missing"
+        assert "ref_answer" in pred, "answer field is missing"
+        duration = pred['duration']
+        pred_answer, pred_timestamps = parse_start_end_timestamps(pred['pred_answer'], duration, strict=True)
+        ref_answer, ref_timestamps = parse_start_end_timestamps(pred['ref_answer'], duration, strict=True)
         
         for metric in metric_func:
             metrics[metric][pred['video']].append(metric_func[metric](pred_timestamps, ref_timestamps))
@@ -188,13 +182,12 @@ def eval(pred_file, ref_file, output_dir, save_mid_result=True):
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate the predictions against the ground truth")
-    parser.add_argument("--pred_file", help="Path to the predictions JSON file", required=True)
-    parser.add_argument("--ref_file", help="Path to the ground truth JSON file", required=True)
+    parser.add_argument("--input_file", help="Path to the input JSON file", required=True)
     parser.add_argument("--output_dir", help="Path to the output directory", required=True)
     parser.add_argument("--save_mid_result", action="store_true", help="Save intermediate result")
     args = parser.parse_args()
     
-    eval(args.pred_file, args.ref_file, args.output_dir, args.save_mid_result)
+    eval(args.input_file, args.output_dir, args.save_mid_result)
 
 if __name__ == "__main__":
     main()       
