@@ -100,7 +100,11 @@ class CLIPVisionTransformer(MegatronModule):
 
         if self.post_process and not skip_head:
             self.output_dim = model_cfg.output_dim
-            self.head = torch.nn.Linear(self.hidden_size, self.output_dim, bias=False,)
+            self.head = torch.nn.Linear(
+                self.hidden_size,
+                self.output_dim,
+                bias=False,
+            )
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
@@ -200,7 +204,11 @@ class CLIPTextTransformer(MegatronModule):
 
         if self.post_process:
             self.output_dim = model_cfg.output_dim
-            self.head = torch.nn.Linear(model_cfg.hidden_size, self.output_dim, bias=False,)
+            self.head = torch.nn.Linear(
+                model_cfg.hidden_size,
+                self.output_dim,
+                bias=False,
+            )
 
         self.attn_mask = self.build_attention_mask(model_cfg.max_position_embeddings)
 
@@ -217,7 +225,8 @@ class CLIPTextTransformer(MegatronModule):
         return mask
 
     def forward(
-        self, input_ids,
+        self,
+        input_ids,
     ):
         # input_ids: [b, s]
         # position_ids: [b, s]
@@ -255,7 +264,10 @@ class CLIPModel(MegatronModule):
         self.pre_process = pre_process
         self.post_process = post_process
         self.vision_encoder = CLIPVisionTransformer(
-            model_cfg.vision, model_parallel_config, pre_process=self.pre_process, post_process=self.post_process,
+            model_cfg.vision,
+            model_parallel_config,
+            pre_process=self.pre_process,
+            post_process=self.post_process,
         )
         self.text_encoder = CLIPTextTransformer(
             model_cfg.text,
@@ -463,7 +475,10 @@ class MegatronCLIPModel(MegatronBaseModel):
         grad_sync_func = None
         param_sync_func = None
         if not forward_only and self.with_distributed_adam:
-            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+            no_sync_func = partial(
+                self._optimizer.no_sync,
+                greedy_grad_copy=self.megatron_amp_O2,
+            )
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
 
@@ -529,12 +544,12 @@ class MegatronCLIPModel(MegatronBaseModel):
 
     def training_step(self, dataloader_iter):
         """
-            Our dataloaders produce a micro-batch and then we fetch
-            a number of microbatches depending on the global batch size and model parallel size
-            from the dataloader to produce a list of microbatches.
-            Batch should be a list of microbatches and those microbatches should on CPU.
-            Microbatches are then moved to GPU during the pipeline.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        Our dataloaders produce a micro-batch and then we fetch
+        a number of microbatches depending on the global batch size and model parallel size
+        from the dataloader to produce a list of microbatches.
+        Batch should be a list of microbatches and those microbatches should on CPU.
+        Microbatches are then moved to GPU during the pipeline.
+        The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         # Initialize userbuffer communicators.
         if self.initialize_ub:
@@ -607,20 +622,20 @@ class MegatronCLIPModel(MegatronBaseModel):
         return loss_mean
 
     def backward(self, *args, **kwargs):
-        """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
-            No need to call it here.
+        """LightningModule hook to do backward.
+        We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+        No need to call it here.
         """
         pass
 
     def optimizer_zero_grad(self, *args, **kwargs):
-        """ LightningModule hook to zero grad.
-            We want this to do nothing as we are zeroing grads during the training_step.
+        """LightningModule hook to zero grad.
+        We want this to do nothing as we are zeroing grads during the training_step.
         """
         pass
 
     def _append_sequence_parallel_module_grads(self, module, grads):
-        """ Helper method for allreduce_sequence_parallel_gradients"""
+        """Helper method for allreduce_sequence_parallel_gradients"""
 
         for param in module.parameters():
             sequence_parallel_param = getattr(param, 'sequence_parallel', False)
@@ -632,9 +647,9 @@ class MegatronCLIPModel(MegatronBaseModel):
                 grads.append(grad.data)
 
     def allreduce_sequence_parallel_gradients(self):
-        """ All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
-            Modified from megatron-lm:
-            https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/3f91f09bb2ab32f9904b47f46f19d2fc3f518ed8/megatron/training.py#L425
+        """All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
+        Modified from megatron-lm:
+        https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/3f91f09bb2ab32f9904b47f46f19d2fc3f518ed8/megatron/training.py#L425
         """
 
         grads = []
@@ -650,7 +665,10 @@ class MegatronCLIPModel(MegatronBaseModel):
             buf.copy_(synced)
 
     def get_forward_output_and_loss_func(self):
-        loss_func = ClipLoss(local_loss=self.cfg.local_loss, gather_with_grad=self.cfg.gather_with_grad,)
+        loss_func = ClipLoss(
+            local_loss=self.cfg.local_loss,
+            gather_with_grad=self.cfg.gather_with_grad,
+        )
 
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch, _, _ = next(dataloader_iter)
@@ -690,7 +708,8 @@ class MegatronCLIPModel(MegatronBaseModel):
                 texts = texts.cuda(non_blocking=True)
                 # TODO (yuya): distributed not working
                 with torch.cuda.amp.autocast(
-                    enabled=self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
+                    enabled=self.autocast_dtype in (torch.half, torch.bfloat16),
+                    dtype=self.autocast_dtype,
                 ):
                     class_embeddings = text_encoder(texts)
                     class_embedding = F.normalize(class_embeddings, dim=-1).mean(dim=0)
@@ -726,7 +745,8 @@ class MegatronCLIPModel(MegatronBaseModel):
                 target = target.cuda(non_blocking=True)
                 # predict
                 with torch.cuda.amp.autocast(
-                    enabled=self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
+                    enabled=self.autocast_dtype in (torch.half, torch.bfloat16),
+                    dtype=self.autocast_dtype,
                 ):
                     image_features = vision_encoder(images)
                     image_features = F.normalize(image_features, dim=-1)
@@ -745,10 +765,10 @@ class MegatronCLIPModel(MegatronBaseModel):
 
     def validation_step(self, dataloader_iter):
         """
-            Our dataloaders produce a micro-batch and then we fetch
-            a number of microbatches depending on the global batch size and model parallel size
-            from the dataloader to produce a list of microbatches.
-            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.        """
+        Our dataloaders produce a micro-batch and then we fetch
+        a number of microbatches depending on the global batch size and model parallel size
+        from the dataloader to produce a list of microbatches.
+        The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions."""
         # Initialize userbuffer communicators.
         if self.initialize_ub:
             self.initialize_ub_func()
@@ -801,7 +821,9 @@ class MegatronCLIPModel(MegatronBaseModel):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
 
         self._train_ds, self._validation_ds = build_train_valid_datasets(
-            model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0), tokenizer=self.tokenizer,
+            model_cfg=self.cfg,
+            consumed_samples=self.compute_consumed_samples(0),
+            tokenizer=self.tokenizer,
         )
         self._test_ds = None
 
@@ -816,7 +838,7 @@ class MegatronCLIPModel(MegatronBaseModel):
         return self._train_ds, self._validation_ds, self._test_ds
 
     def setup(self, stage=None):
-        """ PTL hook that is executed after DDP spawns.
+        """PTL hook that is executed after DDP spawns.
             We setup datasets here as megatron datasets require DDP to instantiate.
             See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
         Args:
@@ -909,23 +931,26 @@ class MegatronCLIPModel(MegatronBaseModel):
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
             )
             self._test_dl = torch.utils.data.DataLoader(
-                self._test_ds, batch_size=self._micro_batch_size, num_workers=cfg.num_workers, pin_memory=True,
+                self._test_ds,
+                batch_size=self._micro_batch_size,
+                num_workers=cfg.num_workers,
+                pin_memory=True,
             )
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         raise NotImplementedError
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
-        """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
-            When using pipeline parallelism, we need the global batch to remain on the CPU,
-            since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline.
+        """PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
+        When using pipeline parallelism, we need the global batch to remain on the CPU,
+        since the memory overhead will be too high when using a large number of microbatches.
+        Microbatches are transferred from CPU to GPU inside the pipeline.
         """
         return batch
 
     def _validate_trainer(self):
-        """ Certain trainer configurations can break training.
-            Here we try to catch them and raise an error.
+        """Certain trainer configurations can break training.
+        Here we try to catch them and raise an error.
         """
         if self.trainer.accumulate_grad_batches > 1:
             raise ValueError(

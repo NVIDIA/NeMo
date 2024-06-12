@@ -53,21 +53,21 @@ __all__ = ['MegatronT5PromptLearningModel']
 
 class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     """
-    Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model. 
+    Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model.
 
     Prompt Tuning initalizes virtual prompt embeddings directly from a copy of
     certain token embeddings from the the pretrained T5 model's vocabulary
-    and directly tunes these embedding weights. The token embeddings used in 
-    initalization are specified by the user in the config file. The model can 
-    be prompt-tuned for multiple tasks at once. Virtual prompts are stored in a 
-    prompt table and can be added or deleted without disrupting virtual prompts 
-    for other tasks. 
+    and directly tunes these embedding weights. The token embeddings used in
+    initalization are specified by the user in the config file. The model can
+    be prompt-tuned for multiple tasks at once. Virtual prompts are stored in a
+    prompt table and can be added or deleted without disrupting virtual prompts
+    for other tasks.
 
     P-tuning initializes an LSTM encoder model that generates virtual prompt
     embeddings for every task. Each task shares the same encoder. After p-tuning
     is compelete, the learned virtual prompts can be saved to the prompt table
-    using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a 
-    new virtual prompt via p-tuning, they do not need to retrain on all previous 
+    using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a
+    new virtual prompt via p-tuning, they do not need to retrain on all previous
     tasks. This gives p-tuning the same task flexiblity as prompt-tuning.
     """
 
@@ -81,7 +81,15 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         return False
 
     def forward(
-        self, input_ids, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels=None, inference=False,
+        self,
+        input_ids,
+        dec_input,
+        enc_mask,
+        dec_mask,
+        position_ids,
+        taskname_ids,
+        labels=None,
+        inference=False,
     ):
         """
         Special forward method for p-tuning/prompt-tuning pretrained
@@ -162,8 +170,8 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
-            Dataloader produces a global batch which is turned into a list of microbatches.
-            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
+        Dataloader produces a global batch which is turned into a list of microbatches.
+        The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # Get seq length of batch
         batch = next(dataloader_iter)
@@ -218,15 +226,15 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         return fwd_output_and_loss_func
 
     def backward(self, *args, **kwargs):
-        """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from megatron-core.
-            No need to call it here.
+        """LightningModule hook to do backward.
+        We want this to do nothing since we run backward in the fwd/bwd functions from megatron-core.
+        No need to call it here.
         """
         return
 
     def optimizer_zero_grad(self, *args, **kwargs):
-        """ LightningModule hook to zero grad.
-            We want this to do nothing as we are zeroing grads during the training_step.
+        """LightningModule hook to zero grad.
+        We want this to do nothing as we are zeroing grads during the training_step.
         """
         return
 
@@ -279,9 +287,9 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             enc_mask=enc_mask,
             num_tokens_to_generate=self.decoder_seq_length,
             encoder_input=encoder_input,
-            bos_id=self.tokenizer.pad_id
-            if self.cfg.data.get('decoder_starts_with_pad', False)
-            else self.tokenizer.bos_id,
+            bos_id=(
+                self.tokenizer.pad_id if self.cfg.data.get('decoder_starts_with_pad', False) else self.tokenizer.bos_id
+            ),
         )
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
         preds_text = MegatronT5SFTModel.ids_to_text(predicted_token_ids, self.tokenizer)
@@ -373,7 +381,8 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 gather_results_dedup = list(set(itertools.chain(*gather_results)))
 
                 val_metric_dict = self.validation_metric.get_score(
-                    [i[2] for i in gather_results_dedup], [i[1] for i in gather_results_dedup],
+                    [i[2] for i in gather_results_dedup],
+                    [i[1] for i in gather_results_dedup],
                 )
 
                 for metric, val in val_metric_dict.items():
@@ -433,9 +442,9 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
-            persistent_workers=True
-            if num_workers > 0
-            else False,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
+            persistent_workers=(
+                True if num_workers > 0 else False
+            ),  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
         )
         print('build success', len(dataloader), dataset_paths)
         return dataset, dataloader
@@ -465,9 +474,9 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             enc_mask=enc_mask,
             num_tokens_to_generate=self.decoder_seq_length,
             encoder_input=encoder_input,
-            bos_id=self.tokenizer.pad_id
-            if self.cfg.data.get('decoder_starts_with_pad', False)
-            else self.tokenizer.bos_id,
+            bos_id=(
+                self.tokenizer.pad_id if self.cfg.data.get('decoder_starts_with_pad', False) else self.tokenizer.bos_id
+            ),
         )
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
         preds_text = MegatronT5SFTModel.ids_to_text(predicted_token_ids, self.tokenizer)
@@ -510,7 +519,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
             input_prediction_pair = []
             correct = 0
-            for (input, pred, label) in gather_results_dedup:
+            for input, pred, label in gather_results_dedup:
                 input_prediction_pair.append((input, pred))
                 if label:
                     if pred == label:
