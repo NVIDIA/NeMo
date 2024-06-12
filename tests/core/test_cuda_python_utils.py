@@ -49,7 +49,7 @@ def test_my_torch_cond():
         assert torch.all(c == c_graph)
         
     # test pred = False
-    torch.logical_not(pred)
+    pred = torch.logical_not(pred)
     c = my_torch_cond(pred, custom_add, custom_mul, [a, b])
     with torch.inference_mode():
         graph.replay()
@@ -58,9 +58,9 @@ def test_my_torch_cond():
 
 
 # test to replace the "cond_op_dense" function with our "my_torch_cond" implementation
-from torch._C import DispatchKey
-from torch._higher_order_ops.cond import cond_op
-cond_op.py_kernels[DispatchKey.CompositeExplicitAutograd] = my_torch_cond
+# from torch._C import DispatchKey
+# from torch._higher_order_ops.cond import cond_op
+# cond_op.py_kernels[DispatchKey.CompositeExplicitAutograd] = my_torch_cond
 
 def test_my_torch_cond_replace():
     skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
@@ -91,8 +91,51 @@ def test_my_torch_cond_replace():
         assert torch.all(c == c_graph)
         
     # test pred = False
-    torch.logical_not(pred)
+    pred = torch.logical_not(pred)
     c = torch.cond(pred, custom_add, custom_mul, [a, b])
+    with torch.inference_mode():
+        graph.replay()
+        print(c, c_graph)
+        assert torch.all(c == c_graph)
+
+def test_my_torch_cond_compiled():
+    skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
+
+    a = torch.tensor([1.0], device="cuda")
+    b = torch.tensor([2.0], device="cuda")
+
+    pred = torch.tensor(True, device="cuda")
+
+    # compile the torch.cond first
+    def f(x, y):
+        return torch.cond(y, custom_add, custom_mul, x)
+    compiled_cond = torch.compile(f, backend="cudagraphs")
+
+    # unit test for if (not in stream capture -> for original use)
+    c = compiled_cond([a, b], pred)
+
+    # unit test for else (in stream capture -> additional function for cuda graphs)
+    graph = torch.cuda.CUDAGraph()
+    graph.enable_debug_mode()
+    stream_for_graph = torch.cuda.Stream(a.device)
+    with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
+        graph, stream=stream_for_graph
+    ):
+        c_graph = torch.cond(pred, custom_add, custom_mul, [a, b])
+        # c_graph = compiled_cond([a, b], pred)
+
+    # graph.debug_dump("graph.dot")
+
+    # test pred = True
+    with torch.inference_mode():
+        graph.replay()
+        print(c, c_graph)
+        assert torch.all(c == c_graph)
+        
+    # test pred = False
+    pred = torch.logical_not(pred)
+    c = torch.cond(pred, custom_add, custom_mul, [a, b])
+    # c = compiled_cond([a, b], pred)
     with torch.inference_mode():
         graph.replay()
         print(c, c_graph)
