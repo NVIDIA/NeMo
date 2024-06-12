@@ -44,8 +44,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
     def __init__(
         self,
         save_best_model: bool = False,
-        n_resume: bool = False, ## TODO: what is this???
-        ## TODO: make sure this matches the async_save arg of MegatronCheckpointIO
         async_save: bool = False,
         **kwargs,
     ):
@@ -67,13 +65,12 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
-
-        if self.save_top_k != -1 and n_resume:
+    
+    def on_train_start(self, trainer, pl_module):
+        if self.save_top_k != -1: # and n_resume: ## TODO: figure out what n_resume is
             logging.debug("Checking previous runs")
             self.nemo_topk_check_previous_run()
-    
-    ## TODO: make sure nothing is written to the log dir prior to this running
-    def on_train_start(self, trainer, pl_module):
+
         if is_global_rank_zero():
             app_state = AppState()
             log_dir = app_state.log_dir
@@ -118,7 +115,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
             # Add lightning file logging to global_rank zero
             add_filehandlers_to_pl_logger(log_dir / 'lightning_logs.txt', log_dir / 'nemo_error_log.txt')
-        torch.distributed.barrier()
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
 
     def nemo_topk_check_previous_run(self):
         try:
@@ -198,7 +196,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self._remove_invalid_entries_from_topk()
 
     def setup(self, *args, **kwargs) -> None:
-        ## TODO: make sure other ranks wait for this to complete
         if is_global_rank_zero():
             logging.debug("Removing unfinished checkpoints if any...")
             ModelCheckpoint._remove_unfinished_checkpoints(self.dirpath)
@@ -221,6 +218,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         ## I think this is unnecessary because we will automatically save a final checkpoint
         ## during on_train_batch_end
         ## see https://github.com/Lightning-AI/pytorch-lightning/blob/f6fd046552a1504023cb3386a8a0df418a810e4f/src/lightning/pytorch/callbacks/model_checkpoint.py#L315
+        ## we should change the logic to only save a final checkpoint if it wasn't just saveds
         '''if self.save_last and trainer.val_check_interval != 0:
             print(f'val_check_interval: {trainer.val_check_interval}')
             should_save_last_checkpoint = False
@@ -250,27 +248,24 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 )
             
             else:
-                ## TODO: do we need this if statement?
                 if os.path.isdir(self.best_model_path.split('.ckpt')[0]):
                     self.best_model_path = self.best_model_path.split('.ckpt')[0]
                 self.best_model_path = trainer.strategy.broadcast(self.best_model_path)
-                ## TODO: understand how this saves the model checkpoint
                 trainer._checkpoint_connector.restore(self.best_model_path)
 
     def _del_model_without_trainer(self, filepath: str) -> None:
 
         filepath = Path(filepath)
 
-        # check if filepath is a distributed a checkpoint
-        if ckpt_to_dir(filepath).is_dir():
-            ## TODO: add distributed barrier
-            if is_global_rank_zero():
-                try:
-                    dist_ckpt = ckpt_to_dir(filepath)
-                    shutil.rmtree(dist_ckpt, ignore_errors=True)
-                    logging.info(f"Removed distributed checkpoint: {dist_ckpt}")
-                except:
-                    logging.info(f"Tried to remove distributed checkpoint: {dist_ckpt} but failed.")
+        if is_global_rank_zero():
+            try:
+                dist_ckpt = ckpt_to_dir(filepath)
+                shutil.rmtree(dist_ckpt, ignore_errors=True)
+                logging.info(f"Removed distributed checkpoint: {dist_ckpt}")
+            except:
+                logging.info(f"Tried to remove distributed checkpoint: {dist_ckpt} but failed.")
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
 
     def _ema_callback(self, trainer: 'pytorch_lightning.Trainer') -> Optional[EMA]:
         ema_callback = None
@@ -324,7 +319,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
             marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_path)
             marker_path.parent.mkdir(parents=True, exist_ok=True)
             marker_path.touch()
-        ## TODO: always add distributed barrier
         if barrier_after and torch.distributed.is_initialized():
             torch.distributed.barrier()
 
@@ -341,7 +335,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         try:
             if barrier_before and torch.distributed.is_initialized():
                 torch.distributed.barrier()
-            ## TODO: barrier
             if is_global_rank_zero():
                 marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_path)
                 if marker_path.exists():
@@ -489,7 +482,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
             if f.is_file()
         }
 
-        ## TODO: figure out .ckpt suffix -- default in ptl?
         checkpoint_filepaths = {f.resolve() for f in checkpoint_dir.rglob("*.ckpt")}
         for ckpt_filepath in checkpoint_filepaths:
             possible_marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(ckpt_filepath)

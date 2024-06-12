@@ -36,25 +36,46 @@ class Resume:
 
 
 class AutoResume(Resume):
+    """Class that handles the logic for setting checkpoint paths and restoring from
+    checkpoints in NeMo.
+    """
     def __init__(
         self,
         path: Optional[str] = None, ## old resume_from_checkpoint
         dirpath: Optional[str] = None, ## optional path to checkpoint directory
-        ## make this fn more clear
-        import_path: Optional[str] = None, ## old dirpath ## what is this?
-        #log_dir: str = None,
-
+        import_path: Optional[str] = None, ## for importing from hf or other checkpoint formats
         resume_if_exists: bool = False,
         resume_past_end: bool = False,
         resume_ignore_no_checkpoint: bool = False,
     ):
+        """
+        Args:
+            path (str): Can be used to specify a path to a specific checkpoint file to load from.
+                This will override any checkpoint found when resume_if_exists is True.
+                Defaults to None
+            dirpath (str): Path to save the checkpoints to. Defaults to <log_dir>/checkpoints
+            import_path (str): Path to specify if importing a checkpoint from HF or
+                another non-NeMo checkpoint format. If import_path is provided, other arguments
+                are unused.
+            resume_if_exists (bool): Whether this experiment is resuming from a previous run. If
+                True, it sets trainer._checkpoint_connector._ckpt_path so that the trainer should
+                auto-resume. exp_manager will move files under log_dir to log_dir/run_{int}.
+                Defaults to False.
+            resume_past_end (bool): By default, AutoResume throws an error if resume_if_exists is
+                True and a checkpoint matching ``*end.ckpt`` indicating a previous training run
+                fully completed. Setting resume_past_end=True disables this behavior and loads the
+                last checkpoint.
+            resume_ignore_no_checkpoint (bool): AutoResume throws an error if resume_if_exists is
+                True and no checkpoint could be found. Setting resume_ignore_no_checkpoint=True
+                disables this behavior, in which case exp_manager will print a message and
+                continue without restoring.
+        """
         if path and import_path:
             raise ValueError("Only one of path or import_path can be set")
 
         self.path = path
         self.dirpath = dirpath
         self.import_path = import_path
-        #self.log_dir = log_dir ## TODO: don't set this here.. this should be inferred from AppState!
         self.resume_if_exists = resume_if_exists
         self.resume_past_end = resume_past_end
         self.resume_ignore_no_checkpoint = resume_ignore_no_checkpoint
@@ -137,22 +158,18 @@ class Trainer(pl.Trainer, IOMixin):
         update_logger_directory: bool = True,
     ):
         """
-        TODO: update docstring!!!
-        Obtains the log_dir used for exp_manager.
+        Sets the log_dir and exp_dir used for the experiment.
 
         Returns:
-            log_dir (Path): the log_dir
-            exp_dir (str): the base exp_dir without name nor version
-            name (str): The name of the experiment
-            version (str): The version of the experiment
-            explicit_log_dir (str): The explicit path to the log folder. Defaults to False.
-            use_datetime_version (bool): Uses date and time as the version of the log folder. Defaults to True.
-                version folders would not get created.
+            app_state (AppState): AppState that stores the following attributes
+                log_dir (Path): the log_dir
+                exp_dir (str): the base exp_dir without name nor version
+                name (str): The name of the experiment
+                version (str): The version of the experiment
 
         Raise:
             LoggerMisconfigurationError: If trainer is incompatible with arguments
-            NotFoundError: If resume is True, resume_ignore_no_checkpoint is False, and checkpoints could not be found.
-            ValueError: If resume is True, and there were more than 1 checkpoint could found.
+            ValueError: If log_local_rank_0_only and log_global_rank_0_only are both True
         """
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
         global_rank = self.node_rank * self.num_devices + local_rank
@@ -169,7 +186,7 @@ class Trainer(pl.Trainer, IOMixin):
         # If the user has defined a logger for the trainer, use the logger defaults for logging directory
         ## TODO: I don't think we want this anymore
         ## since before loggers were created after creating log dir
-        '''if self.logger is not None:
+        if self.logger is not None:
             if update_logger_directory:
                 logging.warning(f'"update_logger_directory" is True. Overwriting logger "save_dir" to write to {exp_dir}')
                 self.logger._root_dir = exp_dir
@@ -180,7 +197,7 @@ class Trainer(pl.Trainer, IOMixin):
                     f"{name} was also passed to setup_nemo. If the trainer contains a "
                     "logger, setup_nemo will use trainer.logger.name, and name passed to setup_nemo must be None."
                 )
-            name = self.logger.name'''
+            #name = self.logger.name
         if not name:
             name = "default"
 
@@ -204,8 +221,6 @@ class Trainer(pl.Trainer, IOMixin):
         app_state.exp_dir = exp_dir
         app_state.name = name
         app_state.version = version
-        #app_state.checkpoint_name = checkpoint_name
-        #app_state.create_checkpoint_callback = cfg.create_checkpoint_callback
 
         # Create the logging directory if it does not exist
         os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
@@ -230,7 +245,13 @@ class Trainer(pl.Trainer, IOMixin):
                     callback.prefix = name
                 ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + '-last'
 
-        if log_local_rank_0_only is True and cfg.log_global_rank_0_only is True:
+                '''if hasattr(callback, "async_save"):
+                    strategy_async = getattr(self.strategy, "async_save", False)
+                    assert strategy_async == callback.async_save, f"\
+                    ModelCheckpoint has {async_save=}, but strategy has async_save={strategy_async}. \
+                    Ensure that the async_save attribute is consistent across ModelCheckpoint and strategy."'''
+
+        if log_local_rank_0_only is True and log_global_rank_0_only is True:
             raise ValueError(
                 f"Cannot set both log_local_rank_0_only and log_global_rank_0_only to True. Please set either one or neither."
             )

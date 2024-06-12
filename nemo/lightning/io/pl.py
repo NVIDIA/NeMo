@@ -77,7 +77,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO):
     def __init__(
         self,
         save_ckpt_format: str = 'zarr',
-        load_directly_on_device: bool = True, ## TODO: support
+        load_directly_on_device: bool = True,
         async_save: bool = False,
     ):
         self.save_ckpt_format = save_ckpt_format
@@ -113,7 +113,6 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO):
             return
         fs.makedirs(checkpoint_dir, exist_ok=True)
 
-        ## TODO: compare with nemo 1.0
         dist_checkpointing.save(
             checkpoint,
             checkpoint_dir=str(checkpoint_dir),
@@ -157,9 +156,16 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO):
         if not fs.isdir(path):
             raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
 
-        # return pl_load(path, map_location=map_location)
+        if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
+            sharded_strategy = tensorstore.TensorStoreLoadShardedStrategy(load_directly_on_device=True)
+        else:
+            sharded_strategy = None
 
-        checkpoint = dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=str(path))
+        checkpoint = dist_checkpointing.load(
+            sharded_state_dict=sharded_state_dict,
+            checkpoint_dir=str(path),
+            sharded_strategy=sharded_strategy
+        )
         checkpoint = _fix_tensors_device(checkpoint)
 
         return checkpoint

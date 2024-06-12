@@ -31,7 +31,10 @@ from nemo.lightning import _strategy_lib, io
 from nemo.lightning.io.pl import MegatronCheckpointIO, TrainerCheckpoint, TrainerCkptProtocol
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar
-from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
+from nemo.utils.callbacks.dist_ckpt_io import (
+    AsyncFinalizableCheckpointIO,
+    AsyncFinalizerCallback,
+)
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
@@ -60,7 +63,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         parallel_devices: Optional[List[torch.device]] = None,
         cluster_environment=None,  # TODO: Add type-hint
         checkpoint_io=None,  # TODO: Add type-hint
-        async_save: bool = False,
         no_ddp_communication_hook: bool = True,
         find_unused_parameters: bool = False,
         enable_nemo_ckpt_io: bool = True,
@@ -76,7 +78,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             find_unused_parameters=find_unused_parameters,
             **kwargs,
         )
-        self.async_save = async_save
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.megatron_callbacks = CallbackConnector()
         self.data_sampler: Optional['DataSampler'] = data_sampler
@@ -355,7 +356,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         checkpoint["state_dict"] = OrderedDict([])  # remove device state_dict
         checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
         if self.trainer.state.fn == TrainerFn.FITTING:
-            ### TODO: renamed this to make checkpoint restore work
             checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
@@ -407,16 +407,18 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def checkpoint_io(self) -> CheckpointIO:
 
         if self._checkpoint_io is None:
-            if self.async_save:
+            checkpoint_callback = self.trainer.checkpoint_callback
+            async_save = getattr(checkpoint_callback, "async_save", False)
+            if async_save:
                 self._checkpoint_io = AsyncFinalizableCheckpointIO(
                     MegatronCheckpointIO(
                         save_ckpt_format='torch_dist',
                         async_save=True,
                     )
                 )
+                self.trainer.callbacks.append(AsyncFinalizerCallback())
             else:
                 self._checkpoint_io = MegatronCheckpointIO()
-        ## TODO: understand the purpose of this
         '''elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
             self._checkpoint_io.checkpoint_io = MegatronCheckpointIO()'''
 
