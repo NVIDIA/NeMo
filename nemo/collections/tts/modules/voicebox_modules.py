@@ -1048,6 +1048,8 @@ class VoiceBox(LightningModule):
         attn_dropout = 0,
         attn_flash = False,
         attn_qk_norm = True,
+        use_unet_skip_connection = False,
+        skip_connect_scale = None,
         use_gateloop_layers = False,
         num_register_tokens = 16,
         p_drop_prob = 0.3, # p_drop in paper
@@ -1059,6 +1061,7 @@ class VoiceBox(LightningModule):
         fix_time_emb = False,
         text_encode = False,
         text_enc_depth = 4,
+        text_enc_use_unet_skip_connection = False,
         text_enc_frame_concat = False,
         text_enc_vb_masked = True,
         **kwargs
@@ -1153,6 +1156,8 @@ class VoiceBox(LightningModule):
             num_register_tokens = num_register_tokens,
             adaptive_rmsnorm = True,
             adaptive_rmsnorm_cond_dim_in = time_hidden_dim,
+            use_unet_skip_connection = use_unet_skip_connection,
+            skip_connect_scale = skip_connect_scale,
             use_gateloop_layers = use_gateloop_layers
         )
 
@@ -1211,6 +1216,8 @@ class VoiceBox(LightningModule):
                 attn_qk_norm = attn_qk_norm,
                 num_register_tokens = num_register_tokens,
                 adaptive_rmsnorm = False,
+                use_unet_skip_connection = text_enc_use_unet_skip_connection,
+                skip_connect_scale = skip_connect_scale,
                 use_gateloop_layers = use_gateloop_layers
             )
             self.text_enc_frame_concat = text_enc_frame_concat
