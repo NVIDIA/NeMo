@@ -245,7 +245,17 @@ class TensorRTLLM(ITritonDeployable):
                     max_output_len=max_output_len,
                     max_batch_size=max_batch_size,
                     max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+                    tensor_parallel_size=tensor_parallel_size,
+                    pipeline_parallel_size=pipeline_parallel_size,
+                    use_parallel_embedding=use_parallel_embedding,
+                    paged_kv_cache=paged_kv_cache,
+                    remove_input_padding=remove_input_padding,
+                    enable_multi_block_mode=enable_multi_block_mode,
+                    use_lora_plugin=use_lora_plugin,
                     lora_target_modules=lora_target_modules,
+                    max_lora_rank=max_lora_rank,
+                    max_num_tokens=max_num_tokens,
+                    opt_num_tokens=opt_num_tokens,
                 )
             else:
                 model, model_configs, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir)
