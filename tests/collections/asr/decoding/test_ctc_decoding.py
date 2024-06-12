@@ -26,6 +26,7 @@ from nemo.collections.asr.parts.submodules.ctc_decoding import (
     CTCDecoding,
     CTCDecodingConfig,
 )
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 
@@ -89,7 +90,9 @@ class TestCTCDecoding:
         assert decoding is not None
 
     @pytest.mark.unit
-    def test_char_decoding_greedy_forward(self,):
+    def test_char_decoding_greedy_forward(
+        self,
+    ):
         cfg = CTCDecodingConfig(strategy='greedy')
         vocab = char_vocabulary()
         decoding = CTCDecoding(decoding_cfg=cfg, vocabulary=vocab)
@@ -191,3 +194,151 @@ class TestCTCDecoding:
                 # timestamps check
                 if timestamps:
                     check_subword_timestamps(hyp, decoding)
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('alignments', [False, True])
+    @pytest.mark.parametrize('timestamps', [False, True])
+    @pytest.mark.parametrize('preserve_frame_confidence', [False, True])
+    @pytest.mark.parametrize('length_is_none', [False, True])
+    @pytest.mark.parametrize(
+        "logprobs_device",
+        [
+            torch.device("cpu"),
+            pytest.param(
+                torch.device("cuda"),
+                marks=pytest.mark.skipif(
+                    not torch.cuda.is_available(),
+                    reason='CUDA required for test.',
+                ),
+            ),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "length_device",
+        [
+            torch.device("cpu"),
+            pytest.param(
+                torch.device("cuda"),
+                marks=pytest.mark.skipif(
+                    not torch.cuda.is_available(),
+                    reason='CUDA required for test.',
+                ),
+            ),
+        ],
+    )
+    def test_batched_decoding_logprobs(
+        self,
+        tmp_tokenizer,
+        alignments,
+        timestamps,
+        preserve_frame_confidence,
+        length_is_none,
+        logprobs_device,
+        length_device,
+    ):
+        cfg = CTCBPEDecodingConfig(
+            strategy='greedy',
+            preserve_alignments=alignments,
+            compute_timestamps=timestamps,
+            confidence_cfg=ConfidenceConfig(preserve_frame_confidence=preserve_frame_confidence),
+        )
+        unbatched_decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
+
+        cfg.strategy = 'greedy_batch'
+        batched_decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
+
+        torch.manual_seed(1)
+        B, T = 4, 20
+        V = unbatched_decoding.tokenizer.tokenizer.vocab_size + 1
+        input_signal = torch.randn(size=(B, T, V), device=logprobs_device)
+        # Set the blank index to a very high probability to make sure
+        # that we always handle at least a few blanks.
+        input_signal[:, 0, unbatched_decoding.tokenizer.tokenizer.vocab_size] = 1000
+        input_signal[:, 1, unbatched_decoding.tokenizer.tokenizer.vocab_size] = 1000
+        if length_is_none:
+            length = None
+        else:
+            length = torch.randint(low=1, high=T, size=[B], device=length_device)
+
+        with torch.inference_mode():
+            hyps, _ = unbatched_decoding.ctc_decoder_predictions_tensor(
+                input_signal, length, fold_consecutive=True, return_hypotheses=True
+            )
+
+            batched_hyps, _ = batched_decoding.ctc_decoder_predictions_tensor(
+                input_signal, length, fold_consecutive=True, return_hypotheses=True
+            )
+
+            assert len(hyps) == len(batched_hyps) == B
+            for hyp, batched_hyp in zip(hyps, batched_hyps):
+                assert torch.abs(hyp.score - batched_hyp.score) <= 1e-5
+                assert torch.all(hyp.y_sequence == batched_hyp.y_sequence)
+                if timestamps:
+                    assert hyp.timestep == batched_hyp.timestep
+                if alignments:
+                    assert torch.all(hyp.alignments[0] == batched_hyp.alignments[0])
+                    assert torch.all(hyp.alignments[1] == batched_hyp.alignments[1])
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('timestamps', [False, True])
+    @pytest.mark.parametrize('length_is_none', [False, True])
+    @pytest.mark.parametrize(
+        "labels_device",
+        [
+            torch.device("cpu"),
+            pytest.param(
+                torch.device("cuda"),
+                marks=pytest.mark.skipif(
+                    not torch.cuda.is_available(),
+                    reason='CUDA required for test.',
+                ),
+            ),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "length_device",
+        [
+            torch.device("cpu"),
+            pytest.param(
+                torch.device("cuda"),
+                marks=pytest.mark.skipif(
+                    not torch.cuda.is_available(),
+                    reason='CUDA required for test.',
+                ),
+            ),
+        ],
+    )
+    def test_batched_decoding_labels(self, tmp_tokenizer, timestamps, length_is_none, labels_device, length_device):
+        cfg = CTCBPEDecodingConfig(strategy='greedy', compute_timestamps=timestamps)
+        unbatched_decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
+        cfg.strategy = 'greedy_batch'
+        batched_decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
+
+        torch.manual_seed(1)
+        B, T = 4, 20
+        V = unbatched_decoding.tokenizer.tokenizer.vocab_size + 1
+        input_labels = torch.randint(V, size=(B, T), device=labels_device)
+        # Set some indices to blank to make sure that we always handle
+        # at least a few blanks.
+        input_labels[:, 0] = unbatched_decoding.tokenizer.tokenizer.vocab_size
+        input_labels[:, 1] = unbatched_decoding.tokenizer.tokenizer.vocab_size
+        if length_is_none:
+            length = None
+        else:
+            length = torch.randint(low=1, high=T, size=[B], device=length_device)
+
+        with torch.inference_mode():
+            hyps, _ = unbatched_decoding.ctc_decoder_predictions_tensor(
+                input_labels, length, fold_consecutive=True, return_hypotheses=True
+            )
+
+            batched_hyps, _ = batched_decoding.ctc_decoder_predictions_tensor(
+                input_labels, length, fold_consecutive=True, return_hypotheses=True
+            )
+
+            assert len(hyps) == len(batched_hyps) == B
+            for hyp, batched_hyp in zip(hyps, batched_hyps):
+                assert abs(hyp.score - batched_hyp.score) <= 1e-5
+                assert torch.all(hyp.y_sequence == batched_hyp.y_sequence)
+                if timestamps:
+                    assert hyp.timestep == batched_hyp.timestep

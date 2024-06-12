@@ -55,7 +55,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path=Non
             expected_output = record["last_word"].strip().lower()
             trtllm_output = model.forward(
                 input_texts=[prompt],
-                max_output_token=1,
+                max_output_len=1,
                 top_k=1,
                 top_p=0,
                 temperature=0.1,
@@ -81,7 +81,12 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path=Non
 
             if nq is not None:
                 trtllm_deployed_output = nq.query_llm(
-                    prompts=[prompt], max_output_token=1, top_k=1, top_p=0, temperature=0.1, task_id=task_ids,
+                    prompts=[prompt],
+                    max_output_len=1,
+                    top_k=1,
+                    top_p=0,
+                    temperature=0.1,
+                    task_id=task_ids,
                 )
                 trtllm_deployed_output = trtllm_deployed_output[0][0].strip().lower()
 
@@ -123,8 +128,8 @@ def run_trt_llm_inference(
     trt_llm_model_dir,
     n_gpu=1,
     max_batch_size=8,
-    max_input_token=128,
-    max_output_token=128,
+    max_input_len=128,
+    max_output_len=128,
     ptuning=False,
     p_tuning_checkpoint=None,
     lora=False,
@@ -140,6 +145,7 @@ def run_trt_llm_inference(
     stop_words_list=None,
     test_deployment=False,
     test_data_path=None,
+    save_trt_engine=False,
 ):
     if Path(checkpoint_path).exists():
         if n_gpu > torch.cuda.device_count():
@@ -194,7 +200,7 @@ def run_trt_llm_inference(
                 print("---- LoRA could not be enabled and skipping the test.")
                 return None, None, None, None, None
 
-        trt_llm_exporter = TensorRTLLM(trt_llm_model_dir, lora_ckpt_list)
+        trt_llm_exporter = TensorRTLLM(trt_llm_model_dir, lora_ckpt_list, load_model=False)
 
         trt_llm_exporter.export(
             nemo_checkpoint_path=checkpoint_path,
@@ -202,23 +208,26 @@ def run_trt_llm_inference(
             n_gpus=n_gpu,
             tensor_parallel_size=tp_size,
             pipeline_parallel_size=pp_size,
-            max_input_token=max_input_token,
-            max_output_token=max_output_token,
+            max_input_len=max_input_len,
+            max_output_len=max_output_len,
             max_batch_size=max_batch_size,
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
             use_lora_plugin=use_lora_plugin,
             lora_target_modules=lora_target_modules,
+            max_num_tokens=int(max_input_len * max_batch_size * 0.2),
+            opt_num_tokens=60,
             save_nemo_model_config=True,
         )
 
         if ptuning:
             trt_llm_exporter.add_prompt_table(
-                task_name="0", prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+                task_name="0",
+                prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
             )
 
         output = trt_llm_exporter.forward(
             input_texts=prompt,
-            max_output_token=max_output_token,
+            max_output_len=max_output_len,
             top_k=top_k,
             top_p=top_p,
             temperature=temperature,
@@ -232,14 +241,18 @@ def run_trt_llm_inference(
         nm = None
         output_deployed = ""
         if test_deployment:
-            nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name, port=8000,)
+            nm = DeployPyTriton(
+                model=trt_llm_exporter,
+                triton_model_name=model_name,
+                port=8000,
+            )
             nm.deploy()
             nm.run()
             nq = NemoQueryLLM(url="localhost:8000", model_name=model_name)
 
             output_deployed = nq.query_llm(
                 prompts=prompt,
-                max_output_token=max_output_token,
+                max_output_len=max_output_len,
                 top_k=1,
                 top_p=0.0,
                 temperature=1.0,
@@ -261,12 +274,17 @@ def run_trt_llm_inference(
             result = get_accuracy_with_lambada(trt_llm_exporter, nq, task_ids, lora_uids, test_data_path)
             if test_deployment:
                 nm.stop()
-            shutil.rmtree(trt_llm_model_dir)
+
+            if not save_trt_engine:
+                shutil.rmtree(trt_llm_model_dir)
             return result
 
         if test_deployment:
             nm.stop()
-        shutil.rmtree(trt_llm_model_dir)
+
+        if not save_trt_engine:
+            shutil.rmtree(trt_llm_model_dir)
+
         return None, None, None, None, None
     else:
         raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
@@ -284,6 +302,7 @@ def run_existing_checkpoints(
     test_deployment=False,
     stop_words_list=None,
     test_data_path=None,
+    save_trt_engine=False,
 ):
     if n_gpus > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
@@ -321,8 +340,8 @@ def run_existing_checkpoints(
         trt_llm_model_dir=model_info["trt_llm_model_dir"],
         n_gpu=n_gpus,
         max_batch_size=model_info["max_batch_size"],
-        max_input_token=512,
-        max_output_token=model_info["max_output_token"],
+        max_input_len=512,
+        max_output_len=model_info["max_output_len"],
         ptuning=ptuning,
         p_tuning_checkpoint=p_tuning_checkpoint,
         lora=lora,
@@ -338,6 +357,7 @@ def run_existing_checkpoints(
         stop_words_list=stop_words_list,
         test_deployment=test_deployment,
         test_data_path=test_data_path,
+        save_trt_engine=save_trt_engine,
     )
 
 
@@ -348,87 +368,146 @@ def get_args():
     )
 
     parser.add_argument(
-        "--model_name", type=str, required=True,
+        "--model_name",
+        type=str,
+        required=True,
     )
     parser.add_argument(
-        "--existing_test_models", default=False, action='store_true',
+        "--existing_test_models",
+        default=False,
+        action='store_true',
     )
     parser.add_argument(
-        "--model_type", type=str, required=False,
+        "--model_type",
+        type=str,
+        required=False,
     )
     parser.add_argument(
-        "--min_gpus", type=int, default=1, required=True,
+        "--min_gpus",
+        type=int,
+        default=1,
+        required=True,
     )
     parser.add_argument(
-        "--max_gpus", type=int,
+        "--max_gpus",
+        type=int,
     )
     parser.add_argument(
-        "--checkpoint_dir", type=str, default="/tmp/nemo_checkpoint/", required=False,
+        "--checkpoint_dir",
+        type=str,
+        default="/tmp/nemo_checkpoint/",
+        required=False,
     )
     parser.add_argument(
-        "--trt_llm_model_dir", type=str,
+        "--trt_llm_model_dir",
+        type=str,
     )
     parser.add_argument(
-        "--max_batch_size", type=int, default=8,
+        "--max_batch_size",
+        type=int,
+        default=8,
     )
     parser.add_argument(
-        "--max_input_token", type=int, default=256,
+        "--max_input_len",
+        type=int,
+        default=256,
     )
     parser.add_argument(
-        "--max_output_token", type=int, default=128,
+        "--max_output_len",
+        type=int,
+        default=128,
     )
     parser.add_argument(
-        "--p_tuning_checkpoint", type=str,
+        "--p_tuning_checkpoint",
+        type=str,
     )
     parser.add_argument(
-        "--ptuning", default=False, action='store_true',
+        "--ptuning",
+        default=False,
+        action='store_true',
     )
     parser.add_argument(
-        "--lora_checkpoint", type=str,
+        "--lora_checkpoint",
+        type=str,
     )
     parser.add_argument(
-        "--lora", default=False, action='store_true',
+        "--lora",
+        default=False,
+        action='store_true',
     )
     parser.add_argument(
-        "--tp_size", type=int,
+        "--tp_size",
+        type=int,
     )
     parser.add_argument(
-        "--pp_size", type=int,
+        "--pp_size",
+        type=int,
     )
     parser.add_argument(
-        "--top_k", type=int, default=1,
+        "--top_k",
+        type=int,
+        default=1,
     )
     parser.add_argument(
-        "--top_p", type=float, default=0.0,
+        "--top_p",
+        type=float,
+        default=0.0,
     )
     parser.add_argument(
-        "--temperature", type=float, default=1.0,
+        "--temperature",
+        type=float,
+        default=1.0,
     )
     parser.add_argument(
-        "--run_accuracy", default=False, action='store_true',
+        "--run_accuracy",
+        type=str,
+        default="False",
     )
     parser.add_argument("--streaming", default=False, action="store_true")
     parser.add_argument(
-        "--test_deployment", type=str, default="False",
+        "--test_deployment",
+        type=str,
+        default="False",
     )
     parser.add_argument(
-        "--debug", default=False, action='store_true',
+        "--debug",
+        default=False,
+        action='store_true',
     )
     parser.add_argument(
-        "--ci_upload_test_results_to_cloud", default=False, action='store_true',
+        "--ci_upload_test_results_to_cloud",
+        default=False,
+        action='store_true',
     )
     parser.add_argument(
-        "--test_data_path", type=str, default=None,
+        "--test_data_path",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--save_trt_engine",
+        type=str,
+        default="False",
     )
 
     return parser.parse_args()
 
 
 def run_inference_tests(args):
-    if args.test_deployment == "False":
-        args.test_deployment = False
-    else:
+    if args.test_deployment == "True":
         args.test_deployment = True
+    else:
+        args.test_deployment = False
+
+    if args.save_trt_engine == "True":
+        args.save_trt_engine = True
+    else:
+        args.save_trt_engine = False
+
+    if args.run_accuracy == "True":
+        args.run_accuracy = True
+    else:
+        args.run_accuracy = False
 
     if args.run_accuracy:
         if args.test_data_path is None:
@@ -453,6 +532,7 @@ def run_inference_tests(args):
                 test_deployment=args.test_deployment,
                 run_accuracy=args.run_accuracy,
                 test_data_path=args.test_data_path,
+                save_trt_engine=args.save_trt_engine,
             )
 
             n_gpus = n_gpus * 2
@@ -471,8 +551,8 @@ def run_inference_tests(args):
                 trt_llm_model_dir=args.trt_llm_model_dir,
                 n_gpu=n_gpus,
                 max_batch_size=args.max_batch_size,
-                max_input_token=args.max_input_token,
-                max_output_token=args.max_output_token,
+                max_input_len=args.max_input_len,
+                max_output_len=args.max_output_len,
                 ptuning=args.ptuning,
                 p_tuning_checkpoint=args.p_tuning_checkpoint,
                 lora=args.lora,
@@ -487,6 +567,7 @@ def run_inference_tests(args):
                 streaming=args.streaming,
                 test_deployment=args.test_deployment,
                 test_data_path=args.test_data_path,
+                save_trt_engine=args.save_trt_engine,
             )
 
             n_gpus = n_gpus * 2
