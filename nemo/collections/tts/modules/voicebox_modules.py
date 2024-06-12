@@ -16,24 +16,9 @@ from voicebox_pytorch.voicebox_pytorch import VoiceBox as _VB
 from voicebox_pytorch.voicebox_pytorch import ConditionalFlowMatcherWrapper as _CFMWrapper
 from voicebox_pytorch.voicebox_pytorch import DurationPredictor as _DP
 from voicebox_pytorch.voicebox_pytorch import (
-    exists,
-    coin_flip,
-    mask_from_start_end_indices,
-    mask_from_frac_lengths,
-    prob_mask_like,
-    curtail_or_pad,
     is_probably_audio_from_shape,
-    default,
-    unpack_one,
-    pack_one,
-    interpolate_1d,
-    reduce_masks_with_and,
-    generate_mask_from_repeats,
-    einsum,
-    ConvPositionEmbed,
     Transformer,
     Rearrange,
-    LearnedSinusoidalPosEmb,
 )
 import torchaudio.transforms as T
 from torchaudio.functional import resample
@@ -54,6 +39,22 @@ from nemo.collections.asr.modules.audio_preprocessing import AudioPreprocessor
 from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel as binarize_attention
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer, EnglishPhonemesTokenizer
+from nemo.collections.tts.modules.voicebox_utils import (
+    exists,
+    default,
+    coin_flip,
+    pack_one,
+    unpack_one,
+    prob_mask_like,
+    reduce_masks_with_and,
+    interpolate_1d,
+    curtail_or_pad,
+    mask_from_start_end_indices,
+    mask_from_frac_lengths,
+    generate_mask_from_repeats,
+    LearnedSinusoidalPosEmb,
+    ConvPositionEmbed,
+)
 
 
 class MFAEnglishPhonemeTokenizer(Tokenizer):
@@ -1501,12 +1502,12 @@ class VoiceBox(LightningModule):
                 to_concat = [*filter(exists, (cond, cond_emb))]
                 conv_cond_text = torch.cat(to_concat, dim = 2)
                 conv_cond_text = self.text_audio_to_embed(conv_cond_text)
-                conv_cond_text = self.text_audio_conv_embed(conv_cond_text)
+                conv_cond_text = self.text_audio_conv_embed(conv_cond_text, mask=~self_attn_mask)
                 cond = self.text_encoder(conv_cond_text, mask=self_attn_mask)
             else:
-                conv_text = self.text_to_embed(cond_emb)
-                conv_cond = self.text_audio_conv_embed(cond)
-                conv_text = self.text_audio_conv_embed(conv_text)
+                cond_text = self.text_to_embed(cond_emb)
+                conv_cond = self.text_audio_conv_embed(cond, mask=~self_attn_mask)
+                conv_text = self.text_audio_conv_embed(cond_text, mask=~self_attn_mask)
                 to_concat = [*filter(exists, (conv_cond, conv_text))]
                 conv_cond_text = torch.cat(to_concat, dim = 1)
                 mask = torch.cat([~cond_mask * self_attn_mask, self_attn_mask], dim=1)
@@ -1520,7 +1521,7 @@ class VoiceBox(LightningModule):
 
         x = self.to_embed(embed)
 
-        x = self.conv_embed(x) + x
+        x = self.conv_embed(x, mask=~self_attn_mask) + x
 
         time_emb = self.sinu_pos_emb(times)
 

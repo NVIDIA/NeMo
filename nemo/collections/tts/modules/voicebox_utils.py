@@ -146,6 +146,26 @@ def mask_from_frac_lengths(
 
     return mask_from_start_end_indices(seq_len, start, end)
 
+def generate_mask_from_repeats(repeats: Tensor):
+    repeats = repeats.int()
+    device = repeats.device
+
+    lengths = repeats.sum(dim = -1)
+    max_length = lengths.amax().item()
+    cumsum = repeats.cumsum(dim = -1)
+    cumsum_exclusive = F.pad(cumsum, (1, -1), value = 0.)
+
+    seq = torch.arange(max_length, device = device)
+    seq = einops.repeat(seq, '... j -> ... i j', i = repeats.shape[-1])
+
+    cumsum = einops.rearrange(cumsum, '... i -> ... i 1')
+    cumsum_exclusive = einops.rearrange(cumsum_exclusive, '... i -> ... i 1')
+
+    lengths = einops.rearrange(lengths, 'b -> b 1 1')
+    mask = (seq < cumsum) & (seq >= cumsum_exclusive) & (seq < lengths)
+    return mask
+
+
 # sinusoidal positions
 
 class LearnedSinusoidalPosEmb(Module):
