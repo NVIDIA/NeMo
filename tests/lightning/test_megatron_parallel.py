@@ -85,7 +85,7 @@ class TestMegatronParallel:
             data_step=mock_data_step,
             forward_step=mock_forward_step,
             loss_reduction=mock_loss_reduction,
-            cpu=True
+            cpu=True,
         )
 
         assert megatron_parallel.pipeline == mock_pipeline
