@@ -1,0 +1,130 @@
+name: "Prepare release"
+
+on:
+  workflow_dispatch:
+    inputs:
+      next_version:
+        description: 'MAJOR.MINOR.PATCH[rcN] (Example: 2.0.0rc1, or 2.1.0)'
+        required: true
+        type: string
+jobs:
+  create-release-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.run_id }}
+          fetch-depth: 0
+          fetch-tags: true
+          ref: main
+
+      - name: Create release branch
+        id: release-branch
+        run: |
+          cd ${{ github.run_id }}
+          
+          VERSION=$(python -c 'import nemo; print(nemo.__version__)')
+          
+          git checkout -b "r$VERSION"
+          git push -u origin "r$VERSION"
+
+          echo "ref=r$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build Changelog
+        id: build-changelog
+        uses: mikepenz/release-changelog-builder-action@v3.3.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Configuration file is setup with filters for domains
+          # owner:repo must point to current repo
+          # fromTag: Auto resolved from historical tag order (previous tag compared to current tag)
+          # toTag: Current tag reference
+          configuration: ".github/workflows/config/changelog-config.json"
+          owner: ${{ github.repository_owner }}
+          repo: ${{ github.event.repository.name }} 
+          ignorePreReleases: "false"
+          failOnError: "false"
+          fromTag: main
+          toTag: ${{ steps.release-branch.outputs.ref }}
+
+      - name: Append Changelog
+        run: |
+          echo "${{ steps.build-changelog.outputs.changelog }}"
+
+      - name: Create Release PR
+        uses: peter-evans/create-pull-request@v6
+        id: create-pull-request
+        with:
+          path: ${{ github.run_id }}
+          branch: ${{ steps.release-branch.outputs.ref }}
+          title: 'Release `${{ steps.bump-version.outputs.VERSION }}`'
+          body: |
+            🚀 PR to release NeMo `${{ steps.bump-version.outputs.VERSION }}`.
+
+            📝 Please remember the following to-do's before merge:
+            - [ ] Fill-in the comment `Highlights`
+            - [ ] Review the comment `Detailed Changelogs`
+
+            🚨 Please also keep in mind to _not_ delete the headings of the task commits. They are required by the post-merge automation.
+
+            🙏 Please merge this PR only if the CI workflow completed successfully.
+
+          commit-message: "[🤠]: Howdy folks, let's release NeMo `${{ steps.bump-version.outputs.VERSION }}` !"
+          signoff: true
+          assignees: okoenig
+          labels: 'Run CICD'
+
+      - name: Add Summary comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ steps.create-pull-request.outputs.pull-request-number }}
+          body: |
+            # Highlights
+            _<here-goes-the-summary...>_
+
+      - name: Add Changelog comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ steps.create-pull-request.outputs.pull-request-number }}
+          body: |
+            # Detailed Changelogs
+            ${{ steps.build-changelog.outputs.changelog }}
+
+  bump-next-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.run_id }}
+          fetch-depth: 0
+          fetch-tags: true
+          ref: main
+
+      - name: Bump version
+        id: bump-version
+        env:
+          VERSION_FILE: ${{ github.run_id }}/nemo/package_info.py
+        run: |
+          FULL_VERSION_NUM=${{ inputs.next_version }}
+          VERSION=${FULL_VERSION_NUM%%rc*}
+          MAJOR=$(echo "$version" | cut -d. -f1)
+          MINOR=$(echo "$version" | cut -d. -f2)
+          PATCH=$(echo "$version" | cut -d. -f3)
+          PRERELEASE=${FULL_VERSION_NUM#$VERSION}
+          
+          sed -i 's/^MAJOR\s*=\s*[0-9]\+/MAJOR = '$MAJOR'/' $VERSION_FILE
+          sed -i 's/^MINOR\s*=\s*[0-9]\+/MINOR = '$MINOR'/' $VERSION_FILE
+          sed -i 's/^PATCH\s*=\s*[0-9]\+/PATCH = '$PATCH'/' $VERSION_FILE
+          sed -i 's/^PRE_RELEASE\s*=\s*'.*'/PRE_RELEASE = '$PRE_RELEASE'/' $VERSION_FILE
+
+          cat $VERSION_FILE
+          PRE_RELEASE=$(echo $PRE_RELEASE | tr -d "'")
+          echo "VERSION=$MAJOR.$MINOR.$PATCH$PRE_RELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Push version bump
+        run: |
+          git commit -m "Version bump NeMo Toolkit"
+          git push
