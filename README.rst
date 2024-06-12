@@ -46,7 +46,7 @@ Latest News
   <details open>
     <summary><b>Large Language Models and Multimodal</b></summary>
       <details>
-        <summary><a href="https://developer.nvidia.com/blog/nvidia-sets-new-generative-ai-performance-and-scale-records-in-mlperf-training-v4-0/">NVIDIA sets new generative AI performance and scale records in MLPerf Training v4.0</a> (2024/03/16) </summary>
+        <summary><a href="https://developer.nvidia.com/blog/nvidia-sets-new-generative-ai-performance-and-scale-records-in-mlperf-training-v4-0/">NVIDIA sets new generative AI performance and scale records in MLPerf Training v4.0</a> (2024/06/12) </summary>
 
         Using NVIDIA NeMo Framework and NVIDIA Hopper GPUs NVIDIA was able to scale to scale to 11,616 H100 GPUs and achieve near-linear performance scaling on LLM pretraining. 
         NVIDIA also achieved the highest LLM fine-tuning performance and raised the bar for text-to-image training.
