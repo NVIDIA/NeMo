@@ -515,7 +515,8 @@ def run_inference_tests(args):
     else:
         args.run_accuracy = False
 
-    args.use_custom_all_reduce = args.use_custom_all_reduce == "True"
+    if args.use_custom_all_reduce == "True":
+        args.use_custom_all_reduce = True
 
     if args.run_accuracy:
         if args.test_data_path is None:
