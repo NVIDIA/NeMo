@@ -58,7 +58,6 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
-    # dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
     dummy_trainer = Trainer(
         devices=1,
         accelerator='gpu',
