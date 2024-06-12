@@ -32,7 +32,10 @@ from nemo.core.utils.cuda_python_utils import (
     with_conditional_node,
 )
 
+from torch._higher_order_ops.while_loop import while_loop
+
 _CUDA_PROGRAM_NAME = b"while_loop_conditional.cu"
+
 
 def create_outer_for_loop_kernel():
     """
@@ -74,9 +77,8 @@ def create_inner_while_loop_kernel():
     return run_nvrtc(kernel_string, b"while_loop_conditional", _CUDA_PROGRAM_NAME)
 
 
-class RNNTGreedyDecodeCudaGraph:
+class RNNTGreedyDecodeCudaGraph_:
     def __init__(self, max_symbols: int, caller):
-        assert False, "GALVEZ here!"
         if HAVE_CUDA_PYTHON:
             check_cuda_python_cuda_graphs_conditional_nodes_supported()
         else:
@@ -165,6 +167,7 @@ class RNNTGreedyDecodeCudaGraph:
             (self.batch_size, self.max_time, self.max_symbols), dtype=torch.int64, device="cpu", pin_memory=True
         )
 
+        # Question: why is this line needed?
         self.graph = None
 
         self.graph = torch.cuda.CUDAGraph()
@@ -182,17 +185,13 @@ class RNNTGreedyDecodeCudaGraph:
                 dtype=encoder_output.dtype,
                 device=encoder_output.device,
             )
+            # Question: the behavior seems different to the original function?
             hidden = self.caller.decoder.initialize_state(self.f)
-            self.last_label = \
-                my_torch_cond(
-                    lambda: torch.cat([partial_hypotheses[i].last_label for i in range(len(partial_hypotheses))],
-                    lambda: self.caller._SOS,
-                    ()))
-            torch.full(
+            self.last_label = torch.full(
                 [self.batch_size], fill_value=self.caller._SOS, dtype=torch.long, device=encoder_output.device
             )
             self.blank_mask = torch.full(
-                [self.batch_size], fill_value=False, dtype=torch.bool, device=encoder_output.device
+                [self.batch_size], fill_value=0, dtype=torch.bool, device=encoder_output.device
             )
             self.seq_idx_t = torch.zeros([1], dtype=torch.int64, device=encoder_output.device)
 
@@ -232,8 +231,6 @@ class RNNTGreedyDecodeCudaGraph:
 
                 torch.ge(self.time_idx_t, self.encoder_output_length, out=self.blank_mask)
 
-                my_torch_cond(lambda: self.last_label, lambda: self.caller._SOS, ())
-
                 while_loop_kernel = create_inner_while_loop_kernel()
                 (while_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
                 not_blank_ptr = np.array([self.not_all_blank_t.data_ptr()], dtype=np.uint64)
@@ -251,6 +248,7 @@ class RNNTGreedyDecodeCudaGraph:
                 with with_conditional_node(
                     while_loop_kernel, while_loop_args, while_loop_conditional_handle, self.device
                 ):
+                    # Question: the behavior seems different to the original function?
                     g, hidden_prime = self.caller._pred_step(
                         self.last_label.unsqueeze(1), hidden, batch_size=self.batch_size
                     )
@@ -290,8 +288,7 @@ class RNNTGreedyDecodeCudaGraph:
                 non_blocking=True,
             )
 
-            # I think this is redundant
-            # self.last_label.fill_(self.caller._SOS)
+            self.last_label.fill_(self.caller._SOS)
             self.time_idx_t.fill_(0)
 
     def __call__(
@@ -324,18 +321,6 @@ class RNNTGreedyDecodeCudaGraph:
         # case for some reason the user passes in a larger buffer than
         # required, since we know that `out_len.max() <= x.shape[1]`.
         max_time = x.shape[1]
-
-        if partial_hypotheses is None:
-            streaming_inference = False
-            hypotheses = [
-                rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batch_size)
-            ]
-        else:
-            streaming_inference = True
-            # Unfortunately, we have a bit of a stringent requirement
-            # here... We need to copy the relevant data in the partial
-            # hypotheses into the right place, right?
-            hypotheses = partial_hypotheses
 
         if torch.is_autocast_enabled():
             x = x.to(torch.get_autocast_gpu_dtype())
@@ -371,16 +356,335 @@ class RNNTGreedyDecodeCudaGraph:
         labels_segments = valid_labels_mask.sum(axis=(1, 2))
         labels_packed = self.labels_cpu[valid_labels_mask]
 
+        hypotheses = [
+            rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batch_size)
+        ]
+
         timestep_start = 0
         labels_start = 0
         for i in range(batch_size):
-            hypotheses[i].timestep.extend(timesteps_packed[timestep_start : timestep_start + timestep_segments[i]].tolist())
+            hypotheses[i].timestep = timesteps_packed[timestep_start : timestep_start + timestep_segments[i]].tolist()
             timestep_start += timestep_segments[i]
-            hypotheses[i].score += float(total_scores[i])
-            hypotheses[i].y_sequence.extend(labels_packed[labels_start : labels_start + labels_segments[i]].tolist())
-            hypotheses[i].last_token = labels_packed[labels_start + labels_segments[i] - 1]
-            # TODO: dec_state
-            hypotheses[i].dec_state = 
+            hypotheses[i].score = float(total_scores[i])
+            hypotheses[i].y_sequence = labels_packed[labels_start : labels_start + labels_segments[i]].tolist()
+            labels_start += labels_segments[i]
+
+        return hypotheses
+    
+
+# NEW implementation with our new torch.while_loop API
+class RNNTGreedyDecodeCudaGraph:
+    def __init__(self, max_symbols: int, caller):
+        # torch.cuda.is_current_stream_capturing()
+
+        if HAVE_CUDA_PYTHON:
+            check_cuda_python_cuda_graphs_conditional_nodes_supported()
+        else:
+            raise ValueError("Cannot instantiate RNNTGreedyDecodeCudaGraph without `pip install cuda-python`")
+        
+        # enable RNN in torchdynamo
+        # from torch._dynamo import config
+        # config.allow_rnn = True
+
+        assert max_symbols is not None
+
+        self.max_symbols = max_symbols
+
+        # These are cuda torch.Tensors which will be lazily allocated the first time _reinitialize() is called.
+        # We don't do it here because we don't know which cuda device we are using yet.
+        self.symbols_added_t = None
+        self.max_symbols_t = None
+        self.not_all_blank_t = None
+        self.time_idx_t = None
+        self.max_out_len_t = None
+
+        self.encoder_output = None
+        self.encoder_output_length = None
+        self.f = None
+        # We also lazily initialize a variable holding the current device
+        self.device = None
+
+        # Reasonable default maximum time. 375 frames * (80ms / frame) = 30 seconds
+        # 80ms is the frame size of recent fastconformer models
+        # This does not affect correctness.
+        self.max_time = 375
+        self.batch_size = 0
+
+        self.scores_cpu = None
+        self.labels_cpu = None
+        self.graph = None
+
+        self.first_call = True
+
+        self.caller = caller
+
+    def _reinitialize(self, max_time, batch_size, encoder_output, encoder_output_length):
+        if self.first_call:
+            # We need to call the original _greedy_decode_blank_as_pad
+            # implementation at least once beforehand in order to make
+            # sure that pytorch is "initialized". Pytorch may be
+            # uninitialized if this code runs before any other pytorch
+            # operation in this process. Pytorch often lazily
+            # initializes things like a cudnnHandle_t via
+            # cudnnCreate(), which can involve synchronizing with the
+            # host. Such actions are not stream capturable to a graph.
+            with torch.cuda.stream(torch.cuda.Stream(self.device)):
+                self.caller._greedy_decode_blank_as_pad_loop_frames(
+                    encoder_output, encoder_output_length, encoder_output.device
+                )
+
+            self.device = encoder_output.device
+
+            ### placeholders for future in-place tensor replacement
+            # variables for the inner loop
+            self.symbols_added_t = torch.tensor(0, dtype=torch.int64, device=encoder_output.device)
+            self.max_symbols_t = torch.tensor(self.max_symbols, dtype=torch.int64, device=encoder_output.device)
+            self.not_all_blank_t = torch.tensor(True, dtype=torch.bool, device=encoder_output.device)
+
+            # variables for the outer loop
+            self.time_idx_t = torch.tensor(0, dtype=torch.int64, device=encoder_output.device)
+            self.max_out_len_t = torch.tensor(0, dtype=torch.int64, device=encoder_output.device)
+
+            self.first_call = False
+
+        self.max_time = max(self.max_time, max_time)
+        self.batch_size = max(self.batch_size, batch_size)
+
+        ### placeholders for future in-place tensor replacement
+        # encoder_output -> x (audio encoder's output, or say the audio features)
+        self.encoder_output = torch.zeros(
+            (self.batch_size, self.max_time, encoder_output.shape[-1]),
+            dtype=encoder_output.dtype,
+            device=encoder_output.device,
+        )
+        # encoder_output_length -> out_len (the number of time frames each sequence has in a batch)
+        self.encoder_output_length = torch.zeros(
+            (self.batch_size,), dtype=encoder_output_length.dtype, device=encoder_output_length.device
+        )
+        # zero tensor and the prediction index of blank
+        self.zero_t = torch.tensor(0.0, dtype=encoder_output.dtype, device=encoder_output.device)
+        self.blank_index_t = torch.tensor(self.caller._blank_index, dtype=torch.long, device=encoder_output.device)
+        # store the model's output
+        self.scores_cpu = torch.zeros(
+            (self.batch_size, self.max_time, self.max_symbols),
+            dtype=encoder_output.dtype,
+            device="cpu",
+            pin_memory=True,
+        )
+        self.labels_cpu = torch.zeros(
+            (self.batch_size, self.max_time, self.max_symbols), dtype=torch.int64, device="cpu", pin_memory=True
+        )
+
+        # the greedy decoding CUDA Graph
+        self.graph = torch.cuda.CUDAGraph()
+
+        # create a new stream and start stream capture
+        stream_for_graph = torch.cuda.Stream(self.device)
+        with (
+            torch.cuda.stream(stream_for_graph),
+            torch.inference_mode(),
+            torch.cuda.graph(self.graph, stream=stream_for_graph, capture_error_mode="thread_local")):
+            ### placeholders for future in-place tensor replacement
+            # f -> f (the audio feature f_t)
+            self.f = torch.zeros(
+                (self.batch_size, 1, self.encoder_output.shape[-1]),
+                dtype=encoder_output.dtype,
+                device=encoder_output.device,
+            )
+            hidden = self.caller.decoder.initialize_state(self.f)
+            # last_label -> last_label (the last "non-blank" letter predicted in each sequence)
+            self.last_label = torch.full(
+                [self.batch_size], fill_value=self.caller._SOS, dtype=torch.long, device=encoder_output.device
+            )
+            # blank_mask -> blank_mask (indicate the completed sequences in a batch)
+            self.blank_mask = torch.full(
+                [self.batch_size], fill_value=0, dtype=torch.bool, device=encoder_output.device
+            )
+            # new variable -> the index for copying the value (v) to self.scores
+            self.seq_idx_t = torch.zeros([1], dtype=torch.int64, device=encoder_output.device)
+            # the maximum symbols may have in a sequence = (self.max_time * self.max_symbols)
+            # scores -> to store the values (v)
+            self.scores = torch.zeros(
+                (self.max_time * self.max_symbols, self.batch_size),
+                dtype=encoder_output.dtype,
+                device=encoder_output.device,
+            )
+            # labels -> to store the prediction indices (k)
+            self.labels = torch.full(
+                (self.max_time * self.max_symbols, self.batch_size),
+                fill_value=self.caller._blank_index,
+                dtype=torch.int64,
+                device=encoder_output.device,
+            )
+            # max_out_len_t -> max_out_len (the maximum number of time frames among all the sequences in a batch)
+            self.max_out_len_t = self.encoder_output_length.max()
+
+
+            ### start the nested loops here!!!
+            def outer_cond_fn(time_idx, x):
+                return time_idx.sum() < self.max_out_len_t
+
+            def outer_body_fn(time_idx, x):
+                # pick the audio feature f_t from x
+                f = torch.index_select(x, 1, time_idx.unsqueeze(0))
+                self.f.copy_(f)
+                
+                # reset the variables for the inner loop
+                self.not_all_blank_t.fill_(True)
+                self.symbols_added_t.fill_(0)
+
+                # [ERROR] use the "out" syntax will cause an error
+                # torch._dynamo.exc.InternalTorchDynamoError: grapharg
+                blank_mask = torch.ge(time_idx, self.encoder_output_length)
+                self.blank_mask.copy_(blank_mask)
+                
+                def cond_fn(symbols_added):
+                    # not sure if it's okay to use self.max_symbols
+                    return torch.logical_and(self.not_all_blank_t, symbols_added < self.max_symbols_t)
+
+                def body_fn(symbols_added):
+                    # run the text encoder (cause torchdynamo graph breaks cause it's a RNN model...) and joiner to get the predictions
+                    g, hidden_prime = self.caller._pred_step(self.last_label.unsqueeze(1), hidden, batch_size=self.batch_size)
+                    # g = torch.zeros((self.batch_size, 1, 640), device="cuda")
+                    # hidden_prime = (torch.zeros((2, self.batch_size, 640), device="cuda"), torch.zeros((2, self.batch_size, 640), device="cuda"))
+                    logp = self.caller._joint_step(self.f, g, log_normalize=None)[:, 0, 0, :]
+
+                    # store the predictions of each time frame
+                    v, k = logp.max(1)
+                    torch.where(self.blank_mask, self.zero_t, v, out=v)
+                    torch.where(self.blank_mask, self.blank_index_t, k, out=k)
+                    self.scores.index_copy_(0, self.seq_idx_t, v.unsqueeze(0))
+                    self.labels.index_copy_(0, self.seq_idx_t, k.unsqueeze(0))
+                    
+                    # update the blank mask
+                    self.blank_mask.logical_or_(k == self.caller._blank_index)
+                    not_blank_mask = ~self.blank_mask
+
+                    # self.caller.decoder.batch_replace_states_mask(
+                    #     src_states=hidden_prime, dst_states=hidden, mask=not_blank_mask
+                    # )
+                    # state copy
+                    h = torch.where(not_blank_mask.unsqueeze(0).unsqueeze(-1), hidden_prime[0], hidden[0])
+                    hidden[0].copy_(h)
+                    h = torch.where(not_blank_mask.unsqueeze(0).unsqueeze(-1), hidden_prime[1], hidden[1])
+                    hidden[1].copy_(h)
+
+                    last_label = torch.where(self.blank_mask, self.last_label, k)
+                    self.last_label.copy_(last_label)
+                    not_all_blank_t = torch.any(not_blank_mask, 0)
+                    self.not_all_blank_t.copy_(not_all_blank_t)
+
+                    # update the variables
+                    # cannot use "+=" because it will cause mutation to outer scope variables
+                    self.seq_idx_t.add_(1)
+
+                    return (symbols_added + 1,)
+                
+                # call the inner while loop
+                (symbols_added,) = while_loop(cond_fn, body_fn, (self.symbols_added_t,))
+
+                # update the variables
+                self.seq_idx_t.add_(self.max_symbols_t - symbols_added)
+                
+                return (time_idx + 1, x)
+
+            # call the outer for loop
+            _ = while_loop(outer_cond_fn, outer_body_fn, (self.time_idx_t, self.encoder_output))
+
+            # copy the predictions of the batch data back to cpu for hypothesis
+            self.scores_cpu.copy_(
+                self.scores.transpose(0, 1).contiguous().reshape((self.batch_size, self.max_time, self.max_symbols)),
+                non_blocking=True,
+            )
+            self.labels_cpu.copy_(
+                self.labels.transpose(0, 1).contiguous().reshape((self.batch_size, self.max_time, self.max_symbols)),
+                non_blocking=True,
+            )
+
+            self.last_label.fill_(self.caller._SOS)
+            self.time_idx_t.fill_(0)
+
+    def __call__(
+        self,
+        x: torch.Tensor,
+        out_len: torch.Tensor,
+        device: torch.device,
+        partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
+    ):
+        if partial_hypotheses is not None:
+            raise NotImplementedError(
+                "`partial_hypotheses` support is not available "
+                "with Frame-Looping algorithm with Cuda graphs (not implemented yet)"
+            )
+
+        if self.caller.preserve_alignments:
+            raise NotImplementedError(
+                "`preserve_alignments` support is not available"
+                "with Frame-Looping algorithm with Cuda graphs (not implemented yet)"
+            )
+
+        if self.caller.preserve_frame_confidence:
+            raise NotImplementedError(
+                "`preserve_frame_confidence` support is not available"
+                "with Frame-Looping algorithm with Cuda graphs (not implemented yet)"
+            )
+
+        # x: [B, T, D] -> batch size / time frame / dimension
+        # out_len: [B]
+        batch_size = x.shape[0]
+        # We could use out_len.max() here instead of x.shape[1], in
+        # case for some reason the user passes in a larger buffer than
+        # required, since we know that `out_len.max() <= x.shape[1]`.
+        max_time = x.shape[1]
+
+        if torch.is_autocast_enabled():
+            x = x.to(torch.get_autocast_gpu_dtype())
+
+        if max_time > self.max_time or batch_size > self.batch_size or self.device != x.device:
+            # In the first two cases, we need to recreate the cuda
+            # graph to handle larger tensor sizes. In the third case,
+            # we need to recreate the graph, as well as all tensors,
+            # because the computation is now happening on a different
+            # GPU. Therefore, in the third case, we unconditionally
+            # set self.first_call to True to make sure that all
+            # possibly blocking initializers are initialized properly
+            # again on the new device.
+            if self.device != x.device:
+                self.first_call = True
+            self._reinitialize(max_time, batch_size, x, out_len)
+
+        # copy the real audio feature to the placeholder here
+        self.encoder_output[: x.shape[0], : x.shape[1], ...].copy_(x)
+        self.encoder_output_length[: out_len.shape[0]].copy_(out_len)
+
+        # replay the CUDA Graph
+        self.graph.replay()
+        torch.cuda.current_stream(device=self.device).synchronize()
+
+        self.scores_cpu[self.labels_cpu == self.caller._blank_index] = 0.0
+        total_scores = self.scores_cpu.sum(dtype=torch.float32, axis=(1, 2))
+
+        tokens_per_timestep = (self.labels_cpu != self.caller._blank_index).sum(axis=-1)
+        timesteps_packed = torch.repeat_interleave(
+            torch.arange(self.max_time).repeat(self.batch_size), tokens_per_timestep.flatten()
+        )
+        timestep_segments = tokens_per_timestep.sum(axis=-1)
+
+        valid_labels_mask = self.labels_cpu != self.caller._blank_index
+        labels_segments = valid_labels_mask.sum(axis=(1, 2))
+        labels_packed = self.labels_cpu[valid_labels_mask]
+
+        hypotheses = [
+            rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batch_size)
+        ]
+
+        timestep_start = 0
+        labels_start = 0
+        for i in range(batch_size):
+            hypotheses[i].timestep = timesteps_packed[timestep_start : timestep_start + timestep_segments[i]].tolist()
+            timestep_start += timestep_segments[i]
+            hypotheses[i].score = float(total_scores[i])
+            hypotheses[i].y_sequence = labels_packed[labels_start : labels_start + labels_segments[i]].tolist()
             labels_start += labels_segments[i]
 
         return hypotheses
