@@ -371,7 +371,6 @@ def build_and_save_engine(
     lora_target_modules=None,
     max_prompt_embedding_table_size=0,
     enable_multi_block_mode: bool = False,
-    use_custom_all_reduce: bool = True,
 ):
     try:
         model_cls = getattr(tensorrt_llm.models, model_config.architecture)
@@ -398,7 +397,6 @@ def build_and_save_engine(
         'gather_generation_logits': False,
         'strongly_typed': False,
         'builder_opt': None,
-        'use_custom_all_reduce': use_custom_all_reduce,
     }
     build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
 
