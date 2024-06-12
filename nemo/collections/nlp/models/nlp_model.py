@@ -476,5 +476,12 @@ class NLPModel(ModelPT, Exportable):
             logging.info('use_cpu_initialization is True, loading checkpoint on CPU')
             map_location = 'cpu'
         return super().restore_from(
-            restore_path, override_config_path, map_location, strict,validate_access_integrity, return_config, save_restore_connector, trainer
+            restore_path,
+            override_config_path,
+            map_location,
+            strict,
+            validate_access_integrity,
+            return_config,
+            save_restore_connector,
+            trainer,
         )
