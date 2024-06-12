@@ -1,4 +1,5 @@
 import logging
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, Optional, Protocol, TypeVar, Union
@@ -13,6 +14,8 @@ from typing_extensions import Self, override
 
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
+from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
+from nemo.utils.callbacks.torch_dist_async import TorchDistAsyncSaveShardedStrategy
 from megatron.core import mpu
 import os
 
@@ -63,13 +66,24 @@ class TrainerCkptProtocol(Protocol):
     def io_dump(self, output: Path): ...
 
 
-class MegatronCheckpointIO(CheckpointIO):
+class MegatronCheckpointIO(AsyncCompatibleCheckpointIO):
     """CheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
     common for most use cases.
 
     .. warning::  This is an :ref:`experimental <versioning:Experimental API>` feature.
 
     """
+
+    def __init__(
+        self,
+        save_ckpt_format: str = 'zarr',
+        load_directly_on_device: bool = True, ## TODO: support
+        async_save: bool = False,
+    ):
+        self.save_ckpt_format = save_ckpt_format
+        self.load_directly_on_device = load_directly_on_device
+        self.async_save = async_save
+        self.save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
 
     @override
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
@@ -89,11 +103,9 @@ class MegatronCheckpointIO(CheckpointIO):
         from megatron.core import dist_checkpointing
 
         if storage_options is not None:
-            raise TypeError(
-                "`Trainer.save_checkpoint(..., storage_options=...)` with `storage_options` arg"
-                f" is not supported for `{self.__class__.__name__}`. Please implement your custom `CheckpointIO`"
-                " to define how you'd like to use `storage_options`."
-            )
+            logging.warning(f"{self.__class__.__name__} does not support"
+                            f" storage_options, but {storage_options=} was provided."
+                            f" Ignoring given storage_options")
         checkpoint_dir = ckpt_to_dir(path)
         fs = get_filesystem(checkpoint_dir)
         if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
@@ -105,10 +117,15 @@ class MegatronCheckpointIO(CheckpointIO):
         dist_checkpointing.save(
             checkpoint,
             checkpoint_dir=str(checkpoint_dir),
-            #sharded_strategy=TorchDistAsyncSaveShardedStrategy('torch_dist', 1), ## this does nothing
-            sharded_strategy=ZarrSaveShardedStrategy('zarr', 1), ## this is the default in nemo right now, but
-            ## consider switching ot TorchDist?
+            sharded_strategy=self.save_sharded_strategy,
         )
+        if not self.async_save:
+            return None
+        # NOTE: this logic will be simplified in MCore v0.7
+        assert self.save_sharded_strategy.async_request is not None
+        async_request = self.save_sharded_strategy.async_request
+        self.save_sharded_strategy.async_request = None
+        return async_request
 
     @override
     def load_checkpoint(
@@ -159,6 +176,21 @@ class MegatronCheckpointIO(CheckpointIO):
         if fs.exists(path):
             fs.rm(path, recursive=True)
             log.debug(f"Removed checkpoint: {path}")
+
+    def _determine_dist_ckpt_save_strategy(self):
+        """Determine the saving strategy based on constructor args.
+
+        If self.async_save is True instantiates an async PyT Dist strategy,
+        otherwise relies on MCore to create a proper strategy based on ckpt format.
+        """
+        save_strategy = (self.save_ckpt_format, 1)
+        if self.async_save:
+            if save_strategy[0] != 'torch_dist':
+                raise ValueError('Async dist-ckpt save supported only for torch_dist format')
+            save_strategy = TorchDistAsyncSaveShardedStrategy('torch_dist', 1)
+
+        logging.info(f'Using {save_strategy} dist-ckpt save strategy.')
+        return save_strategy
 
 
 def _fix_tensors_device(ckpt: Dict) -> Dict:

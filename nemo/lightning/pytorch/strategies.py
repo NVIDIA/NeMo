@@ -31,6 +31,7 @@ from nemo.lightning import _strategy_lib, io
 from nemo.lightning.io.pl import MegatronCheckpointIO, TrainerCheckpoint, TrainerCkptProtocol
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar
+from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
@@ -48,6 +49,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     trainer: pl.Trainer
 
+    ## TODO: support context parallel
     def __init__(
         self,
         tensor_model_parallel_size: int = 1,
@@ -58,6 +60,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         parallel_devices: Optional[List[torch.device]] = None,
         cluster_environment=None,  # TODO: Add type-hint
         checkpoint_io=None,  # TODO: Add type-hint
+        async_save: bool = False,
         no_ddp_communication_hook: bool = True,
         find_unused_parameters: bool = False,
         enable_nemo_ckpt_io: bool = True,
@@ -73,6 +76,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             find_unused_parameters=find_unused_parameters,
             **kwargs,
         )
+        self.async_save = async_save
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.megatron_callbacks = CallbackConnector()
         self.data_sampler: Optional['DataSampler'] = data_sampler
@@ -401,10 +405,20 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
+
         if self._checkpoint_io is None:
-            self._checkpoint_io = MegatronCheckpointIO()
-        elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
-            self._checkpoint_io.checkpoint_io = MegatronCheckpointIO()
+            if self.async_save:
+                self._checkpoint_io = AsyncFinalizableCheckpointIO(
+                    MegatronCheckpointIO(
+                        save_ckpt_format='torch_dist',
+                        async_save=True,
+                    )
+                )
+            else:
+                self._checkpoint_io = MegatronCheckpointIO()
+        ## TODO: understand the purpose of this
+        '''elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
+            self._checkpoint_io.checkpoint_io = MegatronCheckpointIO()'''
 
         return self._checkpoint_io
 

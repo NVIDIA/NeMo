@@ -43,29 +43,16 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
     def __init__(
         self,
-        always_save_nemo: bool = False,
-        save_nemo_on_train_end: bool = True,
         save_best_model: bool = False,
-        postfix: str = ".nemo",
         n_resume: bool = False, ## TODO: what is this???
-        async_save: bool = False,  # Should be an arg to the MegatronStrategy
+        ## TODO: make sure this matches the async_save arg of MegatronCheckpointIO
+        async_save: bool = False,
         **kwargs,
     ):
-        self.always_save_nemo = always_save_nemo
-        self.save_nemo_on_train_end = save_nemo_on_train_end
         self.save_best_model = save_best_model
-        if self.save_best_model and not self.save_nemo_on_train_end:
-            logging.warning(
-                (
-                    "Found save_best_model is True and save_nemo_on_train_end is False. "
-                    "Set save_nemo_on_train_end to True to automatically save the best model."
-                )
-            )
-        self.postfix = postfix
         self.previous_best_path = ""
         self.async_save = async_save
-        #self.export = export
-        self.async_finalize_cb = None
+        #self.async_finalize_cb = None ## unused
         # Checkpoints which removal is deferred until async save is done.
         # Each element of `deferred_ckpts_to_remove` is a growing list
         # that `self._remove_checkpoint` adds to. Once `self._save_checkpoint`
@@ -211,6 +198,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self._remove_invalid_entries_from_topk()
 
     def setup(self, *args, **kwargs) -> None:
+        ## TODO: make sure other ranks wait for this to complete
         if is_global_rank_zero():
             logging.debug("Removing unfinished checkpoints if any...")
             ModelCheckpoint._remove_unfinished_checkpoints(self.dirpath)
@@ -219,8 +207,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
             torch.distributed.barrier()
         super().setup(*args, **kwargs)
 
-    ## TODO: this has to be updated for new checkpointing
-    ### old implementation saved .nemo file but we don't have that anymore
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
         return output
@@ -230,18 +216,26 @@ class ModelCheckpoint(PTLModelCheckpoint):
             return None
 
         # check if we need to save a last checkpoint manually as validation isn't always run based on the interval
-        if self.save_last and trainer.val_check_interval != 0:
+        ## TODO: there is some sort of bug in this code.
+        ## this is what is causing the failure with async checkpointing when "epoch" is part of the ckpt name
+        ## I think this is unnecessary because we will automatically save a final checkpoint
+        ## during on_train_batch_end
+        ## see https://github.com/Lightning-AI/pytorch-lightning/blob/f6fd046552a1504023cb3386a8a0df418a810e4f/src/lightning/pytorch/callbacks/model_checkpoint.py#L315
+        '''if self.save_last and trainer.val_check_interval != 0:
+            print(f'val_check_interval: {trainer.val_check_interval}')
             should_save_last_checkpoint = False
             if isinstance(trainer.val_check_interval, float) and trainer.val_check_interval % trainer.global_step != 0:
                 should_save_last_checkpoint = True
             if isinstance(trainer.val_check_interval, int) and trainer.global_step % trainer.val_check_interval != 0:
                 should_save_last_checkpoint = True
             if should_save_last_checkpoint:
+                print(f'should save last checkpoint: {should_save_last_checkpoint}')
                 monitor_candidates = self._monitor_candidates(trainer)
                 if self.last_model_path == self.format_checkpoint_name(monitor_candidates, self.CHECKPOINT_NAME_LAST):
                     logging.debug(f'Last checkpoint {self.last_model_path} already saved')
                 else:
-                    super()._save_last_checkpoint(trainer, monitor_candidates)
+                    print(f'monitor candidates: {monitor_candidates}')
+                    super()._save_last_checkpoint(trainer, monitor_candidates)'''
         # Call parent on_train_end() to save the -last checkpoint
         super().on_train_end(trainer, pl_module)
 
@@ -255,8 +249,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
                     "were found. Saving latest model instead."
                 )
             
-            ## TODO: figure out if this needs to be changed
-            ## I think our checkpoints don't end in ".ckpt"
             else:
                 ## TODO: do we need this if statement?
                 if os.path.isdir(self.best_model_path.split('.ckpt')[0]):
@@ -265,63 +257,13 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 ## TODO: understand how this saves the model checkpoint
                 trainer._checkpoint_connector.restore(self.best_model_path)
 
-        '''if self.export and is_global_rank_zero:
-            ## TODO: optionally tar as .nemo
-            ## also figure out what export_dir and export are supposed to be
-            io.export_ckpt(export_dir, export)
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()'''
-            
-        '''if self.save_nemo_on_train_end:
-            backup_path = self._backup_existing_nemo_ckpt(trainer)
-            pl_module.save_to(save_path=self._format_nemo_checkpoint_name())
-            if backup_path is not None and is_global_rank_zero():
-                logging.info(f'Removing old .nemo backup {backup_path}')
-                get_filesystem(backup_path).rm(backup_path)'''
-
-    ## TODO: update this for nemo 2.0
-    def _backup_existing_nemo_ckpt(self, trainer) -> Optional[str]:
-        """Search for an available name with version infix and rename existing checkpoint.
-
-        NOTE: this behavior is slightly different from regular checkpoints.
-        PTL creates new regular checkpoint with the first available name.
-        Here, for backward compatibility, we create .nemo checkpoint as before
-        and create a backup under the first available name.
-
-        Args:
-            trainer (Trainer): trainer instance.
-
-        Returns:
-            Path to the backup checkpoint or None, if no backup was created
-        """
-        base_path = self._format_nemo_checkpoint_name()
-        available_path = base_path
-        if self._enable_version_counter:
-            version_cnt = self.STARTING_VERSION
-            while self.file_exists(available_path, trainer, check_dist_ckpt=False):
-                available_path = self._format_nemo_checkpoint_name(version_cnt)
-                version_cnt += 1
-        if available_path == base_path:
-            # no existing ckpt, no need to backup
-            return None
-        if trainer.is_global_zero:
-            logging.info(f'{base_path} already exists, moving existing checkpoint to {available_path}')
-            shutil.move(base_path, available_path)
-        trainer.strategy.barrier()
-        return available_path
-
-    def _format_nemo_checkpoint_name(self, ver: Optional[int] = None) -> str:
-        version_infix = '' if ver is None else f'{self.CHECKPOINT_JOIN_CHAR}v{ver}'
-        return os.path.abspath(
-            os.path.expanduser(os.path.join(self.dirpath, self.prefix + version_infix + self.postfix))
-        )
-
     def _del_model_without_trainer(self, filepath: str) -> None:
 
         filepath = Path(filepath)
 
         # check if filepath is a distributed a checkpoint
         if ckpt_to_dir(filepath).is_dir():
+            ## TODO: add distributed barrier
             if is_global_rank_zero():
                 try:
                     dist_ckpt = ckpt_to_dir(filepath)
@@ -351,8 +293,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         Returns:
             Path to the unfinished checkpoint marker file.
         """
-        marker_filepath = str(checkpoint_path).removesuffix(".nemo")
-        marker_filepath = marker_filepath.removesuffix(".ckpt")
+        marker_filepath = str(checkpoint_path).removesuffix(".ckpt")
         marker_filepath = marker_filepath.removesuffix("-EMA")
         return Path(marker_filepath + ModelCheckpoint.UNFINISHED_CHECKPOINT_SUFFIX)
 
@@ -383,6 +324,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_path)
             marker_path.parent.mkdir(parents=True, exist_ok=True)
             marker_path.touch()
+        ## TODO: always add distributed barrier
         if barrier_after and torch.distributed.is_initialized():
             torch.distributed.barrier()
 
@@ -399,6 +341,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         try:
             if barrier_before and torch.distributed.is_initialized():
                 torch.distributed.barrier()
+            ## TODO: barrier
             if is_global_rank_zero():
                 marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_path)
                 if marker_path.exists():
@@ -425,6 +368,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
             # save EMA copy of the model as well.
             with ema_callback.save_ema_model(trainer):
+                rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
                 filepath = self._ema_format_filepath(filepath)
                 if self.verbose:
                     rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
