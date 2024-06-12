@@ -2,15 +2,13 @@ from argparse import ArgumentParser
 from typing import List
 
 import torch
-from nemo.utils import logging
+from pytorch_lightning import Trainer
 from torch import nn
 
-from nemo.collections.nlp.modules.common.megatron.adapters.qlora import nf4_quantize
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, MegatronHalfPrecisionPlugin
-from pytorch_lightning import Trainer
-
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
-
+from nemo.collections.nlp.modules.common.megatron.adapters.qlora import nf4_quantize
+from nemo.collections.nlp.parts.nlp_overrides import MegatronHalfPrecisionPlugin, NLPDDPStrategy
+from nemo.utils import logging
 
 '''
 This script quantizes the weights of a pretrained base model to NF4 precision, then save them in BF16 precision.
@@ -38,6 +36,7 @@ def corrupt_linear_weight_(model: nn.Module, target_modules: List[str]):
             state_dict[k] = nf4_quantize(state_dict[k]).dequantize()
     model.load_state_dict(state_dict)
 
+
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
@@ -47,8 +46,12 @@ def get_args():
         help="Path to .nemo base model checkpoint",
     )
     parser.add_argument("--output_path", type=str, required=True, help="Path to output quantized .nemo file.")
-    parser.add_argument("--target_modules", type=str, default="linear_qkv,linear_proj,linear_fc1,linear_fc2",
-                        help="Comma separated list of which linear module(s) to quantize")
+    parser.add_argument(
+        "--target_modules",
+        type=str,
+        default="linear_qkv,linear_proj,linear_fc1,linear_fc2",
+        help="Comma separated list of which linear module(s) to quantize",
+    )
     args = parser.parse_args()
     return args
 
@@ -56,8 +59,12 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
     # dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
-    dummy_trainer = Trainer(devices=1, accelerator='gpu', strategy=NLPDDPStrategy(),
-                            plugins=[MegatronHalfPrecisionPlugin(precision='bf16-mixed', device='cuda')])
+    dummy_trainer = Trainer(
+        devices=1,
+        accelerator='gpu',
+        strategy=NLPDDPStrategy(),
+        plugins=[MegatronHalfPrecisionPlugin(precision='bf16-mixed', device='cuda')],
+    )
     model = MegatronGPTSFTModel.restore_from(args.input_name_or_path, trainer=dummy_trainer).to(torch.bfloat16)
     corrupt_linear_weight_(model, args.target_modules.split(','))
 

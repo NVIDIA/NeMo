@@ -102,8 +102,10 @@ class _LinearNF4(torch.autograd.Function):
         weight: NF4Weight = ctx.nf4_weight
         return grad_output @ weight.dequantize().to(grad_output.device), None
 
+
 def nf4_quantize(x: torch.Tensor):
     return NF4Weight(x).cuda()
+
 
 class NF4LinearWrapper(nn.Module):
     """
