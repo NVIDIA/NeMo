@@ -5,7 +5,9 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 from contextlib import contextmanager
 
+import einops
 import torch.utils.data
+from torch import einsum
 from lhotse import CutSet
 from lhotse.dataset import AudioSamples, CutMix
 from lhotse.dataset.collation import collate_vectors
@@ -22,6 +24,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
 from naturalspeech2_pytorch.utils.cleaner import TextProcessor
 
 from nemo.collections.tts.modules.voicebox_modules import MFAEnglishPhonemeTokenizer
+from nemo.collections.tts.modules.voicebox_utils import generate_mask_from_repeats
 
 class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
     """
@@ -45,7 +48,8 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
 
     def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None,
                  ds_name="", corpus_dir=None, old_prefix=None, textgrid_dir=None,
-                 use_word_postfix=False, use_word_ghost_silence=False, num_workers=0, load_audio=True, sampling_rate=24000):
+                 use_word_postfix=False, use_word_ghost_silence=False, num_workers=0, load_audio=True,
+                 sampling_rate=24000, downsample_factor=256):
         super().__init__()
         self.tokenizer = tokenizer
 
@@ -82,6 +86,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
         self.use_word_postfix = use_word_postfix
         self.use_word_ghost_silence = use_word_ghost_silence
         self.sampling_rate = sampling_rate
+        self.downsample_factor = downsample_factor
 
     def change_prefix(self, cut):
         # Some corpus, e.g., LibriHeavy, whose manifest includes given path prefix, which might not match our folder structure.
@@ -160,6 +165,11 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
 
         return new_phn_dur
 
+    def align_phoneme_ids_with_durations(self, phoneme_ids, durations):
+        repeat_mask = generate_mask_from_repeats(durations.clamp(min = 0))
+        aligned_phoneme_ids = einsum('b i, b i j -> b j', phoneme_ids.float(), repeat_mask.float()).long()
+        return aligned_phoneme_ids
+
     def __getitem__(self, cuts: CutSet) -> Tuple[torch.Tensor, ...]:
         batch = {}
 
@@ -174,9 +184,11 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             audio, audio_lens, _cuts = self.load_audio(cuts.resample(self.sampling_rate))
             # audio_22050, audio_lens_22050, _cuts = self.load_audio(cuts.resample(22050))
             # audio_24k, audio_lens_24k, _cuts = self.load_audio(cuts.resample(24000))
+            mel_lens = torch.ceil(audio_lens / self.downsample_factor).long()
             batch.update({
                 "audio": audio,
                 "audio_lens": audio_lens,
+                "mel_lens": mel_lens,
                 # "audio_22050": audio_22050,
                 # "audio_lens_22050": audio_lens_22050,
                 # "audio_24k": audio_24k,
@@ -200,7 +212,12 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             if isinstance(self.tokenizer, TextProcessor):
                 with redirect_stdout_to_logger(logging):
                     tokens = [self.tokenizer.text_to_ids(text)[0] for text in texts]
+
                 padding_value = 0
+                tokens = [torch.as_tensor(token_ids).long() for token_ids in tokens]
+                token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
+                tokens = collate_vectors(tokens, padding_value=padding_value)
+
             elif isinstance(self.tokenizer, BaseTokenizer):
                 if "texts" in _cuts[0].supervisions[0].custom:
                     _texts = [c.supervisions[0].custom["texts"][1] for c in _cuts]
@@ -208,22 +225,42 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
                     _texts = [c.supervisions[0].text for c in _cuts]
                 texts = [self.normalizer_call(text, **self.text_normalizer_call_kwargs) for text in _texts]
                 tokens = [self.tokenizer(text) for text in texts]
+
                 padding_value = self.tokenizer.pad
+                tokens = [torch.as_tensor(token_ids).long() for token_ids in tokens]
+                token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
+                tokens = collate_vectors(tokens, padding_value=padding_value)
+
             elif isinstance(self.tokenizer, MFAEnglishPhonemeTokenizer):
                 phn_durs = [self.get_cut_alignment(cut) for cut in cuts]
                 durs = [[dur for _, dur in phn_dur] for phn_dur in phn_durs]
                 durs = [torch.as_tensor(ds) for ds in durs]
                 durs = collate_vectors(durs, padding_value=0)
                 batch["durations"] = durs
+                scaled_durations = durs * self.sampling_rate / self.downsample_factor
+                batch["scaled_durations"] = scaled_durations
+
 
                 phns = [[phn for phn, _ in phn_dur] for phn_dur in phn_durs]
                 tokens = [self.tokenizer.text_to_ids(phn)[0] for phn in phns]
-                padding_value = self.tokenizer.pad_id
 
-            tokens = [torch.as_tensor(token_ids).long() for token_ids in tokens]
-            token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
-            # tokens = collate_vectors(tokens, padding_value=0)
-            tokens = collate_vectors(tokens, padding_value=padding_value)
+                padding_value = self.tokenizer.pad_id
+                tokens = [torch.as_tensor(token_ids).long() for token_ids in tokens]
+                token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
+                tokens = collate_vectors(tokens, padding_value=padding_value)
+
+                cum_dur = torch.cumsum(scaled_durations, -1)
+                dur_ratio = mel_lens / cum_dur[:, -1]
+                cum_dur = cum_dur * einops.rearrange(dur_ratio, 'b -> b 1')
+                cum_dur = torch.round(cum_dur)
+
+                dp_cond = torch.zeros_like(cum_dur)
+                dp_cond[:, 0] = cum_dur[:, 0]
+                dp_cond[:, 1:] = cum_dur[:, 1:] - cum_dur[:, :-1]
+                batch["dp_cond"] = dp_cond
+                batch["cum_dur"] = cum_dur
+                batch["aligned_tokens"] = self.align_phoneme_ids_with_durations(tokens, dp_cond)
+
             batch.update({
                 "texts": texts,
                 "tokens": tokens,

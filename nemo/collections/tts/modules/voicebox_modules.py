@@ -433,43 +433,51 @@ class DurationPredictor(_DP, LightningModule):
         return self.aligner(x, x_mask, y, y_mask)
 
     @torch.no_grad()
-    def parse_dp_input(self, x1, mask, durations=None, phoneme_len=None, input_sampling_rate=None):
+    def parse_dp_input(self, x1, audio_len, mel_len, durations=None, scaled_durations=None, phoneme_len=None, input_sampling_rate=None):
         assert exists(self.audio_enc_dec), 'audio_enc_dec must be set to train directly on raw audio'
         input_sampling_rate = default(input_sampling_rate, self.audio_enc_dec.sampling_rate)
         dp_inputs = {}
 
         input_is_raw_audio = is_probably_audio_from_shape(x1)
-        if input_is_raw_audio and not isinstance(self, NeMoDurationPredictor):
+        assert input_is_raw_audio
+
+        if input_is_raw_audio:
+            assert not isinstance(self, NeMoDurationPredictor)
+
             self.audio_enc_dec.eval()
             audio_enc_dec_sampling_rate = self.audio_enc_dec.sampling_rate
 
             mel = resample(x1, input_sampling_rate, audio_enc_dec_sampling_rate)
             mel = self.audio_enc_dec.encode(mel)
             
-            audio_len = mask.sum(-1)
-            mel_len = audio_len * mel.shape[1] // mask.shape[-1]
+            assert mel.shape[1] == mel_len.max(), f"mel shape {mel.shape} does not match mel_len {mel_len}"
             mel_mask = get_mask_from_lengths(mel_len)
             mel_mask = rearrange(mel_mask, 'b t -> b 1 t')
             dp_inputs.update({
                 "mel": mel,
-                "mel_len": mel_len,
                 "mel_mask": mel_mask
             })
 
-            if durations is not None:
-                cum_dur = torch.cumsum(durations, -1)
-                dur_ratio = mel_len / cum_dur[:, -1]
-                cum_dur = cum_dur * rearrange(dur_ratio, 'b -> b 1')
-                cum_dur = torch.round(cum_dur)
+            # if scaled_durations is not None:
+            #     dp_inputs.update({
+            #         "dp_cond": scaled_durations,
+            #         "cum_dur": torch.cumsum(scaled_durations, -1),
+            #     })
 
-                dp_cond = torch.zeros_like(cum_dur)
-                dp_cond[:, 0] = cum_dur[:, 0]
-                dp_cond[:, 1:] = cum_dur[:, 1:] - cum_dur[:, :-1]
+            # elif durations is not None:
+            #     cum_dur = torch.cumsum(durations, -1)
+            #     dur_ratio = mel_len / cum_dur[:, -1]
+            #     cum_dur = cum_dur * rearrange(dur_ratio, 'b -> b 1')
+            #     cum_dur = torch.round(cum_dur)
 
-                dp_inputs.update({
-                    "dp_cond": dp_cond,
-                    "cum_dur": cum_dur,
-                })
+            #     dp_cond = torch.zeros_like(cum_dur)
+            #     dp_cond[:, 0] = cum_dur[:, 0]
+            #     dp_cond[:, 1:] = cum_dur[:, 1:] - cum_dur[:, :-1]
+
+            #     dp_inputs.update({
+            #         "dp_cond": dp_cond,
+            #         "cum_dur": cum_dur,
+            #     })
 
         else:
             dp_inputs.update({
@@ -1849,7 +1857,7 @@ class ConditionalFlowMatcherWrapper(LightningModule):
         return self.voicebox.audio_enc_dec.decode(sampled)
 
     @torch.no_grad()
-    def parse_vb_input(self, x1, mask, cond, input_sampling_rate=None):
+    def parse_vb_input(self, x1, cond, audio_len=None, mel_len=None, input_sampling_rate=None):
         audio_enc_dec_sampling_rate = self.voicebox.audio_enc_dec.sampling_rate
         input_sampling_rate = default(input_sampling_rate, audio_enc_dec_sampling_rate)
         input_is_raw_audio, cond_is_raw_audio = map(is_probably_audio_from_shape, (x1, cond))
@@ -1859,16 +1867,21 @@ class ConditionalFlowMatcherWrapper(LightningModule):
             audio_enc_dec_sampling_rate = self.voicebox.audio_enc_dec.sampling_rate
         
             if input_is_raw_audio:
-                x1 = resample(x1, input_sampling_rate, audio_enc_dec_sampling_rate)
+                if input_sampling_rate != audio_enc_dec_sampling_rate:
+                    x1 = resample(x1, input_sampling_rate, audio_enc_dec_sampling_rate)
                 x1 = self.voicebox.audio_enc_dec.encode(x1)
 
             if exists(cond) and cond_is_raw_audio:
-                cond = resample(cond, input_sampling_rate, audio_enc_dec_sampling_rate)
+                if input_sampling_rate != audio_enc_dec_sampling_rate:
+                    cond = resample(cond, input_sampling_rate, audio_enc_dec_sampling_rate)
                 cond = self.voicebox.audio_enc_dec.encode(cond)
 
-            audio_len = mask.sum(-1)
-            # mel_len = audio_len * x1.shape[1] // mask.shape[-1]
-            mel_len = torch.ceil(audio_len / self.voicebox.audio_enc_dec.downsample_factor)
+            if not exists(mel_len):
+                assert exists(audio_len), 'audio_len must be given if mel_len is not given'
+                # audio_len = mask.sum(-1)
+                # mel_len = audio_len * x1.shape[1] // mask.shape[-1]
+                mel_len = torch.ceil(audio_len / self.voicebox.audio_enc_dec.downsample_factor)
+            assert mel_len.max() == x1.shape[1], 'mel_len must be the same as the mel length of the audio encoder decoder'
             mask = get_mask_from_lengths(mel_len)
 
         return {
@@ -2037,7 +2050,7 @@ class ConditionalFlowMatcherWrapper(LightningModule):
         loss = num / den
         return loss.mean()
 
-    def cross_entropy_loss(self, outputs, audio, audio_mask):
+    def cross_entropy_loss(self, outputs, audio):
         if self.voicebox.no_diffusion:
             pred_x1 = outputs['vb']['pred']
         else:

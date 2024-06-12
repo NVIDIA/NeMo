@@ -721,6 +721,10 @@ class VoiceboxModel(TextToWaveform):
         for kw in ["normalizer", "text_normalizer_call_kwargs", "tokenizer"]:
             if hasattr(self, kw):
                 ds_kwargs[kw] = getattr(self, kw)
+        ds_kwargs.update({
+            "sampling_rate": self.voicebox.audio_enc_dec.sampling_rate,
+            "downsample_factor": self.voicebox.audio_enc_dec.downsample_factor, 
+        })
 
         self.set_world_size(self.trainer)
 
@@ -732,7 +736,7 @@ class VoiceboxModel(TextToWaveform):
                 ds_name= self.cfg.ds_name,
                 corpus_dir=self.cfg.corpus_dir,
                 old_prefix=self.cfg.old_prefix,
-                **ds_kwargs
+                **ds_kwargs,
             ),
         )
     
@@ -764,38 +768,44 @@ class VoiceboxModel(TextToWaveform):
     @torch.no_grad()
     def parse_input(self, batch):
         # voicebox's sampling rate
-        # audio = batch["audio_24k"]
-        # audio_lens = batch["audio_lens_24k"]
         audio = batch["audio"]
-        audio_lens = batch["audio_lens"]
-        tokens = batch["tokens"]
-        token_lens = batch["token_lens"]
-        texts = batch["texts"]
+        # audio_lens = batch["audio_lens"]
+        mel_lens = batch["mel_lens"]
+        # tokens = batch["tokens"]
+        # token_lens = batch["token_lens"]
+        # texts = batch["texts"]
         # mfa tgt
-        durations = batch.get("durations", None)
+        # durations = batch.get("durations", None)
+        # scaled_durations = batch.get("scaled_durations", None)
 
         self.voicebox.audio_enc_dec.eval()
         mel = self.voicebox.audio_enc_dec.encode(audio)
-        mel_lens = audio_lens * mel.shape[1] // audio.shape[-1]
+        assert mel_lens.max() == mel.shape[1], f"{mel_lens.max()} != {mel.shape[1]}"
+        # mel_lens = audio_lens * mel.shape[1] // audio.shape[-1]
         batch.update({
             "mel": mel,
-            "mel_lens": mel_lens,
+            # "mel_lens": mel_lens,
         })
 
-        if durations is not None:
-            cum_dur = torch.cumsum(durations, -1)
-            dur_ratio = mel_lens / cum_dur[:, -1]
-            cum_dur = cum_dur * rearrange(dur_ratio, 'b -> b 1')
-            cum_dur = torch.round(cum_dur)
+        # if scaled_durations is not None:
+        #     batch.update({
+        #         "dp_cond": scaled_durations,
+        #         "cum_dur": torch.cumsum(scaled_durations, -1),
+        #     })
+        # elif durations is not None:
+        #     cum_dur = torch.cumsum(durations, -1)
+        #     dur_ratio = mel_lens / cum_dur[:, -1]
+        #     cum_dur = cum_dur * rearrange(dur_ratio, 'b -> b 1')
+        #     cum_dur = torch.round(cum_dur)
 
-            dp_cond = torch.zeros_like(cum_dur)
-            dp_cond[:, 0] = cum_dur[:, 0]
-            dp_cond[:, 1:] = cum_dur[:, 1:] - cum_dur[:, :-1]
+        #     dp_cond = torch.zeros_like(cum_dur)
+        #     dp_cond[:, 0] = cum_dur[:, 0]
+        #     dp_cond[:, 1:] = cum_dur[:, 1:] - cum_dur[:, :-1]
 
-            batch.update({
-                "dp_cond": dp_cond,
-                "cum_dur": cum_dur,
-            })
+        #     batch.update({
+        #         "dp_cond": dp_cond,
+        #         "cum_dur": cum_dur,
+        #     })
 
         return batch
 
@@ -812,11 +822,13 @@ class VoiceboxModel(TextToWaveform):
         tokens = batch['tokens']
         durations = batch['dp_cond']
         cum_dur = batch['cum_dur']
+        aligned_tokens = batch.get("aligned_tokens", None)
 
-        aligned_tokens = self.duration_predictor.align_phoneme_ids_with_durations(tokens, durations)
-        batch.update({
-            "aligned_tokens": aligned_tokens
-        })
+        if aligned_tokens is None:
+            aligned_tokens = self.duration_predictor.align_phoneme_ids_with_durations(tokens, durations)
+            batch.update({
+                "aligned_tokens": aligned_tokens
+            })
 
         self.voicebox.eval()
         cond_mask = self.voicebox.create_cond_mask(
@@ -1217,13 +1229,29 @@ class VoiceboxModel(TextToWaveform):
                 logger.log_metrics(self.wandb_metrics, step=step)
                 self.wandb_metrics = {}
 
-    def train_dp(self, audio, audio_mask, tokens, token_lens, texts, durations, batch_idx):
+    def train_dp(self, batch, batch_idx):
         self.duration_predictor.train()
+
+        # voicebox's sampling rate
+        audio = batch["audio"]
+        audio_lens = batch["audio_lens"]
+        mel_lens = batch["mel_lens"]
+        tokens = batch["tokens"]
+        token_lens = batch["token_lens"]
+        texts = batch["texts"]
+
+        # mfa tgt
+        durations = batch.get("durations", None)
+        scaled_durations = batch.get("scaled_durations", None)
+        aligned_tokens = batch.get("aligned_tokens", None)
+        dp_cond = batch.get("dp_cond", None)
 
         dp_inputs = self.duration_predictor.parse_dp_input(
             x1=audio,
-            mask=audio_mask,
+            audio_len=audio_lens,
+            mel_len=mel_lens,
             durations=durations,
+            scaled_durations=scaled_durations,
             phoneme_len=token_lens,
             input_sampling_rate=None,
         )
@@ -1236,27 +1264,26 @@ class VoiceboxModel(TextToWaveform):
         #     return dp_losses, dp_outputs
 
         dp_loss, dp_losses, dp_outputs = self.duration_predictor.forward(
-            cond=dp_inputs.get("dp_cond"),               # might be None
+            cond=dp_cond,               # might be None
             texts=None,                 # converted to phoneme_ids by dataset
             phoneme_ids=tokens,
             phoneme_len=token_lens,
             phoneme_mask=dp_inputs.get("phoneme_mask"),
             cond_drop_prob=self.cfm_wrapper.cond_drop_prob,
-            target=dp_inputs.get("dp_cond"),
+            target=dp_cond,
             cond_mask=None,             # would be generated within
             mel=dp_inputs["mel"],
-            mel_len=dp_inputs["mel_len"],
+            mel_len=mel_lens,
             mel_mask=dp_inputs["mel_mask"],
             self_attn_mask=dp_inputs.get("phoneme_mask"),
-            return_aligned_phoneme_ids=True,
+            return_aligned_phoneme_ids=(aligned_tokens is None),
             calculate_cond=True
         )
-        dp_outputs["cond"] = dp_inputs.get("dp_cond")
 
         if self.training and self.trainer._logger_connector.should_update_logs:
             plot_id = 0
             x1 = dp_inputs["mel"]
-            dp_cond, dp_pred = dp_outputs['cond'], dp_outputs['durations']
+            dp_pred = dp_outputs['durations']
 
             phns = self.tokenizer.decode(tokens[plot_id].cpu().tolist()).split(' ')
             text = texts[plot_id]
@@ -1275,11 +1302,25 @@ class VoiceboxModel(TextToWaveform):
             
         return dp_losses, dp_outputs
 
-    def train_vb(self, audio, audio_mask, tokens, batch_idx):
+    def train_vb(self, batch, batch_idx):
+        # voicebox's sampling rate
+        audio = batch["audio"]
+        audio_lens = batch["audio_lens"]
+        mel_lens = batch["mel_lens"]
+        # tokens = batch["tokens"]
+        # token_lens = batch["token_lens"]
+        # texts = batch["texts"]
+
+        # mfa tgt
+        # durations = batch.get("durations", None)
+        # scaled_durations = batch.get("scaled_durations", None)
+        # aligned_tokens = batch.get("aligned_tokens", None)
+        tokens = batch.get("aligned_tokens", None)
+
         vb_inputs = self.cfm_wrapper.parse_vb_input(
             x1=audio,
-            mask=audio_mask,
             cond=audio,
+            mel_len=mel_lens,
             input_sampling_rate=None
         )
 
@@ -1295,10 +1336,11 @@ class VoiceboxModel(TextToWaveform):
         )
 
         if getattr(self.voicebox.audio_enc_dec, "preq_ce", False):
-            ce_loss = self.cfm_wrapper.cross_entropy_loss(outputs, audio, audio_mask)
+            ce_loss = self.cfm_wrapper.cross_entropy_loss(outputs, audio)
             losses['ce'] = ce_loss
 
         if self.waveform_loss:
+            audio_mask = get_mask_from_lengths(audio_lens)
             waveform_loss = self.cfm_wrapper.waveform_loss(outputs, audio, audio_mask)
             losses['waveform'] = waveform_loss
         
@@ -1337,13 +1379,28 @@ class VoiceboxModel(TextToWaveform):
 
         return losses, outputs
     
-    def val_vb(self, audio, audio_mask, tokens, batch_idx, cuts=None):
+    def val_vb(self, batch, batch_idx):
         self.voicebox.train()
+
+        # voicebox's sampling rate
+        audio = batch["audio"]
+        audio_lens = batch["audio_lens"]
+        mel_lens = batch["mel_lens"]
+        # tokens = batch["tokens"]
+        # token_lens = batch["token_lens"]
+        # texts = batch["texts"]
+
+        # mfa tgt
+        # durations = batch.get("durations", None)
+        # scaled_durations = batch.get("scaled_durations", None)
+        # aligned_tokens = batch.get("aligned_tokens", None)
+        tokens = batch.get("aligned_tokens", None)
+        cuts = batch.get("cuts", None)
 
         vb_inputs = self.cfm_wrapper.parse_vb_input(
             x1=audio,
-            mask=audio_mask,
             cond=audio,
+            mel_len=mel_lens,
             input_sampling_rate=None
         )
 
@@ -1361,10 +1418,11 @@ class VoiceboxModel(TextToWaveform):
         )
 
         if getattr(self.voicebox.audio_enc_dec, "preq_ce", False):
-            ce_loss = self.cfm_wrapper.cross_entropy_loss(outputs, audio, audio_mask)
+            ce_loss = self.cfm_wrapper.cross_entropy_loss(outputs, audio)
             losses['ce'] = ce_loss
         
         if self.waveform_loss:
+            audio_mask = get_mask_from_lengths(audio_lens)
             waveform_loss = self.cfm_wrapper.waveform_loss(outputs, audio, audio_mask)
             losses['waveform'] = waveform_loss
         
@@ -1398,9 +1456,6 @@ class VoiceboxModel(TextToWaveform):
                     decode_to_audio=False,
                 )
             
-            audio_len = audio_mask.sum(-1)
-            mel_len = self_attn_mask.sum(-1)
-
             cond_mask = rearrange(cond_mask, '... -> ... 1')
             cond = cond * ~cond_mask
             pred_x1 = output_audio
@@ -1409,14 +1464,14 @@ class VoiceboxModel(TextToWaveform):
 
             for plot_id in range(x1.shape[0]):
                 log_id = cuts[plot_id].id
-                self.log_image(f"val_vb/{log_id}/x1", plot_spectrogram_to_numpy(x1[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step)
-                self.log_image(f"val_vb/{log_id}/cond", plot_spectrogram_to_numpy(cond[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step)
-                self.log_image(f"val_vb/{log_id}/pred_x1", plot_spectrogram_to_numpy(pred_x1[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step)
+                self.log_image(f"val_vb/{log_id}/x1", plot_spectrogram_to_numpy(x1[plot_id, :mel_lens[plot_id]].T.detach().cpu().numpy()), self.global_step)
+                self.log_image(f"val_vb/{log_id}/cond", plot_spectrogram_to_numpy(cond[plot_id, :mel_lens[plot_id]].T.detach().cpu().numpy()), self.global_step)
+                self.log_image(f"val_vb/{log_id}/pred_x1", plot_spectrogram_to_numpy(pred_x1[plot_id, :mel_lens[plot_id]].T.detach().cpu().numpy()), self.global_step)
 
                 with torch.no_grad():
-                    _pred_audio = self.voicebox.audio_enc_dec.decode(pred_x1[None, plot_id, :mel_len[plot_id]])[0].detach().cpu().numpy()
-                    _recon_audio = self.voicebox.audio_enc_dec.decode(x1[None, plot_id, :mel_len[plot_id]])[0].detach().cpu().numpy()
-                _orig_audio = audio[plot_id, :audio_len[plot_id]].detach().cpu().numpy()
+                    _pred_audio = self.voicebox.audio_enc_dec.decode(pred_x1[None, plot_id, :mel_lens[plot_id]])[0].detach().cpu().numpy()
+                    _recon_audio = self.voicebox.audio_enc_dec.decode(x1[None, plot_id, :mel_lens[plot_id]])[0].detach().cpu().numpy()
+                _orig_audio = audio[plot_id, :audio_lens[plot_id]].detach().cpu().numpy()
                 self.log_audio(f"val_vb/{log_id}/pred_audio", _pred_audio / max(np.abs(_pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
                 self.log_audio(f"val_vb/{log_id}/recon_audio", _recon_audio / max(np.abs(_recon_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
                 self.log_audio(f"val_vb/{log_id}/orig_audio", _orig_audio / max(np.abs(_orig_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
@@ -1428,40 +1483,17 @@ class VoiceboxModel(TextToWaveform):
     
     def training_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT:
         # voicebox's sampling rate
-        # audio = batch["audio_24k"]
-        # audio_lens = batch["audio_lens_24k"]
         audio = batch["audio"]
-        audio_lens = batch["audio_lens"]
-        tokens = batch["tokens"]
-        token_lens = batch["token_lens"]
-        texts = batch["texts"]
-
-        # # nemo aligner input
-        # audio_22050 = batch["audio_22050"]
-        # audio_lens_22050 = batch["audio_lens_22050"]
-        # tgt_len = audio.shape[1]
-
-        # mfa tgt
-        durations = batch.get("durations", None)
-
-        audio_mask = get_mask_from_lengths(audio_lens)
 
         # dp training
         dp_losses, dp_outputs = self.train_dp(
-            audio=audio,
-            audio_mask=audio_mask,
-            tokens=tokens,
-            token_lens=token_lens,
-            texts=texts,
-            durations=durations,
+            batch=batch,
             batch_idx=batch_idx,
         )
 
         # vb training
         losses, outputs = self.train_vb(
-            audio=audio,
-            audio_mask=audio_mask,
-            tokens=dp_outputs.get("aligned_phoneme_ids"),
+            batch=batch,
             batch_idx=batch_idx,
         )
         losses.update(dp_losses)
@@ -1511,8 +1543,6 @@ class VoiceboxModel(TextToWaveform):
         # for i in range(ori_mel.shape[0]):
         #     gen_mel[i, :] = out_spec[i, ori_mel_lens[i]:ori_mel_lens[i]+gen_mel.shape[1]]
 
-        # ori_audio = batch["audio_24k"]
-        # ori_audio_lens = batch["audio_lens_24k"]
         ori_audio = batch["audio"]
         ori_audio_lens = batch["audio_lens"]
         gen_audio = self.voicebox.audio_enc_dec.decode(gen_mel)
@@ -1540,38 +1570,18 @@ class VoiceboxModel(TextToWaveform):
             return self.val_vb_0_tts(batch, batch_idx)
 
         # voicebox's sampling rate
-        # audio = batch["audio_24k"]
-        # audio_lens = batch["audio_lens_24k"]
         audio = batch["audio"]
-        audio_lens = batch["audio_lens"]
-        tokens = batch["tokens"]
-        token_lens = batch["token_lens"]
-        texts = batch["texts"]
-
-        # mfa tgt
-        durations = batch.get("durations", None)
-
-        audio_mask = get_mask_from_lengths(audio_lens)
 
         # dp training
         dp_losses, dp_outputs = self.train_dp(
-            audio=audio,
-            audio_mask=audio_mask,
-            tokens=tokens,
-            token_lens=token_lens,
-            texts=texts,
-            durations=durations,
+            batch=batch,
             batch_idx=batch_idx,
         )
 
         # vb training
         losses, outputs = self.val_vb(
-        # losses, outputs = self.train_vb(
-            audio=audio,
-            audio_mask=audio_mask,
-            tokens=dp_outputs.get("aligned_phoneme_ids"),
+            batch=batch,
             batch_idx=batch_idx,
-            cuts=batch["cuts"],
         )
         losses.update(dp_losses)
 
