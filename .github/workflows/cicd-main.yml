@@ -3340,6 +3340,7 @@ jobs:
         +model.fp8_amax_history_len=32 \
         +model.fp8_amax_compute_algo=max \
         +model.reduce_amax=False \
+        +model.tp_comm_disable_qkv=True \
         model.answer_only_loss=True \
         model.micro_batch_size=1 \
         model.global_batch_size=1 \
