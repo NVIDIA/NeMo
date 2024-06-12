@@ -339,6 +339,7 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
         temporal_tokens, spatial_tokens = self.add_lita_layer(media_features) # B, T, D & B, M, D
         T = temporal_tokens.shape[1]
         M = spatial_tokens.shape[1]
+        inputs_embeds = inputs_embeds.clone()
         for idx, input_id in enumerate(input_ids):
             media_start_position = torch.where(input_id == self.media_start_id)[0]
             media_end_position = torch.where(input_id == self.media_end_id)[0]

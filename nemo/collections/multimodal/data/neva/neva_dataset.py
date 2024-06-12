@@ -176,7 +176,7 @@ class TarOrFolderVideoLoader:
                 num_frames = min(len(cap), self.data_cfg['num_frames'])
                 indices = np.linspace(0, len(cap) - 1, num_frames, dtype=int)
                 # frames = cap.get_batch(indices)
-                frames = [Image.fromarray(vr[i].asnumpy()).convert('RGB') for i in indices]
+                frames = [Image.fromarray(cap[i].asnumpy()).convert('RGB') for i in indices]
                 while len(frames) < self.data_cfg['num_frames']:
                     frames.append(frames[-1])
                 return frames

@@ -98,10 +98,10 @@ model:
   encoder_seq_length: 4096
   max_position_embeddings: ${.encoder_seq_length}
   position_embedding_type: rope
-  num_layers: 40
-  hidden_size: 5120
-  ffn_hidden_size: 13824 # Transformer FFN hidden size. Usually 4 * hidden_size.
-  num_attention_heads: 40
+  num_layers: 32
+  hidden_size: 4096
+  ffn_hidden_size: 11008 # Transformer FFN hidden size. Usually 4 * hidden_size.
+  num_attention_heads: 32
   init_method_std: 0.014 # Standard deviation of the zero mean normal distribution used for weight initialization.')
   use_scaled_init_method: True # use scaled residuals initialization
   hidden_dropout: 0.0 # Dropout probability for hidden state transformer.
@@ -112,7 +112,7 @@ model:
   normalization: 'rmsnorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
   layernorm_epsilon: 1e-5
   do_layer_norm_weight_decay: False # True means weight decay on all params
-  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+  make_vocab_size_divisible_by: 16 # Pad the vocab size to be divisible by this value for computation efficiency.
   pre_process: True # add embedding
   post_process: True # add pooler
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
@@ -180,7 +180,7 @@ model:
   tokenizer:
     library: 'sentencepiece'
     type: null
-    model: null
+    model: /ws/converted_nemo_model/tokenizer_1_5.model
     vocab_file: null
     merge_file: null
     delimiter: null # only used for tabular tokenizer
@@ -224,4 +224,4 @@ model:
       name: CosineAnnealing
       warmup_steps: 140
       constant_steps: 0
-      min_lr: 2e-4
+      min_lr: 2e-7
