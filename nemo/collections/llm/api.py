@@ -5,23 +5,16 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.timer import Interval
 from pytorch_lightning.loggers import MLFlowLogger, NeptuneLogger, TensorBoardLogger, WandbLogger
-from nemo import lightning as nl
-from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 
+from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.utils import task
 from nemo.lightning import AutoResume, Experiment, MegatronStrategy, Trainer, io, teardown
+from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.resume import Resume
-from nemo.utils.exp_manager import (
-    TimingCallback,
-    PreemptionCallback,
-    StatelessTimer
-)
-from nemo.utils.loggers import (
-    DLLogger,
-    DLLoggerParams,
-    MLFlowParams
-)
+from nemo.utils.exp_manager import PreemptionCallback, StatelessTimer, TimingCallback
+from nemo.utils.loggers import DLLogger, DLLoggerParams, MLFlowParams
+
 
 @task(namespace="llm")
 def train(
@@ -68,10 +61,7 @@ def train(
     if tokenizer:  # TODO: Improve this
         _use_tokenizer(model, data, tokenizer)
 
-    app_state = exp.setup(
-        trainer,
-        resume_if_exists=getattr(resume, "resume_if_exists", False)
-    )
+    app_state = exp.setup(trainer, resume_if_exists=getattr(resume, "resume_if_exists", False))
     if resume is not None:
         resume.setup(model, trainer)
 
@@ -185,12 +175,12 @@ def _save_config_img(*args, **kwargs):
 
 if __name__ == '__main__':
 
-    seq_length=2048
+    seq_length = 2048
 
     data = llm.MockDataModule(seq_length=seq_length, global_batch_size=32)
 
     gpt_config = llm.GPTConfig(
-        num_layers=2, #4,
+        num_layers=2,  # 4,
         hidden_size=4096,
         ffn_hidden_size=4096,
         num_attention_heads=32,
@@ -214,7 +204,7 @@ if __name__ == '__main__':
 
     loggers = []
     tensorboard_logger = TensorBoardLogger(
-        save_dir='dummy', ## NOTE: this gets overwritten by default
+        save_dir='dummy',  ## NOTE: this gets overwritten by default
     )
     loggers.append(tensorboard_logger)
 
@@ -245,13 +235,11 @@ if __name__ == '__main__':
             log_rank_zero_only=False,
         )
     )
-    callbacks.append(
-        TimingCallback()
-    )
+    callbacks.append(TimingCallback())
     callbacks.append(
         PreemptionCallback(
             checkpoint_callback
-            #signal.SIGINT
+            # signal.SIGINT
         )
     )
 
