@@ -131,7 +131,7 @@ def clean_spectrogram_batch(spectrogram: torch.Tensor, spectrogram_len: torch.Te
 
 
 def splice_frames(x, frame_splicing):
-    """ Stacks frames together across feature dim
+    """Stacks frames together across feature dim
 
     input is batch_size, feature_dim, num_frames
     output is batch_size, feature_dim*frame_splicing, num_frames
@@ -261,7 +261,7 @@ class FilterbankFeatures(nn.Module):
         highfreq=None,
         log=True,
         log_zero_guard_type="add",
-        log_zero_guard_value=2 ** -24,
+        log_zero_guard_value=2**-24,
         dither=CONSTANT,
         pad_to=16,
         max_duration=16.7,
@@ -511,7 +511,7 @@ class FilterbankFeaturesTA(nn.Module):
         highfreq: Optional[float] = None,
         log: bool = True,
         log_zero_guard_type: str = "add",
-        log_zero_guard_value: Union[float, str] = 2 ** -24,
+        log_zero_guard_value: Union[float, str] = 2**-24,
         dither: float = 1e-5,
         window: str = "hann",
         pad_to: int = 0,
@@ -582,7 +582,7 @@ class FilterbankFeaturesTA(nn.Module):
 
     @property
     def filter_banks(self):
-        """ Matches the analogous class """
+        """Matches the analogous class"""
         return self._mel_spec_extractor.mel_scale.fb
 
     def _resolve_log_zero_guard_value(self, dtype: torch.dtype) -> float:

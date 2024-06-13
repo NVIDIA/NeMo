@@ -240,7 +240,7 @@ class ExportableEncDecModel(Exportable):
         if getattr(self.input_module, 'export_cache_support', False):
             in_types = self.input_module.output_types
             otypes = {n: t for (n, t) in list(otypes.items())[:1]}
-            for (n, t) in list(in_types.items())[1:]:
+            for n, t in list(in_types.items())[1:]:
                 otypes[n] = t
         return get_io_names(otypes, self.disabled_deployment_output_names)
 

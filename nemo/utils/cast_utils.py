@@ -95,7 +95,7 @@ class CastToFloatAll(torch.nn.Module):
 
 @contextmanager
 def monkeypatched(object, name, patch):
-    """ Temporarily monkeypatches an object. """
+    """Temporarily monkeypatches an object."""
     pre_patched_value = getattr(object, name)
     setattr(object, name, patch)
     yield object
