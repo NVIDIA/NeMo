@@ -131,10 +131,11 @@ def initialize_model_parallel_for_nemo(
 
     # DEBUG CODE
     import os
+
     print(f'DEBUG {use_te_rng_tracker = }')
     print(os.popen(f"cd {'/'.join(tensor_parallel.__file__.split('/')[:-1])}; git log -n 3").read())
     with open('/'.join(tensor_parallel.__file__.split('/')[:-1]) + '/random.py', 'r') as f:
-        print(f.read()) 
+        print(f.read())
     # /DEBUG CODE
 
     tensor_parallel.random.initialize_rng_tracker(use_te_rng_tracker=use_te_rng_tracker)
