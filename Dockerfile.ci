@@ -57,6 +57,7 @@ pip install --no-cache-dir --no-build-isolation --extra-index-url https://pypi.n
 git clone https://github.com/NVIDIA/Megatron-LM.git && \
 pushd Megatron-LM && \
 git checkout ${MCORE_TAG} && \
+git cherry-pick 38d0536 && \
   pushd megatron/core/datasets && \
   make && \
   popd && \
