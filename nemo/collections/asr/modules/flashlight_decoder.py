@@ -172,7 +172,7 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             # loads in the kenlm binary and combines in with the dictionary object from the lexicon
             # this gives a mapping between each entry in the kenlm binary and its mapping to whatever
             # numeraire is used by the AM, which is explicitly mapped via the lexicon
-            # this information is ued to build a vocabulary trie for decoding
+            # this information is used to build a vocabulary trie for decoding
             if lm_path:
                 self.lm = KenLM(lm_path, self.word_dict)
             elif lm_path == "":
@@ -235,7 +235,6 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                 for w in self.tokenizer_wrapper.vocab + ([] if '<unk>' in self.tokenizer_wrapper.vocab else ['<unk>'])
             }
             self.word_dict = create_word_dict(d)
-            # self.lm = KenLM(lm_path, self.word_dict)
             if lm_path:
                 self.lm = KenLM(lm_path, self.word_dict)
             elif lm_path == "":

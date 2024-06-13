@@ -57,6 +57,9 @@ use a trick to encode the sub-word tokens of the training data as unicode charac
 class TrainKenlmConfig:
     """
     Train an N-gram language model with KenLM to be used with beam search decoder of ASR models.
+    The BPE sub-words are encoded using the Unicode table.
+    This encoding scheme reduces the required memory significantly, and the LM and its binary blob format require less storage space.
+    The value DEFAULT_TOKEN_OFFSET from nemo.collections.asr.parts.submodules.ctc_beam_decoding is utilized as the offset value.
     """
 
     train_paths: List[str] = (
