@@ -449,7 +449,7 @@ def create_neva_model_and_processor(cfg):
     def video_processor(maybe_video_path):
 
         if isinstance(maybe_video_path, str):
-            decord.bridge.set_bridge("torch")
+            #decord.bridge.set_bridge("torch") # this line will break `first`, `middle`, `last`
             vr = decord.VideoReader(maybe_video_path)
             if neva_cfg.data.splice_single_frame == 'first':
                 frames = [Image.fromarray(vr[0].asnumpy()).convert('RGB')]
@@ -463,19 +463,20 @@ def create_neva_model_and_processor(cfg):
                 else:
                     num_frames = min(len(vr), neva_cfg.data.num_frames)
                     indices = np.linspace(0, len(vr) - 1, num_frames, dtype=int)
-                    frames = vr.get_batch(indices)
-
+                    #frames = vr.get_batch(indices)
+                    frames = [Image.fromarray(vr[i].asnumpy()).convert('RGB') for i in indices]
                     while len(frames) < neva_cfg.data.num_frames:
                         frames.append(frames[-1])
         else:
             frames = maybe_video_path
 
+        dtype = torch_dtype_from_precision(neva_cfg.precision)
         if neva_cfg.mm_cfg.vision_encoder.from_hf:
             processor = CLIPImageProcessor.from_pretrained(
-                neva_cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+                neva_cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=dtype
             )
         else:
-            processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14", torch_dtype=torch.bfloat16)
+            processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14", torch_dtype=dtype)
 
         # support single video inference
         if neva_cfg.data.image_aspect_ratio == 'keep':
@@ -500,8 +501,7 @@ def create_neva_model_and_processor(cfg):
                     result = Image.new(pil_img.mode, (height, height), background_color)
                     result.paste(pil_img, ((height - width) // 2, 0))
                     return result
-
-            frames = expand2square(frames, tuple(int(x * 255) for x in processor.image_mean))
+            frames = [expand2square(frame, tuple(int(x * 255) for x in processor.image_mean)) for frame in frames]
             frames = processor.preprocess(frames, return_tensors='pt')['pixel_values']
         else:
             frames = processor.preprocess(frames, return_tensors='pt')['pixel_values']
@@ -514,7 +514,8 @@ def create_neva_model_and_processor(cfg):
 
 def create_image_processor(mm_cfg):
     if mm_cfg.vision_encoder.get("from_hf", False):
-        if "clip" in mm_cfg.vision_encoder.from_pretrained:
+        if "clip" in mm_cfg.vision_encoder.from_pretrained \
+            or "vit" in mm_cfg.vision_encoder.from_pretrained:
             image_processor = CLIPImageProcessor.from_pretrained(
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )

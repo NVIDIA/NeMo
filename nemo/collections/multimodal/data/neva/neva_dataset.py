@@ -40,6 +40,10 @@ from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_IMAGE_TOKEN,
     DEFAULT_LABELS_TOKEN,
     DEFAULT_VIDEO_TOKEN,
+    DEFAULT_VID_START_TOKEN,
+    DEFAULT_VID_END_TOKEN,
+    DEFAULT_BOS_TOKEN,
+    DEFAULT_EOS_TOKEN
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
@@ -145,7 +149,7 @@ class TarOrFolderVideoLoader:
                     cap = decord.VideoReader(f)
                     return self.flatten_frames(cap)
         else:
-            decord.bridge.set_bridge("torch")
+            #decord.bridge.set_bridge("torch")
             cap = decord.VideoReader(os.path.join(self.video_folder, file_name))
             return self.flatten_frames(cap)
         return None
@@ -171,9 +175,8 @@ class TarOrFolderVideoLoader:
             else:
                 num_frames = min(len(cap), self.data_cfg['num_frames'])
                 indices = np.linspace(0, len(cap) - 1, num_frames, dtype=int)
-                frames = []
-                frames = cap.get_batch(indices)
-
+                # frames = cap.get_batch(indices)
+                frames = [Image.fromarray(cap[i].asnumpy()).convert('RGB') for i in indices]
                 while len(frames) < self.data_cfg['num_frames']:
                     frames.append(frames[-1])
                 return frames
@@ -225,6 +228,23 @@ def tokenize(
         result = result[0]
     return result
 
+def get_tokens_ids(tokenizer, tokens):
+    """
+    Returns the token id for a given token.
+
+    Parameters
+    ----------
+    tokenizer : nemo tokenizer
+        A tokenizer to be used for tokenization.
+    tokens : list
+        A list of tokens to get the token id for.
+
+    Returns
+    -------
+    List
+        The token ids.
+    """
+    return [tokenizer.token_to_id(token) for token in tokens]
 
 def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: int, use_plain: bool = False) -> Dict:
     """
@@ -266,12 +286,45 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
 
     if multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
         num_patches //= 4
+        image_token_len //= 4
 
     if multimodal_cfg['use_im_start_end']:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * num_patches
     else:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * (num_patches - 2)
     replace_token = DEFAULT_IM_START_TOKEN[model_type] + replace_token + DEFAULT_IM_END_TOKEN[model_type]
+
+    if media_type == 'video' and multimodal_cfg.get("use_lita", False):
+        if not multimodal_cfg.get('lita', None):
+            raise ValueError("LITA config is missing")
+        lita_video_arch = multimodal_cfg['lita']['lita_video_arch']
+        num_frames = multimodal_cfg['num_frames']
+        num_temporal_tokens, num_spatial_tokens = num_frames, 0
+        if lita_video_arch == 'temporal_all_resolution':
+            sample_frames = min(multimodal_cfg['lita']['sample_frames'], num_frames)
+            # num_frames for temporal tokens, sample_frames * num_patches for spatial tokens
+            num_spatial_tokens = sample_frames * image_token_len
+        else:
+            # num_frames for temporal tokens and num_patches for spatial tokens
+            num_spatial_tokens = image_token_len
+        num_tokens = num_temporal_tokens + num_spatial_tokens
+
+        visual_token_format = multimodal_cfg['lita'].get('visual_token_format', 'v1')
+        if visual_token_format == 'im_vid_start_end':
+            # insert vid start and vid end tokens & img_start and img_end
+            if multimodal_cfg['use_im_start_end']:
+                replace_token = DEFAULT_VID_START_TOKEN + num_temporal_tokens * DEFAULT_IMAGE_PATCH_TOKEN[model_type] + DEFAULT_VID_END_TOKEN + \
+                            DEFAULT_IM_START_TOKEN[model_type] + num_spatial_tokens * DEFAULT_IMAGE_PATCH_TOKEN[model_type] + DEFAULT_IM_END_TOKEN[model_type]
+            else:
+                replace_token = DEFAULT_VID_START_TOKEN + (num_temporal_tokens - 1) * DEFAULT_IMAGE_PATCH_TOKEN[model_type] + DEFAULT_VID_END_TOKEN + \
+                            DEFAULT_IM_START_TOKEN[model_type] + (num_spatial_tokens - 1) * DEFAULT_IMAGE_PATCH_TOKEN[model_type] + DEFAULT_IM_END_TOKEN[model_type]
+            replace_token = DEFAULT_IM_START_TOKEN[model_type] + replace_token + DEFAULT_IM_END_TOKEN[model_type]
+        else:
+            if multimodal_cfg['use_im_start_end']:
+                replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * num_tokens
+            else:
+                replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * (num_tokens - 2 )
+            replace_token = DEFAULT_IM_START_TOKEN[model_type] + replace_token + DEFAULT_IM_END_TOKEN[model_type]
 
     for source in sources:
         conversation = source['conversations']
@@ -471,9 +524,13 @@ def preprocess_llama_2(
     )
 
     # llama tricks
-    tokens[tokens == 32003] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
-    tokens[tokens == 32006] = 1  # <s>
-    tokens[tokens == 32007] = 2  # </s>
+    # 32003, 32006, 32007
+    image_patch_token = DEFAULT_IMAGE_PATCH_TOKEN["llama_2"]
+    DEFAULT_TOKENS = [image_patch_token, DEFAULT_BOS_TOKEN, DEFAULT_EOS_TOKEN]
+    img_patch_id, bos_id, eos_id = get_tokens_ids(tokenizer, DEFAULT_TOKENS)
+    tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
+    tokens[tokens == bos_id] = 1  # <s>
+    tokens[tokens == eos_id] = 2  # </s>
     labels = tokens.clone().detach()
 
     # Mask labels
@@ -565,9 +622,13 @@ def preprocess_v1(
     )
 
     # llama tricks
-    tokens[tokens == 32003] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
-    tokens[tokens == 32006] = 1  # <s>
-    tokens[tokens == 32007] = 2  # </s>
+    # 32003, 32006, 32007
+    image_patch_token = DEFAULT_IMAGE_PATCH_TOKEN["llama_2"]
+    DEFAULT_TOKENS = [image_patch_token, DEFAULT_BOS_TOKEN, DEFAULT_EOS_TOKEN]
+    img_patch_id, bos_id, eos_id = get_tokens_ids(tokenizer, DEFAULT_TOKENS)
+    tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
+    tokens[tokens == bos_id] = 1  # <s>
+    tokens[tokens == eos_id] = 2  # </s>
     labels = tokens.clone().detach()
 
     # Mask labels
@@ -989,8 +1050,7 @@ class LazySupervisedDataset(Dataset):
                                 result = Image.new(pil_img.mode, (height, height), background_color)
                                 result.paste(pil_img, ((height - width) // 2, 0))
                                 return result
-
-                        frames = expand2square(frames, tuple(int(x * 255) for x in self.processor.image_mean))
+                        frames = [expand2square(frame, tuple(int(x * 255) for x in self.processor.image_mean)) for frame in frames]
                         frames = self.processor.preprocess(frames, return_tensors='pt')['pixel_values']
                     else:
                         frames = self.processor.preprocess(frames, return_tensors='pt')['pixel_values']
@@ -1246,6 +1306,8 @@ def make_supervised_data_module(tokenizer, image_processor, model_cfg) -> Dict:
             context_length=model_cfg.encoder_seq_length,
             media_type=data_cfg.get('media_type', 'image'),
             num_frames=data_cfg.get('num_frames', -1),
+            use_lita=getattr(model_cfg.mm_cfg, 'use_lita', False),
+            lita=getattr(model_cfg.mm_cfg, 'lita', {}),
             mm_mlp_adapter_type=model_cfg.mm_cfg.get('mm_mlp_adapter_type', 'linear'),
         ),
         data_cfg=dict(

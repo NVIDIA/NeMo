@@ -61,6 +61,10 @@ def get_args():
         "--tokenizer-model", type=str, default=None, required=False, help="Path to sentencepiece tokenizer model."
     )
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
+    parser.add_argument("--config-file", type=str, default="llava_config.yaml")
+    parser.add_argument("--mm_projector_ckpt_dir", type=str, default=None, \
+                        help="Path to multimodal projector checkpoint directory \
+                        This will overlap the projector weights in in-file hf checkpoint")
     args = parser.parse_args()
     return args
 
@@ -110,7 +114,7 @@ def load_model(cls, checkpoint, strict, **kwargs):
 
 
 def load_config(args, llava_config):
-    nemo_config = OmegaConf.load(os.path.join(os.path.dirname(__file__), 'conf/llava_config.yaml')).model
+    nemo_config = OmegaConf.load(os.path.join(os.path.dirname(__file__), 'conf', args.config_file)).model
     nemo_config.mm_cfg.mm_mlp_adapter_type = llava_config.get('mm_projector_type', 'linear')
     nemo_config.mm_cfg.vision_encoder.from_pretrained = llava_config.get(
         'mm_vision_tower', 'openai/clip-vit-large-patch14'
@@ -130,6 +134,7 @@ def load_config(args, llava_config):
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu'
     nemo_config.data.conv_template = args.conv_template
+    nemo_config.data.image_aspect_ratio = llava_config.get('image_aspect_ratio', 'square')
     nemo_config.mm_cfg.model_type = args.conv_template
     if args.tokenizer_model is None:
         nemo_config.tokenizer.model = llava_config['tokenizer_model']
@@ -239,6 +244,23 @@ def convert(args):
                 f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'
             ] = param_to_weights(model.state_dict()[key])
 
+    # Replace or add the projection weights
+    proj_ckpt = None
+    if args.mm_projector_ckpt_dir is not None:
+        proj_ckpt = torch.load(os.path.join(args.mm_projector_ckpt_dir, "mm_projector.bin"))
+        if 'mm_projector' in key:
+            mm_projection_layer_suffix = key.split('mm_projector')[1]
+            checkpoint['state_dict'][
+                f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'
+            ] = param_to_weights(proj_ckpt[key])
+        import json
+        proj_conf_file = open(os.path.join(args.mm_projector_ckpt_dir, "config.json"))
+
+        proj_conf = json.load(proj_conf_file)
+        if proj_conf['mm_projector_type'] != nemo_config.mm_cfg.mm_mlp_adapter_type:
+            logging.warning(f"Overriding mm_projector_type from {nemo_config.mm_cfg.mm_mlp_adapter_type} to {proj_conf['mm_projector_type']}")
+            nemo_config.mm_cfg.mm_mlp_adapter_type = proj_conf['mm_projector_type']
+        proj_conf_file.close()
     embed_weight = model.state_dict()[f'model.embed_tokens.weight']
     if mcore_gpt:
         embed_weights_base_name = f'model.embedding.word_embeddings.weight'

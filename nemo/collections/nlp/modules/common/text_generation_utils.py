@@ -31,6 +31,8 @@ from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IMAGE_PATCH_TOKEN,
+    DEFAULT_VID_START_TOKEN,
+    DEFAULT_VID_END_TOKEN
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
@@ -149,7 +151,49 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
         raise NotImplementedError("unknown type is not implemented")
 
 
+def decode_time_tokens(tokenizer, text: str, duration: float, time_tokens: list[str], time_token_ids: list[int]):
+    """Decode the time tokens <t1>....<t99> in the text to the actual time in seconds.
+       TO DO: to do time decoding on output ids instead of text
+
+    Args:
+        text (str): _description_
+        duration (float): the total length of the video in seconds
+        time_tokens (list[str]): list of time tokens [<t1>, <t2>, <t3>, ..]
+        time_token_ids (list[str]): list of time token ids [32004, 32005, ....]
+    """
+    output_ids = tokenizer.text_to_ids(text)
+    num_time_tokens = len(time_token_ids)
+    indices = [j for j in range(len(output_ids) - 1) if output_ids[j] in time_token_ids]
+    last_processed = -1
+    new_output_ids = []
+    for j in range(len(indices)):
+        pred_seq = [int(output_ids[k]) for k in range(last_processed + 1, indices[j])]
+        new_output_ids.extend(pred_seq)
+
+        max_offset = num_time_tokens - 1
+        time_token = tokenizer.ids_to_tokens([output_ids[indices[j]]])[0]
+        time_idx = time_tokens.index(time_token)
+        time = float(time_idx) * duration / max_offset
+        time = min(max(time, 0), duration)
+        time = round(time, 2)
+        # time_str = '<' + str(time) + '>'
+        time_str = '<%s>' % str(time)
+        new_output_ids.extend(tokenizer.text_to_ids(time_str))
+
+        last_processed = indices[j]
+    pred_seq = [int(x) for x in output_ids[last_processed + 1:]]
+    new_output_ids.extend(pred_seq)
+    output_ids = [new_output_ids]
+    decoded_text = tokenizer.ids_to_text(output_ids)[0]
+    return decoded_text
+
 def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_params, inference_config, **strategy_args):
+    use_lita = model.cfg.mm_cfg.get('use_lita', False)
+    if use_lita:
+        num_time_tokens = model.cfg.data.get('num_time_tokens', 100)
+        TIME_TOKEN_TEMPLATE = "<t{t}>"
+        time_tokens = [ TIME_TOKEN_TEMPLATE.format(t=i) for i in range(num_time_tokens)]
+        time_token_ids = model.tokenizer.tokens_to_ids(time_tokens)
 
     model_type = model.cfg.mm_cfg.llm.get("model_type", "nvgpt")
     conv_template = model.cfg.data.get("conv_template", "nvgpt")
@@ -189,7 +233,8 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
                 r'|', r'\|'
             )
         )
-        combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}')
+        pattern_lita = re.compile(rf'{DEFAULT_IM_START_TOKEN[model_type]}{DEFAULT_VID_START_TOKEN}( ⁇ )+{DEFAULT_VID_END_TOKEN}{DEFAULT_IM_START_TOKEN[model_type]}( ⁇ )+{DEFAULT_IM_END_TOKEN[model_type]}{DEFAULT_IM_END_TOKEN[model_type]}')
+        combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}|{pattern_lita.pattern}')
         clean_text = re.sub(combined_pattern, f"<{media_type_token}>", response['sentences'][0])
 
         clean_response = clean_text
@@ -213,6 +258,12 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
         elif conv_template == "v1":
             clean_response = clean_response.rsplit("ASSISTANT: ", 1)[-1]
 
+        if use_lita:
+            if prompt_dict.get("duration", None) is not None:
+                duration = prompt_dict.get("duration")
+                clean_response = decode_time_tokens(model.tokenizer, clean_response, duration, time_tokens, time_token_ids)
+            else:
+                print("duration field is not in prompt file, skipping time decoding.")
         clean_response = clean_response.strip()
         response["clean_text"] = clean_text
         response["clean_response"] = clean_response
