@@ -69,12 +69,12 @@ class LRSchedulerModule(L.Callback, CallbackMethods, ABC):
 
         self.setup(model, optimizers)
 
-        scheduler = self.scheduler(model, optimizers)
+        self._scheduler = self.scheduler(model, optimizers)
 
-        if not isinstance(scheduler, (dict, tuple)):
-            return optimizers, scheduler
+        if not isinstance(self._scheduler, (dict, tuple)):
+            return optimizers, self._scheduler
 
-        return scheduler
+        return self._scheduler
 
 
 class OptimizerModule(L.Callback, CallbackMethods, ABC):
@@ -168,12 +168,12 @@ class OptimizerModule(L.Callback, CallbackMethods, ABC):
             callbacks.append(self.lr_scheduler)
 
         self.setup(_model)
-        opt = self.optimizers(_model)
+        self._optimizers = self.optimizers(_model)
 
         if self.lr_scheduler is not None:
-            self.lr_scheduler.setup(_model, opt)
-            with_scheduler = self.lr_scheduler(_model, opt)
+            self.lr_scheduler.setup(_model, self._optimizers)
+            with_scheduler = self.lr_scheduler(_model, self._optimizers)
 
             return with_scheduler
 
-        return opt
+        return self._optimizers
