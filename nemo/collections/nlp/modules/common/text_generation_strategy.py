@@ -478,6 +478,7 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
         sources = preprocess_multimodal(
             copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
         )  # HARDCODED FOR NOW
+        data_dict = preprocess_llama_2(sources, tokenizer, multimodal_cfg)
     elif multimodal_cfg["conv_template"] == "llama_3":
         record = {
             'conversations': [
