@@ -291,16 +291,19 @@ def convert(args):
     inputs = hf_processor(text=texts, images=image, padding="max_length", return_tensors="pt")
 
     t = inputs["input_ids"]
-    model1 = model.model.text_encoder
-    model2 = hf_model.text_model
-
+    p = inputs["pixel_values"].cuda()
+    model1 = model.model.vision_encoder.cuda()
+    model2 = hf_model.vision_model.cuda()
+    #
+    # x = model1(p)
+    # y = model2(p)
 
     try:
-        x = model1(t)
+        x = model1(p)
     except:
         pass
     try:
-        y = model2(t)
+        y = model2(p)
     except:
         pass
     import pdb; pdb.set_trace()
@@ -342,10 +345,10 @@ def convert(args):
     # ), f'prediction mismatch: {hf_tokenizer.decode(hf_next_token)} != {hf_tokenizer.decode(next_token)}'
     # logging.info(f'=' * 100)
 
-    # dtype = torch_dtype_from_precision(args.precision)
-    # model = model.to(dtype=dtype)
-    # model.save_to(args.output_path)
-    # logging.info(f'NeMo model saved to: {args.output_path}')
+    dtype = torch_dtype_from_precision(args.precision)
+    model = model.to(dtype=dtype)
+    model.save_to(args.output_path)
+    logging.info(f'NeMo model saved to: {args.output_path}')
 
 
 if __name__ == '__main__':

@@ -315,8 +315,6 @@ class SiglipMHAPoolingHead(TransformerLayer):
     def forward(self, hidden_state):
         batch_size = hidden_state.shape[0]
         # [s, b, h]
-        import pdb; pdb.set_trace()
-
         probe = self.probe.repeat(1, batch_size, 1)
         hidden_state = hidden_state.transpose(0, 1)
         hidden_state, context = super().forward(
@@ -379,6 +377,33 @@ class MCoreSiglipViTModel(CLIPViTModel):
         return x
 
 
+class MCoreSiglipTextModel(MCoreGPTModel):
+    def __init__(self, *args, **kwargs):
+        # TODO (yuya): need to handle post_process correctly in order to enable PP
+        self.output_dim = kwargs.pop('output_dim')
+        kwargs['transformer_layer_spec'].submodules.self_attention.params['attn_mask_type'] = MCoreAttnMaskType.no_mask
+
+        super().__init__(*args, **kwargs)
+        self.final_layernorm = TENorm(
+            config=self.config,
+            hidden_size=self.config.hidden_size,
+            eps=self.config.layernorm_epsilon,
+        )
+        self.head = torch.nn.Linear(self.config.hidden_size, self.output_dim, bias=True, )
+
+        self.position_ids = None
+        if self.pre_process:
+            self.position_ids = torch.arange(kwargs['max_sequence_length']).expand(1, -1).cuda()
+
+    def forward(self, input_ids):
+
+        x = super().forward(input_ids, position_ids=self.position_ids, attention_mask=None)
+        x = self.final_layernorm(x)
+        x = x[-1]
+        x = self.head(x)
+        return x
+
+
 class MCoreCLIPViTModel(CLIPViTModel):
     def __init__(self, *args, **kwargs):
         # TODO (yuya): need to handle post_process correctly in order to enable PP
@@ -403,9 +428,6 @@ class MCoreCLIPTextModel(MCoreGPTModel):
     def __init__(self, *args, **kwargs):
         # TODO (yuya): need to handle post_process correctly in order to enable PP
         self.output_dim = kwargs.pop('output_dim')
-        self.use_siglip = kwargs.pop('use_siglip')
-        if self.use_siglip:
-            kwargs['transformer_layer_spec'].submodules.self_attention.params['attn_mask_type'] = MCoreAttnMaskType.no_mask
 
         super().__init__(*args, **kwargs)
         self.final_layernorm = TENorm(
@@ -413,10 +435,7 @@ class MCoreCLIPTextModel(MCoreGPTModel):
             hidden_size=self.config.hidden_size,
             eps=self.config.layernorm_epsilon,
         )
-        if self.use_siglip:
-            self.head = torch.nn.Linear(self.config.hidden_size, self.output_dim, bias=True, )
-        else:
-            self.head = torch.nn.Linear(self.config.hidden_size, self.output_dim, bias=False, )
+        self.head = torch.nn.Linear(self.config.hidden_size, self.output_dim, bias=False, )
         self.position_ids = None
         if self.pre_process:
             self.position_ids = torch.arange(kwargs['max_sequence_length']).expand(1, -1).cuda()
@@ -425,10 +444,7 @@ class MCoreCLIPTextModel(MCoreGPTModel):
 
         x = super().forward(input_ids, position_ids=self.position_ids, attention_mask=None)
         x = self.final_layernorm(x)
-        if self.use_siglip:
-            x = x[-1]
-        else:
-            x = x[input_ids.argmax(dim=-1)]
+        x = x[input_ids.argmax(dim=-1)]
         x = self.head(x)
         return x
 
@@ -463,8 +479,10 @@ class CLIPModel(MegatronModule):
 
             if model_cfg.get("use_siglip", False):
                 vision_module = MCoreSiglipViTModel
+                text_module = MCoreSiglipTextModel
             else:
                 vision_module = MCoreCLIPViTModel
+                text_module = MCoreCLIPTextModel
             self.vision_encoder = vision_module(
                 transformer_config=vision_transformer_config,
                 transformer_layer_spec=vision_layer_spec,
@@ -475,8 +493,7 @@ class CLIPModel(MegatronModule):
                 class_token_len=model_cfg.vision.get('class_token_length'),
                 output_dim=model_cfg.output_dim,
             )
-
-            self.text_encoder = MCoreCLIPTextModel(
+            self.text_encoder = text_module(
                 config=text_transformer_config,
                 transformer_layer_spec=get_specs(
                     model_cfg.text.get('name', ''),
@@ -495,7 +512,6 @@ class CLIPModel(MegatronModule):
                 seq_len_interpolation_factor=model_cfg.text.get('seq_len_interpolation_factor', None),
                 rotary_base=model_cfg.text.get('rotary_base', 10000),
                 output_dim=model_cfg.output_dim,
-                use_siglip=self.use_siglip,
             )
 
         else:
