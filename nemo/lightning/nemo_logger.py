@@ -14,12 +14,10 @@ from nemo.lightning.pytorch.callbacks import ModelCheckpoint, ModelCheckpointPar
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.env_var_parsing import get_envbool
-from nemo.utils.exp_manager import (
-    check_explicit_log_dir,
-    CheckpointMisconfigurationError
-)
+from nemo.utils.exp_manager import CheckpointMisconfigurationError, check_explicit_log_dir
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
+
 
 @dataclass
 class NeMoLogger:
@@ -43,7 +41,9 @@ class NeMoLogger:
         self,
         trainer: Union[pl.Trainer, fl.Fabric],
         resume_if_exists: bool = False,
-        model_checkpoint_cls: Type[ModelCheckpoint] = None, ## optional checkpoint callback to instantiate and add to the trainer
+        model_checkpoint_cls: Type[
+            ModelCheckpoint
+        ] = None,  ## optional checkpoint callback to instantiate and add to the trainer
         model_checkpoint_params: Optional[ModelCheckpointParams] = {},
     ):
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
@@ -157,4 +157,3 @@ class NeMoLogger:
 
     def teardown(self):
         pass
-

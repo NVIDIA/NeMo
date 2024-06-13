@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Callable, Optional, Union, Type
+from typing import Callable, Optional, Type, Union
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
