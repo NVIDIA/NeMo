@@ -10,14 +10,13 @@ from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.types import _PATH
 from megatron.core import mpu
+from megatron.core.dist_checkpointing.strategies import tensorstore
 from megatron.core.dist_checkpointing.strategies.zarr import ZarrSaveShardedStrategy
 from torch import nn
 from typing_extensions import Self, override
 
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
-from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
-from nemo.utils.callbacks.torch_dist_async import TorchDistAsyncSaveShardedStrategy
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.strategies import MegatronStrategy
@@ -63,7 +62,7 @@ class TrainerCkptProtocol(Protocol):
     def io_dump(self, output: Path): ...
 
 
-class MegatronCheckpointIO(AsyncCompatibleCheckpointIO):
+class MegatronCheckpointIO(CheckpointIO):
     """CheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
     common for most use cases.
 
@@ -74,12 +73,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO):
     def __init__(
         self,
         save_ckpt_format: str = 'zarr',
-        load_directly_on_device: bool = True,
-        async_save: bool = False,
     ):
         self.save_ckpt_format = save_ckpt_format
-        self.load_directly_on_device = load_directly_on_device
-        self.async_save = async_save
         self.save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
 
     @override
@@ -100,10 +95,10 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO):
         from megatron.core import dist_checkpointing
 
         if storage_options is not None:
-            logging.warning(
-                f"{self.__class__.__name__} does not support"
-                f" storage_options, but {storage_options=} was provided."
-                f" Ignoring given storage_options"
+            raise TypeError(
+                "`Trainer.save_checkpoint(..., storage_options=...)` with `storage_options` arg"
+                f" is not supported for `{self.__class__.__name__}`. Please implement your custom `CheckpointIO`"
+                " to define how you'd like to use `storage_options`."
             )
         checkpoint_dir = ckpt_to_dir(path)
         fs = get_filesystem(checkpoint_dir)
@@ -117,13 +112,6 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO):
             checkpoint_dir=str(checkpoint_dir),
             sharded_strategy=self.save_sharded_strategy,
         )
-        if not self.async_save:
-            return None
-        # NOTE: this logic will be simplified in MCore v0.7
-        assert self.save_sharded_strategy.async_request is not None
-        async_request = self.save_sharded_strategy.async_request
-        self.save_sharded_strategy.async_request = None
-        return async_request
 
     @override
     def load_checkpoint(
@@ -155,13 +143,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO):
         if not fs.isdir(path):
             raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
 
-        if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
-            sharded_strategy = tensorstore.TensorStoreLoadShardedStrategy(load_directly_on_device=True)
-        else:
-            sharded_strategy = None
-
         checkpoint = dist_checkpointing.load(
-            sharded_state_dict=sharded_state_dict, checkpoint_dir=str(path), sharded_strategy=sharded_strategy
+            sharded_state_dict=sharded_state_dict, checkpoint_dir=str(path)
         )
         checkpoint = _fix_tensors_device(checkpoint)
 
@@ -182,15 +165,10 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO):
 
     def _determine_dist_ckpt_save_strategy(self):
         """Determine the saving strategy based on constructor args.
-
         If self.async_save is True instantiates an async PyT Dist strategy,
         otherwise relies on MCore to create a proper strategy based on ckpt format.
         """
         save_strategy = (self.save_ckpt_format, 1)
-        if self.async_save:
-            if save_strategy[0] != 'torch_dist':
-                raise ValueError('Async dist-ckpt save supported only for torch_dist format')
-            save_strategy = TorchDistAsyncSaveShardedStrategy('torch_dist', 1)
 
         logging.info(f'Using {save_strategy} dist-ckpt save strategy.')
         return save_strategy

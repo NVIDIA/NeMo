@@ -189,7 +189,7 @@ if __name__ == '__main__':
     model = llm.GPTModel(gpt_config, tokenizer=data.tokenizer)
 
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=1,
+        tensor_model_parallel_size=2,
         ckpt_include_optimizer=True,
     )
 
@@ -199,7 +199,6 @@ if __name__ == '__main__':
         monitor="train_loss",
         save_top_k=2,
         every_n_train_steps=2,
-        async_save=True,
     )
 
     loggers = []
