@@ -8,8 +8,10 @@ S3CheckpointIO
 This checkpoint_io is used for saving and loading files to and from S3. 
 Initializing this checkpoint_io requires 
 
-Example Usage:
+**Example Usage:**
+
 .. code-block:: bash
+
     async_checkpointing = self.cfg.s3_checkpointing.get('enable_async_checkpointing', False)
     chunk_size_MB = self.cfg.s3_checkpointing.get('chunk_size_MB')
     max_read_concurrency = self.cfg.s3_checkpointing.get('max_read_concurrency')
@@ -28,8 +30,10 @@ Example Usage:
     )
 
 
-Config changes:
+**Config changes:**
+
 .. code-block:: bash
+    
     checkpoint_callback_params:
     dirpath: s3://mstar-eks-dev-us-east-2/alxzhang/nemo123/1n/checkpoints
     
@@ -43,6 +47,12 @@ Config changes:
         chunk_size_MB: 64
         # enables asynchronous checkpoint writing to S3
         enable_async_checkpointing: False
+
+**Asynchronous**
+By default, the S3CheckpointIO class acts synchronously. 
+The async feature currently does not check if the previous async save is completed, so it is possible
+that an old checkpoint is removed even when the current save fails. 
+To prevent this, this feature is meant to be used in conjunction with saving top k checkpoints. 
 
 
 S3Utils and Dependencies
@@ -72,8 +82,9 @@ When there are many ranks loading from S3, there can be slowdown or throttling e
 To avoid overloading S3, when resuming from a checkpoint only rank 0 needs to identify the checkpoint path and find the correct resumption file. 
 
 .. code-block:: bash
+
     trainer._checkpoint_connector = NeMoCheckpointConnector(trainer)
 
-The NeMoCheckpointConnector is defined in the exp_manager.py file, and uses the broadcasted checkpoint path founds by rank 0 on all ranks when resuming training. 
+The NeMoCheckpointConnector is defined in the exp_manager.py file, and uses the broadcasted checkpoint path founds by rank 0 on all ranks when resuming training from an existing checkpoint. 
 
-The NeMoModelCheckpoint setup() method is updated to broadcast the checkpoint path. 
+The NeMoModelCheckpoint setup() method broadcasts the checkpoint path. 

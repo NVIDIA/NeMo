@@ -31,7 +31,7 @@ s3_checkpointing:
   # read_concurrency * tp * pp * 1.15 (buffer) should be within 5500 S3 TPS limit per partition
   max_read_concurrency: 15
   chunk_size_MB: 64
-  # enables asynchronous checkpoint writing to S3 dirpath
+  # enables asynchronous checkpoint writing to S3 dirpath. the feature is experimental and currently does not check if the past save succeeded. Therefore, use in conjunction with save_top_k. 
   enable_async_checkpointing: False
 
 exp_manager:
