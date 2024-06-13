@@ -135,10 +135,10 @@ def load_nemo_model_weights(nemo_path, sharded_state_dict=None):
 
             # distributed checkpointing
             if state_dict is None and sharded_state_dict is not None:
-                
+
                 is_dist_ckpt = True
                 checkpoint = dict(state_dict=sharded_state_dict)
-                
+
                 tmp_model_weights_ckpt = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
                 tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
                 assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
