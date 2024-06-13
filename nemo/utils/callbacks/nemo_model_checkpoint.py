@@ -195,9 +195,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         path = trainer.strategy.broadcast(trainer.ckpt_path)
         trainer.ckpt_path = path
 
-        assert (
-            trainer.checkpoint_callback == self
-        ), f"This instance should be trainer.checkpoint_callback {trainer.checkpoint_callback} != {self}"
         self.last_model_path = trainer.strategy.broadcast(self.last_model_path)
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
