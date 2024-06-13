@@ -15,16 +15,17 @@
 import os
 import re
 import shutil
-from copy import deepcopy
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 import pytorch_lightning
 import torch
 from _weakref import proxy
 
-from lightning_fabric.utilities.cloud_io import get_filesystem
-from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint, _is_local_file_protocol
+from pytorch_lightning.callbacks.model_checkpoint import (
+    ModelCheckpoint as PTLModelCheckpoint,
+    _is_local_file_protocol
+)
 from pytorch_lightning.utilities import rank_zero_info
 
 from nemo.collections.common.callbacks import EMA
@@ -35,7 +36,6 @@ from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir
 from nemo.utils.exp_manager import get_git_hash, get_git_diff
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
-from shutil import copy, move
 
 class ModelCheckpoint(PTLModelCheckpoint):
 
@@ -50,7 +50,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self.save_best_model = save_best_model
         self.previous_best_path = ""
         self.async_save = async_save
-        #self.async_finalize_cb = None ## unused
         # Checkpoints which removal is deferred until async save is done.
         # Each element of `deferred_ckpts_to_remove` is a growing list
         # that `self._remove_checkpoint` adds to. Once `self._save_checkpoint`
@@ -67,12 +66,12 @@ class ModelCheckpoint(PTLModelCheckpoint):
         super().__init__(**kwargs)
     
     def on_train_start(self, trainer, pl_module):
-        if self.save_top_k != -1: # and n_resume: ## TODO: figure out what n_resume is
+        app_state = AppState()
+        if self.save_top_k != -1 and app_state.resume:
             logging.debug("Checking previous runs")
             self.nemo_topk_check_previous_run()
 
         if is_global_rank_zero():
-            app_state = AppState()
             log_dir = app_state.log_dir
 
             # Check to see if any files exist that need to be moved
@@ -92,16 +91,16 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 new_run_dir = Path(Path(log_dir) / f"run_{run_count}")
                 new_run_dir.mkdir()
                 for _file in files_to_move:
-                    move(str(_file), str(new_run_dir))
+                    shutil.move(str(_file), str(new_run_dir))
 
             # Move files_to_copy to folder and add git information if present
-            if AppState.files_to_copy:
-                for _file in AppState.files_to_copy:
-                    copy(Path(_file), log_dir)
+            if app_state.files_to_copy:
+                for _file in app_state.files_to_copy:
+                    shutil.copy(Path(_file), log_dir)
 
             # Create files for cmd args and git info
             with open(log_dir / 'cmd-args.log', 'w', encoding='utf-8') as _file:
-                _file.write(" ".join(AppState.cmd_args))
+                _file.write(" ".join(app_state.cmd_args))
 
             # Try to get git hash
             git_repo, git_hash = get_git_hash()

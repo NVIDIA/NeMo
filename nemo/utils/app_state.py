@@ -79,6 +79,12 @@ class AppState(metaclass=Singleton):
         self._model_restore_path = None
         self._all_model_restore_paths = []
         self._model_guid_map = {}  # type: Dict[str, ModelMetadataRegistry]
+        self._restore = False # TODO: are this and _is_model_being_restored both needed?
+
+        # files to copy into log dir
+        self._files_to_copy = None
+        # command-ling arguments for run
+        self._cmd_args = None
 
     @property
     def device_id(self):
@@ -562,6 +568,37 @@ class AppState(metaclass=Singleton):
         self._checkpoint_callback_params = params
 
     @property
+    def files_to_copy(self):
+        """Returns the list of files to copy into the log dir.
+        """
+        return self._files_to_copy
+
+    @files_to_copy.setter
+    def files_to_copy(self, files):
+        """Sets the files_to_copy property.
+
+        Args:
+            files (list[str]): list of filenames to copy.
+        """
+        self._files_to_copy = files
+
+    @property
+    def cmd_args(self):
+        """Returns the command line arguments for the current run.
+        """
+        return self._cmd_args
+
+    @cmd_args.setter
+    def cmd_args(self, args):
+        """Sets the cmd_args property.
+
+        Args:
+            args (list[str]): list of the command line arguments
+                used to run the experiment.
+        """
+        self._cmd_args = args
+
+    @property
     def model_restore_path(self):
         restore_path = self._all_model_restore_paths[-1] if len(self._all_model_restore_paths) > 0 else None
         return restore_path
@@ -606,3 +643,11 @@ class AppState(metaclass=Singleton):
     @nemo_file_folder.setter
     def nemo_file_folder(self, path: str):
         self._nemo_file_folder = path
+
+    @property
+    def restore(self) -> bool:
+        return self._restore
+
+    @is_model_being_restored.setter
+    def restore(self, restore: bool):
+        self._restore = restore

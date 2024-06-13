@@ -12,8 +12,9 @@ except ImportError:
 from nemo.lightning.base import get_vocab_size, teardown
 from nemo.lightning.pytorch.plugins import MegatronDataSampler, MegatronMixedPrecision
 from nemo.lightning.pytorch.plugins import data_sampler as _data_sampler
+from nemo.lightning.pytorch.resume import AutoResume
 from nemo.lightning.pytorch.strategies import MegatronStrategy
-from nemo.lightning.pytorch.trainer import Trainer, AutoResume
+from nemo.lightning.pytorch.trainer import Trainer
 
 
 # We monkey patch because nvidia uses a naming convention for SLURM jobs
