@@ -1,5 +1,5 @@
 import logging
-
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, Optional, Protocol, TypeVar, Union
@@ -9,6 +9,8 @@ import torch
 from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.types import _PATH
+from megatron.core import mpu
+from megatron.core.dist_checkpointing.strategies.zarr import ZarrSaveShardedStrategy
 from torch import nn
 from typing_extensions import Self, override
 
@@ -16,11 +18,6 @@ from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 from nemo.utils.callbacks.torch_dist_async import TorchDistAsyncSaveShardedStrategy
-from megatron.core import mpu
-import os
-
-from nemo.utils.callbacks.torch_dist_async import TorchDistAsyncSaveShardedStrategy
-from megatron.core.dist_checkpointing.strategies.zarr import ZarrSaveShardedStrategy
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.strategies import MegatronStrategy
@@ -103,9 +100,11 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO):
         from megatron.core import dist_checkpointing
 
         if storage_options is not None:
-            logging.warning(f"{self.__class__.__name__} does not support"
-                            f" storage_options, but {storage_options=} was provided."
-                            f" Ignoring given storage_options")
+            logging.warning(
+                f"{self.__class__.__name__} does not support"
+                f" storage_options, but {storage_options=} was provided."
+                f" Ignoring given storage_options"
+            )
         checkpoint_dir = ckpt_to_dir(path)
         fs = get_filesystem(checkpoint_dir)
         if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
@@ -162,9 +161,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO):
             sharded_strategy = None
 
         checkpoint = dist_checkpointing.load(
-            sharded_state_dict=sharded_state_dict,
-            checkpoint_dir=str(path),
-            sharded_strategy=sharded_strategy
+            sharded_state_dict=sharded_state_dict, checkpoint_dir=str(path), sharded_strategy=sharded_strategy
         )
         checkpoint = _fix_tensors_device(checkpoint)
 

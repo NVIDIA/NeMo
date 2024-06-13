@@ -1,29 +1,26 @@
-from copy import deepcopy
+import os
+import sys
 import time
+from copy import deepcopy
+from pathlib import Path
+from typing import List, Optional
 
 import fiddle as fdl
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
 from typing_extensions import Self
 
-from nemo.lightning.io.mixin import IOMixin
-
-import os
-from pathlib import Path
-from typing import Optional, List
-import sys
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
+from nemo.lightning.io.mixin import IOMixin
+from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.resume import Resume
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.env_var_parsing import get_envbool
-from nemo.utils.exp_manager import (
-    check_explicit_log_dir,
-    LoggerMisconfigurationError,
-)
-from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
+from nemo.utils.exp_manager import LoggerMisconfigurationError, check_explicit_log_dir
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.lightning.pytorch.callbacks import ModelCheckpoint
-from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
+from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
+
 
 class Trainer(pl.Trainer, IOMixin):
     def io_init(self, **kwargs) -> fdl.Config[Self]:
@@ -76,7 +73,9 @@ class Trainer(pl.Trainer, IOMixin):
 
         if self.logger is not None:
             if update_logger_directory:
-                logging.warning(f'"update_logger_directory" is True. Overwriting logger "save_dir" to {exp_dir} and "name" to {name}')
+                logging.warning(
+                    f'"update_logger_directory" is True. Overwriting logger "save_dir" to {exp_dir} and "name" to {name}'
+                )
                 self.logger._root_dir = exp_dir
                 self.logger._name = name
 
@@ -85,10 +84,10 @@ class Trainer(pl.Trainer, IOMixin):
             if use_datetime_version:
                 version = time.strftime('%Y-%m-%d_%H-%M-%S')
         if resume.resume_if_exists:
-                logging.warning(
-                    "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
-                )
-                version = None
+            logging.warning(
+                "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
+            )
+            version = None
         if version:
             if is_global_rank_zero():
                 os.environ[NEMO_ENV_VARNAME_VERSION] = version
@@ -114,9 +113,9 @@ class Trainer(pl.Trainer, IOMixin):
         for callback in self.callbacks:
             if isinstance(callback, PTLModelCheckpoint):
                 ## TODO: make configurable
-                callback.dirpath = Path(log_dir / "checkpoints") #app_state.exp_dir
+                callback.dirpath = Path(log_dir / "checkpoints")  # app_state.exp_dir
                 if callback.filename is None:
-                    callback.filename=f'{name}--{{{callback.monitor}:.4f}}-{{epoch}}'
+                    callback.filename = f'{name}--{{{callback.monitor}:.4f}}-{{epoch}}'
                 if callback.prefix is None:
                     callback.prefix = name
                 ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + '-last'

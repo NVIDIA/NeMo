@@ -21,21 +21,19 @@ from typing import Any, Dict, Iterable, List, Optional, Union
 import pytorch_lightning
 import torch
 from _weakref import proxy
-
-from pytorch_lightning.callbacks.model_checkpoint import (
-    ModelCheckpoint as PTLModelCheckpoint,
-    _is_local_file_protocol
-)
+from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
+from pytorch_lightning.callbacks.model_checkpoint import _is_local_file_protocol
 from pytorch_lightning.utilities import rank_zero_info
 
 from nemo.collections.common.callbacks import EMA
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
+from nemo.utils.exp_manager import get_git_diff, get_git_hash
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.utils.model_utils import ckpt_to_dir
-from nemo.utils.exp_manager import get_git_hash, get_git_diff
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
+from nemo.utils.model_utils import ckpt_to_dir
+
 
 class ModelCheckpoint(PTLModelCheckpoint):
 
@@ -64,7 +62,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
-    
+
     def on_train_start(self, trainer, pl_module):
         app_state = AppState()
         if self.save_top_k != -1 and app_state.resume:
@@ -124,7 +122,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
             self.best_model_score
             self.best_model_path
         except AttributeError:
-            raise AttributeError("Lightning's ModelCheckpoint was updated. NeMo's ModelCheckpoint will need an update.")
+            raise AttributeError(
+                "Lightning's ModelCheckpoint was updated. NeMo's ModelCheckpoint will need an update."
+            )
         self.best_k_models = {}
         self.kth_best_model_path = ""
         self.best_model_score = None
@@ -245,7 +245,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                     f"{self} was told to save the best checkpoint at the end of training, but no saved checkpoints "
                     "were found. Saving latest model instead."
                 )
-            
+
             else:
                 if os.path.isdir(self.best_model_path.split('.ckpt')[0]):
                     self.best_model_path = self.best_model_path.split('.ckpt')[0]
@@ -345,7 +345,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         """Checks if a file or a file without a suffix (distributed checkpoint) exists."""
         exists = self._fs.exists(filepath) or (check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath)))
         return trainer.strategy.broadcast(exists)
-
 
     def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
@@ -476,9 +475,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         checkpoint_dir = Path(checkpoint_dir)
 
         existing_marker_filepaths = {
-            f.resolve()
-            for f in checkpoint_dir.glob(f"*{ModelCheckpoint.UNFINISHED_CHECKPOINT_SUFFIX}")
-            if f.is_file()
+            f.resolve() for f in checkpoint_dir.glob(f"*{ModelCheckpoint.UNFINISHED_CHECKPOINT_SUFFIX}") if f.is_file()
         }
 
         checkpoint_filepaths = {f.resolve() for f in checkpoint_dir.rglob("*.ckpt")}

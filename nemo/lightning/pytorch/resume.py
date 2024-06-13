@@ -1,13 +1,11 @@
 import time
-
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
+
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-from nemo.utils.exp_manager import (
-    _filter_out_unfinished_checkpoints,
-    NotFoundError
-)
+from nemo.utils.exp_manager import NotFoundError, _filter_out_unfinished_checkpoints
+
 
 class Resume:
     def nemo_path(self, model) -> Optional[Path]:
@@ -18,11 +16,12 @@ class AutoResume(Resume):
     """Class that handles the logic for setting checkpoint paths and restoring from
     checkpoints in NeMo.
     """
+
     def __init__(
         self,
-        path: Optional[str] = None, ## old resume_from_checkpoint
-        dirpath: Optional[str] = None, ## optional path to checkpoint directory
-        import_path: Optional[str] = None, ## for importing from hf or other checkpoint formats
+        path: Optional[str] = None,  ## old resume_from_checkpoint
+        dirpath: Optional[str] = None,  ## optional path to checkpoint directory
+        import_path: Optional[str] = None,  ## for importing from hf or other checkpoint formats
         resume_if_exists: bool = False,
         resume_past_end: bool = False,
         resume_ignore_no_checkpoint: bool = False,
