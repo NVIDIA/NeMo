@@ -1,8 +1,11 @@
-from pytorch_lightning.callbacks.callback import Callback
-import torch
 from typing import Any, List, Optional
+
+import torch
+from pytorch_lightning.callbacks.callback import Callback
+
 from nemo.utils import logging
 from nemo.utils.get_rank import get_rank
+
 
 class NsysCallback(Callback):
 
@@ -26,18 +29,22 @@ class NsysCallback(Callback):
         assert type(end_step) == int, f'Nsys end_step must be of type int. Found: {type(start_step)}'
         self._nsys_profile_end_step = end_step
 
-        assert self._nsys_profile_end_step >= self._nsys_profile_start_step, f'Nsys end_step must be greater than or equal to nsys start_step'
+        assert (
+            self._nsys_profile_end_step >= self._nsys_profile_start_step
+        ), f'Nsys end_step must be greater than or equal to nsys start_step'
 
         self._nsys_profile_ranks = ranks
         self._nsys_profile_gen_shape = gen_shape
 
-        logging.info(f'Nsys profiling setup with start_step: {self._nsys_profile_start_step},'
-                     f'and end_step: {self._nsys_profile_end_step}')
+        logging.info(
+            f'Nsys profiling setup with start_step: {self._nsys_profile_start_step},'
+            f'and end_step: {self._nsys_profile_end_step}'
+        )
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx: int) -> Optional[int]:
-        """ PyTorch Lightning hook: 
-            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
-            We use it here to enable nsys profiling.
+        """PyTorch Lightning hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
+        We use it here to enable nsys profiling.
         """
 
         device = trainer.strategy.root_device
@@ -49,9 +56,9 @@ class NsysCallback(Callback):
                     torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx: int) -> None:
-        """ PyTorch Lightning hook: 
-            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-end
-            We use it here to enable nsys profiling.
+        """PyTorch Lightning hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-end
+        We use it here to enable nsys profiling.
         """
 
         device = trainer.strategy.root_device
