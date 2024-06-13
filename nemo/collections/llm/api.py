@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, Type
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -10,7 +10,7 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.utils import task
 from nemo.lightning import AutoResume, MegatronStrategy, NeMoLogger, Trainer, io, teardown
-from nemo.lightning.pytorch.callbacks import ModelCheckpoint
+from nemo.lightning.pytorch.callbacks import ModelCheckpoint, ModelCheckpointParams
 from nemo.lightning.resume import Resume
 from nemo.utils.exp_manager import PreemptionCallback, StatelessTimer, TimingCallback
 from nemo.utils.loggers import DLLogger, DLLoggerParams, MLFlowParams
@@ -22,6 +22,8 @@ def train(
     data: pl.LightningDataModule,
     trainer: Trainer,
     nemo_logger: NeMoLogger = NeMoLogger(),
+    model_checkpoint_cls: Type[ModelCheckpoint] = ModelCheckpoint,
+    model_checkpoint_params: ModelCheckpoint = ModelCheckpointParams(),
     resume: Optional[Union[AutoResume, Resume]] = AutoResume(),
     tokenizer: Optional[str] = None,
     # TODO: Fix export
@@ -61,7 +63,12 @@ def train(
     if tokenizer:  # TODO: Improve this
         _use_tokenizer(model, data, tokenizer)
 
-    app_state = nemo_logger.setup(trainer, resume_if_exists=getattr(resume, "resume_if_exists", False))
+    app_state = nemo_logger.setup(
+        trainer,
+        resume_if_exists=getattr(resume, "resume_if_exists", False),
+        model_checkpoint_cls=model_checkpoint_cls,
+        model_checkpoint_params=model_checkpoint_params,
+    )
     if resume is not None:
         resume.setup(model, trainer)
 
@@ -235,12 +242,15 @@ if __name__ == '__main__':
         )
     )
     callbacks.append(TimingCallback())
-    callbacks.append(
+
+    ## if we want to use PreemptionCallback, we have to define
+    ## out checkpoint callback in advance
+    '''callbacks.append(
         PreemptionCallback(
             checkpoint_callback
             # signal.SIGINT
         )
-    )
+    )'''
 
     '''callbacks.append(
         StatelessTimer("00:00:00:02") ## TODO: not compatible with async checkpointing
@@ -271,4 +281,5 @@ if __name__ == '__main__':
         trainer=trainer,
         nemo_logger=nemo_logger,
         resume=resume,
+        model_checkpoint_cls=None,
     )

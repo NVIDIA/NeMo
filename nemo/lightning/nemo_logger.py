@@ -1,20 +1,23 @@
 import os
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Type, Union
 
 import lightning_fabric as fl
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
 
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
-from nemo.lightning.pytorch.callbacks import ModelCheckpoint
+from nemo.lightning.pytorch.callbacks import ModelCheckpoint, ModelCheckpointParams
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.env_var_parsing import get_envbool
-from nemo.utils.exp_manager import check_explicit_log_dir)
+from nemo.utils.exp_manager import (
+    check_explicit_log_dir,
+    CheckpointMisconfigurationError
+)
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 
@@ -36,7 +39,13 @@ class NeMoLogger:
                 f"Cannot set both log_local_rank_0_only and log_global_rank_0_only to True. Please set either one or neither."
             )
 
-    def setup(self, trainer: Union[pl.Trainer, fl.Fabric], resume_if_exists: bool = False):
+    def setup(
+        self,
+        trainer: Union[pl.Trainer, fl.Fabric],
+        resume_if_exists: bool = False,
+        model_checkpoint_cls: Type[ModelCheckpoint] = None, ## optional checkpoint callback to instantiate and add to the trainer
+        model_checkpoint_params: Optional[ModelCheckpointParams] = {},
+    ):
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
         global_rank = trainer.node_rank * trainer.world_size + local_rank
         logging.rank = global_rank
@@ -83,6 +92,37 @@ class NeMoLogger:
 
         os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
         logging.info(f'Experiments will be logged at {log_dir}')
+
+        if model_checkpoint_cls is not None:
+            for callback in trainer.callbacks:
+                print(f'CALLBACK: {callback}')
+                if isinstance(callback, PTLModelCheckpoint):
+                    raise CheckpointMisconfigurationError(
+                        "The pytorch lightning trainer that was passed contained a ModelCheckpoint "
+                        "and model_checkpoint_cls was not None. Please either set model_checkpoint_cls "
+                        "to None, or remove ModelCheckpoint from the lightning trainer"
+                    )
+                if "val" in model_checkpoint_params.monitor:
+                    if (
+                        trainer.max_epochs is not None
+                        and trainer.max_epochs != -1
+                        and trainer.max_epochs < trainer.check_val_every_n_epoch
+                    ):
+                        logging.error(
+                            "The checkpoint callback was told to monitor a validation value but trainer.max_epochs("
+                            f"{trainer.max_epochs}) was less than trainer.check_val_every_n_epoch({trainer.check_val_every_n_epoch}"
+                            f"). It is very likely this run will fail with ModelCheckpoint(monitor='{params.monitor}') not found "
+                            "in the returned metrics. Please ensure that validation is run within trainer.max_epochs."
+                        )
+                    elif trainer.max_steps is not None and trainer.max_steps != -1:
+                        logging.warning(
+                            "The checkpoint callback was told to monitor a validation value and trainer's max_steps was set to "
+                            f"{trainer.max_steps}. Please ensure that max_steps will run for at least "
+                            f"{trainer.check_val_every_n_epoch} epochs to ensure that checkpointing will not error out."
+                        )
+
+            checkpoint_callback = model_checkpoint_cls(**asdict(model_checkpoint_params))
+            trainer.callbacks.append(checkpoint_callback)
 
         if isinstance(trainer, pl.Trainer):
             for callback in trainer.callbacks:

@@ -15,6 +15,7 @@
 import os
 import re
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Union
 
@@ -33,6 +34,21 @@ from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.model_utils import ckpt_to_dir
 
+@dataclass
+class ModelCheckpointParams:
+    save_best_model: bool = False
+    monitor: Optional[str] = "val_loss"
+    verbose: Optional[bool] = True
+    save_last: Optional[bool] = True
+    save_top_k: Optional[int] = 3
+    save_weights_only: Optional[bool] = False ## TODO: check support
+    mode: Optional[str] = "min"
+    every_n_epochs: Optional[int] = 1
+    every_n_train_steps: Optional[int] = None
+    train_time_interval: Optional[str] = None
+    save_best_model: bool = False
+    save_on_train_epoch_end: Optional[bool] = False  # Save after training, not after validation
+    ## TODO: async
 
 class ModelCheckpoint(PTLModelCheckpoint):
 

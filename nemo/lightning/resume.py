@@ -20,6 +20,7 @@ class Resume:
         ckpt_path = self.nemo_path(model)
         if ckpt_path:
             trainer.ckpt_path = ckpt_path
+            trainer.checkpoint_callback.last_model_path = ckpt_path
 
 
 class AutoResume(Resume):
