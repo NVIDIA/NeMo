@@ -65,7 +65,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
     def on_train_start(self, trainer, pl_module):
         app_state = AppState()
-        if self.save_top_k != -1 and app_state.resume:
+        if self.save_top_k != -1 and app_state.restore:
             logging.debug("Checking previous runs")
             self.nemo_topk_check_previous_run()
 
