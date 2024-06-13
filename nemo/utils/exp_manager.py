@@ -607,16 +607,18 @@ def check_resume(
 
     if not log_dir:
         raise ValueError(f"Resuming requires the log_dir {log_dir} to be passed to exp_manager")
-    
+
     # is_s3_url from here has no dependency requirements
     from nemo.utils.s3_dirpath_utils import is_s3_url
+
     try:
-        # when using an s3 dirpath, we rely on optional dependencies in the S3Utils class. 
+        # when using an s3 dirpath, we rely on optional dependencies in the S3Utils class.
         if dirpath is not None and is_s3_url(dirpath):
             from nemo.utils.s3_utils import S3Utils
     except ImportError as err:
-        return False, "Detected S3 dirpath while missing required dependencies.\n{}\n".format(err.output.decode("utf-8"))
-
+        return False, "Detected S3 dirpath while missing required dependencies.\n{}\n".format(
+            err.output.decode("utf-8")
+        )
 
     checkpoint = None
     if resume_from_checkpoint:
