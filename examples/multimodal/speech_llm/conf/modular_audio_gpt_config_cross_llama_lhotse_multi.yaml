@@ -250,6 +250,7 @@ model:
         num_buckets: 30
         bucket_buffer_size: 20000
         num_workers: 4
+        shuffle: true
       text:
         input_cfg: ???
         use_multimodal_sampling: true
@@ -259,6 +260,7 @@ model:
         num_buckets: 30
         bucket_buffer_size: 20000
         num_workers: 4
+        shuffle: true
 
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
