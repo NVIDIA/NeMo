@@ -201,8 +201,7 @@ class BeamRNNTInfer(Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -211,8 +210,7 @@ class BeamRNNTInfer(Typing):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
@@ -635,7 +633,10 @@ class BeamRNNTInfer(Typing):
 
                 # keep those hypothesis that have scores greater than next search generation
                 hyps_max = float(max(hyps, key=lambda x: x.score).score)
-                kept_most_prob = sorted([hyp for hyp in kept_hyps if hyp.score > hyps_max], key=lambda x: x.score,)
+                kept_most_prob = sorted(
+                    [hyp for hyp in kept_hyps if hyp.score > hyps_max],
+                    key=lambda x: x.score,
+                )
 
                 # If enough hypothesis have scores greater than next search generation,
                 # stop beam search.
