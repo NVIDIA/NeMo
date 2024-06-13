@@ -47,10 +47,10 @@ class Trainer(pl.Trainer, IOMixin):
 
         Returns:
             app_state (AppState): AppState that stores the following attributes
-                log_dir (Path): the log_dir
-                exp_dir (str): the base exp_dir without name nor version
-                name (str): The name of the experiment
-                version (str): The version of the experiment
+            log_dir (Path): the log_dir
+            exp_dir (str): the base exp_dir without name nor version
+            name (str): The name of the experiment
+            version (str): The version of the experiment
 
         Raise:
             LoggerMisconfigurationError: If trainer is incompatible with arguments

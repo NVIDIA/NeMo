@@ -639,6 +639,6 @@ class AppState(metaclass=Singleton):
     def restore(self) -> bool:
         return self._restore
 
-    @is_model_being_restored.setter
+    @restore.setter
     def restore(self, restore: bool):
         self._restore = restore
