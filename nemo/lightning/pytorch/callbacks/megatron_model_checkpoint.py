@@ -376,10 +376,11 @@ class ModelCheckpoint(PTLModelCheckpoint):
             # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
             # we don't want to remove the marker until all checkpointing is done.
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
+
         return _cb
 
     def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str, override_async=False) -> None:
-        """Performs checkpoint removal. """
+        """Performs checkpoint removal."""
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during removal, we should be able to detect that data is incomplete.
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)

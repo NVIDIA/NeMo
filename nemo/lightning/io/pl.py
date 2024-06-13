@@ -143,9 +143,7 @@ class MegatronCheckpointIO(CheckpointIO):
         if not fs.isdir(path):
             raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
 
-        checkpoint = dist_checkpointing.load(
-            sharded_state_dict=sharded_state_dict, checkpoint_dir=str(path)
-        )
+        checkpoint = dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=str(path))
         checkpoint = _fix_tensors_device(checkpoint)
 
         return checkpoint
