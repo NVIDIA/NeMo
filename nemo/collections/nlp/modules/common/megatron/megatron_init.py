@@ -129,18 +129,7 @@ def initialize_model_parallel_for_nemo(
     set_pipeline_model_parallel_world_size(app_state.pipeline_model_parallel_size)
     set_pipeline_model_parallel_split_rank(app_state.pipeline_model_parallel_split_rank)
 
-    # DEBUG CODE
-    import os
-
-    print(f'DEBUG {use_te_rng_tracker = }')
-    print(os.popen(f"cd {'/'.join(tensor_parallel.__file__.split('/')[:-1])}; git log -n 3").read())
-    with open('/'.join(tensor_parallel.__file__.split('/')[:-1]) + '/random.py', 'r') as f:
-        print(f.read())
-    # /DEBUG CODE
-
     tensor_parallel.random.initialize_rng_tracker(use_te_rng_tracker=use_te_rng_tracker)
-    print(f'{tensor_parallel.random._CUDA_RNG_STATE_TRACKER = }')  # DEBUG
-    print(f'{tensor_parallel.random._CUDA_RNG_STATE_TRACKER_INITIALIZED = }')  # DEBUG
     if seed is not None:
         # @chcui not setting seed is for model conversion. always set seed for training/inference.
         _set_random_seed(seed)

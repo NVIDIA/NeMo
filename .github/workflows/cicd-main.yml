@@ -2406,6 +2406,7 @@ jobs:
             ++model.ub_tp_comm_overlap=True \
             ++model.tp_comm_overlap_ag=True \
             ++model.tp_comm_overlap_rs=True \
+            model.name=megatron_gpt_full_te_layer_autocast \
             model.tensor_model_parallel_size=2 \
             model.optim.name=fused_adam \
             model.optim.lr=2e-4 \
@@ -2441,6 +2442,17 @@ jobs:
             trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
             exp_manager.resume_if_exists=True \
+            ++model.transformer_engine=True \
+            ++model.fp8=True \
+            ++model.fp8_hybrid=True \
+            ++model.fp8_amax_history_len=1024 \
+            ++model.fp8_amax_compute_algo=max \
+            ++model.reduce_amax=True \
+            ++model.use_te_rng_tracker=True \
+            ++model.ub_tp_comm_overlap=True \
+            ++model.tp_comm_overlap_ag=True \
+            ++model.tp_comm_overlap_rs=True \
+            model.name=megatron_gpt_full_te_layer_autocast \
             model.tensor_model_parallel_size=2 \
             model.optim.name=fused_adam \
             model.optim.lr=2e-4 \
