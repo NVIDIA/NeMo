@@ -411,6 +411,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         if self.mcore_gpt:
+            print(f'{tensor_parallel.random._CUDA_RNG_STATE_TRACKER = }') # DEBUG
+            print(f'{tensor_parallel.random._CUDA_RNG_STATE_TRACKER_INITIALIZED = }') # DEBUG
             model = MCoreGPTModel(
                 config=self.transformer_config,
                 transformer_layer_spec=get_specs(
