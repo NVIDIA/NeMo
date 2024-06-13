@@ -17,7 +17,7 @@ def train(
     resume: Optional[Union[AutoResume, Resume]] = AutoResume(),
     tokenizer: Optional[str] = None,
     # TODO: Fix export
-    # export: Optional[str] = None, 
+    # export: Optional[str] = None,
 ) -> Path:
     """
     Trains a model using the specified data and trainer, with optional tokenizer, source, and export.
@@ -52,14 +52,11 @@ def train(
 
     if tokenizer:  # TODO: Improve this
         _use_tokenizer(model, data, tokenizer)
-    
+
     if resume is not None:
         resume.setup(model, trainer)
-    app_state = exp.setup(
-        trainer, 
-        resume_if_exists=getattr(resume, "resume_if_exists", False)
-    )
-    
+    app_state = exp.setup(trainer, resume_if_exists=getattr(resume, "resume_if_exists", False))
+
     if hasattr(train, "__io__"):
         _save_config_img(app_state.exp_dir, train.__io__)
 
@@ -72,7 +69,7 @@ def train(
     #     teardown(trainer, model=model)
     #     print(f"Exporting checkpoint to: {export_dir / export}")
     #     export_ckpt(export_dir, export)
-    
+
     exp.teardown()
 
     return app_state.exp_dir

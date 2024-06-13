@@ -1,21 +1,22 @@
-from dataclasses import dataclass
-from typing import Optional, List, Union
-import sys
 import os
+import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
+from typing import List, Optional, Union
 
+import lightning_fabric as fl
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
-import lightning_fabric as fl
+
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
+from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.utils import logging
+from nemo.utils.app_state import AppState
 from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exp_manager import check_explicit_log_dir
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.utils.app_state import AppState
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
-from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 
 
 @dataclass
@@ -29,13 +30,13 @@ class Experiment:
     log_global_rank_0_only: bool = False
     files_to_copy: Optional[List[str]] = None
     update_logger_directory: bool = True
-    
+
     def __post_init__(self):
         if self.log_local_rank_0_only is True and self.log_global_rank_0_only is True:
             raise ValueError(
                 f"Cannot set both log_local_rank_0_only and log_global_rank_0_only to True. Please set either one or neither."
             )
-    
+
     def setup(self, trainer: Union[pl.Trainer, fl.Fabric], resume_if_exists: bool = False):
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
         global_rank = trainer.node_rank * trainer.world_size + local_rank
@@ -51,7 +52,7 @@ class Experiment:
 
         if not self.name:
             self.name = "default"
-            
+
         if isinstance(trainer, pl.Trainer) and trainer.logger is not None:
             if self.update_logger_directory:
                 logging.warning(
@@ -59,7 +60,7 @@ class Experiment:
                 )
                 trainer.logger._root_dir = _dir
                 trainer.logger._name = self.name
-            
+
         version = self.version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
         if is_global_rank_zero():
             if self.use_datetime_version:
@@ -68,7 +69,7 @@ class Experiment:
             logging.warning(
                 "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
             )
-            version = None  
+            version = None
         if version:
             if is_global_rank_zero():
                 os.environ[NEMO_ENV_VARNAME_VERSION] = version
@@ -80,11 +81,11 @@ class Experiment:
         app_state.exp_dir = _dir
         app_state.name = self.name
         app_state.version = version
-        
+
         os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
         logging.info(f'Experiments will be logged at {log_dir}')
-        
-        if isinstance(trainer, pl.Trainer): 
+
+        if isinstance(trainer, pl.Trainer):
             for callback in trainer.callbacks:
                 if isinstance(callback, PTLModelCheckpoint):
                     ## TODO: make configurable
@@ -95,7 +96,6 @@ class Experiment:
                         callback.prefix = name
                     ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + '-last'
 
-        
         # This is set if the env var NEMO_TESTING is set to True.
         nemo_testing = get_envbool(NEMO_ENV_VARNAME_TESTING, False)
 
@@ -115,7 +115,7 @@ class Experiment:
 
         app_state.files_to_copy = self.files_to_copy
         app_state.cmd_args = sys.argv
-        
+
         return app_state
 
     def teardown(self):

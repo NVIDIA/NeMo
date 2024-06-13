@@ -1,8 +1,9 @@
 from pathlib import Path
 from typing import Optional, Union
 
-import pytorch_lightning as pl
 import lightning_fabric as fl
+import pytorch_lightning as pl
+
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.exp_manager import NotFoundError, _filter_out_unfinished_checkpoints
@@ -11,11 +12,11 @@ from nemo.utils.exp_manager import NotFoundError, _filter_out_unfinished_checkpo
 class Resume:
     def nemo_path(self, model) -> Optional[Path]:
         raise NotImplementedError
-    
+
     def setup(self, model, trainer: Union[pl.Trainer, fl.Fabric]):
         if isinstance(trainer, fl.Fabric):
             raise NotImplementedError("Fabric is not supported yet.")
-        
+
         ckpt_path = self.nemo_path(model)
         if ckpt_path:
             trainer.ckpt_path = ckpt_path
@@ -66,7 +67,7 @@ class AutoResume(Resume):
         self.resume_if_exists = resume_if_exists
         self.resume_past_end = resume_past_end
         self.resume_ignore_no_checkpoint = resume_ignore_no_checkpoint
-    
+
     def nemo_path(self, model=None) -> Optional[Path]:
 
         if self.import_path:
@@ -125,8 +126,8 @@ class AutoResume(Resume):
                     raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
             else:
                 checkpoint = last_checkpoints[0]
-                
+
         if checkpoint:
             return Path(checkpoint)
-            
+
         return None
