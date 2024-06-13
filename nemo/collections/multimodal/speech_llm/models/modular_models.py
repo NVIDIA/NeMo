@@ -456,17 +456,10 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         #       as it allows us to save GPU memory. Otherwise, we'd have to
         #       hold the activations from one modality in memory while running
         #       forward for the other.
-        # TODO: The commented out loop over audio and text batches is due to a yet unidentified issue in running fwd+bwd
-        #       twice in the same training step. Apparently the model trains fine and gets nice low training loss,
-        #       but the validation losses and metrics are very bad (although, still converged to some extent).
-        #       I expect there is something Megatron does which may keep some unwanted state until the end of train step...
-        #       For now, we'll have to run both modalities together in the forward step and do a joint backward.
-        #       To avoid excessive GPU mem usage, I recommend using the 'round_robin' sampler fusion strategy.
         batch_losses = []
-        for batch in [batch]:
-        #for batch in (audio_batch, text_batch):
-            #if not batch:
-            #    continue
+        for batch in (audio_batch, text_batch):
+            if not batch:
+                continue
 
             # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
             batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
@@ -656,7 +649,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 for key, (output, loss_mask) in multimodal_output.items():
                     cur_loss = self.loss_func(loss_mask.contiguous(), loss_mask.sum(), output.contiguous())
                     if modality_weights is not None:
-                        assert key in modality_weights, f"Expected cfg.modality_loss_weights={modality_weights} to contain key {key}"
+                        assert (
+                            key in modality_weights
+                        ), f"Expected cfg.modality_loss_weights={modality_weights} to contain key {key}"
                         cur_loss = cur_loss * modality_weights[key]
                     loss_for_ub += cur_loss
                     self.log(
