@@ -69,7 +69,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_include_optimizer: bool = False,
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
         lazy_init: bool = False,
-        pipeline_dtype: Optional[torch.dtype]: None
+        pipeline_dtype: Optional[torch.dtype] = None,
         **kwargs,
     ) -> None:
         super().__init__(
