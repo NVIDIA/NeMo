@@ -137,7 +137,7 @@ class RandomBlockMasking(NeuralModule):
             patch_idices = torch.randperm(max(0, curr_len - self.block_size), device=input_feats.device)[:num_patches]
             for j in range(num_patches):
                 start = patch_idices[j]
-                end = start + self.block_size
+                end = min(start + self.block_size, input_lengths[i])
                 masks[i, :, start:end] = 1.0
                 maksed_feats[i, :, start:end] = mask_value
         return maksed_feats, masks

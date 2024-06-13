@@ -25,8 +25,11 @@ from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.data.dataclasses import AudioNoiseBatch
 from nemo.collections.asr.models.ssl_models import SpeechEncDecSelfSupervisedModel
 from nemo.collections.asr.modules.ssl_modules.masking import ConvFeatureMaksingWrapper
+from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.common.data.utils import move_data_to_device
+from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.mixins import AccessMixin, set_access_cfg
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     AudioSignal,
@@ -311,10 +314,8 @@ class EncDecSpeechDenoiseMLMModel(EncDecSpeechSSLModel):
         }
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
-        """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
-            When using pipeline parallelism, we need the global batch to remain on the CPU,
-            since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline.
+        """ 
+        PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
         """
         batch = move_data_to_device(batch, device)
         return batch
@@ -441,3 +442,106 @@ class EncDecSpeechDenoiseMLMModel(EncDecSpeechSSLModel):
         loss_value = self.loss(masks=masks, decoder_outputs=log_probs, targets=tokens, decoder_lengths=encoded_len)
 
         return {f'{mode}_loss': loss_value}
+
+
+class SemiSupervisedSpeechMAEModel(ModelPT, ASRModuleMixin, AccessMixin):
+    @classmethod
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        results = []
+        return results
+
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        super().__init__(cfg, trainer)
+
+        self.preprocessor = self.from_config_dict(self.cfg.preprocessor)
+        self.mask_processor = self.from_config_dict(self.cfg.masking)
+        self.encoder = self.from_config_dict(self.cfg.encoder)
+        self.decoder = self.from_config_dict(self.cfg.decoder)
+        self.loss = self.from_config_dict(self.cfg.loss)
+
+        self.pre_encoder = None
+        if self.cfg.get("mask_position", "pre_conv") == "post_conv":
+            # hacked to mask features after convolutional sub-sampling
+            self.pre_encoder = ConvFeatureMaksingWrapper(self.encoder.pre_encode, self.mask_processor)
+            self.encoder.pre_encode = self.pre_encoder
+
+    def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
+        """ 
+        PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
+        """
+        batch = move_data_to_device(batch, device)
+        return batch
+
+    def _setup_dataloader_from_config(self, config: Optional[Dict]):
+        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
+
+        dataset = ssl_dataset.get_audio_noise_dataset_from_config(
+            config, global_rank=self.global_rank, world_size=self.world_size,
+        )
+
+        shuffle = config['shuffle']
+        if isinstance(dataset, torch.utils.data.IterableDataset):
+            shuffle = False
+
+        if hasattr(dataset, 'collate_fn'):
+            collate_fn = dataset.collate_fn
+        elif hasattr(dataset.datasets[0], 'collate_fn'):
+            # support datasets that are lists of entries
+            collate_fn = dataset.datasets[0].collate_fn
+        else:
+            # support datasets that are lists of lists
+            collate_fn = dataset.datasets[0].datasets[0].collate_fn
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=config['batch_size'],
+            collate_fn=collate_fn,
+            drop_last=config.get('drop_last', False),
+            shuffle=shuffle,
+            num_workers=config.get('num_workers', 0),
+            pin_memory=config.get('pin_memory', False),
+        )
+
+    def forward(
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
+        apply_mask=False,
+    ):
+        has_input_signal = input_signal is not None and input_signal_length is not None
+        has_processed_signal = processed_signal is not None and processed_signal_length is not None
+        if (has_input_signal ^ has_processed_signal) == False:
+            raise ValueError(
+                f"{self} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
+                " with ``processed_signal`` and ``processed_signal_len`` arguments."
+            )
+        if not has_processed_signal:
+            processed_signal, processed_signal_length = self.preprocessor(
+                input_signal=input_signal, length=input_signal_length,
+            )
+
+        if apply_mask:
+            masked_signal, masks = self.mask_processor(
+                input_feats=processed_signal, input_lengths=processed_signal_length
+            )
+        else:
+            masked_signal = processed_signal
+            masks = torch.zeros_like(processed_signal_length)
+
+        encoded, encoded_len = self.encoder(audio_signal=masked_signal, length=processed_signal_length)
+
+    def forward_speaker_and_content(
+        self, processed_signal=None, processed_signal_length=None,
+    ):
+        content_feats = None
+        speaker_feats = None
+        feat_length = None
+        return content_feats, speaker_feats, feat_length
