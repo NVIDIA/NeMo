@@ -149,3 +149,35 @@ NeMo leverages Megatron-Core's optimizations to enhance bandwidth utilization an
 
 .. [#f1] Experiments were performed on Llama 7B with Dolly dataset. Actual performance improvement depends on dataset
          and model.
+
+
+Fusions
+-------
+This section describes various fusion configurations used to optimize the performance of specific operations in NeMo models.
+
+- **grad_div_ar_fusion**:
+    * Enables fusing gradient division into the ``torch.distributed.all_reduce`` operation.
+    * Applicable only when using optimization level O2 and without pipeline parallelism.
+
+- **gradient_accumulation_fusion**:
+    * Fuses weight gradient accumulation directly into GEMMs (General Matrix Multiply operations).
+    * Used only with pipeline parallelism and O2 optimization level.
+
+- **bias_activation_fusion**:
+    * Utilizes a kernel that combines the bias addition from weight matrices with the subsequent activation function.
+    * This fusion helps in reducing the computational overhead of separate operations.
+
+- **bias_dropout_add_fusion**:
+    * Integrates the operations of bias addition, dropout, and residual connection addition into a single kernel.
+    * This fusion is advantageous in terms of improving the efficiency of back-propagation steps.
+
+- **masked_softmax_fusion**:
+    * Employs a kernel that combines the attention softmax operation with its corresponding mask.
+    * This is particularly useful in attention mechanisms to optimize performance.
+
+- **get_attention_mask_from_fusion**:
+    * When using fused softmax, this configuration enables the automatic creation of the attention mask, avoiding the need to manually copy it across pipeline stages.
+
+- **apply_rope_fusion**:
+    * Implements a kernel for adding rotary positional embeddings (ROPE).
+    * Only applicable if the ``position_embedding_type`` is set to ROPE.
