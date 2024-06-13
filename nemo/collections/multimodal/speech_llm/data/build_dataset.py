@@ -211,7 +211,7 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
     if is_eval:
         # don't pad to global batch if in eval mode, unless explicitly set by user (e.g., eval with DDP)
         pad_to_global_batch = (not data_cfg.drop_last) and data_cfg.get("pad_samples_to_global_batch_size", False)
-       
+
     batch_sampler = MegatronPretrainingBatchSampler(
         total_samples=len(dataset),
         consumed_samples=consumed_samples,
