@@ -132,6 +132,7 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                 LMState,
                 SmearingMode,
                 Trie,
+                ZeroLM,
             )
             from flashlight.lib.text.dictionary import create_word_dict, load_words
         except ModuleNotFoundError:
@@ -139,22 +140,6 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                 "FlashLightKenLMBeamSearchDecoder requires the installation of flashlight python bindings "
                 "from https://github.com/flashlight/text. Please follow the build instructions there."
             )
-
-        class ZeroLM(LM):
-            """ZeroLM is a fake LM which always returns 0 as score. It is served as a proxy to conduct beam-search on only AM scores without breaking API."""
-
-            def __init__(self):
-                LM.__init__(self)
-
-            def start(self, start_with_nothing):
-                state = LMState()
-                return state
-
-            def score(self, state: LMState, token_index: int):
-                return (state, 0.0)
-
-            def finish(self, state: LMState):
-                return (state, 0.0)
 
         super().__init__()
 
