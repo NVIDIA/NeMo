@@ -2371,11 +2371,11 @@ jobs:
       TORCH_NCCL_AVOID_RECORD_STREAMS: 1
       NCCL_MIN_NCHANNELS: 4
       # TP overlap
-      NVTE_UB_SPLIT_RS: 0
-      NVTE_UB_ATOMIC_GEMM_RS: 1
-      NVTE_RS_STRIDED_ATOMIC: 1
-      NVTE_UB_FP8_RS: 1
-      UB_SKIPMC: ""
+      #NVTE_UB_SPLIT_RS: 0
+      #NVTE_UB_ATOMIC_GEMM_RS: 1
+      #NVTE_RS_STRIDED_ATOMIC: 1
+      #NVTE_UB_FP8_RS: 1
+      #UB_SKIPMC: ""
       # Increase p2p chunksize to 2MB
       NCCL_P2P_NET_CHUNKSIZE: 2097152
       # Enable per-communicator nccl option tuning
@@ -2403,9 +2403,6 @@ jobs:
             ++model.fp8_amax_compute_algo=max \
             ++model.reduce_amax=True \
             ++model.use_te_rng_tracker=True \
-            ++model.ub_tp_comm_overlap=True \
-            ++model.tp_comm_overlap_ag=True \
-            ++model.tp_comm_overlap_rs=True \
             ++model.name=megatron_gpt_full_te_layer_autocast \
             model.tensor_model_parallel_size=2 \
             model.optim.name=fused_adam \
@@ -2449,9 +2446,6 @@ jobs:
             ++model.fp8_amax_compute_algo=max \
             ++model.reduce_amax=True \
             ++model.use_te_rng_tracker=True \
-            ++model.ub_tp_comm_overlap=True \
-            ++model.tp_comm_overlap_ag=True \
-            ++model.tp_comm_overlap_rs=True \
             ++model.name=megatron_gpt_full_te_layer_autocast \
             model.tensor_model_parallel_size=2 \
             model.optim.name=fused_adam \
