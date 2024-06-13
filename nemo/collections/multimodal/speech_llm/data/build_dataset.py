@@ -207,6 +207,8 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
         )
         return dataloader
 
+    # don't pad to global batch if in eval mode
+    pad_to_global_batch = (not data_cfg.drop_last) and (not is_eval)
     batch_sampler = MegatronPretrainingBatchSampler(
         total_samples=len(dataset),
         consumed_samples=consumed_samples,
@@ -215,7 +217,7 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
         data_parallel_rank=parallel_state.get_data_parallel_rank(),
         data_parallel_size=parallel_state.get_data_parallel_world_size(),
         drop_last=data_cfg.drop_last,
-        pad_samples_to_global_batch_size=not data_cfg.drop_last,
+        pad_samples_to_global_batch_size=pad_to_global_batch,
     )
 
     dataloader = torch.utils.data.DataLoader(
