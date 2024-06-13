@@ -1,0 +1,90 @@
+{% extends "main.html" %}
+
+<!-- Content -->
+{% block content %}
+
+<!-- Edit button -->
+{% if page.edit_url %}
+<a href="{{ page.edit_url }}" title="{{ lang.t('edit.link.title') }}" class="md-content__button md-icon">
+    {% include ".icons/material/pencil.svg" %}
+</a>
+{% endif %}
+
+
+<!-- Back to index button -->
+<!-- Note: using "align-items:center" to make sure that the arrow looks vertically centered relative to the text -->
+<a 
+    href="{{ page.parent.url | url }}" 
+    class=" md-nav__link" 
+    style="align-items:center; color: var(--md-default-fg-color--light); padding-bottom:20px; font-weight: 700;"
+>
+    {% include ".icons/material/arrow-left.svg" %}
+    <span class="md-ellipsis">
+        {{ lang.t("blog.index") }}
+    </span>
+</a>
+
+<!-- Blogging Markup -->
+{% if page and page.meta and page.meta.author %}
+
+    {% for author in page.meta.author %}
+
+<!--        <p class="p-blog">-->
+<!--        <img src="https://avatars.githubusercontent.com/{{ gh_author }}" alt="@{{ gh_author }}">-->
+<!--        </p>-->
+<!--        <p class="p-blog">-->
+
+        <!-- If number of authors of less than 3, put on new lines -->
+        {% if page.meta.author|length <= 3 %}
+        <aside class="mdx-author">
+        {% endif %}
+
+        <!-- Add author name -->
+        <span class="post-author">
+        <b>{{ author }}</b>
+
+        <!-- Add author GitHub link if 1:1 map exists between author names and author gh ids -->
+        {% if page.meta.author|length == page.meta.author_gh_user|length %}
+        · <a href="https://github.com/{{ page.meta.author_gh_user[loop.index0] }}">@{{ page.meta.author_gh_user[loop.index0] }}</a>
+        {% endif %}
+
+        <!-- Add comma if not last author -->
+        {% if page.meta.author|length > 3 and not loop.last %}
+        ,
+        {% endif %}
+        </span>
+
+        <!-- If number of authors is less than 3, put on new lines -->
+        {% if page.meta.author|length <= 3 %}
+        </aside>
+        {% endif %}
+
+    {% endfor %}
+
+    <p class="p-blog">
+        <span>
+            <!-- Note: using "margin-bottom:-2px" to make sure icons look more-or-less vertically centered relative to the text -->
+            <svg style="margin-bottom:-2px;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-calendar2" viewBox="0 0 16 16">
+                <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM2 2a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1H2z"/>
+                <path d="M2.5 4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V4z"/>
+            </svg> {{ page.meta.date }} ·
+            <svg style="margin-bottom:-2px;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-clock" viewBox="0 0 16 16">
+                <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/>
+                <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
+            </svg> {{ page.meta.readtime }} minute read
+        </span>
+    </p>
+
+
+{% endif %}
+<!-- Markdown content -->
+{{ page.content }}
+
+<!-- Last update of source file -->
+{% if page and page.meta %}
+    {% if page.meta.git_revision_date_localized or page.meta.revision_date %}
+        {% include "partials/source-file.html" %}
+    {% endif %}
+{% endif %}
+
+{% endblock %}

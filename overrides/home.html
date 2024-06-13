@@ -1,0 +1,527 @@
+{% extends "main.html" %}
+
+{% block tabs %}
+
+    {{ super() }}
+
+    <style>
+
+        .md-main {
+            flex-grow: 0
+        }
+
+        .md-main__inner {
+            display: flex;
+            height: 100%;
+        }
+
+        .tx-container {
+            padding-top: .0rem;
+            /* background: linear-gradient(to bottom, var(--md-primary-fg-color), hsla(160deg,47%,55%,1) 99%,#fff 99%); */
+            /* background: linear-gradient(to bottom, #0D47A1, #0D47A1, 99%,#fff 99%); */
+            background: linear-gradient(to bottom, #000000, #000000, 99%,#fff 99%);
+            /* background: linear-gradient(to bottom, #76B900, #76B900, 99%,#fff 99%); */
+        }
+
+        .tx-hero {
+            margin: 32px 2.8rem;
+            color: var(--md-primary-bg-color);
+            justify-content: center;
+        }
+
+        .tx-hero h1 {
+            margin-bottom: 1rem;
+            color: currentColor;
+            font-weight: 700
+        }
+
+        .tx-hero__content {
+            padding-bottom: 1rem;
+            margin: 0 auto;
+            font-weight: 300;
+        }
+
+        .tx-hero__image{
+            width:17rem;
+            height:17rem;
+            padding-top: 2rem;
+            order:1;
+            padding-right: 2.5rem;
+        }
+
+        .tx-hero .md-button {
+            margin-top: .5rem;
+            margin-right: .5rem;
+            width: 10rem;
+            color: var(--md-primary-bg-color)
+        }
+
+        .tx-hero .md-button--primary {
+            background-color: var(--md-primary-bg-color);
+            /* color: hsla(280deg, 37%, 48%, 1); */
+            color: rgb(0, 0, 0);
+            border-color: var(--md-primary-bg-color)
+        }
+
+        .tx-hero .md-button:focus,
+        .tx-hero .md-button:hover {
+            background-color: var(--md-accent-fg-color);
+            color: var(--md-default-bg-color);
+            border-color: var(--md-accent-fg-color)
+        }
+
+        .tx-container-2 {
+            padding: 0rem;
+            background-color: white;
+            margin-bottom: 0px;
+        }
+
+        .tx-hero__image-2 {
+            max-width: 100%;
+            max-height: 100%;
+            order: 1;
+            padding-right: 0.5rem;
+            padding-left: 0rem;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            float: left;
+        }
+
+        .tx-hero__content-2 {
+            margin-left: 50px;
+            justify-content: left;
+            color: #0D47A1;
+            font-weight: 300;
+            padding: 0 0px;
+            padding-bottom: 40px;
+            word-break: break-word;
+            float: right;
+        }
+
+        .tx-hero__content-2 h1 {
+            margin-top: 50px;
+            color: #0D47A1;
+            font-weight: 600;
+            font-size: 36px;
+
+            /* commenting out the lines below fixes overflow issue when viewed on mobile */
+            /* white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis; */
+
+            line-height: normal;
+            /*font-family: inherit;*/
+        }
+
+        .tx-hero__content-2 p {
+            font-size: 17px;
+            line-height: 1.8em;
+            text-rendering: optimizeLegibility;
+            color: black;
+            display: block;
+        }
+
+        .tx-hero__content-2 a:link {
+            color: #0D47A1;
+        }
+
+        .tx-hero__content-2 a:visited {
+            color: #0D47A1;
+        }
+
+        .tx-container-3 {
+            --md-primary-fg-color: #0a192f;
+            height: auto;
+            background: linear-gradient(to bottom, var(--md-primary-fg-color), #02162f 100%, #fff 99%);
+        }
+
+        .tx-hero__content-3 {
+            margin-left: 50px;
+            justify-content: left;
+            color: #FFFFFF;
+            font-weight: 300;
+            padding: 0 0px;
+            padding-bottom: 40px;
+            word-break: break-word;
+            float: right;
+        }
+
+        .tx-hero__content-3 h1 {
+            margin-top: 50px;
+            color: #FFFFFF;
+            font-weight: 600;
+            font-size: 36px;
+
+            /* commenting out the lines below fixes overflow issue when viewed on mobile */
+            /* white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis; */
+
+            line-height: normal;
+            /*font-family: inherit;*/
+        }
+
+        .tx-hero__content-3 p {
+            font-size: 17px;
+            line-height: 1.8em;
+            text-rendering: optimizeLegibility;
+            color: white;
+            display: block;
+        }
+
+        .tx-hero__content-3 a:link {
+            color: #9fbce9; /* chosen randomly, open to alternatives */
+        }
+
+        .tx-hero__content-3 a:visited {
+            color: #9fbce9; /* chosen randomly, open to alternatives */
+        }
+
+        .tx-container-4 {
+            height: auto;
+            background: linear-gradient(to bottom, #0D47A1, #02162f 99%, #fff 99%);
+        }
+
+        .tx-container-testimonial {
+            height: auto;
+            background: #EDEFF0;
+        }
+
+        .tx-hero__image-3 {
+            max-width: 100%;
+            max-height: 100%;
+            order: 1;
+            padding-right: 2.5rem;
+            padding-top: 30px;
+            padding-bottom: 30px;
+        }
+
+        /* .feature-item h2 svg {
+            height: 30px;
+            float: left;
+            margin-right: 10px;
+            transform: translateY(10%);
+        } */
+
+        .top-hr {
+            margin-top: 42px;
+        }
+
+        /* .feature-item {
+            font-family: 'Lato', sans-serif;
+            font-weight: 300;
+            box-sizing: border-box;
+            padding: 0 15px;
+            word-break: break-word
+        }
+
+        .feature-item h2 {
+            color: #333;
+            font-weight: 300;
+            font-size: 25px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: normal;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-family: inherit;
+        }
+
+        .feature-item p {
+            font-size: 16px;
+            line-height: 1.8em;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+            color: #111;
+            margin: 0 0 10px;
+            display: block;
+        } */
+
+        @media screen and (max-width:30em) {
+            .tx-hero h1 {
+                font-size: 1.4rem
+            }
+        }
+
+        @media screen and (min-width:60em) {
+            .md-sidebar--secondary {
+                display: none
+            }
+
+            .tx-hero {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .tx-hero__content {
+                max-width: 22rem;
+                margin-top: 3.5rem;
+                margin-bottom: 3.5rem;
+                margin-left: 1.0rem;
+                margin-right: 4.0rem;
+                align-items: center;
+            }
+        }
+
+        @media screen and (min-width:76.25em) {
+            .md-sidebar--primary {
+                display: none
+            }
+
+            .top-hr {
+                width: 100%;
+                display: flex;
+                max-width: 61rem;
+                margin-right: auto;
+                margin-left: auto;
+                padding: 0 .2rem;
+            }
+
+            .bottom-hr {
+                margin-top: 10px;
+                width: 100%;
+                display: flex;
+                max-width: 61rem;
+                margin-right: auto;
+                margin-left: auto;
+                padding: 0 .2rem;
+            }
+
+            .feature-item {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .feature-item:hover {
+                background-color: #526cfe47;
+                border-radius: 3px;
+            }
+        }
+
+        .hr {
+            border-bottom: 1px solid #eee;
+            width: 100%;
+            margin: 20px 0;
+        }
+
+        .text-center {
+            text-align: center;
+            padding-right: 15px;
+            padding-left: 15px;
+            margin-right: auto;
+            margin-left: auto;
+            margin-top: 15px;
+            font-family: 'Lato', sans-serif;
+            font-size: 23px;
+            font-weight: 300;
+            padding-bottom: 10px;
+        }
+
+        .logos {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-flow: row wrap;
+            margin: 0 auto;
+        }
+
+        .logos img {
+            flex: 1 1 auto;
+            padding: 25px;
+            max-height: 130px;
+            vertical-align: middle;
+        }
+
+        .hr-logos {
+            margin-top: 0;
+            margin-bottom: 30px;
+        }
+
+        .md-footer-meta__inner {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            margin-top: 1.0rem;
+        }
+
+        .md-footer-social {
+            padding-top: 20px;
+        }
+    </style>
+
+    <!-- Hero Banner -->
+    <section class="tx-container">
+        <div class="md-grid md-typeset">
+            <div class="tx-hero">
+                <div class="tx-hero__image">
+                    <img src="assets/images/nvidia-logo.png" draggable="false">
+                </div>
+                <div class="tx-hero__content">
+                    <h1>NeMo Framework <br> for Generative AI</h1>
+<!--                    <p>{{ config.site_description }}</p>-->
+                    
+                    <!-- <a href="{{ page.next_page.url | url }}" title="{{ page.next_page.title | e }}" -->
+                    <a
+                    href="https://github.com/NVIDIA/NeMo" 
+                    class="md-button md-button--primary">
+                        <span>GitHub</span>
+                        <!-- Note: I am using "margin-bottom: -1px" to make the icon look vertically aligned with the text -->
+                        <svg 
+                            style="margin-bottom: -1px;"
+                            xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-github"
+                            viewBox="0 0 16 16">
+                            <path
+                                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+                        </svg>
+                    </a>
+
+                    <a
+                    href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html" 
+                    class="md-button md-button--primary">
+                        Tutorials
+                    </a>
+
+                    <a href="https://docs.nvidia.com/nemo-framework/index.html"
+                        class="md-button md-button--primary">
+                        Documentation
+                    </a>
+                    
+                    <a
+                    href="https://github.com/NVIDIA/GenerativeAIExamples"
+                    class="md-button md-button--primary">
+                        GenAI Examples
+                    </a>
+                    
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main site box descriptions -->
+    <!-- 2nd Section -->
+    <!-- WHAT IS NEMO FRAMEWORK ? -->
+    <section class="tx-container-2">
+        <div class="md-grid md-typeset">
+            <div class="tx-hero">
+                <!-- Hero content -->
+                <div class="tx-hero__content-2" style="padding-bottom: 0px"> <!-- remove padding at bottom so that diagram below will not be too far away -->
+                    <h1>What is NeMo Framework?</h1><br>
+                    <p>
+                        <a href="https://github.com/NVIDIA/NeMo">NVIDIA NeMo</a> framework, part of 
+                        <a href="https://www.nvidia.com/en-us/data-center/products/ai-enterprise/">NVIDIA AI Enterprise</a>, 
+                        is an end-to-end toolkit for building, customizing, and
+                        deploying state-of-the-art AI models at scale anywhere — on any cloud or on-premises. It includes data curation tools and
+                        pretrained models, training, customization and inference frameworks, and guardrail toolkit.<br><br>
+
+                        NeMo collections include <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/nemo_megatron/intro.html">Large Language Models (LLM)</a>, 
+                        <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/multimodal/mllm/intro.html">Multimodal Models (MM)</a>, 
+                        <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/vision/intro.html">Computer Vision (CV)</a>, 
+                        <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/intro.html">Automatic Speech Recognition (ASR)</a>, 
+                        <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tts/intro.html">Text-To-Speech (TTS)</a>
+                        and <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/machine_translation/machine_translation.html">Neural Machine Translation (NMT)</a>. 
+                        Collections consist of modules that users can customize with their own data. 
+                        Every module can be customized, extended, and composed to create
+                        new AI models. NeMo supports language and multimodal models based on Transformer architectures (GPT, T5, BERT, MoE,
+                        RETRO, etc.) as well as Diffusion architecture (Stable Diffusion etc.) including a rich community model support with
+                        Llama 2, Falcon, CLIP, Stable Diffusion, Imagen, LLAVA, Canary and others.
+                    </p><br>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!--  inserting this image in its own "container" to make sure it occupies the full width of the page -->
+    <section class="tx-container-2">
+        <div class="md-grid md-typeset">
+            <div class="tx-hero">
+                <!-- Hero content -->
+                <div class="tx-hero__content-2">
+                    <img src="https://github.com/NVIDIA/NeMo/releases/download/v1.23.0/asset-githubio-home-nemo_fw_llm_mm.png" alt="" width="" draggable="false" align="center">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3rd Section -->
+    <!-- MODEL TRAINING AND ALIGNMENT -->
+    <section class="tx-container-3">
+        <div class="md-grid md-typeset">
+
+            <div class="tx-hero">
+                <!-- Hero content -->
+                <div class="tx-hero__content-3" style="padding-bottom: 0px"> <!-- remove padding at bottom so that diagram below will not be too far away -->
+                    <h1>Model Training and Alignment</h1><br>
+
+                    <p>
+                        Transformer-based LLM and multimodal models can leverage <a href="https://github.com/NVIDIA/Megatron-LM/tree/main/megatron/core">NVIDIA Megatron Core</a> 
+                        for scaling training for models with
+                        billions of parameters across thousands of GPUs. Megatron Core includes state-of-the-art parallelization techniques such
+                        as tensor, pipeline and sequence parallelism, and selective activation recomputation for optimal performance.
+                        <br><br>
+                        The NeMo framework offers customization techniques to refine pretrained LLMs including p-tuning, LoRA, and supervised
+                        fine-tuning (SFT). NeMo LLMs can be aligned with state-of-the-art methods such as SteerLM, direct preference
+                        optimization (DPO) and reinforcement learning from human feedback (RLHF) through <a href="https://github.com/NVIDIA/NeMo-Aligner">NVIDIA NeMo Aligner</a>.
+                        <br><br>
+                        NeMo framework also supports training and customizing of speech AI models (ASR, Speech Classification, Speaker Recognition,
+                        Speaker Diarization, and TTS) in a reproducible manner. It also comes with a large set of speech AI tools including
+                        <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/tools/nemo_forced_aligner.html">NeMo Forced Aligner</a>, 
+                        <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/speech_data_processor.html">Speech Data Processor</a> 
+                        and <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/speech_data_explorer.html">Speech Data Explorer</a>.
+                        <br><br>
+                        NVIDIA Framework Launcher is a tool for launching end-to-end training jobs on Slurm-based public or private clouds.
+                    </p><br>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!--  inserting this image in its own "container" to make sure it occupies the full width of the page -->
+    <section class="tx-container-3">
+        <div class="md-grid md-typeset">
+            <div class="tx-hero">
+                <!-- Hero content -->
+                <div class="tx-hero__content-3">
+                    <img src="https://github.com/NVIDIA/NeMo/releases/download/v1.23.0/asset-githubio-home-nemo_fw_speech.png" alt="" width="" draggable="false" align="center">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4th Section -->
+    <!-- DEPLOYMENT AND NVIDIA AI ENTERPRISE -->
+    <section class="tx-container-2">
+        <div class="md-grid md-typeset">
+            <div class="tx-hero">
+                <!-- Hero content -->
+                <div class="tx-hero__content-2">
+                    <h1>Deployment and NVIDIA AI Enterprise</h1><br>
+
+                    <p>
+
+                    NeMo LLM and multimodal models can be deployed and optimized with <a href="https://www.nvidia.com/en-us/deep-learning-ai/solutions/inference-platform/">NVIDIA NIM</a>.
+                    ASR and TTS models customized with NeMo are
+                    optimized for inference and deployment with <a href="https://developer.nvidia.com/riva">NVIDIA Riva</a>. <br><br>
+
+                    NeMo framework is open-source, distributed through <a href="https://github.com/NVIDIA/NeMo">GitHub</a>. Researchers can contribute and build on top of it. It is also
+                    available as a docker container on the <a href="https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo">NGC catalog</a> 
+                    and through an <a href="https://www.nvidia.com/en-us/data-center/products/ai-enterprise/">NVIDIA AI Enterprise</a> subscription for production deployments. <br><br>
+
+                    NVIDIA AI Enterprise is a secure, enterprise-grade end-to-end software platform with automated distributed data
+                    processing, large-scale training and deployment on premises or in the cloud.
+
+                    </p><br>
+                </div>
+            </div>
+        </div>
+    </section>
+
+{% endblock %}
+
+{% block content %}
+{% endblock %}
+
+{% block footer %}
+{{ super() }}
+{% endblock %}
