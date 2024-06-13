@@ -102,7 +102,7 @@ class MultiHeadAttn(nn.Module):
         self.n_head = n_head
         self.d_model = d_model
         self.d_head = d_head
-        self.scale = 1 / (d_head ** 0.5)
+        self.scale = 1 / (d_head**0.5)
         self.pre_lnorm = pre_lnorm
 
         self.qkv_net = nn.Linear(d_model, 3 * n_head * d_head)
