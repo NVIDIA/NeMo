@@ -85,6 +85,7 @@ class Quantizer:
             - algorithm: str
             - decoder_type: str
             - awq_block_size: int (only for awq algorithms)
+            - sq_alpha: float (only for smooth quant algorithms)
 
         Expected keys in `export_config`:
             - dtype: str/int
@@ -125,8 +126,8 @@ class Quantizer:
                 "enable": enable_quant_kv_cache,
             }
             if quantization_config.algorithm == "int8_sq":
-                logging.info(f"Using int8_sq alpha = {quantization_config.alpha}")
-                quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": quantization_config.alpha}
+                logging.info(f"Using int8_sq alpha = {quantization_config.sq_alpha}")
+                quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": quantization_config.sq_alpha}
 
             self.quant_cfg = quant_cfg
         else:
@@ -160,7 +161,7 @@ class Quantizer:
     def modify_model_config(model_cfg: DictConfig) -> DictConfig:
         """Modify model config for quantization."""
         with open_dict(model_cfg):
-            if model_cfg.sequence_parallel:
+            if model_cfg.get("sequence_parallel", False):
                 logging.warning("Disabling sequence parallelism for quantization...")
                 model_cfg.sequence_parallel = False
             # Only custom ModelOpt spec is supported for Quantization: this custom spec is largely based on local Megatron-LM
@@ -195,7 +196,7 @@ class Quantizer:
         assert self.quant_cfg is not None, "Quantization algorithm is not set"
 
         logging.info(f"Quantizing model to {self.quantization_config.algorithm}...")
-        Quantizer._setup(model)
+        self._setup(model)
 
         model = mtq.quantize(model, self.quant_cfg, forward_loop)
 
@@ -221,7 +222,7 @@ class Quantizer:
         assert self.export_config is not None, "Export config is not set"
         torch_dtype = torch_dtype_from_precision(self.export_config.dtype)
 
-        Quantizer._sample_output(model)
+        self._sample_output(model)
 
         if model.cfg.megatron_amp_O2:
             model.model = unwrap_model(model.model, Float16Module)

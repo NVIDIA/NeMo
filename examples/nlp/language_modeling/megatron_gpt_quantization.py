@@ -70,18 +70,19 @@ def main(cfg) -> None:
     if not torch.cuda.is_available():
         raise EnvironmentError("GPU is required for the quantization.")
 
+    # Initialize quantizer
+    quantizer = Quantizer(cfg.quantization, cfg.export)
+
     # Overwrite model config with the one from the model checkpoint and apply quantization modifications
     model_cfg = load_config(cfg.model.restore_from_path)
     model_cfg.update(cfg.model)
-    model_cfg = Quantizer.modify_model_config(model_cfg)
+    model_cfg = quantizer.modify_model_config(model_cfg)
 
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     model = MegatronGPTModel.restore_from(
         restore_path=cfg.model.restore_from_path, override_config_path=model_cfg, trainer=trainer
     )
     model.freeze()
-
-    quantizer = Quantizer(cfg.quantization, cfg.export)
 
     # Quantization algorithm can be set to None. This is useful for baseline precision
     # accuracy validation. In this case only weights export step will be performed:

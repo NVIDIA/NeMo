@@ -30,8 +30,8 @@ quantization:
   algorithm: fp8 # null, int8, int8_sq, fp8, int4_awq, w4a8_awq, int4
   calib_dataset: cnn_dailymail # wikitext, cnn_dailymail, or a local dataset
   num_calib_size: 512 # number of samples used for calibration
-  awq_block_size: 128 # block size for scaling factors in AWQ algorithm
-  alpha: 1.0 # alpha parameter in SmoothQuant algorithm
+  awq_block_size: 128 # block size for scaling factors (only used in AWQ algorithms)
+  sq_alpha: 1.0 # alpha parameter (only used in SmoothQuant algorithms)
 
 export:
   decoder_type: llama # gptnext, gpt2, llama
