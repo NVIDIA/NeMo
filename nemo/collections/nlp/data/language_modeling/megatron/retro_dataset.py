@@ -47,8 +47,7 @@ try:
 
     HAVE_MEGATRON_CORE = True
 
-except (ImportError, ModuleNotFoundError) as e:
-    print(e)
+except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
