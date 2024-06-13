@@ -317,15 +317,16 @@ class MegatronBaseModel(NLPModel):
         args.pop('module')
 
     def get_model_module_list(self):
+        def extract_module(model):
+            if isinstance(model, (McoreDDP, Float16Module, MCoreFloat16Module)):
+                return extract_module(model.module)
+            else:
+                return model
+
         if isinstance(self.model, list):
-            return [
-                model.module if isinstance(model, (Float16Module, MCoreFloat16Module, McoreDDP)) else model
-                for model in self.model
-            ]
-        elif isinstance(self.model, (Float16Module, MCoreFloat16Module)):
-            return [self.model.module]
+            return list(map(extract_module, self.model))
         else:
-            return [self.model]
+            return [extract_module(self.model)]
 
     def _reconfigure_limit_batches(self, limit_batches, dataloader, mode):
         """
@@ -421,7 +422,7 @@ class MegatronBaseModel(NLPModel):
             legacy = True if self._cfg.tokenizer.library == 'sentencepiece' else False
         self.tokenizer = get_nmt_tokenizer(
             library=self._cfg.tokenizer.library,
-            model_name=self._cfg.tokenizer.type,
+            model_name=self._cfg.tokenizer.get("type", None),
             tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)),
             vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.get('vocab_file', None)),
             merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.get('merge_file', None)),
@@ -860,7 +861,15 @@ class MegatronBaseModel(NLPModel):
 
             # Initialize param buckets if explicitly provided
             if getattr(self, 'distributed_adam_buckets', None) is not None:
-                for bucket in self.distributed_adam_buckets:
+                buckets = self.distributed_adam_buckets
+                if self.cfg.get('distributed_adam_bucket_merge_size', 1) > 1:
+                    # Merge buckets if needed
+                    stride = self.cfg.get('distributed_adam_bucket_merge_size', 1)
+                    buckets = [
+                        list(itertools.chain.from_iterable(buckets[i : i + stride]))
+                        for i in range(0, len(buckets), stride)
+                    ]
+                for bucket in buckets:
                     self._optimizer.init_params_bucket(bucket)
                 self._optimizer.init_params_bucket(self.parameters())
             if hasattr(self, 'distributed_adam_buckets'):
