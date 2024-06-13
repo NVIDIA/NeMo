@@ -291,6 +291,7 @@ class Transformer(Module):
         adaptive_rmsnorm_cond_dim_in = None,
         use_unet_skip_connection = False,
         skip_connect_scale = None,
+        **kwargs,
     ):
         super().__init__()
         assert divisible_by(depth, 2)
@@ -380,6 +381,7 @@ class Transformer(Module):
         # going through the attention layers
 
         for skip_combiner, attn_prenorm, attn, ff_prenorm, ff in self.layers:
+            attn.train()
 
             # in the paper, they use a u-net like skip connection
             # unclear how much this helps, as no ablations or further numbers given besides a brief one-two sentence mention
@@ -399,7 +401,7 @@ class Transformer(Module):
             else:
                 float_key_padding_mask = None 
 
-            x, _ = attn(
+            attn_output, _ = attn(
                 query=attn_input, 
                 key=attn_input,
                 value=attn_input,
@@ -407,6 +409,7 @@ class Transformer(Module):
                 need_weights=False,
                 attn_mask = alibi_bias
             )
+            x = attn_output + x
 
             ff_input = ff_prenorm(x, **rmsnorm_kwargs) 
             x = ff(ff_input) + x

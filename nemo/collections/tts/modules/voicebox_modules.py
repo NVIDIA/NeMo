@@ -9,13 +9,13 @@ from torch.nn.utils.rnn import pad_sequence
 from beartype import beartype
 from beartype.typing import Callable, Tuple, Optional, List, Union
 from naturalspeech2_pytorch.utils.tokenizer import Tokenizer, _phonemes
-from naturalspeech2_pytorch.aligner import Aligner as _Aligner
-from naturalspeech2_pytorch.aligner import maximum_path
+from naturalspeech2_pytorch.aligner import maximum_path, Aligner as _Aligner
 from naturalspeech2_pytorch.utils.cleaner import TextProcessor
-from voicebox_pytorch.voicebox_pytorch import VoiceBox as _VB
-from voicebox_pytorch.voicebox_pytorch import ConditionalFlowMatcherWrapper as _CFMWrapper
-from voicebox_pytorch.voicebox_pytorch import DurationPredictor as _DP
 from voicebox_pytorch.voicebox_pytorch import (
+    AudioEncoderDecoder,
+    MelVoco as _MelVoco,
+    EncodecVoco as _EncodecVoco,
+    DurationPredictor as _DP,
     is_probably_audio_from_shape,
     Transformer,
     Rearrange,
@@ -26,9 +26,6 @@ import torchode as to
 from torchdiffeq import odeint
 from einops import rearrange, repeat, reduce, pack, unpack
 
-from voicebox_pytorch.voicebox_pytorch import AudioEncoderDecoder
-from voicebox_pytorch.voicebox_pytorch import MelVoco as _MelVoco
-from voicebox_pytorch.voicebox_pytorch import EncodecVoco as _EncodecVoco
 import dac
 
 from pytorch_lightning import LightningModule
@@ -36,8 +33,10 @@ from nemo.utils import logging
 from nemo.collections.tts.models.aligner import AlignerModel
 from nemo.collections.asr.modules.audio_preprocessing import AudioPreprocessor
 # from nemo.collections.tts.parts.utils.helpers import binarize_attention
-from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel as binarize_attention
-from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
+from nemo.collections.tts.parts.utils.helpers import (
+    binarize_attention_parallel as binarize_attention,
+    get_mask_from_lengths,
+)
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer, EnglishPhonemesTokenizer
 from nemo.collections.tts.modules.voicebox_utils import (
     exists,
@@ -54,6 +53,7 @@ from nemo.collections.tts.modules.voicebox_utils import (
     generate_mask_from_repeats,
     LearnedSinusoidalPosEmb,
     ConvPositionEmbed,
+    Transformer as _Transformer,
 )
 
 
@@ -1074,6 +1074,7 @@ class VoiceBox(LightningModule):
         text_enc_frame_concat = False,
         text_enc_vb_masked = True,
         text_enc_rec_loss = True,
+        pytorch_mha = False,
         **kwargs
     ):
         """
@@ -1153,7 +1154,9 @@ class VoiceBox(LightningModule):
             groups = conv_pos_embed_groups
         )
 
-        self.transformer = Transformer(
+        self.pytorch_mha = pytorch_mha
+        transformer_cls = _Transformer if pytorch_mha else Transformer
+        self.transformer = transformer_cls(
             dim = dim,
             depth = depth,
             dim_head = dim_head,
@@ -1214,7 +1217,7 @@ class VoiceBox(LightningModule):
 
         self.text_encode = text_encode
         if self.text_encode:
-            self.text_encoder = Transformer(
+            self.text_encoder = transformer_cls(
                 dim = dim,
                 depth = text_enc_depth,
                 dim_head = dim_head,
@@ -1436,6 +1439,8 @@ class VoiceBox(LightningModule):
 
         if not exists(cond_mask):
             cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len, cond_token_ids=cond_token_ids, self_attn_mask=self_attn_mask, training=self.training)
+            if exists(self_attn_mask):
+                cond_mask = cond_mask & self_attn_mask
 
         cond_mask_with_pad_dim = rearrange(cond_mask, '... -> ... 1')
         outputs["cond_mask"] = cond_mask_with_pad_dim
@@ -1514,15 +1519,25 @@ class VoiceBox(LightningModule):
                 conv_cond_text = torch.cat(to_concat, dim = 2)
                 conv_cond_text = self.text_audio_to_embed(conv_cond_text)
                 conv_cond_text = self.text_audio_conv_embed(conv_cond_text, mask=~self_attn_mask)
-                cond = self.text_encoder(conv_cond_text, mask=self_attn_mask)
+
+                masking_kwargs = {'key_padding_mask': ~self_attn_mask} if self.pytorch_mha else {'mask': self_attn_mask}
+                cond = self.text_encoder(
+                    conv_cond_text,
+                    **masking_kwargs,
+                )
             else:
                 cond_text = self.text_to_embed(cond_emb)
                 conv_cond = self.text_audio_conv_embed(cond, mask=~self_attn_mask)
                 conv_text = self.text_audio_conv_embed(cond_text, mask=~self_attn_mask)
                 to_concat = [*filter(exists, (conv_cond, conv_text))]
                 conv_cond_text = torch.cat(to_concat, dim = 1)
-                mask = torch.cat([~cond_mask * self_attn_mask, self_attn_mask], dim=1)
-                cond = self.text_encoder(conv_cond_text, mask=mask)
+
+                mask = torch.cat([~cond_mask & self_attn_mask, self_attn_mask], dim=1)
+                masking_kwargs = {'key_padding_mask': ~mask} if self.pytorch_mha else {'mask': mask}
+                cond = self.text_encoder(
+                    conv_cond_text,
+                    **masking_kwargs,
+                )
                 cond = cond[:, seq_len:]
             if self.text_enc_rec_loss:
                 pred_ori_cond = self.proj_out(cond)
@@ -1540,17 +1555,14 @@ class VoiceBox(LightningModule):
         # attend
 
         if self.text_encode and self.text_enc_vb_masked:
-            x = self.transformer(
-                x,
-                mask = cond_mask,
-                adaptive_rmsnorm_cond = time_emb
-            )
+            masking_kwargs = {'key_padding_mask': ~cond_mask} if self.pytorch_mha else {'mask': cond_mask}
         else:
-            x = self.transformer(
-                x,
-                mask = self_attn_mask,
-                adaptive_rmsnorm_cond = time_emb
-            )
+            masking_kwargs = {'key_padding_mask': ~self_attn_mask} if self.pytorch_mha else {'mask': self_attn_mask}
+        x = self.transformer(
+            x,
+            **masking_kwargs,
+            adaptive_rmsnorm_cond = time_emb
+        )
 
         x = self.to_pred(x)
 
