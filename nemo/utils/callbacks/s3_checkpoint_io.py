@@ -46,9 +46,9 @@ class S3CheckpointIO(CheckpointIO):
                 requests to perform a download. Default is 15.
             max_write_concurrency (int, optional): The maximum number of threads that will be making
                 requests to perform an upload. Default is 10.
-            async_checkpointing (bool, optional): Uses a ProcessPoolExecutor to do the main saving logic. 
+            async_checkpointing (bool, optional): Uses a ProcessPoolExecutor to do the main saving logic.
                 This feature should be used with save_top_k as it's possible a previous checkpoint is removed while
-                the current checkpoint write fails. 
+                the current checkpoint write fails.
         """
         if not S3Utils.is_s3_url(dirpath):
             raise AssertionError(
