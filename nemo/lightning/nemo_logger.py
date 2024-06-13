@@ -14,14 +14,13 @@ from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.env_var_parsing import get_envbool
-from nemo.utils.exp_manager import check_explicit_log_dir
+from nemo.utils.exp_manager import check_explicit_log_dir)
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 
-
 @dataclass
-class Experiment:
-    name: str
+class NeMoLogger:
+    name: str = "default"
     dir: Optional[str] = None
     explicit_log_dir: Optional[str] = None
     version: Optional[str] = None
@@ -118,3 +117,4 @@ class Experiment:
 
     def teardown(self):
         pass
+

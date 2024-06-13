@@ -10,8 +10,8 @@ except ImportError:
     pass
 
 from nemo.lightning.base import get_vocab_size, teardown
-from nemo.lightning.experiment import Experiment
-from nemo.lightning.pytorch.plugins import MegatronDataSampler, MegatronMixedPrecision
+from nemo.lightning.nemo_logger import NeMoLogger
+ from nemo.lightning.pytorch.plugins import MegatronDataSampler, MegatronMixedPrecision
 from nemo.lightning.pytorch.plugins import data_sampler as _data_sampler
 from nemo.lightning.pytorch.strategies import MegatronStrategy
 from nemo.lightning.pytorch.trainer import Trainer
@@ -32,10 +32,10 @@ _pl_plugins._PLUGIN_INPUT = Union[_pl_plugins._PLUGIN_INPUT, _data_sampler.DataS
 
 __all__ = [
     "AutoResume",
-    "Experiment",
     "MegatronStrategy",
     "MegatronDataSampler",
     "MegatronMixedPrecision",
+    "NeMoLogger",
     "Trainer",
     "get_vocab_size",
     "teardown",

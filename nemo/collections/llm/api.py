@@ -9,7 +9,7 @@ from pytorch_lightning.loggers import MLFlowLogger, NeptuneLogger, TensorBoardLo
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.utils import task
-from nemo.lightning import AutoResume, Experiment, MegatronStrategy, Trainer, io, teardown
+from nemo.lightning import AutoResume, MegatronStrategy, NeMoLogger, Trainer, io, teardown
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.resume import Resume
 from nemo.utils.exp_manager import PreemptionCallback, StatelessTimer, TimingCallback
@@ -21,7 +21,7 @@ def train(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
     trainer: Trainer,
-    exp: Experiment = Experiment('default'),
+    nemo_logger: NeMoLogger = NeMoLogger(),
     resume: Optional[Union[AutoResume, Resume]] = AutoResume(),
     tokenizer: Optional[str] = None,
     # TODO: Fix export
@@ -34,7 +34,7 @@ def train(
         model (pl.LightningModule): The model to be trained.
         data (pl.LightningDataModule): The data module containing training data.
         trainer (Trainer): The trainer instance configured with a MegatronStrategy.
-        exp (Experiment): An experiment instance.
+        nemo_logger (NeMoLogger): A nemologger instance.
         resume (Optional[Union[AutoResume, Resume]]): Resume training from a checkpoint.
         tokenizer (Optional[str]): Tokenizer setting to be applied. Can be 'data' or 'model'.
         export (Optional[str]): Filename to save the exported checkpoint after training.
@@ -61,7 +61,7 @@ def train(
     if tokenizer:  # TODO: Improve this
         _use_tokenizer(model, data, tokenizer)
 
-    app_state = exp.setup(trainer, resume_if_exists=getattr(resume, "resume_if_exists", False))
+    app_state = nemo_logger.setup(trainer, resume_if_exists=getattr(resume, "resume_if_exists", False))
     if resume is not None:
         resume.setup(model, trainer)
 
@@ -78,7 +78,7 @@ def train(
     #     print(f"Exporting checkpoint to: {export_dir / export}")
     #     export_ckpt(export_dir, export)
 
-    exp.teardown()
+    nemo_logger.teardown()
 
     return app_state.exp_dir
 
@@ -256,7 +256,7 @@ if __name__ == '__main__':
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed", amp_O2=True),
     )
 
-    experiment = Experiment(
+    nemo_logger = NeMoLogger(
         name='experiment_test',
     )
 
@@ -269,6 +269,6 @@ if __name__ == '__main__':
         model=model,
         data=data,
         trainer=trainer,
-        exp=experiment,
+        nemo_logger=nemo_logger,
         resume=resume,
     )
