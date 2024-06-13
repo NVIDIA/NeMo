@@ -1,6 +1,5 @@
 accelerated-scan
 boto3
-boto3[crt]
 causal-conv1d==1.2.0.post2
 einops
 faiss-cpu
@@ -19,9 +18,7 @@ opencc<1.1.7
 pangu
 rapidfuzz
 rouge_score
-s3fs==0.4.2
 sacrebleu  # manually install sacrebleu[ja] for Japanese support; MeCab is unsupported in Python 3.11+
 sentence_transformers
-tenacity
 tensorstore<0.1.46
 zarr
