@@ -222,21 +222,7 @@ class Exportable(ABC):
                 elif format == ExportFormat.ONNX:
                     # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
                     if dynamic_axes is None:
-                        dynamic_axes = get_dynamic_axes(self.input_module.input_types_for_export, input_names)
-                        if use_dynamo:
-                            dynamic_shapes = {}
-                            batch = torch.export.Dim("batch")
-                            for name, dims in dynamic_axes.items():
-                                ds = {}
-                                for d in dims:
-                                    if d == 0:
-                                        ds[d] = batch
-                                    # this currently has issues: https://github.com/pytorch/pytorch/issues/126127
-                                    else:
-                                        ds[d] = torch.export.Dim(name + '__' + str(d))
-                                dynamic_shapes[name] = ds
-                    else:
-                        dynamic_shapes = dynamic_axes
+                        dynamic_axes = self.dynamic_shapes_for_export(use_dynamo)
                     if use_dynamo:
                         import onnxscript
 
@@ -260,7 +246,7 @@ class Exportable(ABC):
                                     self,
                                     tuple(input_list),
                                     kwargs=input_dict,
-                                    dynamic_shapes=dynamic_shapes,
+                                    dynamic_shapes=dynamic_axes,
                                     strict=False,
                                 )
                                 ex_model = ex_model.run_decompositions()
@@ -347,6 +333,9 @@ class Exportable(ABC):
     @property
     def output_types_for_export(self):
         return self.output_types
+
+    def dynamic_shapes_for_export(self, use_dynamo=False):
+        return get_dynamic_axes(self.input_module.input_types_for_export, self.input_names, use_dynamo)
 
     def get_export_subnet(self, subnet=None):
         """
