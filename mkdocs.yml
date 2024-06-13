@@ -97,16 +97,16 @@ plugins:
         # blogs main page -> blogs main page
         'blogs/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs/'
         # all existing blogs -> blogs main page
-        'blogs/2022/2022-08-introduction/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
-        'blogs/2022/2022-nvidia-technical-blog/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
-        'blogs/2023/2023-06-07-fast-conformer/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
-        'blogs/2023/2023-08-forced-alignment/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
-        'blogs/2023/2023-08-nfa/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
-        'blogs/2023/2023-10-28-numba-fp16/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
-        'blogs/2023/2023-nvidia-technical-blog/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
-        'blogs/2024/2024-01-parakeet/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
-        'blogs/2024/2024-01-parakeet-tdt/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
-        'blogs/2024/2024-02-canary/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
+        'blogs/2022/2022-08-introduction/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs/2022/2022-08-introduction'
+        'blogs/2022/2022-nvidia-technical-blog/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs/2022/2022-nvidia-technical-blog'
+        'blogs/2023/2023-06-07-fast-conformer/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs/2023/2023-06-07-fast-conformer'
+        'blogs/2023/2023-08-forced-alignment/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs/2023/2023-08-forced-alignment'
+        'blogs/2023/2023-08-nfa/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs/2023/2023-08-nfa'
+        'blogs/2023/2023-10-28-numba-fp16/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs/2023/2023-10-28-numba-fp16'
+        'blogs/2023/2023-nvidia-technical-blog/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs/2023/2023-nvidia-technical-blog'
+        'blogs/2024/2024-01-parakeet/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs/2024/2024-01-parakeet'
+        'blogs/2024/2024-01-parakeet-tdt/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs/2024/2024-01-parakeet-tdt'
+        'blogs/2024/2024-02-canary/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs/2024/2024-02-canary'
 
 
 # Customization
