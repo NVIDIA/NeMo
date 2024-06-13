@@ -37,7 +37,6 @@ Given image's CLIP text probability:  [('a dog', 0.0049710185), ('a boy', 0.0022
 import os
 from argparse import ArgumentParser
 
-import open_clip
 import torch
 from omegaconf import OmegaConf
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment

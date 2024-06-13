@@ -79,6 +79,7 @@ try:
         TENorm,
         TERowParallelLinear,
     )
+    from megatron.core.transformer.identity_op import IdentityFuncOp, IdentityOp
     from megatron.core.transformer.spec_utils import build_module
     from megatron.core.distributed import DistributedDataParallelConfig, finalize_model_grads
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
@@ -331,8 +332,16 @@ class MCoreSiglipViTModel(CLIPViTModel):
     def __init__(self, *args, **kwargs):
         # TODO (yuya): need to handle post_process correctly in order to enable PP
         self.output_dim = kwargs.pop('output_dim')
-        assert self.output_dim == self.config.hidden_size, "Siglip output_dim needs to be the same as hidden_size."
+        kwargs['ln_pre_impl'] = IdentityOp
         super().__init__(*args, **kwargs)
+        assert self.output_dim == self.config.hidden_size, "Siglip output_dim needs to be the same as hidden_size."
+        self.conv1 = torch.nn.Conv2d(
+            in_channels=3,
+            out_channels=self.visual_hidden_size,
+            kernel_size=self.patch_dim,
+            stride=self.patch_dim,
+            bias=True,
+        )
         self.final_layernorm = TENorm(
             config=self.config,
             hidden_size=self.config.hidden_size,
@@ -394,21 +403,32 @@ class MCoreCLIPTextModel(MCoreGPTModel):
     def __init__(self, *args, **kwargs):
         # TODO (yuya): need to handle post_process correctly in order to enable PP
         self.output_dim = kwargs.pop('output_dim')
+        self.use_siglip = kwargs.pop('use_siglip')
+        if self.use_siglip:
+            kwargs['transformer_layer_spec'].submodules.self_attention.params['attn_mask_type'] = MCoreAttnMaskType.no_mask
+
         super().__init__(*args, **kwargs)
         self.final_layernorm = TENorm(
             config=self.config,
             hidden_size=self.config.hidden_size,
             eps=self.config.layernorm_epsilon,
         )
-        self.head = torch.nn.Linear(self.config.hidden_size, self.output_dim, bias=False, )
+        if self.use_siglip:
+            self.head = torch.nn.Linear(self.config.hidden_size, self.output_dim, bias=True, )
+        else:
+            self.head = torch.nn.Linear(self.config.hidden_size, self.output_dim, bias=False, )
         self.position_ids = None
         if self.pre_process:
             self.position_ids = torch.arange(kwargs['max_sequence_length']).expand(1, -1).cuda()
 
     def forward(self, input_ids):
+
         x = super().forward(input_ids, position_ids=self.position_ids, attention_mask=None)
         x = self.final_layernorm(x)
-        x = x[input_ids.argmax(dim=-1), torch.arange(x.shape[1])]
+        if self.use_siglip:
+            x = x[-1]
+        else:
+            x = x[input_ids.argmax(dim=-1)]
         x = self.head(x)
         return x
 
@@ -422,6 +442,7 @@ class CLIPModel(MegatronModule):
         super(CLIPModel, self).__init__()
 
         self.config = model_parallel_config
+        self.use_siglip = model_cfg.get("use_siglip", False)
         self.pre_process = pre_process
         self.post_process = post_process
         self.output_dim = model_cfg.output_dim
@@ -474,6 +495,7 @@ class CLIPModel(MegatronModule):
                 seq_len_interpolation_factor=model_cfg.text.get('seq_len_interpolation_factor', None),
                 rotary_base=model_cfg.text.get('rotary_base', 10000),
                 output_dim=model_cfg.output_dim,
+                use_siglip=self.use_siglip,
             )
 
         else:
@@ -488,7 +510,11 @@ class CLIPModel(MegatronModule):
                 post_process=self.post_process,
             )
 
-        self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        if self.use_siglip:
+            self.logit_scale = torch.nn.Parameter(torch.randn(1))
+            self.logit_bias = torch.nn.Parameter(torch.randn(1))
+        else:
+            self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
@@ -1449,7 +1475,7 @@ class MegatronCLIPModel(MegatronBaseModel):
         activation = model_cfg.get('activation', 'gelu')
         gated_linear_unit = activation.endswith('glu')
         # TODO: need to check which activation functions are supported in mcore
-        activation_func = activation_to_func(activation)
+        activation_func = activation_to_func(activation, openai_gelu=model_cfg.get("openai_gelu", False))
 
         normalization = model_cfg.get('normalization', 'LayerNorm')
 
