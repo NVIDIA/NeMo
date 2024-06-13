@@ -2,18 +2,33 @@ from pathlib import Path
 from typing import Callable, Optional, Union
 
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.callbacks.timer import Interval
+from pytorch_lightning.loggers import MLFlowLogger, NeptuneLogger, TensorBoardLogger, WandbLogger
+from nemo import lightning as nl
+from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 
+from nemo.collections import llm
 from nemo.collections.llm.utils import task
 from nemo.lightning import AutoResume, Experiment, MegatronStrategy, Trainer, io, teardown
 from nemo.lightning.resume import Resume
-
+from nemo.utils.exp_manager import (
+    TimingCallback,
+    PreemptionCallback,
+    StatelessTimer
+)
+from nemo.utils.loggers import (
+    DLLogger,
+    DLLoggerParams,
+    MLFlowParams
+)
 
 @task(namespace="llm")
 def train(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
     trainer: Trainer,
-    exp: Experiment = Experiment(),
+    exp: Experiment = Experiment('default'),
     resume: Optional[Union[AutoResume, Resume]] = AutoResume(),
     tokenizer: Optional[str] = None,
     # TODO: Fix export
@@ -53,9 +68,12 @@ def train(
     if tokenizer:  # TODO: Improve this
         _use_tokenizer(model, data, tokenizer)
 
+    app_state = exp.setup(
+        trainer,
+        resume_if_exists=getattr(resume, "resume_if_exists", False)
+    )
     if resume is not None:
         resume.setup(model, trainer)
-    app_state = exp.setup(trainer, resume_if_exists=getattr(resume, "resume_if_exists", False))
 
     if hasattr(train, "__io__"):
         _save_config_img(app_state.exp_dir, train.__io__)
@@ -163,3 +181,107 @@ def _save_config_img(*args, **kwargs):
         save_config_img(*args, **kwargs)
     except ImportError:
         pass
+
+
+if __name__ == '__main__':
+
+    seq_length=2048
+
+    data = llm.MockDataModule(seq_length=seq_length, global_batch_size=32)
+
+    gpt_config = llm.GPTConfig(
+        num_layers=2, #4,
+        hidden_size=4096,
+        ffn_hidden_size=4096,
+        num_attention_heads=32,
+        seq_length=seq_length,
+    )
+    model = llm.GPTModel(gpt_config, tokenizer=data.tokenizer)
+
+    strategy = nl.MegatronStrategy(
+        tensor_model_parallel_size=1,
+        ckpt_include_optimizer=True,
+    )
+
+    checkpoint_callback = ModelCheckpoint(
+        save_best_model=False,
+        save_last=True,
+        monitor="train_loss",
+        save_top_k=2,
+        every_n_train_steps=2,
+        async_save=True,
+    )
+
+    loggers = []
+    tensorboard_logger = TensorBoardLogger(
+        save_dir='dummy', ## NOTE: this gets overwritten by default
+    )
+    loggers.append(tensorboard_logger)
+
+    callbacks = [checkpoint_callback]
+
+    ## this fails during distributed checkpointing
+    '''callbacks.append(
+        EMA(
+            decay=0.999,
+            cpu_offload=False,
+            validate_original_weights=False,
+            every_n_steps=1,
+        )
+    )'''
+
+    callbacks.append(
+        EarlyStopping(
+            monitor="train_loss",
+            mode="max",
+            min_delta=0.001,
+            patience=1,
+            verbose=True,
+            strict=True,
+            check_finite=True,
+            stopping_threshold=None,
+            divergence_threshold=None,
+            check_on_train_epoch_end=None,
+            log_rank_zero_only=False,
+        )
+    )
+    callbacks.append(
+        TimingCallback()
+    )
+    callbacks.append(
+        PreemptionCallback(
+            checkpoint_callback
+            #signal.SIGINT
+        )
+    )
+
+    '''callbacks.append(
+        StatelessTimer("00:00:00:02") ## TODO: not compatible with async checkpointing
+    )'''
+
+    trainer = nl.Trainer(
+        devices=2,
+        max_steps=2,
+        accelerator="gpu",
+        strategy=strategy,
+        logger=loggers,
+        callbacks=callbacks,
+        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed", amp_O2=True),
+    )
+
+    experiment = Experiment(
+        name='experiment_test',
+    )
+
+    resume = AutoResume(
+        resume_if_exists=True,
+        resume_ignore_no_checkpoint=True,
+    )
+
+    train(
+        model=model,
+        data=data,
+        trainer=trainer,
+        exp=experiment,
+        resume=resume,
+    )

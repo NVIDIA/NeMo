@@ -91,7 +91,7 @@ class Experiment:
                     ## TODO: make configurable
                     callback.dirpath = Path(log_dir / "checkpoints")  # app_state.exp_dir
                     if callback.filename is None:
-                        callback.filename = f'{name}--{{{callback.monitor}:.4f}}-{{epoch}}'
+                        callback.filename = f'{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}'
                     if callback.prefix is None:
                         callback.prefix = name
                     ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + '-last'
