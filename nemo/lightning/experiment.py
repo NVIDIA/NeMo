@@ -93,7 +93,7 @@ class Experiment:
                     if callback.filename is None:
                         callback.filename = f'{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}'
                     if callback.prefix is None:
-                        callback.prefix = name
+                        callback.prefix = self.name
                     ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + '-last'
 
         # This is set if the env var NEMO_TESTING is set to True.
