@@ -46,12 +46,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self.save_best_model = save_best_model
         self.previous_best_path = ""
 
-        # `prefix` is deprecated
-        if 'prefix' in kwargs:
-            self.prefix = kwargs.pop('prefix')
-        else:
-            self.prefix = ""
-
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
 
