@@ -1,24 +1,33 @@
 from typing import Optional
 
-from nemo.lightning.pytorch.opt.base import LRSchedulerModule
 from nemo.core.optim.lr_scheduler import (
-    WarmupPolicy, WarmupHoldPolicy, SquareAnnealing, SquareRootAnnealing, 
-    NoamAnnealing, NoamHoldAnnealing, WarmupAnnealing, InverseSquareRootAnnealing, 
-    T5InverseSquareRootAnnealing, PolynomialDecayAnnealing, PolynomialHoldDecayAnnealing
+    InverseSquareRootAnnealing,
+    NoamAnnealing,
+    NoamHoldAnnealing,
+    PolynomialDecayAnnealing,
+    PolynomialHoldDecayAnnealing,
+    SquareAnnealing,
+    SquareRootAnnealing,
+    T5InverseSquareRootAnnealing,
+    WarmupAnnealing,
+    WarmupHoldPolicy,
+    WarmupPolicy,
 )
+from nemo.lightning.pytorch.opt.base import LRSchedulerModule
 
 
 class WarmupPolicyScheduler(LRSchedulerModule):
     """Warmup Policy Learning Rate Scheduler."""
+
     def __init__(
-        self, 
-        warmup_steps: int = 750, 
-        warmup_ratio: Optional[float] = None, 
-        max_steps: int = 10, 
-        min_lr: float = 0.0, 
-        interval: str = "epoch", 
-        frequency: int = 1, 
-        monitor: str = "val_loss"
+        self,
+        warmup_steps: int = 750,
+        warmup_ratio: Optional[float] = None,
+        max_steps: int = 10,
+        min_lr: float = 0.0,
+        interval: str = "epoch",
+        frequency: int = 1,
+        monitor: str = "val_loss",
     ):
         super().__init__()
         self.warmup_steps = warmup_steps
@@ -30,7 +39,13 @@ class WarmupPolicyScheduler(LRSchedulerModule):
         self.monitor = monitor
 
     def scheduler(self, optimizer):
-        lr_scheduler = WarmupPolicy(optimizer, warmup_steps=self.warmup_steps, warmup_ratio=self.warmup_ratio, max_steps=self.max_steps, min_lr=self.min_lr)
+        lr_scheduler = WarmupPolicy(
+            optimizer,
+            warmup_steps=self.warmup_steps,
+            warmup_ratio=self.warmup_ratio,
+            max_steps=self.max_steps,
+            min_lr=self.min_lr,
+        )
         return {
             "optimizer": optimizer,
             "scheduler": lr_scheduler,
@@ -42,17 +57,18 @@ class WarmupPolicyScheduler(LRSchedulerModule):
 
 class WarmupHoldPolicyScheduler(LRSchedulerModule):
     """Warmup Hold Policy Learning Rate Scheduler."""
+
     def __init__(
-        self, 
-        warmup_steps: int = 750, 
-        warmup_ratio: Optional[float] = None, 
-        hold_steps: Optional[int] = None, 
-        hold_ratio: Optional[float] = None, 
-        max_steps: int = 10, 
-        min_lr: float = 0.0, 
-        interval: str = "epoch", 
-        frequency: int = 1, 
-        monitor: str = "val_loss"
+        self,
+        warmup_steps: int = 750,
+        warmup_ratio: Optional[float] = None,
+        hold_steps: Optional[int] = None,
+        hold_ratio: Optional[float] = None,
+        max_steps: int = 10,
+        min_lr: float = 0.0,
+        interval: str = "epoch",
+        frequency: int = 1,
+        monitor: str = "val_loss",
     ):
         super().__init__()
         self.warmup_steps = warmup_steps
@@ -66,7 +82,15 @@ class WarmupHoldPolicyScheduler(LRSchedulerModule):
         self.monitor = monitor
 
     def scheduler(self, optimizer):
-        lr_scheduler = WarmupHoldPolicy(optimizer, warmup_steps=self.warmup_steps, warmup_ratio=self.warmup_ratio, hold_steps=self.hold_steps, hold_ratio=self.hold_ratio, max_steps=self.max_steps, min_lr=self.min_lr)
+        lr_scheduler = WarmupHoldPolicy(
+            optimizer,
+            warmup_steps=self.warmup_steps,
+            warmup_ratio=self.warmup_ratio,
+            hold_steps=self.hold_steps,
+            hold_ratio=self.hold_ratio,
+            max_steps=self.max_steps,
+            min_lr=self.min_lr,
+        )
         return {
             "optimizer": optimizer,
             "scheduler": lr_scheduler,
@@ -78,13 +102,14 @@ class WarmupHoldPolicyScheduler(LRSchedulerModule):
 
 class SquareAnnealingScheduler(LRSchedulerModule):
     """Square Annealing Learning Rate Scheduler."""
+
     def __init__(
-        self, 
-        max_steps: int = 10, 
-        min_lr: float = 1e-5, 
-        interval: str = "epoch", 
-        frequency: int = 1, 
-        monitor: str = "val_loss"
+        self,
+        max_steps: int = 10,
+        min_lr: float = 1e-5,
+        interval: str = "epoch",
+        frequency: int = 1,
+        monitor: str = "val_loss",
     ):
         super().__init__()
         self.max_steps = max_steps
@@ -106,13 +131,14 @@ class SquareAnnealingScheduler(LRSchedulerModule):
 
 class SquareRootAnnealingScheduler(LRSchedulerModule):
     """Square Root Annealing Learning Rate Scheduler."""
+
     def __init__(
-        self, 
-        max_steps: int = 10, 
-        min_lr: float = 0.0, 
-        interval: str = "epoch", 
-        frequency: int = 1, 
-        monitor: str = "val_loss"
+        self,
+        max_steps: int = 10,
+        min_lr: float = 0.0,
+        interval: str = "epoch",
+        frequency: int = 1,
+        monitor: str = "val_loss",
     ):
         super().__init__()
         self.max_steps = max_steps
@@ -134,16 +160,17 @@ class SquareRootAnnealingScheduler(LRSchedulerModule):
 
 class NoamAnnealingScheduler(LRSchedulerModule):
     """Noam Annealing Learning Rate Scheduler."""
+
     def __init__(
-        self, 
-        d_model: int, 
-        warmup_steps: int = 750, 
-        warmup_ratio: Optional[float] = None, 
-        max_steps: int = 10, 
-        min_lr: float = 0.0, 
-        interval: str = "epoch", 
-        frequency: int = 1, 
-        monitor: str = "val_loss"
+        self,
+        d_model: int,
+        warmup_steps: int = 750,
+        warmup_ratio: Optional[float] = None,
+        max_steps: int = 10,
+        min_lr: float = 0.0,
+        interval: str = "epoch",
+        frequency: int = 1,
+        monitor: str = "val_loss",
     ):
         super().__init__()
         self.d_model = d_model
@@ -156,7 +183,14 @@ class NoamAnnealingScheduler(LRSchedulerModule):
         self.monitor = monitor
 
     def scheduler(self, optimizer):
-        lr_scheduler = NoamAnnealing(optimizer, d_model=self.d_model, warmup_steps=self.warmup_steps, warmup_ratio=self.warmup_ratio, max_steps=self.max_steps, min_lr=self.min_lr)
+        lr_scheduler = NoamAnnealing(
+            optimizer,
+            d_model=self.d_model,
+            warmup_steps=self.warmup_steps,
+            warmup_ratio=self.warmup_ratio,
+            max_steps=self.max_steps,
+            min_lr=self.min_lr,
+        )
         return {
             "optimizer": optimizer,
             "scheduler": lr_scheduler,
@@ -168,14 +202,15 @@ class NoamAnnealingScheduler(LRSchedulerModule):
 
 class NoamHoldAnnealingScheduler(LRSchedulerModule):
     """Noam Hold Annealing Learning Rate Scheduler."""
+
     def __init__(
-        self, 
-        max_steps: int = 10, 
-        decay_rate: float = 0.5, 
-        min_lr: float = 0.0, 
-        interval: str = "epoch", 
-        frequency: int = 1, 
-        monitor: str = "val_loss"
+        self,
+        max_steps: int = 10,
+        decay_rate: float = 0.5,
+        min_lr: float = 0.0,
+        interval: str = "epoch",
+        frequency: int = 1,
+        monitor: str = "val_loss",
     ):
         super().__init__()
         self.max_steps = max_steps
@@ -186,7 +221,9 @@ class NoamHoldAnnealingScheduler(LRSchedulerModule):
         self.monitor = monitor
 
     def scheduler(self, optimizer):
-        lr_scheduler = NoamHoldAnnealing(optimizer, max_steps=self.max_steps, decay_rate=self.decay_rate, min_lr=self.min_lr)
+        lr_scheduler = NoamHoldAnnealing(
+            optimizer, max_steps=self.max_steps, decay_rate=self.decay_rate, min_lr=self.min_lr
+        )
         return {
             "optimizer": optimizer,
             "scheduler": lr_scheduler,
@@ -198,7 +235,15 @@ class NoamHoldAnnealingScheduler(LRSchedulerModule):
 
 class WarmupAnnealingScheduler(LRSchedulerModule):
     """Warmup Annealing Learning Rate Scheduler."""
-    def __init__(self, max_steps: int = 10, min_lr: float = 0.0, interval: str = "epoch", frequency: int = 1, monitor: str = "val_loss"):
+
+    def __init__(
+        self,
+        max_steps: int = 10,
+        min_lr: float = 0.0,
+        interval: str = "epoch",
+        frequency: int = 1,
+        monitor: str = "val_loss",
+    ):
         super().__init__()
         self.max_steps = max_steps
         self.min_lr = min_lr
@@ -219,13 +264,14 @@ class WarmupAnnealingScheduler(LRSchedulerModule):
 
 class InverseSquareRootAnnealingScheduler(LRSchedulerModule):
     """Inverse Square Root Annealing Learning Rate Scheduler."""
+
     def __init__(
-        self, 
-        max_steps: int = 10, 
-        min_lr: float = 0.0, 
-        interval: str = "epoch", 
-        frequency: int = 1, 
-        monitor: str = "val_loss"
+        self,
+        max_steps: int = 10,
+        min_lr: float = 0.0,
+        interval: str = "epoch",
+        frequency: int = 1,
+        monitor: str = "val_loss",
     ):
         super().__init__()
         self.max_steps = max_steps
@@ -247,13 +293,14 @@ class InverseSquareRootAnnealingScheduler(LRSchedulerModule):
 
 class T5InverseSquareRootAnnealingScheduler(LRSchedulerModule):
     """T5 Inverse Square Root Annealing Learning Rate Scheduler."""
+
     def __init__(
-        self, 
-        max_steps: int = 10, 
-        min_lr: float = 0.0, 
-        interval: str = "epoch", 
-        frequency: int = 1, 
-        monitor: str = "val_loss"
+        self,
+        max_steps: int = 10,
+        min_lr: float = 0.0,
+        interval: str = "epoch",
+        frequency: int = 1,
+        monitor: str = "val_loss",
     ):
         super().__init__()
         self.max_steps = max_steps
@@ -275,15 +322,16 @@ class T5InverseSquareRootAnnealingScheduler(LRSchedulerModule):
 
 class PolynomialDecayAnnealingScheduler(LRSchedulerModule):
     """Polynomial Decay Annealing Learning Rate Scheduler."""
+
     def __init__(
-        self, 
-        max_steps: int = 10, 
-        min_lr: float = 0.0, 
-        power: float = 1.0, 
-        cycle: bool = False, 
-        interval: str = "epoch", 
-        frequency: int = 1, 
-        monitor: str = "val_loss"
+        self,
+        max_steps: int = 10,
+        min_lr: float = 0.0,
+        power: float = 1.0,
+        cycle: bool = False,
+        interval: str = "epoch",
+        frequency: int = 1,
+        monitor: str = "val_loss",
     ):
         super().__init__()
         self.max_steps = max_steps
@@ -295,7 +343,9 @@ class PolynomialDecayAnnealingScheduler(LRSchedulerModule):
         self.monitor = monitor
 
     def scheduler(self, optimizer):
-        lr_scheduler = PolynomialDecayAnnealing(optimizer, max_steps=self.max_steps, min_lr=self.min_lr, power=self.power, cycle=self.cycle)
+        lr_scheduler = PolynomialDecayAnnealing(
+            optimizer, max_steps=self.max_steps, min_lr=self.min_lr, power=self.power, cycle=self.cycle
+        )
         return {
             "optimizer": optimizer,
             "scheduler": lr_scheduler,
@@ -307,15 +357,16 @@ class PolynomialDecayAnnealingScheduler(LRSchedulerModule):
 
 class PolynomialHoldDecayAnnealingScheduler(LRSchedulerModule):
     """Polynomial Hold Decay Annealing Learning Rate Scheduler."""
+
     def __init__(
-        self, 
-        max_steps: int = 10, 
-        min_lr: float = 0.0, 
-        power: float = 1.0, 
-        cycle: bool = False, 
-        interval: str = "epoch", 
-        frequency: int = 1, 
-        monitor: str = "val_loss"
+        self,
+        max_steps: int = 10,
+        min_lr: float = 0.0,
+        power: float = 1.0,
+        cycle: bool = False,
+        interval: str = "epoch",
+        frequency: int = 1,
+        monitor: str = "val_loss",
     ):
         super().__init__()
         self.max_steps = max_steps
@@ -327,7 +378,9 @@ class PolynomialHoldDecayAnnealingScheduler(LRSchedulerModule):
         self.monitor = monitor
 
     def scheduler(self, optimizer):
-        lr_scheduler = PolynomialHoldDecayAnnealing(optimizer, max_steps=self.max_steps, min_lr=self.min_lr, power=self.power, cycle=self.cycle)
+        lr_scheduler = PolynomialHoldDecayAnnealing(
+            optimizer, max_steps=self.max_steps, min_lr=self.min_lr, power=self.power, cycle=self.cycle
+        )
         return {
             "optimizer": optimizer,
             "scheduler": lr_scheduler,
