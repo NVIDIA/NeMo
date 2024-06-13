@@ -173,7 +173,7 @@ class GreedySequenceGenerator:
     def __call__(
         self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
     ):
-        with self.as_frozen():
+        with torch.inference_mode():
             return self._forward(
                 decoder_input_ids, encoder_hidden_states, encoder_input_mask, return_beam_scores=return_beam_scores
             )
@@ -687,7 +687,7 @@ class EnsembleBeamSearchSequenceGenerator:
             return tgt
 
     def __call__(self, src_ids, encoder_input_mask, decoder_input_ids=None, return_beam_scores=False):
-        with self.as_frozen():
+        with torch.inference_mode():
             return self._forward(src_ids, encoder_input_mask, decoder_input_ids, return_beam_scores)
 
     def freeze(self) -> None:
