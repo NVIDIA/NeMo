@@ -26,9 +26,8 @@ import torch
 import torch.distributed
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
-from torch import Tensor, nn
-
 from megatron.core.transformer.transformer_config import TransformerConfig
+from torch import Tensor, nn
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 
@@ -577,25 +576,26 @@ def getattr_proxy(self, item: Any) -> Any:
 
 class DDP(McoreDDP):
     def __init__(
-            self,
-            config: TransformerConfig,
-            ddp_config: DistributedDataParallelConfig,
-            module: torch.nn.Module,
-            disable_bucketing: bool = False,
-            **kwargs,
-        ):
+        self,
+        config: TransformerConfig,
+        ddp_config: DistributedDataParallelConfig,
+        module: torch.nn.Module,
+        disable_bucketing: bool = False,
+        **kwargs,
+    ):
         init_parameters = inspect.signature(McoreDDP.__init__).parameters
         # Updates to the McoreDDP class have removed some parameters, so we need to
         #  filter out any kwargs that are not part of the updated signature, if a new
         #  version of mcore is being used.
         filtered_kwargs = {k: v for k, v in kwargs.items() if k in init_parameters}
         super().__init__(
-            config=config, 
-            ddp_config=ddp_config, 
-            module=module, 
-            disable_bucketing=disable_bucketing, 
+            config=config,
+            ddp_config=ddp_config,
+            module=module,
+            disable_bucketing=disable_bucketing,
             **filtered_kwargs,
         )
+
     def state_dict(self, prefix='', keep_vars=False, **kwargs):
         self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
 
