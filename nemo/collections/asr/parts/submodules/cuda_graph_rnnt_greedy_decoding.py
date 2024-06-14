@@ -383,8 +383,8 @@ class RNNTGreedyDecodeCudaGraph:
             raise ValueError("Cannot instantiate RNNTGreedyDecodeCudaGraph without `pip install cuda-python`")
         
         # enable RNN in torchdynamo
-        # from torch._dynamo import config
-        # config.allow_rnn = True
+        from torch._dynamo import config
+        config.allow_rnn = True
 
         assert max_symbols is not None
 
@@ -543,7 +543,7 @@ class RNNTGreedyDecodeCudaGraph:
                     return torch.logical_and(self.not_all_blank_t, symbols_added < self.max_symbols_t)
 
                 def body_fn(symbols_added):
-                    # run the text encoder (cause torchdynamo graph breaks cause it's a RNN model...) and joiner to get the predictions
+                    # run the text encoder (cause torchdynamo graph breaks cause it's a LSTM model...) and joiner to get the predictions
                     g, hidden_prime = self.caller._pred_step(self.last_label.unsqueeze(1), hidden, batch_size=self.batch_size)
                     # g = torch.zeros((self.batch_size, 1, 640), device="cuda")
                     # hidden_prime = (torch.zeros((2, self.batch_size, 640), device="cuda"), torch.zeros((2, self.batch_size, 640), device="cuda"))
@@ -565,9 +565,9 @@ class RNNTGreedyDecodeCudaGraph:
                     # )
                     # state copy
                     h = torch.where(not_blank_mask.unsqueeze(0).unsqueeze(-1), hidden_prime[0], hidden[0])
-                    hidden[0].copy_(h)
+                    hidden[0].copy_(h[0])
                     h = torch.where(not_blank_mask.unsqueeze(0).unsqueeze(-1), hidden_prime[1], hidden[1])
-                    hidden[1].copy_(h)
+                    hidden[1].copy_(h[0])
 
                     last_label = torch.where(self.blank_mask, self.last_label, k)
                     self.last_label.copy_(last_label)
