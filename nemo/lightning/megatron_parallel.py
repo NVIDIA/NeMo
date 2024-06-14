@@ -28,6 +28,8 @@ from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from torch import Tensor, nn
 
+from megatron.core.transformer.transformer_config import TransformerConfig
+
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 
 
@@ -136,12 +138,11 @@ class MegatronParallel(nn.ModuleList):
         if isinstance(ddp_config, DistributedDataParallelConfig):
             for model_chunk_idx, model_chunk in enumerate(_pipeline):
                 module = model_chunk.module
+
                 ddp = DDP(
                     module.config,
                     ddp_config,
                     module,
-                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
                     # Turn off bucketing for model_chunk 2 onwards, since communication for these
                     # model chunks is overlapped with compute anyway.
                     disable_bucketing=(model_chunk_idx > 0),
@@ -573,6 +574,26 @@ def getattr_proxy(self, item: Any) -> Any:
 
 
 class DDP(McoreDDP):
+    def __init__(
+            self,
+            config: TransformerConfig,
+            ddp_config: DistributedDataParallelConfig,
+            module: torch.nn.Module,
+            disable_bucketing: bool = False,
+            **kwargs,
+        ):
+        init_parameters = inspect.signature(McoreDDP.__init__).parameters
+        # Updates to the McoreDDP class have removed some parameters, so we need to
+        #  filter out any kwargs that are not part of the updated signature, if a new
+        #  version of mcore is being used.
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in init_parameters}
+        super().__init__(
+            config=config, 
+            ddp_config=ddp_config, 
+            module=module, 
+            disable_bucketing=disable_bucketing, 
+            **filtered_kwargs,
+        )
     def state_dict(self, prefix='', keep_vars=False, **kwargs):
         self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
 
