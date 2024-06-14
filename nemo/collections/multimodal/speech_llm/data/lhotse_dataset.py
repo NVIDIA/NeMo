@@ -21,6 +21,12 @@ def collate_vectors(items, max_length: int, padding_value):
     return vectors
 
 
+class LhotseTTSVerion0(torch.utils.data.Dataset):
+    """
+    TODO
+    """
+    pass
+
 class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
     """
     This dataset is based on Lhotse ASR dataset from ``audio_to_text_lhotse.py``
@@ -66,6 +72,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
         cuts = cuts.sort_by_duration()
 
+        import ipdb; ipdb.set_trace()
         audio, audio_lens, cuts = self.load_audio(cuts)
 
         return_batch = {}

@@ -342,7 +342,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         )
 
         # [b, t, c]
-        encoded, encoded_len = self.perception(
+        encoded, encoded_len = self.perception(  # Call to perception NN
             input_signal=input_signal,
             input_signal_length=input_signal_length,
             processed_signal=None,
@@ -350,10 +350,31 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         )
         encoder_input, attention_mask, encoder_length, _, encoder_max_length = self.inject_perception_input(
             encoded, encoded_len, input_ids, input_length
-        )
+        )  # Concats encoder representation with the text instruction (input_ids == audio_batch['contexts'])
         # generate encoder_mask from encoder_length
         enc_mask = torch.arange(encoder_input.shape[1], device=encoder_input.device)[None, :] < encoder_length[:, None]
         return encoder_input, attention_mask, enc_mask
+
+    def tts_prepare_llm_input(self, audio_batch):
+
+        # TODO: Get from dataset
+        question_text = None
+        question_length = None
+        context_wav_codes = None
+        answer_codes = None
+
+        enconder_continuous_input = self._get_text_embeddings(question_text)
+
+        # Using causal attention mask for encoder
+        b = enconder_continuous_input.shape[0]
+        max_len = enconder_continuous_input.shape[1]
+        device = enconder_continuous_input.device
+        attention_mask = torch.tril(torch.ones((b, max_len, max_len), device=device)).view(
+            b, 1, max_len, max_len
+        )
+        # generate encoder_mask from encoder_length
+        enc_mask = torch.arange(max_len, device=device)[None, :] < question_length[:, None]
+        return enconder_continuous_input, attention_mask, enc_mask
 
     def forward(
         self,
@@ -382,6 +403,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         # dec_input and label = text output label
         b = audio_batch['answers'].shape[0]
         device = audio_batch['answers'].device
+        # TODO: Fix for TTS
         dec_input = audio_batch['masked_answer_ids'] if 'masked_answer_ids' in audio_batch else audio_batch['answers']
         dec_input = torch.cat([torch.full([b, 1], self.bos_id, device=device), dec_input[:, :-1]], dim=-1)
         labels = audio_batch['answers']
@@ -394,7 +416,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             token_type_ids=None,
             labels=labels,
             output_enc_hidden_only=False,
-            enc_input=encoder_input,
+            enc_input=encoder_input,  # Continuous encoder embeddings; expected to have position ids
         )
         loss_mask = dec_mask
         return output, loss_mask

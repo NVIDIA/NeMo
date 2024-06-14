@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import warnings
 from functools import partial
 from itertools import repeat
@@ -28,7 +27,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator, LazyNeMoTarredIterator
 from nemo.collections.common.data.lhotse.text_adapters import LhotseTextAdapter, LhotseTextPairAdapter
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
-
+from nemo.utils import logging
 
 def read_cutset_from_config(config: DictConfig) -> Tuple[CutSet, bool]:
     """
