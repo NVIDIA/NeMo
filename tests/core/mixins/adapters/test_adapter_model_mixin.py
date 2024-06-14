@@ -14,7 +14,7 @@
 import os
 import shutil
 import tempfile
-from typing import Tuple, List, Optional
+from typing import List, Optional, Tuple
 
 import pytest
 import torch
@@ -28,7 +28,7 @@ from nemo.utils import logging, logging_mode
 
 
 class DefaultModule(NeuralModule):
-    """ Define a default neural module (without adapter support)"""
+    """Define a default neural module (without adapter support)"""
 
     def __init__(self):
         super().__init__()
@@ -51,7 +51,7 @@ class DefaultModule(NeuralModule):
 
 
 class DefaultModuleAdapter(DefaultModule, AdapterModuleMixin):
-    """ Subclass the DefaultModule, adding adapter module support"""
+    """Subclass the DefaultModule, adding adapter module support"""
 
     def forward(self, x):
         x = super(DefaultModuleAdapter, self).forward(x)
@@ -66,7 +66,7 @@ class DefaultModuleAdapter(DefaultModule, AdapterModuleMixin):
 
 
 class DefaultModelAdapterMixin(AdapterModelPTMixin):
-    """ Mixin class that implements this model's specific overrides to AdapterModelPTMixin
+    """Mixin class that implements this model's specific overrides to AdapterModelPTMixin
     It will container two modules, an encoder and a decoder, and both can have adapters.
     By default, encoder adapters are enabled, and decoder adapters are diabled. Decoder adapters
     can be enabled via the global_cfg in model.cfg.adapters.
@@ -1014,8 +1014,18 @@ class TestAdapterModelMixin:
             assert (original_state_dict[ogkey] - restored_state_dict[newkey]).abs().mean() < 1e-6
 
     @pytest.mark.unit
-    @pytest.mark.parametrize("decoder", ["adapter_0",])  # "decoder:adapter_0"
-    @pytest.mark.parametrize("encoder", ["adapter_1",])  # "encoder:adapter_1"
+    @pytest.mark.parametrize(
+        "decoder",
+        [
+            "adapter_0",
+        ],
+    )  # "decoder:adapter_0"
+    @pytest.mark.parametrize(
+        "encoder",
+        [
+            "adapter_1",
+        ],
+    )  # "encoder:adapter_1"
     def test_multiple_save_load_adapter_with_multiple_load(self, decoder, encoder):
         # create a model config, but do not add global_cfg to it
         # we want to test just module level adapter

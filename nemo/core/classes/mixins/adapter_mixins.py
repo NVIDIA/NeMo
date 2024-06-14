@@ -123,8 +123,9 @@ def _prepare_default_adapter_config(*, global_key: str, meta_key: str, cfg: Dict
     return cfg
 
 
-def update_module_class_with_adapter_class(module: nn.Module, cfg: DictConfig, update_config: bool = True,
-                                           verbose: bool = True):
+def update_module_class_with_adapter_class(
+    module: nn.Module, cfg: DictConfig, update_config: bool = True, verbose: bool = True
+):
     """
     Recursively walks through the module and its children, checking if the class is registered in the adapter registry.
     If it is, the module's class is swapped with the registered adapter class.
@@ -136,6 +137,7 @@ def update_module_class_with_adapter_class(module: nn.Module, cfg: DictConfig, u
         update_config: Bool, whether to update the config with the adapter classpath.
         verbose: Bool, whether to log the changes made to the module and config.
     """
+
     def inplace_recursive_walk_dict(d: Union[dict, DictConfig], base_class_path: str, adapter_class_path: str):
         """
         Utility function to recursively walk through a dictionary and update the classpath if required.
@@ -153,8 +155,9 @@ def update_module_class_with_adapter_class(module: nn.Module, cfg: DictConfig, u
             # If key is target and value is base class, update the value to adapter class
             elif k in ('target', '_target_') and isinstance(v, str) and v == base_class_path:
                 if verbose:
-                    logging.info(f"Updating config from {v} (base class) to {adapter_class_path} (adapter compatible "
-                                 f"class)")
+                    logging.info(
+                        f"Updating config from {v} (base class) to {adapter_class_path} (adapter compatible " f"class)"
+                    )
 
                 # Update the value inplace
                 d[k] = adapter_class_path
@@ -163,8 +166,10 @@ def update_module_class_with_adapter_class(module: nn.Module, cfg: DictConfig, u
         info = get_registered_adapter(module.__class__)
         if info is not None:
             if verbose:
-                logging.info(f"Swapping class {info.base_class_path} with adapter compatible class: "
-                             f"{info.adapter_class_path}")
+                logging.info(
+                    f"Swapping class {info.base_class_path} with adapter compatible class: "
+                    f"{info.adapter_class_path}"
+                )
 
             # Swap the registered class with its registered adapter class.
             # Due to direct inheritance of the Adapter subclass from the original class,
@@ -1048,8 +1053,9 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             if isinstance(module, AdapterModuleMixin):
                 module.adapter_cfg = cfg
 
-    def replace_adapter_compatible_modules(self, module: Optional[nn.Module] = None, update_config: bool = True,
-                                           verbose: bool = True):
+    def replace_adapter_compatible_modules(
+        self, module: Optional[nn.Module] = None, update_config: bool = True, verbose: bool = True
+    ):
         """
         Utility method to replace all modules with Adapter variants, if they exist.
 
