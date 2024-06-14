@@ -17,7 +17,8 @@ import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, Iterable, Optional, Union
+from datetime import timedelta
 
 import pytorch_lightning
 import torch
@@ -35,37 +36,42 @@ from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.model_utils import ckpt_to_dir
 
 
-@dataclass
-class ModelCheckpointParams:
-    save_best_model: bool = False
-    monitor: Optional[str] = "val_loss"
-    verbose: Optional[bool] = True
-    save_last: Optional[bool] = True
-    save_top_k: Optional[int] = 3
-    save_weights_only: Optional[bool] = False  ## TODO: check support
-    mode: Optional[str] = "min"
-    every_n_epochs: Optional[int] = 1
-    every_n_train_steps: Optional[int] = None
-    train_time_interval: Optional[str] = None
-    save_best_model: bool = False
-    save_on_train_epoch_end: Optional[bool] = False  # Save after training, not after validation
-    ## TODO: async
-
-
 class ModelCheckpoint(PTLModelCheckpoint):
 
     UNFINISHED_CHECKPOINT_SUFFIX = "-unfinished"
 
     def __init__(
         self,
+        monitor: Optional[str] = "val_loss",
+        verbose: bool = True,
+        save_last: Optional[bool] = True,
+        save_top_k: int = 3,
+        save_weights_only: bool = False,  ## TODO: check support
+        mode: str = "min",
+        every_n_epochs: int = 1,
+        every_n_train_steps: Optional[int] = None,
+        train_time_interval: Optional[timedelta] = None,
         save_best_model: bool = False,
+        save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
         **kwargs,
     ):
         self.save_best_model = save_best_model
         self.previous_best_path = ""
 
         # Call the parent class constructor with the remaining kwargs.
-        super().__init__(**kwargs)
+        super().__init__(
+            monitor=monitor,
+            verbose=verbose,
+            save_last=save_last,
+            save_top_k=save_top_k,
+            save_weights_only=save_weights_only,
+            mode=mode,
+            every_n_epochs=every_n_epochs,
+            every_n_train_steps=every_n_train_steps,
+            train_time_interval=train_time_interval,
+            save_on_train_epoch_end=save_on_train_epoch_end,
+            **kwargs
+        )
 
     def on_train_start(self, trainer, pl_module):
         app_state = AppState()
