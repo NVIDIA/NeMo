@@ -4,8 +4,12 @@ from typing import Callable, Optional, Union
 import pytorch_lightning as pl
 
 from nemo.collections.llm.utils import task
+<<<<<<< HEAD
 from nemo.lightning import AutoResume, MegatronStrategy, NeMoLogger, Trainer, io, teardown
 from nemo.lightning.resume import Resume
+=======
+from nemo.lightning import MegatronStrategy, OptimizerModule, Trainer, io, teardown
+>>>>>>> 3f7e8282eee00bd19b413d89bc58d9c635fdd3f0
 
 
 @task(namespace="llm")
@@ -15,6 +19,7 @@ def train(
     trainer: Trainer,
     log: NeMoLogger = NeMoLogger(),
     resume: Optional[Union[AutoResume, Resume]] = AutoResume(),
+    opt: Optional[OptimizerModule] = None,
     tokenizer: Optional[str] = None,
     # TODO: Fix export export: Optional[str] = None,
 ) -> Path:
@@ -27,6 +32,8 @@ def train(
         trainer (Trainer): The trainer instance configured with a MegatronStrategy.
         log (NeMoLogger): A nemologger instance.
         resume (Optional[Union[AutoResume, Resume]]): Resume training from a checkpoint.
+        opt (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
+            from the model will be used.
         tokenizer (Optional[str]): Tokenizer setting to be applied. Can be 'data' or 'model'.
         export (Optional[str]): Filename to save the exported checkpoint after training.
 
@@ -58,6 +65,10 @@ def train(
     )
     if resume is not None:
         resume.setup(model, trainer)
+    if opt:
+        opt.connect(model)
+
+    trainer.fit(model, data, **fit_kwargs)
 
     if hasattr(train, "__io__"):
         _save_config_img(app_state.exp_dir, train.__io__)
