@@ -1,14 +1,3 @@
-import argparse
-
-import numpy as np
-from pytriton.client import ModelClient
-
-from nemo.deploy.deploy_pytriton import DeployPyTriton
-from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
-from nemo.deploy.nlp.query_llm import NemoQueryLLM
-
-
-
 # Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,6 +20,7 @@ from pathlib import Path
 import torch
 
 from tests.infer_data_path import get_infer_test_data
+from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
 
 run_export_tests = True
 try:
@@ -612,7 +602,6 @@ def run_inference_tests(args):
         if args.test_data_path is None:
             raise Exception("test_data_path param cannot be None.")
 
-    backend = args.backend.lower()
 
     result_dic = {}
 
