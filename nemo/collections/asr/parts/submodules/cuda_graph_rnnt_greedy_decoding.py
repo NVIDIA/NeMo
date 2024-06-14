@@ -418,6 +418,12 @@ class RNNTGreedyDecodeCudaGraph:
 
         self.caller = caller
 
+        # shape printer for debugggg...
+        # self.d1 = None
+        # self.d2 = None
+        # self.d3 = None
+        # self.d4 = None
+
     def _reinitialize(self, max_time, batch_size, encoder_output, encoder_output_length):
         if self.first_call:
             # We need to call the original _greedy_decode_blank_as_pad
@@ -475,6 +481,12 @@ class RNNTGreedyDecodeCudaGraph:
             (self.batch_size, self.max_time, self.max_symbols), dtype=torch.int64, device="cpu", pin_memory=True
         )
 
+        # shape printer for debugggg...
+        # self.d1 = torch.zeros(1, device="cpu", pin_memory=True)
+        # self.d2 = torch.zeros(1, device="cpu", pin_memory=True)
+        # self.d3 = torch.zeros(1, device="cpu", pin_memory=True)
+        # self.d4 = torch.zeros(1, device="cpu", pin_memory=True)
+
         # the greedy decoding CUDA Graph
         self.graph = torch.cuda.CUDAGraph()
 
@@ -518,7 +530,6 @@ class RNNTGreedyDecodeCudaGraph:
             )
             # max_out_len_t -> max_out_len (the maximum number of time frames among all the sequences in a batch)
             self.max_out_len_t = self.encoder_output_length.max()
-
 
             ### start the nested loops here!!!
             def outer_cond_fn(time_idx, x):
@@ -564,10 +575,18 @@ class RNNTGreedyDecodeCudaGraph:
                     #     src_states=hidden_prime, dst_states=hidden, mask=not_blank_mask
                     # )
                     # state copy
-                    h = torch.where(not_blank_mask.unsqueeze(0).unsqueeze(-1), hidden_prime[0], hidden[0])
-                    hidden[0].copy_(h[0])
-                    h = torch.where(not_blank_mask.unsqueeze(0).unsqueeze(-1), hidden_prime[1], hidden[1])
-                    hidden[1].copy_(h[0])
+                    # hidden_prime/hidden shapes: ((2, 8, 640), (2, 8, 640)) -> in loop frames
+                    # hidden_prime shapes: ((2, 1, 8, 640), (2, 1, 8, 640)) -> in here ???
+                    # hidden shapes: ((2, 8, 640), (2, 8, 640)) -> in here
+                    dtype = hidden[0].dtype
+                    h = torch.where(not_blank_mask.unsqueeze(0).unsqueeze(-1), hidden_prime[0].squeeze(1).to(dtype), hidden[0])
+                    # self.d1.copy_(hidden[0].shape[0], non_blocking=True)
+                    # self.d2.copy_(hidden[0].shape[1], non_blocking=True)
+                    # self.d3.copy_(hidden[0].shape[2], non_blocking=True)
+                    # self.d4.copy_(hidden[0].shape[3], non_blocking=True)
+                    hidden[0].copy_(h)
+                    h = torch.where(not_blank_mask.unsqueeze(0).unsqueeze(-1), hidden_prime[1].squeeze(1).to(dtype), hidden[1])
+                    hidden[1].copy_(h)
 
                     last_label = torch.where(self.blank_mask, self.last_label, k)
                     self.last_label.copy_(last_label)
