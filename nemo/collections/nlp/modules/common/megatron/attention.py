@@ -439,25 +439,19 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 mixed_x_layer, 3, contiguous_split_chunks=True
             )
         else:  # Else in cross_attention
-            # Attention heads [sk, b, h] --> [sk, b, (np * 2 * hn)]
             if (
                 inference_max_sequence_len is None
             ) or self.inference_current_sequence_len < inference_max_sequence_len:
                 # If we are in traning and inference_max_sequence_len is None
                 # Or we haven't cached the key and value part of cross attention in the decoder on step 0,
                 # Do the caching
+                # Attention heads [sk, b, h] --> [sk, b, (np * 2 * hn)]
                 mixed_kv_layer, _ = self.key_value(encoder_output)
                 if self.is_adapter_available():
                     lora_kv_adapter = self.get_adapter_module(AdapterName.LORA_KV_ADAPTER)
                     if lora_kv_adapter and self.adapter_cfg[AdapterName.LORA_KV_ADAPTER]['enabled']:
                         lora_mixed_kv_layer = lora_kv_adapter(encoder_output)
                         mixed_kv_layer = mixed_kv_layer + lora_mixed_kv_layer
-            mixed_kv_layer, _ = self.key_value(encoder_output)
-            if self.is_adapter_available():
-                lora_kv_adapter = self.get_adapter_module(AdapterName.LORA_KV_ADAPTER)
-                if lora_kv_adapter and self.adapter_cfg[AdapterName.LORA_KV_ADAPTER]['enabled']:
-                    lora_mixed_kv_layer = lora_kv_adapter(encoder_output)
-                    mixed_kv_layer = mixed_kv_layer + lora_mixed_kv_layer
 
                 # [sk, b, (np * 2 * hn)] --> [sk, b, np, 2 * hn]
                 new_tensor_shape = mixed_kv_layer.size()[:-1] + (
@@ -1059,8 +1053,11 @@ class CoreAttention(MegatronModule):
         return context_layer
 
     def torch_attention_with_prior(
-        self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode, return_scores=False
+        self, query_layer, key_layer, value_layer, attention_mask, attention_prior, inference_mode, return_scores=False
     ):
+        """
+        Same function as torch_attention except we do not use a bias, we multiply (add in log space) with a prior
+        """
         sq, b, np, hn = query_layer.shape
         sk = key_layer.shape[0]
 
@@ -1092,9 +1089,9 @@ class CoreAttention(MegatronModule):
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(b, np, sq, sk)
 
-        if attention_bias is not None:
-            # attention_bias is not None only for cross attention layers right now in T5
-            attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias
+        if attention_prior is not None:
+            # attention_prior is not None only for cross attention layers right now in T5
+            attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_prior
 
         _attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
         # This is actually dropping out entire tokens to attend to, which might

@@ -723,6 +723,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
 
 
 class MegatronTokenLevelEncoderDecoderSpeechLLMModule(MegatronTokenLevelEncoderDecoderModule):
+    """ A subclass of MegatronTokenLevelEncoderDecoderModule that adds support for speech token input and output
+    """
     def __init__(self, *args, **kwargs):
         super(MegatronTokenLevelEncoderDecoderSpeechLLMModule, self).__init__(*args, **kwargs)
         # Overridden in MegatronT5SpeechLMModel constructor

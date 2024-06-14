@@ -113,7 +113,7 @@ class InstructionTuningManifestProcessor:
     ):
 
         # ASRAudioText(
-        self.collection = collections.InstructionTuningAudioText(
+        self.collection = collections.T5AudioText(
             manifests_files=manifest_filepath,
             min_duration=min_duration,
             max_duration=max_duration,

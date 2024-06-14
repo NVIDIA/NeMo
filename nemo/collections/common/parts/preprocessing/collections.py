@@ -307,8 +307,8 @@ class VideoText(_Collection):
         super().__init__(data)
 
 
-class InstructionTuningAudioText(_Collection):
-    """`AudioText` collector from asr structured json files."""
+class T5AudioText(_Collection):
+    """T5 collection copied from  `ASRAudioText`."""
 
     OUTPUT_TYPE = collections.namedtuple(
         typename='InstructionTuningText',
@@ -331,8 +331,6 @@ class InstructionTuningAudioText(_Collection):
         Args:
             manifests_files: Either single string file or list of such -
                 manifests to yield items from.
-            *args: Args to pass to `AudioText` constructor.
-            **kwargs: Kwargs to pass to `AudioText` constructor.
         """
 
         output_type = self.OUTPUT_TYPE
