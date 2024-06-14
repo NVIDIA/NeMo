@@ -150,8 +150,8 @@ class NeMoLogger:
 
             for callback in trainer.callbacks:
                 if isinstance(callback, PTLModelCheckpoint):
-                    ## TODO: make configurable
-                    callback.dirpath = Path(log_dir / "checkpoints")  # app_state.exp_dir
+                    if callback.dirpath is None:
+                        callback.dirpath = Path(log_dir / "checkpoints")
                     if callback.filename is None:
                         callback.filename = f'{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}'
                     ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + '-last'

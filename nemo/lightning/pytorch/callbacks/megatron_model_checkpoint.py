@@ -48,7 +48,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         save_top_k: int = 3,
         save_weights_only: bool = False,  ## TODO: check support
         mode: str = "min",
-        every_n_epochs: int = 1,
+        every_n_epochs: int = None,
         every_n_train_steps: Optional[int] = None,
         train_time_interval: Optional[timedelta] = None,
         save_best_model: bool = False,
