@@ -31,6 +31,7 @@ from nemo.lightning import _strategy_lib, io
 from nemo.lightning.io.pl import MegatronCheckpointIO, TrainerCheckpoint, TrainerCkptProtocol
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar
+from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
@@ -403,9 +404,20 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def checkpoint_io(self) -> CheckpointIO:
 
         if self._checkpoint_io is None:
-            self._checkpoint_io = MegatronCheckpointIO()
-        elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
-            self._checkpoint_io.checkpoint_io = MegatronCheckpointIO()
+            checkpoint_callback = self.trainer.checkpoint_callback
+            async_save = getattr(checkpoint_callback, "async_save", False)
+            if async_save:
+                self._checkpoint_io = AsyncFinalizableCheckpointIO(
+                    MegatronCheckpointIO(
+                        save_ckpt_format='torch_dist',
+                        async_save=True,
+                    )
+                )
+                self.trainer.callbacks.append(AsyncFinalizerCallback())
+            else:
+                self._checkpoint_io = MegatronCheckpointIO()
+        '''elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
+            self._checkpoint_io.checkpoint_io = MegatronCheckpointIO()'''
 
         return self._checkpoint_io
 
