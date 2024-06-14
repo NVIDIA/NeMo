@@ -272,6 +272,14 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         if self.model.cfg.get("position_embedding_type", "learned_absolute") == "learned_absolute":
             if maxlen > self.model.cfg.encoder_seq_length + 1:
                 maxlen = self.model.cfg.encoder_seq_length + 1
+        else:
+            # clip max len based on memory set for context tokens...
+            if self.model.trainer.state.fn.value == "fit":
+                maxlen = min(maxlen, self.model.cfg.data.train_ds.max_seq_length)
+            elif self.model.trainer.state.fn.value == "validate":
+                maxlen = min(maxlen, self.model.cfg.data.validation_ds.max_seq_length)
+            else:
+                maxlen = min(maxlen, self.model.cfg.data.test_ds.max_seq_length)
         return maxlen
 
     def init_batch(self, context_tokens: torch.Tensor, context_length: int, compute_attention_mask: bool):
