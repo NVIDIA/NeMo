@@ -123,6 +123,55 @@ def _prepare_default_adapter_config(*, global_key: str, meta_key: str, cfg: Dict
     return cfg
 
 
+def update_module_class_with_adapter_class(module: nn.Module, cfg: DictConfig, update_config: bool = True):
+    """
+    Recursively walks through the module and its children, checking if the class is registered in the adapter registry.
+    If it is, the module's class is swapped with the registered adapter class.
+    Also updates the config with the adapter classpath, if required.
+
+    Args:
+        module: torch.nn.Module to recurse through.
+        cfg: DictConfig object or dict that contains the config of the module.
+        update_config: Bool, whether to update the config with the adapter classpath.
+    """
+    def inplace_recursive_walk_dict(d: Union[dict, DictConfig], base_class_path: str, adapter_class_path: str):
+        """
+        Utility function to recursively walk through a dictionary and update the classpath if required.
+        Update is done inplace
+
+        Args:
+            d: Dict to recurse through.
+            base_class_path: The str classpath of the base class.
+            adapter_class_path: The str classpath of the adapter class.
+        """
+        for k, v in d.items():
+            if isinstance(v, dict):
+                inplace_recursive_walk_dict(v, base_class_path, adapter_class_path)
+            elif k in ('target', '_target_') and isinstance(v, str) and v == base_class_path:
+                logging.info(f"Updating config from {v} (base class) to {adapter_class_path} (adapter compatible "
+                             f"class)")
+                d[k] = adapter_class_path
+
+        if not isinstance(module, AdapterModuleMixin):
+            info = get_registered_adapter(mod.__class__)
+            if info is not None:
+                # Swap the registered class with its registered adapter class.
+                # Due to direct inheritance of the Adapter subclass from the original class,
+                # the module's class container will be replaced with the adapter class.
+                logging.info(f"Swapping class {info.base_class_path} with adapter compatible class: "
+                             f"{info.adapter_class_path}")
+                adapter_cls = info.adapter_class
+                module.__class__ = adapter_cls
+
+                if update_config:
+                    # Update the adapter config with the registered adapter config
+                    # Find the location where the original module was registered in config
+                    # and replace it with the adapter classpath.
+                    original_classpath = info.base_class_path
+                    adapter_classpath = info.adapter_class_path
+                    inplace_recursive_walk_dict(cfg, original_classpath, adapter_classpath)
+
+
 class AdapterModuleMixin(ABC):
     """Generic Adapter Mixin that can augment any torch.nn.Module with Adapter module support.
 
@@ -988,6 +1037,20 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         for module in self.modules():  # access PT subclass method via inheritance
             if isinstance(module, AdapterModuleMixin):
                 module.adapter_cfg = cfg
+
+    def replace_adapter_compatible_modules(self, module: Optional[nn.Module] = None, update_config: bool = True):
+        """
+        Utility method to replace all modules with Adapter variants, if they exist.
+
+        Args:
+            module: The module to be replaced with an Adapter variant.
+            update_config: A flag that determines if the config should be updated or not.
+        """
+        if module is None:
+            module = self
+
+        for mod in module.modules():
+            update_module_class_with_adapter_class(mod, cfg=self.cfg, update_config=update_config)
 
     @property
     def adapter_module_names(self) -> List[str]:
