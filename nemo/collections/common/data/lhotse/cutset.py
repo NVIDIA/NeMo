@@ -214,7 +214,10 @@ def read_txt_pair_paths(config: DictConfig) -> CutSet:
 def read_nemo_sft_jsonl(config: DictConfig) -> CutSet:
     return CutSet(
         NeMoSFTJsonlAdapter(
-            paths=config.paths, language=config.language, shuffle_shards=config.shuffle, shard_seed=config.shard_seed,
+            paths=config.paths,
+            language=config.language,
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
         )
     ).repeat()
 

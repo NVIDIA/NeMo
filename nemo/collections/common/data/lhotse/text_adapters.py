@@ -179,9 +179,11 @@ class LhotseTextPairAdapter:
                     yield SourceTargetTextExample(
                         source=TextExample(ls.strip(), language=self.source_language),
                         target=TextExample(lt.strip(), language=self.target_language),
-                        question=TextExample(rng.choice(questions), language=self.questions_language)
-                        if questions is not None
-                        else None,
+                        question=(
+                            TextExample(rng.choice(questions), language=self.questions_language)
+                            if questions is not None
+                            else None
+                        ),
                     )
 
 
@@ -260,18 +262,18 @@ class NeMoSFTExample:
 class NeMoSFTJsonlAdapter:
     """
     ``NeMoSFTJsonlAdapter`` is used to read a NeMo LM SFT Chat JSONL file and yield objects of type
-    ``NeMoSFTExample`` that can be sampled with Lhotse. 
-    
+    ``NeMoSFTExample`` that can be sampled with Lhotse.
+
     We expect the following schema (contained in a single line per example)::
 
         {
             "conversations": [
                 {
-                    "value": str, 
-                    "from": "User" | "Assistant", 
-                    "canonical_form": str, 
+                    "value": str,
+                    "from": "User" | "Assistant",
+                    "canonical_form": str,
                     "label": str | null
-                }, 
+                },
                 ...
             ],
             "mask": "User" | "Assistant",
@@ -280,7 +282,7 @@ class NeMoSFTJsonlAdapter:
             "category": str,
         }
 
-    Refer to examples of this format here: 
+    Refer to examples of this format here:
 
     * TODO: links to examples?
     * TODO: links to more detailed schema definition?
@@ -428,7 +430,7 @@ def _get_header_conversation_type_mask_role(source, special_tokens):
 
 
 def identify_start_index_of_subsequence(subsequence, sequence):
-    """ find the location of the small tensor in the large tensor.
+    """find the location of the small tensor in the large tensor.
         e.g.  small = [1,3], large = [2,3,1,3], returns 2
               small = [3,2], large = [2,3,1,3], returns -1
     Args:
@@ -455,7 +457,7 @@ def _mask_targets(
     label_start_ids,
     num_turn_start_tokens,
 ):
-    """ This function masks the tokens so the loss is computed only on the non-masked role's responses.
+    """This function masks the tokens so the loss is computed only on the non-masked role's responses.
     For 'TEXT_TO_VALUE' type, the loss is computed on the value attributes.
 
     Args:

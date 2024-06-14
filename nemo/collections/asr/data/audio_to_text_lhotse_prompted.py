@@ -20,9 +20,9 @@ from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 
 from nemo.collections.common.prompts.canary import CanaryPromptFormatter
-from nemo.collections.common.tokenizers.canary_tokenizer import CANARY_SPECIAL_TOKENIZER
 from nemo.collections.common.tokenizers import CanaryTokenizer, TokenizerSpec
 from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
+from nemo.collections.common.tokenizers.canary_tokenizer import CANARY_SPECIAL_TOKENIZER
 
 
 class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
