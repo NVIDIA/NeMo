@@ -278,9 +278,9 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
             if self.model.trainer.state.fn.value == "fit":
                 max_limit = self.model.cfg.data.train_ds.max_seq_length
             elif self.model.trainer.state.fn.value == "validate":
-                max_limit = self.model.cfg.data.train_ds.max_seq_length
+                max_limit = self.model.cfg.data.validation_ds.max_seq_length
             else:
-                max_limit = self.model.cfg.data.train_ds.max_seq_length
+                max_limit = self.model.cfg.data.test_ds.max_seq_length
             if maxlen > max_limit:
                 logging.warning(
                     f"context_length + tokens_to_generate = {maxlen}, which is greater than max_seq_length:{max_limit}, clipping to max_seq_length"
