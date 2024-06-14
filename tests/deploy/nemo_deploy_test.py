@@ -18,10 +18,11 @@ import json
 import shutil
 import time
 from pathlib import Path
+
 import torch
 
-from tests.infer_data_path import get_infer_test_data
 from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
+from tests.infer_data_path import get_infer_test_data
 
 run_export_tests = True
 try:
@@ -603,7 +604,6 @@ def run_inference_tests(args):
     if args.run_accuracy:
         if args.test_data_path is None:
             raise Exception("test_data_path param cannot be None.")
-
 
     result_dic = {}
 
