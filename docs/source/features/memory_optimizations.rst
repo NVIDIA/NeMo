@@ -105,3 +105,24 @@ Implement MQA or GQA
 NeMo's support for GQA and MQA is enabled through the integration of Megatron Core's Attention mechanism. The underlying implementation details can be explored within the Attention class of Megatron Core, which provides the functional backbone for these advanced attention methods. To understand the specific modifications and implementations of MQA and GQA, refer to the source code in the Attention class:
 
 Check implementation details from Attention Class in Megatron Core Repo: https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/attention.py#L49
+
+
+CPU Offloading
+--------------
+
+Overview
+^^^^^^^^
+
+CPU Offloading is a feature used in NeMo to offload all the activations and inactive weights to CPU storage to reduce the peak memory usage of the GPU. Currently NeMo supports offloading activations and weights at a transformer layer granularity where users can set the number of transfomer layers in their language model that needs CPU offloading. NeMo offloads the activation at the optimal time during the forward pass and reloads it back on a need basis during the backward pass.
+
+Features
+^^^^^^^^
+> Support training of models with long sequence lengths as they are activation memory dominant
+> Supports high batch size per GPU as activation memory can be offloaded
+> Overlaps computation with Host2Device and Device2Host copies while offloading and reloading.
+
+Usage
+^^^^^
+> Set `cpu_offloading` as True to enable CPU offloading
+> Set `cpu_offloading_num_layers` between [0,number of layers in model - 1]
+> Set `cpu_offloading_activations` and `cpu_offloading_weights` based on need whether to offload activations only/weight only/both
