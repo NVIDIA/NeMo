@@ -24,6 +24,7 @@ from transformers import CLIPImageProcessor
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.utils import logging
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -268,18 +269,23 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
     def clip_max_len(self, maxlen: int) -> int:
         """clip the max len based on the LM model max sequence length"""
 
-        # for positional embedding types that allow length extrapolation, don't clip the max length
         if self.model.cfg.get("position_embedding_type", "learned_absolute") == "learned_absolute":
             if maxlen > self.model.cfg.encoder_seq_length + 1:
                 maxlen = self.model.cfg.encoder_seq_length + 1
         else:
-            # clip max len based on memory set for context tokens...
+            # for positional embedding types that allow length extrapolation, clip based on the max_seq_length
+            # which is set by the user.
             if self.model.trainer.state.fn.value == "fit":
-                maxlen = min(maxlen, self.model.cfg.data.train_ds.max_seq_length)
+                max_limit = self.model.cfg.data.train_ds.max_seq_length
             elif self.model.trainer.state.fn.value == "validate":
-                maxlen = min(maxlen, self.model.cfg.data.validation_ds.max_seq_length)
+                max_limit = self.model.cfg.data.train_ds.max_seq_length
             else:
-                maxlen = min(maxlen, self.model.cfg.data.test_ds.max_seq_length)
+                max_limit = self.model.cfg.data.train_ds.max_seq_length
+            if maxlen > max_limit:
+                logging.warning(
+                    f"context_length + tokens_to_generate = {maxlen}, which is greater than max_seq_length:{max_limit}, clipping to max_seq_length"
+                )
+                maxlen = max_limit
         return maxlen
 
     def init_batch(self, context_tokens: torch.Tensor, context_length: int, compute_attention_mask: bool):
