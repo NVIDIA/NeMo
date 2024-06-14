@@ -35,7 +35,7 @@ class NeMoLogger:
         update_logger_directory (bool): Whether to update logger directory.
         ckpt (Optional[ModelCheckpoint]): Model checkpoint callback.
     """
-    
+
     name: str = "default"
     dir: Optional[str] = None
     explicit_log_dir: Optional[str] = None
@@ -119,15 +119,16 @@ class NeMoLogger:
                 _overwrite_i = None
                 for i, callback in enumerate(trainer.callbacks):
                     if isinstance(callback, PTLModelCheckpoint):
-                        logging.warning("The Trainer already contains a ModelCheckpoint callback. "
-                                        "This will be overwritten.")
+                        logging.warning(
+                            "The Trainer already contains a ModelCheckpoint callback. " "This will be overwritten."
+                        )
                         _overwrite_i = i
                         break
                 if _overwrite_i is not None:
                     trainer.callbacks[_overwrite_i] = self.ckpt
                 else:
                     trainer.callbacks.append(self.ckpt)
-                    
+
                 if self.ckpt.monitor and "val" in self.ckpt.monitor:
                     if (
                         trainer.max_epochs is not None
@@ -144,9 +145,9 @@ class NeMoLogger:
                         logging.warning(
                             "The checkpoint callback was told to monitor a validation value and trainer's max_steps was set to "
                             f"{trainer.max_steps}. Please ensure that max_steps will run for at least "
-                                f"{trainer.check_val_every_n_epoch} epochs to ensure that checkpointing will not error out."
-                            )
-            
+                            f"{trainer.check_val_every_n_epoch} epochs to ensure that checkpointing will not error out."
+                        )
+
             for callback in trainer.callbacks:
                 if isinstance(callback, PTLModelCheckpoint):
                     ## TODO: make configurable

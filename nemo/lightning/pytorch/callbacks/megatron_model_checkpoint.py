@@ -16,9 +16,9 @@ import os
 import re
 import shutil
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional, Union
-from datetime import timedelta
 
 import pytorch_lightning
 import torch
@@ -70,7 +70,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             every_n_train_steps=every_n_train_steps,
             train_time_interval=train_time_interval,
             save_on_train_epoch_end=save_on_train_epoch_end,
-            **kwargs
+            **kwargs,
         )
 
     def on_train_start(self, trainer, pl_module):
