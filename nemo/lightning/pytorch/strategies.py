@@ -508,7 +508,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
-            pipeline_dtype=self.pipeline_dtype
+            pipeline_dtype=self.pipeline_dtype,
         )
 
 
