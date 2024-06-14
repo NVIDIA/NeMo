@@ -1,13 +1,17 @@
 import argparse
+import json
+import shutil
+import time
+from pathlib import Path
 
 import numpy as np
+import torch
 from pytriton.client import ModelClient
 
 from nemo.deploy.deploy_pytriton import DeployPyTriton
 from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
 from nemo.deploy.nlp.query_llm import NemoQueryLLM
-
-
+from tests.infer_data_path import get_infer_test_data
 
 # Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
@@ -23,14 +27,7 @@ from nemo.deploy.nlp.query_llm import NemoQueryLLM
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
-import json
-import shutil
-import time
-from pathlib import Path
-import torch
 
-from tests.infer_data_path import get_infer_test_data
 
 run_export_tests = True
 try:
@@ -159,6 +156,7 @@ def run_in_framework_inference(
     nm.stop()
 
     return None, None, None, None, None
+
 
 def run_trt_llm_inference(
     model_name,

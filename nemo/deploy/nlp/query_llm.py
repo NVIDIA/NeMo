@@ -170,7 +170,6 @@ class NemoQueryLLM(NemoQueryLLMBase):
         if end_strings is not None:
             inputs["end_strings"] = str_list2numpy(end_strings)
 
-
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
             result_dict = client.infer_batch(**inputs)
             output_type = client.model_config.outputs[0].dtype
