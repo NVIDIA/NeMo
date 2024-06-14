@@ -24,7 +24,6 @@ from pathlib import Path
 from shutil import copy, move
 from typing import Any, Collection, Dict, List, Optional, Tuple, Union
 
-import dataclasses
 import pytorch_lightning
 import torch
 from hydra.core.hydra_config import HydraConfig
@@ -196,7 +195,7 @@ class ExpManagerConfig:
     # Straggler detection
     create_straggler_detection_callback: Optional[bool] = False
     straggler_detection_params: Optional[StragglerDetectionParams] = field(
-        default_factory=lambda: StragglerDetectionParams()
+        default_factory=StragglerDetectionParams
     )
 
 
