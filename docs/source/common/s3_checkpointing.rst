@@ -6,7 +6,7 @@ S3CheckpointIO
 ==============
 
 This checkpoint_io is used for saving and loading files to and from S3. 
-Initializing this checkpoint_io requires 
+Initializing this checkpoint_io requires the dirpath be an S3 dirpath. 
 
 **Example Usage:**
 
