@@ -487,7 +487,10 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             grad_sync_func = None
             param_sync_func = None
             if not forward_only and self.with_distributed_adam:
-                no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+                no_sync_func = partial(
+                    self._optimizer.no_sync,
+                    greedy_grad_copy=self.megatron_amp_O2,
+                )
                 grad_sync_func = self.reduce_overlap_gradients
                 param_sync_func = self.sync_overlap_parameters
 
@@ -655,10 +658,18 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                         cur_loss = cur_loss * modality_weights[key]
                     loss_for_ub += cur_loss
                     self.log(
-                        f'{key}_loss', cur_loss.mean(), prog_bar=True, batch_size=1, rank_zero_only=False,
+                        f'{key}_loss',
+                        cur_loss.mean(),
+                        prog_bar=True,
+                        batch_size=1,
+                        rank_zero_only=False,
                     )
                     self.log(
-                        f'{key}_batch_size', loss_mask.shape[0], prog_bar=True, batch_size=1, rank_zero_only=False,
+                        f'{key}_batch_size',
+                        loss_mask.shape[0],
+                        prog_bar=True,
+                        batch_size=1,
+                        rank_zero_only=False,
                     )
 
                 cp_size = self.cfg.get('context_parallel_size', 1)

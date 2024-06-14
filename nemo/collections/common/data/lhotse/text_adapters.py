@@ -179,9 +179,11 @@ class LhotseTextPairAdapter:
                     yield SourceTargetTextExample(
                         source=TextExample(ls.strip(), language=self.source_language),
                         target=TextExample(lt.strip(), language=self.target_language),
-                        question=TextExample(rng.choice(questions), language=self.questions_language)
-                        if questions is not None
-                        else None,
+                        question=(
+                            TextExample(rng.choice(questions), language=self.questions_language)
+                            if questions is not None
+                            else None
+                        ),
                     )
 
 

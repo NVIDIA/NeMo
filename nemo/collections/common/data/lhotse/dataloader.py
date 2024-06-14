@@ -182,7 +182,11 @@ def get_lhotse_dataloader_from_config(
 
 
 def get_lhotse_dataloader_from_single_config(
-    config: DictConfig, global_rank: int, world_size: int, dataset: torch.utils.data.Dataset, tokenizer=None,
+    config: DictConfig,
+    global_rank: int,
+    world_size: int,
+    dataset: torch.utils.data.Dataset,
+    tokenizer=None,
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
@@ -243,14 +247,21 @@ def get_lhotse_dataloader_from_single_config(
         # the meta-data to Dataset, which performs the actual I/O inside its __getitem__ method.
         dloader_kwargs = dict(dataset=dataset, sampler=sampler)
     dloader = torch.utils.data.DataLoader(
-        **dloader_kwargs, batch_size=None, num_workers=config.num_workers, pin_memory=config.pin_memory,
+        **dloader_kwargs,
+        batch_size=None,
+        num_workers=config.num_workers,
+        pin_memory=config.pin_memory,
     )
 
     return dloader
 
 
 def get_lhotse_dataloader_from_multi_config(
-    configs: DictConfig, global_rank: int, world_size: int, dataset: torch.utils.data.Dataset, tokenizer=None,
+    configs: DictConfig,
+    global_rank: int,
+    world_size: int,
+    dataset: torch.utils.data.Dataset,
+    tokenizer=None,
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.

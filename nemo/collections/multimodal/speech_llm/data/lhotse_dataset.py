@@ -67,7 +67,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.context_key = context_key
         self.default_context_key = default_context_key
 
-    def __getitem__(self, all_cuts: CutSet) ->  dict[str, torch.Tensor | list[str] | dict]:
+    def __getitem__(self, all_cuts: CutSet) -> dict[str, torch.Tensor | list[str] | dict]:
         ans = {}
 
         # convert audio cuts to mini-batch

@@ -661,7 +661,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
     def update_max_seq_length(self, seq_length: int, device):
         # TODO: this sync seems unnecessary, remove or disable properly later
         # Find global max audio length across all nodes
-        #if torch.distributed.is_initialized():
+        # if torch.distributed.is_initialized():
         #    global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
 
         #    # Update across all ranks in the distributed system
