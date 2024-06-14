@@ -1,3 +1,0 @@
-[submodule "gwe_resiliency_pkg"]
-	path = gwe_resiliency_pkg
-	url = ssh://git@gitlab-master.nvidia.com:12051/dl/gwe/fault_tolerance_related/gwe_resiliency_pkg.git
