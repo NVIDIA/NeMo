@@ -261,8 +261,8 @@ class SentencePieceTokenizer(TokenizerSpec):
 
 
 class SentencePieceSpeechLLMTTSTokenizer(SentencePieceTokenizer):
-    """ Used in T5TTS to add phoneme tokens
-    """
+    """Used in T5TTS to add phoneme tokens"""
+
     def add_phone_tokens_to_special_tokens(self):
         for i, word in enumerate(self.vocab):
             if word.startswith("p{"):
