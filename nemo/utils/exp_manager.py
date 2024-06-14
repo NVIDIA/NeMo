@@ -197,9 +197,7 @@ class ExpManagerConfig:
     seconds_to_sleep: float = 5
     # Straggler detection
     create_straggler_detection_callback: Optional[bool] = False
-    straggler_detection_params: Optional[StragglerDetectionParams] = field(
-        default_factory=StragglerDetectionParams
-    )
+    straggler_detection_params: Optional[StragglerDetectionParams] = field(default_factory=StragglerDetectionParams)
 
 
 class TimingCallback(Callback):
