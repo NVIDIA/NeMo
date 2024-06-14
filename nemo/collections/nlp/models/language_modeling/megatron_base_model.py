@@ -678,8 +678,10 @@ class MegatronBaseModel(NLPModel):
             self._optimizer.try_grad_sync(params)
 
     def sync_overlap_parameters(self, params=None):
-        if self.with_distributed_adam:
-            self._optimizer._try_start_bucket_param_sync(params)
+        if self.with_distributed_adam and self._optimizer.overlap_param_sync:
+            if params is None:
+                params = self._optimizer.parameters()
+            self._optimizer.try_param_sync(params)
 
     def on_train_batch_end(self, outputs, dataloader_iter: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
         super().on_train_batch_end(outputs, dataloader_iter, batch_idx)
