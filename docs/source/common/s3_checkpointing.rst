@@ -1,6 +1,6 @@
-*********
-Callbacks
-*********
+****************
+S3 Checkpointing
+****************
 
 S3CheckpointIO
 ==============
@@ -60,8 +60,11 @@ S3Utils and Dependencies
 
 This utility class is used by the S3CheckpoinIO and the exp_manager to do S3-related operations. 
 It has dependencies on 
+
 1. boto3[crt]
+
 2. s3fs==0.4.2
+
 3. tenacity
 
 If any of these are missing, this class can't be used. 
@@ -72,19 +75,22 @@ s3_dirpath_utils
 ================
 
 Used to operate on strings by checking if they are S3 dirpaths, or convert a bucket and key into an s3 dirpath. 
-This has NO dependencies on what's required for the S3Utils class, and can be used with without any new dependencies. 
+This has no reliance on the S3Utils utility class, and can be used without any new dependencies. 
 
 
 S3 Demands and ExpManager Details When Running at Scale
 =======================================================
 
-When there are many ranks loading from S3, there can be slowdown or throttling errors. 
-To avoid overloading S3, when resuming from a checkpoint only rank 0 needs to identify the checkpoint path and find the correct resumption file. 
+Typically, in the ExpManager, every rank looks for the checkpoint file to  load from. At large scale, there can be thousands of ranks querying S3 for dirpaths which can cause slowdown or throttling errors. 
+
+To avoid overloading S3 when resuming from a checkpoint only rank 0 needs to identify the checkpoint path and find the correct resumption file. Rank 0 will broadcast the checkpoint path to the other ranks. 
 
 .. code-block:: bash
 
     trainer._checkpoint_connector = NeMoCheckpointConnector(trainer)
 
+The NeMoModelCheckpoint setup() method will automatically broadcast the checkpoint path. 
+
 The NeMoCheckpointConnector is defined in the exp_manager.py file, and uses the broadcasted checkpoint path founds by rank 0 on all ranks when resuming training from an existing checkpoint. 
 
-The NeMoModelCheckpoint setup() method broadcasts the checkpoint path. 
+The setting of the trainer._checkpoint_connector needs to happen before the ExpManager call as the ExpManager updates the trainer's checkpoint connector. 
