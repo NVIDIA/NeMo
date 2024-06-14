@@ -183,14 +183,14 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
 
         if self.is_adapter_available():
             # Call the MHA adapters
-            pack_ip = {
+            pack_input = {
                 'x': residual,
                 'loc': 'mha',
                 'att_mask': att_mask,
                 'pos_emb': pos_emb,
             }
-            pack_ip = self.forward_enabled_adapters(pack_ip)
-            residual = pack_ip['x']
+            pack_input = self.forward_enabled_adapters(pack_input)
+            residual = pack_input['x']
 
         x = self.norm_conv(residual)
         x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time)
@@ -206,12 +206,12 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
 
         if self.is_adapter_available():
             # Call the adapters
-            pack_ip = {
+            pack_input = {
                 'x': x,
                 'loc': 'post',
             }
-            pack_ip = self.forward_enabled_adapters(pack_ip)
-            x = pack_ip['x']
+            pack_input = self.forward_enabled_adapters(pack_input)
+            x = pack_input['x']
 
         if self.is_access_enabled(getattr(self, "model_guid", None)) and self.access_cfg.get(
             'save_encoder_tensors', False
