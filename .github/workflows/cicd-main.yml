@@ -3331,16 +3331,6 @@ jobs:
         +model.peft.lora_tuning.dropout_position='pre' \
         model.peft.lora_tuning.target_modules=['attention'] \
         model.peft.lora_tuning.adapter_dropout=0.1 \
-        +model.fp8=True \
-        +model.fp8_params=True \
-        +model.fp8_hybrid=True \
-        +model.fp8_e4m3=False \
-        +model.fp8_interval=1 \
-        +model.fp8_margin=0 \
-        +model.fp8_amax_history_len=32 \
-        +model.fp8_amax_compute_algo=max \
-        +model.reduce_amax=False \
-        +model.tp_comm_disable_qkv=True \
         model.answer_only_loss=True \
         model.micro_batch_size=1 \
         model.global_batch_size=1 \
