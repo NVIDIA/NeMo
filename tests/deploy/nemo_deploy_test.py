@@ -28,7 +28,6 @@ from tests.infer_data_path import get_infer_test_data
 # limitations under the License.
 
 
-
 run_export_tests = True
 try:
     from nemo.deploy import DeployPyTriton
