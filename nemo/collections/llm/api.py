@@ -4,15 +4,7 @@ from typing import Callable, Optional, Union
 import pytorch_lightning as pl
 
 from nemo.collections.llm.utils import task
-from nemo.lightning import (
-    AutoResume,
-    MegatronStrategy,
-    NeMoLogger,
-    OptimizerModule,
-    Trainer,
-    io,
-    teardown,
-)
+from nemo.lightning import AutoResume, MegatronStrategy, NeMoLogger, OptimizerModule, Trainer, io, teardown
 from nemo.lightning.resume import Resume
 
 
