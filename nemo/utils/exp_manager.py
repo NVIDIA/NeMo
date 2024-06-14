@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
 import glob
 import os
 import subprocess
@@ -49,14 +50,14 @@ from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerP
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
 
-
 try:
     # `ptl_resiliency` is included in `gwe_resiliency_pkg` package
     from ptl_resiliency import StragglerDetectionCallback
-    HAVE_STRAGGLER_DET=True
+
+    HAVE_STRAGGLER_DET = True
 except (ImportError, ModuleNotFoundError):
-    HAVE_STRAGGLER_DET=False
-    
+    HAVE_STRAGGLER_DET = False
+
 
 class NotFoundError(NeMoBaseException):
     """Raised when a file or folder is not found"""
@@ -134,6 +135,7 @@ class EMAParams:
     validate_original_weights: Optional[bool] = False
     every_n_steps: int = 1
 
+
 @dataclass
 class StragglerDetectionParams:
     report_time_interval: float = 60
@@ -141,6 +143,7 @@ class StragglerDetectionParams:
     calc_individual_gpu_perf: bool = True
     report_on_rank0: bool = True
     print_gpu_perf_scores: bool = True
+
 
 @dataclass
 class ExpManagerConfig:
@@ -523,7 +526,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     if cfg.create_straggler_detection_callback:
         if not HAVE_STRAGGLER_DET:
-            raise ValueError("`create_straggler_detection_callback` is True, but there is no Straggler Det. package installed.")
+            raise ValueError(
+                "`create_straggler_detection_callback` is True, but there is no Straggler Det. package installed."
+            )
         logging.info("Enabling straggler detection...")
         straggler_det_args_dict = dict(cfg.straggler_detection_params)
         straggler_det_callback = StragglerDetectionCallback(**straggler_det_args_dict)
