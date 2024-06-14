@@ -70,6 +70,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_include_optimizer: bool = False,
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
         lazy_init: bool = False,
+        pipeline_dtype: Optional[torch.dtype] = None,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -90,6 +91,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.ckpt_type = ckpt_type
         self.lazy_init = lazy_init
         self.ckpt_include_optimizer = ckpt_include_optimizer
+        self.pipeline_dtype = pipeline_dtype
 
         if ddp == "megatron":
             self.ddp_config = DistributedDataParallelConfig(use_distributed_optimizer=True)
@@ -508,6 +510,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
+            pipeline_dtype=self.pipeline_dtype,
         )
 
 
