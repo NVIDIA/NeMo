@@ -499,6 +499,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     if param in bucket.params_updated:
                         return False
             return True
+
         ready_params = collections.OrderedDict()
         for bucket_id, param_bucket in self._params_buckets.items():
             if param_bucket.status == self.ParameterStatus.READY:
