@@ -13,7 +13,7 @@
 # limitations under the License.
 import os
 import shutil
-import tarfile
+import tempfile
 from time import time
 
 import tensorrt as trt
@@ -23,6 +23,7 @@ from tensorrt_llm.builder import Builder
 from transformers import AutoModel
 
 from nemo.core.config import hydra_runner
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.export import TensorRTLLM
 
 logger = trt.Logger(trt.Logger.INFO)
@@ -113,14 +114,16 @@ def build_trt_engine(model_type, input_sizes, output_dir, max_batch_size, dtype=
 def build_neva_engine(cfg):
     device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
     # extract NeMo checkpoint
-    with tarfile.open(cfg.model.visual_model_path) as tar:
-        nemo_config = yaml.safe_load(tar.extractfile("./model_config.yaml"))
-        try:
-            # trained without TP
-            mp0_weights = torch.load(tar.extractfile("./model_weights.ckpt"), map_location=device)
-        except KeyError:
-            # trained with TP
-            mp0_weights = torch.load(tar.extractfile("./mp_rank_00/model_weights.ckpt"), map_location=device)
+    with tempfile.TemporaryDirectory() as temp:
+        connector = SaveRestoreConnector()
+        connector._unpack_nemo_file(path2file=cfg.model.visual_model_path, out_folder=temp)
+        config_yaml = os.path.join(temp, connector.model_config_yaml)
+        nemo_config = yaml.safe_load(config_yaml)
+        if nemo_config.tensor_model_parallel_size > 1:
+            path = os.path.join(temp, 'mp_rank_00', connector.model_weights_ckpt)
+        else:
+            path = os.path.join(temp, connector.model_weights_ckpt)
+        mp0_weights = connector._load_state_dict_from_disk(path)
 
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
 
@@ -180,14 +183,16 @@ def build_neva_engine(cfg):
 def build_video_neva_engine(cfg):
     device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
     # extract NeMo checkpoint
-    with tarfile.open(cfg.model.visual_model_path) as tar:
-        nemo_config = yaml.safe_load(tar.extractfile("./model_config.yaml"))
-        try:
-            # trained without TP
-            mp0_weights = torch.load(tar.extractfile("./model_weights.ckpt"), map_location=device)
-        except KeyError:
-            # trained with TP
-            mp0_weights = torch.load(tar.extractfile("./mp_rank_00/model_weights.ckpt"), map_location=device)
+    with tempfile.TemporaryDirectory() as temp:
+        connector = SaveRestoreConnector()
+        connector._unpack_nemo_file(path2file=cfg.model.visual_model_path, out_folder=temp)
+        config_yaml = os.path.join(temp, connector.model_config_yaml)
+        nemo_config = yaml.safe_load(config_yaml)
+        if nemo_config.tensor_model_parallel_size > 1:
+            path = os.path.join(temp, 'mp_rank_00', connector.model_weights_ckpt)
+        else:
+            path = os.path.join(temp, connector.model_weights_ckpt)
+        mp0_weights = connector._load_state_dict_from_disk(path)
 
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
 

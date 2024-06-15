@@ -15,6 +15,7 @@ from tensorrt_llm import logger
 from tensorrt_llm._utils import str_dtype_to_trt
 from tensorrt_llm.runtime import ModelRunner, Session, TensorInfo
 from transformers import CLIPImageProcessor
+from torchvision import transforms
 
 from nemo.core.config import hydra_runner
 
@@ -297,17 +298,35 @@ class MultimodalModelRunner:
     def setup_inputs(self, input_text, raw_image):
         attention_mask = None
 
-        image = self.video_preprocess(raw_image)  # shape (1, num_frames, 3, H, W)
+        if self.model_type == "neva":
+            image_size = 384
+            dtype = torch.float32
+            transform = transforms.Compose([
+                transforms.Resize(
+                    (image_size, image_size),
+                    interpolation=transforms.InterpolationMode.BICUBIC),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ])
+            image = transform(raw_image).to(dtype).unsqueeze(0)
 
-        if input_text is None:
-            input_text = "Hi! What is in this video?"
+            if input_text is None:
+                input_text = "Hi! What is in this image?"
 
-        # SteerLM prompt template
-        pre_prompt = """<extra_id_0>System\nA chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.\n\n<extra_id_1>User"""
-        post_prompt = (
-            f"\n{input_text}\n<extra_id_1>Assistant\n<extra_id_2>quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,correctness:4,coherence:4,complexity:4,verbosity:4\n"
-            ""
-        )
+            pre_prompt = "<extra_id_0>System\n\n<extra_id_1>User\n"
+            post_prompt = f"\n{input_text}\n<extra_id_1>Assistant\n"
+        elif self.model_type == "video-neva":
+            image = self.video_preprocess(raw_image)  # shape (1, num_frames, 3, H, W)
+
+            if input_text is None:
+                input_text = "Hi! What is in this video?"
+
+            # SteerLM prompt template
+            pre_prompt = """<extra_id_0>System\nA chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.\n\n<extra_id_1>User"""
+            post_prompt = (
+                f"\n{input_text}\n<extra_id_1>Assistant\n<extra_id_2>quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,correctness:4,coherence:4,complexity:4,verbosity:4\n"
+                ""
+            )
 
         # Repeat inputs to match batch size
         pre_prompt = [pre_prompt] * self.cfg.batch_size
@@ -381,15 +400,26 @@ class MultimodalModelRunner:
 
         logger.info("---------------------------------------------------------")
 
+    def load_test_media(self):
+        if self.model_type == "video-neva":
+            media = self.cfg.input_media
+        elif self.model_type == "neva":
+            media = Image.open(self.cfg.input_media).convert('RGB')
+        else:
+            raise RuntimeError(f"Invalid model type {self.model_type}")
 
-@hydra_runner(config_path='conf', config_name='video_neva_trt_infer')
+        return media
+
+
+
+@hydra_runner(config_path='conf', config_name='neva_trt_infer')
 def main(cfg):
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     tensorrt_llm.logger.set_level("info")
 
     model = MultimodalModelRunner(cfg)
-    raw_video = cfg.video_path
-    text_output = model.run(cfg.input_text, raw_video, cfg.infer.max_new_tokens)
+    input_media = model.load_test_media()
+    text_output = model.run(cfg.input_text, input_media, cfg.infer.max_new_tokens)
 
 
 if __name__ == '__main__':
