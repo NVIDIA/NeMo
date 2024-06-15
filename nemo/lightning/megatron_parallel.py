@@ -3,7 +3,6 @@ import collections.abc
 import functools
 import inspect
 import queue
-import types
 from collections import defaultdict
 from typing import (
     Any,
@@ -278,6 +277,12 @@ class MegatronParallel(nn.ModuleList):
 
         if loss_mean == []:
             loss_mean = None
+
+        ## TODO: is this where logging should go?
+        model = pipeline
+        if isinstance(pipeline, list):
+            model = pipeline[0]
+        pipeline.log('train_loss', loss_mean)
 
         return loss_mean
 
