@@ -14,8 +14,8 @@ from PIL import Image
 from tensorrt_llm import logger
 from tensorrt_llm._utils import str_dtype_to_trt
 from tensorrt_llm.runtime import ModelRunner, Session, TensorInfo
-from transformers import CLIPImageProcessor
 from torchvision import transforms
+from transformers import CLIPImageProcessor
 
 from nemo.core.config import hydra_runner
 
@@ -301,13 +301,13 @@ class MultimodalModelRunner:
         if self.model_type == "neva":
             image_size = 384
             dtype = torch.float32
-            transform = transforms.Compose([
-                transforms.Resize(
-                    (image_size, image_size),
-                    interpolation=transforms.InterpolationMode.BICUBIC),
-                transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-            ])
+            transform = transforms.Compose(
+                [
+                    transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                ]
+            )
             image = transform(raw_image).to(dtype).unsqueeze(0)
 
             if input_text is None:
@@ -409,7 +409,6 @@ class MultimodalModelRunner:
             raise RuntimeError(f"Invalid model type {self.model_type}")
 
         return media
-
 
 
 @hydra_runner(config_path='conf', config_name='neva_trt_infer')
