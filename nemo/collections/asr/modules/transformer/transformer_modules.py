@@ -203,8 +203,9 @@ class MultiHeadAttention(nn.Module):
         attention_probs = self.attn_dropout(attention_probs)
 
         context = torch.matmul(attention_probs, value)
+        context_hidden_size = context.size()[-1] * self.num_attention_heads
         context = context.permute(0, 2, 1, 3).contiguous()
-        new_context_shape = context.size()[:-2] + (self.hidden_size,)
+        new_context_shape = context.size()[:-2] + (context_hidden_size,)
         context = context.view(*new_context_shape)
 
         # output projection

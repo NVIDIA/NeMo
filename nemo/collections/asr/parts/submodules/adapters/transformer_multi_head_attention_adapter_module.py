@@ -28,7 +28,7 @@ from nemo.collections.common.parts import adapter_modules
 from nemo.core.classes.mixins import adapter_mixin_strategies, adapter_mixins
 
 
-class TransformerEncoderMultiHeadAttentionAdapter(
+class TransformerMultiHeadAttentionAdapter(
     transformer_modules.MultiHeadAttention, adapter_modules.AdapterModuleUtil
 ):
     """Multi-Head Attention layer of Transformer Encoder.
@@ -76,9 +76,9 @@ class TransformerEncoderMultiHeadAttentionAdapter(
 
             self.attn_head_size = self.proj_dim // num_attention_heads
             self.attn_scale = math.sqrt(math.sqrt(self.attn_head_size))
-            self.query_net = nn.Linear(num_attention_heads, self.proj_dim)
-            self.key_net = nn.Linear(num_attention_heads, self.proj_dim)
-            self.value_net = nn.Linear(num_attention_heads, self.proj_dim)
+            self.query_net = nn.Linear(hidden_size, self.proj_dim)
+            self.key_net = nn.Linear(hidden_size, self.proj_dim)
+            self.value_net = nn.Linear(hidden_size, self.proj_dim)
             self.out_projection = nn.Linear(self.proj_dim, hidden_size)
 
         # Setup adapter strategy
@@ -118,7 +118,7 @@ class TransformerEncoderMultiHeadAttentionAdapter(
 
 
 @dataclass
-class TransformerEncoderMultiHeadAttentionAdapterConfig:
+class TransformerMultiHeadAttentionAdapterConfig:
     hidden_size: int
     num_attention_heads: int
     attn_score_dropout: float = 0.0
@@ -126,12 +126,12 @@ class TransformerEncoderMultiHeadAttentionAdapterConfig:
     proj_dim: Optional[int] = None
     adapter_strategy: Optional[Any] = field(default_factory=lambda: MHAResidualAddAdapterStrategyConfig())
     _target_: str = "{0}.{1}".format(
-        TransformerEncoderMultiHeadAttentionAdapter.__module__, TransformerEncoderMultiHeadAttentionAdapter.__name__
+        TransformerMultiHeadAttentionAdapter.__module__, TransformerMultiHeadAttentionAdapter.__name__
     )
 
 
 """ Register the Adapter Modules to the Adapter Module Registry """
-if adapter_mixins.get_registered_adapter(TransformerEncoderMultiHeadAttentionAdapter) is None:
+if adapter_mixins.get_registered_adapter(TransformerMultiHeadAttentionAdapter) is None:
     adapter_mixins.register_adapter(
-        base_class=transformer_modules.MultiHeadAttention, adapter_class=TransformerEncoderMultiHeadAttentionAdapter
+        base_class=transformer_modules.MultiHeadAttention, adapter_class=TransformerMultiHeadAttentionAdapter
     )

@@ -419,11 +419,11 @@ def get_adapter_cfg(in_features=50, dim=100, norm_pos='pre', atype='linear', **k
         cfg = adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim, norm_position=norm_pos)
     elif atype == 'mha':
         cfg = multi_head_attention_adapter_module.MultiHeadAttentionAdapterConfig(
-            n_head=kwargs.get('n_head', 1), n_feat=in_features
+            n_head=kwargs.get('n_head', 1), n_feat=in_features, proj_dim=kwargs.get('proj_dim', None),
         )
     elif atype == 'transf_mha':
-        cfg = transformer_multi_head_attention_adapter_module.TransformerEncoderMultiHeadAttentionAdapterConfig(
-            num_attention_heads=kwargs.get('n_head', 1), hidden_size=in_features
+        cfg = transformer_multi_head_attention_adapter_module.TransformerMultiHeadAttentionAdapterConfig(
+            num_attention_heads=kwargs.get('n_head', 1), hidden_size=in_features, proj_dim=kwargs.get('proj_dim', None),
         )
     elif atype == 'relmha':
         cfg = multi_head_attention_adapter_module.RelPositionMultiHeadAttentionAdapterConfig(
@@ -618,7 +618,7 @@ class TestASRAdapterMixin:
         og_enc_out = origial_output[2]
 
         adapter_type = 'transf_mha' if 'transf' in name else 'mha'
-        multitask_model.add_adapter(name=name, cfg=get_adapter_cfg(in_features=128, atype=adapter_type))
+        multitask_model.add_adapter(name=name, cfg=get_adapter_cfg(in_features=128, atype=adapter_type, proj_dim=4))
 
         new_output = multitask_model(
             input_signal=input_signal,
@@ -644,19 +644,6 @@ class TestASRAdapterMixin:
     def test_canary_forward_mha_decoder_fails_without_support(self, multitask_model, name):
         multitask_model.eval()
         torch.random.manual_seed(0)
-        input_signal = torch.randn(2, 512)
-        input_signal_length = torch.tensor([512, 512], dtype=torch.int32)
-        transcript = torch.randint(0, multitask_model.tokenizer.vocab_size, size=(2, 10))
-        transcript_len = torch.tensor([10, 9], dtype=torch.int32)
-
-        origial_output = multitask_model(
-            input_signal=input_signal,
-            input_signal_length=input_signal_length,
-            transcript=transcript,
-            transcript_length=transcript_len,
-        )
-        og_logprob = origial_output[0]
-        og_enc_out = origial_output[2]
 
         # Change internal class of transf_decoder module
         adapter_class = multitask_model.transf_decoder.__class__
