@@ -117,13 +117,10 @@ def build_neva_engine(cfg):
         nemo_config = yaml.safe_load(tar.extractfile("./model_config.yaml"))
         try:
             # trained without TP
-            mp0_weights = torch.load(tar.extractfile("./model_weights.ckpt"),
-                                     map_location=device)
+            mp0_weights = torch.load(tar.extractfile("./model_weights.ckpt"), map_location=device)
         except KeyError:
             # trained with TP
-            mp0_weights = torch.load(
-                tar.extractfile("./mp_rank_00/model_weights.ckpt"),
-                map_location=device)
+            mp0_weights = torch.load(tar.extractfile("./mp_rank_00/model_weights.ckpt"), map_location=device)
 
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
 
@@ -135,16 +132,15 @@ def build_neva_engine(cfg):
             self.connector = connector
 
         def forward(self, images):
-            vision_x = self.encoder(pixel_values=images,
-                                    output_hidden_states=True)
+            vision_x = self.encoder(pixel_values=images, output_hidden_states=True)
             vision_x = vision_x.hidden_states[-2]
             vision_x = vision_x[:, 1:]
             vision_x = self.connector(vision_x)
             return vision_x
 
-    encoder = AutoModel.from_pretrained(vision_config["from_pretrained"],
-                                        torch_dtype=torch.bfloat16,
-                                        trust_remote_code=True)
+    encoder = AutoModel.from_pretrained(
+        vision_config["from_pretrained"], torch_dtype=torch.bfloat16, trust_remote_code=True
+    )
     vision_encoder = encoder.vision_model
     hf_config = encoder.config
     dtype = hf_config.torch_dtype
@@ -152,39 +148,33 @@ def build_neva_engine(cfg):
     # connector
     assert nemo_config["mm_cfg"]["mm_mlp_adapter_type"] == "mlp2x_gelu"
     vision_connector = torch.nn.Sequential(
-        torch.nn.Linear(vision_config["hidden_size"],
-                        nemo_config["hidden_size"],
-                        bias=True), torch.nn.GELU(),
-        torch.nn.Linear(nemo_config["hidden_size"],
-                        nemo_config["hidden_size"],
-                        bias=True)).to(dtype=dtype)
+        torch.nn.Linear(vision_config["hidden_size"], nemo_config["hidden_size"], bias=True),
+        torch.nn.GELU(),
+        torch.nn.Linear(nemo_config["hidden_size"], nemo_config["hidden_size"], bias=True),
+    ).to(dtype=dtype)
 
     key_prefix = "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector"
     for layer in range(0, 3, 2):
-        vision_connector[layer].load_state_dict({
-            'weight':
-            mp0_weights[f"{key_prefix}.{layer}.weight"].to(dtype),
-            'bias':
-            mp0_weights[f"{key_prefix}.{layer}.bias"].to(dtype),
-        })
+        vision_connector[layer].load_state_dict(
+            {
+                'weight': mp0_weights[f"{key_prefix}.{layer}.weight"].to(dtype),
+                'bias': mp0_weights[f"{key_prefix}.{layer}.bias"].to(dtype),
+            }
+        )
 
     # export the whole wrapper
-    wrapper = VisionEncoderWrapper(vision_encoder,
-                                   vision_connector).to(device, dtype)
+    wrapper = VisionEncoderWrapper(vision_encoder, vision_connector).to(device, dtype)
     image_size = hf_config.vision_config.image_size
     dummy_image = torch.empty(
-        1, 3, image_size, image_size, dtype=dtype,
-        device=device)  # dummy image shape [B, C, H, W]
+        1, 3, image_size, image_size, dtype=dtype, device=device
+    )  # dummy image shape [B, C, H, W]
 
     engine_dir = os.path.join(cfg.infer.output_dir, "visual_engine")
 
     export_visual_wrapper_onnx(wrapper, dummy_image, engine_dir)
     build_trt_engine(
-        cfg.model.type,
-        [3, image_size, image_size],  # [3, H, W]
-        engine_dir,
-        cfg.infer.visual.max_batch_size,
-        dtype)
+        cfg.model.type, [3, image_size, image_size], engine_dir, cfg.infer.visual.max_batch_size, dtype  # [3, H, W]
+    )
 
 
 def build_video_neva_engine(cfg):
@@ -262,8 +252,7 @@ def build_trtllm_engines(cfg):
     engine_dir = os.path.join(cfg.infer.output_dir, "llm_engine")
     trt_llm_exporter = TensorRTLLM(model_dir=engine_dir, load_model=False)
     trt_llm_exporter.export(
-        nemo_checkpoint_path=cfg.model.visual_model_path
-            if cfg.model.type == "neva" else cfg.model.llm_model_path,
+        nemo_checkpoint_path=cfg.model.visual_model_path if cfg.model.type == "neva" else cfg.model.llm_model_path,
         model_type=cfg.model.llm_model_type,
         tensor_parallel_size=cfg.infer.llm.tensor_parallelism,
         max_input_len=cfg.infer.llm.max_input_len,
