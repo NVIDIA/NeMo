@@ -101,6 +101,7 @@ class Exportable(ABC):
                 ONNX specific.
             keep_initializers_as_inputs (bool): If True, will keep the model's initializers as inputs in the onnx graph.
                 This is ONNX specific.
+            use_dynamo (bool): If True, use onnx.dynamo_export() instead of onnx.export(). This is ONNX specific.
 
         Returns:
             A tuple of two outputs.
@@ -179,7 +180,7 @@ class Exportable(ABC):
             with torch.inference_mode(), torch.no_grad(), torch.jit.optimized_execution(True), _jit_is_scripting():
 
                 if input_example is None:
-                    input_example = self.input_module.input_example(max_batch=2)
+                    input_example = self.input_module.input_example()
 
                 # Remove i/o examples from args we propagate to enclosed Exportables
                 my_args.pop('output')
@@ -231,7 +232,7 @@ class Exportable(ABC):
 
                         # https://github.com/pytorch/pytorch/issues/126339
                         with monkeypatched(torch.nn.RNNBase, "flatten_parameters", lambda *args: None):
-                            logging.info(f"Running export.export, dynamic shapes:{dynamic_shapes}\n")
+                            logging.info(f"Running export.export, dynamic shapes:{dynamic_axes}\n")
 
                             # We have to use different types of arguments for dynamo_export to achieve
                             # same external weights behaviour as onnx.export :
