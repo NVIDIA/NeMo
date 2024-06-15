@@ -3075,7 +3075,7 @@ jobs:
         trainer.max_steps=3 \
         trainer.val_check_interval=3 \
         ++trainer.limit_val_batches=2 \
-        trainer.precision=16 \
+        trainer.precision=bf16 \
         exp_manager.exp_dir=/home/TestData/nlp/lora_tuning_pp2 \
         model.pipeline_model_parallel_size=2 \
         model.tensor_model_parallel_size=1 \
@@ -3127,7 +3127,7 @@ jobs:
         trainer.max_steps=3 \
         trainer.val_check_interval=3 \
         ++trainer.limit_val_batches=2 \
-        trainer.precision=16 \
+        trainer.precision=bf16 \
         exp_manager.exp_dir=/home/TestData/nlp/lora_tuning_tp2 \
         model.pipeline_model_parallel_size=1 \
         model.tensor_model_parallel_size=2 \
