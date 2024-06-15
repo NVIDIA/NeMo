@@ -1,6 +1,6 @@
-name: nemo_video_neva
+name: nemo_neva
 infer:
-  output_dir: ./video_neva
+  output_dir: ./neva
   visual:
     max_batch_size: 4
   llm:
@@ -11,6 +11,8 @@ infer:
     max_multimodal_len: 3072
 
 model:
+  type: neva
   precision: bfloat16
   visual_model_path: /path/to/visual.nemo
   llm_model_path: /path/to/llm.nemo
+  llm_model_type: llama
