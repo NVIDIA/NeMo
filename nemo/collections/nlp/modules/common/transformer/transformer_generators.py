@@ -776,7 +776,6 @@ class EnsembleBeamSearchSequenceGenerator:
                 gather_reset_training_mode_values(module_name, map_values=training_mode_module_list[module_name])
 
 
-
 class BeamSearchSequenceGeneratorWithLanguageModel(GreedySequenceGenerator):
     def __init__(
         self, embedding, decoder, log_softmax, language_model, beam_size=1, len_pen=0, fusion_coef=0.0, **kwargs
