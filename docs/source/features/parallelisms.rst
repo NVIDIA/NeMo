@@ -13,7 +13,7 @@ Data batches are evenly distributed between GPUs and the data-parallel GPUs proc
 While the computation workload is efficiently distributed across GPUs, inter-GPU communication is required in order to keep the model replicas consistent between training steps.
 
 Distributed Data Parallelism
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Distributed Data Parallelism (DDP) keeps the model copies consistent by synchronizing parameter gradients across data-parallel GPUs before each parameter update.
 More specifically, it sums the gradients of all model copies using all-reduce communication collectives.
@@ -24,7 +24,7 @@ More specifically, it sums the gradients of all model copies using all-reduce co
     :alt: Distributed Data Parallel
 
 Distributed Optimizer
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^
 
 Distributed optimizer is a memory-optimized data-parallel deployment method.
 It shards the optimizer states and the high-precision master parameters across data-parallel GPUs instead replicating them.
@@ -72,13 +72,11 @@ The distributed optimizer in NeMo is built on top of
 `DistributedFusedAdam <https://github.com/NVIDIA/apex/blob/master/apex/contrib/optimizers/distributed_fused_adam.py>`_
 from Apex.
 
-
 Model Parallelism
 -----------------
 
 Model parallelism (MP) is a distributed model deployment method that partitions the model parameters across GPUs to reduce the need of per-GPU memory.
 NeMo supports various model-parallel methods, which can be mixed to maximize LLM training performance.
-
 
 Tensor Parallelism
 ^^^^^^^^^^^^^^^^^^
