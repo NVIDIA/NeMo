@@ -419,11 +419,15 @@ def get_adapter_cfg(in_features=50, dim=100, norm_pos='pre', atype='linear', **k
         cfg = adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim, norm_position=norm_pos)
     elif atype == 'mha':
         cfg = multi_head_attention_adapter_module.MultiHeadAttentionAdapterConfig(
-            n_head=kwargs.get('n_head', 1), n_feat=in_features, proj_dim=kwargs.get('proj_dim', None),
+            n_head=kwargs.get('n_head', 1),
+            n_feat=in_features,
+            proj_dim=kwargs.get('proj_dim', None),
         )
     elif atype == 'transf_mha':
         cfg = transformer_multi_head_attention_adapter_module.TransformerMultiHeadAttentionAdapterConfig(
-            num_attention_heads=kwargs.get('n_head', 1), hidden_size=in_features, proj_dim=kwargs.get('proj_dim', None),
+            num_attention_heads=kwargs.get('n_head', 1),
+            hidden_size=in_features,
+            proj_dim=kwargs.get('proj_dim', None),
         )
     elif atype == 'relmha':
         cfg = multi_head_attention_adapter_module.RelPositionMultiHeadAttentionAdapterConfig(

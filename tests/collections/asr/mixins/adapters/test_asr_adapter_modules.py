@@ -269,7 +269,9 @@ class TestASRAdapterModules:
 
     @pytest.mark.unit
     def test_transformer_mha_adapter_strategy(self):
-        adapter = adapter_modules.TransformerMultiHeadAttentionAdapter(num_attention_heads=1, hidden_size=50, attn_layer_dropout=0.0)
+        adapter = adapter_modules.TransformerMultiHeadAttentionAdapter(
+            num_attention_heads=1, hidden_size=50, attn_layer_dropout=0.0
+        )
         assert hasattr(adapter, 'adapter_strategy')
         assert adapter.adapter_strategy is not None
         # assert default strategy is set
