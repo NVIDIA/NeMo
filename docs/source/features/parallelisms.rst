@@ -79,7 +79,7 @@ NeMo supports Fully-Sharded Data Parallelism (FSDP) that shards parameter gradie
 Since FSDP shards the entire model states, it ensures linear model state memory saving with increasing DP size.
 FSDP can be preferred for the LLM training with unbalanced workload between pipeline stages (or Transformer layers) or with a large vocabulary size, where pipelining would cause huge computation bubbles due to the workload imbalance.
 
-NeMo uses `pytorch's FSDP interface <https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html>` to shard LLM model states, which flattens the parameters of each Transformer layer and partitions across datap-parallel GPUs.
+NeMo uses `pytorch's FSDP interface <https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html>`_ to shard LLM model states, which flattens the parameters of each Transformer layer and partitions across datap-parallel GPUs.
 FSDP introduces collectives across data-parallel GPUs; all-gather of the parameters for computation and reduce-scatter of parameter gradients.
 The parameter-all gather happens in both network forward- and back-propagation phases, and the gradient reduce-scatter happens only in the back-propagation.
 These FSDP communications are overlapped with Transformer layer computations.
