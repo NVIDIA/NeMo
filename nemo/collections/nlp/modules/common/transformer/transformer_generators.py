@@ -173,7 +173,7 @@ class GreedySequenceGenerator:
     def __call__(
         self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
     ):
-        with torch.inference_mode():
+        with self.as_frozen():
             return self._forward(
                 decoder_input_ids, encoder_hidden_states, encoder_input_mask, return_beam_scores=return_beam_scores
             )
@@ -688,7 +688,7 @@ class EnsembleBeamSearchSequenceGenerator:
             return tgt
 
     def __call__(self, src_ids, encoder_input_mask, decoder_input_ids=None, return_beam_scores=False):
-        with torch.inference_mode():
+        with self.as_frozen():
             return self._forward(src_ids, encoder_input_mask, decoder_input_ids, return_beam_scores)
 
     def freeze(self) -> None:
@@ -729,12 +729,52 @@ class EnsembleBeamSearchSequenceGenerator:
         Context manager which temporarily freezes embedding, decoder, and log_softmax modules,
         yields control and finally unfreezes the modules.
         """
+        grad_module_list = {'embeddings': {}, 'decoders': {}, 'log_softmaxes': {}, 'encoders': {}}
+        training_mode_module_list = {'embeddings': {}, 'decoders': {}, 'log_softmaxes': {}, 'encoders': {}}
+
+        def gather_grad_values(module_name):
+            map_values = [{} for _ in range(self.num_models)]
+            for model_num in range(self.num_models):
+                for name, param in getattr(self, module_name)[model_num].named_parameters():
+                    map_values[model_num][name].append(param.requires_grad)
+            return map_values
+
+        def reset_grad_values(module_name, map_values, require_grad_default: bool):
+            for model_num in range(self.num_models):
+                for name, param in getattr(self, module_name)[model_num].named_parameters():
+                    if name in map_values[model_num]:
+                        param.requires_grad = map_values[model_num].pop()
+                    else:
+                        param.requires_grad = require_grad_default
+
+        def gather_reset_training_mode_values(module_name, map_values: dict = None):
+            map_values = [{} for _ in range(self.num_models)] if not map_values else map_values
+            get_values = len(map_values) == 0
+
+            for model_num in range(self.num_models):
+                if get_values:
+                    map_values[model_num] = getattr(self, module_name)[model_num].training
+                else:
+                    getattr(self, module_name)[model_num].train(map_values[model_num])
+            return map_values
+
+        # Cache the param.require_grad state of each module
+        for module_name in grad_module_list.keys():
+            grad_module_list[module_name] = gather_grad_values(module_name)
+            training_mode_module_list[module_name] = gather_reset_training_mode_values(module_name)
+
         self.freeze()
 
         try:
             yield
         finally:
             self.unfreeze()
+
+            # Reset the param.require_grad state of each module
+            for module_name in grad_module_list.keys():
+                reset_grad_values(module_name, grad_module_list[module_name], require_grad_default=True)
+                gather_reset_training_mode_values(module_name, map_values=training_mode_module_list[module_name])
+
 
 
 class BeamSearchSequenceGeneratorWithLanguageModel(GreedySequenceGenerator):
