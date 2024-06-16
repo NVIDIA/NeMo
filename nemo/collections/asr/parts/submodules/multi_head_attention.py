@@ -60,6 +60,7 @@ class MultiHeadAttention(nn.Module):
     def __init__(self, n_head, n_feat, dropout_rate, max_cache_len=0):
         """Construct an MultiHeadedAttention object."""
         super(MultiHeadAttention, self).__init__()
+        self.dropout_rate = dropout_rate
         self.cache_drop_size = None
         assert n_feat % n_head == 0
         # We assume d_v always equals d_k
@@ -132,14 +133,18 @@ class MultiHeadAttention(nn.Module):
             cache (torch.Tensor) : (batch, time_cache_next, size)
         """
         key, value, query, cache = self.update_cache(key=key, value=value, query=query, cache=cache)
+        n_batch = value.size(0)
 
         if torch.is_autocast_enabled():
             query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
-
-        # temporary until we solve this more gracefully
+        
         with avoid_float16_autocast_context():
             q, k, v = self.forward_qkv(query, key, value)
             scale = 1 / self.s_d_k
+
+            if mask is not None:
+                mask = mask.unsqueeze(1).logical_not()
+            
             out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=self.dropout_rate, scale=scale)
             out = out.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
             out = self.linear_out(out)  # (batch, time1, d_model)
