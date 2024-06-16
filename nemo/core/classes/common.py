@@ -35,6 +35,7 @@ from huggingface_hub import HfApi
 from huggingface_hub import get_token as get_hf_token
 from huggingface_hub import hf_hub_download, snapshot_download
 from omegaconf import DictConfig, OmegaConf
+from typing_extensions import Self
 
 import nemo
 from nemo.core.classes.mixins.hf_io_mixin import HuggingFaceFileIO
@@ -718,7 +719,7 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
         trainer: Optional['Trainer'] = None,
         save_restore_connector: SaveRestoreConnector = None,
         return_model_file: Optional[bool] = False,
-    ):
+    ) -> Self:
         """
         Instantiates an instance of NeMo from NVIDIA NGC cloud
         Use restore_from() to instantiate from a local .nemo file.
