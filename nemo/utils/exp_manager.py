@@ -137,12 +137,13 @@ class EMAParams:
 
 @dataclass
 class StragglerDetectionParams:
-    report_time_interval: float = 60
+    report_time_interval: float = 300
     calc_relative_gpu_perf: bool = True
     calc_individual_gpu_perf: bool = True
     report_on_rank0: bool = True
     print_gpu_perf_scores: bool = True
-
+    gpu_relative_perf_threshold: int = 0.7
+    gpu_individual_perf_threshold: int = 0.7
 
 @dataclass
 class ExpManagerConfig:
@@ -522,14 +523,15 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             trainer.callbacks.append(StatelessTimer(cfg.max_time_per_run))
 
     if cfg.create_straggler_detection_callback:
-        if not HAVE_STRAGGLER_DET:
+        if HAVE_STRAGGLER_DET:
+            logging.info("Enabling straggler detection...")
+            straggler_det_args_dict = dict(cfg.straggler_detection_params)
+            straggler_det_callback = StragglerDetectionCallback(**straggler_det_args_dict)
+            trainer.callbacks.append(straggler_det_callback)
+        else:
             raise ValueError(
                 "`create_straggler_detection_callback` is True, but there is no Straggler Det. package installed."
             )
-        logging.info("Enabling straggler detection...")
-        straggler_det_args_dict = dict(cfg.straggler_detection_params)
-        straggler_det_callback = StragglerDetectionCallback(**straggler_det_args_dict)
-        trainer.callbacks.append(straggler_det_callback)
 
     if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
