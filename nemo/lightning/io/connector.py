@@ -187,7 +187,9 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         from nemo.lightning.io.api import load_ckpt
 
         model = load_ckpt(path).model
-        _trainer = trainer or Trainer(devices=1, accelerator="cpu" if cpu else "gpu", strategy=MegatronStrategy(ddp="pytorch"))
+        _trainer = trainer or Trainer(
+            devices=1, accelerator="cpu" if cpu else "gpu", strategy=MegatronStrategy(ddp="pytorch")
+        )
 
         _trainer.strategy.connect(model)
         _trainer.strategy.setup_environment()
