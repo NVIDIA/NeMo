@@ -60,6 +60,7 @@ class MegatronOptimizerModule(OptimizerModule):
         Args:
             model: The model for which the optimizer is being set up.
         """
+
         def finalize_model_grads_func(*args, **kwargs):
             return self.finalize_model_grads(*args, **kwargs)
 
