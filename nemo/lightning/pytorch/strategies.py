@@ -53,6 +53,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     trainer: pl.Trainer
 
+    ## TODO: support context parallel
     def __init__(
         self,
         tensor_model_parallel_size: int = 1,
@@ -69,6 +70,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_include_optimizer: bool = False,
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
         lazy_init: bool = False,
+        pipeline_dtype: Optional[torch.dtype] = None,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -89,6 +91,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.ckpt_type = ckpt_type
         self.lazy_init = lazy_init
         self.ckpt_include_optimizer = ckpt_include_optimizer
+        self.pipeline_dtype = pipeline_dtype
 
         if ddp == "megatron":
             self.ddp_config = DistributedDataParallelConfig(use_distributed_optimizer=True)
@@ -290,6 +293,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         kwargs = self._update_step_kwargs(dataloader_iter, kwargs, "training")
 
         with self.precision_plugin.train_step_context():  # TODO: Do we need this?
+            # Set grad to zero.
+            for model_chunk in self.model:
+                model_chunk.zero_grad_buffer()
+            for opt in self.optimizers:
+                opt.zero_grad()
+
             return self.model(dataloader_iter, forward_only=False, *args, **kwargs)
 
     @override
@@ -381,7 +390,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         checkpoint["state_dict"] = OrderedDict([])  # remove device state_dict
         checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
         if self.trainer.state.fn == TrainerFn.FITTING:
-            checkpoint["optimizer_states"] = [self.optimizer_sharded_state_dict()]
+            checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
         if self.enable_nemo_ckpt_io and self.is_global_zero and self.ckpt_type:
@@ -402,7 +411,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
             if self.lightning_module.optimizers(use_pl_optimizer=False):
-                sharded_state_dict["optimizer_states"] = [self.optimizer_sharded_state_dict()]
+                sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict()]
 
         checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=sharded_state_dict)
 
@@ -430,6 +439,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
+
         if self._checkpoint_io is None:
             self._checkpoint_io = MegatronCheckpointIO()
         elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
@@ -506,6 +516,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
+            pipeline_dtype=self.pipeline_dtype,
         )
 
 
