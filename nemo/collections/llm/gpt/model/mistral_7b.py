@@ -1,11 +1,11 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing_extensions import Annotated
 from typing import TYPE_CHECKING, Callable, List, Optional
 
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from typing_extensions import Annotated
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
