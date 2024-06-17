@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+import inspect
 from pathlib import Path, PosixPath, WindowsPath
 from typing import Generic, Optional, Tuple, TypeVar
 
@@ -159,7 +160,12 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             output_path (Path): The path where the model checkpoint will be saved.
             trainer (pl.Trainer): The trainer with the strategy to save the model.
         """
-        trainer.strategy.setup(trainer)
+        _setup_kwargs = {}
+        setup_signature = inspect.signature(trainer.strategy.setup)
+        if 'setup_optimizers' in setup_signature.parameters:
+            _setup_kwargs["setup_optimizers"] = False
+
+        trainer.strategy.setup(trainer, **_setup_kwargs)
         trainer.save_checkpoint(output_path)
 
     def nemo_load(
