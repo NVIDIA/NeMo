@@ -1,10 +1,12 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional
+from typing_extensions import Annotated
 
 import torch
 import torch.nn.functional as F
 
+from nemo.collections.llm.utils import Config
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.lightning import io, teardown
 
@@ -36,7 +38,11 @@ class Mistral7BConfig(GPTConfig):
 
 
 class Mistral7BModel(GPTModel):
-    def __init__(self, config: Optional[Mistral7BConfig] = None, tokenizer=None):
+    def __init__(
+        self, 
+        config: Annotated[Optional[Mistral7BConfig], Config[Mistral7BConfig]] = None, 
+        tokenizer=None
+    ):
         _tokenizer = tokenizer or HFMistral7BImporter("mistralai/Mistral-7B-v0.1").tokenizer
 
         super().__init__(config or Mistral7BConfig(), _tokenizer)
