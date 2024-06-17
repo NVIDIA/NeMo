@@ -169,10 +169,12 @@ class OptimizerModule(L.Callback, CallbackMethods, ABC):
 
         self.setup(_model)
         self._optimizers = self.optimizers(_model)
+        
+        _opt = self._optimizers[0] if len(self._optimizers) == 1 else self._optimizers
 
         if self.lr_scheduler is not None:
-            self.lr_scheduler.setup(_model, self._optimizers)
-            with_scheduler = self.lr_scheduler(_model, self._optimizers)
+            self.lr_scheduler.setup(_model, _opt)
+            with_scheduler = self.lr_scheduler(_model, _opt)
 
             return with_scheduler
 
