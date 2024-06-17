@@ -3095,7 +3095,8 @@ jobs:
         python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
         model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
         model.peft.restore_from_path=/home/TestData/nlp/lora_tuning_pp2/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo \
-        model.tensor_model_parallel_size=2 \
+        model.pipeline_model_parallel_size=2 \
+        model.tensor_model_parallel_size=1 \
         trainer.devices=2 \
         model.megatron_amp_O2=True \
         model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
