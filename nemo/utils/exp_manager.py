@@ -145,6 +145,7 @@ class StragglerDetectionParams:
     gpu_relative_perf_threshold: int = 0.7
     gpu_individual_perf_threshold: int = 0.7
 
+
 @dataclass
 class ExpManagerConfig:
     """Experiment Manager config for validation of passed arguments."""
