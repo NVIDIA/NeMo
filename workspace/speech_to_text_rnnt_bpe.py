@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ python <NEMO_ROOT>/scripts/tokenizers/process_asr_text_tokenizer.py \
 
 # Training the model
 ```sh
-python run_speech_intent_slot_train.py \
+python speech_to_text_ctc_bpe.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
     model.train_ds.manifest_filepath=<path to train manifest> \
     model.validation_ds.manifest_filepath=<path to val/test manifest> \
@@ -60,73 +60,39 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.ht
 # Pretrained Models
 
 For documentation on existing pretrained models, please visit -
-https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speech_intent_slot/results.html
+https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.html
 
 """
 
-from pathlib import Path
-
 import pytorch_lightning as pl
-import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models import ASRModel, SLUIntentSlotBPEModel, SpeechEncDecSelfSupervisedModel
+from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="./configs/", config_name="conformer_transformer_large_bpe")
+@hydra_runner(config_path="../conf/citrinet/", config_name="config_bpe")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    model = SLUIntentSlotBPEModel(cfg=cfg.model, trainer=trainer)
+    asr_model = EncDecRNNTBPEModel(cfg=cfg.model, trainer=trainer)
 
-    # Init encoder from pretrained model
-    pretrained_encoder_name = cfg.pretrained_encoder.name
-    if pretrained_encoder_name is not None:
-        if Path(pretrained_encoder_name).is_file():
-            if not pretrained_encoder_name.endswith(".nemo"):
-                logging.info(f"Loading encoder from PyTorch Lightning checkpoint: {pretrained_encoder_name}")
-                state_dict = torch.load(pretrained_encoder_name, map_location='cpu')['state_dict']
-                pretraind_model = None
-            else:
-                logging.info(f"Loading pretrained encoder from NeMo file: {pretrained_encoder_name}")
-                pretraind_model = ASRModel.restore_from(
-                    restore_path=pretrained_encoder_name, map_location=torch.device("cpu")
-                )
-                state_dict = pretraind_model.state_dict()
-            model.encoder.load_state_dict(state_dict, strict=False)
-            del pretraind_model
-        else:
-            logging.info(f"Loading pretrained encoder from NGC: {pretrained_encoder_name}")
-            if pretrained_encoder_name.startswith("ssl_"):
-                model_cls = SpeechEncDecSelfSupervisedModel
-            elif pretrained_encoder_name.startswith("stt_"):
-                model_cls = ASRModel
-            else:
-                raise ValueError(f"Unknown pretrained encoder: {pretrained_encoder_name}")
-            pretraind_model = model_cls.from_pretrained(
-                model_name=pretrained_encoder_name, map_location=torch.device("cpu")
-            )
-            model.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
-            del pretraind_model
-    else:
-        logging.info("Not using pretrained encoder.")
+    # Initialize the weights of the model from another model, if provided via config
+    asr_model.maybe_init_from_pretrained_checkpoint(cfg)
 
-    if cfg.pretrained_encoder.freeze:
-        logging.info("Freezing encoder...")
-        model.encoder.freeze()
-    else:
-        model.encoder.unfreeze()
+    if cfg.model.get("freeze_encoder", False):
+        logging.info("Encoder is frozen for fine-tuning.")
+        asr_model.encoder.freeze()
 
-    trainer.fit(model)
+    trainer.fit(asr_model)
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
-        if model.prepare_test(trainer):
-            trainer.test(model)
+        if asr_model.prepare_test(trainer):
+            trainer.test(asr_model)
 
 
 if __name__ == '__main__':

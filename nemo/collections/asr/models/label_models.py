@@ -353,7 +353,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         logits, embs = self.decoder(encoder_output=encoded, length=length)
         return logits, embs
 
-    @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
             input_signal=input_signal, length=input_signal_length,
@@ -362,8 +361,16 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_len)
 
-        encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
-        logits, embs = self.decoder(encoder_output=encoded, length=length)
+        encoder_outputs = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
+        if isinstance(encoder_outputs, tuple):
+            encoded, length = encoder_outputs
+        else:
+            encoded, length = encoder_outputs, None
+        decoder_outputs = self.decoder(encoder_output=encoded, length=length)
+        if isinstance(decoder_outputs, tuple):
+            logits, embs = decoder_outputs
+        else:
+            logits, embs = decoder_outputs, None
         if encoded.isnan().any():
             logging.warning("NaN detected in encoder output")
 

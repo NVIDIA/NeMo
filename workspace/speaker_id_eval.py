@@ -16,7 +16,7 @@ import os
 from collections import OrderedDict
 import pytorch_lightning as pl
 import torch
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 from pytorch_lightning import seed_everything
 
 from nemo.collections.asr.models import EncDecSpeakerLabelModel, SpeechEncDecSelfSupervisedModel
@@ -85,15 +85,17 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
 
-    model_cfg = EncDecSpeakerLabelModel.restore_from(cfg.init_from_nemo_model, return_config=True)
-    model_cfg.test_ds = cfg.model.test_ds
-    model_cfg.test_ds.labels = model_cfg.train_ds.labels
+    if not str(cfg.init_from_nemo_model).endswith('.nemo'):
+        speaker_model = EncDecSpeakerLabelModel.load_from_checkpoint(cfg.init_from_nemo_model)
+    else:
+        speaker_model = EncDecSpeakerLabelModel.restore_from(cfg.init_from_nemo_model, trainer=trainer)
 
-    speaker_model = EncDecSpeakerLabelModel.restore_from(
-        cfg.init_from_nemo_model, override_config_path=model_cfg, trainer=trainer
-    )
+    with open_dict(speaker_model._cfg) as model_cfg:
+        cfg.model.test_ds.labels = speaker_model.cfg.train_ds.labels
+        model_cfg.test_ds = cfg.model.test_ds
+
     speaker_model.eval()
-    speaker_model.setup_test_data(model_cfg.test_ds)
+    speaker_model.setup_test_data(cfg.model.test_ds)
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
         if speaker_model.prepare_test(trainer):
             logging.info("Test data prepared successfully.")

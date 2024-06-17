@@ -14,15 +14,19 @@
 
 import os
 from collections import OrderedDict
+
 import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
 from pytorch_lightning import seed_everything
 
 from nemo.collections.asr.models import EncDecSpeakerLabelModel, SpeechEncDecSelfSupervisedModel
+from nemo.core.classes.common import typecheck
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+
+typecheck.set_typecheck_enabled(enabled=False)
 
 """
 Basic run (on GPU for 10 epochs for 2 class training):
