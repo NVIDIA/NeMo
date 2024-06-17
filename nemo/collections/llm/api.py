@@ -66,14 +66,14 @@ def train(
     if opt:
         opt.connect(model)
 
-    trainer.fit(model, data, **fit_kwargs)
+    trainer.fit(model, data)
 
     if hasattr(train, "__io__"):
         _save_config_img(app_state.exp_dir, train.__io__)
 
     trainer.fit(model, data)
 
-    log.teardown()
+    _log.teardown()
 
     return app_state.exp_dir
 
