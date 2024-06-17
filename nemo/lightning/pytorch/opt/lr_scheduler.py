@@ -388,14 +388,14 @@ class PolynomialHoldDecayAnnealingScheduler(LRSchedulerModule):
             "frequency": self.frequency,
             "monitor": self.monitor,
         }
-        
+
 
 class CosineAnnealingScheduler(LRSchedulerModule):
     def __init__(
-        self, 
-        max_steps=10, 
-        warmup_steps=750, 
-        constant_steps=80000, 
+        self,
+        max_steps=10,
+        warmup_steps=750,
+        constant_steps=80000,
         min_lr=int(6e-5),
         interval="epoch",
         frequency=1,
@@ -412,13 +412,13 @@ class CosineAnnealingScheduler(LRSchedulerModule):
 
     def scheduler(self, model, optimizer):
         from nemo.core.optim.lr_scheduler import CosineAnnealing
-        
+
         lr_scheduler = CosineAnnealing(
-            optimizer, 
-            max_steps=self.max_steps, 
-            warmup_steps=self.warmup_steps, 
-            constant_steps=self.constant_steps, 
-            min_lr=self.min_lr
+            optimizer,
+            max_steps=self.max_steps,
+            warmup_steps=self.warmup_steps,
+            constant_steps=self.constant_steps,
+            min_lr=self.min_lr,
         )
 
         return {
@@ -436,4 +436,3 @@ class CosineAnnealingScheduler(LRSchedulerModule):
             # Metric to to monitor for schedulers like `ReduceLROnPlateau`
             "monitor": self.monitor,
         }
-
