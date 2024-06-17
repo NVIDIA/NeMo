@@ -9,29 +9,19 @@ import lightning_fabric as fl
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
 
+from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
+from nemo.utils.env_var_parsing import get_envbool
+from nemo.utils.exp_manager import check_explicit_log_dir
+from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 
 
 @dataclass
-class NeMoLogger:
-    """Logger for NeMo runs.
-
-    Args:
-        name (str): Name of the experiment.
-        dir (Optional[str]): Directory to save logs.
-        explicit_log_dir (Optional[str]): Explicit log directory.
-        version (Optional[str]): Version of the experiment.
-        use_datetime_version (bool): Whether to use datetime as version.
-        log_local_rank_0_only (bool): Log only on local rank 0.
-        log_global_rank_0_only (bool): Log only on global rank 0.
-        files_to_copy (Optional[List[str]]): List of files to copy to log directory.
-        update_logger_directory (bool): Whether to update logger directory.
-        ckpt (Optional[ModelCheckpoint]): Model checkpoint callback.
-    """
-
-    name: str = "default"
+class Experiment:
+    name: str
     dir: Optional[str] = None
     explicit_log_dir: Optional[str] = None
     version: Optional[str] = None
@@ -40,7 +30,6 @@ class NeMoLogger:
     log_global_rank_0_only: bool = False
     files_to_copy: Optional[List[str]] = None
     update_logger_directory: bool = True
-    ckpt: Optional[ModelCheckpoint] = None
 
     def __post_init__(self):
         if self.log_local_rank_0_only is True and self.log_global_rank_0_only is True:
@@ -48,26 +37,7 @@ class NeMoLogger:
                 f"Cannot set both log_local_rank_0_only and log_global_rank_0_only to True. Please set either one or neither."
             )
 
-    def setup(
-        self,
-        trainer: Union[pl.Trainer, fl.Fabric],
-        resume_if_exists: bool = False,
-    ):
-        """Setup the logger for the experiment.
-
-        Args:
-            trainer (Union[pl.Trainer, fl.Fabric]): Trainer or Fabric instance.
-            resume_if_exists (bool): Whether to resume if log directory exists.
-
-        Returns:
-            AppState: The application state with updated log directory and other settings.
-        """
-        from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
-        from nemo.utils.env_var_parsing import get_envbool
-        from nemo.utils.exp_manager import check_explicit_log_dir
-        from nemo.utils.get_rank import is_global_rank_zero
-        from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
-
+    def setup(self, trainer: Union[pl.Trainer, fl.Fabric], resume_if_exists: bool = False):
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
         global_rank = trainer.node_rank * trainer.world_size + local_rank
         logging.rank = global_rank
@@ -116,45 +86,14 @@ class NeMoLogger:
         logging.info(f'Experiments will be logged at {log_dir}')
 
         if isinstance(trainer, pl.Trainer):
-            if self.ckpt:
-                _overwrite_i = None
-                for i, callback in enumerate(trainer.callbacks):
-                    if isinstance(callback, PTLModelCheckpoint):
-                        logging.warning(
-                            "The Trainer already contains a ModelCheckpoint callback. " "This will be overwritten."
-                        )
-                        _overwrite_i = i
-                        break
-                if _overwrite_i is not None:
-                    trainer.callbacks[_overwrite_i] = self.ckpt
-                else:
-                    trainer.callbacks.append(self.ckpt)
-
-                if self.ckpt.monitor and "val" in self.ckpt.monitor:
-                    if (
-                        trainer.max_epochs is not None
-                        and trainer.max_epochs != -1
-                        and trainer.max_epochs < trainer.check_val_every_n_epoch
-                    ):
-                        logging.error(
-                            "The checkpoint callback was told to monitor a validation value but trainer.max_epochs("
-                            f"{trainer.max_epochs}) was less than trainer.check_val_every_n_epoch({trainer.check_val_every_n_epoch}"
-                            f"). It is very likely this run will fail with ModelCheckpoint(monitor='{self.ckpt.monitor}') not found "
-                            "in the returned metrics. Please ensure that validation is run within trainer.max_epochs."
-                        )
-                    elif trainer.max_steps is not None and trainer.max_steps != -1:
-                        logging.warning(
-                            "The checkpoint callback was told to monitor a validation value and trainer's max_steps was set to "
-                            f"{trainer.max_steps}. Please ensure that max_steps will run for at least "
-                            f"{trainer.check_val_every_n_epoch} epochs to ensure that checkpointing will not error out."
-                        )
-
             for callback in trainer.callbacks:
                 if isinstance(callback, PTLModelCheckpoint):
-                    if callback.dirpath is None:
-                        callback.dirpath = Path(log_dir / "checkpoints")
+                    ## TODO: make configurable
+                    callback.dirpath = Path(log_dir / "checkpoints")  # app_state.exp_dir
                     if callback.filename is None:
-                        callback.filename = f'{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}'
+                        callback.filename = f'{name}--{{{callback.monitor}:.4f}}-{{epoch}}'
+                    if callback.prefix is None:
+                        callback.prefix = name
                     ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + '-last'
 
         # This is set if the env var NEMO_TESTING is set to True.
