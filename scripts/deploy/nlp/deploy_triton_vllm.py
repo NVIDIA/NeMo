@@ -23,7 +23,7 @@ import os.path
 import tempfile
 
 from nemo.deploy import DeployPyTriton
-from nemo.export.vllm import Exporter
+from nemo.export.vllm_exporter import vLLMExporter
 
 
 def main(args: argparse.Namespace):
@@ -40,7 +40,7 @@ def main(args: argparse.Namespace):
         os.makedirs(args.model_dir)
 
     try:
-        exporter = Exporter()
+        exporter = vLLMExporter()
         exporter.export(
             nemo_checkpoint=args.nemo_checkpoint,
             model_dir=args.model_dir,
