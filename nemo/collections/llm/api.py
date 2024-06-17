@@ -1,10 +1,10 @@
 from pathlib import Path
 from typing import Callable, Optional
-from typing_extensions import Annotated
 
 import pytorch_lightning as pl
+from typing_extensions import Annotated
 
-from nemo.collections.llm.utils import task, Config
+from nemo.collections.llm.utils import Config, task
 from nemo.lightning import AutoResume, MegatronStrategy, NeMoLogger, OptimizerModule, Trainer, io, teardown
 
 
@@ -51,7 +51,7 @@ def train(
     """
     if not isinstance(trainer.strategy, MegatronStrategy):
         raise ValueError("Only MegatronStrategy is supported")
-    
+
     _log = log or NeMoLogger()
 
     if tokenizer:  # TODO: Improve this
