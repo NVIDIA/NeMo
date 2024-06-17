@@ -8,8 +8,8 @@ from typing_extensions import Annotated
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
-from nemo.lightning.pytorch.opt import OptimizerModule
 from nemo.lightning import io, teardown
+from nemo.lightning.pytorch.opt import OptimizerModule
 
 if TYPE_CHECKING:
     from transformers import MistralConfig, MistralForCausalLM
@@ -41,8 +41,8 @@ class Mistral7BConfig(GPTConfig):
 
 class Mistral7BModel(GPTModel):
     def __init__(
-        self, 
-        config: Annotated[Optional[Mistral7BConfig], Config[Mistral7BConfig]] = None, 
+        self,
+        config: Annotated[Optional[Mistral7BConfig], Config[Mistral7BConfig]] = None,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
     ):
