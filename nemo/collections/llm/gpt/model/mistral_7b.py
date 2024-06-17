@@ -3,9 +3,9 @@ from pathlib import Path
 from typing_extensions import Annotated
 from typing import TYPE_CHECKING, Callable, List, Optional
 
+import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-import pytorch_lightning as pl
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
@@ -70,7 +70,7 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
         del trainer, target
 
         return output_path
-    
+
     def on_import_ckpt(self, model: pl.LightningModule):
         model.tokenizer = self.tokenizer
 
