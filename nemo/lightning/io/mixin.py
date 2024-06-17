@@ -279,6 +279,8 @@ class ConnectorMixin:
         connector = self._get_connector(path)
         ckpt_path: Path = connector.local_path(base_path=base_path)
         ckpt_path = connector(ckpt_path, overwrite=overwrite)
+        
+        connector.on_import_ckpt(self)
 
         return ckpt_path
 

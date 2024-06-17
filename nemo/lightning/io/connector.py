@@ -208,3 +208,6 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             _base = Path(NEMO_MODELS_CACHE)
 
         return _base / str(self).replace("://", "/")
+    
+    def on_import_ckpt(self, model: pl.LightningModule):
+        ...
