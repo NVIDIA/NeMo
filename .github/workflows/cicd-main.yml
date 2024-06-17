@@ -3107,10 +3107,9 @@ jobs:
         model.data.test_ds.output_file_path_prefix='/home/TestData/nlp/lora_tuning_pp2/out' \
         inference.greedy=True \
         inference.repetition_penalty=1.0 \
-        inference.outfile_path='/home/TestData/nlp/lora_tuning_pp2/out.jsonl'"
-        sh "rm -rf /home/TestData/nlp/lora_tuning_pp2
+        inference.outfile_path='/home/TestData/nlp/lora_tuning_pp2/out.jsonl'
       AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/gpt_peft_lora_results_pp2
+        rm -rf /home/TestData/nlp/lora_tuning_pp2
 
   L2_Megatron_GPT_PEFT_Lora_TP2_O1:
     needs: [cicd-test-container-setup]
