@@ -19,6 +19,7 @@ Within ``.nemo`` or ``.ckpt`` checkpoints, the model weights could be saved in e
 With sharded model weights, you can save and load the state of your training script with multiple GPUs or nodes more efficiently and avoid the need to change model partitions when you resume tuning with a different model parallelism setup.
 
 NeMo supports the distributed (sharded) checkpoint format from Megatron-Core. In Megatron-Core, it supports two backends: Zarr-based and PyTorch-based.
+For a detailed explanation check the :doc:`dist_ckpt` guide.
 
 Community Checkpoint Converter
 -----------------------------
