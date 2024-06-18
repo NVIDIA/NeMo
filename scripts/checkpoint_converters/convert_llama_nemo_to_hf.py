@@ -53,7 +53,11 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, default=None, required=True, help="Path to .nemo file or extracted folder",
+        "--input_name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to .nemo file or extracted folder",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to HF .bin file")
     parser.add_argument(
@@ -226,9 +230,18 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
 
 
 def replace_hf_weights_and_tokenizer(
-    weights_file, dtype, input_hf_path, output_hf_path, tokenizer_path, output_hf_tokenizer,
+    weights_file,
+    dtype,
+    input_hf_path,
+    output_hf_path,
+    tokenizer_path,
+    output_hf_tokenizer,
 ):
-    model = AutoModelForCausalLM.from_pretrained(input_hf_path, local_files_only=True, torch_dtype=dtype,)
+    model = AutoModelForCausalLM.from_pretrained(
+        input_hf_path,
+        local_files_only=True,
+        torch_dtype=dtype,
+    )
     nemo_exported = torch.load(weights_file)
 
     if tokenizer_path:
