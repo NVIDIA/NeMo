@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -22,9 +22,7 @@ import torch
 from omegaconf import OmegaConf
 
 from nemo.core.classes import ModelPT
-from nemo.utils.exp_manager import (
-    exp_manager,
-)
+from nemo.utils.exp_manager import exp_manager
 
 try:
     # `ptl_resiliency` is included in `gwe_resiliency_pkg` package
@@ -33,7 +31,7 @@ try:
     HAVE_STRAGGLER_DET = True
 except (ImportError, ModuleNotFoundError):
     HAVE_STRAGGLER_DET = False
-    
+
 
 class OnesDataset(torch.utils.data.Dataset):
     def __init__(self, dataset_len):
@@ -64,8 +62,8 @@ class StreamWrapper:
     def close(self):
         self.stream.close()
         self.log_file.close()
-        
-        
+
+
 class ExampleModel(ModelPT):
     def __init__(self, log_dir, **kwargs):
         cfg = OmegaConf.structured({})
@@ -75,7 +73,7 @@ class ExampleModel(ModelPT):
         self.log_dir = log_dir
         self.stdout_wrapper = None
         self.stderr_wrapper = None
-        
+
     def on_train_start(self):
         super().on_fit_start()
         rank = torch.distributed.get_rank()
@@ -83,7 +81,7 @@ class ExampleModel(ModelPT):
             sys.stdout = StreamWrapper(sys.stdout, self.log_dir / f"stdout{rank}.log")
         if not isinstance(sys.stderr, StreamWrapper):
             sys.stderr = StreamWrapper(sys.stderr, self.log_dir / f"stderr{rank}.log")
-            
+
     def train_dataloader(self):
         dataset = OnesDataset(128)
         return torch.utils.data.DataLoader(dataset, batch_size=2, num_workers=8)
@@ -119,10 +117,10 @@ class ExampleModel(ModelPT):
     def on_validation_epoch_end(self):
         self.log("val_loss", torch.stack([self.loss]).mean())
 
-        
+
 @pytest.mark.skipif(not HAVE_STRAGGLER_DET, reason="requires resiliency package to be installed.")
 class TestStragglerDetection:
- 
+
     @pytest.mark.run_only_on('GPU')
     def test_prints_perf_scores(self, tmp_path):
         # Run dummy, 1 rank DDP training, with worker stdout and stderr redirected to a file
@@ -132,8 +130,13 @@ class TestStragglerDetection:
         tmp_path = tmp_path / "test_1"
 
         trainer = pl.Trainer(
-            strategy='ddp', devices=1, accelerator='gpu',
-            enable_checkpointing=False, logger=False, max_steps=max_steps, val_check_interval=0.33
+            strategy='ddp',
+            devices=1,
+            accelerator='gpu',
+            enable_checkpointing=False,
+            logger=False,
+            max_steps=max_steps,
+            val_check_interval=0.33,
         )
         exp_manager(
             trainer,
@@ -142,10 +145,12 @@ class TestStragglerDetection:
                 "explicit_log_dir": str(tmp_path),
                 "create_checkpoint_callback": False,
                 "create_straggler_detection_callback": True,
-                "straggler_detection_params": {"report_time_interval": 1.0,
-                                               "calc_relative_gpu_perf": True,
-                                               "calc_individual_gpu_perf": True,
-                                               "print_gpu_perf_scores": True},
+                "straggler_detection_params": {
+                    "report_time_interval": 1.0,
+                    "calc_relative_gpu_perf": True,
+                    "calc_individual_gpu_perf": True,
+                    "print_gpu_perf_scores": True,
+                },
             },
         )
         model = ExampleModel(log_dir=tmp_path)
@@ -154,6 +159,6 @@ class TestStragglerDetection:
         rank0_stdout_content = None
         with open(tmp_path / "stdout0.log") as f:
             rank0_stdout_content = f.read()
-        
+
         assert "GPU relative performance" in rank0_stdout_content
         assert "GPU individual performance" in rank0_stdout_content
