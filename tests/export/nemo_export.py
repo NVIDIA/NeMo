@@ -209,7 +209,7 @@ def run_inference(
                     checkpoint_path, model_name, n_gpu, torch.cuda.device_count()
                 )
             )
-            return None, None, None, None, None
+            return (None, None)
 
         Path(model_dir).mkdir(parents=True, exist_ok=True)
 
