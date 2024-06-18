@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import sys
-from pathlib import Path
-from typing import Any
 
 import pytest
 import pytorch_lightning as pl
@@ -75,7 +73,7 @@ class ExampleModel(ModelPT):
         self.stderr_wrapper = None
 
     def on_train_start(self):
-        super().on_fit_start()
+        super().on_train_start()
         rank = torch.distributed.get_rank()
         if not isinstance(sys.stdout, StreamWrapper):
             sys.stdout = StreamWrapper(sys.stdout, self.log_dir / f"stdout{rank}.log")
@@ -105,13 +103,13 @@ class ExampleModel(ModelPT):
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=0.1)
 
-    def list_available_models(self):
+    def list_available_models(self, *args, **kwargs):
         pass
 
-    def setup_training_data(self):
+    def setup_training_data(self, *args, **kwargs):
         pass
 
-    def setup_validation_data(self):
+    def setup_validation_data(self, *args, **kwargs):
         pass
 
     def on_validation_epoch_end(self):
