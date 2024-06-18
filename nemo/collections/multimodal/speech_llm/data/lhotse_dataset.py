@@ -82,8 +82,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         cuts = CutSet(cuts_asr)
         cuts_tts = CutSet(cuts_tts)
-        print(f"Len_asr: {len(cuts)}")
-        print(f"Len_tts: {len(cuts_tts)}")
+        logging.debug(f"Len_asr: {len(cuts)}")
+        logging.debug(f"Len_tts: {len(cuts_tts)}")
         return_batch = {}
 
         if len(cuts) > 0:
@@ -169,7 +169,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         def get_max_len(input_list):
             return max([len(x) for x in input_list])
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
 
         pad_id = self.text_processor.pad_id
         if len(cuts) > 0 and len(cuts_tts) > 0:
@@ -217,7 +217,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             "audio_signal": audio,
             "audio_signal_length": audio_lens,
             "contexts": contexts,
-            "context_lengths": context_length,
+            "context_lengths": context_lengths,
             "answers": answers,
             "loss_mask": loss_mask,
         }
