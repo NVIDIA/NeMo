@@ -93,9 +93,6 @@ The main difference wrt. `torch.load` is that the user has to provide the defini
     # For some distributed checkpoint backends this is actually what happens underneath.
 
 
-# TODO: regular vs flattened?
-
-
 Supported entities
 ==================
 The distributed checkpointing library supports saving and loading of different objects in different configurations.
@@ -272,8 +269,12 @@ Example: the following two functions are functionally equivalent
         return dist_checkpointing.load(sharded_state_dict, ckpt_dir, fully_parallel_load_strategy)
 
 
-The `dist_checkpointing` package provides default strategies for `torch_dist` and `zarr` sharded backends, so it's enough to specify a tuple `(backend, version)` as a saving strategy.
+The `dist_checkpointing` package provides default strategies for some sharded backends, so it's enough to specify a tuple `(backend, version)` as a saving strategy.
 Backends and versions are stored in a `metadata.json` file inside the checkpoint so that the loading strategy can be determined automatically (provided that there exists a default loading strategy for a given backend and version).
+
+For "sharded" strategies, currently the backends supported by default are based on `torch.distributed.checkpoint` format (`torch_dist` backend) and Zarr format (`zarr` backend).
+Additionally, as shown in the example above, some wrappers are provided that allow to parallelize the save and load across the whole workload (assuming some data duplication).
+
 For "common" strategies, currently the only supported one is `torch` which saves "common" data into a `common.pt` file.
 
 Optimizers
@@ -379,4 +380,13 @@ In order to apply such transformation both to model and optimizer parameters in 
 Note that implementing some transformations might be challenging or impossible while supporting flattening for a Distributed Optimizer case.
 For example, if the model weights are supposed to be transposed in the checkpoint, it's almost impossible to implement a performant factory function that is capable of transposing a flattened and sliced tensor, because the flattening and slicing should happen in the transposed dimension.
 
+
+Application integration
+=======================
+The `dist_checkpointing` package provides all general mechanisms for saving arbitrary distributed checkpoints.
+The only thing required from the application side is preparing a sharded state dict with ShardedTensors, ShardedObjects, etc. (representing the sharding of the data employed by the application)
+and using the `dist_checkpointing.save` and `dist_checkpointing.load` entrypoints as replacements for `torch.save` and `torch.load`.
+
+In Megatron-Core the sharded state dict preparation is already implemented in a `sharded_state_dict` method added to all Megatron-Core models and modules, which allows to create sharded state dicts in a composable way.
+For other applications (e.g. with simpler types of supported parallelisms) it might be possible to apply a straightforward conversion from a regular model state dict into a sharded state dict.
 
