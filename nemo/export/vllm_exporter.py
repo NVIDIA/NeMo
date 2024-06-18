@@ -14,7 +14,7 @@
 
 import logging
 import os.path
-from typing import List
+from typing import List, Iterable, Optional, Union
 
 import numpy
 import wrapt
@@ -247,6 +247,76 @@ class vLLMExporter(ITritonDeployable):
             log_stats=log_stats,
         )
 
+    def _add_request_to_engine(
+        self,
+        prompt: str,
+        max_output_len: int,
+        temperature: float = 1.0,
+        top_k: int = 1,
+        top_p: float = 0.0
+    ) -> str:
+        if top_p <= 0.0:
+            top_p = 1.0
+
+        sampling_params = SamplingParams(max_tokens=max_output_len, temperature=temperature, top_k=top_k, top_p=top_p)
+
+        request_id = str(self.request_id)
+        self.request_id += 1
+
+        self.engine.add_request(request_id, prompt, sampling_params)
+
+        return request_id
+
+    def _forward_regular(self, request_ids: List[str]):
+        responses = [None] * len(request_ids)
+        finished = [False] * len(request_ids)
+
+        while not all(finished):
+            request_outputs: List[RequestOutput] = self.engine.step()
+
+            for request_output in request_outputs:
+                if not request_output.finished:
+                    continue
+
+                try:
+                    request_index = request_ids.index(request_output.request_id)
+                except ValueError:
+                    continue
+
+                finished[request_index] = request_output.finished
+                output_text = request_output.outputs[-1].text
+                responses[request_index] = output_text
+
+        return [[response] for response in responses]
+    
+    def _forward_streaming(self, request_ids: List[str]):
+        responses = [None] * len(request_ids)
+        finished = [False] * len(request_ids)
+
+        while not all(finished):
+            request_outputs: List[RequestOutput] = self.engine.step()
+
+            for request_output in request_outputs:
+                try:
+                    request_index = request_ids.index(request_output.request_id)
+                except ValueError:
+                    continue
+
+                finished[request_index] = request_output.finished
+                output_text = request_output.outputs[-1].text
+                responses[request_index] = output_text
+            
+            yield [[response] for response in responses]
+
+    def _add_triton_request_to_engine(self, inputs: numpy.ndarray, index: int) -> str:
+        return self._add_request_to_engine(
+            prompt=inputs['prompts'][index][0].decode('UTF-8'),
+            max_output_len=inputs['max_output_len'][index][0],
+            temperature=inputs['temperature'][index][0],
+            top_k=inputs['top_k'][index][0],
+            top_p=inputs['top_p'][index][0]
+        )
+
     @property
     def get_triton_input(self):
         inputs = (
@@ -263,51 +333,16 @@ class vLLMExporter(ITritonDeployable):
         outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),)
         return outputs
 
-    def add_request_to_engine(self, inputs: numpy.ndarray, index: int) -> str:
-        prompt = inputs['prompts'][index][0].decode('UTF-8')
-        max_output_len = inputs['max_output_len'][index][0]
-        temperature = inputs['temperature'][index][0]
-        top_k = inputs['top_k'][index][0]
-        top_p = inputs['top_p'][index][0]
-
-        if top_p <= 0.0:
-            top_p = 1.0
-
-        sampling_params = SamplingParams(max_tokens=max_output_len, temperature=temperature, top_k=top_k, top_p=top_p)
-
-        request_id = str(self.request_id)
-        self.request_id += 1
-
-        self.engine.add_request(request_id, prompt, sampling_params)
-
-        return request_id
-
     @batch
     def triton_infer_fn(self, **inputs: numpy.ndarray):
         request_ids = []
         num_requests = len(inputs["prompts"])
         for index in range(num_requests):
-            request_id = self.add_request_to_engine(inputs, index)
+            request_id = self._add_triton_request_to_engine(inputs, index)
             request_ids.append(request_id)
 
-        responses = [None] * num_requests
-        finished = [False] * num_requests
-
-        while not all(finished):
-            request_outputs: List[RequestOutput] = self.engine.step()
-
-            for request_output in request_outputs:
-                if not request_output.finished:
-                    continue
-
-                try:
-                    request_index = request_ids.index(request_output.request_id)
-                except ValueError:
-                    continue
-
-                finished[request_index] = True
-                output_text = request_output.outputs[-1].text
-                responses[request_index] = output_text
+        responses = self._forward_regular(request_ids)
+        responses = [r[0] for r in responses]
 
         output_tensor = cast_output(responses, numpy.bytes_)
         return {'outputs': output_tensor}
@@ -317,24 +352,76 @@ class vLLMExporter(ITritonDeployable):
         request_ids = []
         num_requests = len(inputs["prompts"])
         for index in range(num_requests):
-            request_id = self.add_request_to_engine(inputs, index)
+            request_id = self._add_triton_request_to_engine(inputs, index)
             request_ids.append(request_id)
 
-        responses = [None] * num_requests
-        finished = [False] * num_requests
-
-        while not all(finished):
-            request_outputs: List[RequestOutput] = self.engine.step()
-
-            for request_output in request_outputs:
-                try:
-                    request_index = request_ids.index(request_output.request_id)
-                except ValueError:
-                    continue
-
-                finished[request_index] = request_output.finished
-                output_text = request_output.outputs[-1].text
-                responses[request_index] = output_text
-
+        for responses in self._forward_streaming(request_ids):
+            responses = [r[0] for r in responses]
             output_tensor = cast_output(responses, numpy.bytes_)
             yield {'outputs': output_tensor}
+
+    # Mimic the TensorRTLLM exporter's forward function, even though we don't support many of its features.
+    def forward(
+        self,
+        input_texts: List[str],
+        max_output_len: int = 64,
+        top_k: int = 1,
+        top_p: float = 0.0,
+        temperature: float = 1.0,
+        stop_words_list: Optional[List[str]] = None,
+        bad_words_list: Optional[List[str]] = None,
+        no_repeat_ngram_size: Optional[int] = None,
+        task_ids: Optional[List[str]] = None,
+        lora_uids: Optional[List[str]] = None,
+        prompt_embeddings_table=None,
+        prompt_embeddings_checkpoint_path: Optional[str] = None,
+        streaming: bool = False,
+        output_log_probs: bool = False,
+    ) -> Union[List[List[str]], Iterable[List[List[str]]]]:
+        """
+        The forward function performs LLM evaluation on the provided array of prompts with other parameters shared,
+        and returns the generated texts. If 'streaming' is True, the output texts are returned incrementally
+        with a generator: one token appended to each output at a time. If 'streaming' is false, the final output texts
+        are returned as a single list of responses.
+        """
+
+        if stop_words_list is not None and stop_words_list != []:
+            raise NotImplementedError("stop_words_list is not supported")
+
+        if bad_words_list is not None and bad_words_list != []:
+            raise NotImplementedError("bad_words_list is not supported")
+        
+        if no_repeat_ngram_size is not None:
+            raise NotImplementedError("no_repeat_ngram_size is not supported")
+        
+        if task_ids is not None and task_ids != []:
+            raise NotImplementedError("task_ids is not supported")
+        
+        if lora_uids is not None and lora_uids != []:
+            raise NotImplementedError("lora_uids is not supported")
+        
+        if prompt_embeddings_table is not None:
+            raise NotImplementedError("prompt_embeddings_table is not supported")
+        
+        if prompt_embeddings_checkpoint_path is not None:
+            raise NotImplementedError("prompt_embeddings_checkpoint_path is not supported")
+
+        if output_log_probs:
+            raise NotImplementedError("output_log_probs is not supported")
+        
+        request_ids = []
+        for prompt in input_texts:
+            request_id = self._add_request_to_engine(
+                prompt=prompt,
+                max_output_len=max_output_len,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p
+            )
+            request_ids.append(request_id)
+
+        if streaming:
+            return self._forward_streaming(request_ids)
+        else:
+            return self._forward_regular(request_ids)
+        
