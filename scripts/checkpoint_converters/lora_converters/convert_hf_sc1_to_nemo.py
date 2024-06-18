@@ -36,20 +36,29 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
 def reformat_module_names_to_canonical(tensors: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
     new_tensors = dict()
+    target_modules = set() # ['attention_qkv','attention_dense','mlp_fc1','mlp_fc2']
     for module_name, module_weight in tensors.items():
         # map linear_in and linear_out to lora_a/lora_b counterparts
         new_module_name = (
             module_name.replace("lora_A", "linear_in").replace("lora_B", "linear_out").replace("base_model.", "")
         )
-
+        if ".attn.c_attn" in module_name:
+            target_modules.add('attention_qkv')
+        elif ".attn.c_proj" in module_name:
+            target_modules.add('attention_dense')
+        elif ".mlp.c_proj" in module_name:
+            target_modules.add('mlp_fc2')
+        elif ".mlp.c_fc" in module_name:
+            target_modules.add('mlp_fc1')
         new_module_name = new_module_name.replace(".attn.c_attn", ".self_attention.adapter_layer.lora_kqv_adapter")
         new_module_name = new_module_name.replace(".attn.c_proj", ".self_attention.adapter_layer.lora_dense_attention_adapter")
+        new_module_name = new_module_name.replace(".mlp.c_fc", ".mlp.adapter_layer.lora_hto4h_adapter")
         new_module_name = new_module_name.replace(".mlp.c_proj", ".mlp.adapter_layer.lora_4htoh_adapter")
         new_module_name = new_module_name.replace("model.transformer.h", "model.decoder.layers")
 
         new_tensors[new_module_name] = module_weight
     
-    return new_tensors
+    return new_tensors, list(target_modules)
 
 
 def convert_lora(lora_hf_path, save_path, lora_yaml):
@@ -58,7 +67,7 @@ def convert_lora(lora_hf_path, save_path, lora_yaml):
     hf_lora_config = json.loads(open(config_file).read())
     model = torch.load(model_file)
     # TODO: currently suport tp=1
-    lora_state_dict = reformat_module_names_to_canonical(model)
+    lora_state_dict, target_modules = reformat_module_names_to_canonical(model)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         nemo_lora_config = OmegaConf.load(lora_yaml)
@@ -66,7 +75,7 @@ def convert_lora(lora_hf_path, save_path, lora_yaml):
             nemo_lora_config.peft.lora_tuning.variant = "nemo"
             nemo_lora_config.peft.lora_tuning.adapter_dim = hf_lora_config["r"]
             nemo_lora_config.peft.lora_tuning.alpha = hf_lora_config["lora_alpha"]
-            nemo_lora_config.peft.lora_tuning.target_modules = ['attention', 'mlp_fc2']
+            nemo_lora_config.peft.lora_tuning.target_modules = target_modules
 
         with open(f"{tmpdir}/model_config.yaml", "w") as f:
             OmegaConf.save(nemo_lora_config, f)
