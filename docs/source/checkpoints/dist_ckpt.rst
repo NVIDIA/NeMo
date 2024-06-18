@@ -183,22 +183,82 @@ The sharded state dict provided as an input is processed in the following way:
 5. ShardedTensors are extracted and loaded from the checkpoint into the resulting state dict
 6. Factory merges are applied (see `Optimizers`_ for explanation)
 
-This results in a *regular* state dict with plain tensors that can be furter processed by the application (which usually means running `model.load_state_dict(state_dict)`.
+This results in a *regular* state dict with plain tensors that can be further processed by the application (which usually means running `model.load_state_dict(state_dict)`.
 
 
 dist_checkpointing.load_common_state_dict
 -----------------------------------------
-TODO
+An entrypoint allowing loading ony the "common" part of the checkpoints.
+Most of the checkpoint config and metadata can be loaded with this method, which allows skipping data loading in order to take decisions regarding checkpoint config, version, etc.
 
 dist_checkpointing.load_tensors_metadata
 ----------------------------------------
-TODO
+This entrypoint allows to read all ShardedTensors metadata from the checkpoint without loading any data.
+The result is a sharded state dict with trivial sharding (every tensor is sharded into one big shard).
 
 dist_checkpointing.load_plain_tensors
 -------------------------------------
-TODO
+This entrypoint allows to read sharded tensors stored in the checkpoint without any sharding (as plain tensors).
+This function is simply a composition of `load_tensors_metadata` and `save`.
 
 Save and load strategies
 ========================
-There are multiple ways to save a sharded state dict into a serialized checkpoint and they can be provided by the user as saving and loading strategies.
+There are multiple ways to save a sharded state dict into a serialized checkpoint. They can be provided by the user as saving and loading strategies.
+
+There are four types of strategies:
+1. Saving strategy for ShardedTensors
+#. Saving strategy for "common" data
+#. Loading strategy for ShardedTensors
+#. Loading strategy for "common" data
+
+Additionally, ShardedObjects are handled with either "sharded" or "common" strategy depending on its capabilities (`can_handle_sharded_objects` property).
+
+Each saving strategy is associated with a `backend` and a `version`.
+Each loading strategy can be associated with multiple `backend`s and `version`s it can load.
+For a given backend and version, the composition of every saving and loading strategy **must be functionally equivalent**.
+Strategies are the main way to introduce optimizations to the saving and loading algorithm without altering the checkpoint format.
+
+Example: the following two functions are functionally equivalent
+
+.. code-block:: python
+    from megatron.core import dist_checkpointing
+    from megatron.core.dist_checkpointing.strategies.torch import TorchDistLoadShardedStrategy, TorchDistSaveShardedStrategy
+    from megatron.core.dist_checkpointing.strategies.fully_parallel import FullyParallelLoadStrategyWrapper, FullyParallelSaveStrategyWrapper
+
+    base_save_strategy = TorchDistSaveShardedStrategy('torch_dist', 1)
+    base_load_strategy = TorchDistLoadShardedStrategy()
+
+    def basic_save_load(sharded_state_dict, ckpt_dir):
+        """ Save and load using some basic strategies. """
+        dist_checkpointing.save(sharded_state_dict, ckpt_dir, base_save_strategy)
+        return dist_checkpointing.load(sharded_state_dict, ckpt_dir, base_load_strategy)
+
+
+    def fully_parallel_save_load(sharded_state_dict):
+        """ Save and load using basic strategies wrapped with parallelization strategies. """
+        fully_parallel_save_strategy = FullyParallelSaveStrategyWrapper(base_save_strategy)
+        fully_parallel_load_strategy = FullyParallelLoadStrategyWrapper(base_load_strategy)
+        dist_checkpointing.save(sharded_state_dict, ckpt_dir, fully_parallel_save_strategy)
+        return dist_checkpointing.load(sharded_state_dict, ckpt_dir, fully_parallel_load_strategy)
+
+
+The `dist_checkpointing` package provides default strategies for `torch_dist` and `zarr` sharded backends, so it's enough to specify a tuple `(backend, version)` as a saving strategy.
+Backends and versions are stored in a `metadata.json` file inside the checkpoint so that the loading strategy can be determined automatically (provided that there exists a default loading strategy for a given backend and version).
+For "common" strategies, currently the only supported one is `torch` which saves "common" data into a `common.pt` file.
+
+Optimizers
+==========
+This module gives helper tools to the user to simplify constructing ShardedTensors for optimizer states.
+The ShardedTensors that define local to sharded tensors mapping for model parameters should be reused for optimizer states to avoid code duplication.
+
+To this end, the `dist_checkpointing.optimizers.get_param_id_to_sharded_param_map` function can build a mapping between optimizer params ids and model ShardedTensors.
+This mapping can be used by the `dist_checkpointing.optimizers.optim_state_to_sharding_state` function or application code (for non-standard use cases) to construct optimizer sharded state dict with ShardedTensors.
+This should support most optimizer cases, but some of them (like a Distributed Optimizer) might require custom sharded state dict creation.
+
+Note: in order to reuse model SharderTensors to create optimizer ShardedTensors, the model **SharderTensors must wrap model parameters**, not just tensors.
+Otherwise the correspondence between model ShardedTensors and optimizer states is impossible to recreate.
+Obtaining a state dict with model parameters can be achieved by passing `keep_vars=True` to the model `state_dict` function.
+
+
+TODO: DistOpt
 
