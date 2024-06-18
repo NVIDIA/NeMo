@@ -41,9 +41,10 @@ from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model impo
     TransformerLayerWithPostLNSupport,
 )
 
+
 # Use this spec to use lower level Transformer Engine modules (required for fp8 training)
 def get_bert_layer_with_transformer_engine_spec_postln(cp_size):
-    #Transformer Engine currently only supports 'no_mask' with CP for non-causal models
+    # Transformer Engine currently only supports 'no_mask' with CP for non-causal models
     # attn_mask_type = AttnMaskType.no_mask if cp_size > 1 else AttnMaskType.padding
     attn_mask_type = AttnMaskType.no_mask
     return ModuleSpec(
@@ -63,16 +64,23 @@ def get_bert_layer_with_transformer_engine_spec_postln(cp_size):
             self_attn_bda=get_bias_dropout_add,
             post_att_layernorm=TENorm,
             mlp=ModuleSpec(
-                module=MLP, submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear,),
+                module=MLP,
+                submodules=MLPSubmodules(
+                    linear_fc1=TEColumnParallelLinear,
+                    linear_fc2=TERowParallelLinear,
+                ),
             ),
             mlp_bda=get_bias_dropout_add,
             post_mlp_layernorm=TENorm,
         ),
     )
 
+
 # Use this spec for an implementation using only modules in megatron core
 def get_bert_layer_local_spec_postln(cp_size):
-    assert cp_size == 1, "Context Parallelism is only supported with Transformer Engine, please use 'get_bert_layer_with_transformer_engine_spec_postln' spec"
+    assert (
+        cp_size == 1
+    ), "Context Parallelism is only supported with Transformer Engine, please use 'get_bert_layer_with_transformer_engine_spec_postln' spec"
     return ModuleSpec(
         module=TransformerLayerWithPostLNSupport,
         submodules=TransformerLayerSubmodulesWithPostLNSupport(
@@ -90,7 +98,11 @@ def get_bert_layer_local_spec_postln(cp_size):
             self_attn_bda=get_bias_dropout_add,
             post_att_layernorm=FusedLayerNorm,
             mlp=ModuleSpec(
-                module=MLP, submodules=MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,),
+                module=MLP,
+                submodules=MLPSubmodules(
+                    linear_fc1=ColumnParallelLinear,
+                    linear_fc2=RowParallelLinear,
+                ),
             ),
             mlp_bda=get_bias_dropout_add,
             post_mlp_layernorm=FusedLayerNorm,
