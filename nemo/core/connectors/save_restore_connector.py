@@ -90,6 +90,7 @@ class SaveRestoreConnector:
         override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = True,
+        validate_access_integrity: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
     ):
@@ -224,6 +225,7 @@ class SaveRestoreConnector:
         override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = True,
+        validate_access_integrity: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
     ):
