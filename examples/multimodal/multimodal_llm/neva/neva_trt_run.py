@@ -53,6 +53,7 @@ class MultimodalModelRunner:
         self.vision_precision = config['builder_config']['precision']
 
         self.num_frames = config['builder_config'].get('num_frames', None)
+        self.image_size = config['builder_config'].get('image_size', None)
 
         self.profiling_iterations = 20
 
@@ -61,45 +62,51 @@ class MultimodalModelRunner:
         self.init_llm()
 
     def init_tokenizer(self):
-        from sentencepiece import SentencePieceProcessor
+        if os.path.exists(os.path.join(self.cfg.llm_engine_dir, 'huggingface_tokenizer')):
+            from transformers import AutoTokenizer
+            
+            self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(self.cfg.llm_engine_dir, 'huggingface_tokenizer'))
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        else:
+            from sentencepiece import SentencePieceProcessor
+    
+            sp = SentencePieceProcessor(os.path.join(self.cfg.llm_engine_dir, 'tokenizer.model'))
 
-        sp = SentencePieceProcessor(os.path.join(self.cfg.llm_engine_dir, 'tokenizer.model'))
-
-        class return_obj:
-
-            def __init__(self, input_ids):
-                self.input_ids = input_ids
-
-            def __getitem__(self, name):
-                if name in "input_ids":
-                    return self.input_ids
-                else:
-                    raise AttributeError(f"'return_obj' has no item '{name}'")
-
-        # sentencepiece does not follow the same interface as HF
-        class HFTokenizerInterface:
-
-            def encode(self, x, return_tensors=None, **kwargs):
-                out = sp.encode(x)
-                if return_tensors == "pt":
-                    out = torch.tensor(out)
-                return return_obj(out)
-
-            def __call__(self, x, return_tensors=None, **kwargs):
-                return self.encode(x, return_tensors, **kwargs)
-
-            def decode(self, x, **kwargs):
-                return sp.decode(x.tolist())
-
-            def batch_decode(self, x, **kwargs):
-                return self.decode(x, **kwargs)
-
-        self.tokenizer = HFTokenizerInterface()
-        self.tokenizer.eos_token_id = sp.eos_id()
-        self.tokenizer.bos_token_id = sp.bos_id()
-        self.tokenizer.pad_token_id = sp.pad_id()
-
-        self.tokenizer.padding_side = "right"
+            class return_obj:
+    
+                def __init__(self, input_ids):
+                    self.input_ids = input_ids
+    
+                def __getitem__(self, name):
+                    if name in "input_ids":
+                        return self.input_ids
+                    else:
+                        raise AttributeError(f"'return_obj' has no item '{name}'")
+    
+            # sentencepiece does not follow the same interface as HF
+            class HFTokenizerInterface:
+    
+                def encode(self, x, return_tensors=None, **kwargs):
+                    out = sp.encode(x)
+                    if return_tensors == "pt":
+                        out = torch.tensor(out)
+                    return return_obj(out)
+    
+                def __call__(self, x, return_tensors=None, **kwargs):
+                    return self.encode(x, return_tensors, **kwargs)
+    
+                def decode(self, x, **kwargs):
+                    return sp.decode(x.tolist())
+    
+                def batch_decode(self, x, **kwargs):
+                    return self.decode(x, **kwargs)
+    
+            self.tokenizer = HFTokenizerInterface()
+            self.tokenizer.eos_token_id = sp.eos_id()
+            self.tokenizer.bos_token_id = sp.bos_id()
+            self.tokenizer.pad_token_id = sp.pad_id()
+    
+            self.tokenizer.padding_side = "right"
 
     def init_image_encoder(self):
         vision_encoder_path = os.path.join(self.cfg.visual_engine_dir, 'visual_encoder.engine')
@@ -155,7 +162,10 @@ class MultimodalModelRunner:
         pre_input_ids = self.tokenizer(pre_prompt, return_tensors="pt", padding=True).input_ids
         if post_prompt[0] is not None:
             post_input_ids = self.tokenizer(post_prompt, return_tensors="pt", padding=True).input_ids
-            length = pre_input_ids.shape[1] + post_input_ids.shape[1] + visual_atts.shape[2] * visual_atts.shape[1]
+            if self.model_type == 'video-neva':
+                length = pre_input_ids.shape[1] + post_input_ids.shape[1] + visual_atts.shape[2] * visual_atts.shape[1]
+            else:
+                length = pre_input_ids.shape[1] + post_input_ids.shape[1] + visual_atts.shape[1]
         else:
             post_input_ids = None
             length = pre_input_ids.shape[1] + visual_atts.shape[1]
@@ -299,7 +309,7 @@ class MultimodalModelRunner:
         attention_mask = None
 
         if self.model_type == "neva":
-            image_size = 384
+            image_size = self.image_size
             dtype = torch.float32
             transform = transforms.Compose(
                 [

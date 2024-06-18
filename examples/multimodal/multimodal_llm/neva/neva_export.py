@@ -23,7 +23,7 @@ from tensorrt_llm.builder import Builder
 from transformers import AutoModel
 
 from nemo.core.config import hydra_runner
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
 from nemo.export import TensorRTLLM
 
 logger = trt.Logger(trt.Logger.INFO)
@@ -45,7 +45,7 @@ def export_visual_wrapper_onnx(
     )
 
 
-def build_trt_engine(model_type, input_sizes, output_dir, max_batch_size, dtype=torch.bfloat16, num_frames=None):
+def build_trt_engine(model_type, input_sizes, output_dir, max_batch_size, dtype=torch.bfloat16, image_size=None, num_frames=None):
     part_name = 'visual_encoder'
     onnx_file = '%s/onnx/%s.onnx' % (output_dir, part_name)
     engine_file = '%s/%s.engine' % (output_dir, part_name)
@@ -57,6 +57,8 @@ def build_trt_engine(model_type, input_sizes, output_dir, max_batch_size, dtype=
     profile = builder.create_optimization_profile()
 
     config_args = {"precision": str(dtype).split('.')[-1], "model_type": model_type}
+    if image_size is not None:
+        config_args["image_size"] = image_size
     if num_frames is not None:
         config_args["num_frames"] = num_frames
 
@@ -115,16 +117,8 @@ def build_neva_engine(cfg):
     device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
     # extract NeMo checkpoint
     with tempfile.TemporaryDirectory() as temp:
-        connector = SaveRestoreConnector()
-        connector._unpack_nemo_file(path2file=cfg.model.visual_model_path, out_folder=temp)
-        config_yaml = os.path.join(temp, connector.model_config_yaml)
-        nemo_config = yaml.safe_load(config_yaml)
-        if nemo_config.tensor_model_parallel_size > 1:
-            path = os.path.join(temp, 'mp_rank_00', connector.model_weights_ckpt)
-        else:
-            path = os.path.join(temp, connector.model_weights_ckpt)
-        mp0_weights = connector._load_state_dict_from_disk(path)
-
+        mp0_weights, nemo_config, _ = load_nemo_model(cfg.model.visual_model_path, temp)
+    
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
 
     class VisionEncoderWrapper(torch.nn.Module):
@@ -176,7 +170,7 @@ def build_neva_engine(cfg):
 
     export_visual_wrapper_onnx(wrapper, dummy_image, engine_dir)
     build_trt_engine(
-        cfg.model.type, [3, image_size, image_size], engine_dir, cfg.infer.visual.max_batch_size, dtype  # [3, H, W]
+        cfg.model.type, [3, image_size, image_size], engine_dir, cfg.infer.visual.max_batch_size, dtype, image_size=image_size,
     )
 
 
@@ -184,11 +178,12 @@ def build_video_neva_engine(cfg):
     device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
     # extract NeMo checkpoint
     with tempfile.TemporaryDirectory() as temp:
-        connector = SaveRestoreConnector()
+        connector = NLPSaveRestoreConnector()
         connector._unpack_nemo_file(path2file=cfg.model.visual_model_path, out_folder=temp)
         config_yaml = os.path.join(temp, connector.model_config_yaml)
-        nemo_config = yaml.safe_load(config_yaml)
-        if nemo_config.tensor_model_parallel_size > 1:
+        with open(config_yaml) as f:
+            nemo_config = yaml.safe_load(f)
+        if nemo_config["tensor_model_parallel_size"] > 1:
             path = os.path.join(temp, 'mp_rank_00', connector.model_weights_ckpt)
         else:
             path = os.path.join(temp, connector.model_weights_ckpt)
@@ -249,6 +244,7 @@ def build_video_neva_engine(cfg):
         engine_dir,
         cfg.infer.visual.max_batch_size,
         dtype,
+        image_size=image_size,
         num_frames=num_frames,
     )
 
