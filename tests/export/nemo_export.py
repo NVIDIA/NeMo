@@ -737,7 +737,7 @@ def run_inference_tests(args):
             return "PASS" if b else "FAIL"
 
         print(f"Number of GPUS:                  {num_gpus}")
-        
+
         if functional_result is not None:
             print(f"Functional Test:                 {optional_bool_to_pass_fail(functional_result.regular_pass)}")
             print(f"Deployed Functional Test:        {optional_bool_to_pass_fail(functional_result.deployed_pass)}")
