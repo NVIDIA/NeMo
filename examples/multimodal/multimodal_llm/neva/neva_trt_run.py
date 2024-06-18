@@ -64,48 +64,50 @@ class MultimodalModelRunner:
     def init_tokenizer(self):
         if os.path.exists(os.path.join(self.cfg.llm_engine_dir, 'huggingface_tokenizer')):
             from transformers import AutoTokenizer
-            
-            self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(self.cfg.llm_engine_dir, 'huggingface_tokenizer'))
+
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                os.path.join(self.cfg.llm_engine_dir, 'huggingface_tokenizer')
+            )
             self.tokenizer.pad_token = self.tokenizer.eos_token
         else:
             from sentencepiece import SentencePieceProcessor
-    
+
             sp = SentencePieceProcessor(os.path.join(self.cfg.llm_engine_dir, 'tokenizer.model'))
 
             class return_obj:
-    
+
                 def __init__(self, input_ids):
                     self.input_ids = input_ids
-    
+
                 def __getitem__(self, name):
                     if name in "input_ids":
                         return self.input_ids
                     else:
                         raise AttributeError(f"'return_obj' has no item '{name}'")
-    
+
             # sentencepiece does not follow the same interface as HF
             class HFTokenizerInterface:
-    
+
                 def encode(self, x, return_tensors=None, **kwargs):
                     out = sp.encode(x)
                     if return_tensors == "pt":
                         out = torch.tensor(out)
                     return return_obj(out)
-    
+
                 def __call__(self, x, return_tensors=None, **kwargs):
                     return self.encode(x, return_tensors, **kwargs)
-    
+
                 def decode(self, x, **kwargs):
                     return sp.decode(x.tolist())
-    
+
                 def batch_decode(self, x, **kwargs):
                     return self.decode(x, **kwargs)
-    
+
             self.tokenizer = HFTokenizerInterface()
             self.tokenizer.eos_token_id = sp.eos_id()
             self.tokenizer.bos_token_id = sp.bos_id()
             self.tokenizer.pad_token_id = sp.pad_id()
-    
+
             self.tokenizer.padding_side = "right"
 
     def init_image_encoder(self):

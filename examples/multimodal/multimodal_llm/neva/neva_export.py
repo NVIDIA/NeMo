@@ -23,8 +23,8 @@ from tensorrt_llm.builder import Builder
 from transformers import AutoModel
 
 from nemo.core.config import hydra_runner
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
 from nemo.export import TensorRTLLM
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
 
 logger = trt.Logger(trt.Logger.INFO)
 
@@ -45,7 +45,9 @@ def export_visual_wrapper_onnx(
     )
 
 
-def build_trt_engine(model_type, input_sizes, output_dir, max_batch_size, dtype=torch.bfloat16, image_size=None, num_frames=None):
+def build_trt_engine(
+    model_type, input_sizes, output_dir, max_batch_size, dtype=torch.bfloat16, image_size=None, num_frames=None
+):
     part_name = 'visual_encoder'
     onnx_file = '%s/onnx/%s.onnx' % (output_dir, part_name)
     engine_file = '%s/%s.engine' % (output_dir, part_name)
@@ -118,7 +120,7 @@ def build_neva_engine(cfg):
     # extract NeMo checkpoint
     with tempfile.TemporaryDirectory() as temp:
         mp0_weights, nemo_config, _ = load_nemo_model(cfg.model.visual_model_path, temp)
-    
+
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
 
     class VisionEncoderWrapper(torch.nn.Module):
@@ -170,7 +172,12 @@ def build_neva_engine(cfg):
 
     export_visual_wrapper_onnx(wrapper, dummy_image, engine_dir)
     build_trt_engine(
-        cfg.model.type, [3, image_size, image_size], engine_dir, cfg.infer.visual.max_batch_size, dtype, image_size=image_size,
+        cfg.model.type,
+        [3, image_size, image_size],
+        engine_dir,
+        cfg.infer.visual.max_batch_size,
+        dtype,
+        image_size=image_size,
     )
 
 
