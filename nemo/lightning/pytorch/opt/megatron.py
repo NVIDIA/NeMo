@@ -83,14 +83,16 @@ class MegatronOptimizerModule(OptimizerModule):
             raise ValueError("Model must be an instance of MegatronParallel")
 
         from nemo.core.optim import McoreDistributedOptimizer
-        
+
         class McoreOpt(McoreDistributedOptimizer):
             def sharded_state_dict(
-                self, model_sharded_state_dict, optimizer_state_dict=None, is_loading=False, dist_ckpt_parallel_save=False
+                self,
+                model_sharded_state_dict,
+                optimizer_state_dict=None,
+                is_loading=False,
+                dist_ckpt_parallel_save=False,
             ):
-                return self.mcore_optimizer.sharded_state_dict(
-                    model_sharded_state_dict, is_loading=is_loading
-                )
+                return self.mcore_optimizer.sharded_state_dict(model_sharded_state_dict, is_loading=is_loading)
 
         mcore_opt = get_megatron_optimizer(
             self.config,

@@ -13,8 +13,8 @@
 # limitations under the License.
 
 from contextlib import contextmanager
-from typing import Any, Callable, Generator, List, Literal, Tuple, TypeVar, Union
 from types import SimpleNamespace
+from typing import Any, Callable, Generator, List, Literal, Tuple, TypeVar, Union
 
 import pytorch_lightning as pl
 import torch
@@ -82,26 +82,27 @@ class MegatronMixedPrecision(MixedPrecision):
         This is optional and depends on the precision limitations during optimization.
 
         """
-        from megatron.core.transformer.module import Float16Module
         from megatron.core.distributed import DistributedDataParallel
+        from megatron.core.transformer.module import Float16Module
+
         from nemo.lightning.megatron_parallel import MegatronParallel
-        
+
         if not isinstance(module, MegatronParallel):
             raise ValueError("Module must be a MegatronParallel instance")
-        
+
         if self.precision in ["16-mixed", "bf16-mixed"]:
             config = SimpleNamespace(
                 fp16=self.precision == "16-mixed",
                 bf16=self.precision == "bf16-mixed",
             )
-            
+
             for mod in module:
                 _mod = mod
                 if isinstance(_mod.module, DistributedDataParallel):
                     _mod = _mod.module
 
                 _mod.module = Float16Module(config, _mod.module)
-            
+
             return module
 
         return module
@@ -131,7 +132,7 @@ class MegatronMixedPrecision(MixedPrecision):
 
         """
         return data
-        
+
         from megatron.core.transformer.module import fp32_to_float16
 
         return fp32_to_float16(data, self.float16_convertor)
@@ -144,7 +145,7 @@ class MegatronMixedPrecision(MixedPrecision):
 
         """
         return data
-        
+
         from megatron.core.transformer.module import float16_to_fp32
 
         return float16_to_fp32(data)

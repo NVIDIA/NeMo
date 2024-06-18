@@ -142,13 +142,11 @@ class OptimizerModule(L.Callback, CallbackMethods, ABC):
             List[Optimizer]: The list of optimizers.
         """
         raise NotImplementedError("The optimizers method should be implemented by subclasses.")
-    
-    def on_train_batch_end(
-        self, trainer, pl_module, outputs, batch, batch_idx
-    ) -> None:
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx) -> None:
         if self._optimizers is not None:
             lr = self._optimizers[0].param_groups[0]['lr']
-            pl_module.log('lr', lr, rank_zero_only=True, batch_size=1) 
+            pl_module.log('lr', lr, rank_zero_only=True, batch_size=1)
 
     def __call__(self, model: L.LightningModule, megatron_parallel=None) -> OptimizerLRScheduler:
         """Calls the setup and optimizers methods.

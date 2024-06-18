@@ -93,7 +93,7 @@ class MegatronDataSampler(DataSampler):
 
         # TODO: Add consumed samples
         consumed_samples = self.compute_consumed_samples(trainer.global_step + 1 - self.init_global_step)
-        
+
         pl_module.log(
             'consumed_samples',
             consumed_samples,

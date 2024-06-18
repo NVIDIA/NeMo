@@ -1,11 +1,11 @@
 import functools
 import inspect
 import logging
+import os
 import shutil
 from collections import OrderedDict
 from contextlib import ExitStack
 from pathlib import Path
-import os
 from typing import TYPE_CHECKING, Any, ContextManager, Dict, List, Literal, Mapping, Optional, TypeVar, Union, cast
 
 import pytorch_lightning as pl
@@ -302,7 +302,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 opt.zero_grad()
 
             out = self.model(dataloader_iter, forward_only=False, *args, **kwargs)
-        
+
             self.lightning_module.log(
                 'global_step',
                 self.trainer.global_step,
@@ -310,7 +310,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 rank_zero_only=True,
                 batch_size=1,
             )
-            
+
             if self.log_memory_usage:
                 max_memory_reserved = torch.cuda.max_memory_reserved()
                 memory_allocated = torch.cuda.memory_allocated()
@@ -328,10 +328,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     rank_zero_only=True,
                     batch_size=1,
                 )
-            
+
             if self.log_train_loss:
                 from megatron.core import parallel_state
+
                 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+
                 # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
                 # it should be casted to other pipeline stages for logging.
                 # we can avoid this broadcast by updating the PTL log function to accept specific ranks
@@ -473,20 +475,20 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
             else:
                 checkpoint_state_dict = checkpoint['state_dict']
-            
+
             mcore_model = self.lightning_module.module
             current = self.model[0]
             n_nesting = 1
             while current != mcore_model:
                 current = current.module
                 n_nesting += 1
-                
+
             _state_dict = {}
             for key, value in checkpoint_state_dict.items():
                 # Count the number of "module." at the start of the key
                 count, _key = 0, key
                 while _key.startswith("module."):
-                    _key = _key[len("module."):]
+                    _key = _key[len("module.") :]
                     count += 1
 
                 missing = n_nesting - count
@@ -495,7 +497,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     start = "module." * missing
                 _state_dict[f"{start}{key}"] = value
             checkpoint_state_dict = _state_dict
-            
+
             module.load_state_dict(checkpoint_state_dict, strict=strict)
 
     @property
