@@ -29,7 +29,7 @@ try:
 except (ImportError, ModuleNotFoundError) as e:
 
     from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
-    
+
     TransformerLayer = TransformerLayerSubmodules = ApexGuardDefaults
     MLP = MLPSubmodules = ModuleSpec = IdentityOp = ApexGuardDefaults
     AttnMaskType = DotProductAttention = TENorm = ApexGuardDefaults
