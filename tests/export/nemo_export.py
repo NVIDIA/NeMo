@@ -18,11 +18,11 @@ import logging
 import shutil
 import sys
 import time
-import torch
-
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional, Iterable
+from typing import Dict, Iterable, List, Optional, Tuple
+
+import torch
 
 # Import infer_data_path from the parent folder assuming that the 'tests' package is not installed.
 sys.path.append(str(Path(__file__).parent.parent))
@@ -52,13 +52,16 @@ except Exception as e:
     LOGGER.warning(f"Cannot import the vLLM exporter, it will not be available. {type(e).__name__}: {e}")
     vllm_supported = False
 
+
 class UsageError(Exception):
     pass
+
 
 @dataclass
 class FunctionalResult:
     regular_pass: Optional[bool] = None
     deployed_pass: Optional[bool] = None
+
 
 @dataclass
 class AccuracyResult:
@@ -67,6 +70,7 @@ class AccuracyResult:
     deployed_accuracy: float
     deployed_accuracy_relaxed: float
     evaluation_time: float
+
 
 def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
     # lambada dataset based accuracy test, which includes more than 5000 sentences.
@@ -139,33 +143,32 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
         eval_end = time.monotonic()
 
     return AccuracyResult(
-        accuracy = correct_answers / len(all_expected_outputs),
-        accuracy_relaxed = correct_answers_relaxed / len(all_expected_outputs),
-
-        deployed_accuracy = correct_answers_deployed / len(all_expected_outputs),
-        deployed_accuracy_relaxed = correct_answers_deployed_relaxed / len(all_expected_outputs),
-
-        evaluation_time = eval_end - eval_start
+        accuracy=correct_answers / len(all_expected_outputs),
+        accuracy_relaxed=correct_answers_relaxed / len(all_expected_outputs),
+        deployed_accuracy=correct_answers_deployed / len(all_expected_outputs),
+        deployed_accuracy_relaxed=correct_answers_deployed_relaxed / len(all_expected_outputs),
+        evaluation_time=eval_end - eval_start,
     )
+
 
 # Tests if the model outputs contain the expected keywords.
 def check_model_outputs(streaming: bool, model_outputs, expected_outputs: List[str]) -> bool:
-    
+
     # In streaming mode, we get a list of lists of lists, and we only care about the last item in that list
     if streaming:
         if len(model_outputs) == 0:
             return False
         model_outputs = model_outputs[-1]
-    
+
     # See if we have the right number of final answers.
     if len(model_outputs) != len(expected_outputs):
         return False
-    
+
     # Check the presence of keywords in the final answers.
     for i in range(len(model_outputs)):
         if expected_outputs[i] not in model_outputs[i][0]:
             return False
-        
+
     return True
 
 
@@ -261,7 +264,7 @@ def run_inference(
                 model_type=model_type,
                 tensor_parallel_size=tp_size,
                 pipeline_parallel_size=pp_size,
-                max_model_len=max_input_len+max_output_len
+                max_model_len=max_input_len + max_output_len,
             )
         else:
             exporter = TensorRTLLM(model_dir, lora_ckpt_list, load_model=False)
@@ -626,7 +629,7 @@ def get_args():
         if s.lower() in false_strings:
             return False
         raise UsageError(f"Invalid boolean value for argument --{name}: '{s}'")
-    
+
     args.test_deployment = str_to_bool("test_deployment", args.test_deployment)
     args.save_trt_engine = str_to_bool("save_trt_engin", args.save_trt_engine)
     args.run_accuracy = str_to_bool("run_accuracy", args.run_accuracy)
@@ -641,17 +644,17 @@ def run_inference_tests(args):
 
     if args.use_vllm and not vllm_supported:
         raise UsageError("vLLM engine is not supported in this environment.")
-    
+
     if args.use_vllm and (args.ptuning or args.lora):
         raise UsageError("The vLLM integration currently does not support P-tuning or LoRA.")
-    
+
     if args.test_deployment and not triton_supported:
         raise UsageError("Deployment tests are not available because Triton is not supported in this environment.")
 
     if args.run_accuracy and args.test_data_path is None:
         raise UsageError("Accuracy testing requires the --test_data_path argument.")
 
-    result_dic : Dict[int, Tuple[FunctionalResult, Optional[AccuracyResult]]] = {}
+    result_dic: Dict[int, Tuple[FunctionalResult, Optional[AccuracyResult]]] = {}
 
     if args.existing_test_models:
         n_gpus = args.min_gpus
@@ -727,12 +730,12 @@ def run_inference_tests(args):
         if print_separator:
             print("---------------------------------------")
         print_separator = True
-        
+
         def optional_bool_to_pass_fail(b: Optional[bool]):
             if b is None:
                 return "N/A"
             return "PASS" if b else "FAIL"
-        
+
         print(f"Number of GPUS:                  {num_gpus}")
         print(f"Functional Test:                 {optional_bool_to_pass_fail(functional_result.regular_pass)}")
         print(f"Deployed Functional Test:        {optional_bool_to_pass_fail(functional_result.deployed_pass)}")
@@ -758,7 +761,7 @@ def run_inference_tests(args):
 
     if functional_test_result == "FAIL":
         raise Exception("Functional test failed")
-    
+
     if accuracy_test_result == "FAIL":
         raise Exception("Model accuracy is below 0.5")
 

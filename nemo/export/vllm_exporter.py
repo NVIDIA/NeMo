@@ -14,7 +14,7 @@
 
 import logging
 import os.path
-from typing import List, Iterable, Optional, Union
+from typing import Iterable, List, Optional, Union
 
 import numpy
 import wrapt
@@ -248,12 +248,7 @@ class vLLMExporter(ITritonDeployable):
         )
 
     def _add_request_to_engine(
-        self,
-        prompt: str,
-        max_output_len: int,
-        temperature: float = 1.0,
-        top_k: int = 1,
-        top_p: float = 0.0
+        self, prompt: str, max_output_len: int, temperature: float = 1.0, top_k: int = 1, top_p: float = 0.0
     ) -> str:
         if top_p <= 0.0:
             top_p = 1.0
@@ -288,7 +283,7 @@ class vLLMExporter(ITritonDeployable):
                 responses[request_index] = output_text
 
         return [[response] for response in responses]
-    
+
     def _forward_streaming(self, request_ids: List[str]):
         responses = [None] * len(request_ids)
         finished = [False] * len(request_ids)
@@ -305,7 +300,7 @@ class vLLMExporter(ITritonDeployable):
                 finished[request_index] = request_output.finished
                 output_text = request_output.outputs[-1].text
                 responses[request_index] = output_text
-            
+
             yield [[response] for response in responses]
 
     def _add_triton_request_to_engine(self, inputs: numpy.ndarray, index: int) -> str:
@@ -314,7 +309,7 @@ class vLLMExporter(ITritonDeployable):
             max_output_len=inputs['max_output_len'][index][0],
             temperature=inputs['temperature'][index][0],
             top_k=inputs['top_k'][index][0],
-            top_p=inputs['top_p'][index][0]
+            top_p=inputs['top_p'][index][0],
         )
 
     @property
@@ -390,33 +385,29 @@ class vLLMExporter(ITritonDeployable):
 
         if bad_words_list is not None and bad_words_list != []:
             raise NotImplementedError("bad_words_list is not supported")
-        
+
         if no_repeat_ngram_size is not None:
             raise NotImplementedError("no_repeat_ngram_size is not supported")
-        
+
         if task_ids is not None and task_ids != []:
             raise NotImplementedError("task_ids is not supported")
-        
+
         if lora_uids is not None and lora_uids != []:
             raise NotImplementedError("lora_uids is not supported")
-        
+
         if prompt_embeddings_table is not None:
             raise NotImplementedError("prompt_embeddings_table is not supported")
-        
+
         if prompt_embeddings_checkpoint_path is not None:
             raise NotImplementedError("prompt_embeddings_checkpoint_path is not supported")
 
         if output_log_probs:
             raise NotImplementedError("output_log_probs is not supported")
-        
+
         request_ids = []
         for prompt in input_texts:
             request_id = self._add_request_to_engine(
-                prompt=prompt,
-                max_output_len=max_output_len,
-                temperature=temperature,
-                top_k=top_k,
-                top_p=top_p
+                prompt=prompt, max_output_len=max_output_len, temperature=temperature, top_k=top_k, top_p=top_p
             )
             request_ids.append(request_id)
 
@@ -424,4 +415,3 @@ class vLLMExporter(ITritonDeployable):
             return self._forward_streaming(request_ids)
         else:
             return self._forward_regular(request_ids)
-        
