@@ -559,7 +559,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
             module.load_state_dict(checkpoint_state_dict, strict=strict)
 
-
         if self.megatron_parallel.pipeline.model_fn is not None:
             self.megatron_parallel.pipeline.model_fn(self.megatron_parallel.pipeline)
             self.precision_plugin.convert_module(self.megatron_parallel.pipeline)

@@ -156,7 +156,6 @@ class MegatronCheckpointIO(CheckpointIO):
         return save_strategy
 
 
-
 class AdapterCheckpointIO(MegatronCheckpointIO):
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
         """
@@ -173,8 +172,9 @@ class AdapterCheckpointIO(MegatronCheckpointIO):
                 If ``storage_options`` arg is passed in
 
         """
-        checkpoint['sharded_state_dict'] = dict(filter(lambda x: '.adapter.' in x[0],
-                                                       checkpoint['sharded_state_dict'].items()))
+        checkpoint['sharded_state_dict'] = dict(
+            filter(lambda x: '.adapter.' in x[0], checkpoint['sharded_state_dict'].items())
+        )
         return super().save_checkpoint(checkpoint, path, storage_options)
 
 

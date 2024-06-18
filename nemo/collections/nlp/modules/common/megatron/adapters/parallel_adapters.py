@@ -324,11 +324,13 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         return x
 
     def sharded_state_dict(
-            self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
-    )  -> ShardedStateDict:
+        self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
+    ) -> ShardedStateDict:
         sharded_state_dict = {}
         sharded_state_dict.update(self.linear_in.sharded_state_dict(f"{prefix}linear_in.", sharded_offsets, metadata))
-        sharded_state_dict.update(self.linear_out.sharded_state_dict(f"{prefix}linear_out.", sharded_offsets, metadata))
+        sharded_state_dict.update(
+            self.linear_out.sharded_state_dict(f"{prefix}linear_out.", sharded_offsets, metadata)
+        )
         return sharded_state_dict
 
 

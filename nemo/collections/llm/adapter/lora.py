@@ -7,7 +7,8 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 
 
 class AdapterParallelAdd(AdapterWrapper):
-    """ Example: LoRA Adapter """
+    """Example: LoRA Adapter"""
+
     def forward(self, x):
         linear_output, bias = self.to_wrap(x)
         if isinstance(linear_output, tuple) and len(linear_output) == 2:
@@ -20,7 +21,9 @@ class AdapterParallelAdd(AdapterWrapper):
 
 @dataclass
 class LoRAConfig(PEFTConfig):
-    target_modules: List[str] = field(default_factory=list) #['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
+    target_modules: List[str] = field(
+        default_factory=list
+    )  # ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
     dim: int = 32
     alpha: int = 32
     dropout: float = 0.0
@@ -36,7 +39,7 @@ class LoRAConfig(PEFTConfig):
                 input_is_parallel = False
                 in_features = m.in_features
                 out_features = m.out_features * tp_size
-            else: # name in ['linear_proj', 'linear_fc2']
+            else:  # name in ['linear_proj', 'linear_fc2']
                 # Row Parallel Linear
                 input_is_parallel = True
                 in_features = m.in_features * tp_size

@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from typing import Tuple, Optional, Callable
+from typing import Callable, Optional, Tuple
 
 import torch.nn as nn
-
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
+
 from nemo.lightning.megatron_parallel import MegatronParallel
 
 
@@ -65,9 +65,9 @@ def peft_model_transform(wrap_fn: Callable):
 
     wrap_fn is an instance of PEFTConfig.wrap_fn
     '''
+
     def model_fn(m: MegatronParallel):
         m.freeze()  # freeze the base model
         m.walk(wrap_fn)  # add adapter weights (newly added weights are unfrozen)
 
     return model_fn
-
