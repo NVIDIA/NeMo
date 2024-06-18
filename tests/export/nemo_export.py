@@ -20,7 +20,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 
@@ -201,7 +201,7 @@ def run_inference(
     test_deployment=False,
     test_data_path=None,
     save_trt_engine=False,
-) -> Tuple[FunctionalResult, Optional[AccuracyResult]]:
+) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
     if Path(checkpoint_path).exists():
         if n_gpu > torch.cuda.device_count():
             print(
@@ -236,7 +236,7 @@ def run_inference(
                     print("---- PTuning enabled.")
             else:
                 print("---- PTuning could not be enabled and skipping the test.")
-                return None, None, None, None, None
+                return (None, None)
 
         lora_ckpt_list = None
         lora_uids = None
@@ -253,7 +253,7 @@ def run_inference(
                     print("---- LoRA enabled.")
             else:
                 print("---- LoRA could not be enabled and skipping the test.")
-                return None, None, None, None, None
+                return (None, None)
 
         if use_vllm:
             exporter = vLLMExporter()
@@ -737,13 +737,15 @@ def run_inference_tests(args):
             return "PASS" if b else "FAIL"
 
         print(f"Number of GPUS:                  {num_gpus}")
-        print(f"Functional Test:                 {optional_bool_to_pass_fail(functional_result.regular_pass)}")
-        print(f"Deployed Functional Test:        {optional_bool_to_pass_fail(functional_result.deployed_pass)}")
+        
+        if functional_result is not None:
+            print(f"Functional Test:                 {optional_bool_to_pass_fail(functional_result.regular_pass)}")
+            print(f"Deployed Functional Test:        {optional_bool_to_pass_fail(functional_result.deployed_pass)}")
 
-        if functional_result.regular_pass == False:
-            functional_test_result = "FAIL"
-        if functional_result.deployed_pass == False:
-            functional_test_result = "FAIL"
+            if functional_result.regular_pass == False:
+                functional_test_result = "FAIL"
+            if functional_result.deployed_pass == False:
+                functional_test_result = "FAIL"
 
         if accuracy_result is not None:
             print(f"Model Accuracy:                  {accuracy_result.accuracy:.4f}")
@@ -774,5 +776,3 @@ if __name__ == '__main__':
         LOGGER.error(f"{e}")
     except argparse.ArgumentError as e:
         LOGGER.error(f"{e}")
-#    except Exception as e:
-#        LOGGER.error(f"{type(e).__name__}: {e}")
