@@ -430,7 +430,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
             else:
                 checkpoint_state_dict = checkpoint['state_dict']
-            
+
             if self.ddp_config is not None:
                 _state_dict = {}
                 for key, value in checkpoint_state_dict.items():
@@ -439,7 +439,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     else:
                         _state_dict[key] = value
                 checkpoint_state_dict = _state_dict
-            
+
             module.load_state_dict(checkpoint_state_dict, strict=strict)
 
     @property
