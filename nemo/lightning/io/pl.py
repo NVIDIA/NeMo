@@ -156,6 +156,28 @@ class MegatronCheckpointIO(CheckpointIO):
         return save_strategy
 
 
+
+class AdapterCheckpointIO(MegatronCheckpointIO):
+    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
+        """
+        Save only adapter weights for PEFT training
+
+        Args:
+            checkpoint: dict containing model and trainer state
+            path: write-target path
+            storage_options: not used in ``TorchCheckpointIO.save_checkpoint``
+
+        Raises
+        ------
+            TypeError:
+                If ``storage_options`` arg is passed in
+
+        """
+        checkpoint['sharded_state_dict'] = dict(filter(lambda x: '.adapter.' in x[0],
+                                                       checkpoint['sharded_state_dict'].items()))
+        return super().save_checkpoint(checkpoint, path, storage_options)
+
+
 def _fix_tensors_device(ckpt: Dict) -> Dict:
     """Ensure checkpoint tensors are on the correct device."""
     assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
