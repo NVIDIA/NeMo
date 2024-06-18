@@ -24,7 +24,7 @@ from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (
     get_audio_text_dataset_from_config,
     get_tarred_audio_text_dataset_from_config,
 )
-from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAudioQuestionAnswerDataset, LhotseTTSVerion0
+from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAudioQuestionAnswerDataset
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import TextProcessing
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (

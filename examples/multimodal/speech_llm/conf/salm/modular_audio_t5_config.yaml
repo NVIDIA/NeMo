@@ -219,11 +219,11 @@ model:
           lang: en
           pnc: no
       - type: lhotse_shar
-        shar_path: /home/jasoli/data_prime/shars/
+        shar_path: /home/jasoli/data_prime/shars/5k_LRHM_highsim
         weight: 0.5
         tags:
           lang: en
-          pnc: yes
+          tts: True
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True

@@ -330,15 +330,14 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         return text_embeddings
 
     def prepare_llm_input(self, audio_batch):
+        # import ipdb; ipdb.set_trace()
 
         input_signal = audio_batch['audio_signal']
         input_signal_length = audio_batch['audio_signal_length']
 
-        input_ids, input_length, labels, loss_mask = (
+        input_ids, input_length = (
             audio_batch['contexts'],
             audio_batch['context_lengths'],
-            audio_batch['labels'],
-            audio_batch['loss_mask'],
         )
 
         # [b, t, c]
@@ -825,7 +824,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
     # Override the parent batch reconfiguring logic.
     def _reconfigure_and_process_inference_batch(self, batch, data_cfg):
-        global_batch_size_per_gpu = batch['tokens'].size(0)
+        global_batch_size_per_gpu = batch['contexts'].size(0)
         # This should happen only on the last batch of the dataset.
         if (
             global_batch_size_per_gpu
@@ -890,7 +889,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
-        metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+        metadata = batch.get('metadata', [{}] * len(batch['contexts']))
         loss = self._validation_step_internal(itertools.chain([batch]), batch_idx, dataloader_idx, result_mode=mode)
 
         # We need _inference_config to get generation params
@@ -1187,7 +1186,8 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         batch = next(dataloader_iter)
         # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
         batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
-        _, seq_length = batch['tokens'].shape
+        _, seq_length = batch['contexts'].shape  # jasoli: Changed from tokens to contexts
+        seq_length -= 1  # Tokens is padded to max_len-1, contexts is padded to max_len. Hence a -1 here
         # handle the case where the batch size from dynamic bucketting is not divisible in lhotse
         data_iter = get_iterator_k_split(batch, get_num_microbatches(), enforce_divisible_batch=False)
 
