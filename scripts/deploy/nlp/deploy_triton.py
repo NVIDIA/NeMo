@@ -309,9 +309,9 @@ def get_vllm_deployable(args):
         tempdir = tempfile.TemporaryDirectory()
         model_dir = tempdir.name
         LOGGER.info(
-            f"{model_dir} path will be used as the vLLM intermediate folder. " +
-            "Please set the --triton_model_repository parameter if you'd like to use a path that already " +
-            "includes the vLLM model files."
+            f"{model_dir} path will be used as the vLLM intermediate folder. "
+            + "Please set the --triton_model_repository parameter if you'd like to use a path that already "
+            + "includes the vLLM model files."
         )
     elif not os.path.exists(model_dir):
         os.makedirs(model_dir)
@@ -326,7 +326,7 @@ def get_vllm_deployable(args):
             max_model_len=args.max_input_len + args.max_output_len,
             dtype=args.dtype,
             weight_storage=args.weight_storage,
-            gpu_memory_utilization=args.gpu_memory_utilization
+            gpu_memory_utilization=args.gpu_memory_utilization,
         )
         return exporter
     except Exception as error:
