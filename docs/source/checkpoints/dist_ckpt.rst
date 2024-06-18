@@ -115,13 +115,43 @@ ShardedBase
 Base class for expressing any kind of sharding.
 Each sharded entity must be uniquely identified by its `key`, carry some `data` to be saved or loaded and define `replica_id` which helps identify data redundancy.
 
+Note that the `key` doesn't have to (and usually doesn't) correspond to the key in the state dict.
+The key in the state dict is ephemeral, while the `ShardedTensor.key` is used to identify the tensor in the checkpoint.
+
+Example:
+
+.. code-block:: python
+    import torch
+
+    from megatron.core import dist_checkpointing
+
+    # Checkpoint saved with some key in the state dict that is eventually ignored
+    model = ...
+    ckpt_dir = ...
+    sharded_state_dict = {
+        'ignored': dist_checkpointing.ShardedTensor('tensor-A', ...)
+    }
+    dist_checkpointing.save(sharded_state_dict, ckpt_dir)
+
+    # During loading, all that matters is the ShardedTensor.key.
+    sharded_state_dict = {
+        'different-key': dist_checkpointing.ShardedTensor('tensor-A', ...)
+    }
+    loaded_state_dict = dist_checkpointing.load(sharded_state_dict, ckpt_dir)
+    assert 'ignored' not in loaded_state_dict
+    assert 'tensor-A' not in loaded_state_dict
+    assert isinstance(loaded_state_dict['different-key'], torch.Tensor)
+
+    # The key in the state dict is important only from the subsequent `model.load_state_dict`
+    # that usually happens after `dist_checkpointing.load` - the state dict must have
+    # the structure and keys corresponding to the model structure and submodule names.
+    model.load_state_dict(loaded_state_dict)
 
 ShardedTensor
 -------------
 It's the primary use case of distributed checkpointing - tensors sharding.
 Allows to define how PyTorch tensors are sharded across the workload.
-
-# TODO: expand?
+See `Tensors transformations`_ section for more details on ShardedTensors.
 
 ShardedObject
 -------------
@@ -132,7 +162,7 @@ ShardedTensorFactory
 --------------------
 This class allows to defer tensors transformations until the actual saving.
 A factory can expand a tensor into an arbitrary sub state dict (including all supported entities listed above).
-The need for such deferral will be explained in the `Optimizers`_ section.
+The need for such deferral will be explained in the `Tensors transformations`_ section.
 
 LocalNonpersitentObject
 -----------------------
@@ -163,8 +193,8 @@ The sharded state dict is processed in the following way:
 1. The ShardedTensorFactories are applied
 2. LocalNonPersistentObject are extracted from the sharded state dict and ignored
 3. ShardedBase objects are extracted
-4. All other objects are treated as "common" and saved according to a TODO strategy
-5. All ShardedObjects are extracted from point (3) objects and saved with TODO strategy
+4. All other objects are treated as "common" and saved according to a sharded strategy (see `Save and load strategies`_)
+5. All ShardedObjects are extracted from point (3) objects and saved with a common strategy (see `Save and load strategies`_)
 6. All ShardedTensors are saved.
 7. `metadata.json` file with backend and version metadata is saved to the checkpoint directory.
 
@@ -253,12 +283,100 @@ The ShardedTensors that define local to sharded tensors mapping for model parame
 
 To this end, the `dist_checkpointing.optimizers.get_param_id_to_sharded_param_map` function can build a mapping between optimizer params ids and model ShardedTensors.
 This mapping can be used by the `dist_checkpointing.optimizers.optim_state_to_sharding_state` function or application code (for non-standard use cases) to construct optimizer sharded state dict with ShardedTensors.
-This should support most optimizer cases, but some of them (like a Distributed Optimizer) might require custom sharded state dict creation.
+This should support most optimizer cases, but some of them might require custom sharded state dict creation.
+A good example is a Distributed Optimizer which flattens the parameters - see `Tensors transformations`_ section for more details.
 
-Note: in order to reuse model SharderTensors to create optimizer ShardedTensors, the model **SharderTensors must wrap model parameters**, not just tensors.
+Note: in order to reuse model SharderTensors to create optimizer ShardedTensors, the model **SharderTensors must wrap model parameters**, not just tensors
+(obtaining a state dict with model parameters can be achieved by passing `keep_vars=True` to the model `state_dict` function).
 Otherwise the correspondence between model ShardedTensors and optimizer states is impossible to recreate.
-Obtaining a state dict with model parameters can be achieved by passing `keep_vars=True` to the model `state_dict` function.
+This is the reason for introducing ShardedTensorFactories - we have to register the original model parameter as `ShardedTensorFactories.data` and apply any subsequent transformations as a factory function in order to make sure that the same transformation can be applied to the optimizer states.
 
 
-TODO: DistOpt
+Tensors transformations
+=======================
+ShardedTensor API allows declaring some basic transformations that should be performed on the tensors during saving and loading.
+
+Shape mismatch
+--------------
+The `allow_shape_mismatch` flag allows to relax the requirement of matching global tensor shapes during loading.
+Extra padding is filled with zeros or stripped depending on the mismatch kind.
+This comes handy for layers like embedding which might be padded according to parallelism for performance reasons.
+
+Flattening
+----------
+The `flattened_range` attribute allows to declare the fact that `ShardedTensor.data` is actually a slice of a flattened model parameter.
+This corresponds to a transformation used in Distributed Optimizers which flattens the data and shards it along the data-parallel domain.
+
+Extra flattening comes with an efficiency challenge during checkpoint resharding.
+Since flattening is applied after the global tensors is sharded into the grid of local chunks, loading after resharding requires accessing incontiguous data fragments.
+An example solution for that is implemented in the `dist_checkpointing/strategies/resharding.py` module and involves saving the flattened tensor with a different global shape than the original one.
+
+Example: For a global tensor [[0, 1, 2, 3, 4, 5], [6, 7, 8, 9, 10, 11]] with sharding by TP (tensor-parallel) over the second axis, here are the local shards if TP=2:
+
+.. list-table::
+   :widths: 50 50
+   :header-rows: 1
+
+   * - Rank
+     - Local shards
+   * - 0
+     - [[0, 1, 2], [6, 7, 8]]
+   * - 1
+     - [[3, 4, 5], [9, 10, 11]]
+
+After flattening and sharding by e.g. DP=3:
+
+.. list-table::
+   :widths: 50 50
+   :header-rows: 1
+
+   * - Rank
+     - Local shards
+   * - 0
+     - [0, 1]
+   * - 2
+     - [2, 6]
+   * - 4
+     - [7, 8]
+   * - 1
+     - [3, 4]
+   * - 3
+     - [5, 9]
+   * - 5
+     - [10, 11]
+
+The same tensor after sharding by TP=6, flattening and sharding by DP=1:
+
+
+.. list-table::
+   :widths: 50 50
+   :header-rows: 1
+
+   * - Rank
+     - Local shards
+   * - 0
+     - [0, 6]
+   * - 1
+     - [1, 7]
+   * - 2
+     - [2, 8]
+   * - 3
+     - [3, 9]
+   * - 4
+     - [4, 10]
+   * - 5
+     - [5, 11]
+
+
+Arbitrary transformations
+-------------------------
+The way to apply arbitrary transformations to the tensors during saving and loading is with ShardedTensorFactory, which allows to define such transformations as a function that can be reapplied to any ShardedTensor (in particular, a ShardedTensor representing optimizer states).
+Such "build" function is also tied to a "merge" function that can apply an inverse transformation during loading.
+
+If handling an optimizer state is not required, such transformation could be also applied directly during sharded state dict creation.
+In order to apply such transformation both to model and optimizer parameters in a consistent manner, it's necessary to encode them as factory functions (with original model parameter as the `data` input so that the optimizer params can be properly mapped to model ShardedTensors).
+
+Note that implementing some transformations might be challenging or impossible while supporting flattening for a Distributed Optimizer case.
+For example, if the model weights are supposed to be transposed in the checkpoint, it's almost impossible to implement a performant factory function that is capable of transposing a flattened and sliced tensor, because the flattening and slicing should happen in the transposed dimension.
+
 
