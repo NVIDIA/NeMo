@@ -417,10 +417,10 @@ def run_existing_checkpoints(
     stop_words_list=None,
     test_data_path=None,
     save_trt_engine=False,
-) -> Tuple[FunctionalResult, Optional[AccuracyResult]]:
+) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
     if n_gpus > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
-        return None, None, None, None, None
+        return (None, None)
 
     test_data = get_infer_test_data()
     if not (model_name in test_data.keys()):
@@ -430,7 +430,7 @@ def run_existing_checkpoints(
 
     if n_gpus < model_info["min_gpus"]:
         print("Min n_gpus for this model is {0}".format(n_gpus))
-        return None, None, None, None, None
+        return (None, None)
 
     p_tuning_checkpoint = None
     if ptuning:
