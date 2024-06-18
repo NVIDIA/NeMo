@@ -430,10 +430,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
             else:
                 checkpoint_state_dict = checkpoint['state_dict']
-            # checkpoint_state_dict has "model." but module does not so we need to remove it when loading
-            checkpoint_state_dict = {
-                key.replace('model.', ''): checkpoint_state_dict.pop(key) for key in list(checkpoint_state_dict.keys())
-            }
+            
+            if self.ddp_config is not None:
+                _state_dict = {}
+                for key, value in checkpoint_state_dict.items():
+                    if not key.startswith('module.module.'):
+                        _state_dict[f"module.{key}"] = value
+                    else:
+                        _state_dict[key] = value
+                checkpoint_state_dict = _state_dict
+            
             module.load_state_dict(checkpoint_state_dict, strict=strict)
 
     @property
