@@ -126,7 +126,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self._mcore_config = config
 
     @override
-    def setup(self, trainer: pl.Trainer) -> None:
+    def setup(self, trainer: pl.Trainer, setup_optimizers: bool = True) -> None:
         assert self.accelerator is not None
         self.accelerator.setup(trainer)
         self.trainer = trainer
@@ -150,7 +150,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.data_sampler.connect(trainer)
 
         self._fix_progress_bar(trainer)
-        self.setup_megatron_parallel(trainer)
+        self.setup_megatron_parallel(trainer, setup_optimizers=setup_optimizers)
         self.setup_precision_plugin()
 
         if trainer.num_sanity_val_steps > 1 and self.pipeline_model_parallel_size > 1:
@@ -205,7 +205,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         return dataloader
 
-    def setup_megatron_parallel(self, trainer: pl.Trainer) -> None:
+    def setup_megatron_parallel(self, trainer: pl.Trainer, setup_optimizers: bool = True) -> None:
         assert self.model is not None, "Model is not set"
 
         self.megatron_parallel = MegatronParallel(
@@ -224,16 +224,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 self.model.configure_optimizers, megatron_parallel=self.megatron_parallel
             )
 
-        self.setup_optimizers(trainer)
+        if setup_optimizers:
+            self.setup_optimizers(trainer)
 
-        # TODO: Throw an execption if we have a mcore optimizer and no ddp_config
+            # TODO: Throw an execption if we have a mcore optimizer and no ddp_config
+            if hasattr(self.precision_plugin, "convert_optimizer"):
+                _optimizers = [*self.optimizers]
+                _optimizers[0] = self.precision_plugin.convert_optimizer(self.optimizers[0])
+                self.optimizers = _optimizers
 
-        if hasattr(self.precision_plugin, "convert_optimizer"):
-            _optimizers = [*self.optimizers]
-            _optimizers[0] = self.precision_plugin.convert_optimizer(self.optimizers[0])
-            self.optimizers = _optimizers
-
-        _optimizers_to_device(self.optimizers, self.root_device)
+            _optimizers_to_device(self.optimizers, self.root_device)
 
         self.model = self.megatron_parallel
 
@@ -293,6 +293,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         kwargs = self._update_step_kwargs(dataloader_iter, kwargs, "training")
 
         with self.precision_plugin.train_step_context():  # TODO: Do we need this?
+            # Set grad to zero.
+            for model_chunk in self.model:
+                model_chunk.zero_grad_buffer()
+            for opt in self.optimizers:
+                opt.zero_grad()
+
             return self.model(dataloader_iter, forward_only=False, *args, **kwargs)
 
     @override
