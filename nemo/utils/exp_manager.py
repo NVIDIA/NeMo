@@ -142,8 +142,8 @@ class StragglerDetectionParams:
     calc_individual_gpu_perf: bool = True
     report_on_rank0: bool = True
     print_gpu_perf_scores: bool = True
-    gpu_relative_perf_threshold: int = 0.7
-    gpu_individual_perf_threshold: int = 0.7
+    gpu_relative_perf_threshold: float = 0.7
+    gpu_individual_perf_threshold: float = 0.7
 
 
 @dataclass
