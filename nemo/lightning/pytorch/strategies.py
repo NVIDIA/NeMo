@@ -5,6 +5,7 @@ import shutil
 from collections import OrderedDict
 from contextlib import ExitStack
 from pathlib import Path
+import os
 from typing import TYPE_CHECKING, Any, ContextManager, Dict, List, Literal, Mapping, Optional, TypeVar, Union, cast
 
 import pytorch_lightning as pl
@@ -92,6 +93,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.lazy_init = lazy_init
         self.ckpt_include_optimizer = ckpt_include_optimizer
         self.pipeline_dtype = pipeline_dtype
+        self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
+        self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
 
         if ddp == "megatron":
             self.ddp_config = DistributedDataParallelConfig(use_distributed_optimizer=True)
@@ -126,7 +129,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self._mcore_config = config
 
     @override
-    def setup(self, trainer: pl.Trainer, setup_optimizers: bool = True) -> None:
+    def setup(self, trainer: pl.Trainer) -> None:
         assert self.accelerator is not None
         self.accelerator.setup(trainer)
         self.trainer = trainer
@@ -150,7 +153,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.data_sampler.connect(trainer)
 
         self._fix_progress_bar(trainer)
-        self.setup_megatron_parallel(trainer, setup_optimizers=setup_optimizers)
+        self.setup_megatron_parallel(trainer)
         self.setup_precision_plugin()
 
         if trainer.num_sanity_val_steps > 1 and self.pipeline_model_parallel_size > 1:
@@ -205,7 +208,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         return dataloader
 
-    def setup_megatron_parallel(self, trainer: pl.Trainer, setup_optimizers: bool = True) -> None:
+    def setup_megatron_parallel(self, trainer: pl.Trainer) -> None:
         assert self.model is not None, "Model is not set"
 
         self.megatron_parallel = MegatronParallel(
@@ -216,6 +219,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             ddp_config=self.ddp_config,
         )
         self.megatron_parallel.trainer = trainer
+        if hasattr(self.precision_plugin, "convert_module"):
+            self.megatron_parallel = self.precision_plugin.convert_module(self.megatron_parallel)
 
         # check signature-def of self.model.configure_optimizers to check if there's an optional arg: megatron_parallel
         sig = inspect.signature(self.model.configure_optimizers)
@@ -224,21 +229,18 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 self.model.configure_optimizers, megatron_parallel=self.megatron_parallel
             )
 
-        if setup_optimizers:
-            self.setup_optimizers(trainer)
+        self.setup_optimizers(trainer)
 
-            # TODO: Throw an execption if we have a mcore optimizer and no ddp_config
-            if hasattr(self.precision_plugin, "convert_optimizer"):
-                _optimizers = [*self.optimizers]
-                _optimizers[0] = self.precision_plugin.convert_optimizer(self.optimizers[0])
-                self.optimizers = _optimizers
+        # TODO: Throw an execption if we have a mcore optimizer and no ddp_config
 
-            _optimizers_to_device(self.optimizers, self.root_device)
+        if hasattr(self.precision_plugin, "convert_optimizer"):
+            _optimizers = [*self.optimizers]
+            _optimizers[0] = self.precision_plugin.convert_optimizer(self.optimizers[0])
+            self.optimizers = _optimizers
+
+        _optimizers_to_device(self.optimizers, self.root_device)
 
         self.model = self.megatron_parallel
-
-        if hasattr(self.precision_plugin, "convert_module"):
-            self.model = self.precision_plugin.convert_module(self.model)
         self.model.callbacks.add(getattr(trainer, "callbacks"))
 
         if self.data_sampler:
@@ -299,7 +301,48 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             for opt in self.optimizers:
                 opt.zero_grad()
 
-            return self.model(dataloader_iter, forward_only=False, *args, **kwargs)
+            out = self.model(dataloader_iter, forward_only=False, *args, **kwargs)
+        
+            self.lightning_module.log(
+                'global_step',
+                self.trainer.global_step,
+                prog_bar=True,
+                rank_zero_only=True,
+                batch_size=1,
+            )
+            
+            if self.log_memory_usage:
+                max_memory_reserved = torch.cuda.max_memory_reserved()
+                memory_allocated = torch.cuda.memory_allocated()
+                self.lightning_module.log(
+                    "peak_memory_usage",
+                    max_memory_reserved,
+                    prog_bar=True,
+                    rank_zero_only=True,
+                    batch_size=1,
+                )
+                self.lightning_module.log(
+                    "memory_allocated",
+                    memory_allocated,
+                    prog_bar=True,
+                    rank_zero_only=True,
+                    batch_size=1,
+                )
+            
+            if self.log_train_loss:
+                from megatron.core import parallel_state
+                from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+                # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
+                # it should be casted to other pipeline stages for logging.
+                # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+                if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+                    if torch.distributed.get_rank() == get_last_rank():
+                        torch.distributed.send(out, 0)
+                    elif torch.distributed.get_rank() == 0:
+                        torch.distributed.recv(out, get_last_rank())
+                self.lightning_module.log('reduced_train_loss', out, prog_bar=True, rank_zero_only=True, batch_size=1)
+
+            return out
 
     @override
     def validation_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
@@ -430,22 +473,34 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
             else:
                 checkpoint_state_dict = checkpoint['state_dict']
+            
+            mcore_model = self.lightning_module.module
+            current = self.model[0]
+            n_nesting = 1
+            while current != mcore_model:
+                current = current.module
+                n_nesting += 1
+                
+            _state_dict = {}
+            for key, value in checkpoint_state_dict.items():
+                # Count the number of "module." at the start of the key
+                count, _key = 0, key
+                while _key.startswith("module."):
+                    _key = _key[len("module."):]
+                    count += 1
 
-            if self.ddp_config is not None:
-                _state_dict = {}
-                for key, value in checkpoint_state_dict.items():
-                    if not key.startswith('module.module.'):
-                        _state_dict[f"module.{key}"] = value
-                    else:
-                        _state_dict[key] = value
-                checkpoint_state_dict = _state_dict
-
+                missing = n_nesting - count
+                start = ""
+                if missing > 0:
+                    start = "module." * missing
+                _state_dict[f"{start}{key}"] = value
+            checkpoint_state_dict = _state_dict
+            
             module.load_state_dict(checkpoint_state_dict, strict=strict)
 
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
-
         if self._checkpoint_io is None:
             self._checkpoint_io = MegatronCheckpointIO()
         elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
