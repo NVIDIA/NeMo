@@ -42,51 +42,57 @@ from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model impo
 )
 
 # Use this spec to use lower level Transformer Engine modules (required for fp8 training)
-bert_layer_with_transformer_engine_spec_postln = ModuleSpec(
-    module=TransformerLayerWithPostLNSupport,
-    submodules=TransformerLayerSubmodulesWithPostLNSupport(
-        self_attention=ModuleSpec(
-            module=SelfAttention,
-            params={"attn_mask_type": AttnMaskType.padding},
-            submodules=SelfAttentionSubmodules(
-                linear_qkv=TEColumnParallelLinear,
-                core_attention=TEDotProductAttention,
-                linear_proj=TERowParallelLinear,
-                q_layernorm=IdentityOp,
-                k_layernorm=IdentityOp,
+def get_bert_layer_with_transformer_engine_spec_postln(cp_size):
+    #Transformer Engine currently only supports 'no_mask' with CP for non-causal models
+    # attn_mask_type = AttnMaskType.no_mask if cp_size > 1 else AttnMaskType.padding
+    attn_mask_type = AttnMaskType.no_mask
+    return ModuleSpec(
+        module=TransformerLayerWithPostLNSupport,
+        submodules=TransformerLayerSubmodulesWithPostLNSupport(
+            self_attention=ModuleSpec(
+                module=SelfAttention,
+                params={"attn_mask_type": attn_mask_type},
+                submodules=SelfAttentionSubmodules(
+                    linear_qkv=TEColumnParallelLinear,
+                    core_attention=TEDotProductAttention,
+                    linear_proj=TERowParallelLinear,
+                    q_layernorm=IdentityOp,
+                    k_layernorm=IdentityOp,
+                ),
             ),
+            self_attn_bda=get_bias_dropout_add,
+            post_att_layernorm=TENorm,
+            mlp=ModuleSpec(
+                module=MLP, submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear,),
+            ),
+            mlp_bda=get_bias_dropout_add,
+            post_mlp_layernorm=TENorm,
         ),
-        self_attn_bda=get_bias_dropout_add,
-        post_att_layernorm=TENorm,
-        mlp=ModuleSpec(
-            module=MLP, submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear,),
-        ),
-        mlp_bda=get_bias_dropout_add,
-        post_mlp_layernorm=TENorm,
-    ),
-)
+    )
 
 # Use this spec for an implementation using only modules in megatron core
-bert_layer_local_spec_postln = ModuleSpec(
-    module=TransformerLayerWithPostLNSupport,
-    submodules=TransformerLayerSubmodulesWithPostLNSupport(
-        self_attention=ModuleSpec(
-            module=SelfAttention,
-            params={"attn_mask_type": AttnMaskType.padding},
-            submodules=SelfAttentionSubmodules(
-                linear_qkv=ColumnParallelLinear,
-                core_attention=DotProductAttention,
-                linear_proj=RowParallelLinear,
-                q_layernorm=IdentityOp,
-                k_layernorm=IdentityOp,
+def get_bert_layer_local_spec_postln(cp_size):
+    assert cp_size == 1, "Context Parallelism is only supported with Transformer Engine, please use 'get_bert_layer_with_transformer_engine_spec_postln' spec"
+    return ModuleSpec(
+        module=TransformerLayerWithPostLNSupport,
+        submodules=TransformerLayerSubmodulesWithPostLNSupport(
+            self_attention=ModuleSpec(
+                module=SelfAttention,
+                params={"attn_mask_type": AttnMaskType.padding},
+                submodules=SelfAttentionSubmodules(
+                    linear_qkv=ColumnParallelLinear,
+                    core_attention=DotProductAttention,
+                    linear_proj=RowParallelLinear,
+                    q_layernorm=IdentityOp,
+                    k_layernorm=IdentityOp,
+                ),
             ),
+            self_attn_bda=get_bias_dropout_add,
+            post_att_layernorm=FusedLayerNorm,
+            mlp=ModuleSpec(
+                module=MLP, submodules=MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,),
+            ),
+            mlp_bda=get_bias_dropout_add,
+            post_mlp_layernorm=FusedLayerNorm,
         ),
-        self_attn_bda=get_bias_dropout_add,
-        post_att_layernorm=FusedLayerNorm,
-        mlp=ModuleSpec(
-            module=MLP, submodules=MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,),
-        ),
-        mlp_bda=get_bias_dropout_add,
-        post_mlp_layernorm=FusedLayerNorm,
-    ),
-)
+    )

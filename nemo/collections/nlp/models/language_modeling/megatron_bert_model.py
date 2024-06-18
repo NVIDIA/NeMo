@@ -31,7 +31,7 @@ from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model impo
     NeMoBertModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
-    bert_layer_with_transformer_engine_spec_postln,
+    get_bert_layer_with_transformer_engine_spec_postln,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -66,7 +66,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
+    from megatron.core.models.bert.bert_layer_specs import get_bert_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -138,7 +138,8 @@ class MegatronBertModel(MegatronBaseModel):
 
         if hasattr(self, '_nsys_profile_enabled') or hasattr(self, '_memory_profile_enabled'):
             mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
-            data_parallel_world_size = trainer.world_size // mp_size
+            cp_size = cfg.get('context_parallel_size', 1)
+            data_parallel_world_size = trainer.world_size // (mp_size * cp_size)
             grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
             if hasattr(self, '_nsys_profile_enabled'):
                 self._nsys_profile_start_step *= grad_accum_steps
@@ -153,10 +154,9 @@ class MegatronBertModel(MegatronBaseModel):
         transformer_block_type = cfg.get('transformer_block_type', 'pre_ln')
         if self.mcore_bert:
             if transformer_block_type == 'pre_ln':
-                layer_spec = bert_layer_with_transformer_engine_spec
+                layer_spec = get_bert_layer_with_transformer_engine_spec(cfg.get('context_parallel_size', 1))
             else:
-                layer_spec = bert_layer_with_transformer_engine_spec_postln
-
+                layer_spec = get_bert_layer_with_transformer_engine_spec_postln(cfg.get('context_parallel_size', 1))
             model = MCoreBertModelWrapperWithPostLNSupport(
                 config=self.transformer_config,
                 transformer_layer_spec=layer_spec,
@@ -225,7 +225,8 @@ class MegatronBertModel(MegatronBaseModel):
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                batch, batch_idx, dataloader_idx = next(dataloader_iter)
+                batch, batch_idx, dataloader_idx = self.get_batch(dataloader_iter)
+                
                 tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = (
                     batch['text'].cuda(non_blocking=True),
                     batch['types'].cuda(non_blocking=True),
@@ -235,7 +236,7 @@ class MegatronBertModel(MegatronBaseModel):
                     batch['padding_mask'].cuda(non_blocking=True),
                 )
             else:
-                batch, batch_idx, dataloader_idx = next(dataloader_iter)
+                batch, batch_idx, dataloader_idx = self.get_batch(dataloader_iter)
                 if parallel_state.is_pipeline_first_stage():
                     tokens = batch['text'].cuda(non_blocking=True)
                     types = batch['types'].cuda(non_blocking=True)
@@ -567,6 +568,39 @@ class MegatronBertModel(MegatronBaseModel):
         averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
 
+    def get_batch_on_this_cp_rank(self, batch):
+        """ Slice batch input along sequence dimension into multiple chunks,
+            which are parallelized across GPUs in a context parallel group.
+        """
+        cp_size = parallel_state.get_context_parallel_world_size()
+        if not cp_size > 1:
+            return batch
+        cp_rank = parallel_state.get_context_parallel_rank()
+
+        #Distribute the valid tokens evenly among CP ranks
+        #CP currently only supports attention with 'no_mask'
+        assert 'padding_mask' in batch.keys()
+        mbs, max_seqlen = batch['padding_mask'].shape
+        seq_len = max_seqlen // cp_size
+        # assert torch.all(torch.eq(seq_lens, max_seqlen))
+
+        seq_start_idx = seq_len * cp_rank
+        seq_end_idx = seq_len * (cp_rank+1)
+
+        #assume items in batch have dims of [mbs, seq] or [mbs]
+        for key, val in batch.items():
+            assert len(val.shape) <= 2
+            if len(val.shape) == 2:
+                batch[key] = batch[key][..., seq_start_idx:seq_end_idx]
+
+        return batch
+
+    def get_batch(self, dataloader_iter):
+        batch, batch_idx, dataloader_idx = next(dataloader_iter)
+        batch['padding_mask'] = torch.ones_like(batch['padding_mask'])
+        batch = self.get_batch_on_this_cp_rank(batch)
+        return batch, batch_idx, dataloader_idx
+
     def loss_func(self, loss_mask, sentence_order, output_tensor):
         lm_loss_, sop_logits = output_tensor
 
@@ -575,10 +609,20 @@ class MegatronBertModel(MegatronBaseModel):
 
         # Sometimes when the number of tokens is very small, none of the tokens get masked for prediction. In that case loss mask is all zeros
         # i.e Happens when the entire batch is masked out (Practically when MBS=1 or 2, and the number of tokens in each batch is < 7 )
-        if loss_mask.sum() == 0:
-            lm_loss = torch.sum(lm_loss_.view(-1)) * 0.0
+        if parallel_state.get_context_parallel_world_size() > 1:
+            if loss_mask.sum() == 0:
+                lm_loss = torch.sum(lm_loss_.view(-1) * 0.0).view(1)
+            else:
+                lm_loss = torch.sum(lm_loss_.view(-1) * loss_mask.reshape(-1)).view(1)
+            loss = torch.cat([lm_loss, loss_mask.sum().view(1)])
+            torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
+            lm_loss = loss[0] / loss[1]
+
         else:
-            lm_loss = torch.sum(lm_loss_.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
+            if loss_mask.sum() == 0:
+                lm_loss = torch.sum(lm_loss_.view(-1)) * 0.0
+            else:
+                lm_loss = torch.sum(lm_loss_.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
 
         if sop_logits is not None:
             sop_loss = F.cross_entropy(sop_logits.view(-1, 2).float(), sentence_order.view(-1), ignore_index=-1)
@@ -820,6 +864,7 @@ class MegatronBertModel(MegatronBaseModel):
 
         if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_bert', False):
             self.setup_transformer_engine_tp_groups()
+            self.setup_transformer_engine_cp_groups()
 
     def setup_transformer_engine_tp_groups(self):
         """ This should be called after model parallel groups have been initialized
