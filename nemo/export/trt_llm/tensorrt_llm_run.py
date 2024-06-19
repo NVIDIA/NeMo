@@ -17,6 +17,7 @@ import csv
 import json
 import logging
 import os
+import csv
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +31,15 @@ from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
 from tensorrt_llm.runtime import ModelConfig, ModelRunner, ModelRunnerCpp, SamplingConfig
 from transformers import PreTrainedTokenizer
+
+from tensorrt_llm.bindings import (
+    GptJsonConfig,
+    GptSession,
+    GptSessionConfig,
+    KvCacheConfig,
+    WorldConfig
+)
+from tensorrt_llm.runtime.model_runner_cpp import ModelRunnerCppGptSession
 
 
 LOGGER = logging.getLogger("NeMo")
@@ -397,6 +407,83 @@ def forward(
                 return result
 
         raise RuntimeError("Internal error")
+
+
+@dataclass
+class GptSession_params:
+    session_config: GptSessionConfig
+    model_config: ModelConfig
+    world_config: WorldConfig
+    engine_data: bytearray
+
+def create_gpt_session(session_params: GptSession_params, engine_data: bytearray = None):
+    if engine_data is None:
+        engine_data = session_params.engine_data
+    return GptSession(
+        session_params.session_config, session_params.model_config, session_params.world_config, engine_data
+    )
+
+def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
+    """Loads TRTLLM engines in a distributed gpu environment, in particular 
+    this function creates a custom mapping of device_id to WorldConfig
+    """
+
+    config_path = Path(engine_dir) / f"config_{torch.distributed.get_rank()}.json"
+    json_config = GptJsonConfig.parse_file(config_path)
+    model_config = json_config.model_config
+
+    tp_size = json_config.tensor_parallelism
+    pp_size = json_config.pipeline_parallelism
+    mp_size = tp_size * pp_size
+
+    # TRTLLM asserts that rank equals the device num however this
+    # is not true for the megatron mapping of TP->DP->PP.
+    # So we manipulate TRTLLM to emulate a TP->PP single node setup
+    # TRTLLM is expected to fix this in future releases
+    assert tp_size <= gpus_per_node, "Multinode TP is not unsupported"
+    offset = (torch.cuda.current_device()-model_parallel_rank%gpus_per_node+gpus_per_node) % gpus_per_node
+    device_ids = [i for i in range(gpus_per_node)]
+    for _ in range(offset):        
+        device_ids.append(device_ids.pop(0))
+    world_config = WorldConfig.mpi(
+        gpus_per_node=gpus_per_node, tensor_parallelism=tp_size, pipeline_parallelism=pp_size, device_ids=device_ids
+    )
+
+    assert torch.cuda.current_device() == world_config.device
+    engine_filename = json_config.engine_filename(world_config)
+    serialize_path = Path(engine_dir) / engine_filename
+
+    max_beam_width = model_config.max_beam_width
+    max_batch_size = model_config.max_batch_size
+    max_input_len = model_config.max_input_len
+    max_seq_len = model_config.max_seq_len
+
+    session_config = GptSessionConfig(
+        max_batch_size=max_batch_size, max_beam_width=max_beam_width, max_sequence_length=max_seq_len
+    )
+    session_config.gen_micro_batch_size = max_batch_size
+    session_config.ctx_micro_batch_size = max_batch_size
+    session_config.kv_cache_config = KvCacheConfig(
+        max_tokens=max_seq_len * max_batch_size, max_attention_window=max_seq_len
+    )
+
+    with open(serialize_path, "rb") as f:
+        engine_data = bytearray(f.read())
+
+    session_params = GptSession_params(
+        session_config=session_config, model_config=model_config, world_config=world_config, engine_data=engine_data
+    )
+    session = create_gpt_session(session_params, engine_data)
+
+    model_runner = ModelRunnerCppGptSession(
+        session,
+        lora_manager=None,
+        max_batch_size=max_batch_size,
+        max_input_len=max_input_len,
+        max_seq_len=max_seq_len,
+        max_beam_width=max_beam_width,
+    )
+    return model_runner, session_params
 
 
 def prepare_input_tensors(
