@@ -20,6 +20,26 @@ With sharded model weights, you can save and load the state of your training scr
 
 NeMo supports the distributed (sharded) checkpoint format from Megatron-Core. In Megatron-Core, it supports two backends: Zarr-based and PyTorch-based.
 
+Quantized Checkpoints
+---------------------
+
+NeMo also offers :doc:`Post-Training Quantization <../nlp/quantization>` workflow to convert regular ``.nemo`` models into a `TensorRT-LLM checkpoint <https://nvidia.github.io/TensorRT-LLM/architecture/checkpoint.html>`_ conventionally referred to as ``.qnemo`` checkpoints in NeMo. Such a checkpoint can be used with `NVIDIA TensorRT-LLM library <https://nvidia.github.io/TensorRT-LLM/index.html>`_ for efficient inference.
+
+Much as in the case of ``.nemo`` checkpoints, a ``.qnemo`` checkpoint is a tar file that bundles the model configuration given in ``config.json`` file and ``rank{i}.safetensors`` files storing model weights for each rank separately. Additionally a ``tokenizer_config.yaml`` file is saved which is just ``tokenizer`` section from ``model_config.yaml`` file from the original NeMo model. This configuration file defines a tokenizer for the model given.
+
+For large quantized LLM using a directory rather than a tar file is recommended. This can be controlled with ``compress`` flag on exporting quantized models in `PTQ configuration file <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_quantization.yaml>`_.
+
+Example contents of a quantized model to be served using two GPUs (ranks) are shown below:
+
+.. code-block:: bash
+
+    model.qnemo
+    ├── config.json
+    ├── rank0.safetensors
+    ├── rank1.safetensors
+    ├── tokenizer.model
+    └── tokenizer_config.yaml
+
 Community Checkpoint Converter
 -----------------------------
 We provide easy-to-use tools that enable users to convert community checkpoints into the NeMo format. These tools facilitate various operations, including resuming training, Sparse Fine-Tuning (SFT), Parameter-Efficient Fine-Tuning (PEFT), and deployment. For detailed instructions and guidelines, please refer to our documentation.
