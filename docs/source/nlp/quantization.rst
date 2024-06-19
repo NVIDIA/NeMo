@@ -10,7 +10,7 @@ PTQ enables deploying a model in a low-precision format -- FP8, INT4, or INT8 --
 
 Model quantization has two primary benefits: reduced model memory requirements and increased inference throughput.
 
-In NeMo, quantization is enabled by the Nvidia AMMO library -- a unified algorithmic model optimization & deployment toolkit.
+In NeMo, quantization is enabled by the `NVIDIA TensorRT Model Optimizer (ModelOpt) <https://github.com/NVIDIA/TensorRT-Model-Optimizer>`_ library -- a library to quantize and compress deep learning models for optimized inference on GPUs.
 
 The quantization process consists of the following steps:
 
@@ -18,9 +18,51 @@ The quantization process consists of the following steps:
 2. Calibrating the model to obtain appropriate algorithm-specific scaling factors
 3. Producing an output directory or .qnemo tarball with model config (json), quantized weights (safetensors) and tokenizer config (yaml).
 
-Loading models requires using an AMMO spec defined in `megatron.core.inference.gpt.model_specs.py <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/inference/gpt/model_specs.py>`_ module. Typically the calibration step is lightweight and uses a small dataset to obtain appropriate statistics for scaling tensors. The output directory produced (or a .qnemo tarball) is ready to be used to build a serving engine with the Nvidia TensorRT-LLM library. The engine build step is also available in NeMo project in ``nemo.deploy`` and ``nemo.export`` modules.
+Loading models requires using an ModelOpt spec defined in `nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron/gpt_layer_modelopt_spec.py>`_ module. Typically the calibration step is lightweight and uses a small dataset to obtain appropriate statistics for scaling tensors. The output directory produced (or a .qnemo tarball) is ready to be used to build a serving engine with the Nvidia TensorRT-LLM library. The engine build step is also available in NeMo project in ``nemo.deploy`` and ``nemo.export`` modules.
 
 Quantization algorithm can also be conveniently set to ``"null"`` to perform only the weights export step using default precision for TensorRT-LLM deployment. This is useful to obtain baseline performance and accuracy results for comparison.
+
+Support Matrix
+^^^^^^^^^^^^^^
+
+Table below presents verified model support matrix for popular LLM architectures. Each model entry also optionally provides a download link to a corresponding Nemo checkpoint for testing purposes. Support for other model families is experimental.
+
+.. list-table:: Model Support Matrix
+   :widths: 15 15 15 15
+   :header-rows: 1
+
+   * - **Model Family**
+     - **FP8**
+     - **INT8_SQ**
+     - **INT4_AWQ**
+   * - Llama (1, 2, 3)
+     - ✅
+     - ✅
+     - ✅
+   * - Mistral
+     - ✅
+     - ✅
+     - ✅
+   * - `GPT-3 <https://huggingface.co/nvidia/GPT-2B-001>`_
+     - ✅
+     - ✅
+     - ✅
+   * - `Nemotron-3 8b <https://huggingface.co/nvidia/nemotron-3-8b-base-4k>`_
+     - ✅
+     - ✅
+     - ✅
+   * - Nemotron-4 15b
+     - ✅
+     - ✅
+     - ✅
+   * - StarCoder 2
+     - ✅
+     - ✅
+     - ✅
+   * - Gemma
+     - ✅
+     - ✅
+     - ✅
 
 
 Example
@@ -31,17 +73,17 @@ The script must be launched correctly with the number of processes equal to tens
 
 .. code-block:: bash
 
-    torchrun --nproc-per-node 8 examples/nlp/language_modeling/megatron_llama_quantization.py \
-        model_file=llama2-70b-base-bf16.nemo \
-        tensor_model_parallel_size=8 \
-        pipeline_model_parallel_size=1 \
+    torchrun --nproc-per-node 8 examples/nlp/language_modeling/megatron_gpt_quantization.py \
+        model.restore_from_path=llama2-70b-base-bf16.nemo \
+        model.tensor_model_parallel_size=8 \
+        model.pipeline_model_parallel_size=1 \
         trainer.num_nodes=1 \
         trainer.devices=8 \
         trainer.precision=bf16 \
         quantization.algorithm=fp8 \
         export.decoder_type=llama \
         export.inference_tensor_parallel=2 \
-        model_save=llama2-70b-base-fp8-qnemo
+        export.save_path=llama2-70b-base-fp8-qnemo
 
 
 
