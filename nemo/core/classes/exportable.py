@@ -225,11 +225,6 @@ class Exportable(ABC):
                     if dynamic_axes is None:
                         dynamic_axes = self.dynamic_shapes_for_export(use_dynamo)
                     if use_dynamo:
-                        import onnxscript
-
-                        # https://github.com/microsoft/onnxscript/issues/1544
-                        onnxscript.optimizer.constant_folding._DEFAULT_CONSTANT_FOLD_SIZE_LIMIT = 1024 * 1024 * 64
-
                         # https://github.com/pytorch/pytorch/issues/126339
                         with monkeypatched(torch.nn.RNNBase, "flatten_parameters", lambda *args: None):
                             logging.info(f"Running export.export, dynamic shapes:{dynamic_axes}\n")
