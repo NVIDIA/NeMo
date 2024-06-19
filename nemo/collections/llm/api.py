@@ -64,8 +64,6 @@ def train(
     if tokenizer:  # TODO: Improve this
         _use_tokenizer(model, data, tokenizer)
 
-    trainer.fit(model, data)
-
     if hasattr(train, "__io__"):
         _save_config_img(app_state.exp_dir, train.__io__)
 
