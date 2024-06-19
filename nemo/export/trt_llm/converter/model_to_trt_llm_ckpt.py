@@ -242,7 +242,7 @@ def _get_layer_index(split_key):
     for index, key in enumerate(split_key):
         if key == "layers":
             return index + 1
-    return None
+    raise ValueError(f"Unknown layer name format: {split_key}")
 
 def rename_layer_num(param_name, layer_num):
     split_key = param_name.split(".")

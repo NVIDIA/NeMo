@@ -163,7 +163,8 @@ def model_to_trtllm_ckpt(
         'pp_size': pipeline_parallel_size,
         
     }
-
+    model_configs = []
+    weights_dicts = []
     num_layers = nemo_model_config.get('num_layers')
     rotary_scaling = nemo_model_config.get("seq_len_interpolation_factor")
 

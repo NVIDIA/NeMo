@@ -432,15 +432,19 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
     json_config = GptJsonConfig.parse_file(config_path)
     model_config = json_config.model_config
 
+    max_beam_width = model_config.max_beam_width
+    max_batch_size = model_config.max_batch_size
+    max_input_len = model_config.max_input_len
+    max_seq_len = model_config.max_seq_len
+
     tp_size = json_config.tensor_parallelism
     pp_size = json_config.pipeline_parallelism
-    mp_size = tp_size * pp_size
+    assert tp_size <= gpus_per_node, "Multinode TP is not unsupported"
 
     # TRTLLM asserts that rank equals the device num however this
     # is not true for the megatron mapping of TP->DP->PP.
     # So we manipulate TRTLLM to emulate a TP->PP single node setup
     # TRTLLM is expected to fix this in future releases
-    assert tp_size <= gpus_per_node, "Multinode TP is not unsupported"
     offset = (torch.cuda.current_device()-model_parallel_rank%gpus_per_node+gpus_per_node) % gpus_per_node
     device_ids = [i for i in range(gpus_per_node)]
     for _ in range(offset):        
@@ -448,15 +452,9 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
     world_config = WorldConfig.mpi(
         gpus_per_node=gpus_per_node, tensor_parallelism=tp_size, pipeline_parallelism=pp_size, device_ids=device_ids
     )
-
-    assert torch.cuda.current_device() == world_config.device
     engine_filename = json_config.engine_filename(world_config)
     serialize_path = Path(engine_dir) / engine_filename
-
-    max_beam_width = model_config.max_beam_width
-    max_batch_size = model_config.max_batch_size
-    max_input_len = model_config.max_input_len
-    max_seq_len = model_config.max_seq_len
+    assert torch.cuda.current_device() == world_config.device
 
     session_config = GptSessionConfig(
         max_batch_size=max_batch_size, max_beam_width=max_beam_width, max_sequence_length=max_seq_len
