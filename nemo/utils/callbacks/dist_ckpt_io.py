@@ -6,6 +6,7 @@ from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.types import _PATH
 from megatron.core import dist_checkpointing
 from megatron.core.dist_checkpointing.strategies import tensorstore
+from megatron.core.dist_checkpointing.strategies.torch import TorchDistSaveShardedStrategy
 
 from nemo.utils import logging
 
@@ -18,12 +19,21 @@ class DistributedCheckpointIO(CheckpointIO):
         load_directly_on_device (bool, optional): if True, loads the weights directly
             on GPU. Has effect only for `zarr` based checkpoints (PyT Distributed
             always loads on device). Defaults to True.
+        torch_dist_multiproc (int, optional): number of extra processes per rank
+            used during ckpt save with PyTorch distributed format. Defaults, to None
+            which means using an MCore default (2).
     """
 
-    def __init__(self, save_ckpt_format: str, load_directly_on_device: bool = True):
+    def __init__(
+        self,
+        save_ckpt_format: str,
+        load_directly_on_device: bool = True,
+        torch_dist_multiproc: Optional[int] = None,
+    ):
         super().__init__()
         self.save_ckpt_format = save_ckpt_format
         self.load_directly_on_device = load_directly_on_device
+        self.torch_dist_multiproc = torch_dist_multiproc
 
         self.save_sharded_strategy = self.determine_dist_ckpt_save_strategy()
 
@@ -32,6 +42,7 @@ class DistributedCheckpointIO(CheckpointIO):
         return cls(
             save_ckpt_format=model_cfg.get('dist_ckpt_format', 'zarr'),
             load_directly_on_device=model_cfg.get('dist_ckpt_load_on_device', True),
+            torch_dist_multiproc=model_cfg.get('dist_ckpt_torch_dist_multiproc', None),
         )
 
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
@@ -92,5 +103,10 @@ class DistributedCheckpointIO(CheckpointIO):
         For now only decides the checkpoint format.
         """
         save_strategy = (self.save_ckpt_format, 1)
+        torch_dist_kwargs = {} if self.torch_dist_multiproc is None else dict(thread_count=self.torch_dist_multiproc)
+        # We need to explicitly construct a strategy in some cases:
+        if self.save_ckpt_format == 'torch_dist' and torch_dist_kwargs:
+            save_strategy = TorchDistSaveShardedStrategy('torch_dist', 1, **torch_dist_kwargs)
+
         logging.info(f'Using {save_strategy} dist-ckpt save strategy.')
         return save_strategy
