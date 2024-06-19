@@ -35,7 +35,7 @@ from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
 from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
 from nemo.export.trt_llm.qnemo.utils import is_qnemo_checkpoint
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
-from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load
+from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_distributed
 
 use_deploy = True
 try:
@@ -316,6 +316,87 @@ class TensorRTLLM(ITritonDeployable):
 
         if load_model:
             self._load()
+
+    def build(
+        self,
+        nemo_model,
+        nemo_model_config,
+        trt_model_type,
+        tokenizer,
+        max_input_len: int = 1024,
+        max_input_tokens: int = 4096,
+        max_output_len: int = 1024,
+        max_batch_size: int = 4,
+        use_refit: bool = True,
+        trt_model_dir: str = None,
+        reshard_model: bool = False,
+    ):        
+        assert tensorrt_llm.mpi_rank() == torch.distributed.get_rank()
+        from megatron.core import parallel_state
+        from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import build_tokenizer
+
+        global_devices = [None for _ in range(torch.distributed.get_world_size())]
+        torch.distributed.all_gather_object(global_devices, torch.cuda.current_device())
+        gpus_per_node = max(global_devices) + 1
+
+        self.use_refit = use_refit
+        self.tokenizer = build_tokenizer(tokenizer)
+        self.trt_model_type = trt_model_type
+
+        pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+        tp_size = parallel_state.get_tensor_model_parallel_world_size()
+        dp_size = parallel_state.get_data_parallel_world_size()
+        tp_rank = parallel_state.get_tensor_model_parallel_rank()
+        pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+        dp_rank = parallel_state.get_data_parallel_rank()
+
+        if reshard_model and pp_size > 1:
+            self.reshard_model = True
+            dp_size = dp_size * pp_size
+            dp_rank = torch.distributed.get_rank() // tp_size
+            pp_rank = 0
+            pp_size = 1
+        else:
+            self.reshard_model = False
+
+        if dp_size > 1:
+            self.model_dir = os.path.join(self.model_dir, f"dp_rank{dp_rank}")
+        mp_rank = tp_size * pp_rank + tp_rank
+        tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)        
+
+        weights, model_config = model_to_trtllm_ckpt(
+            model=nemo_model,
+            nemo_model_config=nemo_model_config,
+            nemo_export_dir=trt_model_dir,
+            decoder_type=trt_model_type,
+            tensor_parallel_size=tp_size,
+            pipeline_parallel_size=pp_size,
+            gpus_per_node=gpus_per_node,
+            use_parallel_embedding=True,
+            use_distributed_convert=True,
+            model_parallel_rank=mp_rank,
+            vocab_size=self.tokenizer.vocab_size,
+        )
+
+        engine = build_and_save_engine(
+            max_input_len=max_input_len,
+            max_output_len=max_output_len,
+            max_batch_size=max_batch_size,
+            model_config=model_config[0],
+            model_weights=weights[0],
+            model_dir=self.model_dir,
+            model_type=trt_model_type,
+            custom_all_reduce=False,
+        )
+        torch.distributed.barrier()
+    
+        myrank = torch.distributed.get_rank()
+        cfg_path = Path(os.path.join(self.model_dir, f'config_{myrank}.json'))
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(engine.config.to_dict(), f, indent=4)
+
+        self.model_runner, self.session_params = load_distributed(
+            engine_dir=self.model_dir, model_parallel_rank=mp_rank, gpus_per_node=gpus_per_node)
 
     def forward(
         self,

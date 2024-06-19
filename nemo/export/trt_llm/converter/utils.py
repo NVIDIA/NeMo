@@ -414,3 +414,124 @@ def split(v, tp_size, idx, dim=0):
         return np.ascontiguousarray(np.split(v, tp_size)[idx])
     else:
         return np.ascontiguousarray(np.split(v, tp_size, axis=dim)[idx])
+
+
+# Similar to split_save_weight but done on GPU for performance
+@torch.no_grad()
+def split_save_weight_gpu(key, val, config):
+    storage_type = config["storage_type"]
+    split_gated_activation = config["split_gated_activation"]
+    num_attention_heads = config["num_attention_heads"]
+    tp_size = config["tp_size"]
+    num_kv_heads = config["num_kv_heads"]
+    move_to_cpu = config["move_to_cpu"]
+    save_dict = config["save_dict"]
+
+    def save(key, tensor, add_prefix=True):
+        assert torch.is_tensor(tensor)
+        if add_prefix:
+            key = f"transformer.{key}"
+
+        if len(tensor.shape) >= 2:
+            tensor = tensor.reshape(tensor.shape[0], -1)
+            tensor = torch.transpose(tensor, 0, 1)
+        tensor = tensor.detach().contiguous()
+        tensor = tensor.to(storage_type)
+
+        if move_to_cpu:
+            if key not in save_dict:
+                cpu_copy = torch.empty(
+                    tensor.size(), dtype=tensor.dtype, layout=tensor.layout, device="cpu", pin_memory=True
+                )
+                cpu_copy.copy_(tensor, non_blocking=True)
+                save_dict[key] = cpu_copy
+            else:
+                save_dict[key].copy_(tensor, non_blocking=True)
+        else:
+            save_dict[key] = tensor.cuda()
+
+    if config.get("transpose_weights", False) and val.ndim == 2:
+        val = val.T
+
+    if "self_attention" in key:
+        key = key.replace("self_attention", "attention")
+
+    if (
+        'layer_norm_weight' in key
+        or 'layernorm.weight' in key
+        or "final_layernorm.weight" in key
+        or "ln_f.weight" in key
+    ):
+        if "attention.linear_qkv.layer_norm_weight" in key:
+            key = key.replace("attention.linear_qkv.layer_norm_weight", "input_layernorm.weight")
+        elif "mlp.linear_fc1.layer_norm_weight" in key:
+            key = key.replace("mlp.linear_fc1.layer_norm_weight", "post_layernorm.weight")
+        elif "pre_mlp_layernorm.weight" in key:
+            key = key.replace("pre_mlp_layernorm.weight", "post_layernorm.weight")
+
+        if config.get("apply_layernorm_1p", False):
+            val = val.float() + 1.0
+        save(key, val)
+    elif (
+        "input_layernorm.bias" in key
+        or "pre_mlp_layernorm.bias" in key
+        or "ln_f.bias" in key
+        or "vocab_embedding" in key
+    ):
+        if "pre_mlp_layernorm.bias" in key:
+            key = key.replace("pre_mlp_layernorm.bias", "post_layernorm.bias")
+
+        save(key, val)
+    elif (
+        "attention.dense.weight" in key
+        or "mlp.dense_4h_to_h.weight" in key
+        or "attention.linear_proj.weight" in key
+        or "mlp.linear_fc2.weight" in key
+        or "mlp.dense_h_to_4h_2.weight" in key
+        or "mlp.dense_h_to_4h_2.bias" in key
+    ):
+        if "attention.linear_proj.weight" in key:
+            key = key.replace("attention.linear_proj.weight", "attention.dense.weight")
+        elif "mlp.linear_fc2.weight" in key:
+            key = key.replace("mlp.linear_fc2.weight", "mlp.proj.weight")
+        save(key, val)
+
+    elif (
+        "mlp.dense_h_to_4h.weight" in key
+        or "mlp.dense_h_to_4h.bias" in key
+        or "mlp.linear_fc1.weight" in key
+        or "mlp.linear_fc1.bias" in key
+    ):
+        if split_gated_activation:
+            val, gate = torch.chunk(val, 2, axis=-1)
+
+        if "mlp.linear_fc1" in key:
+            key = key.replace("mlp.linear_fc1", "mlp.fc")
+        save(key, val)
+
+        if split_gated_activation:
+            key = key.replace("mlp.fc", "mlp.gate")
+            save(key, gate)
+
+    elif "attention.query_key_value.weight" in key or "attention.linear_qkv.weight" in key:
+        if "attention.linear_qkv.weight" in key:
+            key = key.replace("attention.linear_qkv.weight", "attention.qkv.weight")
+
+        hidden_dim = val.shape[0]
+        size_per_head = hidden_dim // num_attention_heads
+        q_num = num_attention_heads // num_kv_heads
+
+        val = val.reshape(hidden_dim, num_kv_heads // tp_size, q_num + 2, size_per_head)
+
+        # Split the QKV to separate variables.
+        # [qqqqkkvv] - > [qqqq,kk,vv]
+        qkv = torch.split(val, [q_num, 1, 1], dim=2)
+        split_vals = torch.concatenate(
+            [qkv[0].reshape(hidden_dim, -1), qkv[1].reshape(hidden_dim, -1), qkv[2].reshape(hidden_dim, -1)], dim=1
+        )
+        save(key, split_vals)
+
+    elif "lm_head.weight" in key:
+        save(key, val, add_prefix=False)
+    else:
+        raise RuntimeError(f"{key} not handled by NeMo->TRTLLM converter!")
