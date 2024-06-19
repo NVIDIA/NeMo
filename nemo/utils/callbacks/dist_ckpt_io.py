@@ -48,10 +48,13 @@ try:
 
     HAVE_MEGATRON_CORE = True
 
-except (ImportError, ModuleNotFoundError) as IMPORT_ERROR_EXC:
+except (ImportError, ModuleNotFoundError) as e:
 
     HAVE_MEGATRON_CORE = False
-    IMPORT_ERROR = "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+    IMPORT_ERROR = (
+        "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+        f" Exact error: {e}"
+    )
 
 
 @contextmanager
@@ -97,7 +100,7 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
 
     def __init__(self, checkpoint_io: AsyncCompatibleCheckpointIO) -> None:
         if not HAVE_MEGATRON_CORE:
-            raise ImportError(IMPORT_ERROR) from IMPORT_ERROR_EXC
+            raise ImportError(IMPORT_ERROR)
         if not isinstance(checkpoint_io, AsyncCompatibleCheckpointIO):
             raise ValueError(f'Incompatible wrapped checkpoint_io type: {type(checkpoint_io)}')
 
@@ -207,7 +210,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
     ):
         super().__init__()
         if not HAVE_MEGATRON_CORE:
-            raise ImportError(IMPORT_ERROR) from IMPORT_ERROR_EXC
+            raise ImportError(IMPORT_ERROR)
 
         self.save_ckpt_format = save_ckpt_format
         self.load_directly_on_device = load_directly_on_device
@@ -341,7 +344,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         shutil.rmtree(path, ignore_errors=True)
 
     @property
-    def save_sharded_strategy(self) -> SaveShardedStrategy:
+    def save_sharded_strategy(self) -> 'SaveShardedStrategy':
         if self._save_sharded_strategy is None:
             self._save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
         return self._save_sharded_strategy

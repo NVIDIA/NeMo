@@ -716,9 +716,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         if optimizer_state_dict is None:
             optimizer_state_dict = self.state_dict()
 
-        if optimizer_state_dict:
-            print(f'Non-empty optimizer state dict on rank {torch.distributed.get_rank()}')
-
         id_to_sharded_param_map = get_param_id_to_sharded_param_map(
             model_sharded_state_dict=model_sharded_state_dict,
             optim_params_iter=self.parameters(),
