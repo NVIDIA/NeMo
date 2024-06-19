@@ -98,7 +98,7 @@ def main(cfg):
                     restore_path=pretrained_encoder_name, map_location=torch.device("cpu")
                 )
                 state_dict = pretraind_model.state_dict()
-            model.encoder.load_state_dict(state_dict, strict=False)
+            model.load_state_dict(state_dict, strict=False)
             del pretraind_model
         else:
             logging.info(f"Loading pretrained encoder from NGC: {pretrained_encoder_name}")
