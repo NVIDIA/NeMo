@@ -362,6 +362,10 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         else:
             save_strategy = get_default_save_sharded_strategy(self.save_ckpt_format, 1)
 
+        # MCore v0.8 introduces `use_cached_ckpt_structure` attribute
+        if hasattr(save_strategy, 'use_cached_ckpt_structure'):
+            save_strategy.use_cached_ckpt_structure = self.assume_constant_structure
+
         if self.parallel_save:
             save_strategy = FullyParallelSaveStrategyWrapper(
                 save_strategy, get_data_parallel_group(with_context_parallel=True), self.assume_constant_structure
