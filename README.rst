@@ -51,10 +51,11 @@ Latest News
             NVIDIA releases 340B base, instruct, and reward models pretrained on a total of 9T tokens.
           </a> (2024-06-18)
         </summary>
-        See documentation and tutorials for SFT, PEFT, and PTQ with Nemotron 340B in the 
+        See documentation and tutorials for SFT, PEFT, and PTQ with 
         <a href="https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/nemotron/index.html">
-          NeMo Framework User Guide.
+          Nemotron 340B 
         </a>
+        in the NeMo Framework User Guide.
         <br><br>
       </details>
 
