@@ -210,7 +210,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def setup_megatron_parallel(self, trainer: pl.Trainer, setup_optimizers: bool = True) -> None:
         assert self.model is not None, "Model is not set"
-        
+
         convert_module_fn = None
         if hasattr(self.precision_plugin, "convert_module"):
             convert_module_fn = self.precision_plugin.convert_module
@@ -224,7 +224,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             convert_module_fn=convert_module_fn,
         )
         self.megatron_parallel.trainer = trainer
-        
 
         # check signature-def of self.model.configure_optimizers to check if there's an optional arg: megatron_parallel
         sig = inspect.signature(self.model.configure_optimizers)

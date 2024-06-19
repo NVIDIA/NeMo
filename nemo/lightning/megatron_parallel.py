@@ -134,7 +134,7 @@ class MegatronParallel(nn.ModuleList):
                     if hasattr(_model, "configure_model"):
                         _model.configure_model()
                     _pipeline.append(_model)
-                    
+
         if convert_module_fn:
             for i in range(len(_pipeline)):
                 _pipeline[i] = convert_module_fn(_pipeline[i])
