@@ -49,9 +49,6 @@ def train(
         >>> train(model, data, trainer, tokenizer='data', source='path/to/ckpt.ckpt', export='final.ckpt')
         PosixPath('/path/to/log_dir')
     """
-    if not isinstance(trainer.strategy, MegatronStrategy):
-        raise ValueError("Only MegatronStrategy is supported")
-
     _log = log or NeMoLogger()
     app_state = _log.setup(
         trainer,
