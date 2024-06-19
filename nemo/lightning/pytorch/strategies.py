@@ -498,7 +498,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     _state_dict[f"{to_add}{key}"] = value
                 elif count > n_nesting:
                     to_remove = "module." * (count - n_nesting)
-                    _state_dict[key[len(to_remove):]] = value
+                    _state_dict[key[len(to_remove) :]] = value
             checkpoint_state_dict = _state_dict
 
             module.load_state_dict(checkpoint_state_dict, strict=strict)

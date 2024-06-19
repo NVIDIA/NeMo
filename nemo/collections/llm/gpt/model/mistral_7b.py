@@ -119,7 +119,7 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
             window_size=[source.sliding_window, 0],
-            share_embeddings_and_output_weights=False
+            share_embeddings_and_output_weights=False,
         )
 
         return output
