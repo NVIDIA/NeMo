@@ -37,6 +37,7 @@ try:
         get_default_save_sharded_strategy,
     )
     from megatron.core.dist_checkpointing.strategies import tensorstore
+    from megatron.core.dist_checkpointing.strategies.async_utils import AsyncCallsQueue, AsyncRequest
     from megatron.core.dist_checkpointing.strategies.base import SaveShardedStrategy
     from megatron.core.dist_checkpointing.strategies.fully_parallel import (
         FullyParallelLoadStrategyWrapper,
@@ -44,8 +45,6 @@ try:
     )
     from megatron.core.dist_checkpointing.strategies.torch import TorchDistSaveShardedStrategy
     from megatron.core.parallel_state import get_data_parallel_group
-
-    from nemo.utils.callbacks.torch_dist_async import AsyncCallsQueue, AsyncRequest, TorchDistAsyncSaveShardedStrategy
 
     HAVE_MEGATRON_CORE = True
 
@@ -255,21 +254,14 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         fs.makedirs(path, exist_ok=True)
 
         validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
-
-        dist_checkpointing.save(
+        self.validated_consistency = True
+        return dist_checkpointing.save(
             sharded_state_dict=checkpoint,
             checkpoint_dir=path,
             sharded_strategy=self.save_sharded_strategy,
             validate_access_integrity=validate_sharding_integrity,
+            async_sharded_save=self.async_save,
         )
-        self.validated_consistency = True
-        if not self.async_save:
-            return None
-        # NOTE: this logic will be simplified in MCore v0.7
-        assert self.save_sharded_strategy.async_request is not None
-        async_request = self.save_sharded_strategy.async_request
-        self.save_sharded_strategy.async_request = None
-        return async_request
 
     @_debug_time('DistributedCheckpointIO.load_checkpoint')
     def load_checkpoint(
@@ -361,19 +353,16 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         are passed in config or in case of a fully parallel save in which case
         a parallelization wrapper is applied.
         """
-        save_strategy = (self.save_ckpt_format, 1)
+        if self.async_save and self.save_ckpt_format != 'torch_dist':
+            raise ValueError('Async dist-ckpt save supported only for torch_dist format')
+
         torch_dist_kwargs = {} if self.torch_dist_multiproc is None else dict(thread_count=self.torch_dist_multiproc)
-        # We need to explicitly construct a strategy in some cases:
-        if self.async_save:
-            if save_strategy[0] != 'torch_dist':
-                raise ValueError('Async dist-ckpt save supported only for torch_dist format')
-            save_strategy = TorchDistAsyncSaveShardedStrategy('torch_dist', 1, **torch_dist_kwargs)
-        elif self.save_ckpt_format == 'torch_dist' and torch_dist_kwargs:
-            save_strategy = TorchDistSaveShardedStrategy('torch_dist', 1, **torch_dist_kwargs)
+        if self.save_ckpt_format == 'torch_dist' and torch_dist_kwargs:
+            save_strategy = TorchDistSaveShardedStrategy(self.save_ckpt_format, 1, **torch_dist_kwargs)
+        else:
+            save_strategy = get_default_save_sharded_strategy(self.save_ckpt_format, 1)
 
         if self.parallel_save:
-            if isinstance(save_strategy, tuple):
-                save_strategy = get_default_save_sharded_strategy(*save_strategy)
             save_strategy = FullyParallelSaveStrategyWrapper(
                 save_strategy, get_data_parallel_group(with_context_parallel=True), self.assume_constant_structure
             )
