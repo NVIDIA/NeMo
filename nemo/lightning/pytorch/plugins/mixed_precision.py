@@ -84,26 +84,13 @@ class MegatronMixedPrecision(MixedPrecision):
         """
         from megatron.core.distributed import DistributedDataParallel
         from megatron.core.transformer.module import Float16Module
-
-        from nemo.lightning.megatron_parallel import MegatronParallel
-
-        if not isinstance(module, MegatronParallel):
-            raise ValueError("Module must be a MegatronParallel instance")
+        from megatron.core.utils import get_model_config
 
         if self.precision in ["16-mixed", "bf16-mixed"]:
-            config = SimpleNamespace(
-                fp16=self.precision == "16-mixed",
-                bf16=self.precision == "bf16-mixed",
-            )
-
-            for mod in module:
-                _mod = mod
-                if isinstance(_mod.module, DistributedDataParallel):
-                    _mod = _mod.module
-
-                _mod.module = Float16Module(config, _mod.module)
-
-            return module
+            config = get_model_config(module.module)
+            config.fp16 = self.precision == "16-mixed"
+            config.bf16 = self.precision == "bf16-mixed"
+            module.module = Float16Module(config, module.module)
 
         return module
 
