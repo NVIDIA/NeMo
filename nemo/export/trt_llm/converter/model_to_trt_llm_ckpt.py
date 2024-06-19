@@ -244,29 +244,27 @@ def _get_layer_index(split_key):
             return index + 1
     return None
 
+
 def rename_layer_num(param_name, layer_num):
     split_key = param_name.split(".")
     layer_index = int(_get_layer_index(split_key))
     split_key[layer_index] = str(layer_num)
     return ".".join(split_key)
 
+
 def get_layer_num(param_name):
     split_key = param_name.split(".")
     layer_index = int(_get_layer_index(split_key))
     return int(split_key[layer_index])
 
+
 @torch.no_grad()
 def dist_model_to_trt_llm_ckpt(
-    model, 
-    nemo_model_config, 
-    inference_tp_size,
-    inference_pp_size,
-    tokenizer_vocab_size, 
-    cpu=True
+    model, nemo_model_config, inference_tp_size, inference_pp_size, tokenizer_vocab_size, cpu=True
 ):
     from megatron.core import parallel_state
     from megatron.core.tensor_parallel.utils import VocabUtility
-    from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision 
+    from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 
     tp_rank = parallel_state.get_tensor_model_parallel_rank()
     tp_size = parallel_state.get_tensor_model_parallel_world_size()
@@ -288,7 +286,9 @@ def dist_model_to_trt_llm_ckpt(
         if inference_pp_size == 1 and pp_size > 1 and inference_tp_size == tp_size:
             reshard_model = True
         else:
-            raise NotImplementedError(f"NeMo currently only supports PP>1 -> PP=1 resharding, other types of resharding will come in future releases.")
+            raise NotImplementedError(
+                f"NeMo currently only supports PP>1 -> PP=1 resharding, other types of resharding will come in future releases."
+            )
 
     num_layers = nemo_model_config["num_layers"]
     num_kv_heads = nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads'])
@@ -303,6 +303,7 @@ def dist_model_to_trt_llm_ckpt(
     prefix, transformer_layer_prefix = get_layer_prefix(state_dict, is_mcore)
 
     from nemo.export.trt_llm.converter.utils import weights_dict as persistent_weights_dict
+
     weights_dict = persistent_weights_dict if cpu else {}
 
     export_config = {
@@ -476,6 +477,7 @@ def dist_model_to_trt_llm_ckpt(
     for starmap_arg in tqdm(starmap_args, desc="saving weights"):
         split_save_weight_gpu(**starmap_arg)
     return weights_dict
+
 
 def create_export_dir(nemo_export_dir):
     out_dir = Path(nemo_export_dir)

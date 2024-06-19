@@ -330,7 +330,7 @@ class TensorRTLLM(ITritonDeployable):
         use_refit: bool = True,
         trt_model_dir: str = None,
         reshard_model: bool = False,
-    ):        
+    ):
         assert tensorrt_llm.mpi_rank() == torch.distributed.get_rank()
         from megatron.core import parallel_state
         from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import build_tokenizer
@@ -362,7 +362,7 @@ class TensorRTLLM(ITritonDeployable):
         if dp_size > 1:
             self.model_dir = os.path.join(self.model_dir, f"dp_rank{dp_rank}")
         mp_rank = tp_size * pp_rank + tp_rank
-        tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)        
+        tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)
 
         weights, model_config = model_to_trtllm_ckpt(
             model=nemo_model,
@@ -389,14 +389,15 @@ class TensorRTLLM(ITritonDeployable):
             custom_all_reduce=False,
         )
         torch.distributed.barrier()
-    
+
         myrank = torch.distributed.get_rank()
         cfg_path = Path(os.path.join(self.model_dir, f'config_{myrank}.json'))
         with open(cfg_path, "w", encoding="utf-8") as f:
             json.dump(engine.config.to_dict(), f, indent=4)
 
         self.model_runner, self.session_params = load_distributed(
-            engine_dir=self.model_dir, model_parallel_rank=mp_rank, gpus_per_node=gpus_per_node)
+            engine_dir=self.model_dir, model_parallel_rank=mp_rank, gpus_per_node=gpus_per_node
+        )
 
     def forward(
         self,
