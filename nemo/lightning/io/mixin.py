@@ -352,7 +352,7 @@ def _io_unflatten_object(values, metadata):
         encoded_data = values[0]
         pickled_data = base64.b64decode(encoded_data.encode('utf-8'))
         return loads(pickled_data)
-    
+
     return fdl.Config.__unflatten__(values, metadata)
 
 
