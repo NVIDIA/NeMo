@@ -55,7 +55,7 @@ class IOMixin:
 
     """
 
-    __io__ = fdl.Config[Self]
+    __io__: fdl.Config[Self]
 
     def __new__(cls, *args, **kwargs):
         """
@@ -106,10 +106,7 @@ class IOMixin:
         to_del = []
         for key in config_kwargs:
             if isinstance(config_kwargs[key], IOProtocol):
-                if type(config_kwargs[key]) == type:
-                    to_del.append(key)
-                else:
-                    config_kwargs[key] = config_kwargs[key].__io__
+                config_kwargs[key] = config_kwargs[key].__io__
             if is_dataclass(config_kwargs[key]):
                 config_kwargs[key] = fdl_dc.convert_dataclasses_to_configs(
                     config_kwargs[key], allow_post_init=True
