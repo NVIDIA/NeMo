@@ -11,6 +11,7 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLM
 
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.utils import logging
+from fiddle._src.experimental import serialization
 from nemo.utils.app_state import AppState
 
 
@@ -52,6 +53,7 @@ class NeMoLogger:
         self,
         trainer: Union[pl.Trainer, fl.Fabric],
         resume_if_exists: bool = False,
+        task_config=None
     ):
         """Setup the logger for the experiment.
 
@@ -114,6 +116,12 @@ class NeMoLogger:
 
         os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
         logging.info(f'Experiments will be logged at {log_dir}')
+        
+        if task_config and is_global_rank_zero():
+           task_config.save_config_img(log_dir / "task.png")
+           task_json = serialization.dump_json(task_config)
+           with open(log_dir / "task.json", "w") as f:
+               f.write(task_json)
 
         if isinstance(trainer, pl.Trainer):
             if self.ckpt:

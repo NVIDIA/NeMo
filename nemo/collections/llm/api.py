@@ -53,6 +53,7 @@ def train(
     app_state = _log.setup(
         trainer,
         resume_if_exists=getattr(resume, "resume_if_exists", False),
+        task_config=getattr(train, "__io__", None)
     )
     if resume is not None:
         resume.setup(model, trainer)
@@ -60,9 +61,6 @@ def train(
         opt.connect(model)
     if tokenizer:  # TODO: Improve this
         _use_tokenizer(model, data, tokenizer)
-
-    if hasattr(train, "__io__"):
-        _save_config_img(app_state.exp_dir, train.__io__)
 
     trainer.fit(model, data)
 
