@@ -1,14 +1,14 @@
+import base64
 import functools
 import inspect
 from dataclasses import is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Type, TypeVar, Union
-import base64
 
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
-from fiddle._src.experimental import serialization
 from cloudpickle import dumps, loads
+from fiddle._src.experimental import serialization
 from typing_extensions import Self
 
 from nemo.lightning.io.capture import IOProtocol
@@ -84,13 +84,13 @@ class IOMixin:
         output = object().__new__(cls)
 
         return output
-    
+
     def __init_subclass__(cls):
         serialization.register_node_traverser(
             cls,
             flatten_fn=_io_flatten_object,
             unflatten_fn=_io_unflatten_object,
-            path_elements_fn=_io_path_elements_fn
+            path_elements_fn=_io_path_elements_fn,
         )
 
     def io_transform_args(self, init_fn, *args, **kwargs) -> Dict[str, Any]:
@@ -118,9 +118,7 @@ class IOMixin:
             if isinstance(config_kwargs[key], IOProtocol):
                 config_kwargs[key] = config_kwargs[key].__io__
             if is_dataclass(config_kwargs[key]):
-                config_kwargs[key] = fdl_dc.convert_dataclasses_to_configs(
-                    config_kwargs[key], allow_post_init=True
-                )
+                config_kwargs[key] = fdl_dc.convert_dataclasses_to_configs(config_kwargs[key], allow_post_init=True)
                 # Check if the arg is a factory (dataclasses.field)
                 if config_kwargs[key].__class__.__name__ == "_HAS_DEFAULT_FACTORY_CLASS":
                     to_del.append(key)
@@ -345,7 +343,7 @@ def _io_flatten_object(instance):
         pickled_data = dumps(instance.__io__)
         encoded_data = base64.b64encode(pickled_data).decode('utf-8')
         return (encoded_data,), None
-    
+
     return instance.__io__.__flatten__()
 
 
@@ -354,7 +352,7 @@ def _io_unflatten_object(values, metadata):
         encoded_data = values[0]
         pickled_data = base64.b64decode(encoded_data.encode('utf-8'))
         return loads(pickled_data)
-    
+
     return sdk.Config.__unflatten__(values, metadata)
 
 
@@ -363,5 +361,5 @@ def _io_path_elements_fn(x):
         serialization.dump_json(x.__io__)
     except serialization.UnserializableValueError:
         return (serialization.IdentityElement(),)
-    
+
     return x.__io__.__path_elements__()

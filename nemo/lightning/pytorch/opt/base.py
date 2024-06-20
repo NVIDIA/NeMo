@@ -130,7 +130,7 @@ class OptimizerModule(L.Callback, CallbackMethods, ABC):
 
         model.configure_optimizers = types.MethodType(custom_configure_optimizers, model)
         model.optim = self
-        
+
         if hasattr(self, "__io__") and hasattr(model, "__io__"):
             if hasattr(model.__io__, "optim"):
                 model.__io__.optim = self.__io__

@@ -53,7 +53,7 @@ def train(
     app_state = _log.setup(
         trainer,
         resume_if_exists=getattr(resume, "resume_if_exists", False),
-        task_config=getattr(train, "__io__", None)
+        task_config=getattr(train, "__io__", None),
     )
     if resume is not None:
         resume.setup(model, trainer)
