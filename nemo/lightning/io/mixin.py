@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Type, TypeVar, Union
 
 import fiddle as fdl
+import fiddle._src.experimental.dataclasses as fdl_dc
 from cloudpickle import dump
 from typing_extensions import Self
 
@@ -105,8 +106,14 @@ class IOMixin:
         to_del = []
         for key in config_kwargs:
             if isinstance(config_kwargs[key], IOProtocol):
-                config_kwargs[key] = config_kwargs[key].__io__
-            if is_dataclass(self):
+                if type(config_kwargs[key]) == type:
+                    to_del.append(key)
+                else:
+                    config_kwargs[key] = config_kwargs[key].__io__
+            if is_dataclass(config_kwargs[key]):
+                config_kwargs[key] = fdl_dc.convert_dataclasses_to_configs(
+                    config_kwargs[key], allow_post_init=True
+                )
                 # Check if the arg is a factory (dataclasses.field)
                 if config_kwargs[key].__class__.__name__ == "_HAS_DEFAULT_FACTORY_CLASS":
                     to_del.append(key)
