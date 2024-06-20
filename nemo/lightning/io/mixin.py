@@ -3,10 +3,12 @@ import inspect
 from dataclasses import is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Type, TypeVar, Union
+import base64
 
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
-from cloudpickle import dump
+from fiddle._src.experimental import serialization
+from cloudpickle import dumps, loads
 from typing_extensions import Self
 
 from nemo.lightning.io.capture import IOProtocol
@@ -82,6 +84,14 @@ class IOMixin:
         output = object().__new__(cls)
 
         return output
+    
+    def __init_subclass__(cls):
+        serialization.register_node_traverser(
+            cls,
+            flatten_fn=_io_flatten_object,
+            unflatten_fn=_io_unflatten_object,
+            path_elements_fn=_io_path_elements_fn
+        )
 
     def io_transform_args(self, init_fn, *args, **kwargs) -> Dict[str, Any]:
         """
@@ -141,9 +151,10 @@ class IOMixin:
         Args:
             output (Path): The path to the file where the configuration object will be serialized.
         """
-        config_path = Path(output) / "io.pkl"
-        with open(config_path, "wb") as f:
-            dump(self.__io__, f)
+        config_path = Path(output) / "io.json"
+        with open(config_path, "w") as f:
+            json = serialization.dump_json(self.__io__)
+            f.write(json)
 
 
 class ConnectorMixin:
@@ -325,3 +336,32 @@ class ConnectorMixin:
             return connector()
 
         return connector(_path)
+
+
+def _io_flatten_object(instance):
+    try:
+        serialization.dump_json(instance.__io__)
+    except serialization.UnserializableValueError as e:
+        pickled_data = dumps(instance.__io__)
+        encoded_data = base64.b64encode(pickled_data).decode('utf-8')
+        return (encoded_data,), None
+    
+    return instance.__io__.__flatten__()
+
+
+def _io_unflatten_object(values, metadata):
+    if len(values) == 1:
+        encoded_data = values[0]
+        pickled_data = base64.b64decode(encoded_data.encode('utf-8'))
+        return loads(pickled_data)
+    
+    return sdk.Config.__unflatten__(values, metadata)
+
+
+def _io_path_elements_fn(x):
+    try:
+        serialization.dump_json(x.__io__)
+    except serialization.UnserializableValueError:
+        return (serialization.IdentityElement(),)
+    
+    return x.__io__.__path_elements__()
