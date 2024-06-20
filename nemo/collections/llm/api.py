@@ -15,7 +15,7 @@ def train(
     trainer: Trainer,
     log: Annotated[Optional[NeMoLogger], Config[NeMoLogger]] = None,
     resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
-    opt: Optional[OptimizerModule] = None,
+    optim: Optional[OptimizerModule] = None,
     tokenizer: Optional[str] = None,
     # TODO: Fix export export: Optional[str] = None,
 ) -> Path:
@@ -28,7 +28,7 @@ def train(
         trainer (Trainer): The trainer instance configured with a MegatronStrategy.
         log (NeMoLogger): A nemologger instance.
         resume (Optional[Union[AutoResume, Resume]]): Resume training from a checkpoint.
-        opt (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
+        optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
             from the model will be used.
         tokenizer (Optional[str]): Tokenizer setting to be applied. Can be 'data' or 'model'.
         export (Optional[str]): Filename to save the exported checkpoint after training.
@@ -57,8 +57,8 @@ def train(
     )
     if resume is not None:
         resume.setup(model, trainer)
-    if opt:
-        opt.connect(model)
+    if optim:
+        optim.connect(model)
     if tokenizer:  # TODO: Improve this
         _use_tokenizer(model, data, tokenizer)
 

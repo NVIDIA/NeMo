@@ -132,8 +132,8 @@ class OptimizerModule(L.Callback, CallbackMethods, ABC):
         model.optim = self
         
         if hasattr(self, "__io__") and hasattr(model, "__io__"):
-            if hasattr(model.__io__, "opt"):
-                model.__io__.opt = self.__io__
+            if hasattr(model.__io__, "optim"):
+                model.__io__.optim = self.__io__
 
     @abstractmethod
     def optimizers(self, model) -> List[Optimizer]:
