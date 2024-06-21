@@ -81,7 +81,7 @@ model:
 
   tokenizer:
     library: 'huggingface'
-    type: 'ai21labs/Jamba-v0.1' 
+    type: null #'EleutherAI/gpt-neox-20b' 
     model: null 
     vocab_file: null
     merge_file: null 

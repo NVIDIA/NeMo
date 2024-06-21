@@ -33,7 +33,7 @@ class MegatronJambaModel(MegatronGPTModel):
 
     def model_provider_func(self, pre_process, post_process):
 
-        self.hybrid_override_pattern="M" * self.transformer_config.num_layers #-MOM-MO*-MOM-MO"*4
+        self.hybrid_override_pattern="O"#self.cfg.get('hybrid_override_pattern', "M" * self.transformer_config.num_layers)#"M-MOM-MO*-MOM-MO" #  #"M-MOM-MO*-MOM-MO"*4
         mamba_stack_spec = get_mamba_layer_with_transformer_engine_spec(self.transformer_config.num_moe_experts, moe_grouped_gemm=False)
         self.transformer_config.activation_func = torch.nn.functional.silu
         self.transformer_config.add_bias_linear=self.cfg.get('add_bias_linear', False)

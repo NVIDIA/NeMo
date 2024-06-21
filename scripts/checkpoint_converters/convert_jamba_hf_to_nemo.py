@@ -9,8 +9,9 @@ from nemo.collections.nlp.models.language_modeling.megatron_jamba_model import M
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
-# python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_jamba_hf_to_nemo.py --output_path /home/ataghibakhsh/forks/tiny_jamba.nemo
-
+'''
+CUDA_VISIBLE_DEVICES="0" python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_jamba_hf_to_nemo.py --output_path /home/ataghibakhsh/forks/tiny_jamba.nemo
+'''
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
@@ -31,38 +32,42 @@ def get_args():
 
 def convert(args):
 
-    nemo_config = OmegaConf.load(args.hparams_file)
-    nemo_config.trainer["precision"] = args.precision
-    # nemo_config.model.num_attention_heads=8 
-    # nemo_config.model.num_query_groups=8 
-    # nemo_config.model.hidden_size=32 
-    # nemo_config.model.ffn_hidden_size=112 
-    # nemo_config.model.num_moe_experts=16 
-
-    nemo_config.model.use_cpu_initialization = True
+    
     # print(nemo_config)
     # import sys
     # sys.exit()
     from transformers import AutoConfig, AutoModelForCausalLM
     config = AutoConfig.from_pretrained("ai21labs/Jamba-v0.1")
 
-    # config.hidden_size = int(config.hidden_size / 128)
-    # config.intermediate_size = int(config.intermediate_size  / 128)
-    # config.num_attention_heads = int(config.num_attention_heads/4)
-    # config.num_key_value_heads = 8
-    # import math
-    # config.mamba_dt_rank = math.ceil(config.hidden_size / 16)
+    config.hidden_size = int(config.hidden_size / 128)
+    config.intermediate_size = int(config.intermediate_size  / 128)
+    config.num_attention_heads = int(config.num_attention_heads/4)
+    config.num_key_value_heads = 8
+    import math
+    config.mamba_dt_rank = math.ceil(config.hidden_size / 16)
 
-    # hf_model = AutoModelForCausalLM.from_config(config)#.to("cuda")
+    nemo_config = OmegaConf.load(args.hparams_file)
+    nemo_config.trainer["precision"] = args.precision
+    nemo_config.model.tokenizer.type="ai21labs/Jamba-v0.1"
+    nemo_config.model.num_attention_heads=config.num_attention_heads
+    nemo_config.model.num_query_groups=config.num_key_value_heads
+    nemo_config.model.hidden_size=config.hidden_size 
+    nemo_config.model.ffn_hidden_size=config.intermediate_size 
+    # nemo_config.model.num_moe_experts=16 
+
+    nemo_config.model.hybrid_override_pattern = "M-MOM-MO*-MOM-MO"*4
+    nemo_config.model.use_cpu_initialization = True
+
+    hf_model = AutoModelForCausalLM.from_config(config)#.to("cuda")
     # import sys
     # sys.exit()
 
-    logging.info(f"Loading checkpoint from HF: `{args.input_name_or_path}`")
-    hf_model = AutoModelForCausalLM.from_pretrained(args.input_name_or_path, trust_remote_code=True, force_download=True)
+    # logging.info(f"Loading checkpoint from HF: `{args.input_name_or_path}`")
+    # hf_model = AutoModelForCausalLM.from_pretrained(args.input_name_or_path, trust_remote_code=True, force_download=True)
 
     trainer = MegatronLMPPTrainerBuilder(nemo_config).create_trainer()
 
-    nemo_model_from_hf = MegatronJambaModel(nemo_config.model, trainer)
+    nemo_model_from_hf = MegatronJambaModel(nemo_config.model, trainer).cpu()
     # print(nemo_model_from_hf.state_dict().keys())
     # import sys
     # sys.exit()
@@ -156,7 +161,16 @@ def convert(args):
     nemo_model_from_hf.load_state_dict(new_state_dict, strict=True)
     dtype = torch_dtype_from_precision(args.precision)
     nemo_model_from_hf = nemo_model_from_hf.to(dtype=dtype)
+    
+    inpt = torch.randint(10, (1,10))#.cuda()
 
+    # out_pyt = hf_model.forward(inpt)
+    # out_nemo = nemo_model_from_hf.forward(inpt)
+    # print(f"out_pyt = {out_pyt}")
+    # print(f"out_nemo = {out_nemo}")
+
+    import sys
+    sys.exit()
     nemo_model_from_hf.save_to(args.output_path)
     logging.info(f'Jamba NeMo model saved to: {args.output_path}')
 

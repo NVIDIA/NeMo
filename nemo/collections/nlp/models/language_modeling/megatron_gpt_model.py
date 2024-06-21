@@ -1295,43 +1295,43 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if isinstance(batch, tuple):
                 batch = batch[0]
             extra_arg = {}
-            if len(batch) == 3:
-                batch = [x.cuda() for x in batch]
-                tokens, attention_mask, position_ids = batch
-                attention_mask = attention_mask[0:1]
-            else:
-                (
-                    tokens,
-                    attention_mask,
-                    position_ids,
-                    set_inference_key_value_memory,
-                    inference_max_sequence_len,
-                ) = batch
-                tokens = tokens.cuda()
-                position_ids = position_ids.cuda()
-                if attention_mask is not None:
-                    attention_mask = attention_mask.cuda()
-                    attention_mask = attention_mask[0:1]
-                if self.mcore_gpt:
-                    # if first step, then clear KV cache, otherwise reuse inference_paarms
-                    if set_inference_key_value_memory[0].item():
-                        self.inference_params = InferenceParams(
-                            max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
-                        )
-                    extra_arg['inference_params'] = self.inference_params
-                else:
-                    extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-                    extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-            # Currently for all MCore transformer layer specs causal attention mask
-            # is used so we can delegate creating it to MCore/TE and pass None below
-            if (
-                isinstance(model, MCoreGPTModel)
-                or hasattr(model, "module")
-                and isinstance(model.module, MCoreGPTModel)
-            ):
-                attention_mask = None
-            output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
-
+            # if len(batch) == 3:
+            #     batch = [x.cuda() for x in batch]
+            #     tokens, attention_mask, position_ids = batch
+            #     attention_mask = attention_mask[0:1]
+            # else:
+            #     (
+            #         tokens,
+            #         attention_mask,
+            #         position_ids,
+            #         set_inference_key_value_memory,
+            #         inference_max_sequence_len,
+            #     ) = batch
+            #     tokens = tokens.cuda()
+            #     position_ids = position_ids.cuda()
+            #     if attention_mask is not None:
+            #         attention_mask = attention_mask.cuda()
+            #         attention_mask = attention_mask[0:1]
+            #     if self.mcore_gpt:
+            #         # if first step, then clear KV cache, otherwise reuse inference_paarms
+            #         if set_inference_key_value_memory[0].item():
+            #             self.inference_params = InferenceParams(
+            #                 max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
+            #             )
+            #         extra_arg['inference_params'] = self.inference_params
+            #     else:
+            #         extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+            #         extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+            # # Currently for all MCore transformer layer specs causal attention mask
+            # # is used so we can delegate creating it to MCore/TE and pass None below
+            # if (
+            #     isinstance(model, MCoreGPTModel)
+            #     or hasattr(model, "module")
+            #     and isinstance(model.module, MCoreGPTModel)
+            # ):
+            #     attention_mask = None
+            # output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
+            output_tensor = model(batch[0], batch[2], None)
             # Advance inference sequence offset.
             if self.inference_params:
                 # if last stage, then (final) output is [b, s, h], otherwise it's [s, b, h]
