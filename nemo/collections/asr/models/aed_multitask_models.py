@@ -974,7 +974,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         return MultiTaskTranscriptionConfig()
 
     def predict_step(self, batch, batch_idx=0, dataloader_idx=0, has_processed_signal=False):
-        signal, signal_len, _, _, prompt, prompt_len = batch
+        signal, signal_len, _, _, prompt, prompt_len, cats = batch
 
         processed_signal = None
         processed_signal_length = None
@@ -1001,7 +1001,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         )[0]
 
         text = [self.decoding.strip_special_tokens(t) for t in text]
-        return text
+        return (text, cats)
 
 
 def parse_multitask_prompt(prompt: dict | None) -> list[dict]:

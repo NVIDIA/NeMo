@@ -55,7 +55,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         self.prompt_format_fn = prompt_format_fn
         self.inference = inference
 
-    def __getitem__(self, cuts: CutSet) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def __getitem__(self, cuts: CutSet) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, CutSet]:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
         prompts_with_answers, prompts = self.prompt_format_fn(cuts, self.tokenizer, inference=self.inference)
@@ -72,7 +72,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             prompts = None
             prompts_lens = None
 
-        return audio, audio_lens, prompts_with_answers, prompts_with_answers_lens, prompts, prompts_lens
+        return audio, audio_lens, prompts_with_answers, prompts_with_answers_lens, prompts, prompts_lens, cuts
 
 
 # Mapping from a string name to a known prompt formatter function.
