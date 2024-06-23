@@ -98,7 +98,7 @@ def get_tokenizer(
         special_tokens_dict = {}
     else:
         special_tokens_dict = special_tokens
-
+    tokenizer_name='megatron'
     if 'megatron' in tokenizer_name:
         if not HAVE_MEGATRON_CORE:
             raise ImportError(
@@ -196,7 +196,7 @@ def get_nmt_tokenizer(
         logging.info(f'Using regex tokenization')
         return RegExTokenizer().load_tokenizer(regex_file=tokenizer_model, vocab_file=vocab_file)
     elif library == 'megatron':
-
+        model_name = 'GPTSentencePieceTokenizer'
         if model_name == 'GPTSentencePieceTokenizer':
             logging.info("tokenizer_model: ")
             logging.info(tokenizer_model)

@@ -9,8 +9,9 @@ from nemo.collections.nlp.models.language_modeling.megatron_jamba_model import M
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
-# python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_jamba_hf_to_nemo.py --output_path /home/ataghibakhsh/forks/tiny_jamba.nemo
-
+'''
+CUDA_VISIBLE_DEVICES="0" python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_jamba_hf_to_nemo.py --output_path /home/ataghibakhsh/forks/full_jamba.nemo
+'''
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
@@ -33,6 +34,7 @@ def convert(args):
 
     nemo_config = OmegaConf.load(args.hparams_file)
     nemo_config.trainer["precision"] = args.precision
+    nemo_config.model.tokenizer.type="ai21labs/Jamba-v0.1"
     # nemo_config.model.num_attention_heads=8 
     # nemo_config.model.num_query_groups=8 
     # nemo_config.model.hidden_size=32 
@@ -45,6 +47,7 @@ def convert(args):
     # sys.exit()
     from transformers import AutoConfig, AutoModelForCausalLM
     config = AutoConfig.from_pretrained("ai21labs/Jamba-v0.1")
+    nemo_config.model.hybrid_override_pattern = "M-MOM-MO*-MOM-MO"*4
 
     # config.hidden_size = int(config.hidden_size / 128)
     # config.intermediate_size = int(config.intermediate_size  / 128)
@@ -58,10 +61,10 @@ def convert(args):
     # sys.exit()
 
     logging.info(f"Loading checkpoint from HF: `{args.input_name_or_path}`")
-    hf_model = AutoModelForCausalLM.from_pretrained(args.input_name_or_path, trust_remote_code=True, force_download=True)
+    hf_model = AutoModelForCausalLM.from_pretrained(args.input_name_or_path, trust_remote_code=True)#, force_download=True)
 
     trainer = MegatronLMPPTrainerBuilder(nemo_config).create_trainer()
-
+    nemo_config.model.use_cpu_initialization = True
     nemo_model_from_hf = MegatronJambaModel(nemo_config.model, trainer)
     # print(nemo_model_from_hf.state_dict().keys())
     # import sys

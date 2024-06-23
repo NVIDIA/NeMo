@@ -66,7 +66,7 @@ class AutoTokenizer(TokenizerSpec):
         try:
             # this logic deals with different huggingface tokenizers having different positional args
             if vocab_file is None:
-                self.tokenizer = AUTOTOKENIZER.from_pretrained(
+                self.tokenizer = AUTOTOKENIZER.from_pretrained(#pretrained_model_name_or_path="EleutherAI/gpt-neox-20b"
                     pretrained_model_name_or_path=pretrained_model_name,
                     # use_fast=use_fast,
                     # trust_remote_code=trust_remote_code,
