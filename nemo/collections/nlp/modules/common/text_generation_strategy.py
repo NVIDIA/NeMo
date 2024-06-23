@@ -333,6 +333,7 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
 
+
 class JambaModelTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model):
         super().__init__(model)
@@ -407,7 +408,8 @@ class JambaModelTextGenerationStrategy(TextGenerationStrategy):
 
         output_tensor[0]['logits'] = output_tensor[0]['logits'][:, :context_length, :]
         return output_tensor
-    
+
+
 class GriffinModelTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model):
         super().__init__(model)

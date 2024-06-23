@@ -104,6 +104,7 @@ model config.
 """
 
 
+import argparse
 import copy
 import os
 import re
@@ -111,8 +112,6 @@ import shutil
 from collections import OrderedDict
 
 import torch
-import argparse
-
 
 tp_split_dim = {
     'word_embeddings.weight': 0,
@@ -155,6 +154,7 @@ def get_split_dim(tensor_name):
             return tp_split_dim[key]
     raise Exception("Unknown tensor name {}".format(tensor_name))
 
+
 def split_tensor_for_tp(params, key, dim, tensor):
 
     tp_size = params.target_tensor_model_parallel_size
@@ -166,14 +166,21 @@ def split_tensor_for_tp(params, key, dim, tensor):
             x, z = torch.split(tensor, [params.mamba_d_inner, params.mamba_d_inner], dim=dim)
             x_sliced = torch.chunk(x, tp_size, dim=dim)
             z_sliced = torch.chunk(z, tp_size, dim=dim)
-            for (x, z) in zip(x_sliced, z_sliced):
+            for x, z in zip(x_sliced, z_sliced):
                 tensor_sliced.append(torch.cat((x, z), dim=dim))
 
         elif 'mixer.in_proj.weight' in key and params.mamba_version == 2:
-            x, z, B, C, dt = torch.split(tensor, [params.mamba_d_inner, params.mamba_d_inner,
-                                                        params.mamba2_n_groups * params.mamba_d_state,
-                                                        params.mamba2_n_groups * params.mamba_d_state,
-                                                        params.mamba2_n_heads], dim=dim)
+            x, z, B, C, dt = torch.split(
+                tensor,
+                [
+                    params.mamba_d_inner,
+                    params.mamba_d_inner,
+                    params.mamba2_n_groups * params.mamba_d_state,
+                    params.mamba2_n_groups * params.mamba_d_state,
+                    params.mamba2_n_heads,
+                ],
+                dim=dim,
+            )
             B = torch.reshape(B, (-1, params.mamba_d_state, B.shape[-1]))
             C = torch.reshape(C, (-1, params.mamba_d_state, C.shape[-1]))
 
@@ -184,13 +191,19 @@ def split_tensor_for_tp(params, key, dim, tensor):
             dt_sliced = torch.chunk(dt, tp_size, dim=dim)
 
             tensor_sliced = []
-            for (x, z, B, C, dt) in zip(x_sliced, z_sliced, B_sliced, C_sliced, dt_sliced):
+            for x, z, B, C, dt in zip(x_sliced, z_sliced, B_sliced, C_sliced, dt_sliced):
                 tensor_sliced.append(torch.cat((x, z, B.flatten(0, 1), C.flatten(0, 1), dt), dim=dim))
 
         elif 'mixer.conv1d' in key and params.mamba_version == 2:
-            x, B, C = torch.split(tensor, [params.mamba_d_inner,
-                                                params.mamba2_n_groups * params.mamba_d_state,
-                                                params.mamba2_n_groups * params.mamba_d_state], dim=dim)
+            x, B, C = torch.split(
+                tensor,
+                [
+                    params.mamba_d_inner,
+                    params.mamba2_n_groups * params.mamba_d_state,
+                    params.mamba2_n_groups * params.mamba_d_state,
+                ],
+                dim=dim,
+            )
             if 'weight' in key:
                 B = torch.reshape(B, (-1, params.mamba_d_state, B.shape[-2], B.shape[-1]))
                 C = torch.reshape(C, (-1, params.mamba_d_state, C.shape[-2], C.shape[-1]))
@@ -205,7 +218,7 @@ def split_tensor_for_tp(params, key, dim, tensor):
             x_sliced = torch.chunk(x, tp_size, dim=dim)
 
             tensor_sliced = []
-            for (x, B, C) in zip(x_sliced, B_sliced, C_sliced):
+            for x, B, C in zip(x_sliced, B_sliced, C_sliced):
                 tensor_sliced.append(torch.cat((x, B.flatten(0, 1), C.flatten(0, 1)), dim=dim))
         elif '_extra_state' in key:
             pass
@@ -363,8 +376,8 @@ def write_tp_pp_split(model, splits, app_state, tp_size, pp_rank, write_path):
 
             if param.shape != split_val.shape:
                 raise RuntimeError(
-                        f"Can not handle parameter {name}, required shape: {param.shape}, split shape: {split_val.shape}."
-                    )
+                    f"Can not handle parameter {name}, required shape: {param.shape}, split shape: {split_val.shape}."
+                )
                 # logging.info(
                 #     f"Warning: Shape mismatch for parameter {name} required shape: {param.shape}, split shape: {split_val.shape}. Padding to match required size."
                 # )
@@ -418,7 +431,7 @@ def split_tp_partition_only(args, model, original_model, tp_size, write_path=Non
 
     idx = 0
     splits = []
-    
+
     for ii, (key, original_tensor) in enumerate(original_model.model.state_dict().items()):
         try:
             layer_num = int(re.findall(r'\d+', key)[0])
@@ -502,7 +515,9 @@ def main():
         help="Path to the tokenizer model path if your model uses a tokenizer model as an artifact. This is needed if your model uses a sentencepiece tokenizer.",
     )
     parser.add_argument('--hparams_file', type=str, default=None, help='Path to hparams file from PTL training')
-    parser.add_argument('--tp_conversion_only', default=True, action='store_true', help='Only convert TP model to TP model')
+    parser.add_argument(
+        '--tp_conversion_only', default=True, action='store_true', help='Only convert TP model to TP model'
+    )
     parser.add_argument('--model_extracted_dir', type=str, default=None, help='Path to pre-extracted model directory')
 
     parser.add_argument('--d-model', type=int, default=4096)
@@ -586,7 +601,7 @@ def main():
         scaler = None
         if precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
-                init_scale=tmp_cfg.get('native_amp_init_scale', 2 ** 32),
+                init_scale=tmp_cfg.get('native_amp_init_scale', 2**32),
                 growth_interval=tmp_cfg.get('native_amp_growth_interval', 1000),
                 hysteresis=tmp_cfg.get('hysteresis', 2),
             )
@@ -607,7 +622,10 @@ def main():
     if tp_size < 0 or pp_size < 0:
         logging.info(f"Loading model config from {args.model_file} to get TP and PP size")
         model_config_internal = cls.restore_from(
-            restore_path=args.model_file, trainer=trainer, map_location=torch.device("cpu"), return_config=True,
+            restore_path=args.model_file,
+            trainer=trainer,
+            map_location=torch.device("cpu"),
+            return_config=True,
         )
 
         tp_size = model_config_internal.get('tensor_model_parallel_size', 1)
@@ -649,7 +667,6 @@ def main():
     app_state.tensor_model_parallel_rank = 0
     app_state.pipeline_model_parallel_rank = 0
 
-
     # Extract tokenizer artifact from the model to temp directory
     logging.info("Extracting tokenizer artifact from NeMo file...")
     temp_dir = tempfile.mkdtemp()
@@ -678,7 +695,7 @@ def main():
     # If input model has TP > 1 or PP > 1
     # Reconstruct the model to have TP = 1 and PP = 1
     # Note that this is a forward loop that will process PP [0..N] TP [0..M] in sequential order.
-    
+
     # If input model has TP = 1 and PP = 1
     app_state.model_parallel_size = 1
 
@@ -722,7 +739,7 @@ def main():
     original_model._save_restore_connector = NLPSaveRestoreConnector()
     original_model.freeze()
     original_model.to(dtype=dtype)
-    
+
     # for k, v in model.model[0].state_dict().items():
     #     if v is not None:
     #         print(f"k = {k}, v = {v.shape}")
@@ -839,7 +856,9 @@ def main():
             # Special case for TP conversion only mode
             if tp_conversion_only:
                 logging.info(f"Skipping PP split due to flag `--tp_conversion_only`")
-                split_tp_partition_only(args, model, original_model, tgt_tp_size, args.target_file, args.megatron_legacy)
+                split_tp_partition_only(
+                    args, model, original_model, tgt_tp_size, args.target_file, args.megatron_legacy
+                )
                 break
 
 
