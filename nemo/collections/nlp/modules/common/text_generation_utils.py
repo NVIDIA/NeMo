@@ -676,9 +676,7 @@ def generate(
     if input_is_chat(inputs):
         inputs = list(
             map(
-                lambda x: tokenize_with_chat_template(
-                    model.tokenizer, x, model.cfg.tokenizer.chat_template, add_BOS
-                ),
+                lambda x: tokenize_with_chat_template(model.tokenizer, x, model.cfg.tokenizer.chat_template, add_BOS),
                 inputs,
             )
         )
