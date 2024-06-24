@@ -17,6 +17,10 @@ if TYPE_CHECKING:
 
 @dataclass
 class MixtralConfig(GPTConfig):
+    """
+    Config for Mixtral-8x7B model
+    Official announcement: https://mistral.ai/news/mixtral-of-experts/
+    """
     normalization: str = "RMSNorm"
     activation_func: Callable = F.silu
     position_embedding_type: str = "rope"
