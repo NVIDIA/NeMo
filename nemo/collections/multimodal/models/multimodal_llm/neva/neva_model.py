@@ -75,11 +75,11 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import InferenceParams, dist_checkpointing, parallel_state
+    from megatron.core import InferenceParams, dist_checkpointing, parallel_state, tensor_parallel
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
-    from megatron.core import tensor_parallel
+
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -149,33 +149,34 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         self.vision_select_layer = vision_select_layer
         self.media = None
         self.set_accepted_adapter_types([MultimodalProjectorAdapterConfig._target_])
+
     def set_media(self, media):
         self.media = media
 
     def forward(self, input_ids, **kwargs):
         media = self.media  # avoid changing the signature of embedding forward function
-        
-        #TODO: Refactor replace_media_embedding to account for MCore's embedding communication optimization
-        #https://github.com/NVIDIA/Megatron-LM/commit/ee423e7 changes the way we handle embeddings with sequence parallelism
-        #When using reduce_scatter_embeddings, word_embedding_tensor is now in the following shape: [sequence/tp, batch_size, hidden_size]
-        #replace_media_embedding currently expects [batch_size, sequence, hidden_size]
 
-        #Check if reduce_scatter_embeddings is enabled in the embedding forward function
+        # TODO: Refactor replace_media_embedding to account for MCore's embedding communication optimization
+        # https://github.com/NVIDIA/Megatron-LM/commit/ee423e7 changes the way we handle embeddings with sequence parallelism
+        # When using reduce_scatter_embeddings, word_embedding_tensor is now in the following shape: [sequence/tp, batch_size, hidden_size]
+        # replace_media_embedding currently expects [batch_size, sequence, hidden_size]
+
+        # Check if reduce_scatter_embeddings is enabled in the embedding forward function
         apply_reduce_scatter = getattr(self, 'reduce_scatter_embeddings', False)
-        
-        #Set reduce_scatter_embeddings to false to keep words_embedding's 
-        #tensor dimesion the same for replace_media_embedding
+
+        # Set reduce_scatter_embeddings to false to keep words_embedding's
+        # tensor dimesion the same for replace_media_embedding
         if apply_reduce_scatter:
             self.reduce_scatter_embeddings = False
 
         words_embeddings = super().forward(input_ids, **kwargs)
         words_embeddings = self.replace_media_embeddings(input_ids, words_embeddings, media)
-        
-        #Scatter embeddings back to each TP rank if reduce_scatter_embeddings is enabled
+
+        # Scatter embeddings back to each TP rank if reduce_scatter_embeddings is enabled
         if apply_reduce_scatter:
             words_embeddings = self._apply_reduce_scatter(words_embeddings)
             self.reduce_scatter_embeddings = True
-        
+
         return words_embeddings
 
     def _apply_reduce_scatter(self, embeddings):
