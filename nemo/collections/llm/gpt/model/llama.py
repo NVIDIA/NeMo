@@ -1,20 +1,19 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Type, Optional, Annotated
+from typing import TYPE_CHECKING, Annotated, Callable, Optional, Type
 
 import torch
 import torch.nn.functional as F
 
-from nemo.lightning import io, OptimizerModule, teardown
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
+from nemo.lightning import OptimizerModule, io, teardown
 
 if TYPE_CHECKING:
+    from transformers import LlamaConfig as HFLlamaConfig
+    from transformers import LlamaForCausalLM
+
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-    from transformers import (
-        LlamaConfig as HFLlamaConfig,
-        LlamaForCausalLM,
-    )
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -56,6 +55,7 @@ class Llama2Config70B(LlamaConfig):
     num_attention_heads: int = 64
     num_query_groups: int = 8
     ffn_hidden_size: int = 28672
+
 
 @dataclass
 class Llama3Config8B(Llama2Config7B):
@@ -126,6 +126,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         del trainer, target
 
         return output_path
+
     def convert_state(self, source, target):
         mapping = {
             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
@@ -134,19 +135,15 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
             "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
             "model.norm.weight": "decoder.final_layernorm.weight",
-            "lm_head.weight": "output_layer.weight"
+            "lm_head.weight": "output_layer.weight",
         }
 
-        return io.apply_transforms(
-            source,
-            target,
-            mapping=mapping,
-            transforms=[_import_qkv, _import_linear_fc1]
-        )
+        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_linear_fc1])
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
         return AutoTokenizer(str(self))
 
     @property
@@ -206,15 +203,10 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
             "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
             "decoder.final_layernorm.weight": "model.norm.weight",
-            "output_layer.weight": "lm_head.weight"
+            "output_layer.weight": "lm_head.weight",
         }
 
-        return io.apply_transforms(
-            source,
-            target,
-            mapping=mapping,
-            transforms=[_export_qkv, _export_linear_fc1]
-        )
+        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
 
     @property
     def tokenizer(self):
@@ -243,11 +235,11 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 
 @io.state_transform(
     source_key=(
-            "model.layers.*.self_attn.q_proj.weight",
-            "model.layers.*.self_attn.k_proj.weight",
-            "model.layers.*.self_attn.v_proj.weight",
+        "model.layers.*.self_attn.q_proj.weight",
+        "model.layers.*.self_attn.k_proj.weight",
+        "model.layers.*.self_attn.v_proj.weight",
     ),
-    target_key="decoder.layers.*.self_attention.linear_qkv.weight"
+    target_key="decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_qkv(ctx: io.TransformCTX, q, k, v):
     megatron_config = ctx.target.config
@@ -269,22 +261,16 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 
     qkv_weights_l = []
     for i in range(num_query_groups):
-        qkv_weights_l.append(
-            q[i * heads_per_group: (i + 1) * heads_per_group, :, :]
-        )
-        qkv_weights_l.append(k[i: i + 1, :, :])
-        qkv_weights_l.append(v[i: i + 1, :, :])
+        qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
+        qkv_weights_l.append(k[i : i + 1, :, :])
+        qkv_weights_l.append(v[i : i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
-    assert (
-            qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups
-    ), qkv_weights.shape
+    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
     assert qkv_weights.shape[1] == head_size, qkv_weights.shape
     assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
 
-    qkv_weights = qkv_weights.reshape(
-        [head_size * (head_num + 2 * num_query_groups), hidden_size]
-    )
+    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
 
     return qkv_weights
 
@@ -292,9 +278,9 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 @io.state_transform(
     source_key="decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
-            "model.layers.*.self_attn.q_proj.weight",
-            "model.layers.*.self_attn.k_proj.weight",
-            "model.layers.*.self_attn.v_proj.weight",
+        "model.layers.*.self_attn.q_proj.weight",
+        "model.layers.*.self_attn.k_proj.weight",
+        "model.layers.*.self_attn.v_proj.weight",
     ),
 )
 def _export_qkv(ctx: io.TransformCTX, linear_qkv):
@@ -326,11 +312,8 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
 
 
 @io.state_transform(
-    source_key=(
-            "model.layers.*.mlp.gate_proj.weight",
-            "model.layers.*.mlp.up_proj.weight"
-    ),
-    target_key="decoder.layers.*.mlp.linear_fc1.weight"
+    source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+    target_key="decoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_linear_fc1(down, gate):
     return torch.cat((down, gate), axis=0).float()
@@ -338,10 +321,7 @@ def _import_linear_fc1(down, gate):
 
 @io.state_transform(
     source_key="decoder.layers.*.mlp.linear_fc1.weight",
-    target_key=(
-            "model.layers.*.mlp.gate_proj.weight",
-            "model.layers.*.mlp.up_proj.weight"
-    ),
+    target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
 )
 def _export_linear_fc1(linear_fc1):
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
