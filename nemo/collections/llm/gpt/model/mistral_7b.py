@@ -71,9 +71,6 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
 
         return output_path
 
-    def on_import_ckpt(self, model: pl.LightningModule):
-        model.tokenizer = self.tokenizer
-
     def convert_state(self, source, target):
         mapping = {
             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
