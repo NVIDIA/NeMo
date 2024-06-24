@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, Optional, Protocol, TypeVar, Union
+from typing import Any, Callable, Dict, Generic, Optional, TypeVar, Union
 
 import pytorch_lightning as pl
 import torch
@@ -14,8 +14,6 @@ from typing_extensions import Self, override
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
 
-if TYPE_CHECKING:
-    from nemo.lightning.pytorch.strategies import MegatronStrategy
 
 log = logging.getLogger(__name__)
 
@@ -25,7 +23,7 @@ ModuleT = TypeVar("ModuleT", bound=nn.Module)
 
 
 @dataclass
-class TrainerCheckpoint(IOMixin, Generic[LightningModuleT]):
+class TrainerContext(IOMixin, Generic[LightningModuleT]):
     model: LightningModuleT
     trainer: pl.Trainer
     extra: Dict[str, Any] = field(default_factory=dict)
@@ -46,13 +44,6 @@ class TrainerCheckpoint(IOMixin, Generic[LightningModuleT]):
             extra["datamodule"] = trainer.datamodule.__io__
 
         return extra
-
-
-class TrainerCkptProtocol(Protocol):
-    @classmethod
-    def from_strategy(cls, strategy: "MegatronStrategy") -> Self: ...
-
-    def io_dump(self, output: Path): ...
 
 
 class MegatronCheckpointIO(CheckpointIO):
