@@ -20,6 +20,8 @@ __all__ = [
     "Llama2Config7B",
     "Llama2Config13B",
     "Llama2Config70B",
+    "Llama3Config8B",
+    "Llama3Config70B",
     "CodeLlamaConfig7B",
     "CodeLlamaConfig13B",
     "CodeLlamaConfig34B",

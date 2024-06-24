@@ -58,6 +58,17 @@ class Llama2Config70B(LlamaConfig):
     ffn_hidden_size: int = 28672
 
 @dataclass
+class Llama3Config8B(Llama2Config7B):
+    seq_length: int = 8192
+    num_query_groups: int = 8
+    fnn_hidden_size: int = 14336
+
+@dataclass
+class Llama3Config70B(Llama2Config70B):
+    seq_length: int = 8192
+
+
+@dataclass
 class CodeLlamaConfig7B(Llama2Config7B):
     rotary_base: int = 1_000_000
     seq_length: int = 16384
@@ -343,6 +354,8 @@ __all__ = [
     "Llama2Config7B",
     "Llama2Config13B",
     "Llama2Config70B",
+    "Llama3Config8B",
+    "Llama3Config70B",
     "CodeLlamaConfig7B",
     "CodeLlamaConfig13B",
     "CodeLlamaConfig34B",
