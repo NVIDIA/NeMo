@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """
-Requires HF transformers updated to support Gemma Models
    python3 /opt/NeMo/scripts/checkpoint_converters/convert_llava_hf_to_nemo.py \
    --input_name_or_path llava-hf/llava-1.5-7b-hf \
    --output_path /path/to/llava-7b.nemo \
@@ -251,6 +250,7 @@ def get_args():
     parser.add_argument(
         "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weight saved"
     )
+    parser.add_argument("--skip_verification", action="store_true")
 
     args = parser.parse_args()
     return args
@@ -280,42 +280,43 @@ def convert(args):
     model.load_state_dict(nemo_state_dict, strict=False)
 
     logging.info(f'=' * 100)
-    # Verifications
-    input_texts = [
-        'query: how much protein should a female eat',
-    ]
-    logging.info(f"Running verifications {input_texts} ...")
+    if not args.skip_verification:
+        # Verifications
+        input_texts = [
+            'query: how much protein should a female eat',
+        ]
+        logging.info(f"Running verifications {input_texts} ...")
 
-    # Tokenize the input texts
-    hf_tokenizer.pad_token = hf_tokenizer.eos_token
-    batch_dict = hf_tokenizer(input_texts, max_length=512, padding=True, truncation=True, return_tensors='pt')
-    batch_dict_cuda = {k: v.cuda() for k, v in batch_dict.items()}
-    hf_model = hf_model.cuda().eval()
-    model = model.eval()
+        # Tokenize the input texts
+        hf_tokenizer.pad_token = hf_tokenizer.eos_token
+        batch_dict = hf_tokenizer(input_texts, max_length=512, padding=True, truncation=True, return_tensors='pt')
+        batch_dict_cuda = {k: v.cuda() for k, v in batch_dict.items()}
+        hf_model = hf_model.cuda().eval()
+        model = model.eval()
 
-    hf_outputs = hf_model(**batch_dict_cuda, output_hidden_states=True)
-    ids = batch_dict_cuda['input_ids']
+        hf_outputs = hf_model(**batch_dict_cuda, output_hidden_states=True)
+        ids = batch_dict_cuda['input_ids']
 
-    id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids.cpu()]
+        id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids.cpu()]
 
-    masks_and_position_ids = [
-        get_ltor_masks_and_position_ids(id_tensor, hf_tokenizer.eos_token, False, False, False)
-        for id_tensor in id_tensors
-    ]
-    for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
-        attn_mask, _, pos_ids = attn_mask_and_pos_ids
+        masks_and_position_ids = [
+            get_ltor_masks_and_position_ids(id_tensor, hf_tokenizer.eos_token, False, False, False)
+            for id_tensor in id_tensors
+        ]
+        for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
+            attn_mask, _, pos_ids = attn_mask_and_pos_ids
 
-        outputs = model(tokens=tokens, text_position_ids=pos_ids.cuda(), attention_mask=attn_mask.cuda(), labels=None)
+            outputs = model(tokens=tokens, text_position_ids=pos_ids.cuda(), attention_mask=attn_mask.cuda(), labels=None)
 
-    hf_next_token = hf_outputs.logits[0, -1].argmax()
-    next_token = outputs.squeeze()[-1].argmax()
+        hf_next_token = hf_outputs.logits[0, -1].argmax()
+        next_token = outputs.squeeze()[-1].argmax()
 
-    logging.info(f"HF predicted next token is: '{hf_tokenizer._convert_id_to_token(int(hf_next_token))}'.")
-    logging.info(f"NeMo predicted next token is: '{hf_tokenizer._convert_id_to_token(int(next_token))}'.")
-    assert (
-        hf_next_token == next_token
-    ), f'prediction mismatch: {hf_tokenizer.decode(hf_next_token)} != {hf_tokenizer.decode(next_token)}'
-    logging.info(f'=' * 100)
+        logging.info(f"HF predicted next token is: '{hf_tokenizer._convert_id_to_token(int(hf_next_token))}'.")
+        logging.info(f"NeMo predicted next token is: '{hf_tokenizer._convert_id_to_token(int(next_token))}'.")
+        assert (
+            hf_next_token == next_token
+        ), f'prediction mismatch: {hf_tokenizer.decode(hf_next_token)} != {hf_tokenizer.decode(next_token)}'
+        logging.info(f'=' * 100)
 
     dtype = torch_dtype_from_precision(args.precision)
     model = model.to(dtype=dtype)
