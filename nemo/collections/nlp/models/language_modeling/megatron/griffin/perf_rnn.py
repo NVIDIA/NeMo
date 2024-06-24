@@ -1,15 +1,18 @@
 import argparse
 from functools import partial
-import torch
+
 import numpy as np
+import torch
+
 from nemo.collections.nlp.models.language_modeling.megatron.griffin.recurrent_module import (
     RGLRU,
     Conv1D,
     RecurrentLayer,
     RecurrentLayerSubmodules,
 )
-#import os
-#os.environ['XLA_FLAGS'] = os.environ.get('XLA_FLAGS') + ' --xla_dump_hlo_as_text --xla_dump_hlo_as_html --xla_dump_to=/scratch/my_work/nsys/jax/gemma/hlo_out/rglru_b2_s4096_h10_d256_auto'
+
+# import os
+# os.environ['XLA_FLAGS'] = os.environ.get('XLA_FLAGS') + ' --xla_dump_hlo_as_text --xla_dump_hlo_as_html --xla_dump_to=/scratch/my_work/nsys/jax/gemma/hlo_out/rglru_b2_s4096_h10_d256_auto'
 # nsys_cmd="nsys profile -s none -t nvtx,cuda -o /home/ataghibakhsh/nsys_results --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop"
 
 
@@ -22,9 +25,9 @@ def train_step(model, x, segment_pos, y_grad):
     out, _ = model(x, segment_pos, None)
 
     # Backward pass
-    # out.backward(y_grad)  
+    # out.backward(y_grad)
     # # Extract gradients
-    x_grad = None# x.grad
+    x_grad = None  # x.grad
 
     # Return the output, gradients of the parameters, and gradients of the input
     return out, x_grad
@@ -52,7 +55,7 @@ def main():
 
     model = RGLRU(args.hidden_size, args.num_heads).cuda()
     model = model.to(dtype=torch.bfloat16)
-    
+
     # params = model.init(x, segment_pos)
 
     # jitted_train_step = jax.jit(train_step, static_argnums=0)
@@ -69,6 +72,7 @@ def main():
 
     # return out, x_grad
     model.train()
+
     def train_and_measure_memory(model, x):
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         criterion = torch.nn.CrossEntropyLoss()
@@ -83,7 +87,6 @@ def main():
         torch.cuda.reset_peak_memory_stats()  # Reset memory stats to measure next model
         return peak_memory
 
-
     checkpointed_model = model().cuda()
     # regular_model = RegularCNN().cuda()
 
@@ -93,6 +96,7 @@ def main():
     print(f"Memory usage with checkpointing: {memory_with_checkpointing:.2f} MB")
     # print(f"Memory usage without checkpointing: {memory_without_checkpointing:.2f} MB")
     # print(f"Memory saved: {memory_without_checkpointing - memory_with_checkpointing:.2f} MB")
+
 
 if __name__ == "__main__":
     main()

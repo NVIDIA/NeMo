@@ -11,13 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from megatron.core.transformer.identity_op import IdentityFuncOp, IdentityOp
-
 import os
 import tempfile
 from typing import List, Optional, Union
 
 import torch
+from megatron.core.transformer.identity_op import IdentityFuncOp, IdentityOp
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.utils.model_utils import inject_model_parallel_rank
