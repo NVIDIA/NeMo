@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, Optional, Type
+from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
 import torch.nn.functional as F
