@@ -22,6 +22,7 @@ from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerB
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
+from nemo.lightning.base import teardown
 from nemo.utils import logging
 from nemo.utils.callbacks import CUDAGraphCallback
 from nemo.utils.exp_manager import exp_manager
@@ -74,7 +75,11 @@ def main(cfg) -> None:
             n, c, h = cfg.model.micro_batch_size, cfg.model.channels, cfg.model.image_size
             x = torch.randn((n, c, h, h), dtype=torch.float32, device="cuda")
             t = torch.randint(77, (n,), device="cuda")
-            cc = torch.randn((n, 77, cfg.model.unet_config.context_dim), dtype=torch.float32, device="cuda",)
+            cc = torch.randn(
+                (n, 77, cfg.model.unet_config.context_dim),
+                dtype=torch.float32,
+                device="cuda",
+            )
             if cfg.model.precision in [16, '16']:
                 x = x.type(torch.float16)
                 cc = cc.type(torch.float16)
@@ -107,7 +112,10 @@ def main(cfg) -> None:
         else:
             logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
 
-    trainer.fit(model)
+    try:
+        trainer.fit(model)
+    finally:
+        teardown(trainer)
 
 
 if __name__ == '__main__':
