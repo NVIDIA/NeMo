@@ -267,7 +267,7 @@ class AudioSegment(object):
                     # pydub does things in milliseconds
                     seconds = offset * 1000
                     samples = samples[int(seconds) :]
-                if duration > 0:
+                if duration is not None and duration > 0:
                     seconds = duration * 1000
                     samples = samples[: int(seconds)]
                 samples = np.array(samples.get_array_of_samples())

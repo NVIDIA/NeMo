@@ -587,6 +587,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         # Score
         similarity_score = torch.dot(X, Y) / ((torch.dot(X, X) * torch.dot(Y, Y)) ** 0.5)
         similarity_score = (similarity_score + 1) / 2
+
         # Decision
         if similarity_score >= threshold:
             logging.info(" two audio files are from same speaker")
