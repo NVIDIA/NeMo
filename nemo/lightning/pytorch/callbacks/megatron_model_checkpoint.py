@@ -82,11 +82,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             log_dir = app_state.log_dir
 
             # Check to see if any files exist that need to be moved
-            files_to_move = []
-            if Path(log_dir).exists():
-                for child in Path(log_dir).iterdir():
-                    if child.is_file():
-                        files_to_move.append(child)
+            files_to_move = app_state.files_to_move
 
             if len(files_to_move) > 0:
                 # Move old files to a new folder
@@ -98,6 +94,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 new_run_dir = Path(Path(log_dir) / f"run_{run_count}")
                 new_run_dir.mkdir()
                 for _file in files_to_move:
+                    print(f'FILES TO MOVE: {files_to_move}')
                     shutil.move(str(_file), str(new_run_dir))
 
             # Move files_to_copy to folder and add git information if present
