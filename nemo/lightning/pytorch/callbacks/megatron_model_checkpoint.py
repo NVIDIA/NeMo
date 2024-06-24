@@ -369,10 +369,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
         ema_callback = self._ema_callback(trainer)
-        from nemo.utils.get_rank import is_global_rank_zero
-
-        if self.enable_nemo_ckpt_io and is_global_rank_zero():
-            TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath))
 
         if ema_callback is not None:
             with ema_callback.save_original_optimizer_state(trainer):
@@ -405,7 +401,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             from nemo.utils.get_rank import is_global_rank_zero
 
             if self.enable_nemo_ckpt_io and is_global_rank_zero():
-                TrainerCheckpoint.from_trainer(trainer).io_dump(ckpt_to_dir(filepath))
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath))
 
             # notify loggers
             if trainer.is_global_zero:
