@@ -30,6 +30,7 @@ import wrapt
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
+from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_trt_llm_ckpt
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import get_tokenzier, is_nemo_file, load_nemo_model
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
 from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
@@ -42,6 +43,12 @@ try:
     from nemo.deploy.utils import cast_output, str_ndarray2list
 except Exception:
     use_deploy = False
+
+try:
+    from megatron.core import parallel_state
+    HAVE_MEGATRON_CORE = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_MEGATRON_CORE = False
 
 
 @wrapt.decorator
@@ -336,8 +343,11 @@ class TensorRTLLM(ITritonDeployable):
         trt_model_dir: str = None,
         reshard_model: bool = False,
     ):        
+        """
+        Convert an instantiated nemo model to TensorRT-LLM.
+        """
+
         assert tensorrt_llm.mpi_rank() == torch.distributed.get_rank()
-        from megatron.core import parallel_state
         from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import build_tokenizer
 
         global_devices = [None for _ in range(torch.distributed.get_world_size())]
@@ -392,6 +402,7 @@ class TensorRTLLM(ITritonDeployable):
             model_dir=self.model_dir,
             model_type=trt_model_type,
             custom_all_reduce=False,
+            use_refit=use_refit
         )
         torch.distributed.barrier()
     
@@ -402,6 +413,30 @@ class TensorRTLLM(ITritonDeployable):
 
         self.model_runner, self.session_params = load_distributed(
             engine_dir=self.model_dir, model_parallel_rank=mp_rank, gpus_per_node=gpus_per_node)
+
+    def refit(self, model, nemo_model_config):
+        """
+        Refits an TensorRT engine using an instantiated nemo model.
+        This function should only be used after calling build()
+        """
+
+        pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+        tp_size = parallel_state.get_tensor_model_parallel_world_size()
+        if self.reshard_model:
+            pp_size = 1
+
+        weights_dict = dist_model_to_trt_llm_ckpt(
+            model=model, 
+            nemo_model_config=nemo_model_config, 
+            inference_tp_size=tp_size,
+            inference_pp_size=pp_size,
+            tokenizer_vocab_size=self.tokenizer.vocab_size,
+        )
+
+        if not hasattr(self.model_runner, "session"):
+            self.model_runner.session = create_gpt_session(self.session_params)
+        self.model_runner.session.refit_engine(
+            weights_dict, self.session_params.model_config.data_type)
 
     def forward(
         self,

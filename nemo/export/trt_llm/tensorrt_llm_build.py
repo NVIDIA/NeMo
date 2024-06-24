@@ -46,6 +46,7 @@ def build_and_save_engine(
     remove_input_padding: bool = True,
     paged_context_fmha: bool = False,
     custom_all_reduce: bool = True,
+    use_refit: bool = False, 
     max_num_tokens: int = None,
     opt_num_tokens: int = None,
     max_beam_width: int = 1,
@@ -93,7 +94,7 @@ def build_and_save_engine(
         'gather_generation_logits': False,
         'strongly_typed': False,
         'builder_opt': None,
-        'use_refit': True,
+        'use_refit': use_refit,
     }
     build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
 

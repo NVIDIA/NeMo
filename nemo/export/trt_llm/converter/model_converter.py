@@ -160,8 +160,7 @@ def model_to_trtllm_ckpt(
         'logits_dtype': 'float32',
         'world_size': world_size,
         'tp_size': tensor_parallel_size,
-        'pp_size': pipeline_parallel_size,
-        
+        'pp_size': pipeline_parallel_size,   
     }
     model_configs = []
     weights_dicts = []
