@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional
 
-import torch.nn.functional as F
 import torch
+import torch.nn.functional as F
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.lightning import io, teardown
@@ -125,7 +125,6 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
         )
 
 
-
 @io.state_transform(
     source_key=(
         "model.layers.*.self_attn.q_proj.weight",
@@ -170,8 +169,9 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 
 @io.state_transform(
     source_key=(
-    "model.layers.*.block_sparse_moe.experts.*.w1.weight",
-    "model.layers.*.block_sparse_moe.experts.*.w3.weight"),
+        "model.layers.*.block_sparse_moe.experts.*.w1.weight",
+        "model.layers.*.block_sparse_moe.experts.*.w3.weight",
+    ),
     target_key="decoder.layers.*.mlp.experts.local_experts.*.linear_fc1.weight",
 )
 def _import_moe_w1_w3(gate_proj, up_proj):
