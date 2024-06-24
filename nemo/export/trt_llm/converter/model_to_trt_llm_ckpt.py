@@ -24,7 +24,8 @@ import torch
 from tensorrt_llm._utils import pad_vocab_size, str_dtype_to_torch, torch_to_numpy
 from tqdm import tqdm
 
-from nemo.export.trt_llm.converter.utils import split_and_save_weight, split_save_weight_gpu
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision 
+from nemo.export.trt_llm.converter.utils import split_and_save_weight, split_save_weight_gpu, weights_dict
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -262,11 +263,9 @@ def dist_model_to_trt_llm_ckpt(
     inference_tp_size,
     inference_pp_size,
     tokenizer_vocab_size, 
-    cpu=True
 ):
     from megatron.core import parallel_state
     from megatron.core.tensor_parallel.utils import VocabUtility
-    from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision 
 
     tp_rank = parallel_state.get_tensor_model_parallel_rank()
     tp_size = parallel_state.get_tensor_model_parallel_world_size()
@@ -302,9 +301,6 @@ def dist_model_to_trt_llm_ckpt(
     storage_type = torch_dtype_from_precision(nemo_model_config.precision)
     prefix, transformer_layer_prefix = get_layer_prefix(state_dict, is_mcore)
 
-    from nemo.export.trt_llm.converter.utils import weights_dict as persistent_weights_dict
-    weights_dict = persistent_weights_dict if cpu else {}
-
     export_config = {
         "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
         "tp_size": tp_size,
@@ -314,7 +310,7 @@ def dist_model_to_trt_llm_ckpt(
         "transpose_weights": True,
         "num_layers": num_layers,
         "storage_type": storage_type,
-        "move_to_cpu": cpu,
+        "move_to_cpu": True,
         "save_dict": weights_dict,
         "tp_rank": tp_rank,
         "weight_type": None,
