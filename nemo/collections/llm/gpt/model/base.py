@@ -23,7 +23,7 @@ class GPTConfig(TransformerConfig):
     # From megatron.core.models.gpt.gpt_model.GPTModel
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True
-    share_embeddings_and_output_weights: bool = False
+    share_embeddings_and_output_weights: bool = True
     make_vocab_size_divisible_by: int = 128
     position_embedding_type: Literal["learned_absolute", "rope"] = "learned_absolute"
     rotary_base: int = 10000
@@ -170,7 +170,7 @@ def gpt_forward_step(model, batch) -> torch.Tensor:
 def get_batch_on_this_context_parallel_rank(batch):
     from megatron.core import parallel_state
 
-    if cp_size := parallel_state.get_context_parallel_world_size() > 1:
+    if (cp_size := parallel_state.get_context_parallel_world_size()) > 1:
         num_valid_tokens_in_ub = None
         if 'loss_mask' in batch and batch['loss_mask'] is not None:
             num_valid_tokens_in_ub = batch['loss_mask'].sum()
@@ -200,7 +200,7 @@ def get_packed_seq_params(batch):
 
     cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
     # remove -1 "paddings" added in collate_fn
-    if cu_seqlens_argmin := batch.get('cu_seqlens_argmin', None) is not None:
+    if (cu_seqlens_argmin := batch.get('cu_seqlens_argmin', None)) is not None:
         # pre-compute cu_seqlens_argmin in dataset class for perf
         cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
     else:
