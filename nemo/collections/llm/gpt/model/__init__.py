@@ -5,8 +5,8 @@ from nemo.collections.llm.gpt.model.base import (
     gpt_data_step,
     gpt_forward_step,
 )
-from nemo.collections.llm.gpt.model.llama import *
 from nemo.collections.llm.gpt.model.gemma import *
+from nemo.collections.llm.gpt.model.llama import *
 from nemo.collections.llm.gpt.model.mistral_7b import Mistral7BConfig, Mistral7BModel
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig, MixtralModel
 
