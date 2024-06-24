@@ -94,10 +94,10 @@ def get_default_length_params():
 def render_chat_turn(template, input):
     assert input['role'] in template['roles']
     template = template['roles'][input['role']]
-    prompt_part = input['content']
+    content = input['content']
     prefix = template.get('prefix', '')
     suffix = template.get('suffix', '')
-    decorated_prompt = f"{prefix}{prompt_part}{suffix}"
+    decorated_prompt = f"{prefix}{content}{suffix}"
     return decorated_prompt, template.get('add_eos_suffix', False)
 
 
@@ -115,7 +115,7 @@ def tokenize_with_chat_template(tokenizer, inputs, template, add_bos):
     if len(tmp_buffer) > 0:
         ans.append(tokenizer.text_to_ids(''.join(tmp_buffer)))
     ans = sum(ans, [])
-    assert len(ans) > 0, 'Expencted non-empty output'
+    assert len(ans) > 0, 'Expected non-empty output'
     if add_bos:
         return [tokenizer.bos_id] + ans
     return ans
@@ -174,24 +174,9 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
     if not isinstance(inputs, (list, tuple)):
         raise NotImplementedError(f"unknown type {type(inputs)} is not implemented")
 
-    # Handle chat-inputs
-    if input_is_chat(inputs):
-        inputs = list(
-            map(
-                lambda x: tokenize_with_chat_template(
-                    model.tokenizer, x, model.cfg.tokenizer.chat_template, sampling_params["add_BOS"]
-                ),
-                inputs,
-            )
-        )
-        max_len = max(map(len, inputs)) + length_params['max_length']
-        prompts, prompt_lengths = pad_prompts_to_len(inputs, max_len, model.tokenizer.eos_id)
-        make_tensor = lambda x: torch.tensor(x, dtype=torch.int64, device=torch.cuda.current_device())
-        inputs = tuple(map(make_tensor, [prompts, [prompt_lengths]]))
-
-    valid_input = lambda x: isinstance(x, (str, torch.Tensor))
-    if not all(map(valid_input, inputs)):
-        types = ','.join(map(str, filter(lambda x: not valid_input(x), map(type, inputs))))
+    valid_non_chat_input = lambda x: isinstance(x, (str, torch.Tensor))
+    if not input_is_chat(inputs) and not all(map(valid_non_chat_input, inputs)):
+        types = ','.join(map(str, filter(lambda x: not valid_non_chat_input(x), map(type, inputs))))
         raise NotImplementedError(f"unknown type ({types}) is not implemented")
 
     output = generate(
@@ -687,6 +672,21 @@ def generate(
             token_ids: List[Tensor], output sentence token ids
             offsets: List[List[int]]  # list of tokens start positions in text
     """
+    # Handle chat-inputs
+    if input_is_chat(inputs):
+        inputs = list(
+            map(
+                lambda x: tokenize_with_chat_template(
+                    model.tokenizer, x, model.cfg.tokenizer.chat_template, add_BOS
+                ),
+                inputs,
+            )
+        )
+        max_len = max(map(len, inputs)) + tokens_to_generate
+        prompts, prompt_lengths = pad_prompts_to_len(inputs, max_len, model.tokenizer.eos_id)
+        make_tensor = lambda x: torch.tensor(x, dtype=torch.int64, device=torch.cuda.current_device())
+        inputs = tuple(map(make_tensor, [prompts, prompt_lengths]))
+
     if 'strategy' in strategy_args:
         inference_strategy = strategy_args['strategy']
     else:
