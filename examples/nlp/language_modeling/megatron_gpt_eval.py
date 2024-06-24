@@ -319,8 +319,8 @@ def main(cfg) -> None:
     prompts = []
     if (cfg_prompts := getattr(cfg, 'prompts', None)) is not None:
         prompts = OmegaConf.to_container(cfg_prompts)
-    if (prompts_file := getattr(cfg, 'prompts_file', None)) is not None:
-        with open(prompts_file, 'rt') as fp:
+    if (prompts_jsonl := getattr(cfg, 'prompts_jsonl', None)) is not None:
+        with open(prompts_jsonl, 'rt') as fp:
             prompts += list(map(json.loads, map(str.rstrip, fp)))
     assert len(prompts) > 0, "Expected at least one prompt"
 
