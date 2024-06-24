@@ -1,11 +1,8 @@
-name: nemo_video_neva
-llm_engine_dir: ./video_neva/llm_engine
-visual_engine_dir: ./video_neva/visual_engine
-input_media: ./video_test.mp4
-input_text: "Hi! What is in this video?"
+name: nemo_neva
+engine_dir: ./neva
+input_media: ./test.jpg
+input_text: "Hi! What is in this image?"
 batch_size: 1
-run_profiling: False
-check_accuracy: False
 infer:
   top_k: 1  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
   top_p: 0.0 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
