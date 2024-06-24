@@ -64,7 +64,6 @@ except ImportError:
     # since PyTorch 2.3 the path has changed
     from torch.amp.grad_scaler import _refresh_per_optimizer_state
 
-from nemo.collections.multimodal.modules.stable_diffusion.attention import BasicTransformerBlock
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
 from nemo.collections.nlp.parts import utils_funcs
@@ -78,6 +77,7 @@ try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
+    from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
 
     HAVE_APEX = True
 
@@ -183,6 +183,7 @@ class NLPDDPStrategy(DDPStrategy):
         no_ddp_communication_hook: bool = False,
         nccl_communicator_config_path: Optional[str] = None,
         sharp: bool = False,
+        dist_ckpt_parallel_save: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -194,11 +195,17 @@ class NLPDDPStrategy(DDPStrategy):
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
+        super().__init__(
+            parallel_devices=parallel_devices,
+            cluster_environment=cluster_environment,
+            checkpoint_io=checkpoint_io,
+            **kwargs,
+        )
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.nccl_communicator_config_path = nccl_communicator_config_path
         self.sharp = sharp
+        self._dist_ckpt_parallel_save = dist_ckpt_parallel_save
 
     def setup(self, trainer: "pl.Trainer") -> None:
         """
@@ -276,7 +283,7 @@ class NLPDDPStrategy(DDPStrategy):
             else:
                 super().configure_ddp()
 
-    def optimizer_sharded_state_dict(self, unsharded_optim_state=None):
+    def optimizer_sharded_state_dict(self, unsharded_optim_state=None, is_loading=False):
         """
         Sharded state dictionary for an MainParamsOptimizerWrapper.
         Used to save and load the optimizer state when training with distributed_checkpoint.
@@ -294,8 +301,14 @@ class NLPDDPStrategy(DDPStrategy):
         model_sharded_state_dict = {
             key: value for key, value in model_sharded_state_dict.items() if not key.endswith('_extra_state')
         }
-
-        if isinstance(optimizer, MegatronDistributedFusedAdam):
+        if isinstance(optimizer, McoreDistributedOptimizer):
+            return optimizer.sharded_state_dict(
+                model_sharded_state_dict,
+                unsharded_optim_state,
+                is_loading=is_loading,
+                dist_ckpt_parallel_save=self._dist_ckpt_parallel_save,
+            )
+        elif isinstance(optimizer, MegatronDistributedFusedAdam):
             return optimizer.sharded_state_dict(model_sharded_state_dict, unsharded_optim_state)
         elif not isinstance(optimizer, MainParamsOptimizerWrapper):
             # Regular optimizer, e.g. Adam or FusedAdam
@@ -501,7 +514,7 @@ class NLPDDPStrategy(DDPStrategy):
 
             # after dist_checkpointing.load, sharded tensors will be replaced with tensors
             checkpoint['state_dict'] = sharded_state_dict
-            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
+            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
             if self._check_param_groups_mismatch(checkpoint_path, checkpoint):
                 return self._fix_param_groups(checkpoint_path, checkpoint)
@@ -652,6 +665,9 @@ class NLPFSDPStrategy(FSDPStrategy):
         )
         # Use the default FSDP backward-prefetch policy for proper communication overlap.
         kwargs['backward_prefetch'] = BackwardPrefetch.BACKWARD_PRE
+
+        # import here to prevent circular imports
+        from nemo.collections.multimodal.modules.stable_diffusion.attention import BasicTransformerBlock
 
         # Set FSDP wrapping policy: use Transformer layer module as the FSDP sharding granularity.
         self.fsdp_wrap_module = {
@@ -932,8 +948,6 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             if dist_ckpt:
                 # model weights is a directory
                 dist_ckpt_dir = ckpt_to_dir(os.path.join(dir_name, self.model_weights_ckpt))
-
-                sharded_state_dict = model.sharded_state_dict()
                 # dist checkpoint needs torch.distributed to save the checkpoint
                 if not parallel_state.is_initialized():
 
@@ -943,6 +957,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     if model.trainer.strategy.launcher is not None:
                         model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
                     model.trainer.strategy.setup_environment()
+                sharded_state_dict = model.sharded_state_dict()
                 checkpoint_io = DistributedCheckpointIO(model.cfg.get('dist_ckpt_format', 'zarr'))
                 checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_dir)
 
