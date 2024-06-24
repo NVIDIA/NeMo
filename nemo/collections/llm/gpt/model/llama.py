@@ -36,7 +36,7 @@ class Llama2Config7B(LlamaConfig):
     hidden_size: int = 4096
     num_attention_heads: int = 32
     num_query_groups: int = 32
-    fnn_hidden_size: int = 11008
+    ffn_hidden_size: int = 11008
 
 
 @dataclass
@@ -61,7 +61,7 @@ class Llama2Config70B(LlamaConfig):
 class Llama3Config8B(Llama2Config7B):
     seq_length: int = 8192
     num_query_groups: int = 8
-    fnn_hidden_size: int = 14336
+    ffn_hidden_size: int = 14336
 
 @dataclass
 class Llama3Config70B(Llama2Config70B):
@@ -158,8 +158,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
                 base //= 2
             return base
 
-        output = HFLlamaConfig(
-            seq_length=source.sliding_window,
+        output = LlamaConfig(
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
@@ -170,7 +169,6 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            window_size=[source.sliding_window, 0],
             share_embeddings_and_output_weights=False,
         )
 
@@ -219,7 +217,6 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         from transformers import LlamaConfig as HFLlamaConfig
 
         return HFLlamaConfig(
-            sliding_window=source.window_size[0],
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
