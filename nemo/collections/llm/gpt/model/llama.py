@@ -63,6 +63,7 @@ class Llama3Config8B(Llama2Config7B):
     num_query_groups: int = 8
     fnn_hidden_size: int = 14336
 
+
 @dataclass
 class Llama3Config70B(Llama2Config70B):
     seq_length: int = 8192
