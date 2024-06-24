@@ -31,7 +31,7 @@ from torch.utils.data import DataLoader
 from typing_extensions import override
 
 from nemo.lightning import _strategy_lib, io
-from nemo.lightning.io.pl import MegatronCheckpointIO, TrainerCheckpoint, TrainerCkptProtocol
+from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar
 
@@ -66,8 +66,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         cluster_environment=None,  # TODO: Add type-hint
         checkpoint_io=None,  # TODO: Add type-hint
         find_unused_parameters: bool = False,
-        enable_nemo_ckpt_io: bool = True,
-        ckpt_type: TrainerCkptProtocol = TrainerCheckpoint,
         ckpt_include_optimizer: bool = False,
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
         lazy_init: bool = False,
@@ -88,8 +86,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.pipeline_model_parallel_size = pipeline_model_parallel_size
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
-        self.enable_nemo_ckpt_io = enable_nemo_ckpt_io
-        self.ckpt_type = ckpt_type
         self.lazy_init = lazy_init
         self.ckpt_include_optimizer = ckpt_include_optimizer
         self.pipeline_dtype = pipeline_dtype
@@ -442,8 +438,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
-        if self.enable_nemo_ckpt_io and self.is_global_zero and self.ckpt_type:
-            self.ckpt_type.from_strategy(self).io_dump(ckpt_to_dir(filepath))
 
     @override
     def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:

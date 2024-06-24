@@ -31,22 +31,19 @@ class TrainerCheckpoint(IOMixin, Generic[LightningModuleT]):
     extra: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_strategy(cls, strategy: "MegatronStrategy") -> Self:
-        if not isinstance(strategy.trainer, IOProtocol):
+    def from_trainer(cls, trainer: pl.Trainer) -> Self:
+        if not hasattr(trainer, "__io__"):
             raise ValueError(f"Trainer must be an instance of {IOProtocol}. Please use the Trainer from nemo.")
-
-        if not isinstance(strategy.lightning_module, IOProtocol):
+        if not hasattr(trainer.lightning_module, "__io__"):
             raise ValueError("LightningModule must extend IOMixin.")
 
-        return cls(trainer=strategy.trainer, model=strategy.lightning_module, extra=cls.construct_extra(strategy))
+        return cls(trainer=trainer, model=trainer.lightning_module, extra=cls.construct_extra(trainer))
 
     @classmethod
-    def construct_extra(cls, strategy: "MegatronStrategy") -> Dict[str, Any]:
+    def construct_extra(cls, trainer: pl.Trainer) -> Dict[str, Any]:
         extra = {}
-        if hasattr(strategy.trainer, "datamodule") and isinstance(strategy.trainer.datamodule, IOProtocol):
-            extra["datamodule"] = strategy.trainer.datamodule.__io__
-
-        # TODO: Add optimizer to extra
+        if hasattr(trainer, "datamodule") and hasattr(trainer.datamodule, "__io__"):
+            extra["datamodule"] = trainer.datamodule.__io__
 
         return extra
 
