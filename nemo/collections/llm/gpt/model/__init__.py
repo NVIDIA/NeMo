@@ -6,6 +6,7 @@ from nemo.collections.llm.gpt.model.base import (
     gpt_forward_step,
 )
 from nemo.collections.llm.gpt.model.llama import *
+from nemo.collections.llm.gpt.model.gemma import *
 from nemo.collections.llm.gpt.model.mistral_7b import Mistral7BConfig, Mistral7BModel
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig, MixtralModel
 
@@ -26,6 +27,12 @@ __all__ = [
     "CodeLlamaConfig13B",
     "CodeLlamaConfig34B",
     "CodeLlamaConfig70B",
+    "GemmaConfig",
+    "GemmaConfig2B",
+    "GemmaConfig7B",
+    "CodeGemmaConfig2B",
+    "CodeGemmaConfig7B",
+    "GemmaModel",
     "LlamaModel",
     "MaskedTokenLossReduction",
     "gpt_data_step",
