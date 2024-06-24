@@ -26,7 +26,7 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLM
 from pytorch_lightning.callbacks.model_checkpoint import _is_local_file_protocol
 from pytorch_lightning.utilities import rank_zero_info
 
-from nemo.lightning.io.pl import TrainerCheckpoint
+from nemo.lightning.io.pl import TrainerContext
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import ckpt_to_dir
@@ -372,7 +372,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         from nemo.utils.get_rank import is_global_rank_zero
 
         if self.enable_nemo_ckpt_io and is_global_rank_zero():
-            TrainerCheckpoint.from_trainer(trainer).io_dump(ckpt_to_dir(filepath))
+            TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath))
 
         if ema_callback is not None:
             with ema_callback.save_original_optimizer_state(trainer):
