@@ -314,7 +314,9 @@ def convert(args):
         for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
             attn_mask, _, pos_ids = attn_mask_and_pos_ids
 
-            outputs = model(tokens=tokens, text_position_ids=pos_ids.cuda(), attention_mask=attn_mask.cuda(), labels=None)
+            outputs = model(
+                tokens=tokens, text_position_ids=pos_ids.cuda(), attention_mask=attn_mask.cuda(), labels=None
+            )
 
         hf_next_token = hf_outputs.logits[0, -1].argmax()
         next_token = outputs.squeeze()[-1].argmax()
