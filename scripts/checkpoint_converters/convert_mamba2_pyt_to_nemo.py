@@ -5,8 +5,8 @@ from argparse import ArgumentParser
 import torch
 from omegaconf.omegaconf import OmegaConf
 
-from nemo.collections.nlp.models.language_modeling.megatron_jamba_model import MegatronJambaModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_jamba_model import MegatronJambaModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
@@ -257,6 +257,7 @@ def convert_mlm(args):
 
     nemo_model_from_pyt.save_to(args.output_path)
     logging.info(f'Mamba2 NeMo model saved to: {args.output_path}')
+
 
 if __name__ == '__main__':
     args = get_args()
