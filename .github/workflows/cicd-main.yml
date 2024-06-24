@@ -4170,7 +4170,7 @@ jobs:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
         rm -rf examples/multimodal/text_to_image/sd_train_results
 
