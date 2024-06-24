@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -119,20 +119,12 @@ class MultimodalExporter(ITritonDeployable):
     ):
         if self.runner is None:
             raise Exception(
-                "A nemo checkpoint should be exported and "
-                "then it should be loaded first to run inference."
+                "A nemo checkpoint should be exported and " "then it should be loaded first to run inference."
             )
 
         input_media = self.runner.load_test_media(input_media)
         return self.runner.run(
-            input_text,
-            input_media,
-            max_output_len,
-            top_k,
-            top_p,
-            temperature,
-            repetition_penalty,
-            num_beams
+            input_text, input_media, max_output_len, top_k, top_p, temperature, repetition_penalty, num_beams
         )
 
     def _load(self):

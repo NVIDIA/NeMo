@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import os
-from nemo.export.multimodal_exporter import MultimodalExporter
+
 from nemo.core.config import hydra_runner
+from nemo.export.multimodal_exporter import MultimodalExporter
+
 
 @hydra_runner(config_path='conf', config_name='neva_trt_infer')
 def main(cfg):
@@ -33,6 +35,7 @@ def main(cfg):
     )
 
     print(output)
+
 
 if __name__ == '__main__':
     main()

@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.export.multimodal_exporter import MultimodalExporter
 from nemo.core.config import hydra_runner
+from nemo.export.multimodal_exporter import MultimodalExporter
+
 
 @hydra_runner(config_path='conf', config_name='neva_export')
 def main(cfg):
@@ -31,6 +32,7 @@ def main(cfg):
         dtype=cfg.model.precision,
         load_model=False,
     )
+
 
 if __name__ == '__main__':
     main()

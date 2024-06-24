@@ -277,6 +277,7 @@ def build_video_neva_engine(
         num_frames=num_frames,
     )
 
+
 def build_visual_engine(
     model_dir: str,
     visual_checkpoint_path: str,

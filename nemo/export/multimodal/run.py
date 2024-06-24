@@ -16,18 +16,18 @@
 import json
 import os
 
-import torch
 import numpy as np
 import tensorrt as trt
-
 import tensorrt_llm
 import tensorrt_llm.profiler as profiler
+import torch
 from PIL import Image
 from tensorrt_llm import logger
 from tensorrt_llm._utils import str_dtype_to_trt
 from tensorrt_llm.runtime import ModelRunner, Session, TensorInfo
 from torchvision import transforms
 from transformers import CLIPImageProcessor
+
 
 def trt_dtype_to_torch(dtype):
     if dtype == trt.float16:
@@ -40,6 +40,7 @@ def trt_dtype_to_torch(dtype):
         return torch.bfloat16
     else:
         raise TypeError("%s is not supported" % dtype)
+
 
 class MultimodalModelRunner:
 
@@ -71,9 +72,7 @@ class MultimodalModelRunner:
         if os.path.exists(os.path.join(llm_engine_dir, 'huggingface_tokenizer')):
             from transformers import AutoTokenizer
 
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                os.path.join(llm_engine_dir, 'huggingface_tokenizer')
-            )
+            self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(llm_engine_dir, 'huggingface_tokenizer'))
             self.tokenizer.pad_token = self.tokenizer.eos_token
         else:
             from sentencepiece import SentencePieceProcessor
@@ -187,21 +186,21 @@ class MultimodalModelRunner:
         return input_ids, input_lengths, ptuning_args, visual_features
 
     def generate(
-            self,
-            pre_prompt,
-            post_prompt,
-            image,
-            decoder_input_ids,
-            max_new_tokens,
-            attention_mask,
-            warmup,
-            batch_size,
-            top_k,
-            top_p,
-            temperature,
-            repetition_penalty,
-            num_beams,
-        ):
+        self,
+        pre_prompt,
+        post_prompt,
+        image,
+        decoder_input_ids,
+        max_new_tokens,
+        attention_mask,
+        warmup,
+        batch_size,
+        top_k,
+        top_p,
+        temperature,
+        repetition_penalty,
+        num_beams,
+    ):
         if not warmup:
             profiler.start("Generate")
 
@@ -378,19 +377,19 @@ class MultimodalModelRunner:
         return input_text, pre_prompt, post_prompt, image, decoder_input_ids, attention_mask
 
     def run(
-            self,
-            input_text,
-            input_image,
-            max_new_tokens,
-            batch_size,
-            top_k,
-            top_p,
-            temperature,
-            repetition_penalty,
-            num_beams,
-            run_profiling=False,
-            check_accuracy=False,
-        ):
+        self,
+        input_text,
+        input_image,
+        max_new_tokens,
+        batch_size,
+        top_k,
+        top_p,
+        temperature,
+        repetition_penalty,
+        num_beams,
+        run_profiling=False,
+        check_accuracy=False,
+    ):
         input_text, pre_prompt, post_prompt, processed_image, decoder_input_ids, attention_mask = self.setup_inputs(
             input_text, input_image
         )
