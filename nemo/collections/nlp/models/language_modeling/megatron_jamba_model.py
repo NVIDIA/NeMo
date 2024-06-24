@@ -53,7 +53,7 @@ class MegatronJambaModel(MegatronGPTModel):
         self.transformer_config.attention_softmax_in_fp32=False
         model = MambaModel(
             config=self.transformer_config,
-            max_sequence_length=self.cfg.get('encoder_seq_length', 2048),
+            max_sequence_length=self.cfg.get('encoder_seq_length', 4096),
             vocab_size=self.cfg.get('vocab_size', 65536),
             mamba_stack_spec=mamba_stack_spec, 
             hybrid_override_pattern=self.hybrid_override_pattern)
@@ -69,7 +69,6 @@ class MegatronJambaModel(MegatronGPTModel):
 
     def build_transformer_config(self):
         transformer_config = super().build_transformer_config()
-        transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', True)
         return transformer_config
 
     def on_validation_epoch_end(self):

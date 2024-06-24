@@ -60,11 +60,12 @@ model:
 
   vocab_size: 65536
   # model architecture
-  encoder_seq_length: 2048
+  encoder_seq_length: 4096
+  hybrid_override_pattern: null
   max_position_embeddings: ${.encoder_seq_length}
   position_embedding_type: 'none' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
   num_layers: 64
-  gated_linear_unit: True
+  gated_linear_unit: False
   add_bias_linear: False
   num_query_groups: 8
   attention_dropout: 0.0
@@ -85,6 +86,7 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   megatron_legacy: False
+  persist_layer_norm: True
 
   # Distributed checkpoint setup
   dist_ckpt_format: 'zarr' # Set to 'torch_dist' to use PyTorch distributed checkpoint format.

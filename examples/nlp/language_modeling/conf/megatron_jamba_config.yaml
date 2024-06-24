@@ -44,7 +44,7 @@ model:
   # model parallelism 
   mcore_gpt: True
   micro_batch_size: 1
-  global_batch_size: 1
+  global_batch_size: 8
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   virtual_pipeline_model_parallel_size: null
@@ -52,11 +52,11 @@ model:
   hybrid_override_pattern: null
   vocab_size: 256000
   # model architecture
-  encoder_seq_length: 2048
+  encoder_seq_length: 4096
   max_position_embeddings: ${.encoder_seq_length}
   position_embedding_type: 'none' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
   num_layers: 56
-  gated_linear_unit: True
+  gated_linear_unit: False
   add_bias_linear: False
   num_query_groups: 8
   attention_dropout: 0.0
@@ -77,6 +77,7 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   megatron_legacy: False
+  persist_layer_norm: True
 
   tokenizer:
     library: 'megatron'

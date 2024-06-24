@@ -4,6 +4,7 @@ import torch
 from omegaconf.omegaconf import OmegaConf
 import json
 from nemo.collections.nlp.models.language_modeling.megatron_jamba_model import MegatronJambaModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
@@ -13,6 +14,7 @@ CUDA_VISIBLE_DEVICES="0" python /home/ataghibakhsh/NeMo/scripts/checkpoint_conve
 CUDA_VISIBLE_DEVICES="0" python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py --input_name_or_path adlr_mamba2/mamba2-8b-3t-4k/release/mp_rank_00/model_optim_rng.pt --output_path /home/ataghibakhsh/adlr_mamba2/mamba2-8b-3t-4k.nemo
 CUDA_VISIBLE_DEVICES="0" python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py --input_name_or_path adlr_mamba2/mamba2-hybrid-8b-3t-4k/release/mp_rank_00/model_optim_rng.pt --output_path /home/ataghibakhsh/adlr_mamba2/mamba2-hybrid-8b-3t-4k.nemo
 CUDA_VISIBLE_DEVICES="0" python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py --input_name_or_path adlr_mamba2/mamba2-8b-3t-4k/release/mp_rank_00/model_optim_rng.pt --output_path /home/ataghibakhsh/adlr_mamba2/mamba2-hybrid-random.nemo
+CUDA_VISIBLE_DEVICES="0" python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py --input_name_or_path adlr_mamba2/gpt3-8b-multi-3.5t-base/release/mp_rank_00/model_optim_rng.pt --output_path /home/ataghibakhsh/adlr_mamba2/gpt3-base.nemo
 '''
 def get_args():
     parser = ArgumentParser()
@@ -151,6 +153,7 @@ def convert_mlm(args):
     nemo_config.model.num_query_groups=args_tc.num_query_groups
     nemo_config.model.gated_linear_unit=False
     nemo_config.model.layernorm_epsilon=1e-5
+    # nemo_config.model.persist_layer_norm=True
 
     nemo_config.model.use_cpu_initialization = True
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -205,15 +208,18 @@ def convert_mlm(args):
     nemo_model_from_pyt.load_state_dict(new_state_dict, strict=True)
     dtype = torch_dtype_from_precision(args.precision)
     nemo_model_from_pyt = nemo_model_from_pyt.to(dtype=dtype)
-
-    data = list(range(12))
+    print(f"nemo_model_from_pyt.model.max_sequence_length = {nemo_model_from_pyt.model.max_sequence_length}")
+    data = list(range(128))
     input_ids = torch.tensor(data, dtype=torch.int64).repeat((1, 1)).cuda()
+    input_ids = torch.tensor(data, dtype=torch.int64).repeat((1, 1)).cuda()
+    position_ids = torch.tensor(data, dtype=torch.int64).repeat((1, 1)).cuda()
+    attention_mask = None
     # out_pyt = pytorch_model.forward(inpt)
-    out_nemo = nemo_model_from_pyt.forward(input_ids)
+    out_nemo = nemo_model_from_pyt.forward(input_ids, position_ids=position_ids, attention_mask=attention_mask)
     # print(f"out_pyt = {out_pyt}")
-    print(f"out_nemo = {out_nemo}")
-    # import sys
-    # sys.exit()
+    print(f"out_nemo = {out_nemo[:, :, 5000:5005]}")
+    import sys
+    sys.exit()
     dtype = torch_dtype_from_precision(args.precision)
     nemo_model_from_pyt = nemo_model_from_pyt.to(dtype=dtype)
 
@@ -225,7 +231,6 @@ def convert_mlm(args):
 
     nemo_model_from_pyt.save_to(args.output_path)
     logging.info(f'Mamba2 NeMo model saved to: {args.output_path}')
-
 
 if __name__ == '__main__':
     args = get_args()

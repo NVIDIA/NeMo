@@ -51,17 +51,16 @@ model:
   hybrid_override_pattern: null
   vocab_size: 65536
   # model architecture
-  encoder_seq_length: 2048
+  encoder_seq_length: 4096
   max_position_embeddings: ${.encoder_seq_length}
   position_embedding_type: 'none' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
   num_layers: 64
-  gated_linear_unit: True
-  add_bias_linear: False
+  gated_linear_unit: False
   num_query_groups: 8
   attention_dropout: 0.0
   hidden_dropout: 0.0
   hidden_size: 4096
-  bias_activation_fusion: True
+  bias_activation_fusion: False
   ffn_hidden_size: 14336 # Transformer FFN hidden size. Usually 4 * hidden_size.
   num_attention_heads: 32
   transformer_block_type: pre_ln
@@ -77,6 +76,8 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   megatron_legacy: False
+  persist_layer_norm: True
+  add_bias_linear: False
 
   answer_only_loss: True
 

@@ -42,11 +42,11 @@ Usage:
 
 # Megatron Mamba
 python /home/ataghibakhsh/NeMo/examples/nlp/language_modeling/mamba_change_num_partition.py \
-    --model_file=/home/ataghibakhsh/adlr_mamba2/mamba2-8b-3t-4k.nemo \
+    --model_file=/home/ataghibakhsh/adlr_mamba2/mamba2-hybrid-8b-3t-4k.nemo \
     --target_file=/home/ataghibakhsh/TP4-ADLR-mamba-hybrid/mamba2-TP4.nemo \
-    --tensor_model_parallel_size=-1 \
+    --tensor_model_parallel_size=1 \
     --target_tensor_model_parallel_size=4 \
-    --pipeline_model_parallel_size=-1 \
+    --pipeline_model_parallel_size=1 \
     --target_pipeline_model_parallel_size=1 \
     --precision=bf16
 
@@ -818,7 +818,11 @@ def main():
             model._save_restore_connector = NLPSaveRestoreConnector()
             model.freeze()
             model.to(dtype=dtype)
-
+            # for k, v in model.model.state_dict().items():
+            #     if v is not None:
+            #         print(f"k = {k}, v = {v.shape}")
+            # import sys
+            # sys.exit()
             restore_model_config(model.cfg, restore_dict)
 
             # Update global batch size
