@@ -1053,9 +1053,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             if isinstance(module, AdapterModuleMixin):
                 module.adapter_cfg = cfg
 
-    def replace_adapter_compatible_modules(
-        self, update_config: bool = True, verbose: bool = True
-    ):
+    def replace_adapter_compatible_modules(self, update_config: bool = True, verbose: bool = True):
         """
         Utility method to replace all child modules with Adapter variants, if they exist.
         Does NOT recurse through children of children modules (only immediate children).
