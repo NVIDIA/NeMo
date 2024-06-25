@@ -208,6 +208,9 @@ Stragglers Detection
 
 .. _exp_manager_straggler_det_support-label:
 
+.. note::
+    Stragglers Detection feature is included in the optional NeMo resiliency package.
+
 Distributed training can be affected by stragglers, which are slow workers that slow down the overall training process. 
 NeMo provides a straggler detection feature that can identify slower GPUs.
 
@@ -233,14 +236,15 @@ You might also want to adjust the callback parameters:
 
     exp_manager:
         ...
+        create_straggler_detection_callback: True
         straggler_detection_callback_params:
             report_time_interval: 300      # Interval [seconds] of the straggler check
             calc_relative_gpu_perf: True   # Calculate relative GPU performance
             calc_individual_gpu_perf: True # Calculate individual GPU performance
-            report_on_rank0: True          # All results are gathered and reported on rank0 (if ``False`` each rank reports its own results)
-            print_gpu_perf_scores: True    # Prints GPU performance scores, even if no stragglers are detected
+            num_gpu_perf_scores_to_log: 5       # Log 5 best and 5 worst GPU performance scores, even if no stragglers are detected
             gpu_relative_perf_threshold: 0.7    # Threshold for relative GPU performance scores
             gpu_individual_perf_threshold: 0.7  # Threshold for individual GPU performance scores
+            stop_if_detected: True              # Terminate the workload if stragglers are detected
 
 Straggler detection might involve inter-rank synchronization, and should be invoked with reasonable frequency (e.g. every few minutes).
 

@@ -140,10 +140,10 @@ class StragglerDetectionParams:
     report_time_interval: float = 300
     calc_relative_gpu_perf: bool = True
     calc_individual_gpu_perf: bool = True
-    report_on_rank0: bool = True
-    print_gpu_perf_scores: bool = True
+    num_gpu_perf_scores_to_log: int = 5
     gpu_relative_perf_threshold: float = 0.7
     gpu_individual_perf_threshold: float = 0.7
+    stop_if_detected: bool = True
 
 
 @dataclass
@@ -527,7 +527,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         if HAVE_STRAGGLER_DET:
             logging.info("Enabling straggler detection...")
             straggler_det_args_dict = dict(cfg.straggler_detection_params)
-            straggler_det_callback = StragglerDetectionCallback(**straggler_det_args_dict)
+            straggler_det_callback = StragglerDetectionCallback(**straggler_det_args_dict, logger=logging)
             trainer.callbacks.append(straggler_det_callback)
         else:
             raise ValueError(

@@ -42,26 +42,6 @@ class OnesDataset(torch.utils.data.Dataset):
     def __len__(self):
         return self.__dataset_len
 
-
-class StreamWrapper:
-    # stream wrapper that writes to both a stream and a log file
-    def __init__(self, stream, log_file):
-        self.stream = stream
-        self.log_file = open(log_file, 'w')
-
-    def write(self, message):
-        self.stream.write(message)
-        self.log_file.write(message)
-
-    def flush(self):
-        self.stream.flush()
-        self.log_file.flush()
-
-    def close(self):
-        self.stream.close()
-        self.log_file.close()
-
-
 class ExampleModel(ModelPT):
     def __init__(self, log_dir, **kwargs):
         cfg = OmegaConf.structured({})
@@ -69,16 +49,10 @@ class ExampleModel(ModelPT):
         pl.seed_everything(1234)
         self.l1 = torch.nn.modules.Linear(in_features=2, out_features=1)
         self.log_dir = log_dir
-        self.stdout_wrapper = None
-        self.stderr_wrapper = None
 
     def on_train_start(self):
         super().on_train_start()
         rank = torch.distributed.get_rank()
-        if not isinstance(sys.stdout, StreamWrapper):
-            sys.stdout = StreamWrapper(sys.stdout, self.log_dir / f"stdout{rank}.log")
-        if not isinstance(sys.stderr, StreamWrapper):
-            sys.stderr = StreamWrapper(sys.stderr, self.log_dir / f"stderr{rank}.log")
 
     def train_dataloader(self):
         dataset = OnesDataset(128)
@@ -121,11 +95,12 @@ class TestStragglerDetection:
 
     @pytest.mark.run_only_on('GPU')
     def test_prints_perf_scores(self, tmp_path):
-        # Run dummy, 1 rank DDP training, with worker stdout and stderr redirected to a file
+        # Run dummy 1 rank DDP training
         # Training time is limited to 3 seconds and straggler reporting is set to 1 second
-        # Check if there are straggler related logs in the captured rank0 stdout
+        # Check if there are straggler related logs in the captured log
         max_steps = 1_000_000
         tmp_path = tmp_path / "test_1"
+        print("TMP PATH", tmp_path)
 
         trainer = pl.Trainer(
             strategy='ddp',
@@ -147,16 +122,17 @@ class TestStragglerDetection:
                     "report_time_interval": 1.0,
                     "calc_relative_gpu_perf": True,
                     "calc_individual_gpu_perf": True,
-                    "print_gpu_perf_scores": True,
+                    "num_gpu_perf_scores_to_log": 1,
                 },
             },
         )
         model = ExampleModel(log_dir=tmp_path)
         trainer.fit(model)
 
-        rank0_stdout_content = None
-        with open(tmp_path / "stdout0.log") as f:
-            rank0_stdout_content = f.read()
+        # assume that NeMo logs are written into "nemo_log_globalrank-0_localrank-0.txt"
+        rank0_log_content = None
+        with open(tmp_path / "nemo_log_globalrank-0_localrank-0.txt") as f:
+            rank0_log_content = f.read()
 
-        assert "GPU relative performance" in rank0_stdout_content
-        assert "GPU individual performance" in rank0_stdout_content
+        assert "GPU relative performance" in rank0_log_content
+        assert "GPU individual performance" in rank0_log_content
