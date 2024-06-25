@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from PIL import Image
-
 import numpy as np
 from decord import VideoReader
+from PIL import Image
 
 from nemo.deploy.utils import str_list2numpy
 
@@ -24,6 +23,7 @@ try:
     from pytriton.client import ModelClient
 except Exception:
     use_pytriton = False
+
 
 class NemoQueryMultimodal:
     """

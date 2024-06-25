@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import typing
-from PIL.Image import Image
 
 import numpy as np
 import torch
+from PIL.Image import Image
 from pytriton.model_config import Tensor
 
 

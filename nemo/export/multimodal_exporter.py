@@ -15,11 +15,11 @@
 import logging
 import os
 import shutil
-import wrapt
 from pathlib import Path
 
 import numpy as np
 import torch
+import wrapt
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.multimodal.build import build_trtllm_engine, build_visual_engine
@@ -27,9 +27,10 @@ from nemo.export.multimodal.run import MultimodalModelRunner
 
 use_deploy = True
 try:
-    from nemo.deploy.utils import cast_output, str_ndarray2list, byte2_imgtensor
+    from nemo.deploy.utils import byte2_imgtensor, cast_output, str_ndarray2list
 except Exception:
     use_deploy = False
+
 
 @wrapt.decorator
 def noop_decorator(func):
@@ -152,7 +153,15 @@ class MultimodalExporter(ITritonDeployable):
 
         input_media = self.runner.load_test_media(input_media)
         return self.runner.run(
-            input_text, input_media, max_output_len, batch_size, top_k, top_p, temperature, repetition_penalty, num_beams
+            input_text,
+            input_media,
+            max_output_len,
+            batch_size,
+            top_k,
+            top_p,
+            temperature,
+            repetition_penalty,
+            num_beams,
         )
 
     @property
