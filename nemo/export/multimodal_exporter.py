@@ -15,11 +15,38 @@
 import logging
 import os
 import shutil
+import wrapt
 from pathlib import Path
+
+import numpy as np
+import torch
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.multimodal.build import build_trtllm_engine, build_visual_engine
 from nemo.export.multimodal.run import MultimodalModelRunner
+
+use_deploy = True
+try:
+    from nemo.deploy.utils import cast_output, str_ndarray2list, byte2_imgtensor
+except Exception:
+    use_deploy = False
+
+@wrapt.decorator
+def noop_decorator(func):
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+use_pytriton = True
+batch = noop_decorator
+try:
+    from pytriton.decorators import batch
+    from pytriton.model_config import Tensor
+except Exception:
+    use_pytriton = False
+
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -110,6 +137,7 @@ class MultimodalExporter(ITritonDeployable):
         self,
         input_text: str,
         input_media: str,
+        batch_size: int = 1,
         max_output_len: int = 30,
         top_k: int = 1,
         top_p: float = 0.0,
@@ -124,8 +152,64 @@ class MultimodalExporter(ITritonDeployable):
 
         input_media = self.runner.load_test_media(input_media)
         return self.runner.run(
-            input_text, input_media, max_output_len, top_k, top_p, temperature, repetition_penalty, num_beams
+            input_text, input_media, max_output_len, batch_size, top_k, top_p, temperature, repetition_penalty, num_beams
         )
+
+    @property
+    def get_triton_input(self):
+        inputs = (
+            Tensor(name="input_text", shape=(-1,), dtype=bytes),
+            Tensor(name="input_media", shape=(-1, -1, -1, 3), dtype=np.uint8),
+            Tensor(name="batch_size", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="max_output_len", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
+            Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
+            Tensor(name="repetition_penalty", shape=(-1,), dtype=np.single, optional=True),
+            Tensor(name="num_beams", shape=(-1,), dtype=np.int_, optional=True),
+        )
+        return inputs
+
+    @property
+    def get_triton_output(self):
+        outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),)
+        return outputs
+
+    @batch
+    def triton_infer_fn(self, **inputs: np.ndarray):
+        try:
+            if self.runner is None:
+                raise Exception(
+                    "A nemo checkpoint should be exported and " "then it should be loaded first to run inference."
+                )
+
+            infer_input = {"input_text": str_ndarray2list(inputs.pop("input_text")[0])}
+            if self.runner.model_type == "neva":
+                infer_input["input_image"] = torch.Tensor(inputs.pop("input_media")[0])
+            elif self.runner.model_type == "video-neva":
+                infer_input["input_image"] = torch.Tensor(inputs.pop("input_media"))
+            if "batch_size" in inputs:
+                infer_input["batch_size"] = inputs.pop("batch_size")[0][0]
+            if "max_output_len" in inputs:
+                infer_input["max_new_tokens"] = inputs.pop("max_output_len")[0][0]
+            if "top_k" in inputs:
+                infer_input["top_k"] = inputs.pop("top_k")[0][0]
+            if "top_p" in inputs:
+                infer_input["top_p"] = inputs.pop("top_p")[0][0]
+            if "temperature" in inputs:
+                infer_input["temperature"] = inputs.pop("temperature")[0][0]
+            if "repetition_penalty" in inputs:
+                infer_input["repetition_penalty"] = inputs.pop("repetition_penalty")[0][0]
+            if "num_beams" in inputs:
+                infer_input["num_beams"] = inputs.pop("num_beams")[0][0]
+
+            output_texts = self.runner.run(**infer_input)
+            output = cast_output(output_texts, np.bytes_)
+        except Exception as error:
+            err_msg = "An error occurred: {0}".format(str(error))
+            output = cast_output([err_msg], np.bytes_)
+
+        return {"outputs": output}
 
     def _load(self):
         llm_dir = os.path.join(self.model_dir, "llm_engine")

@@ -26,6 +26,7 @@ def main(cfg):
     output = exporter.forward(
         input_text=cfg.input_text,
         input_media=cfg.input_media,
+        batch_size=cfg.batch_size,
         max_output_len=cfg.infer.max_new_tokens,
         top_k=cfg.infer.top_k,
         top_p=cfg.infer.top_p,
