@@ -6,25 +6,25 @@ from nemo.collections.llm.gpt.model.base import (
     gpt_forward_step,
 )
 from nemo.collections.llm.gpt.model.gemma import (
+    CodeGemmaConfig2B,
+    CodeGemmaConfig7B,
     GemmaConfig,
     GemmaConfig2B,
     GemmaConfig7B,
-    CodeGemmaConfig2B,
-    CodeGemmaConfig7B,
     GemmaModel,
 )
 from nemo.collections.llm.gpt.model.llama import (
-    LlamaModel,
-    LlamaConfig,
+    CodeLlamaConfig7B,
+    CodeLlamaConfig13B,
+    CodeLlamaConfig34B,
+    CodeLlamaConfig70B,
     Llama2Config7B,
     Llama2Config13B,
     Llama2Config70B,
     Llama3Config8B,
     Llama3Config70B,
-    CodeLlamaConfig7B,
-    CodeLlamaConfig13B,
-    CodeLlamaConfig34B,
-    CodeLlamaConfig70B,
+    LlamaConfig,
+    LlamaModel,
 )
 from nemo.collections.llm.gpt.model.mistral_7b import Mistral7BConfig, Mistral7BModel
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig, MixtralModel
