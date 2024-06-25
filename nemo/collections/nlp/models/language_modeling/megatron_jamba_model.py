@@ -39,8 +39,10 @@ class MegatronJambaModel(MegatronGPTModel):
         ##########
         ##########
         ##########
-        self.hybrid_override_pattern = self.cfg.get('hybrid_override_pattern', "M" * self.transformer_config.num_layers)  #-MOM-MO*-MOM-MO"*4
-        # 'M-M-M--M-M*-M-M-M-M--M*-M-M-M-M-M*--M-M-M-M-M*-M--M-M-M-'  # 
+        self.hybrid_override_pattern = self.cfg.get(
+            'hybrid_override_pattern', "M" * self.transformer_config.num_layers
+        )  # -MOM-MO*-MOM-MO"*4
+        # 'M-M-M--M-M*-M-M-M-M--M*-M-M-M-M-M*--M-M-M-M-M*-M--M-M-M-'  #
         # self.hybrid_override_pattern="*-*-*-*-*-*-*-*-"
         # self.hybrid_override_pattern=self.cfg.get('hybrid_override_pattern', "M" * self.transformer_config.num_layers)
         # self.transformer_config.activation_func = torch.nn.functional.silu
