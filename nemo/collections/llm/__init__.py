@@ -60,6 +60,7 @@ from nemo.collections.llm.gpt.model.api import (
     mistral,
     mixtral,
 )
+from nemo.collections.llm import peft
 
 __all__ = [
     "MockDataModule",
@@ -118,4 +119,5 @@ __all__ = [
     "gemma_7b",
     "code_gemma_2b",
     "code_gemma_7b",
+    "peft"
 ]
