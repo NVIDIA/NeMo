@@ -187,6 +187,30 @@ def decode_time_tokens(tokenizer, text: str, duration: float, time_tokens: list[
     decoded_text = tokenizer.ids_to_text(output_ids)[0]
     return decoded_text
 
+def encode_time_str(text: str, duration: float, num_time_tokens: int = 100, time_token_template: str = "<t{t}>"):
+    """
+    Encode the common time expression to its time token expression
+    """
+    def time_to_string(time):
+        # time is normalized in [0, 1]
+        max_offset = float(num_time_tokens - 1)
+        time = int(np.round(max_offset * time))
+        return time_token_template.format(t=time)
+
+    def repl(match):
+        value = float(match.group(1)) / duration
+        return time_to_string(value) + f"<!|t{value}t|!>"
+
+    text = re.sub(r"<([\d.]{1,20})s>", repl, text)
+    text = re.sub(r"\s([\d.]{1,20})s[\s|\.|,|>]", repl, text)
+    text = re.sub(r"\s([\d.]{1,20}) seconds", repl, text)
+    text = re.sub(r"\s([\d.]{1,20}) second", repl, text)
+
+    # This is to remove the timestamps from the text
+    text = re.sub(r"<!\|t([\d.]+)t\|!>", "", text)
+    return text.strip()
+
+
 def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_params, inference_config, **strategy_args):
     use_lita = model.cfg.mm_cfg.get('use_lita', False)
     if use_lita:
@@ -201,6 +225,12 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
     for idx, prompt_dict in enumerate(prompt_dict_list):
         # determine the media type in the prompt_dict
         media_type_token = inference_config.inference.get("media_type", "image")
+        if use_lita:
+            if prompt_dict.get("duration") is not None:
+                duration = prompt_dict.get("duration")
+                prompt_dict['prompt'] = encode_time_str(prompt_dict['prompt'], duration, num_time_tokens, TIME_TOKEN_TEMPLATE)
+            else:
+                print("duration field is not in prompt file, skipping time encoding.")
         response = generate(
             model,
             inputs=prompt_dict.get('prompt'),

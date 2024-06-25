@@ -1,7 +1,6 @@
 
-docker run --gpus all -it --rm -v $PWD/NeMo:/opt/NeMo -v $PWD:/ws --shm-size=8g -p 8888:8888 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:dev.framework
-
-# nvcr.io/nvidia/nemo:24.03.01.framework   cuda_driver mismatch
+# Environment Setup
+docker run --gpus all -it --rm -v $PWD/NeMo:/opt/NeMo -v $PWD:/ws --shm-size=128g -p 8888:8888 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:dev
 
 ## convert tokenizer for finetuning or inference
 We need to first add the time tokens to the llama/llava tokenizer.
@@ -161,15 +160,140 @@ python /opt/NeMo/examples/multimodal/multimodal_llm/neva/convert_hf_llava_to_nev
 Notice the `convert_hf_llava_to_neva.py` script will automatically expand the vocab size and convert the embedding size to be divisible by some base value.
 
 
+## Finetuning with nemo pretrained model
+
+### Dataset Preprocessing
+The dataset file format for finetuning should be like:
+```
+[
+    # 1st example: video question answer
+    {
+        "id": "1043215450",
+        "video": "076101_076150/1043215450.mp4",   # video_path will be prepended
+        "conversations": 
+        [
+            {"from": "human", "value": "<video>\n is the athlete wearing trousers"}, 
+            {"from": "gpt", "value": "Yes"}
+        ]       
+    },
+    # 2nd example: dense video captioning
+    {
+        "id": "xxxx",
+        "video: "xxxx.mp4",
+        "conversations":
+        [
+            {"from": "human", "value": "<video>\n "Provide a detailed description of the given video.Prepend each sentence with its start and end timestamps."}, 
+            {"from": "gpt", "value": "<t1> <t2> Apply eyeshadow on the crease with brush <t3> <t4> Apply eyeshadow on the outer corner of eyes with brush"}
+        ]
+    },
+    # 3rd example: event classification
+    {
+        "id": "xxxx",
+        "video: "xxxx.mp4",
+        "conversations":
+        [
+            {"from": "human", "value": "<video>\n "What is the action performed in this video?"}, 
+            {"from": "gpt", "value": "brush hair"}
+        ]
+
+    },
+    # 4th example: event localization
+    {
+        "id": "-4RXOT_UfpM_2",
+        "video": "-4RXOT_UfpM_2.mp4",
+        "conversations": [
+            {"from": "human", "value": "<video>\nWhen is \"Apply concealer on the eyelids and blend with sponge\" depicted in the video? Provide a response using only start and end timestamps."},
+            {"from": "gpt", "value": "<t4> <t18>"}
+        ],
+        "durations": 119.01901901901903
+    },
+    ...
+]
+```
+
+Here the `<video>` is the placeholder for the video features. In the 2nd example, `<t1>` `<t2>` are the time tokens to indidate in which time interval we've seen this event or description of the time inverval. You can prepare your time tokens like this:
+```python
+import numpy as np
+TIME_TOKEN_TEMPLATE = "<t{t}>"
+def time_to_string(time, num_time_tokens):
+    max_offset = float(num_time_tokens - 1)
+    time = int(np.round(max_offset * time))
+    return TIME_TOKEN_TEMPLATE.format(t=time)
+
+# example of converting time tokens
+# from 10seconds to 15 seconds
+num_time_tokens = 100
+start = 10.0   # the 10 seconds
+end = 15.0     # the 15 seconds
+duration = 200.0 # total video duration is 200seconds
+start = start / duration 
+end = end / duration
+start_time_token_str = time_to_string(start, num_time_tokens)
+end_time_token_str = time_to_string(end, num_time_tokens,)
+```
+
+We also provide scripts to help convert the dense video caption dataset to nemo training dataset.
+Please refer to  `convert_dvc_dataset_for_training.py` and `convert_dvc_dataset_for_evaluation.py` under `NeMo/scripts/multimodal_dataset_conversion/` for how to convert the dataset for training and evaluation.
+
+If you want to augment your dvc dataset by using external LLM API, you may refer to `generate_qa_data.py` and `convert_video_qa_dataset.py` under the same directory.
+
+### Finetuning
+
+Below is an example command to do finetuning. (A100x8 GPUs)
+```
+ANDB_NAME=nemo_lita_finetuning
+WANDB_PROJECT=nemo_lita
+EXP_MANAGER_DIR=/ws/train
+video_folder=/ws/dataset/videos
+data_path=/ws/dataset/train.json
+# model path is the llava-similar nemo model or a converted nemo model constructed by the above steps
+model_path=/ws/converted_nemo_model/llava-v1.5-7b-lita.nemo
+pretrained_hf_vision_model=/ws/pretrained_models/ShareGPT4V-13B_Pretrained_vit-large336-l12
+num_gpus=8
+wandb login <YOUR WANDB API>
+torchrun --nproc_per_node=${num_gpus} /opt/NeMo/examples/multimodal/multimodal_llm/neva/neva_finetune.py \
+  --config-path=/opt/NeMo/examples/multimodal/multimodal_llm/neva/conf/ \
+  --config-name=lita_1_5_config.yaml \
+  ++cluster_type=BCP \
+  exp_manager.wandb_logger_kwargs.name=${WANDB_NAME} \
+  exp_manager.wandb_logger_kwargs.project=${WANDB_PROJECT} \
+  exp_manager.exp_dir=${EXP_MANAGER_DIR} \
+  trainer.num_nodes=1 \
+  trainer.precision=bf16 \
+  trainer.devices=${num_gpus} \
+  trainer.max_steps=262 \
+  trainer.val_check_interval=100 \
+  trainer.limit_val_batches=5 \
+  model.megatron_amp_O2=false \
+  model.mm_cfg.llm.freeze=false \
+  model.mm_cfg.vision_encoder.freeze=true \
+  model.mm_cfg.vision_encoder.from_pretrained=$pretrained_hf_vision_model \
+  model.global_batch_size=128 \
+  model.micro_batch_size=1 \
+  model.tensor_model_parallel_size=4 \
+  model.pipeline_model_parallel_size=1 \
+  model.restore_from_path=${model_path} \
+  model.context_parallel_size=1 \
+  model.data.video_folder=${video_folder} \
+  model.data.data_path=${data_path} \
+  model.mm_cfg.use_lita=true \
+  model.mm_cfg.lita.lita_video_arch=temporal_all_resolution \
+  model.mm_cfg.lita.visual_token_format=im_vid_start_end \
+  model.mm_cfg.lita.sample_frames=4 \
+  model.mcore_gpt=true \
+  model.transformer_engine=true \
+  model.optim.sched.warmup_steps=15
+```
+
+
 ## Inference with finetuned weights
 
 Run inference:
 ```
-neva_model_file=/ws/converted_nemo_model/lita-vicuna-v1-3-13b-finetune.nemo
-# neva_model_file=/ws/converted_nemo_model/llava-v1.5-13b-lita-im-se-didemo-charades-e024.nemo
+neva_model_file=/ws/converted_nemo_model/llava-v1.5-13b-lita-finetuned.nemo
 prompt_file=/ws/test/prompt_file.json
 output_file=/ws/test/output.json
-video_base_path=/ws/test
+video_base_path=/ws/test/videos
 num_gpus=1
 torchrun --nproc_per_node=$num_gpus /ws/NeMo/examples/multimodal/multimodal_llm/neva/neva_evaluation.py \
     --config-path=/opt/NeMo/examples/multimodal/multimodal_llm/neva/conf/ \
@@ -202,78 +326,38 @@ The prompt file can be one json string one line:
 {"video": "1066647457.mp4", "text": "What's the color of the man's hoodie?", "category": "conv", "question_id": 1}
 {"video": "1066647457.mp4", "text": "When does the man put his hands on the rock wall", "duration": 13.0, "category": "conv", "question_id": 1}
 ```
-Notice if you want to ask questions about time, you need to append `duration` field to the prompt.
 
-## Finetuning with nemo pretrained model
-
-### Dataset Preprocessing
-The dataset file for finetuning should be `train.json`:
+The prompt file can also be json list file:
 ```
 [
-    # 1st example: video question answer, you need to remove the timestamps in the value field
     {
-        "id": "1043215450",
-        "video": "076101_076150/1043215450.mp4",   # video_path will be prepended
-        "conversations": 
-        [
-            {"from": "human", "value": "<video>\n Write a terse but informative summary of the following video clip.\n<video>"}, 
-            {"from": "gpt", "value": "Oaxaca de juarez, mexico - circa 1970: mexican tourists on the square of the cathedral of our lady of the assumption in the city of oaxaca. archival of mexico in oaxaca state in the 1970s."}
-        ]       
+        "video": "1SX-19LDHGY_10.mp4",
+        "question": "\nIs there any activity related to lip makeup application between <10s> and <20s> in the video?",
+        "ref_answer": "No, there is no activity related to lip makeup application between <10s> and <20s> in the video.",
+        "type": "4",
+        "question_id": "v_1SX-19LDHGY_10_9",
+        "duration": 42.0
     },
-    # 2nd example: dense video captioning
     {
-        "id": "xxxx",
-        "video: "xxxx.mp4",
-        "conversations":
-        [
-            {"from": "human", "value": "<video>\n "Provide a detailed description of the given video.Prepend each sentence with its start and end timestamps."}, 
-            {"from": "gpt", "value": "<t1> <t2> Apply eyeshadow on the crease with brush <t3> <t4> Apply eyeshadow on the outer corner of eyes with brush"}
-        ]
-    },
-    # 3rd example: event classification
-    {
-        "id": "xxxx",
-        "video: "xxxx.mp4",
-        "conversations":
-        [
-            {"from": "human", "value": "<video>\n "What is the action performed in this video?"}, 
-            {"from": "gpt", "value": "brush hair"}
-        ]
-
+        "vid": "3RIeQTScqEI_2",
+        "question_id": "3RIeQTScqEI_2_0",
+        "question": "At what time in the video does \"Apply eyeliner gel on lashline with brush\" take place? Answer the question only using start and end timestamps.",
+        "duration": 103.004,
+        "ref_answer": "<2> <59> Apply eyeliner gel on lashline with brush",
+        "video": "3RIeQTScqEI_2.mp4"
     }
     ...
 ]
 ```
 
-Here the `<video>` is the placeholder for the video features. In the 2nd example, `<t1>` `<t2>` are the time tokens to indidate in which time interval we've seen this event or description of the time inverval. You can prepare your time tokens like this:
-```python
-import numpy as np
-TIME_TOKEN_TEMPLATE = "<t{t}>"
-def time_to_string(time, num_time_tokens):
-    max_offset = float(num_time_tokens - 1)
-    time = int(np.round(max_offset * time))
-    return TIME_TOKEN_TEMPLATE.format(t=time)
-
-# example of converting time tokens
-# from 10seconds to 15 seconds
-num_time_tokens = 100
-start = 10.0   # the 10 seconds
-end = 15.0     # the 15 seconds
-duration = 200.0 # total video duration is 200seconds
-start = start / duration 
-end = end / duration
-start_time_token_str = time_to_string(start, num_time_tokens)
-end_time_token_str = time_to_string(end, num_time_tokens,)
-```
-
-We also provide three scripts to help you preprocess your datasets. Please refer to `convert_dvc_dataset.py`, `convert_qa_dataset.py` and `generate_qa_data.py` under `NeMo/scripts/multimodal_dataset_conversion`.
-
-
-### Finetuning
-```
-```
-
+The `neva_evaluation.py` script would append `pred_answer` field to the input prompt file as the output file. You'll need to ensure `video`, `question` or `text` field is in the input prompt file. The `duration` field is required if you want to test the localization and time question. 
 
 ## Evaluation
 
-### Reasoning Temporal Task
+Once you get the inference result or the `pred_answer`. You can do your evaluation easily. There are two example scripts `eval_qa.py` and `eval_rtl.py` under `NeMo/examples/multimodal/multimodal_llm/neva/eval` provided to help you with the RTL task and VQA task. They are all nemo independent, which means you could do the evaluation without using nemo.
+
+`eval_qa.py` is a simple example to request NVIDIA LLM APIs to do evaluation on the question answer task. It's pretty straightforward.  The default one uses `llama-70b-instruct` as an example. You can explore more options [here](https://build.nvidia.com/explore/discover).
+
+`eval_rtl.py` is used to meassure the IOU or the overlap of the predicted time interval and the reference time interval. It will also give the `precision@0.5` score. When the overlap ratio is larger than `0.5`, it will be marked as correct.
+
+

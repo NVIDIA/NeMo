@@ -55,6 +55,7 @@ API_TOKEN=<YOUR API> python eval_qa.py --input_file <path_to_json_file> --output
 import argparse
 import json
 import os
+import re
 import ast
 import requests
 
@@ -98,6 +99,10 @@ def request_nvidia_api(messages):
             if 'content' in res['choices'][0]['delta']:
                 output += res['choices'][0]['delta']['content']
     return output.lstrip().strip()
+
+def convert_time_token(text):
+    # use regular expression to convert <12> <56>  to <12s> <56s>
+    return re.sub(r'<(\d+)>', r'<\1s>', text)
 
     
 def get_result(question, answer, pred, key, output_dir, save_mid_result=False):
@@ -156,6 +161,7 @@ def main():
     key = 0
     for item in data:
         question = item["question"]
+        item["ref_answer"] = convert_time_token(item["ref_answer"])
         tasks.append((question, item["ref_answer"], item["pred_answer"], \
                       key, output_dir, save_mid_result))
         key += 1
