@@ -1,0 +1,5 @@
+{
+    "triton_service_port": 9500,
+    "triton_service_ip": "0.0.0.0",
+    "triton_request_timeout": 60
+  }
