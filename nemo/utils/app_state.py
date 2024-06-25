@@ -569,7 +569,7 @@ class AppState(metaclass=Singleton):
 
     @files_to_move.setter
     def files_to_move(self, files):
-        """Sets the files_to_copy property.
+        """Sets the files_to_move property.
 
         Args:
             files (list[str]): list of filenames to move.
