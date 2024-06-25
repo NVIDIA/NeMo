@@ -26,7 +26,7 @@ It accepts one JSON file. The JSON file should have the following structure:
         "pred_answer": "A brush",
     },
     {
-        "video_name": "yVgL8sJQxYo_2.mp4",    # not a must-to-have field
+        "video": "yVgL8sJQxYo_2.mp4",    # not a must-to-have field
         "question": "How long does the action of applying foundation take?",
         "question_id": "v_yVgL8sJQxYo_2_5"
         "ref_answer": "The action takes around 55 seconds (<60s> - <5s>)."
@@ -37,7 +37,7 @@ It accepts one JSON file. The JSON file should have the following structure:
   ...
 ]
 
-`video_name` and `duration` are two optional fields. If not provided, the script will ignore them.
+`video` and `duration` are two optional fields. If not provided, the script will ignore them.
 
 Notice that the time token here is represented as  '<%ss>'.format(time_in_seconds).
 
@@ -48,6 +48,8 @@ Notice the API might be a little bit different.
 You also need an `API_TOKEN` from here: https://build.nvidia.com/explore/discover#llama3-70b
 Click the `Get API Key` and save your key in the environment variable `API_TOKEN`.
 
+USAGE:
+API_TOKEN=<YOUR API> python eval_qa.py --input_file <path_to_json_file> --output_dir <path_to_output_dir> --save_mid_result
 """
 
 import argparse
@@ -58,7 +60,7 @@ import requests
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate Video Question Answering task.")
-    parser.add_argument("--input_file", type=str, required=True, help="Path to the prediction file.")
+    parser.add_argument("--input_file", type=str, required=True, help="Path to the prediction file. json list file")
     parser.add_argument("--output_dir", type=str, required=True, help="Path to the output directory.")
     parser.add_argument("--save_mid_result", action="store_true", help="Whether to save the intermediate results.")
     return parser.parse_args()
@@ -69,7 +71,8 @@ MODEL = "meta/llama3-70b-instruct"
 
 def request_nvidia_api(messages):
     API_TOKEN = os.getenv("API_TOKEN", "")  # ADD NGC API TOKEN HERE
-
+    if not API_TOKEN:
+        raise ValueError("Please provide the API_TOKEN in the environment variable.")
     headers = {
         "Authorization": f"Bearer {API_TOKEN}",
         "accept": "text/event-stream",
@@ -120,7 +123,7 @@ def get_result(question, answer, pred, key, output_dir, save_mid_result=False):
                         "Provide your evaluation only as a yes/no and score where the score is an integer value between 0 and 5, with 5 indicating the highest meaningful match. "
                         "Please generate the response in the form of a Python dictionary string with keys 'pred' and 'score', where value of 'pred' is  a string of 'yes' or 'no' and value of 'score' is in INTEGER, not STRING."
                         "DO NOT PROVIDE ANY OTHER OUTPUT TEXT OR EXPLANATION. Only provide the Python dictionary string. "
-                        "For example, your response should look like this: {'pred': 'yes', 'score': 4}."
+                        "For example, your response should look like this: {'pred': 'yes', 'score': 4.8}."
                 }
             ]
     try:
@@ -184,12 +187,16 @@ def main():
     average_score = score_sum / count
     accuracy = yes_count / (yes_count + no_count)
     result_file = os.path.join(output_dir, "metrics.json")
+    metrics = {
+        "average_score": average_score,
+        "accuracy": accuracy,
+        "no_count": no_count,
+        "yes_count": yes_count,
+        "model": MODEL
+    }
+    print("Metrics: ", metrics)
     with open(result_file, "w") as f:
-        json.dump({"average_score": average_score,\
-                    "accuracy": accuracy, \
-                    "no_count": no_count,
-                    "yes_count": yes_count,
-                    "model": MODEL}, f, indent=2)
+        json.dump(metrics, f, indent=2)
 
 if __name__ == "__main__":
     main()

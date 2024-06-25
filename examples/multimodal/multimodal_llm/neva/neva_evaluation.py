@@ -225,8 +225,11 @@ def main(cfg) -> None:
             results.append(prompt)
 
         with open(cfg.output_file, 'w') as f:
-            for result in results:
-                f.write(json.dumps(result) + '\n')
+            if cfg.output_file.endswith('.jsonl'):
+                json.dump(results, f, indent=2)
+            else:
+                for result in results:
+                    f.write(json.dumps(result) + '\n')
 
 
 if __name__ == '__main__':

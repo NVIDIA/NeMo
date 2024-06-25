@@ -14,7 +14,7 @@
 #
 
 """
-This script is used to generate the QA data from the DVC dataset by using the OpenAI API.
+This script is used to generate the QA data from the DVC dataset by using the NVIDIA LLM API.
 The DVC dataset should have the below structure:
  
  {

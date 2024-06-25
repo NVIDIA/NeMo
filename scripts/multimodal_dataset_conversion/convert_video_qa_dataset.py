@@ -53,7 +53,7 @@ to nemo video training dataset format and convert the timestamps to the format r
         "conversations": [
             {
                 "from": "human",
-                "value": "What is the first task performed in the video, and when does it start and end?"
+                "value": "<video>\n What is the first task performed in the video, and when does it start and end?"
             },
             {
                 "from": "gpt",
@@ -117,14 +117,13 @@ def process(value, duration: float, num_time_tokens: int = 100):
         value = float(match.group(1)) / duration
         return time_to_string(value) + f"<!|t{value}t|!>"
 
-    value = re.sub(r"<([\d.]{1,10})s>", repl, value)
-    value = re.sub(r"\s([\d.]{1,10})s[\s|\.|,|>]", repl, value)
-    value = re.sub(r"\s([\d.]{1,10}) seconds", repl, value)
-    value = re.sub(r"\s([\d.]{1,10}) second", repl, value)
+    value = re.sub(r"<([\d.]{1,20})s>", repl, value)
+    value = re.sub(r"\s([\d.]{1,20})s[\s|\.|,|>]", repl, value)
+    value = re.sub(r"\s([\d.]{1,20}) seconds", repl, value)
+    value = re.sub(r"\s([\d.]{1,20}) second", repl, value)
     
     # This is to remove the timestamps from the text
     value = re.sub(r"<!\|t([\d.]+)t\|!>", "", value)
-
     return value.strip()
 
 
@@ -144,7 +143,7 @@ def convert(qa_dataset, output_file, num_time_tokens, ext=".mp4"):
         id = sample['video_id']
         video = id + ext
         conversations = []
-        for conversation in sample['conversations']:
+        for idx, conversation in enumerate(sample['conversations']):
             if 'role' in conversation and 'content' in conversation:
                 new_role = role_mapping[conversation['role']]
                 new_content = conversation['content']
@@ -155,6 +154,8 @@ def convert(qa_dataset, output_file, num_time_tokens, ext=".mp4"):
                 raise ValueError("Invalid conversation format")
             
             new_content = process(new_content, sample["duration"], num_time_tokens)
+            if idx == 0 and new_role == "human":
+                new_content = "<video>\n" + new_content
             conversations.append({"from": new_role, "value": new_content})
     
         new_sample['id'] = id

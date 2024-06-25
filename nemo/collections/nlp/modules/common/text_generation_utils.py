@@ -163,13 +163,13 @@ def decode_time_tokens(tokenizer, text: str, duration: float, time_tokens: list[
     """
     output_ids = tokenizer.text_to_ids(text)
     num_time_tokens = len(time_token_ids)
-    indices = [j for j in range(len(output_ids) - 1) if output_ids[j] in time_token_ids]
+    # the original code is len(output_ids) - 1
+    indices = [j for j in range(len(output_ids)) if output_ids[j] in time_token_ids]
     last_processed = -1
     new_output_ids = []
     for j in range(len(indices)):
         pred_seq = [int(output_ids[k]) for k in range(last_processed + 1, indices[j])]
         new_output_ids.extend(pred_seq)
-
         max_offset = num_time_tokens - 1
         time_token = tokenizer.ids_to_tokens([output_ids[indices[j]]])[0]
         time_idx = time_tokens.index(time_token)

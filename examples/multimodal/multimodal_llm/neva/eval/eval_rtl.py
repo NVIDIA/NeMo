@@ -142,8 +142,8 @@ def eval(pred_file, output_dir, save_mid_result=True):
         assert "pred_answer" in pred, "pred_answer field is missing"
         assert "ref_answer" in pred, "answer field is missing"
         duration = pred['duration']
-        pred_answer, pred_timestamps = parse_start_end_timestamps(pred['pred_answer'], duration, strict=True)
-        ref_answer, ref_timestamps = parse_start_end_timestamps(pred['ref_answer'], duration, strict=True)
+        pred_answer, pred_timestamps = parse_start_end_timestamps(pred['pred_answer'], duration, strict=False)
+        ref_answer, ref_timestamps = parse_start_end_timestamps(pred['ref_answer'], duration, strict=False)
         
         for metric in metric_func:
             metrics[metric][pred['video']].append(metric_func[metric](pred_timestamps, ref_timestamps))
@@ -157,11 +157,11 @@ def eval(pred_file, output_dir, save_mid_result=True):
             'pred_timestamps': pred_timestamps,
             'ref_timestamps': ref_timestamps
         })
-    
     # save result
     os.makedirs(output_dir, exist_ok=True)
     if save_mid_result:
         output_file = os.path.join(output_dir, 'answers.json')
+        print(f"Saving intermediate result to {output_file}")
         with open(output_file, 'w') as f:
             json.dump(out_list, f, indent=2)
     

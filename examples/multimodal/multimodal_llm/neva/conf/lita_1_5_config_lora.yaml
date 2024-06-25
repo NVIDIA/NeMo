@@ -1,4 +1,4 @@
-name: nemo_video_lita_neva
+name: nemo_video_lita_lora
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
@@ -24,7 +24,7 @@ trainer:
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: nemo_video_neva_lita
+  name: ${name}
   create_wandb_logger: True
   wandb_logger_kwargs:
     project: null
@@ -65,11 +65,25 @@ model:
 
   restore_from_path: null # used in fine-tuning
 
+  peft:
+    peft_scheme: "lora"
+    restore_from_path: null
+    lora_tuning:
+      adapter_dim: 128
+      alpha: 256
+      target_modules: ['all']
+      adapter_dropout: 0.0
+      column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+      row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+      layer_selection:  null  # selects in which layers to add lora adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+      weight_tying: False
+      position_embedding_strategy: null # used only when weight_tying is True
+
   # Multimodal configs
   mm_cfg:
     llm:
       from_pretrained: null #path to nemo checkpoint
-      freeze: False
+      freeze: True  # adapter tuning
       model_type: llama_2 # `nvgpt` or `llama_2` supported
     vision_encoder:
       from_pretrained: "Lin-Chen/ShareGPT4V-13B_Pretrained_vit-large336-l12" # path or name
