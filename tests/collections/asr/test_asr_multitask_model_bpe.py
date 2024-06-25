@@ -285,7 +285,8 @@ class TestEncDecMultiTaskModel:
         asr_model.change_prompt()
         assert asr_model.cfg.prompt_defaults is None
 
-        prompt_defaults = [{'role': 'user', 'slots': {'pnc': 'no'}}]
+        prompt_defaults = asr_model.prompt.get_default_dialog_slots()
+        prompt_defaults[0]['slots']['pnc'] = 'no'
         asr_model.change_prompt(prompt_defaults=prompt_defaults)
 
         assert asr_model.cfg.prompt_defaults[0]['slots']['pnc'] == 'no'
@@ -302,12 +303,23 @@ class TestEncDecMultiTaskModel:
         asr_model.change_prompt()
         assert asr_model.cfg.prompt_defaults is None
 
-        prompt_defaults = [{'role': 'user', 'slots': {'pnc': 'no'}}]
+        prompt_defaults = asr_model.prompt.get_default_dialog_slots()
+        prompt_defaults[0]['slots']['pnc'] = 'no'
         asr_model.change_prompt(prompt_format='canary2', prompt_defaults=prompt_defaults)
 
         assert asr_model.cfg.prompt_format == 'canary2'
         assert asr_model.cfg.prompt_defaults[0]['slots']['pnc'] == 'no'
         assert isinstance(asr_model.prompt, CanaryPromptFormatterSubclass)
+
+        user_prompt = asr_model.prompt.get_default_dialog_slots()[0]
+        slots = user_prompt['slots']
+        slots['source_lang'] = 'en'
+        slots['target_lang'] = 'en'
+        slots['task'] = 'asr'
+        slots['pnc'] = 'no'
+        ans = asr_model.prompt.encode_dialog([user_prompt])
+        recovered = asr_model.tokenizer.ids_to_text(ans["input_ids"])
+        assert recovered == "<|startoftranscript|><|en|><|transcribe|><|en|><|nopnc|>"
 
     @pytest.mark.unit
     def test_transcribe_single_file(self, asr_model, test_data_dir):
