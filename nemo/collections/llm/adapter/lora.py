@@ -2,7 +2,9 @@ from dataclasses import dataclass, field
 from typing import List, Literal
 
 from megatron.core import parallel_state
-from nemo.collections.llm.adapter.base import AdapterWrapper, PEFTConfig
+from nemo.utils import logging
+
+from nemo.collections.llm.adapter.base import AdapterWrapper, PEFT
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
 
 
@@ -20,16 +22,54 @@ class AdapterParallelAdd(AdapterWrapper):
 
 
 @dataclass
-class LoRAConfig(PEFTConfig):
-    target_modules: List[str] = field(
-        default_factory=list
-    )  # ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
+class LoRA(PEFT):
+    """
+    Implements the LoRA (Low-Rank Adaptation) module for parameter-efficient fine-tuning.
+
+    LoRA uses a low-rank projection to adapt the weights of a pre-trained model to a new downstream task.
+    This class facilitates the application of LoRA to specific modules within the model architecture.
+
+    Args:
+        target_modules (List[str], optional): A list of module names to apply LoRA to.
+            Defaults to ['linear_qkv', 'linear_proj']. Possible choices include:
+                - 'linear_qkv': Apply LoRA to the fused linear layer used for query, key, and value projections
+                                in self-attention modules.
+                - 'linear_proj': Apply LoRA to the linear layer used for projecting the output of self-attention modules.
+                - 'linear_fc1': Apply LoRA to the first fully-connected layer in MLP.
+                - 'linear_fc2': Apply LoRA to the second fully-connected layer in MLP.
+        dim (int): Dimension of the low-rank projection space. Defaults to 32.
+        alpha (int): Weighting factor for the low-rank projection. Defaults to 32.
+        dropout (float): Dropout rate for the low-rank projection. Defaults to 0.0.
+        dropout_position (Literal['pre', 'post'], optional): Position for applying dropout.
+            Can be 'pre' (before the low-rank projection) or 'post' (after). Defaults to 'post'.
+
+    Example:
+    --------
+        >>> from nemo.collections import llm
+        >>> lora = LoRA(target_modules=['linear_qkv', 'linear_proj'], dim=32)
+        >>> model = llm.Mistral7BModel(model_transform=lora.transform)
+        >>> trainer.fit(model, data)
+
+    )
+    """
+    target_modules: List[str] = field(default_factory=lambda: ['linear_qkv', 'linear_proj'])
     dim: int = 32
     alpha: int = 32
     dropout: float = 0.0
     dropout_position: Literal['pre', 'post'] = 'post'
 
-    def wrap_fn(self, m, name=None, prefix=None):
+    def transform(self, m, name=None, prefix=None):
+        """
+        Applies LoRA to a specific module within the model architecture.
+
+        Args:
+            m (nn.Module): The module to apply LoRA to.
+            name (str, optional): Name of the module (if applicable). Defaults to None.
+            prefix (str, optional): Prefix for the module name (if applicable). Defaults to None.
+
+        Returns:
+            nn.Module: The modified module with LoRA applied, or the original module if not a target.
+        """
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
         if name in self.target_modules:
             # m.in_features and m.out_features are divided by tp_size already,
@@ -45,7 +85,7 @@ class LoRAConfig(PEFTConfig):
                 in_features = m.in_features * tp_size
                 out_features = m.out_features
 
-            print("Adding lora to:", f"{prefix}.{name}", f"{m.in_features}x{m.out_features}")
+            logging.info("Adding lora to:", f"{prefix}.{name}", f"{m.in_features}x{m.out_features}")
             adapter = ParallelLinearAdapter(
                 in_features,
                 out_features,

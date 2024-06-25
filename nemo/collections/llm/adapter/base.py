@@ -1,10 +1,7 @@
-from dataclasses import dataclass
-from typing import Callable, Optional, Tuple
+from typing import Optional, Tuple
 
 import torch.nn as nn
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
-
-from nemo.lightning.megatron_parallel import MegatronParallel
 
 
 class AdapterWrapper(nn.Module):
@@ -51,23 +48,12 @@ class AdapterWrapper(nn.Module):
             self.adapter.load_state_dict(adapter_state_dict, strict)
 
 
-@dataclass
-class PEFTConfig:
-    def wrap_fn(self, m, name=None, prefix=None):
-        raise NotImplementedError
+class PEFT:
+    def transform(self, module, name=None, prefix=None):
+        raise NotImplementedError("The transform method should be implemented by subclasses.")
 
+    def __call__(self, model: nn.Module) -> nn.Module:
+        model.freeze()
+        model.walk(self.transform)
 
-def peft_model_transform(wrap_fn: Callable):
-    '''
-    Apply model transform function for PEFT training.
-    Returns a function which first freezes the base model, then recursively applies a
-    model wrap function to the top level module.
-
-    wrap_fn is an instance of PEFTConfig.wrap_fn
-    '''
-
-    def model_fn(m: MegatronParallel):
-        m.freeze()  # freeze the base model
-        m.walk(wrap_fn)  # add adapter weights (newly added weights are unfrozen)
-
-    return model_fn
+        return model
