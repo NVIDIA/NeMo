@@ -4,6 +4,10 @@ from nemo.lightning.io.connector import Connector, ModelConnector
 from nemo.lightning.io.mixin import ConnectorMixin, IOMixin
 from nemo.lightning.io.pl import TrainerContext, is_distributed_ckpt
 from nemo.lightning.io.state import TransformCTX, apply_transforms, state_transform
+from nemo.lightning.io.fdl_torch import enable as _enable_ext
+
+
+_enable_ext()
 
 __all__ = [
     "apply_transforms",
