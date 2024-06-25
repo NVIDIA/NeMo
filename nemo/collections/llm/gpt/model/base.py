@@ -10,7 +10,7 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
-from nemo.lightning.pytorch.opt import MegatronOptimizerModule, OptimizerModule
+from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
