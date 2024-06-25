@@ -44,6 +44,7 @@ from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_au
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common.hyena.hyena_spec import get_gpt_layer_with_te_and_hyena_spec
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -143,7 +144,7 @@ def mcore_supports_moe() -> bool:
         return False
 
 
-def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True):
+def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, hyena_cfg: Dict = None):
     if num_experts is not None:
         assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
 
@@ -155,6 +156,7 @@ def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True):
         "megatron_falcon_gpt": get_falcon_layer_spec(),
         "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(),
         "modelopt": get_gpt_layer_modelopt_spec(),
+        "te_gpt_hyena": get_gpt_layer_with_te_and_hyena_spec(hyena_cfg),
     }
     if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
@@ -426,6 +428,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     self.transformer_config.num_moe_experts,
                     self.transformer_config.moe_grouped_gemm,
                     self.transformer_engine,
+                    self.cfg.get('hyena', None),
                 ),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
@@ -541,8 +544,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     config,
                     ddp_config,
                     model_chunk,
-                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
                     # Turn off bucketing for model_chunk 2 onwards, since communication for these
                     # model chunks is overlapped with compute anyway.
                     disable_bucketing=(model_chunk_idx > 0),
@@ -1495,8 +1496,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Where N_d is the total number of samples in a dataset (files), and N is the requested number of samples (provided for every split in the list below).
         # Setting N = 1 we force E to be 1 as well
         if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            train_valid_test_num_samples[1] = 1
-
+            train_valid_test_num_samples[1] = None
         # Add extra FIM tokens to tokenizer
         if self.cfg.data.get('add_fim', False) and self.cfg.tokenizer.library == 'megatron':
             fim_tokens = self.cfg.data.fim.extra_tokens
@@ -1521,6 +1521,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             is_dataset_built_on_rank = lambda: True
 
             mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
+            add_extra_token = not self.cfg.data.get("no_seqlen_plus_one_input_tokens", False)
             kwargs = {
                 "random_seed": self.cfg.seed,
                 "sequence_length": self.cfg.data.seq_length,
@@ -1531,6 +1532,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "eod_mask_loss": self.eod_mask_loss,
                 "create_attention_mask": not self.get_attention_mask_from_fusion,
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
+                "drop_last_partial_validation_sequence": self.cfg.data.get("validation_drop_last", True),
+                "add_extra_token_to_sequence": add_extra_token,
             }
 
             data_prefix = self.cfg.data.data_prefix

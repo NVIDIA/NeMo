@@ -213,10 +213,10 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        python examples/nlp/language_modeling/megatron_quantization.py \
-          model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+        python examples/nlp/language_modeling/megatron_gpt_quantization.py \
+          model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
           quantization.algorithm=null \
-          model_save=/home/TestData/nlp/megatron_llama/ci_baseline
+          export.save_path=/home/TestData/nlp/megatron_llama/ci_baseline
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_llama/ci_baseline
 
@@ -226,16 +226,16 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        python examples/nlp/language_modeling/megatron_quantization.py \
-          model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
-          tensor_model_parallel_size=2 \
+        python examples/nlp/language_modeling/megatron_gpt_quantization.py \
+          model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+          model.tensor_model_parallel_size=2 \
           trainer.devices=2 \
           quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
           quantization.algorithm=fp8 \
           quantization.num_calib_size=8 \
           inference.batch_size=2 \
           export.inference_tensor_parallel=2 \
-          model_save=/home/TestData/nlp/megatron_llama/ci_fp8.qnemo
+          export.save_path=/home/TestData/nlp/megatron_llama/ci_fp8.qnemo
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_llama/ci_fp8.qnemo
 
@@ -245,13 +245,13 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        python examples/nlp/language_modeling/megatron_quantization.py \
-        model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+        python examples/nlp/language_modeling/megatron_gpt_quantization.py \
+        model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
         quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
         quantization.algorithm=int8_sq \
         quantization.num_calib_size=8 \
         inference.batch_size=2 \
-        model_save=/home/TestData/nlp/megatron_llama/ci_int8_sq.qnemo
+        export.save_path=/home/TestData/nlp/megatron_llama/ci_int8_sq.qnemo
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_llama/ci_int8_sq.qnemo
 
@@ -274,15 +274,15 @@ jobs:
   #      - name: Checkout repository
   #        uses: actions/checkout@v4
   #      - run: |
-  #          python examples/nlp/language_modeling/megatron_quantization.py \
-  #          model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
-  #          tensor_model_parallel_size=1 \
+  #          python examples/nlp/language_modeling/megatron_gpt_quantization.py \
+  #          model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+  #          model.tensor_model_parallel_size=1 \
   #          trainer.devices=1 \
   #          quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
   #          quantization.algorithm=int4_awq \
   #          quantization.num_calib_size=8 \
   #          inference.batch_size=2 \
-  #          model_save=/home/TestData/nlp/megatron_llama/ci_int4_awq.qnemo
+  #          export.save_path=/home/TestData/nlp/megatron_llama/ci_int4_awq.qnemo
   #
   #          rm -rf /home/TestData/nlp/megatron_llama/ci_int4_awq.qnemo
         #- uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -2398,6 +2398,7 @@ jobs:
             model.activations_checkpoint_method=block \
             model.activations_checkpoint_granularity=full \
             model.activations_checkpoint_num_layers=1 \
+            model.data.validation_drop_last=False \
             model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
             model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
 
@@ -2432,6 +2433,7 @@ jobs:
             model.activations_checkpoint_method=block \
             model.activations_checkpoint_granularity=full \
             model.activations_checkpoint_num_layers=1 \
+            model.data.validation_drop_last=False \
             model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
             model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
         
@@ -3141,13 +3143,13 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_ir/working_dir
 
-  L2_Megatron_GPT_PEFT_Lora_PP2:
+  L2_Megatron_GPT_PEFT_Lora_PP2_O2:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        rm -rf examples/nlp/language_modeling/gpt_peft_lora_results_pp2
+        rm -rf /home/TestData/nlp/lora_tuning_pp2
 
         python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
         trainer.devices=2 \
@@ -3156,11 +3158,12 @@ jobs:
         trainer.max_steps=3 \
         trainer.val_check_interval=3 \
         ++trainer.limit_val_batches=2 \
-        trainer.precision=16 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_peft_lora_results_pp2 \
+        trainer.precision=bf16 \
+        exp_manager.exp_dir=/home/TestData/nlp/lora_tuning_pp2 \
         model.pipeline_model_parallel_size=2 \
         model.tensor_model_parallel_size=1 \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
+        model.megatron_amp_O2=True \
         model.peft.peft_scheme=lora \
         model.answer_only_loss=True \
         model.micro_batch_size=1 \
@@ -3171,10 +3174,28 @@ jobs:
         model.data.validation_ds.num_workers=0 \
         model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
         model.data.validation_ds.names=[quarel]
+        
+        python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
+        model.peft.restore_from_path=/home/TestData/nlp/lora_tuning_pp2/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo \
+        model.pipeline_model_parallel_size=2 \
+        model.tensor_model_parallel_size=1 \
+        trainer.devices=2 \
+        model.megatron_amp_O2=True \
+        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
+        model.data.test_ds.names=['quarel4'] \
+        model.global_batch_size=2 \
+        model.micro_batch_size=1 \
+        model.data.test_ds.tokens_to_generate=10 \
+        model.data.test_ds.write_predictions_to_file=True \
+        model.data.test_ds.output_file_path_prefix='/home/TestData/nlp/lora_tuning_pp2/out' \
+        inference.greedy=True \
+        inference.repetition_penalty=1.0 \
+        inference.outfile_path='/home/TestData/nlp/lora_tuning_pp2/out.jsonl'
       AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/gpt_peft_lora_results_pp2
+        rm -rf /home/TestData/nlp/lora_tuning_pp2
 
-  L2_Megatron_GPT_PEFT_Lora_TP2:
+  L2_Megatron_GPT_PEFT_Lora_TP2_O1:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
     with:
@@ -3189,11 +3210,11 @@ jobs:
         trainer.max_steps=3 \
         trainer.val_check_interval=3 \
         ++trainer.limit_val_batches=2 \
-        trainer.precision=16 \
+        trainer.precision=bf16 \
         exp_manager.exp_dir=/home/TestData/nlp/lora_tuning_tp2 \
         model.pipeline_model_parallel_size=1 \
         model.tensor_model_parallel_size=2 \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
         model.peft.peft_scheme='lora' \
         model.answer_only_loss=True \
         model.micro_batch_size=1 \
@@ -3206,7 +3227,7 @@ jobs:
         model.data.validation_ds.names=[quarel]
 
         python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
         model.peft.restore_from_path=/home/TestData/nlp/lora_tuning_tp2/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo \
         model.tensor_model_parallel_size=2 \
         trainer.devices=2 \
@@ -4247,6 +4268,55 @@ jobs:
       AFTER_SCRIPT: |
         rm -f examples/asr/evaluation_transcripts.json
 
+  L2_Stable_Diffusion_Training:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        rm -rf examples/multimodal/text_to_image/sd_train_results
+
+        python examples/multimodal/text_to_image/stable_diffusion/sd_train.py \
+        trainer.devices=1 \
+        trainer.max_steps=3 \
+        +trainer.val_check_interval=10 \
+        trainer.limit_val_batches=2 \
+        trainer.gradient_clip_val=0 \
+        exp_manager.exp_dir=examples/multimodal/text_to_image/sd_train_results \
+        exp_manager.create_checkpoint_callback=False \
+        exp_manager.resume_if_exists=False \
+        model.resume_from_checkpoint=null \
+        model.precision=16 \
+        model.micro_batch_size=1 \
+        model.global_batch_size=1 \
+        model.first_stage_key=moments \
+        model.cond_stage_key=encoded \
+        +model.load_vae=False \
+        +model.load_unet=False \
+        +model.load_encoder=False \
+        model.parameterization=v \
+        model.load_only_unet=False \
+        model.text_embedding_dropout_rate=0.0 \
+        model.inductor=True \
+        model.inductor_cudagraphs=False \
+        model.capture_cudagraph_iters=15 \
+        +model.unet_config.num_head_channels=64 \
+        +model.unet_config.use_linear_in_transformer=True \
+        model.unet_config.context_dim=1024 \
+        model.unet_config.use_flash_attention=null \
+        model.unet_config.resblock_gn_groups=16 \
+        model.unet_config.unet_precision=fp16 \
+        +model.unet_config.timesteps=1000 \
+        model.optim.name=megatron_fused_adam \
+        +model.optim.capturable=True \
+        +model.optim.master_weights=True \
+        model.optim.weight_decay=0.01 \
+        model.first_stage_config.from_pretrained=null \
+        model.data.num_workers=16 \
+        model.data.synthetic_data=True
+      AFTER_SCRIPT: |
+        rm -rf examples/multimodal/text_to_image/sd_train_results
+
   Nemo_CICD_Test:
     needs: 
       #- OPTIONAL_L0_Unit_Tests_GPU
@@ -4316,8 +4386,8 @@ jobs:
       - L2_Megatron_GPT_Finetuning_PP2
       - L2_Megatron_GPT_Finetuning_StarCoder_PP1
       - L2_Megatron_GPT_Embedding 
-      - L2_Megatron_GPT_PEFT_Lora_PP2
-      - L2_Megatron_GPT_PEFT_Lora_TP2
+      - L2_Megatron_GPT_PEFT_Lora_PP2_O2
+      - L2_Megatron_GPT_PEFT_Lora_TP2_O1
       - L2_Megatron_GPT_Eval
       - L2_Megatron_GPT_Eval_PP2
       - L2_Megatron_GPT_SFT_Eval_inference_seq_len_greaterThan_training_seq_len
@@ -4342,6 +4412,7 @@ jobs:
       - L2_TTS_Fast_dev_runs_1_Mixer-TTS
       - L2_TTS_Fast_dev_runs_1_Hifigan
       - Speech_Checkpoints_tests
+      - L2_Stable_Diffusion_Training
     if: always()
     runs-on: ubuntu-latest
     steps:  
@@ -4366,12 +4437,69 @@ jobs:
       
       - if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' }}
         run: |
-          source .github/scripts/slackHelper.sh
+          set -x
 
-          WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK }}
+          PR_INFO=$(curl -L \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.number }}
+          )
+          PR_URL=$(echo -E $PR_INFO | jq '.html_url' | tr -d '"')
+          PR_TITLE=$(echo -E $PR_INFO | jq '.title' | tr -d '"')
+          
           PIPELINE_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BASE_MESSAGE='
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "🚨 *CI/CD failure at <'$PIPELINE_URL'|NeMo CI>*."
+                  }
+                }
+              ]
+            }
+          '
 
-          sendSlackMessage "$WEBHOOK_URL" "$PIPELINE_URL"
+          # We are close to reaching 100 jobs: Once we break that barrier, we have to iterate pages
+          JOBS_URL="https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs?per_page=100"  
+          SUMMARY="[]"
+          while IFS= read -r JOB; do
+            JOB_NAME="$(echo $JOB | jq '.key' | tr -d '"') / main"
+            JOB_ID=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" $JOBS_URL | jq --arg job_name "$JOB_NAME" -r '.jobs[] | select(.name == $job_name) | .id')
+            JOB_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/$JOB_ID"
+
+            LOGS=$(echo $JOB | yq '(.value.outputs.log | @base64d)' | tr -d '"')
+
+            SUMMARY=$(echo "$SUMMARY" | jq \
+              --arg pr "<$PR_URL|$PR_TITLE>" \
+              --arg job "<$JOB_URL|$JOB_NAME>" \
+              --arg logs "$LOGS" \
+              --arg author "<https://github.com/${{ github.actor }}|${{ github.actor }}>" \
+              --arg branch "<https://github.com/${{ github.repository }}/tree/${{ github.head_ref || github.ref_name }}|${{ github.head_ref || github.ref_name }}>"\
+              '. += [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": (
+                    "PR: " + $pr
+                    + "\nJob: " + $job
+                    + "\nAuthor: " + $author
+                    + "\nBranch: " + $branch
+                    + "\nLogs:" 
+                    + "```\n" + $logs + "\n```" 
+                  )
+                }
+              }
+            ]')
+          done <<<$(echo '${{ toJSON(needs) }}' | jq -c 'to_entries | .[] | select(.value.outputs.conclusion == "failure")')
+
+          MESSAGE=$(echo $BASE_MESSAGE | jq -c --argjson summary "$SUMMARY" '.blocks += $summary')
+
+          curl -X POST -H "Content-type: application/json" --data "$MESSAGE" ${{ secrets.SLACK_WEBHOOK }}
 
       - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'false' }}
         run: |
