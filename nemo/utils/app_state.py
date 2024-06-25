@@ -82,9 +82,9 @@ class AppState(metaclass=Singleton):
         self._restore = False  # TODO: are this and _is_model_being_restored both needed?
 
         # files from a previous run to move into a new directory
-        self.files_to_move = None
+        self.files_to_move = []
         # files to copy into log dir
-        self._files_to_copy = None
+        self._files_to_copy = []
         # command-ling arguments for run
         self._cmd_args = None
 

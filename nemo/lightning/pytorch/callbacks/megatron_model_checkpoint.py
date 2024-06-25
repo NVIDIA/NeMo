@@ -102,8 +102,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
                     shutil.copy(Path(_file), log_dir)
 
             # Create files for cmd args and git info
-            with open(log_dir / 'cmd-args.log', 'w', encoding='utf-8') as _file:
-                _file.write(" ".join(app_state.cmd_args))
+            if app_state.cmd_args:
+                with open(log_dir / 'cmd-args.log', 'w', encoding='utf-8') as _file:
+                    _file.write(" ".join(app_state.cmd_args))
 
             # Try to get git hash
             git_repo, git_hash = get_git_hash()
