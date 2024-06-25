@@ -13,8 +13,10 @@ from typing_extensions import Self
 
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.connector import ModelConnector
+from nemo.lightning.io.fdl_torch import enable as _enable_ext
 
 ConnT = TypeVar('ConnT', bound=ModelConnector)
+_enable_ext()
 
 
 class IOMixin:
