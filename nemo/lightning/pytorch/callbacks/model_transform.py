@@ -1,5 +1,5 @@
-from typing import Callable, TypeVar, Any, Optional
 from functools import wraps
+from typing import Any, Callable, Optional, TypeVar
 
 import pytorch_lightning as pl
 from torch import nn
@@ -43,7 +43,7 @@ class ModelTransform(pl.Callback):
         any forward passes or parameter updates occur, but after the original weights
         have been loaded.
     """
-    
+
     def setup(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str) -> None:
         """
         Setup the model transformation.
@@ -57,7 +57,7 @@ class ModelTransform(pl.Callback):
             pl_module (pl.LightningModule): The LightningModule being trained.
             stage (str): The stage of training ('fit', 'validate', 'test', or 'predict').
         """
-        
+
         global MODEL_TRANSFORM
 
         # Check if the model has 'model_transform' attribute
@@ -79,7 +79,7 @@ class ModelTransform(pl.Callback):
             pl_module (pl.LightningModule): The LightningModule being trained.
         """
         self._maybe_apply_transform(trainer)
-            
+
     def on_validation_start(self, trainer, pl_module):
         """
         Apply the model transformation at the start of validation.
@@ -92,7 +92,7 @@ class ModelTransform(pl.Callback):
             pl_module (pl.LightningModule): The LightningModule being validated.
         """
         self._maybe_apply_transform(trainer)
-            
+
     def _maybe_apply_transform(self, trainer):
         """
         Apply the model transformation if it hasn't been applied yet.
@@ -106,8 +106,8 @@ class ModelTransform(pl.Callback):
         global MODEL_TRANSFORM
         if MODEL_TRANSFORM and MODEL_TRANSFORM.__num_calls__ == 0:
             MODEL_TRANSFORM(trainer.model)
-            
-            
+
+
 T = TypeVar('T', bound=Callable[..., Any])
 
 
@@ -124,9 +124,11 @@ def _call_counter(func: T) -> T:
     Returns:
         Callable: The wrapped function with a call counter.
     """
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         wrapper.__num_calls__ += 1
         return func(*args, **kwargs)
+
     wrapper.__num_calls__ = 0
     return wrapper  # type: ignore

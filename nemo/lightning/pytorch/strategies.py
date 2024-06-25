@@ -192,7 +192,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self._fix_progress_bar(trainer)
         self.setup_megatron_parallel(trainer, setup_optimizers=setup_optimizers)
         self.setup_precision_plugin()
-        
+
         if getattr(self.lightning_module, "model_transform", None):
             trainer.callbacks.append(ModelTransform())
 
