@@ -320,7 +320,7 @@ def multitask_model(test_data_dir):
 
     # Test case where Encoder (default) is not adapter compatible
     encoder = {
-        '_target_': 'nemo.collections.asr.modules.ConformerEncoderAdapter',
+        '_target_': 'nemo.collections.asr.modules.ConformerEncoder',
         'feat_in': 64,
         'feat_out': -1,
         'n_layers': 2,
@@ -333,7 +333,7 @@ def multitask_model(test_data_dir):
     }
 
     transf_encoder = {
-        "_target_": "nemo.collections.asr.modules.transformer.transformer_encoders.TransformerEncoderAdapter",
+        "_target_": "nemo.collections.asr.modules.transformer.transformer_encoders.TransformerEncoder",
         "num_layers": 1,
         "hidden_size": "${model_defaults.lm_enc_hidden}",
         "inner_size": int(4 * model_defaults['lm_enc_hidden']),
@@ -407,6 +407,9 @@ def multitask_model(test_data_dir):
     )
 
     model_instance = EncDecMultiTaskModel(cfg=modelConfig)
+
+    # Execute the model class swap logic
+    model_instance.replace_adapter_compatible_modules()
     return model_instance
 
 
@@ -601,10 +604,11 @@ class TestASRAdapterMixin:
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
     @pytest.mark.unit
+    @pytest.mark.parametrize('adapter_type', ['linear', 'attn'])
     @pytest.mark.parametrize(
         'name', ['adapter_0', 'encoder:adapter_0', 'transf_encoder:adapter_0', 'transf_decoder:adapter_0']
     )
-    def test_canary_forward_mha(self, multitask_model, name):
+    def test_canary_forward_mha(self, multitask_model, name, adapter_type):
         multitask_model.eval()
         torch.random.manual_seed(0)
         input_signal = torch.randn(2, 512)
@@ -621,7 +625,9 @@ class TestASRAdapterMixin:
         og_logprob = origial_output[0]
         og_enc_out = origial_output[2]
 
-        adapter_type = 'transf_mha' if 'transf' in name else 'mha'
+        if adapter_type == 'attn':
+            adapter_type = 'transf_mha' if 'transf' in name else 'mha'
+
         multitask_model.add_adapter(name=name, cfg=get_adapter_cfg(in_features=128, atype=adapter_type, proj_dim=4))
 
         new_output = multitask_model(
@@ -636,6 +642,14 @@ class TestASRAdapterMixin:
 
         assert torch.mean(torch.abs(og_logprob - new_logprob)) < 1e-5
         assert torch.mean(torch.abs(og_enc_out - new_enc_out)) < 1e-5
+
+        if 'linear' in adapter_type:
+            mod_name = name.split(":")[-1]
+            for mod in multitask_model.modules():
+                if isinstance(mod, AdapterModuleMixin):
+                    amodule = mod.get_adapter_module(mod_name)
+                    if amodule is not None:
+                        assert isinstance(amodule, adapter_modules.LinearAdapter)
 
         # Try to use incorrect adapter
         with pytest.raises(ValueError):

@@ -1054,21 +1054,18 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                 module.adapter_cfg = cfg
 
     def replace_adapter_compatible_modules(
-        self, module: Optional[nn.Module] = None, update_config: bool = True, verbose: bool = True
+        self, update_config: bool = True, verbose: bool = True
     ):
         """
-        Utility method to replace all modules with Adapter variants, if they exist.
+        Utility method to replace all child modules with Adapter variants, if they exist.
+        Does NOT recurse through children of children modules (only immediate children).
 
         Args:
-            module: The module to be replaced with an Adapter variant.
             update_config: A flag that determines if the config should be updated or not.
             verbose: A flag that determines if the method should log the changes made or not.
         """
-        if module is None:
-            module = self
-
         # Update the given module itself, and then all its children modules
-        for name, mod in module.named_modules():
+        for name, mod in self.named_children():
             update_module_class_with_adapter_class(mod, cfg=self.cfg, update_config=update_config, verbose=verbose)
 
     @property
