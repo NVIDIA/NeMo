@@ -18,7 +18,7 @@ class CanaryPromptFormatter(PromptFormatter):
                 "source_lang": Modality.Text,
                 "task": Modality.Text,
                 "target_lang": Modality.Text,
-                "pnc": Modality.Text,
+                "pnc": Modality.TextLiteral("yes", "no"),
             },
         },
         OUTPUT_ROLE: {
