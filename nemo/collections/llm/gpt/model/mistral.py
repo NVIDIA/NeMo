@@ -47,7 +47,7 @@ class MistralModel(GPTModel):
         config: Annotated[Optional[MistralConfig7B], Config[MistralConfig7B]] = None,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
-        model_transform: Callable[[nn.Module], nn.Module] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(
             config or MistralConfig7B(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
