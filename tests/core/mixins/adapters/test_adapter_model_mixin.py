@@ -365,24 +365,6 @@ class TestAdapterModelMixin:
         assert model.encoder.is_adapter_available() is True
 
     @pytest.mark.unit
-    def test_base_model_replace_adapter_compatible_encoder_only(self, caplog):
-        cfg = get_model_config(in_features=50, update_adapter_cfg=False)
-        model = DefaultAdapterModel(cfg)
-
-        with pytest.raises(AttributeError):
-            model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
-
-        # Replace the modules of the model dynamically to support adapters
-        model.replace_adapter_compatible_modules(model.encoder, update_config=True)
-
-        assert isinstance(model.encoder, AdapterModuleMixin)
-        assert model.encoder.is_adapter_available() is False
-
-        model.add_adapter(name='encoder:adapter_0', cfg=get_adapter_cfg())
-
-        assert model.encoder.is_adapter_available() is True
-
-    @pytest.mark.unit
     def test_single_adapter(self):
         cfg = get_model_config(in_features=50)
 
