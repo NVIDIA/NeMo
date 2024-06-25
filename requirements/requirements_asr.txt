@@ -1,3 +1,4 @@
+aistore
 braceexpand
 editdistance
 einops
@@ -6,7 +7,7 @@ ipywidgets
 jiwer
 kaldi-python-io
 kaldiio
-lhotse>=1.22.0
+lhotse>=1.24.2
 librosa>=0.10.0
 marshmallow
 matplotlib
