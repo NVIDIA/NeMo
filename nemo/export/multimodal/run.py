@@ -205,7 +205,7 @@ class MultimodalModelRunner:
             profiler.start("Generate")
 
         input_ids, input_lengths, ptuning_args, visual_features = self.preprocess(
-            warmup, pre_prompt, post_prompt, image, attention_mask
+            warmup, pre_prompt, post_prompt, image, attention_mask, batch_size
         )
 
         if warmup:
@@ -391,7 +391,7 @@ class MultimodalModelRunner:
         check_accuracy=False,
     ):
         input_text, pre_prompt, post_prompt, processed_image, decoder_input_ids, attention_mask = self.setup_inputs(
-            input_text, input_image
+            input_text, input_image, batch_size
         )
 
         self.generate(

@@ -15,11 +15,13 @@
 
 import os
 import shutil
+import tarfile
 import tempfile
 from time import time
 
 import tensorrt as trt
 import torch
+import yaml
 from tensorrt_llm.builder import Builder
 from transformers import AutoModel
 
@@ -217,8 +219,14 @@ def build_video_neva_engine(
 ):
     device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
     # extract NeMo checkpoint
-    with tempfile.TemporaryDirectory() as temp:
-        mp0_weights, nemo_config, _ = load_nemo_model(visual_checkpoint_path, temp)
+    with tarfile.open(visual_checkpoint_path) as tar:
+        nemo_config = yaml.safe_load(tar.extractfile("./model_config.yaml"))
+        try:
+            # trained without TP
+            mp0_weights = torch.load(tar.extractfile("./model_weights.ckpt"), map_location=device)
+        except KeyError:
+            # trained with TP
+            mp0_weights = torch.load(tar.extractfile("./mp_rank_00/model_weights.ckpt"), map_location=device)
 
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
 
