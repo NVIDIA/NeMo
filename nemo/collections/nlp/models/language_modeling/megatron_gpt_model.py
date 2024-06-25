@@ -737,9 +737,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.cfg.get('hidden_size'),
         ]
 
-        te_module.base.initialize_ub(
+        rank = int(os.getenv("RANK"))
+        world_size = int(os.getenv("WORLD_SIZE"))
+
+        # Initialize torch.distributed global process group and get TP group
+        torch.distributed.init_process_group(backend="nccl",
+                                rank=WORLD_RANK,
+                                world_size=WORLD_SIZE,
+                                device_id=torch.device(f'cuda:{WORLD_RANK}'))
+        tp_group = dist.new_group(backend="nccl")
+
+        te_module.initialize_ub(
             shape=input_shape,
-            tp_size=self.cfg.get('tensor_model_parallel_size'),
+            tp_group=tp_group,
             use_fp8=self.cfg.get('fp8'),
             ub_cfgs=ub_cfgs,
         )
