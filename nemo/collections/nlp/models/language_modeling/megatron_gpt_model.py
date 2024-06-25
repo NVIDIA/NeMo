@@ -741,10 +741,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         world_size = int(os.getenv("WORLD_SIZE"))
 
         # Initialize torch.distributed global process group and get TP group
-        torch.distributed.init_process_group(backend="nccl",
-                                rank=WORLD_RANK,
-                                world_size=WORLD_SIZE,
-                                device_id=torch.device(f'cuda:{WORLD_RANK}'))
+        torch.distributed.init_process_group(
+            backend="nccl", rank=WORLD_RANK, world_size=WORLD_SIZE, device_id=torch.device(f'cuda:{WORLD_RANK}')
+        )
         tp_group = dist.new_group(backend="nccl")
 
         te_module.initialize_ub(
