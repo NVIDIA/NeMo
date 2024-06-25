@@ -1,8 +1,7 @@
-from typing import Optional, Tuple, TYPE_CHECKING
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import torch.nn as nn
-
 
 if TYPE_CHECKING:
     from megatron.core.dist_checkpointing.mapping import ShardedStateDict
@@ -35,7 +34,7 @@ class AdapterWrapper(nn.Module):
         adapter = nn.Linear(100, 100)
         parallel_adapter = AdapterParallelAdd(main_module, adapter)
     """
-    
+
     def __init__(self, to_wrap: nn.Module, adapter: nn.Module):
         super(AdapterWrapper, self).__init__()
         self.to_wrap = to_wrap
@@ -57,7 +56,7 @@ class AdapterWrapper(nn.Module):
         Returns:
             dict: The state dictionary containing both the main module and adapter states.
         """
-        
+
         if destination is None:
             destination = {}
 
@@ -134,11 +133,11 @@ class PEFT(ABC):
                 # Implement the transform logic
                 pass
 
-        
+
         peft = MyPEFT()
         peft_model = LargeLanguageModel(model_transform=peft)
     """
-    
+
     @abstractmethod
     def transform(self, module, name=None, prefix=None):
         """Transform a single module according to the PEFT method.
@@ -150,12 +149,12 @@ class PEFT(ABC):
         Args:
             module (nn.Module): The individual module to be transformed.
             name (Optional[str]): The name of the module within the model structure. Defaults to None.
-            prefix (Optional[str]): A prefix to be added to the module name, typically used for 
+            prefix (Optional[str]): A prefix to be added to the module name, typically used for
                                     nested modules. Defaults to None.
 
         Returns:
             nn.Module: The transformed module. This can be the original module with modifications,
-                       a new module replacing the original, or the original module if no 
+                       a new module replacing the original, or the original module if no
                        transformation is needed for this specific module.
 
         Note:
@@ -176,7 +175,7 @@ class PEFT(ABC):
         Returns:
             nn.Module: The transformed model with PEFT applied.
         """
-        
+
         model.freeze()
         model.walk(self.transform)
 

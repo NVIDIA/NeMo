@@ -1,10 +1,10 @@
 from dataclasses import dataclass, field
 from typing import List, Literal
 
-from torch import nn
 from megatron.core import parallel_state
-from nemo.collections.llm.adapter.base import PEFT, AdapterWrapper
+from torch import nn
 
+from nemo.collections.llm.adapter.base import PEFT, AdapterWrapper
 from nemo.utils import logging
 
 
@@ -33,7 +33,7 @@ class LoRA(PEFT):
 
     LoRA uses a low-rank projection to adapt the weights of a pre-trained model to a new downstream task.
     This class facilitates the application of LoRA to specific modules within the model architecture.
-    
+
     Args:
         target_modules (List[str], optional): A list of module names to apply LoRA to.
             Defaults to ['linear_qkv', 'linear_proj']. Possible choices include:
@@ -55,7 +55,7 @@ class LoRA(PEFT):
         >>> model = llm.Mistral7BModel(model_transform=lora)
         >>> # (set up trainer and data)
         >>> trainer.fit(model, data)
-        
+
     References:
     -----------
         Hu, E. J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L., & Chen, W. (2021).
@@ -84,7 +84,7 @@ class LoRA(PEFT):
             nn.Module: The modified module with LoRA applied, or the original module if not a target.
         """
         from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
-        
+
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
         if name in self.target_modules:
             # m.in_features and m.out_features are divided by tp_size already,
