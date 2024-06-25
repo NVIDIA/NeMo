@@ -126,10 +126,3 @@ class TransformerMultiHeadAttentionAdapterConfig:
     _target_: str = "{0}.{1}".format(
         TransformerMultiHeadAttentionAdapter.__module__, TransformerMultiHeadAttentionAdapter.__name__
     )
-
-
-""" Register the Adapter Modules to the Adapter Module Registry """
-if adapter_mixins.get_registered_adapter(TransformerMultiHeadAttentionAdapter) is None:
-    adapter_mixins.register_adapter(
-        base_class=transformer_modules.MultiHeadAttention, adapter_class=TransformerMultiHeadAttentionAdapter
-    )

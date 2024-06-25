@@ -1063,7 +1063,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             verbose: A flag that determines if the method should log the changes made or not.
         """
         # Update the given module itself, and then all its children modules
-        for name, mod in self.named_children():
+        for name, mod in self.named_modules():
             update_module_class_with_adapter_class(mod, cfg=self.cfg, update_config=update_config, verbose=verbose)
 
     @property
