@@ -6,6 +6,7 @@ import torch
 import torch.distributed
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
+from torch import nn
 
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
@@ -117,7 +118,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         # TODO: Add transformer_layer_spec when we update mcore
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
-        model_transform: Callable = None,
+        model_transform: Callable[[nn.Module], nn.Module] = None,
     ):
         super().__init__()
         self.config = config
