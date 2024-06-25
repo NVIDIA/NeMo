@@ -4,18 +4,15 @@ This module provides extensions for better handling of PyTorch types and functio
 in codegen, graphviz, and other debugging functions.
 """
 
-from fiddle._src import daglish_extensions
-from fiddle._src.codegen import import_manager
-from fiddle._src.codegen import py_val_to_cst_converter
-from fiddle._src.codegen import special_value_codegen
+import libcst as cst
 import torch
 import torch.nn as nn
-import libcst as cst
+from fiddle._src import daglish_extensions
+from fiddle._src.codegen import import_manager, py_val_to_cst_converter, special_value_codegen
 
 
 def _make_torch_importable(name: str) -> special_value_codegen.Importable:
-    return special_value_codegen.SingleImportable(
-        "torch", lambda torch_name: f"{torch_name}.{name}")
+    return special_value_codegen.SingleImportable("torch", lambda torch_name: f"{torch_name}.{name}")
 
 
 _torch_type_importables = (
@@ -47,14 +44,11 @@ _torch_initializers = (
     nn.init.zeros_,
 )
 
-_import_aliases = (
-    ("torch.nn.init", "from torch.nn import init"),
-)
+_import_aliases = (("torch.nn.init", "from torch.nn import init"),)
 
 
 def _make_torch_nn_importable(name: str) -> special_value_codegen.Importable:
-    return special_value_codegen.SingleImportable(
-        "torch", lambda torch_mod_name: f"{torch_mod_name}.nn.{name}")
+    return special_value_codegen.SingleImportable("torch", lambda torch_mod_name: f"{torch_mod_name}.nn.{name}")
 
 
 _nn_type_importables = (
@@ -79,9 +73,8 @@ def convert_torch_tensor_to_cst(value, convert_child):
         func=cst.Attribute(value=convert_child(torch), attr=cst.Name("tensor")),
         args=[
             cst.Arg(convert_child(value.tolist())),
-            py_val_to_cst_converter.kwarg_to_cst("dtype",
-                                                 convert_child(value.dtype)),
-        ]
+            py_val_to_cst_converter.kwarg_to_cst("dtype", convert_child(value.dtype)),
+        ],
     )
 
 
@@ -99,8 +92,7 @@ def enable():
     for module_str, import_stmt in _import_aliases:
         import_manager.register_import_alias(module_str, import_stmt)
 
-    py_val_to_cst_converter.register_py_val_to_cst_converter(is_torch_tensor)(
-        convert_torch_tensor_to_cst)
+    py_val_to_cst_converter.register_py_val_to_cst_converter(is_torch_tensor)(convert_torch_tensor_to_cst)
 
     for dtype, _ in _torch_type_importables:
         daglish_extensions.register_immutable(dtype)
