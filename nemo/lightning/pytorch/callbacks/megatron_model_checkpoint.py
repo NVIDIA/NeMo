@@ -94,7 +94,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 new_run_dir = Path(Path(log_dir) / f"run_{run_count}")
                 new_run_dir.mkdir()
                 for _file in files_to_move:
-                    print(f'FILES TO MOVE: {files_to_move}')
                     shutil.move(str(_file), str(new_run_dir))
 
             # Move files_to_copy to folder and add git information if present
