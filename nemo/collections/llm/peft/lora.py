@@ -47,7 +47,7 @@ class LoRA(PEFT):
     --------
         >>> from nemo.collections import llm
         >>> lora = llm.peft.LoRA(target_modules=['linear_qkv', 'linear_proj'], dim=32)
-        >>> model = llm.Mistral7BModel(model_transform=lora.transform)
+        >>> model = llm.Mistral7BModel(model_transform=lora)
         >>> # (set up trainer and data)
         >>> trainer.fit(model, data)
 
