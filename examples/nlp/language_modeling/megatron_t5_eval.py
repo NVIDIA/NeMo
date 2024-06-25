@@ -40,13 +40,22 @@ def main():
         "--tokens_to_generate", type=int, default="16", required=False, help="How many tokens to add to prompt"
     )
     parser.add_argument(
-        "--tensor_model_parallel_size", type=int, default=-1, required=False,
+        "--tensor_model_parallel_size",
+        type=int,
+        default=-1,
+        required=False,
     )
     parser.add_argument(
-        "--pipeline_model_parallel_size", type=int, default=-1, required=False,
+        "--pipeline_model_parallel_size",
+        type=int,
+        default=-1,
+        required=False,
     )
     parser.add_argument(
-        "--pipeline_model_parallel_split_rank", type=int, default=-1, required=False,
+        "--pipeline_model_parallel_split_rank",
+        type=int,
+        default=-1,
+        required=False,
     )
     parser.add_argument("--precision", default="16", type=str, help="PyTorch Lightning Trainer precision flag")
     parser.add_argument("--decoder_starts_with_pad", action="store_true", help="Decoder starts with pad token")
@@ -89,8 +98,10 @@ def main():
     if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
         app_state.model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
         (
+            app_state.data_parallel_rank,
             app_state.tensor_model_parallel_rank,
             app_state.pipeline_model_parallel_rank,
+            app_state.expert_model_parallel_rank,
             app_state.model_parallel_size,
             app_state.data_parallel_size,
             app_state.pipeline_model_parallel_split_rank,

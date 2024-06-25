@@ -121,8 +121,10 @@ def main(cfg) -> None:
             app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
             app_state.virtual_pipeline_model_parallel_size = cfg.virtual_pipeline_model_parallel_size
             (
+                app_state.data_parallel_rank,
                 app_state.tensor_model_parallel_rank,
                 app_state.pipeline_model_parallel_rank,
+                app_state.expert_model_parallel_rank,
                 app_state.model_parallel_size,
                 app_state.data_parallel_size,
                 app_state.pipeline_model_parallel_split_rank,
@@ -140,7 +142,9 @@ def main(cfg) -> None:
         with tempfile.NamedTemporaryFile(suffix='.yaml') as f:
             OmegaConf.save(config=pretrained_cfg, f=f.name)
             model = MegatronGPTModel.load_from_checkpoint(
-                checkpoint_path=checkpoint_path, trainer=trainer, hparams_file=f.name,
+                checkpoint_path=checkpoint_path,
+                trainer=trainer,
+                hparams_file=f.name,
             )
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")

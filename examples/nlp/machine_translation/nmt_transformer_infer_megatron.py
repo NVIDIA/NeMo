@@ -58,8 +58,10 @@ def main(cfg) -> None:
     app_state = AppState()
     app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
     (
+        app_state.data_parallel_rank,
         app_state.tensor_model_parallel_rank,
         app_state.pipeline_model_parallel_rank,
+        app_state.expert_model_parallel_rank,
         app_state.model_parallel_size,
         app_state.data_parallel_size,
         app_state.pipeline_model_parallel_split_rank,
@@ -101,13 +103,19 @@ def main(cfg) -> None:
             src_text.append(line.strip())
             if len(src_text) == cfg.batch_size:
                 translations = model.translate(
-                    text=src_text, source_lang=cfg.source_lang, target_lang=cfg.target_lang,
+                    text=src_text,
+                    source_lang=cfg.source_lang,
+                    target_lang=cfg.target_lang,
                 )
                 for translation in translations:
                     tgt_f.write(translation + "\n")
                 src_text = []
         if len(src_text) > 0:
-            translations = model.translate(text=src_text, source_lang=cfg.source_lang, target_lang=cfg.target_lang,)
+            translations = model.translate(
+                text=src_text,
+                source_lang=cfg.source_lang,
+                target_lang=cfg.target_lang,
+            )
             for translation in translations:
                 tgt_f.write(translation + "\n")
 

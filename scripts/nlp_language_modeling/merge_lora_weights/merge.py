@@ -62,7 +62,9 @@ class RequestDataSet(Dataset):
         super().__init__()
         self.sentences = sentences
 
-    def __len__(self,):
+    def __len__(
+        self,
+    ):
         return len(self.sentences)
 
     def __getitem__(self, idx):
@@ -131,9 +133,12 @@ def fix_for_O2(state_dict):
 
 
 def merge(
-    base_model_state_dict: Dict[str, Any], lora_state_dicts: List[Dict], num_layers: int, mcore: bool,
+    base_model_state_dict: Dict[str, Any],
+    lora_state_dicts: List[Dict],
+    num_layers: int,
+    mcore: bool,
 ):
-    """ 
+    """
     Iterate through all the feedforward weights in all the layers.
     Collect the corresponding lora weights for each layer and across tp ranks.
     Computes the "full rank" weight from the two low-rank weights and add it to the feedforward weight.
@@ -213,7 +218,9 @@ def main(cfg) -> None:
 
     if cfg.tensor_model_parallel_size < 0 or cfg.pipeline_model_parallel_size < 0:
         model_config = MegatronGPTModel.restore_from(
-            restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True,
+            restore_path=cfg.gpt_model_file,
+            trainer=trainer,
+            return_config=True,
         )
 
         with open_dict(cfg):
@@ -252,10 +259,13 @@ def main(cfg) -> None:
             app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
             app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
             (
+                app_state.data_parallel_rank,
                 app_state.tensor_model_parallel_rank,
                 app_state.pipeline_model_parallel_rank,
+                app_state.expert_model_parallel_rank,
                 app_state.model_parallel_size,
                 app_state.data_parallel_size,
+                app_state.pipeline_model_parallel_split_rank,
                 app_state.virtual_pipeline_model_parallel_rank,
             ) = fake_initialize_model_parallel(
                 world_size=app_state.model_parallel_size,
