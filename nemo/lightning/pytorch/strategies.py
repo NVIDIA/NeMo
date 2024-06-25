@@ -33,7 +33,7 @@ from typing_extensions import override
 from nemo.lightning import _strategy_lib, io
 from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
-from nemo.lightning.pytorch.callbacks import MegatronProgressBar
+from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ModelTransform
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
@@ -192,6 +192,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self._fix_progress_bar(trainer)
         self.setup_megatron_parallel(trainer, setup_optimizers=setup_optimizers)
         self.setup_precision_plugin()
+        
+        if getattr(self.lightning_module, "model_transform", None):
+            trainer.callbacks.append(ModelTransform())
 
         if trainer.num_sanity_val_steps > 1 and self.pipeline_model_parallel_size > 1:
             # TODO: log here
@@ -558,10 +561,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             checkpoint_state_dict = _state_dict
 
             module.load_state_dict(checkpoint_state_dict, strict=strict)
-
-        if self.megatron_parallel.pipeline.model_fn is not None:
-            self.megatron_parallel.pipeline.model_fn(self.megatron_parallel.pipeline)
-            self.precision_plugin.convert_module(self.megatron_parallel.pipeline)
 
     @property
     @override
