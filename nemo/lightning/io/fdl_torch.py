@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from fiddle._src import daglish_extensions
 from fiddle._src.codegen import import_manager, py_val_to_cst_converter, special_value_codegen
+from fiddle._src.experimental import serialization
 
 
 def _make_torch_importable(name: str) -> special_value_codegen.Importable:
@@ -96,6 +97,8 @@ def enable():
 
     for dtype, _ in _torch_type_importables:
         daglish_extensions.register_immutable(dtype)
+        lib, symbol = str(dtype).split(".")
+        serialization.register_constant(lib, symbol, compare_by_identity=True)
 
     for init in _torch_initializers:
         daglish_extensions.register_immutable(init)
