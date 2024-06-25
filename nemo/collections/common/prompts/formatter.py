@@ -27,10 +27,12 @@ class BaseModalityType:
 
 
 class Text(BaseModalityType):
-    """ Modality for text values. """
+    """Modality for text values."""
+
     @staticmethod
     def matches(value: str) -> bool:
         return isinstance(value, str)
+
 
 class TextLiteral(BaseModalityType):
     def __init__(self, *items):
@@ -43,6 +45,7 @@ class TextLiteral(BaseModalityType):
 
     def __repr__(self):
         return f"{self.__class__.__name__}(allowed_values={self.allowed_values})"
+
 
 class Modality:
     """

@@ -387,7 +387,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
         logging.info(f"Changed decoder to output to {vocabulary} vocabulary.")
 
-    def change_prompt(self, prompt_format: Optional[str] = None, prompt_defaults: Optional[List[Dict[str, Any]]] = None):
+    def change_prompt(
+        self, prompt_format: Optional[str] = None, prompt_defaults: Optional[List[Dict[str, Any]]] = None
+    ):
         """
         Changes the prompt format used during Multi Task decoding process.
 
@@ -412,12 +414,14 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
                 # Each dict item must have a `role` key
                 if 'role' not in item:
-                    raise ValueError("`prompt_defaults` must have a `role` key for each item "
-                                     "in the list of dictionaries")
+                    raise ValueError(
+                        "`prompt_defaults` must have a `role` key for each item " "in the list of dictionaries"
+                    )
 
                 if 'slots' not in item:
-                    raise ValueError("`prompt_defaults` must have a `slots` key for each item "
-                                     "in the list of dictionaries")
+                    raise ValueError(
+                        "`prompt_defaults` must have a `slots` key for each item " "in the list of dictionaries"
+                    )
 
             # Cast to OmegaConf if not already
             if not isinstance(prompt_defaults, ListConfig):
