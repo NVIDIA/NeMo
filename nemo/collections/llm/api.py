@@ -8,7 +8,7 @@ from nemo.collections.llm.utils import Config, task
 from nemo.lightning import AutoResume, MegatronStrategy, NeMoLogger, OptimizerModule, Trainer, io, teardown
 
 
-@task(namespace="llm", store_io=True)
+@task(namespace="llm")
 def train(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
