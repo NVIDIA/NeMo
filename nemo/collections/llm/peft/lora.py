@@ -2,10 +2,10 @@ from dataclasses import dataclass, field
 from typing import List, Literal
 
 from megatron.core import parallel_state
-from nemo.utils import logging
 
-from nemo.collections.llm.adapter.base import AdapterWrapper, PEFT
+from nemo.collections.llm.adapter.base import PEFT, AdapterWrapper
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
+from nemo.utils import logging
 
 
 class AdapterParallelAdd(AdapterWrapper):
@@ -53,6 +53,7 @@ class LoRA(PEFT):
 
     )
     """
+
     target_modules: List[str] = field(default_factory=lambda: ['linear_qkv', 'linear_proj'])
     dim: int = 32
     alpha: int = 32
