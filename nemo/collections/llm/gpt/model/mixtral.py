@@ -3,8 +3,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional
 
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.lightning import io, teardown
