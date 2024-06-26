@@ -92,9 +92,7 @@ def get_infer_test_data():
     test_data["NV-GPT-8B-Chat-4k-RLHF"]["model_type"] = "gptnext"
     test_data["NV-GPT-8B-Chat-4k-RLHF"]["min_gpus"] = 1
     test_data["NV-GPT-8B-Chat-4k-RLHF"]["location"] = "Local"
-    test_data["NV-GPT-8B-Chat-4k-RLHF"][
-        "model_dir"
-    ] = "/tmp/NV-GPT-8B-Chat-4k-RLHF/nv-gpt-8b-chat-4k-rlhf_v1.0/"
+    test_data["NV-GPT-8B-Chat-4k-RLHF"]["model_dir"] = "/tmp/NV-GPT-8B-Chat-4k-RLHF/nv-gpt-8b-chat-4k-rlhf_v1.0/"
     test_data["NV-GPT-8B-Chat-4k-RLHF"][
         "checkpoint"
     ] = "/opt/checkpoints/NV-GPT-8B-Chat-4k-RLHF/nv-gpt-8b-chat-4k-rlhf_v1.0/NV-GPT-8B-Chat-4k-RLHF.nemo"

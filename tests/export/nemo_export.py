@@ -313,7 +313,7 @@ def run_inference(
 
         # Check non-deployed funcitonal correctness
         functional_result.regular_pass = True
-        #if not check_model_outputs(streaming, output, expected_outputs):
+        # if not check_model_outputs(streaming, output, expected_outputs):
         #    LOGGER.warning("Model outputs don't match the expected result.")
         #    functional_result.regular_pass = False
 
