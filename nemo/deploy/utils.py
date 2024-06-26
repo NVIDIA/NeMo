@@ -69,6 +69,7 @@ def ndarray2img(img_ndarray: np.ndarray) -> typing.List[Image.Image]:
     img_list = [Image.fromarray(i) for i in img_ndarray]
     return img_list
 
+
 def cast_output(data, required_dtype):
     if isinstance(data, torch.Tensor):
         data = data.cpu().numpy()

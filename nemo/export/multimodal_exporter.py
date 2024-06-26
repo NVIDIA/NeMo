@@ -27,7 +27,7 @@ from nemo.export.multimodal.run import MultimodalModelRunner
 
 use_deploy = True
 try:
-    from nemo.deploy.utils import cast_output, str_ndarray2list, ndarray2img
+    from nemo.deploy.utils import cast_output, ndarray2img, str_ndarray2list
 except Exception:
     use_deploy = False
 
