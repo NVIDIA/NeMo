@@ -1,4 +1,6 @@
 nvidia-pytriton
 tensorstore==0.1.45
 zarr
-
+fastapi
+uvicorn
+pydantic-settings
