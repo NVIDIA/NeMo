@@ -27,7 +27,7 @@ from nemo.export.multimodal.run import MultimodalModelRunner
 
 use_deploy = True
 try:
-    from nemo.deploy.utils import byte2_imgtensor, cast_output, str_ndarray2list
+    from nemo.deploy.utils import cast_output, str_ndarray2list
 except Exception:
     use_deploy = False
 
@@ -168,7 +168,7 @@ class MultimodalExporter(ITritonDeployable):
     def get_triton_input(self):
         inputs = (
             Tensor(name="input_text", shape=(-1,), dtype=bytes),
-            Tensor(name="input_media", shape=(-1, -1, -1, 3), dtype=np.uint8),
+            Tensor(name="input_media", shape=(-1, -1, 3), dtype=np.uint8),
             Tensor(name="batch_size", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="max_output_len", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
