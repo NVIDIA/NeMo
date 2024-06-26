@@ -485,6 +485,7 @@ class GriffinModelTextGenerationStrategy(TextGenerationStrategy):
         output_tensor[0]['logits'] = output_tensor[0]['logits'][:, :context_length, :]
         return output_tensor
 
+
 class JambaModelTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model):
         super().__init__(model)
@@ -559,6 +560,7 @@ class JambaModelTextGenerationStrategy(TextGenerationStrategy):
 
         output_tensor[0]['logits'] = output_tensor[0]['logits'][:, :context_length, :]
         return output_tensor
+
 
 def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, conv_template):
     from nemo.collections.multimodal.data.neva.neva_dataset import (

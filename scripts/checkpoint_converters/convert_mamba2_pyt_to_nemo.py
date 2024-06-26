@@ -1,16 +1,17 @@
 import json
 import os
+import re
 from argparse import ArgumentParser
+from collections import defaultdict
 
 import torch
 from omegaconf.omegaconf import OmegaConf
-import re
+
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_jamba_model import MegatronJambaModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
-from collections import defaultdict
 
 '''
 CUDA_VISIBLE_DEVICES="0" python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py --input_name_or_path /home/ataghibakhsh/mamba2_ckpt/mamba2-130m --output_path /home/ataghibakhsh/forks/mamba_130m.nemo
@@ -37,9 +38,7 @@ def get_args():
         type=str,
         required=True,
     )
-    parser.add_argument(
-        "--ngroups_mamba", type=int, default=1, help="ngroups for Mamba model"
-    )
+    parser.add_argument("--ngroups_mamba", type=int, default=1, help="ngroups for Mamba model")
     parser.add_argument(
         "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
     )
@@ -80,7 +79,7 @@ def convert_pyt(args):
             'mixer.dt_bias',
             'mixer.out_proj.weight',
             'mixer.norm.weight',
-            'norm.weight'
+            'norm.weight',
         ]
 
         for i in range(num_layers):
@@ -90,7 +89,7 @@ def convert_pyt(args):
                 new_state_dict[new_key] = checkpoint_weights[old_key]
 
     else:
-        
+
         layer_keys = [key for key in checkpoint_weights.keys() if re.match(r'decoder\.layers\.\d+\.', key)]
         layer_numbers = set(int(re.search(r'decoder\.layers\.(\d+)\.', key).group(1)) for key in layer_keys)
         num_layers = max(layer_numbers) + 1
@@ -117,19 +116,23 @@ def convert_pyt(args):
             layer_pattern += '-'
         else:
             AssertionError("Layer not found. Each layer must be eiher MLP, Mamba, or Attention")
-            
+
     nemo_config = OmegaConf.load(args.hparams_file)
     nemo_config.trainer["precision"] = args.precision
-    nemo_config.model.vocab_size, nemo_config.model.hidden_size = new_state_dict['model.embedding.word_embeddings.weight'].shape
+    nemo_config.model.vocab_size, nemo_config.model.hidden_size = new_state_dict[
+        'model.embedding.word_embeddings.weight'
+    ].shape
     nemo_config.model.num_layers = num_layers
     nemo_config.model.hybrid_override_pattern = layer_pattern
     nemo_config.model.ngroups_mamba = args.ngroups_mamba
 
     if "-" in layer_pattern:
-        nemo_config.model.ffn_hidden_size = new_state_dict[f'model.decoder.layers.{layer_pattern.index("-")}.mlp.linear_fc1.weight'].shape[0]
+        nemo_config.model.ffn_hidden_size = new_state_dict[
+            f'model.decoder.layers.{layer_pattern.index("-")}.mlp.linear_fc1.weight'
+        ].shape[0]
     else:
         nemo_config.model.ffn_hidden_size = nemo_config.model.hidden_size
-    
+
     nemo_config.model.use_cpu_initialization = True
 
     logging.info(f"Loading Mamba2 Pytorch checkpoint : `{args.input_name_or_path}`")
@@ -139,7 +142,6 @@ def convert_pyt(args):
 
     from src.models.config_mamba import MambaConfig
     from src.models.mixer_seq_simple import Mamba2LMHeadModel, MixerModel
-
 
     mamba_cfg = MambaConfig(
         d_model=pytorch_config['d_model'],
