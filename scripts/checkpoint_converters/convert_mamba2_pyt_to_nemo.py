@@ -1,16 +1,17 @@
 import json
 import os
+import re
 from argparse import ArgumentParser
+from collections import defaultdict
 
 import torch
 from omegaconf.omegaconf import OmegaConf
-import re
+
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_jamba_model import MegatronJambaModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
-from collections import defaultdict
 
 '''
 Example
@@ -77,7 +78,7 @@ def convert(args):
             'mixer.dt_bias',
             'mixer.out_proj.weight',
             'mixer.norm.weight',
-            'norm.weight'
+            'norm.weight',
         ]
 
         for i in range(num_layers):
@@ -87,7 +88,7 @@ def convert(args):
                 new_state_dict[new_key] = checkpoint_weights[old_key]
 
     else:
-        
+
         layer_keys = [key for key in checkpoint_weights.keys() if re.match(r'decoder\.layers\.\d+\.', key)]
         layer_numbers = set(int(re.search(r'decoder\.layers\.(\d+)\.', key).group(1)) for key in layer_keys)
         num_layers = max(layer_numbers) + 1
@@ -114,19 +115,23 @@ def convert(args):
             layer_pattern += '-'
         else:
             AssertionError("Layer not found. Each layer must be eiher MLP, Mamba, or Attention")
-            
+
     nemo_config = OmegaConf.load(args.hparams_file)
     nemo_config.trainer["precision"] = args.precision
-    nemo_config.model.vocab_size, nemo_config.model.hidden_size = new_state_dict['model.embedding.word_embeddings.weight'].shape
+    nemo_config.model.vocab_size, nemo_config.model.hidden_size = new_state_dict[
+        'model.embedding.word_embeddings.weight'
+    ].shape
     nemo_config.model.num_layers = num_layers
     nemo_config.model.hybrid_override_pattern = layer_pattern
     nemo_config.model.ngroups_mamba = args.ngroups_mamba
 
     if "-" in layer_pattern:
-        nemo_config.model.ffn_hidden_size = new_state_dict[f'model.decoder.layers.{layer_pattern.index("-")}.mlp.linear_fc1.weight'].shape[0]
+        nemo_config.model.ffn_hidden_size = new_state_dict[
+            f'model.decoder.layers.{layer_pattern.index("-")}.mlp.linear_fc1.weight'
+        ].shape[0]
     else:
         nemo_config.model.ffn_hidden_size = nemo_config.model.hidden_size
-    
+
     nemo_config.model.use_cpu_initialization = True
 
     logging.info(f"Loading Mamba2 Pytorch checkpoint : `{args.input_name_or_path}`")

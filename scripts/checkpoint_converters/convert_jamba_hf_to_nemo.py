@@ -228,8 +228,8 @@ def convert(args):
     nemo_model_from_hf.load_state_dict(new_state_dict, strict=True)
     dtype = torch_dtype_from_precision(args.precision)
     nemo_model_from_hf = nemo_model_from_hf.to(dtype=dtype)
-    
-    inpt = torch.randint(10, (1,10))#.cuda()
+
+    inpt = torch.randint(10, (1, 10))  # .cuda()
 
     # out_pyt = hf_model.forward(inpt)
     # out_nemo = nemo_model_from_hf.forward(inpt)
@@ -237,6 +237,7 @@ def convert(args):
     # print(f"out_nemo = {out_nemo}")
 
     import sys
+
     sys.exit()
     nemo_model_from_hf.save_to(args.output_path)
     logging.info(f'Jamba NeMo model saved to: {args.output_path}')
