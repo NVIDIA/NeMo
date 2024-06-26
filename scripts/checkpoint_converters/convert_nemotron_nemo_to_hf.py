@@ -21,7 +21,7 @@ import shutil
 import torch
 from omegaconf import open_dict
 from pytorch_lightning import Trainer
-from transformers import AutoModelForCausalLM, convert_slow_tokenizer
+from transformers import AutoModelForCausalLM, LlamaTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -45,7 +45,7 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
     --hf_input_path /path/to/input_hf_folder \
     --hf_output_path /path/to/output_hf_folder \
 
-    Use the --cpu-only flag if the model cannot fit in the GPU (e.g. Nemotron3 70b). 
+    Use the --cpu-only flag if the model cannot fit in the GPU (e.g. Nemotron4 340b). 
     However this option makes the conversion script significantly slower.
 """
 
@@ -253,29 +253,29 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
 
         # layernorm
         input_ln_weight = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight']
-        input_ln_base_name = f'model.layers.{l}.input_layernorm.ln.weight'
+        input_ln_base_name = f'model.layers.{l}.input_layernorm.weight'
         checkpoint[input_ln_base_name] = param_to_weights(input_ln_weight)
         if model.state_dict().get(f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_bias', None) is not None:
             input_ln_bias = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_bias']
-            input_ln_bias_name = f'model.layers.{l}.input_layernorm.ln.bias'
+            input_ln_bias_name = f'model.layers.{l}.input_layernorm.bias'
             checkpoint[input_ln_bias_name] = param_to_weights(input_ln_bias)
 
         post_attn_ln_weight = model.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight']
-        post_attn_ln_base_name = f'model.layers.{l}.post_attention_layernorm.ln.weight'
+        post_attn_ln_base_name = f'model.layers.{l}.post_attention_layernorm.weight'
         checkpoint[post_attn_ln_base_name] = param_to_weights(post_attn_ln_weight)
         if model.state_dict().get(f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_bias', None) is not None:
             post_attn_ln_bias = model.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_bias']
-            post_attn_ln_bias_name = f'model.layers.{l}.post_attention_layernorm.ln.bias'
+            post_attn_ln_bias_name = f'model.layers.{l}.post_attention_layernorm.bias'
             checkpoint[post_attn_ln_bias_name] = param_to_weights(post_attn_ln_bias)
 
         print(f"done layer {l}")
 
     final_ln_weight = model.state_dict()[f'model.decoder.final_layernorm.weight']
-    final_ln_base_name = f'model.norm.ln.weight'
+    final_ln_base_name = f'model.norm.weight'
     checkpoint[final_ln_base_name] = param_to_weights(final_ln_weight)
     if model.state_dict().get(f'model.decoder.final_layernorm.bias', None) is not None:
         final_ln_bias = model.state_dict()[f'model.decoder.final_layernorm.bias']
-        final_ln_bias_name = f'model.norm.ln.bias'
+        final_ln_bias_name = f'model.norm.bias'
         checkpoint[final_ln_bias_name] = param_to_weights(final_ln_bias)
 
     output_layer_weight = model.state_dict()[f'model.output_layer.weight']
@@ -303,8 +303,14 @@ def extract_nemotron_tokenizer(
             archive.extract(tokenizer_filename, output_hf_path)
             archive.close()
             os.rename(f'{output_hf_path}/{tokenizer_fn}', output_tokenizer)
+            # We use LlamaTokenizer for sentencepiece based tokenizer
+            tokenizer = LlamaTokenizer.from_pretrained(output_hf_path)
+            tokenizer.save_pretrained(output_hf_path)
         elif os.path.isdir(nemo_file):
             shutil.copy(f'{nemo_file}/{tokenizer_fn}', output_tokenizer)
+            # We use LlamaTokenizer for sentencepiece based tokenizer
+            tokenizer = LlamaTokenizer.from_pretrained(output_hf_path)
+            tokenizer.save_pretrained(output_hf_path)
         logging.info(f'Setencepiece tokenizer has been saved to {output_tokenizer}')
     elif isinstance(nemo_tokenizer, AutoTokenizer):
         nemo_tokenizer.tokenizer.save_pretrained(output_hf_path)
