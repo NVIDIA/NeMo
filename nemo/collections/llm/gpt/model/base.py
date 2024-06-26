@@ -78,7 +78,8 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
 
     def configure_model(self) -> None:
-        self.module = self.config.configure_model(self.tokenizer)
+        if not hasattr(self, "module"):
+            self.module = self.config.configure_model(self.tokenizer)
 
     def forward(
         self,

@@ -30,6 +30,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
+from megatron.core.optimizer import OptimizerConfig
 from nemo.lightning import _strategy_lib, io
 from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
@@ -129,7 +130,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
 
         if ddp == "megatron":
-            self.ddp_config = DistributedDataParallelConfig(use_distributed_optimizer=True)
+            self.ddp_config = DistributedDataParallelConfig()
         elif isinstance(ddp, DistributedDataParallelConfig):
             self.ddp_config = ddp
         elif ddp == "pytorch":
@@ -162,6 +163,21 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             config.moe_extended_tp = self.moe_extended_tp
             config.sequence_parallel = self.sequence_parallel
             self._mcore_config = config
+            
+        has_optim = getattr(model, "optim", None)
+        if has_optim:
+            opt_config = getattr(model.optim, "config", None)
+            if isinstance(opt_config, OptimizerConfig):
+                mcore_opt_config: OptimizerConfig = cast(OptimizerConfig, opt_config)
+                if not self.ddp_config:
+                    raise ValueError("PyTorch DDP is not enabled for mcore optimizer")
+                ddp_config = cast(DistributedDataParallelConfig, self.ddp_config)
+                
+                if mcore_opt_config.use_distributed_optimizer != ddp_config.use_distributed_optimizer:
+                    from nemo.utils import logging
+                    
+                    logging.info("Fixing mis-match between ddp-config & mcore-optimizer config")
+                    ddp_config.use_distributed_optimizer = mcore_opt_config.use_distributed_optimizer
 
     @override
     def setup(self, trainer: pl.Trainer, setup_optimizers: bool = True) -> None:
