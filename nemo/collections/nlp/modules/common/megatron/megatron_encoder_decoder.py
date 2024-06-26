@@ -46,8 +46,7 @@ __all__ = ["MegatronTransformerEncoderDecoderModule"]
 
 
 class MegatronTransformerEncoderDecoderModule(MegatronModule):
-    """Transformer encoder-decoder model.
-    """
+    """Transformer encoder-decoder model."""
 
     def __init__(
         self,
@@ -142,7 +141,11 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         # apply hidden transformations if needed
         if self.hiddens_module is not None:
             enc_output = self.hiddens_module.apply_hidden_transforms(
-                {"hiddens": enc_output, "hiddens_mask": self.get_hiddens_mask(enc_attn_mask),}, batch_data=batch_data,
+                {
+                    "hiddens": enc_output,
+                    "hiddens_mask": self.get_hiddens_mask(enc_attn_mask),
+                },
+                batch_data=batch_data,
             )
 
         return enc_output
@@ -157,6 +160,10 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         dec_get_key_value=False,
         dec_self_attention_relative_position_bias=None,
         dec_cross_attention_relative_position_bias=None,
+        return_all_crossattention_probs=False,
+        set_inference_key_value_memory=False,
+        decoder_max_sequence_len=None,
+        encoder_max_sequence_len=None,
     ):
         if self.decoder is None:
             raise ValueError(f"Cannot call .decode(...) when self.decoder is None.")
@@ -170,6 +177,10 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             enc_attn_mask=enc_attn_mask,
             dec_self_attention_relative_position_bias=dec_self_attention_relative_position_bias,
             dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
+            return_all_crossattention_probs=return_all_crossattention_probs,
+            set_inference_key_value_memory=set_inference_key_value_memory,
+            decoder_max_sequence_len=decoder_max_sequence_len,
+            encoder_max_sequence_len=encoder_max_sequence_len,
         )
 
         return dec_output
@@ -191,6 +202,10 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         dec_self_attention_relative_position_bias=None,
         dec_cross_attention_relative_position_bias=None,
         batch_data=None,
+        return_all_crossattention_probs=False,
+        set_inference_key_value_memory=False,
+        decoder_max_sequence_len=None,
+        encoder_max_sequence_len=None,
     ):
         # encoder
         if enc_output is None:
@@ -216,15 +231,21 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         dec_output = self.decode(
             dec_input=dec_input,
             dec_attn_mask=dec_attn_mask,
-            enc_output=enc_output["enc_output"]  # enc_output is a dict if we used hidden transformations
-            if self.hiddens_module is not None
-            else enc_output,
+            enc_output=(
+                enc_output["enc_output"]  # enc_output is a dict if we used hidden transformations
+                if self.hiddens_module is not None
+                else enc_output
+            ),
             # Adjust encoder attention mask if encoder is a perceiver.
             enc_attn_mask=self.get_hiddens_mask(enc_attn_mask),
             dec_layer_past=dec_layer_past,
             dec_get_key_value=dec_get_key_value,
             dec_self_attention_relative_position_bias=dec_self_attention_relative_position_bias,
             dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
+            return_all_crossattention_probs=return_all_crossattention_probs,
+            set_inference_key_value_memory=set_inference_key_value_memory,
+            decoder_max_sequence_len=decoder_max_sequence_len,
+            encoder_max_sequence_len=encoder_max_sequence_len,
         )
 
         # if self.hiddens_module is not None enc_output is a dict, else it is a torch.tensor
@@ -246,7 +267,10 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
 
-        self.encoder.load_state_dict(state_dict[self._encoder_key], strict=strict)
-        self.decoder.load_state_dict(state_dict[self._decoder_key], strict=strict)
-        if self.hiddens_module is not None:
-            self.hiddens_module.load_state_dict(state_dict[self._hiddens_module], strict=strict)
+        try:
+            self.encoder.load_state_dict(state_dict[self._encoder_key], strict=strict)
+            self.decoder.load_state_dict(state_dict[self._decoder_key], strict=strict)
+            if self.hiddens_module is not None:
+                self.hiddens_module.load_state_dict(state_dict[self._hiddens_module], strict=strict)
+        except KeyError as e:
+            super().load_state_dict(state_dict, strict=strict)

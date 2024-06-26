@@ -52,8 +52,7 @@ __all__ = ["MegatronTransformerDecoderModule"]
 
 
 class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecoderModule):
-    """Transformer decoder model.
-    """
+    """Transformer decoder model."""
 
     def __init__(
         self,
@@ -97,6 +96,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         moe_dropout=0.0,
         position_embedding_type='learned_absolute',
         use_flash_attention=False,
+        layer_type=LayerType.decoder,
     ):
         super(MegatronTransformerDecoderModule, self).__init__(config=config)
 
@@ -121,7 +121,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         # Transformer.
         self.model = ParallelTransformer(
             config=config,
-            layer_type=LayerType.decoder,
+            layer_type=layer_type,
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,
             num_layers=self.num_layers,
@@ -165,7 +165,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         self._model_key = 'model'
 
     def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
+        """See megatron.model.transformer.set_input_tensor()"""
         self.model.set_input_tensor(input_tensor)
 
     def forward(
@@ -178,13 +178,21 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         get_key_value=False,
         dec_self_attention_relative_position_bias=None,
         dec_cross_attention_relative_position_bias=None,
+        return_all_crossattention_probs=False,
+        set_inference_key_value_memory=False,
+        decoder_max_sequence_len=None,
+        encoder_max_sequence_len=None,
     ):
         # convert to Megatron mask
         dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=dec_attn_mask, target_mask=dec_attn_mask, attn_mask_type=self.model_attn_mask_type,
+            source_mask=dec_attn_mask,
+            target_mask=dec_attn_mask,
+            attn_mask_type=self.model_attn_mask_type,
         )
         enc_dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=dec_attn_mask, target_mask=enc_attn_mask, attn_mask_type=AttnMaskType.padding,
+            source_mask=dec_attn_mask,
+            target_mask=enc_attn_mask,
+            attn_mask_type=AttnMaskType.padding,
         )
 
         # transformer decoder
@@ -197,6 +205,10 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
             enc_dec_attn_mask=attn_mask_postprocess(enc_dec_attn_mask_3d),
             self_attention_relative_position_bias=dec_self_attention_relative_position_bias,
             cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
+            return_all_crossattention_probs=return_all_crossattention_probs,
+            set_inference_key_value_memory=set_inference_key_value_memory,
+            decoder_max_sequence_len=decoder_max_sequence_len,
+            encoder_max_sequence_len=encoder_max_sequence_len,
         )
 
         return dec_output
