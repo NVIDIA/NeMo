@@ -27,7 +27,7 @@ from nemo.export.multimodal.run import MultimodalModelRunner
 
 use_deploy = True
 try:
-    from nemo.deploy.utils import cast_output, str_ndarray2list
+    from nemo.deploy.utils import cast_output, str_ndarray2list, ndarray2img
 except Exception:
     use_deploy = False
 
@@ -194,9 +194,9 @@ class MultimodalExporter(ITritonDeployable):
 
             infer_input = {"input_text": str_ndarray2list(inputs.pop("input_text")[0])}
             if self.runner.model_type == "neva":
-                infer_input["input_image"] = torch.Tensor(inputs.pop("input_media")[0])
+                infer_input["input_image"] = ndarray2img(inputs.pop("input_media"))[0]
             elif self.runner.model_type == "video-neva":
-                infer_input["input_image"] = torch.Tensor(inputs.pop("input_media"))
+                infer_input["input_image"] = ndarray2img(inputs.pop("input_media"))
             if "batch_size" in inputs:
                 infer_input["batch_size"] = inputs.pop("batch_size")[0][0]
             if "max_output_len" in inputs:

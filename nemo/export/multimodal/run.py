@@ -146,18 +146,6 @@ class MultimodalModelRunner:
                 frames = [Image.fromarray(vr[idx].asnumpy()[:, :, ::-1]).convert('RGB') for idx in indices]
                 if len(frames) < num_frames:
                     frames += [frames[-1]] * (num_frames - len(frames))
-        elif isinstance(video_path, torch.Tensor):
-            num_frames = self.num_frames
-            if num_frames == -1:
-                frames = [Image.fromarray(frame.numpy()[:, :, ::-1]).convert('RGB') for frame in video_path]
-            else:
-                # equally sliced frames into self.num_frames frames
-                # if self.num_frames is greater than the number of frames in the video, we will repeat the last frame
-                num_frames = min(num_frames, video_path.shape[0])
-                indices = np.linspace(0, video_path.shape[0] - 1, num=num_frames, dtype=int)
-                frames = [Image.fromarray(video_path[idx].numpy()[:, :, ::-1]).convert('RGB') for idx in indices]
-                if len(frames) < num_frames:
-                    frames += [frames[-1]] * (num_frames - len(frames))
         else:
             frames = self.video_path
 
