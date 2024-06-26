@@ -168,7 +168,7 @@ class MultimodalExporter(ITritonDeployable):
     def get_triton_input(self):
         inputs = (
             Tensor(name="input_text", shape=(-1,), dtype=bytes),
-            Tensor(name="input_media", shape=(-1, -1, 3), dtype=np.uint8),
+            Tensor(name="input_media", shape=(-1, -1, -1, 3), dtype=np.uint8),
             Tensor(name="batch_size", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="max_output_len", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
@@ -194,9 +194,9 @@ class MultimodalExporter(ITritonDeployable):
 
             infer_input = {"input_text": str_ndarray2list(inputs.pop("input_text")[0])}
             if self.runner.model_type == "neva":
-                infer_input["input_image"] = ndarray2img(inputs.pop("input_media"))[0]
+                infer_input["input_image"] = ndarray2img(inputs.pop("input_media")[0])[0]
             elif self.runner.model_type == "video-neva":
-                infer_input["input_image"] = ndarray2img(inputs.pop("input_media"))
+                infer_input["input_image"] = inputs.pop("input_media")[0]
             if "batch_size" in inputs:
                 infer_input["batch_size"] = inputs.pop("batch_size")[0][0]
             if "max_output_len" in inputs:

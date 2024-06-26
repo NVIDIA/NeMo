@@ -58,8 +58,7 @@ class NemoQueryMultimodal:
             return np.array(frames)
         elif self.model_type == "neva":
             media = Image.open(input_media).convert('RGB')
-            media = np.array(media)
-            return np.expand_dims(media, axis=0)
+            return np.array(media)
         else:
             raise RuntimeError(f"Invalid model type {self.model_type}")
 
@@ -82,7 +81,7 @@ class NemoQueryMultimodal:
 
         media = self.setup_media(input_media)
 
-        inputs["input_media"] = media
+        inputs["input_media"] = np.expand_dims(media, axis=0)
 
         if batch_size is not None:
             inputs["batch_size"] = np.full(prompts.shape, batch_size, dtype=np.int_)
