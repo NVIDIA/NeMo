@@ -529,8 +529,10 @@ class NLPDDPStrategy(DDPStrategy):
             return self.checkpoint_io.load_checkpoint(checkpoint_path)
 
     def _integrate_original_checkpoint_data(self, checkpoint: Dict[str, Any]) -> Dict[str, Any]:
-        """Integrates additional data into the checkpoint dictionary."""
-
+        """
+        Ensures that model and optimizer weights are loaded from the checkpoint.
+        All other metadata are reinitialized.
+        """
         original_checkpoint = self.lightning_module.trainer._checkpoint_connector.dump_checkpoint()
         for key in checkpoint:
             if key not in ['state_dict', 'optimizer_states']:
