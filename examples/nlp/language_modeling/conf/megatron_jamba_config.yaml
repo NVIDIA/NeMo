@@ -82,8 +82,8 @@ model:
 
   tokenizer:
     library: 'huggingface'
-    type: EleutherAI/gpt-neox-20b
-    model: #/home/ataghibakhsh/adlr_mamba2/mamba2-hybrid-8b-3t-4k/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model 
+    type: ai21labs/Jamba-v0.1
+    model: 
     vocab_file: null
     merge_file: null 
     sentencepiece_legacy: False
