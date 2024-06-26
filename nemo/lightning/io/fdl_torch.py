@@ -46,17 +46,6 @@ _torch_initializers = (
     nn.init.zeros_,
 )
 
-_torch_activation_fns = (
-    F.relu,
-    F.gelu,
-    F.relu6,
-    F.silu,
-    F.sigmoid,
-    F.selu,
-    F.hardtanh,
-    F.tanh,
-)
-
 _import_aliases = (("torch.nn.init", "from torch.nn import init"),)
 
 
@@ -116,6 +105,10 @@ def enable():
         daglish_extensions.register_immutable(init)
         daglish_extensions.register_function_with_immutable_return_value(init)
 
-    for act in _torch_activation_fns:
-        daglish_extensions.register_immutable(act)
-        daglish_extensions.register_function_with_immutable_return_value(act)
+    # Monkey-patch the Serialization class to handle things like activation-functions
+    def _modified_serialize(self, value, current_path, all_paths=None):
+        if isinstance(value, types.BuiltinFunctionType):
+            return self._pyref(value, current_path)
+        return self._original_serialize(value, current_path, all_paths)
+    serialization.Serialization._original_serialize = serialization.Serialization._serialize
+    serialization.Serialization._serialize = _modified_serialize
