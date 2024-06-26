@@ -20,6 +20,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Generator, Iterable, List, Literal
 
+import lhotse.serialization
 import soundfile
 from cytoolz import groupby
 from lhotse import AudioSource, Recording, SupervisionSegment
@@ -194,6 +195,7 @@ class LazyNeMoTarredIterator:
         shard_seed: int | Literal["trng", "randomized"] = "trng",
         text_field: str = "text",
         lang_field: str = "lang",
+        extra_fields: list[dict[str, str]] | None = None,
     ) -> None:
         self.shard_id_to_manifest: dict[int, Iterable[dict]]
         self.paths = expand_sharded_filepaths(manifest_path)
@@ -235,6 +237,7 @@ class LazyNeMoTarredIterator:
         self.shard_seed = shard_seed
         self.text_field = text_field
         self.lang_field = lang_field
+        self.extra_fields = extra_fields
         self._validate()
 
     def to_shards(self) -> List["LazyNeMoTarredIterator"]:
@@ -273,6 +276,8 @@ class LazyNeMoTarredIterator:
 
     def __iter__(self) -> Generator[Cut, None, None]:
         shard_ids = self.shard_ids
+
+        extra_fields = [ExtraField.from_dict(field_cfg) for field_cfg in self.extra_fields]
 
         if self.shuffle_shards:
             seed = resolve_seed(self.shard_seed)
@@ -314,6 +319,8 @@ class LazyNeMoTarredIterator:
                         )
                     )
                     cut.custom = _to_custom_attr_dict(data)
+                    for extra_field in extra_fields:
+                        extra_field.attach_to(cut)
                     yield cut
 
     def __len__(self) -> int:
@@ -321,6 +328,66 @@ class LazyNeMoTarredIterator:
 
     def __add__(self, other):
         return LazyIteratorChain(self, other)
+
+
+class ExtraField:
+    TYPE = None
+    SUPPORTED_TYPES = {}
+
+    def attach_to(self, cut):
+        raise NotImplementedError()
+
+    def __init_subclass__(cls, **kwargs):
+        if cls.__name__ not in ExtraField.SUPPORTED_TYPES:
+            ExtraField.SUPPORTED_TYPES[cls.TYPE] = cls
+        super().__init_subclass__(**kwargs)
+
+    @staticmethod
+    def from_dict(data: dict) -> "ExtraField":
+        assert data["type"] in ExtraField.SUPPORTED_TYPES, f"Unknown transform type: {data['type']}"
+        return ExtraField.SUPPORTED_TYPES[data["type"]](**{k: v for k, v in data.items() if k != 'type'})
+
+
+class TextSequentialExtraField(ExtraField):
+    TYPE = "text"
+
+    def __init__(self, name: str, path: str):
+        self.name = name
+        self.path = path
+        self.iterator = None
+
+    def _maybe_init(self):
+        if self.iterator is None:
+            self.iterator = iter(map(str.strip, lhotse.serialization.open_best(self.path)))
+
+    def attach_to(self, cut):
+        try:
+            attached_value = next(self.iterator)
+        except StopIteration:
+            raise RuntimeError(f"Not enough lines in file {self.path} to attach to cuts under field {self.name}.")
+        setattr(cut, self.name, attached_value)
+        return cut
+
+
+class TextSampleExtraField(ExtraField):
+    TYPE = "text_sample"
+
+    def __init__(self, name: str, path: str, seed: int | str):
+        self.name = name
+        self.path = path
+        self.seed = seed
+        self.population = None
+        self.rng = None
+
+    def _maybe_init(self):
+        if self.population is None:
+            self.population = list(map(str.strip, lhotse.serialization.open_best(self.path)))
+            self.rng = random.Random(resolve_seed(self.seed))
+
+    def attach_to(self, cut):
+        attached_value = self.rng.choice(self.population)
+        setattr(cut, self.name, attached_value)
+        return cut
 
 
 def expand_sharded_filepaths(path: str | Path) -> list[str]:
