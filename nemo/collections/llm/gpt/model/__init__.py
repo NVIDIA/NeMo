@@ -26,14 +26,14 @@ from nemo.collections.llm.gpt.model.llama import (
     LlamaConfig,
     LlamaModel,
 )
-from nemo.collections.llm.gpt.model.mistral import Mistral7BConfig, Mistral7BModel
+from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
 
 __all__ = [
     "GPTConfig",
     "GPTModel",
-    "Mistral7BConfig",
-    "Mistral7BModel",
+    "MistralConfig7B",
+    "MistralModel",
     "MixtralConfig8x7B",
     "MixtralModel",
     "LlamaConfig",
