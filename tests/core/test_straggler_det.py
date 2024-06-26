@@ -42,6 +42,7 @@ class OnesDataset(torch.utils.data.Dataset):
     def __len__(self):
         return self.__dataset_len
 
+
 class ExampleModel(ModelPT):
     def __init__(self, log_dir, **kwargs):
         cfg = OmegaConf.structured({})
