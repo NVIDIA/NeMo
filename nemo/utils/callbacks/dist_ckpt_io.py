@@ -304,6 +304,9 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
                 sharded_strategy, get_data_parallel_group(with_context_parallel=True)
             )
 
+        if sharded_strategy is not None:
+            logging.info(f'Using {sharded_strategy} dist-ckpt load strategy.')
+
         if not strict:
             sharded_state_dict = self.adjust_non_strict_load(path, sharded_state_dict)
 
