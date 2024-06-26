@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import torch
+from megatron.core.models.mamba import MambaModel
+from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
+
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from megatron.core.models.mamba import MambaModel
-from megatron.core.models.mamba.mamba_layer_specs import get_mamba_layer_with_transformer_engine_spec
+
 
 class MegatronJambaModel(MegatronGPTModel):
     """
@@ -32,19 +34,37 @@ class MegatronJambaModel(MegatronGPTModel):
         self.mcore_gpt = True
 
     def model_provider_func(self, pre_process, post_process):
+        # TODO @ataghibakhsh: modify configurability
+        ##########
+        ##########
+        ##########
+        ##########
+        self.hybrid_override_pattern = self.cfg.get(
+            'hybrid_override_pattern', "M" * self.transformer_config.num_layers
+        )  # -MOM-MO*-MOM-MO"*4
+        # 'M-M-M--M-M*-M-M-M-M--M*-M-M-M-M-M*--M-M-M-M-M*-M--M-M-M-'  #
+        # self.hybrid_override_pattern="*-*-*-*-*-*-*-*-"
+        # self.hybrid_override_pattern=self.cfg.get('hybrid_override_pattern', "M" * self.transformer_config.num_layers)
+        # self.transformer_config.activation_func = torch.nn.functional.silu
+        # mamba_stack_spec = mamba_stack_spec(self.transformer_config.num_moe_experts, moe_grouped_gemm=False)
 
-        self.hybrid_override_pattern="O"#self.cfg.get('hybrid_override_pattern', "M" * self.transformer_config.num_layers)#"M-MOM-MO*-MOM-MO" #  #"M-MOM-MO*-MOM-MO"*4
-        mamba_stack_spec = get_mamba_layer_with_transformer_engine_spec(self.transformer_config.num_moe_experts, moe_grouped_gemm=False)
-        self.transformer_config.activation_func = torch.nn.functional.silu
-        self.transformer_config.add_bias_linear=self.cfg.get('add_bias_linear', False)
-        
+        self.transformer_config.add_bias_linear = self.cfg.get('add_bias_linear', False)
+        self.transformer_config.gated_linear_unit = False
+        self.transformer_config.layernorm_epsilon = 1e-6
+        self.transformer_config.params_dtype = torch.bfloat16
+        self.transformer_config.deallocate_pipeline_outputs = False
+        self.transformer_config.autocast_dtype = torch.float32
+        self.transformer_config.bf16 = True
+        self.transformer_config.attention_softmax_in_fp32 = False
         model = MambaModel(
             config=self.transformer_config,
-            max_sequence_length=self.cfg.get('encoder_seq_length', 2048),
+            ngroups=self.cfg.get('ngroups_mamba', 8),
+            max_sequence_length=self.cfg.get('encoder_seq_length', 4096),
             vocab_size=self.cfg.get('vocab_size', 65536),
-            mamba_stack_spec=mamba_stack_spec, 
-            hybrid_override_pattern=self.hybrid_override_pattern)
-        
+            mamba_stack_spec=mamba_stack_spec,
+            hybrid_override_pattern=self.hybrid_override_pattern,
+        )
+
         return model
 
     def forward(self, input_ids, position_ids=None, attention_mask=None, labels=None):
@@ -56,7 +76,6 @@ class MegatronJambaModel(MegatronGPTModel):
 
     def build_transformer_config(self):
         transformer_config = super().build_transformer_config()
-        transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', True)
         return transformer_config
 
     def on_validation_epoch_end(self):

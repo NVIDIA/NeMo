@@ -1,11 +1,11 @@
-name: megatron_jamba
+name: megatron_mamba
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 16
+  precision: bf16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
@@ -22,7 +22,7 @@ trainer:
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: megatron_jamba
+  name: megatron_mamba
   create_wandb_logger: False
   wandb_logger_kwargs:
     project: null
@@ -35,7 +35,7 @@ exp_manager:
     save_top_k: 10
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
-    filename: 'megatron_jamba--{val_loss:.2f}-{step}-{consumed_samples}'
+    filename: 'megatron_mamba--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 
@@ -43,26 +43,26 @@ model:
   restore_from_path: null
   # model parallelism 
   mcore_gpt: True
-  micro_batch_size: 2
-  global_batch_size: 2
+  micro_batch_size: 1
+  global_batch_size: 8
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   virtual_pipeline_model_parallel_size: null
   expert_model_parallel_size: 1 # expert model parallelism
-  hybrid_override_pattern: "MMMM"
-  vocab_size: 65536
+  hybrid_override_pattern: null
+  vocab_size: 256000
   # model architecture
-  encoder_seq_length: 2048
+  encoder_seq_length: 4096
   max_position_embeddings: ${.encoder_seq_length}
   position_embedding_type: 'none' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
-  num_layers: 64
-  gated_linear_unit: True
+  num_layers: 56
+  gated_linear_unit: False
   add_bias_linear: False
   num_query_groups: 8
+  ngroups_mamba: 8
   attention_dropout: 0.0
   hidden_dropout: 0.0
   hidden_size: 4096
-  bias_activation_fusion: True
   ffn_hidden_size: 14336 # Transformer FFN hidden size. Usually 4 * hidden_size.
   num_attention_heads: 32
   transformer_block_type: pre_ln
@@ -78,14 +78,20 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   megatron_legacy: False
+  persist_layer_norm: True
 
   tokenizer:
     library: 'huggingface'
-    type: null #'EleutherAI/gpt-neox-20b' 
-    model: null 
+    type: EleutherAI/gpt-neox-20b
+    model: #/home/ataghibakhsh/adlr_mamba2/mamba2-hybrid-8b-3t-4k/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model 
     vocab_file: null
     merge_file: null 
     sentencepiece_legacy: False
+
+  # Distributed checkpoint setup
+  dist_ckpt_format: 'zarr' # Set to 'torch_dist' to use PyTorch distributed checkpoint format.
+  dist_ckpt_load_on_device: True # whether to load checkpoint weights directly on GPU or to CPU
+  dist_ckpt_parallel_save: False # if true, each worker will write its own part of the dist checkpoint
 
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
@@ -96,7 +102,17 @@ model:
   # Megatron O2-style half-precision
   megatron_amp_O2: False # Enable O2-level automatic mixed precision using main parameters
   grad_allreduce_chunk_size_mb: 125
-  grad_div_ar_fusion: False 
+
+
+  # Fusion
+  grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce. Only used with O2 and no pipeline parallelism..
+  gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs. Only used with pipeline parallelism and O2.
+  bias_activation_fusion: False # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+  bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
+  masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+  get_attention_mask_from_fusion: True # When using fused softmax it will create the attention mask so we won't copy it to the pipeline stages.
+  apply_rope_fusion: False # Use a kernel to add rotary positional embeddings. Only used if position_embedding_type=rope
+
 
   # miscellaneous
   seed: 1234
@@ -161,7 +177,7 @@ model:
     pad_to_max_length: True
   
   optim:
-    name: fused_adam
+    name: distributed_fused_adam
     lr: 2e-4
     weight_decay: 0.01 
     betas: 

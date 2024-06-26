@@ -1,11 +1,11 @@
-name: megatron_jamba
+name: megatron_mamba
 restore_from_path: ${model.restore_from_path} # used when starting from a .nemo file
 
 trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 16
+  precision: bf16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
@@ -22,7 +22,7 @@ trainer:
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: megatron_jamba
+  name: megatron_mamba
   create_wandb_logger: False
   wandb_logger_kwargs:
     project: null
@@ -35,7 +35,7 @@ exp_manager:
     save_top_k: 10
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
-    filename: 'megatron_jamba--{val_loss:.2f}-{step}-{consumed_samples}'
+    filename: 'megatron_mamba--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 model:
@@ -48,20 +48,20 @@ model:
   pipeline_model_parallel_size: 1
   virtual_pipeline_model_parallel_size: null
   expert_model_parallel_size: 1 # expert model parallelism
-  hybrid_override_pattern: "MMMM"
+  hybrid_override_pattern: null
   vocab_size: 65536
   # model architecture
-  encoder_seq_length: 2048
+  encoder_seq_length: 4096
   max_position_embeddings: ${.encoder_seq_length}
   position_embedding_type: 'none' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
   num_layers: 64
-  gated_linear_unit: True
-  add_bias_linear: False
+  gated_linear_unit: False
   num_query_groups: 8
+  ngroups_mamba: 8
   attention_dropout: 0.0
   hidden_dropout: 0.0
   hidden_size: 4096
-  bias_activation_fusion: True
+  bias_activation_fusion: False
   ffn_hidden_size: 14336 # Transformer FFN hidden size. Usually 4 * hidden_size.
   num_attention_heads: 32
   transformer_block_type: pre_ln
@@ -77,6 +77,8 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   megatron_legacy: False
+  persist_layer_norm: True
+  add_bias_linear: False
 
   answer_only_loss: True
 

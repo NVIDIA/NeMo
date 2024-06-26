@@ -91,14 +91,14 @@ def get_tokenizer(
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
         bpe_dropout: (experimental) BPE dropout tries to corrupt the standard segmentation
             procedure of BPE to help
-            model better learn word compositionality and become robust to segmentation errors. 
+            model better learn word compositionality and become robust to segmentation errors.
             It has emperically been shown to improve inference time BLEU scores.
     """
     if special_tokens is None:
         special_tokens_dict = {}
     else:
         special_tokens_dict = special_tokens
-
+    tokenizer_name = 'megatron'
     if 'megatron' in tokenizer_name:
         if not HAVE_MEGATRON_CORE:
             raise ImportError(
@@ -196,7 +196,7 @@ def get_nmt_tokenizer(
         logging.info(f'Using regex tokenization')
         return RegExTokenizer().load_tokenizer(regex_file=tokenizer_model, vocab_file=vocab_file)
     elif library == 'megatron':
-
+        model_name = 'GPTSentencePieceTokenizer'
         if model_name == 'GPTSentencePieceTokenizer':
             logging.info("tokenizer_model: ")
             logging.info(tokenizer_model)
