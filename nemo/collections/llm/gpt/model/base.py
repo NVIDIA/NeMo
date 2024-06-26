@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class GPTConfig(TransformerConfig):
+class GPTConfig(TransformerConfig, io.IOMixin):
     # From megatron.core.models.gpt.gpt_model.GPTModel
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True
