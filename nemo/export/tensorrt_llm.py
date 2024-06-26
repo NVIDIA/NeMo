@@ -285,6 +285,7 @@ class TensorRTLLM(ITritonDeployable):
 
                 if save_trtllm_ckpt:
                     for weight_dict, model_config in zip(weights_dicts, model_configs):
+                        weight_dict = {k: torch.from_numpy(v) for k, v in weight_dict.items()}
                         safetensors.torch.save_file(weight_dict, f'rank{model_config.mapping.rank}.safetensors')
 
                     with open(os.path.join(self.model_dir, 'config.json'), 'w') as f:
