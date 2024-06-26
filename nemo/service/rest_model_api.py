@@ -26,7 +26,7 @@ class TritonSettings(BaseSettings):
     def __init__(self):
         super(TritonSettings, self).__init__()
         try:
-            with open(os.path.join(Path.cwd(), 'service/config.json')) as config:
+            with open(os.path.join(Path.cwd(), 'nemo/service/config.json')) as config:
                 config_json = json.load(config)
                 self._triton_service_port = config_json["triton_service_port"]
                 self._triton_service_ip = config_json["triton_service_ip"]
