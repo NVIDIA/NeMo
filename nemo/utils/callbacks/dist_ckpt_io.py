@@ -33,6 +33,7 @@ try:
     from megatron.core.dist_checkpointing.dict_utils import extract_matching_values
     from megatron.core.dist_checkpointing.mapping import ShardedBase
     from megatron.core.dist_checkpointing.strategies import tensorstore
+    from megatron.core.dist_checkpointing.strategies.torch import TorchDistSaveShardedStrategy
 
     from nemo.utils.callbacks.torch_dist_async import AsyncCallsQueue, AsyncRequest, TorchDistAsyncSaveShardedStrategy
 
@@ -177,6 +178,9 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             always loads on device). Defaults to True.
         async_save (bool): whether to save asynchronously. Should be set to True if
             this class will be wrapped with AsyncFinalizableCheckpointIO.
+        torch_dist_multiproc (int, optional): number of extra processes per rank
+            used during ckpt save with PyTorch distributed format. Defaults, to None
+            which means using an MCore default (2).
     """
 
     def __init__(
@@ -184,6 +188,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         save_ckpt_format: str,
         load_directly_on_device: bool = True,
         async_save: bool = False,
+        torch_dist_multiproc: Optional[int] = None,
     ):
         super().__init__()
         if not HAVE_MEGATRON_CORE:
@@ -192,6 +197,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         self.save_ckpt_format = save_ckpt_format
         self.load_directly_on_device = load_directly_on_device
         self.async_save = async_save
+        self.torch_dist_multiproc = torch_dist_multiproc
         self.save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
 
     @classmethod
@@ -208,6 +214,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             save_ckpt_format=model_cfg.get('dist_ckpt_format', 'zarr'),
             load_directly_on_device=model_cfg.get('dist_ckpt_load_on_device', True),
             async_save=async_save,
+            torch_dist_multiproc=model_cfg.get('dist_ckpt_torch_dist_multiproc', None),
         )
 
     @_debug_time('DistributedCheckpointIO.save_checkpoint')
@@ -312,10 +319,14 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         otherwise relies on MCore to create a proper strategy based on ckpt format.
         """
         save_strategy = (self.save_ckpt_format, 1)
+        torch_dist_kwargs = {} if self.torch_dist_multiproc is None else dict(thread_count=self.torch_dist_multiproc)
+        # We need to explicitly construct a strategy in some cases:
         if self.async_save:
             if save_strategy[0] != 'torch_dist':
                 raise ValueError('Async dist-ckpt save supported only for torch_dist format')
-            save_strategy = TorchDistAsyncSaveShardedStrategy('torch_dist', 1)
+            save_strategy = TorchDistAsyncSaveShardedStrategy('torch_dist', 1, **torch_dist_kwargs)
+        elif self.save_ckpt_format == 'torch_dist' and torch_dist_kwargs:
+            save_strategy = TorchDistSaveShardedStrategy('torch_dist', 1, **torch_dist_kwargs)
 
         logging.info(f'Using {save_strategy} dist-ckpt save strategy.')
         return save_strategy
