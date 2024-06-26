@@ -21,3 +21,4 @@ from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
+from nemo.collections.common.tokenizers.tiktoken_tokenizer import TiktokenTokenizer
