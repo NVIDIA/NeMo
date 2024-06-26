@@ -28,6 +28,8 @@ import tensorrt_llm
 import torch
 import wrapt
 
+
+from tensorrt_llm._utils import numpy_to_torch
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
@@ -284,12 +286,14 @@ class TensorRTLLM(ITritonDeployable):
                 )
 
                 if save_trtllm_ckpt:
-                    for weight_dict, model_config in zip(weights_dicts, model_configs):
-                        weight_dict = {k: torch.from_numpy(v) for k, v in weight_dict.items()}
-                        safetensors.torch.save_file(weight_dict, f'rank{model_config.mapping.rank}.safetensors')
-
                     with open(os.path.join(self.model_dir, 'config.json'), 'w') as f:
-                        json.dump(model_configs[0], f, indent=4)
+                        json.dump(model_configs[0].to_dict(), f, indent=4)
+
+                    for weight_dict, model_config in zip(weights_dicts, model_configs):
+                        weight_dict = {k: numpy_to_torch(v) for k, v in weight_dict.items()}
+                        safetensors.torch.save_file(
+                            weight_dict, os.path.join(self.model_dir, f'rank{model_config.mapping.rank}.safetensors')
+                        )
 
                     return
 
