@@ -7,7 +7,7 @@ in codegen, graphviz, and other debugging functions.
 import libcst as cst
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import types
 from fiddle._src import daglish_extensions
 from fiddle._src.codegen import import_manager, py_val_to_cst_converter, special_value_codegen
 from fiddle._src.experimental import serialization
