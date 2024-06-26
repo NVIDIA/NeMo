@@ -76,7 +76,6 @@ def initialize_model_parallel_for_nemo(
     seed=1234,
     apex_transformer_log_level=30,
     use_tp_pp_dp_mapping=False,
-    use_te_rng_tracker=False,
 ):
 
     if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
@@ -129,7 +128,6 @@ def initialize_model_parallel_for_nemo(
     set_pipeline_model_parallel_world_size(app_state.pipeline_model_parallel_size)
     set_pipeline_model_parallel_split_rank(app_state.pipeline_model_parallel_split_rank)
 
-    tensor_parallel.random.initialize_rng_tracker(use_te_rng_tracker=use_te_rng_tracker)
     if seed is not None:
         # @chcui not setting seed is for model conversion. always set seed for training/inference.
         _set_random_seed(seed)
@@ -150,9 +148,9 @@ def initialize_model_parallel_for_nemo(
             if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatches):
                 assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_global_batch_size == global_batch_size
                 assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.micro_batch_size == micro_batch_size
-                # assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.num_micro_batches == global_batch_size // (
-                #     micro_batch_size * app_state.data_parallel_size
-                # )
+                assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.num_micro_batches == global_batch_size // (
+                    micro_batch_size * app_state.data_parallel_size
+                )
             else:
                 raise Exception("Microbatch calculator already initialized.")
 
