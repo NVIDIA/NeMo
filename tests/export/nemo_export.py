@@ -581,11 +581,7 @@ def get_args():
         type=str,
         default="False",
     )
-    parser.add_argument(
-        "--streaming",
-        default=False,
-        action="store_true"
-    )
+    parser.add_argument("--streaming", default=False, action="store_true")
     parser.add_argument(
         "--test_cpp_runtime",
         type=str,
