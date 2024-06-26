@@ -122,8 +122,8 @@ class IOMixin:
             if is_dataclass(config_kwargs[key]):
                 config_kwargs[key] = fdl_dc.convert_dataclasses_to_configs(config_kwargs[key], allow_post_init=True)
                 # Check if the arg is a factory (dataclasses.field)
-                if config_kwargs[key].__class__.__name__ == "_HAS_DEFAULT_FACTORY_CLASS":
-                    to_del.append(key)
+            if config_kwargs[key].__class__.__name__ == "_HAS_DEFAULT_FACTORY_CLASS":
+                to_del.append(key)
 
         for key in to_del:
             del config_kwargs[key]
