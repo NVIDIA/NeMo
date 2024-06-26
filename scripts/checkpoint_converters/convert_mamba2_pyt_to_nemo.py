@@ -39,9 +39,7 @@ def get_args():
         type=str,
         required=True,
     )
-    parser.add_argument(
-        "--ngroups_mamba", type=int, default=8, help="ngroups for Mamba model"
-    )
+    parser.add_argument("--ngroups_mamba", type=int, default=8, help="ngroups for Mamba model")
     parser.add_argument(
         "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
     )
