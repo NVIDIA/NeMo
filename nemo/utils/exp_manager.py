@@ -143,7 +143,7 @@ class StragglerDetectionParams:
     num_gpu_perf_scores_to_log: int = 5
     gpu_relative_perf_threshold: float = 0.7
     gpu_individual_perf_threshold: float = 0.7
-    stop_if_detected: bool = True
+    stop_if_detected: bool = False
 
 
 @dataclass
