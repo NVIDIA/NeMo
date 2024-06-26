@@ -10,10 +10,10 @@ Half-precision Training
 =======================
 
 NeMo supports half-precision (FP16 and BF16) computation training via Megatron Core and the distributed optimizer.
-This training recipe uses half-precision in all layer computation keeping the model states (optimizer states, master parameters, and parameter gradients) in single-precision.
-To avoid repeated data type casting at each layer computation, Megatron Core keeps a separate copy of half-precision parameters.
+This training recipe uses half-precision in all layer computation keeping the model states (optimizer states and master parameters) in single-precision.
+To avoid repeated data type casting at each layer computation, Megatron Core keeps a separate copy of half-precision parameters that is updated after each optimizer.step.
 
-Half-precision training is enabled when setting ``precision`` to either of ``fp16`` or ``bf16`` along with  ``megatron_amp_O2=true``.
+Half-precision training is enabled when setting ``precision`` to either of ``fp16-mixed`` or ``bf16-mixed`` along with  ``megatron_amp_O2=true``.
 The parameter gradients are computed in the same half-precision, and the precision of gradient reduce-scatter across data-parallel GPUs can be set by ``optim.grad_sync_dtype``.
 
 FP8 Training

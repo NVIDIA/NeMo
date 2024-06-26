@@ -50,6 +50,8 @@ The PP communications in pipeline fill and flush still exposed.
     :alt: Pipeline-parallel communication overlap in 1F1B pipelining phase
 
 The PP communication overlap is enabled when setting ``overlap_p2p_comm=true``. Also, setting ``batch_p2p_comm=false`` uses separate kernels for the send and the receive, which further improves the communication efficiency and GPU resource utilization.
+NeMo supports PP communication overlap only with virtual pipelining, where PP communication becomes the performance bottleneck.
+Please refer `GPT3 training config file <https://github.com/NVIDIA/NeMo-Framework-Launcher/blob/main/launcher_scripts/conf/training/gpt3/175b.yaml>`_ that uses the PP communication overlap.
 
 Context-parallel communication overlap
 --------------------------------------

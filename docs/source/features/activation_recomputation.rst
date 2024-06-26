@@ -20,10 +20,14 @@ If one sets ``activations_checkpoint_num_layers`` as the total number of layers,
 When training with the pipeline parallelism, ``activations_checkpoint_num_layers`` indicates the layers per pipeline stage.
 If the virtual pipelining is used, ``activations_checkpoint_num_layers`` means the layers per virtual pipeline stage.
 
+NeMo also supports checkpointing the input to a block of multiple consecutive Transformer layers meaning that a block of Transformer layers becomes the recomputation granularity.
+This can further save activation memory at the cost of increasing the recomputation buffer memory. Thus, it can only give memory saving when the model has many Transformer layers or the intermediate layers of a Transformer layer hold relatively small activation stores.
+This recomputation mode can be enabled by setting ``activations_checkpoint_method=uniform``, and the number of Transformer layers per recomputation block is set using ``activations_checkpoint_num_layers``.
+
 Self-attention Recomputation
 ----------------------------
 
-NeMo supports the self-attention recomputation that checkpoints and recomputes only the inputs of each self-attention block.
+NeMo supports the self-attention recomputation that checkpoints the inputs of each self-attention block and recomputes the intermediate input activations.
 This is a cost-efficient recomputation method; achieves high memory saving with lost recomputation cost.
 The intermediate layers of the self-attention block accounts for the majority portion the activation memory.
 This is because the input sizes of softmax, dropout, and qkv dot-product attention layers have the memory complexity of the sequence length square.

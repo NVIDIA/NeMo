@@ -78,10 +78,11 @@ Fully-Shared Data Parallelism (FSDP)
 NeMo supports Fully-Sharded Data Parallelism (FSDP) that shards parameter gradients and low-precision parameters for computation on top of the model states that Distributed optimizer shards (optimizer states and high-precision parameters).
 Since FSDP shards the entire model states, it ensures linear model state memory saving with increasing DP size.
 FSDP can be preferred for the LLM training with unbalanced workload between pipeline stages (or Transformer layers) or with a large vocabulary size, where pipelining would cause huge computation bubbles due to the workload imbalance.
+Also, FSDP unloads the effort to search the performance-optimal mappings with 3D parallelism (TP/PP/DP) because it has a single parallelization domain.
 
 NeMo uses `pytorch's FSDP interface <https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html>`_ to shard LLM model states, which flattens the parameters of each Transformer layer and partitions across datap-parallel GPUs.
 FSDP introduces collectives across data-parallel GPUs; all-gather of the parameters for computation and reduce-scatter of parameter gradients.
-The parameter-all gather happens in both network forward- and back-propagation phases, and the gradient reduce-scatter happens only in the back-propagation.
+The parameter all-gather happens in both network forward- and back-propagation phases, and the gradient reduce-scatter happens only in the back-propagation.
 These FSDP communications are overlapped with Transformer layer computations.
 
 Setting ``fsdp=true`` enables FSDP.
@@ -128,6 +129,16 @@ Implement Tensor Parallelism
 NeMo integrates Tensor Parallelism through the implementation from Megatron Core. To understand how TP is activated within transformer blocks, refer to the code in the following repository: `Megatron-LM Transformer Block <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/transformer_block.py>`_.
 
 For detailed API usage and additional configurations, consult the `Megatron Core Developer Guide <https://docs.nvidia.com/Megatron-Core/developer-guide/latest/api-guide/tensor_parallel.html>`_.
+
+FSDP + Tensor Parallelism
+~~~~~~~~~
+
+NeMo supports FSDP along with tensor parallelism. This is done by restricting the model state sharding to the data-parallel domain.
+Using FSDP with tensor parallelism can be helpful when the model doesn't have sufficient parallelism to deploy on a large scale training system with the data-parallel mapping; e.g., running a model with the global batch size of 1024 on 2048 GPUs.
+Also, tensor parallelism enables FSDP feasibility by reducing the model state size and the activation size per GPU, thus lower the FSDP communication overhead and the activation memory overhead.
+
+FSDP + TP works by enabling FSDP (``fsdp=true``) and setting ``tensor_model_parllel_size > 1``.
+The user should unset ``CUDA_DEVICE_MAX_CONNECTIONS`` environment variable to enable that sets the number of GPU kernel queue to overlap of the FSDP communication with computation kernels.
 
 Pipeline Parallelism
 ^^^^^^^^^^^^^^^^^^^^
