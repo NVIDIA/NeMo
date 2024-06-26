@@ -1,5 +1,6 @@
 import torch
 
+
 @torch.jit.script
 def gelu_impl(x):
     """OpenAI's gelu implementation."""

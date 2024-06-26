@@ -14,6 +14,7 @@ import torch.distributed
 from lightning_fabric.plugins import CheckpointIO, ClusterEnvironment
 from lightning_fabric.utilities.optimizer import _optimizers_to_device
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
@@ -30,7 +31,6 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
-from megatron.core.optimizer import OptimizerConfig
 from nemo.lightning import _strategy_lib, io
 from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
@@ -163,7 +163,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             config.moe_extended_tp = self.moe_extended_tp
             config.sequence_parallel = self.sequence_parallel
             self._mcore_config = config
-            
+
         has_optim = getattr(model, "optim", None)
         if has_optim:
             opt_config = getattr(model.optim, "config", None)
@@ -172,10 +172,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 if not self.ddp_config:
                     raise ValueError("PyTorch DDP is not enabled for mcore optimizer")
                 ddp_config = cast(DistributedDataParallelConfig, self.ddp_config)
-                
+
                 if mcore_opt_config.use_distributed_optimizer != ddp_config.use_distributed_optimizer:
                     from nemo.utils import logging
-                    
+
                     logging.info("Fixing mis-match between ddp-config & mcore-optimizer config")
                     ddp_config.use_distributed_optimizer = mcore_opt_config.use_distributed_optimizer
 
