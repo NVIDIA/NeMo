@@ -46,6 +46,17 @@ _torch_initializers = (
     nn.init.zeros_,
 )
 
+_torch_activation_fns = (
+    F.relu,
+    F.gelu,
+    F.relu6,
+    F.silu,
+    F.sigmoid,
+    F.selu,
+    F.hardtanh,
+    F.tanh,
+)
+
 _import_aliases = (("torch.nn.init", "from torch.nn import init"),)
 
 
@@ -104,3 +115,7 @@ def enable():
     for init in _torch_initializers:
         daglish_extensions.register_immutable(init)
         daglish_extensions.register_function_with_immutable_return_value(init)
+        
+    for act in _torch_activation_fns:
+        daglish_extensions.register_immutable(act)
+        daglish_extensions.register_function_with_immutable_return_value(act)
