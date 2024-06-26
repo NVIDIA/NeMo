@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
+import safetensors
 import tensorrt_llm
 import torch
 import wrapt
@@ -142,6 +143,7 @@ class TensorRTLLM(ITritonDeployable):
         max_num_tokens: int = None,
         opt_num_tokens: int = None,
         save_nemo_model_config: bool = False,
+        save_trtllm_ckpt: bool = False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -174,6 +176,7 @@ class TensorRTLLM(ITritonDeployable):
             max_num_tokens (int):
             opt_num_tokens (int):
             save_nemo_model_config (bool):
+            save_trtllm_ckpt (bool): if True, save TensorRT-LLM checkpoint and skip building engines
         """
 
         if model_type not in self.get_supported_models_list:
@@ -279,6 +282,15 @@ class TensorRTLLM(ITritonDeployable):
                     use_parallel_embedding=use_parallel_embedding,
                     use_embedding_sharing=use_embedding_sharing,
                 )
+
+                if save_trtllm_ckpt:
+                    for weight_dict, model_config in zip(weights_dicts, model_configs):
+                        safetensors.torch.save_file(weight_dict, f'rank{model_config.mapping.rank}.safetensors')
+
+                    with open(os.path.join(self.model_dir, 'config.json'), 'w') as f:
+                        json.dump(model_configs[0], f, indent=4)
+
+                    return
 
                 for weight_dict, model_config in zip(weights_dicts, model_configs):
                     build_and_save_engine(
