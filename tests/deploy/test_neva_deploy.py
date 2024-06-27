@@ -9,8 +9,6 @@ from nemo.deploy.deploy_pytriton import DeployPyTriton
 from nemo.deploy.multimodal.megatronneva_deployable import MegatronNevaDeployable, MediaType
 #from nemo.deploy.nlp.query_llm import NemoTritonQueryLLMPyTorch
 
-# import hashlib
-
 def test_triton_deployable(args):
     megatron_deployable = MegatronNevaDeployable(args.nemo_checkpoint, args.num_gpus)
 
@@ -22,18 +20,6 @@ def test_triton_deployable(args):
 
     prompts = ["What is in this picture?\n<image>", "What is the name of the person in this picture?\n<image>"]
 
-    # for some reason calling this code breaks numpy array creation later?
-    # for bytes in image_bytes:
-    #     size = len(bytes)
-    #     hash = hashlib.sha256()
-    #     hash.update(bytes)
-    #     print(f"num bytes={size}, hash={hash.digest()}")
-    # exit()
-
-    # images = [
-    #     np.asarray(Image.open("/workspace/nemo-fw/4090.jpg").convert('RGB')),
-    #     np.asarray(Image.open("/workspace/nemo-fw/jhh.jpeg").convert('RGB'))
-    # ]
     url = "localhost:8000"
     model_name = args.model_name
     init_timeout = 600.0
