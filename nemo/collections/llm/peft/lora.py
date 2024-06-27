@@ -36,7 +36,7 @@ class LoRA(PEFT):
 
     Args:
         target_modules (List[str], optional): A list of module names to apply LoRA to.
-            Defaults to ['linear_qkv', 'linear_proj']. Possible choices include:
+            Defaults to all linear layers ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2'].
                 - 'linear_qkv': Apply LoRA to the fused linear layer used for query, key, and value projections
                                 in self-attention modules.
                 - 'linear_proj': Apply LoRA to the linear layer used for projecting the output of self-attention modules.
@@ -65,7 +65,7 @@ class LoRA(PEFT):
     )
     """
 
-    target_modules: List[str] = field(default_factory=lambda: ['linear_qkv', 'linear_proj'])
+    target_modules: List[str] = field(default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2'])
     dim: int = 32
     alpha: int = 32
     dropout: float = 0.0
