@@ -94,6 +94,14 @@ class MegatronDataSampler(DataSampler):
         # TODO: Add consumed samples
         consumed_samples = self.compute_consumed_samples(trainer.global_step + 1 - self.init_global_step)
 
+        pl_module.log(
+            'consumed_samples',
+            consumed_samples,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
+
         self.prev_consumed_samples = consumed_samples
 
         num_microbatch_calculator = (
@@ -101,11 +109,16 @@ class MegatronDataSampler(DataSampler):
         )
 
         num_microbatch_calculator.update(
-            consumed_samples=consumed_samples, consistency_check=False,
+            consumed_samples=consumed_samples,
+            consistency_check=False,
         )
         current_global_batch_size = num_microbatch_calculator.current_global_batch_size
         pl_module.log(
-            "global_batch_size", current_global_batch_size, prog_bar=True, rank_zero_only=True, batch_size=1,
+            "global_batch_size",
+            current_global_batch_size,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
         )
         self.if_first_step = 1
 

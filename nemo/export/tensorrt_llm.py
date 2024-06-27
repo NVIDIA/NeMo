@@ -18,8 +18,9 @@ import os
 import pickle
 import shutil
 import tempfile
+import warnings
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 import tensorrt_llm
@@ -32,6 +33,7 @@ from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import get_tokenzier, is_nemo_file, load_nemo_model
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
 from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
+from nemo.export.trt_llm.qnemo.utils import is_qnemo_checkpoint
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load
 
@@ -66,7 +68,7 @@ class TensorRTLLM(ITritonDeployable):
     Exports nemo checkpoints to TensorRT-LLM and run fast inference.
 
     Example:
-        from nemo.export import TensorRTLLM
+        from nemo.export.tensorrt_llm import TensorRTLLM
 
         trt_llm_exporter = TensorRTLLM(model_dir="/path/for/model/files")
         trt_llm_exporter.export(
@@ -119,13 +121,18 @@ class TensorRTLLM(ITritonDeployable):
         n_gpus: int = 1,
         tensor_parallel_size: int = None,
         pipeline_parallel_size: int = None,
-        max_input_token: int = 256,
-        max_output_token: int = 256,
+        gpus_per_node: int = None,
+        max_input_len: int = 256,
+        max_output_len: int = 256,
+        max_input_token: Optional[int] = None,
+        max_output_token: Optional[int] = None,
         max_batch_size: int = 8,
         max_prompt_embedding_table_size=None,
         use_parallel_embedding: bool = False,
+        use_embedding_sharing: bool = False,
         paged_kv_cache: bool = True,
         remove_input_padding: bool = True,
+        paged_context_fmha: bool = False,
         dtype: str = "bfloat16",
         load_model: bool = True,
         enable_multi_block_mode: bool = False,
@@ -146,12 +153,17 @@ class TensorRTLLM(ITritonDeployable):
             n_gpus (int): number of GPUs to use for inference.
             tensor_parallel_size (int): tensor parallelism.
             pipeline_parallel_size (int): pipeline parallelism.
-            max_input_token (int): max input length.
-            max_output_token (int): max output length.
+            gpus_per_node (int): number of gpus per node.
+            max_input_len (int): max input length.
+            max_output_len (int): max output length.
+            max_input_token (int): max input length. Deprecated, use max_input_len instead.
+            max_output_token (int): max output length. Deprecated, use max_output_len instead.
             max_batch_size (int): max batch size.
             max_prompt_embedding_table_size (int): max prompt embedding size.
             use_parallel_embedding (bool): whether to use parallel embedding feature of TRT-LLM or not
+            use_embedding_sharing (bool):
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
+            paged_context_fmha (bool): whether to use paged context fmha feature of TRT-LLM or not
             remove_input_padding (bool): enables removing input padding or not.
             dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
             load_model (bool): load TensorRT-LLM model after the export.
@@ -167,7 +179,7 @@ class TensorRTLLM(ITritonDeployable):
         if model_type not in self.get_supported_models_list:
             raise Exception(
                 "Model {0} is not currently a supported model type. "
-                "Supported model types are llama, gptnext, falcon, and starcoder".format(model_type)
+                "Supported model types are llama, gptnext, falcon, and starcoder.".format(model_type)
             )
 
         if model_type == "gpt" or model_type == "starcoder":
@@ -182,6 +194,8 @@ class TensorRTLLM(ITritonDeployable):
         elif tensor_parallel_size is None:
             tensor_parallel_size = 1
             pipeline_parallel_size = n_gpus
+
+        gpus_per_node = tensor_parallel_size if gpus_per_node is None else gpus_per_node
 
         if Path(self.model_dir).exists():
             if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
@@ -204,11 +218,27 @@ class TensorRTLLM(ITritonDeployable):
 
         self.model = None
 
+        if max_input_token is not None:
+            warnings.warn(
+                "Parameter max_input_token is deprecated and will be removed. Please use max_input_len instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            max_input_len = max_input_token
+
+        if max_output_token is not None:
+            warnings.warn(
+                "Parameter max_output_token is deprecated and will be removed. Please use max_output_len instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            max_output_len = max_output_token
+
         if tensorrt_llm.mpi_rank() == 0:
             tmp_dir = tempfile.TemporaryDirectory()
             nemo_export_dir = Path(tmp_dir.name)
 
-            if nemo_checkpoint_path.endswith("qnemo"):
+            if is_qnemo_checkpoint(nemo_checkpoint_path):
                 if os.path.isdir(nemo_checkpoint_path):
                     nemo_export_dir = nemo_checkpoint_path
                 else:
@@ -219,11 +249,21 @@ class TensorRTLLM(ITritonDeployable):
                 qnemo_to_tensorrt_llm(
                     nemo_checkpoint_path=nemo_checkpoint_path,
                     engine_dir=self.model_dir,
-                    max_input_len=max_input_token,
-                    max_output_len=max_output_token,
+                    max_input_len=max_input_len,
+                    max_output_len=max_output_len,
                     max_batch_size=max_batch_size,
                     max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+                    tensor_parallel_size=tensor_parallel_size,
+                    pipeline_parallel_size=pipeline_parallel_size,
+                    use_parallel_embedding=use_parallel_embedding,
+                    paged_kv_cache=paged_kv_cache,
+                    remove_input_padding=remove_input_padding,
+                    enable_multi_block_mode=enable_multi_block_mode,
+                    use_lora_plugin=use_lora_plugin,
                     lora_target_modules=lora_target_modules,
+                    max_lora_rank=max_lora_rank,
+                    max_num_tokens=max_num_tokens,
+                    opt_num_tokens=opt_num_tokens,
                 )
             else:
                 model, model_configs, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir)
@@ -235,13 +275,15 @@ class TensorRTLLM(ITritonDeployable):
                     dtype=dtype,
                     tensor_parallel_size=tensor_parallel_size,
                     pipeline_parallel_size=pipeline_parallel_size,
+                    gpus_per_node=gpus_per_node,
                     use_parallel_embedding=use_parallel_embedding,
+                    use_embedding_sharing=use_embedding_sharing,
                 )
 
                 for weight_dict, model_config in zip(weights_dicts, model_configs):
                     build_and_save_engine(
-                        max_input_len=max_input_token,
-                        max_output_len=max_output_token,
+                        max_input_len=max_input_len,
+                        max_output_len=max_output_len,
                         max_batch_size=max_batch_size,
                         model_config=model_config,
                         model_weights=weight_dict,
@@ -255,6 +297,7 @@ class TensorRTLLM(ITritonDeployable):
                         enable_multi_block_mode=enable_multi_block_mode,
                         paged_kv_cache=paged_kv_cache,
                         remove_input_padding=remove_input_padding,
+                        paged_context_fmha=paged_context_fmha,
                         max_num_tokens=max_num_tokens,
                         opt_num_tokens=opt_num_tokens,
                     )
@@ -280,7 +323,8 @@ class TensorRTLLM(ITritonDeployable):
     def forward(
         self,
         input_texts: List[str],
-        max_output_token: int = 64,
+        max_output_len: int = 64,
+        max_output_token: Optional[int] = None,
         top_k: int = 1,
         top_p: float = 0.0,
         temperature: float = 1.0,
@@ -300,7 +344,8 @@ class TensorRTLLM(ITritonDeployable):
 
         Args:
             input_texts (List(str)): list of sentences.
-            max_output_token (int): max generated tokens.
+            max_output_len (int): max generated tokens.
+            max_output_token (int): max generated tokens. Deprecated, use max_output_len instead.
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
@@ -319,6 +364,13 @@ class TensorRTLLM(ITritonDeployable):
                 "then it should be loaded first to run inference."
             )
         else:
+            if max_output_token is not None:
+                warnings.warn(
+                    "Parameter max_output_token is deprecated and will be removed. Please use max_output_len instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                max_output_len = max_output_token
             if prompt_embeddings_table is not None or prompt_embeddings_checkpoint_path is not None:
                 prompt_table = self._get_prompt_embedding_table(
                     prompt_embeddings_table, prompt_embeddings_checkpoint_path
@@ -366,7 +418,7 @@ class TensorRTLLM(ITritonDeployable):
 
                 return generate(
                     input_texts=input_texts,
-                    max_output_len=max_output_token,
+                    max_output_len=max_output_len,
                     host_context=self.model,
                     top_k=top_k,
                     top_p=top_p,
@@ -386,7 +438,7 @@ class TensorRTLLM(ITritonDeployable):
             else:
                 return generate_streaming(
                     input_texts=input_texts,
-                    max_output_len=max_output_token,
+                    max_output_len=max_output_len,
                     host_context=self.model,
                     top_k=top_k,
                     top_p=top_p,
@@ -449,7 +501,7 @@ class TensorRTLLM(ITritonDeployable):
     def get_triton_input(self):
         inputs = (
             Tensor(name="prompts", shape=(-1,), dtype=bytes),
-            Tensor(name="max_output_token", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="max_output_len", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
@@ -471,8 +523,8 @@ class TensorRTLLM(ITritonDeployable):
     def triton_infer_fn(self, **inputs: np.ndarray):
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
-            if "max_output_token" in inputs:
-                infer_input["max_output_token"] = inputs.pop("max_output_token")[0][0]
+            if "max_output_len" in inputs:
+                infer_input["max_output_len"] = inputs.pop("max_output_len")[0][0]
             if "top_k" in inputs:
                 infer_input["top_k"] = inputs.pop("top_k")[0][0]
             if "top_p" in inputs:
@@ -508,8 +560,8 @@ class TensorRTLLM(ITritonDeployable):
     def triton_infer_fn_streaming(self, **inputs: np.ndarray):
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
-            if "max_output_token" in inputs:
-                infer_input["max_output_token"] = inputs.pop("max_output_token")[0][0]
+            if "max_output_len" in inputs:
+                infer_input["max_output_len"] = inputs.pop("max_output_len")[0][0]
             if "top_k" in inputs:
                 infer_input["top_k"] = inputs.pop("top_k")[0][0]
             if "top_p" in inputs:

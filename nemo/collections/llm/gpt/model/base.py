@@ -1,14 +1,16 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional
+from typing import TYPE_CHECKING, Dict, Literal, Optional
 
 import pytorch_lightning as L
 import torch
 import torch.distributed
+from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
-from torch.optim import Optimizer
 
+from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
+from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
@@ -17,11 +19,11 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class GPTConfig(TransformerConfig):
+class GPTConfig(TransformerConfig, io.IOMixin):
     # From megatron.core.models.gpt.gpt_model.GPTModel
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True
-    share_embeddings_and_output_weights: bool = False
+    share_embeddings_and_output_weights: bool = True
     make_vocab_size_divisible_by: int = 128
     position_embedding_type: Literal["learned_absolute", "rope"] = "learned_absolute"
     rotary_base: int = 10000
@@ -31,8 +33,6 @@ class GPTConfig(TransformerConfig):
 
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
-
-    optimizer_fn: Optional[Callable[["GPTModel"], Optimizer]] = None
 
     def configure_model(self, tokenizer) -> "MCoreGPTModel":
         vp_size = self.virtual_pipeline_model_parallel_size
@@ -48,7 +48,7 @@ class GPTConfig(TransformerConfig):
 
         return MCoreGPTModel(
             self,
-            transformer_layer_spec=get_gpt_layer_with_transformer_engine_spec(),
+            transformer_layer_spec=get_gpt_layer_with_transformer_engine_spec(self.num_moe_experts),
             vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
             max_sequence_length=self.seq_length,
             fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
@@ -63,25 +63,23 @@ class GPTConfig(TransformerConfig):
         )
 
 
-class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
+class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
         self,
         config: GPTConfig,
         # TODO: Add transformer_layer_spec when we update mcore
+        optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
     ):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
+        self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
+        self.optim.connect(self)  # This will bind the `configure_optimizers` method
 
     def configure_model(self) -> None:
-        self.module = self.config.configure_model(self.tokenizer)
-
-    def configure_optimizers(self) -> Optimizer:
-        if self.config.optimizer_fn is not None:
-            return self.config.optimizer_fn(self)
-
-        return gpt_default_optimizer(self)
+        if not hasattr(self, "module"):
+            self.module = self.config.configure_model(self.tokenizer)
 
     def forward(
         self,
@@ -170,16 +168,10 @@ def gpt_forward_step(model, batch) -> torch.Tensor:
     return model(**forward_args)
 
 
-def gpt_default_optimizer(module) -> Optimizer:
-    from apex.optimizers import FusedAdam
-
-    return FusedAdam(module.parameters(), lr=1e-4)
-
-
 def get_batch_on_this_context_parallel_rank(batch):
     from megatron.core import parallel_state
 
-    if cp_size := parallel_state.get_context_parallel_world_size() > 1:
+    if (cp_size := parallel_state.get_context_parallel_world_size()) > 1:
         num_valid_tokens_in_ub = None
         if 'loss_mask' in batch and batch['loss_mask'] is not None:
             num_valid_tokens_in_ub = batch['loss_mask'].sum()
@@ -209,7 +201,7 @@ def get_packed_seq_params(batch):
 
     cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
     # remove -1 "paddings" added in collate_fn
-    if cu_seqlens_argmin := batch.get('cu_seqlens_argmin', None) is not None:
+    if (cu_seqlens_argmin := batch.get('cu_seqlens_argmin', None)) is not None:
         # pre-compute cu_seqlens_argmin in dataset class for perf
         cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
     else:
@@ -228,4 +220,4 @@ def get_packed_seq_params(batch):
     )
 
 
-__all__ = ["GPTModel", "GPTConfig", "gpt_data_step", "gpt_forward_step", "gpt_default_optimizer"]
+__all__ = ["GPTModel", "GPTConfig", "gpt_data_step", "gpt_forward_step"]
