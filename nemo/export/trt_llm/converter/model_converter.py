@@ -192,13 +192,15 @@ def model_to_trtllm_ckpt(
                     new_key = new_key.replace(f".{mapping.tp_rank}.bin", "")
                 else:
                     continue
+            if config.get("new_decoder_architecture", False) and "post_layernorm" in new_key:
+                new_key = new_key.replace("post_layernorm", "mlp_layernorm")
             if "layers" in new_key:  # PP
                 layer_num = int(new_key.split(".")[2])
                 if layer_num in layers_range:
                     new_key = new_key.replace(f"layers.{layer_num}", f"layers.{layer_num-layers_range[0]}")
-            if config.get("new_decoder_architecture", False) and "post_layernorm" in new_key:
-                new_key = new_key.replace("post_layernorm", "mlp_layernorm")
-            weights_dict_local[new_key] = v
+                    weights_dict_local[new_key] = v
+            else:
+                weights_dict_local[new_key] = v
 
         if mapping.is_first_pp_rank():
             embedding_weight = (
