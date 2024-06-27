@@ -2,20 +2,25 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional
 
+import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from typing_extensions import Annotated
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.utils import Config
 from nemo.lightning import io, teardown
+from nemo.lightning.pytorch.optim import OptimizerModule
 
 if TYPE_CHECKING:
     from transformers import MistralConfig, MistralForCausalLM
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 @dataclass
-class Mistral7BConfig(GPTConfig):
+class MistralConfig7B(GPTConfig):
     normalization: str = "RMSNorm"
     activation_func: Callable = F.silu
     position_embedding_type: str = "rope"
@@ -35,17 +40,20 @@ class Mistral7BConfig(GPTConfig):
     window_size: List[int] = field(default_factory=lambda: [4096, 0])
 
 
-class Mistral7BModel(GPTModel):
-    def __init__(self, config: Optional[Mistral7BConfig] = None, tokenizer=None):
-        _tokenizer = tokenizer or HFMistral7BImporter("mistralai/Mistral-7B-v0.1").tokenizer
+class MistralModel(GPTModel):
+    def __init__(
+        self,
+        config: Annotated[Optional[MistralConfig7B], Config[MistralConfig7B]] = None,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+    ):
+        super().__init__(config or MistralConfig7B(), optim=optim, tokenizer=tokenizer)
 
-        super().__init__(config or Mistral7BConfig(), _tokenizer)
 
-
-@io.model_importer(Mistral7BModel, "hf")
-class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel]):
-    def init(self) -> Mistral7BModel:
-        return Mistral7BModel(self.config, tokenizer=self.tokenizer)
+@io.model_importer(MistralModel, "hf")
+class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
+    def init(self) -> MistralModel:
+        return MistralModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
         from transformers import MistralForCausalLM
@@ -83,7 +91,7 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
         return AutoTokenizer(str(self))
 
     @property
-    def config(self) -> Mistral7BConfig:
+    def config(self) -> MistralConfig7B:
         from transformers import MistralConfig
 
         source = MistralConfig.from_pretrained(str(self))
@@ -94,13 +102,13 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
                 base //= 2
             return base
 
-        output = Mistral7BConfig(
+        output = MistralConfig7B(
             seq_length=source.sliding_window,
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
             num_attention_heads=source.num_attention_heads,
-            max_position_embeddings=source.max_position_embeddings,
+            # max_position_embeddings=source.max_position_embeddings,
             init_method_std=source.initializer_range,
             layernorm_epsilon=source.rms_norm_eps,
             num_query_groups=source.num_key_value_heads,
@@ -108,13 +116,14 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
             window_size=[source.sliding_window, 0],
+            share_embeddings_and_output_weights=False,
         )
 
         return output
 
 
-@io.model_exporter(Mistral7BModel, "hf")
-class HFMistral7BExporter(io.ModelConnector[Mistral7BModel, "MistralForCausalLM"]):
+@io.model_exporter(MistralModel, "hf")
+class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
     def init(self) -> "MistralForCausalLM":
         from transformers import AutoModelForCausalLM
 
@@ -154,11 +163,11 @@ class HFMistral7BExporter(io.ModelConnector[Mistral7BModel, "MistralForCausalLM"
 
     @property
     def config(self) -> "MistralConfig":
-        source: Mistral7BConfig = io.load_ckpt(str(self)).model.config
+        source: MistralConfig7B = io.load_ckpt(str(self)).model.config
 
-        from transformers import MistralConfig
+        from transformers import MistralConfig as HfMistralConfig
 
-        return MistralConfig(
+        return HfMistralConfig(
             sliding_window=source.window_size[0],
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,

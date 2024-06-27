@@ -34,7 +34,7 @@ class LRSchedulerModule(L.Callback, CallbackMethods, ABC):
         __call__(model, optimizers): Calls the setup and scheduler methods.
     """
 
-    def setup(self, model, optimizer) -> None:
+    def connect(self, model, optimizer) -> None:
         """Sets up the learning rate scheduler.
 
         Args:
@@ -67,7 +67,7 @@ class LRSchedulerModule(L.Callback, CallbackMethods, ABC):
             OptimizerLRScheduler: The learning rate scheduler.
         """
 
-        self.setup(model, optimizers)
+        self.connect(model, optimizers)
 
         self._scheduler = self.scheduler(model, optimizers)
 
@@ -129,14 +129,11 @@ class OptimizerModule(L.Callback, CallbackMethods, ABC):
             return opt
 
         model.configure_optimizers = types.MethodType(custom_configure_optimizers, model)
+        model.optim = self
 
-    def setup(self, model) -> None:
-        """Sets up the optimizer.
-
-        Args:
-            model: The model for which the optimizer is being set up.
-        """
-        ...
+        if hasattr(self, "__io__") and hasattr(model, "__io__"):
+            if hasattr(model.__io__, "optim"):
+                model.__io__.optim = self.__io__
 
     @abstractmethod
     def optimizers(self, model) -> List[Optimizer]:
@@ -149,6 +146,11 @@ class OptimizerModule(L.Callback, CallbackMethods, ABC):
             List[Optimizer]: The list of optimizers.
         """
         raise NotImplementedError("The optimizers method should be implemented by subclasses.")
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx) -> None:
+        if self._optimizers is not None:
+            lr = self._optimizers[0].param_groups[0]['lr']
+            pl_module.log('lr', lr, rank_zero_only=True, batch_size=1)
 
     def __call__(self, model: L.LightningModule, megatron_parallel=None) -> OptimizerLRScheduler:
         """Calls the setup and optimizers methods.
@@ -167,12 +169,12 @@ class OptimizerModule(L.Callback, CallbackMethods, ABC):
         if self.lr_scheduler is not None and self.lr_scheduler not in callbacks:
             callbacks.append(self.lr_scheduler)
 
-        self.setup(_model)
         self._optimizers = self.optimizers(_model)
 
+        _opt = self._optimizers[0] if len(self._optimizers) == 1 else self._optimizers
+
         if self.lr_scheduler is not None:
-            self.lr_scheduler.setup(_model, self._optimizers)
-            with_scheduler = self.lr_scheduler(_model, self._optimizers)
+            with_scheduler = self.lr_scheduler(_model, _opt)
 
             return with_scheduler
 
