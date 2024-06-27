@@ -1,19 +1,24 @@
+import transformer_engine as te
+
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning import io
+
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 
 class TestLoad:
     def test_reload_ckpt(self, tmpdir):
         trainer = nl.Trainer(devices=1, accelerator="cpu", strategy=nl.MegatronStrategy())
-        # model = llm.Mistral7BModel()
+        tokenizer = get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
         model = llm.GPTModel(
             llm.GPTConfig(
                 num_layers=2,
                 hidden_size=1024,
                 ffn_hidden_size=4096,
                 num_attention_heads=8,
-            )
+            ),
+            tokenizer=tokenizer
         )
 
         ckpt = io.TrainerContext(model, trainer)

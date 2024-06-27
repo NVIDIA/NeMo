@@ -40,6 +40,8 @@ from nemo.collections.llm.gpt.model import (
     gpt_data_step,
     gpt_forward_step,
 )
+from nemo.collections.llm import tokenizer
+
 
 __all__ = [
     "MockDataModule",
@@ -78,4 +80,5 @@ __all__ = [
     "export_ckpt",
     "pretrain",
     "validate",
+    "tokenizer"
 ]
