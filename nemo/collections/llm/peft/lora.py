@@ -100,7 +100,7 @@ class LoRA(PEFT):
                 in_features = m.in_features * tp_size
                 out_features = m.out_features
 
-            logging.info("Adding lora to:", f"{prefix}.{name}", f"{m.in_features}x{m.out_features}")
+            logging.info(f"Adding lora to: {prefix}.{name}")
             adapter = ParallelLinearAdapter(
                 in_features,
                 out_features,

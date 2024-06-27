@@ -2,6 +2,9 @@ from functools import wraps
 from typing import Any, Callable, Optional, TypeVar
 
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks import model_summary
+
+from nemo.utils import logging
 from torch import nn
 
 MODEL_TRANSFORM: Optional[Callable[[nn.Module], nn.Module]] = None
@@ -67,29 +70,18 @@ class ModelTransform(pl.Callback):
             # Replace the model's transform function with the wrapped one
             pl_module.model_transform = MODEL_TRANSFORM
 
-    def on_fit_start(self, trainer, pl_module):
+    def on_load_checkpoint(self, trainer, pl_module, checkpoint):
         """
-        Apply the model transformation at the start of the fitting process.
+        Apply the model transformation before training.
+        This method is called by PyTorch Lightning immediately after loading the
+        distributed checkpoint from disk into a dictionary, but before the dictionary
+        is loaded into the model.
 
-        This method is called by PyTorch Lightning when the fit process begins.
         It calls the _maybe_apply_transform method to apply the transformation if necessary.
 
         Args:
             trainer (pl.Trainer): The PyTorch Lightning trainer instance.
             pl_module (pl.LightningModule): The LightningModule being trained.
-        """
-        self._maybe_apply_transform(trainer)
-
-    def on_validation_start(self, trainer, pl_module):
-        """
-        Apply the model transformation at the start of validation.
-
-        This method is called by PyTorch Lightning when validation begins.
-        It calls the _maybe_apply_transform method to apply the transformation if necessary.
-
-        Args:
-            trainer (pl.Trainer): The PyTorch Lightning trainer instance.
-            pl_module (pl.LightningModule): The LightningModule being validated.
         """
         self._maybe_apply_transform(trainer)
 
@@ -105,7 +97,8 @@ class ModelTransform(pl.Callback):
         """
         global MODEL_TRANSFORM
         if MODEL_TRANSFORM and MODEL_TRANSFORM.__num_calls__ == 0:
-            MODEL_TRANSFORM(trainer.model)
+            MODEL_TRANSFORM(trainer.model.pipeline)
+        logging.info('After model transform:\n'+str(model_summary.summarize(trainer.model.pipeline)))
 
 
 T = TypeVar('T', bound=Callable[..., Any])
