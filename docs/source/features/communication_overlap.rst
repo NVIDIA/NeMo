@@ -19,9 +19,9 @@ Tensor-parallel communication overlap
 
 Tensor parallelism, used with the sequence-parallel activation sharding (``sequence_parallel=true``), introduces activation (gradient) all-gather and reduce-scatter as shown in the below figure.
 NeMo provides various options to overlap the tensor-parallel (TP) communications with computation.
-The TP communication without direct computation dependency are overlapped with the computation in bulk (the linear layer and TP communication pairs in the red boxes).
+The TP communication without direct computation dependency are overlapped with the computation in bulk (the linear layer and TP communication pairs in the yellow boxes).
 The bulk TP communication is enabled by default.
-The other TP communications with direct computation dependency are overlapped in pipelined fashion (the linear layer and TP communication pairs in the yellow boxes).
+The other TP communications with direct computation dependency are overlapped in pipelined fashion (the linear layer and TP communication pairs in the red boxes).
 The TP communication and computation are chunked and the chunks are overlapped in pipeline.
 In the pipelined overlap, the activation (gradient) tensor all-gather is replaced with multiple steps of input P2P ring exchanges, and reduce-scatter is replaced with multiple steps of GEMM output P2P ring exchanges followed by a reduction of the received outputs.
 In case of the reduce-scatter overlap, NeMo also provides the option to pipeline-overlap using chunks of reduce-scatter, which exposes one reduce-scatter chunk.
