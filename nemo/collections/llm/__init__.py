@@ -4,6 +4,7 @@ try:
 except ImportError:
     pass
 
+from nemo.collections.llm import tokenizer
 from nemo.collections.llm.api import export_ckpt, import_ckpt, pretrain, train, validate
 from nemo.collections.llm.gpt.data import (
     DollyDataModule,
@@ -33,9 +34,9 @@ from nemo.collections.llm.gpt.model import (
     LlamaConfig,
     LlamaModel,
     MaskedTokenLossReduction,
-    Mistral7BConfig,
-    Mistral7BModel,
-    MixtralConfig,
+    MistralConfig7B,
+    MistralModel,
+    MixtralConfig8x7B,
     MixtralModel,
     gpt_data_step,
     gpt_forward_step,
@@ -48,9 +49,9 @@ __all__ = [
     "gpt_data_step",
     "gpt_forward_step",
     "MaskedTokenLossReduction",
-    "Mistral7BConfig",
-    "Mistral7BModel",
-    "MixtralConfig",
+    "MistralConfig7B",
+    "MistralModel",
+    "MixtralConfig8x7B",
     "MixtralModel",
     "LlamaConfig",
     "Llama2Config7B",
@@ -78,4 +79,5 @@ __all__ = [
     "export_ckpt",
     "pretrain",
     "validate",
+    "tokenizer",
 ]
