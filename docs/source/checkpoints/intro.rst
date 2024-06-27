@@ -23,17 +23,17 @@ NeMo supports the distributed (sharded) checkpoint format from Megatron-Core. In
 Quantized Checkpoints
 ---------------------
 
-NeMo also offers :doc:`Post-Training Quantization <../nlp/quantization>` workflow to convert regular ``.nemo`` models into a `TensorRT-LLM checkpoint <https://nvidia.github.io/TensorRT-LLM/architecture/checkpoint.html>`_ conventionally referred to as ``.qnemo`` checkpoints in NeMo. Such a checkpoint can be used with `NVIDIA TensorRT-LLM library <https://nvidia.github.io/TensorRT-LLM/index.html>`_ for efficient inference.
+NeMo provides a :doc:`Post-Training Quantization <../nlp/quantization>` workflow that allows you to convert regular ``.nemo`` models into a `TensorRT-LLM checkpoint <https://nvidia.github.io/TensorRT-LLM/architecture/checkpoint.html>`_, commonly referred to as ``.qnemo`` checkpoints in NeMo. These ``.qnemo`` checkpoints can then be used with the `NVIDIA TensorRT-LLM library <https://nvidia.github.io/TensorRT-LLM/index.html>`_ for efficient inference.
 
-Much as in the case of ``.nemo`` checkpoints, a ``.qnemo`` checkpoint is a tar file that bundles the model configuration given in ``config.json`` file and ``rank{i}.safetensors`` files storing model weights for each rank separately. Additionally a ``tokenizer_config.yaml`` file is saved which is just ``tokenizer`` section from ``model_config.yaml`` file from the original NeMo model. This configuration file defines a tokenizer for the model given.
+A ``.qnemo`` checkpoint, similar to ``.nemo`` checkpoints, is a tar file that bundles the model configuration specified in the ``config.json`` file along with the ``rank{i}.safetensors`` files. These ``.safetensors`` files store the model weights for each rank individually. In addition, a ``tokenizer_config.yaml`` file is saved, containing only the tokenizer section from the original NeMo ``model_config.yaml`` file. This configuration file defines the tokenizer used by the given model.
 
-For large quantized LLM using a directory rather than a tar file is recommended. This can be controlled with ``compress`` flag on exporting quantized models in `PTQ configuration file <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_quantization.yaml>`_.
+When working with large quantized LLMs, it is recommended that you use a directory rather than a tar file. You can control this behavior by setting the ``compress`` flag when exporting quantized models in `PTQ configuration file <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_quantization.yaml>`_.
 
-Example contents of a quantized model to be served using two GPUs (ranks) are shown below:
+The following example shows the contents of a quantized model intended to be served using two GPUs (ranks):
 
 .. code-block:: bash
 
-    model.qnemo
+    model-qnemo
     ├── config.json
     ├── rank0.safetensors
     ├── rank1.safetensors
