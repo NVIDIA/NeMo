@@ -180,7 +180,6 @@ def run_inference(
     checkpoint_path,
     model_dir,
     use_vllm,
-    n_gpu=1,
     max_batch_size=8,
     use_embedding_sharing=False,
     max_input_len=128,
@@ -204,10 +203,10 @@ def run_inference(
     save_trt_engine=False,
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
     if Path(checkpoint_path).exists():
-        if n_gpu > torch.cuda.device_count():
+        if tp_size > torch.cuda.device_count():
             print(
                 "Path: {0} and model: {1} with {2} gpus won't be tested since available # of gpus = {3}".format(
-                    checkpoint_path, model_name, n_gpu, torch.cuda.device_count()
+                    checkpoint_path, model_name, tp_size, torch.cuda.device_count()
                 )
             )
             return (None, None)
@@ -222,7 +221,7 @@ def run_inference(
             )
             print("")
 
-            print("Path: {0} and model: {1} with {2} gpus will be tested".format(checkpoint_path, model_name, n_gpu))
+            print("Path: {0} and model: {1} with {2} gpus will be tested".format(checkpoint_path, model_name, tp_size))
 
         prompt_embeddings_checkpoint_path = None
         task_ids = None
@@ -273,7 +272,6 @@ def run_inference(
             exporter.export(
                 nemo_checkpoint_path=checkpoint_path,
                 model_type=model_type,
-                n_gpus=n_gpu,
                 tensor_parallel_size=tp_size,
                 pipeline_parallel_size=pp_size,
                 max_input_len=max_input_len,
@@ -398,9 +396,8 @@ def run_inference(
 def run_existing_checkpoints(
     model_name,
     use_vllm,
-    n_gpus,
-    tp_size=None,
-    pp_size=None,
+    tp_size,
+    pp_size,
     ptuning=False,
     lora=False,
     streaming=False,
@@ -411,7 +408,7 @@ def run_existing_checkpoints(
     test_data_path=None,
     save_trt_engine=False,
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
-    if n_gpus > torch.cuda.device_count():
+    if tp_size > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
         return (None, None)
 
@@ -421,8 +418,8 @@ def run_existing_checkpoints(
 
     model_info = test_data[model_name]
 
-    if n_gpus < model_info["min_gpus"]:
-        print("Min n_gpus for this model is {0}".format(n_gpus))
+    if tp_size < model_info["min_tps"]:
+        print("Min tps for this model is {0}".format(tp_size))
         return (None, None)
 
     p_tuning_checkpoint = None
@@ -452,7 +449,6 @@ def run_existing_checkpoints(
         checkpoint_path=model_info["checkpoint"],
         model_dir=model_info["model_dir"],
         use_vllm=use_vllm,
-        n_gpu=n_gpus,
         max_batch_size=model_info["max_batch_size"],
         use_embedding_sharing=use_embedding_sharing,
         max_input_len=512,
@@ -499,14 +495,19 @@ def get_args():
         required=False,
     )
     parser.add_argument(
-        "--min_gpus",
+        "--min_tps",
         type=int,
         default=1,
         required=True,
     )
     parser.add_argument(
-        "--max_gpus",
+        "--max_tps",
         type=int,
+    )
+    parser.add_argument(
+        "--pps",
+        type=int,
+        default=1,
     )
     parser.add_argument(
         "--checkpoint_dir",
@@ -657,19 +658,18 @@ def run_inference_tests(args):
     result_dic: Dict[int, Tuple[FunctionalResult, Optional[AccuracyResult]]] = {}
 
     if args.existing_test_models:
-        n_gpus = args.min_gpus
-        if args.max_gpus is None:
-            args.max_gpus = args.min_gpus
+        tps = args.min_tps
+        if args.max_tps is None:
+            args.max_tps = args.min_tps
 
-        while n_gpus <= args.max_gpus:
-            result_dic[n_gpus] = run_existing_checkpoints(
+        while tps <= args.max_tps:
+            result_dic[tps] = run_existing_checkpoints(
                 model_name=args.model_name,
                 use_vllm=args.use_vllm,
-                n_gpus=n_gpus,
                 ptuning=args.ptuning,
                 lora=args.lora,
-                tp_size=args.tp_size,
-                pp_size=args.pp_size,
+                tp_size=tps,
+                pp_size=args.pps,
                 streaming=args.streaming,
                 test_deployment=args.test_deployment,
                 test_cpp_runtime=args.test_cpp_runtime,
@@ -678,19 +678,19 @@ def run_inference_tests(args):
                 save_trt_engine=args.save_trt_engine,
             )
 
-            n_gpus = n_gpus * 2
+            tps = tps * 2
     else:
         if args.model_dir is None:
             raise Exception("When using custom checkpoints, --model_dir is required.")
 
         prompts = ["The capital of France is", "Largest animal in the sea is"]
         expected_outputs = ["Paris", "blue whale"]
-        n_gpus = args.min_gpus
-        if args.max_gpus is None:
-            args.max_gpus = args.min_gpus
+        tps = args.min_tps
+        if args.max_tps is None:
+            args.max_tps = args.min_tps
 
-        while n_gpus <= args.max_gpus:
-            result_dic[n_gpus] = run_inference(
+        while tps <= args.max_tps:
+            result_dic[tps] = run_inference(
                 model_name=args.model_name,
                 model_type=args.model_type,
                 prompts=prompts,
@@ -698,7 +698,8 @@ def run_inference_tests(args):
                 checkpoint_path=args.checkpoint_dir,
                 model_dir=args.model_dir,
                 use_vllm=args.use_vllm,
-                n_gpu=n_gpus,
+                tp_size=tps,
+                pp_size=args.pps,
                 max_batch_size=args.max_batch_size,
                 max_input_len=args.max_input_len,
                 max_output_len=args.max_output_len,
@@ -706,8 +707,6 @@ def run_inference_tests(args):
                 p_tuning_checkpoint=args.p_tuning_checkpoint,
                 lora=args.lora,
                 lora_checkpoint=args.lora_checkpoint,
-                tp_size=args.tp_size,
-                pp_size=args.pp_size,
                 top_k=args.top_k,
                 top_p=args.top_p,
                 temperature=args.temperature,
@@ -720,13 +719,13 @@ def run_inference_tests(args):
                 save_trt_engine=args.save_trt_engine,
             )
 
-            n_gpus = n_gpus * 2
+            tps = tps * 2
 
     functional_test_result = "PASS"
     accuracy_test_result = "PASS"
     print_separator = False
     print("============= Test Summary ============")
-    for num_gpus, results in result_dic.items():
+    for num_tps, results in result_dic.items():
         functional_result, accuracy_result = results
 
         if print_separator:
@@ -738,7 +737,7 @@ def run_inference_tests(args):
                 return "N/A"
             return "PASS" if b else "FAIL"
 
-        print(f"Number of GPUS:                  {num_gpus}")
+        print(f"Number of GPUS:                  {num_tps}")
 
         if functional_result is not None:
             print(f"Functional Test:                 {optional_bool_to_pass_fail(functional_result.regular_pass)}")

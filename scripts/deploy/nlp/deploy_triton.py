@@ -83,6 +83,8 @@ def get_args(argv):
         "-tmr", "--triton_model_repository", default=None, type=str, help="Folder for the trt-llm conversion"
     )
     parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("-tps", "--tensor_parallelism_size", default=None, type=int, help="Tensor parallelism size")
+    parser.add_argument("-pps", "--pipeline_parallelism_size", default=None, type=int, help="Pipeline parallelism size")
     parser.add_argument(
         "-dt",
         "--dtype",
@@ -254,8 +256,8 @@ def get_trtllm_deployable(args):
                 nemo_checkpoint_path=args.nemo_checkpoint,
                 model_type=args.model_type,
                 n_gpus=args.num_gpus,
-                tensor_parallel_size=args.num_gpus,
-                pipeline_parallel_size=1,
+                tensor_parallel_size=args.tensor_parallelism_size,
+                pipeline_parallel_size=args.pipeline_parallelism_size,
                 max_input_len=args.max_input_len,
                 max_output_len=args.max_output_len,
                 max_batch_size=args.max_batch_size,

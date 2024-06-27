@@ -176,6 +176,14 @@ class TensorRTLLM(ITritonDeployable):
             save_nemo_model_config (bool):
         """
 
+        if n_gpus is not None:
+            warnings.warn(
+                "Parameter n_gpus is deprecated and will be removed in the next release. "
+                "Please use tensor_parallel_size and pipeline_parallel_size parameters instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         if model_type not in self.get_supported_models_list:
             raise Exception(
                 "Model {0} is not currently a supported model type. "
