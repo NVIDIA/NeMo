@@ -26,3 +26,5 @@ class TestLoad:
         loaded = io.load_ckpt(tmpdir)
 
         assert loaded.model.config.seq_length == ckpt.model.config.seq_length
+        assert loaded.model.__io__.tokenizer.vocab_file.startswith(str(tmpdir))
+        assert loaded.model.__io__.tokenizer.merges_file.startswith(str(tmpdir))
