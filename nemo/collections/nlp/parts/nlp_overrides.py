@@ -391,7 +391,7 @@ class NLPDDPStrategy(DDPStrategy):
 
             self.checkpoint_io.save_checkpoint(checkpoint, ckpt_to_dir(filepath), storage_options=storage_options)
 
-            if HAVE_MODELOPT:
+            if HAVE_MODELOPT and hasattr(self.lightning_module, "get_model_module_list"):
                 save_sharded_modelopt_state(
                     self.lightning_module.get_model_module_list(),
                     ckpt_to_dir(filepath),
@@ -528,7 +528,7 @@ class NLPDDPStrategy(DDPStrategy):
             if not fs.isdir(checkpoint_path):
                 raise ValueError(f'Distributed checkpoints should be a directory. Found: {checkpoint_path}.')
 
-            if HAVE_MODELOPT:
+            if HAVE_MODELOPT and hasattr(self.lightning_module, "get_model_module_list"):
                 restore_sharded_modelopt_state(
                     self.lightning_module.get_model_module_list(), checkpoint_path, prefix="model."
                 )
@@ -1010,7 +1010,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 checkpoint_io = DistributedCheckpointIO(model.cfg.get('dist_ckpt_format', 'zarr'))
                 checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_dir)
 
-                if HAVE_MODELOPT:
+                if HAVE_MODELOPT and hasattr(model, "get_model_module_list"):
                     save_sharded_modelopt_state(
                         model.get_model_module_list(),
                         dist_ckpt_dir,
@@ -1305,7 +1305,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
                 assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
 
-                if HAVE_MODELOPT:
+                if HAVE_MODELOPT and hasattr(instance, "get_model_module_list"):
                     restore_sharded_modelopt_state(
                         instance.get_model_module_list(), tmp_model_weights_dir, prefix="model."
                     )
