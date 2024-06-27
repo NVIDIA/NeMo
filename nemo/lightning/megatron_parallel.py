@@ -26,6 +26,7 @@ import torch
 import torch.distributed
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor, nn
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
@@ -109,6 +110,7 @@ class MegatronParallel(nn.ModuleList):
         vp_size: Optional[int] = None,
         ddp_config: Optional[DistributedDataParallelConfig] = None,
         cpu: bool = False,
+        convert_module_fn: Optional[Callable[[nn.Module], nn.Module]] = None,
     ) -> None:
         from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
         from megatron.core import parallel_state
@@ -133,9 +135,14 @@ class MegatronParallel(nn.ModuleList):
                         _model.configure_model()
                     _pipeline.append(_model)
 
+        if convert_module_fn:
+            for i in range(len(_pipeline)):
+                _pipeline[i] = convert_module_fn(_pipeline[i])
+
         if isinstance(ddp_config, DistributedDataParallelConfig):
             for model_chunk_idx, model_chunk in enumerate(_pipeline):
                 module = model_chunk.module
+
                 ddp = DDP(
                     module.config,
                     ddp_config,
@@ -567,6 +574,27 @@ def getattr_proxy(self, item: Any) -> Any:
 
 
 class DDP(McoreDDP):
+    def __init__(
+        self,
+        config: TransformerConfig,
+        ddp_config: DistributedDataParallelConfig,
+        module: torch.nn.Module,
+        disable_bucketing: bool = False,
+        **kwargs,
+    ):
+        init_parameters = inspect.signature(McoreDDP.__init__).parameters
+        # Updates to the McoreDDP class have removed some parameters, so we need to
+        #  filter out any kwargs that are not part of the updated signature, if a new
+        #  version of mcore is being used.
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in init_parameters}
+        super().__init__(
+            config=config,
+            ddp_config=ddp_config,
+            module=module,
+            disable_bucketing=disable_bucketing,
+            **filtered_kwargs,
+        )
+
     def state_dict(self, prefix='', keep_vars=False, **kwargs):
         self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
 
