@@ -1,12 +1,13 @@
 from typing import Callable, List, Optional
 
+import pytorch_lightning as pl
 from megatron.core.distributed import finalize_model_grads
 from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
 from megatron.core.utils import get_model_config
 from torch.optim import Optimizer
 
 from nemo.lightning.megatron_parallel import MegatronParallel
-from nemo.lightning.pytorch.opt.base import LRSchedulerModule, OptimizerModule
+from nemo.lightning.pytorch.optim.base import LRSchedulerModule, OptimizerModule
 
 
 class MegatronOptimizerModule(OptimizerModule):
@@ -53,7 +54,7 @@ class MegatronOptimizerModule(OptimizerModule):
         self.scale_lr_cond = scale_lr_cond
         self.lr_mult = lr_mult
 
-    def setup(self, model):
+    def setup(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str):
         """We will add the finalize_model_grads function to the model config.
 
         Args:
@@ -63,7 +64,7 @@ class MegatronOptimizerModule(OptimizerModule):
         def finalize_model_grads_func(*args, **kwargs):
             return self.finalize_model_grads(*args, **kwargs)
 
-        get_model_config(model[0]).finalize_model_grads_func = finalize_model_grads_func
+        get_model_config(pl_module).finalize_model_grads_func = finalize_model_grads_func
 
     def optimizers(self, model: MegatronParallel) -> List[Optimizer]:
         """Defines the optimizers.
@@ -83,6 +84,16 @@ class MegatronOptimizerModule(OptimizerModule):
 
         from nemo.core.optim import McoreDistributedOptimizer
 
+        class McoreOpt(McoreDistributedOptimizer):
+            def sharded_state_dict(
+                self,
+                model_sharded_state_dict,
+                optimizer_state_dict=None,
+                is_loading=False,
+                dist_ckpt_parallel_save=False,
+            ):
+                return self.mcore_optimizer.sharded_state_dict(model_sharded_state_dict, is_loading=is_loading)
+
         mcore_opt = get_megatron_optimizer(
             self.config,
             list(model),
@@ -91,7 +102,7 @@ class MegatronOptimizerModule(OptimizerModule):
             lr_mult=self.lr_mult,
         )
 
-        return [McoreDistributedOptimizer(mcore_opt)]
+        return [McoreOpt(mcore_opt)]
 
     def finalize_model_grads(self, *args, **kwargs):
         return finalize_model_grads(*args, **kwargs)

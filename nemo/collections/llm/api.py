@@ -1,11 +1,11 @@
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Callable, Optional
 
 import pytorch_lightning as pl
+from typing_extensions import Annotated
 
-from nemo.collections.llm.utils import task
+from nemo.collections.llm.utils import Config, task
 from nemo.lightning import AutoResume, MegatronStrategy, NeMoLogger, OptimizerModule, Trainer, io, teardown
-from nemo.lightning.resume import Resume
 
 
 @task(namespace="llm")
@@ -13,9 +13,9 @@ def train(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
     trainer: Trainer,
-    log: NeMoLogger = NeMoLogger(),
-    resume: Optional[Union[AutoResume, Resume]] = AutoResume(),
-    opt: Optional[OptimizerModule] = None,
+    log: Annotated[Optional[NeMoLogger], Config[NeMoLogger]] = None,
+    resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
+    optim: Optional[OptimizerModule] = None,
     tokenizer: Optional[str] = None,
     # TODO: Fix export export: Optional[str] = None,
 ) -> Path:
@@ -28,7 +28,7 @@ def train(
         trainer (Trainer): The trainer instance configured with a MegatronStrategy.
         log (NeMoLogger): A nemologger instance.
         resume (Optional[Union[AutoResume, Resume]]): Resume training from a checkpoint.
-        opt (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
+        optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
             from the model will be used.
         tokenizer (Optional[str]): Tokenizer setting to be applied. Can be 'data' or 'model'.
         export (Optional[str]): Filename to save the exported checkpoint after training.
@@ -49,29 +49,22 @@ def train(
         >>> train(model, data, trainer, tokenizer='data', source='path/to/ckpt.ckpt', export='final.ckpt')
         PosixPath('/path/to/log_dir')
     """
-    if not isinstance(trainer.strategy, MegatronStrategy):
-        raise ValueError("Only MegatronStrategy is supported")
-
-    if tokenizer:  # TODO: Improve this
-        _use_tokenizer(model, data, tokenizer)
-
-    app_state = log.setup(
+    _log = log or NeMoLogger()
+    app_state = _log.setup(
         trainer,
         resume_if_exists=getattr(resume, "resume_if_exists", False),
+        task_config=getattr(train, "__io__", None),
     )
     if resume is not None:
         resume.setup(model, trainer)
-    if opt:
-        opt.connect(model)
-
-    trainer.fit(model, data, **fit_kwargs)
-
-    if hasattr(train, "__io__"):
-        _save_config_img(app_state.exp_dir, train.__io__)
+    if optim:
+        optim.connect(model)
+    if tokenizer:  # TODO: Improve this
+        _use_tokenizer(model, data, tokenizer)
 
     trainer.fit(model, data)
 
-    log.teardown()
+    _log.teardown()
 
     return app_state.exp_dir
 

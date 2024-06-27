@@ -155,7 +155,7 @@ def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, 
         "te_gpt": get_gpt_layer_with_transformer_engine_spec(num_experts, moe_grouped_gemm),
         "megatron_falcon_gpt": get_falcon_layer_spec(),
         "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(),
-        "modelopt": get_gpt_layer_modelopt_spec(),
+        "modelopt": get_gpt_layer_modelopt_spec(num_experts),
         "te_gpt_hyena": get_gpt_layer_with_te_and_hyena_spec(hyena_cfg),
     }
     if spec_name not in name_spec_dict:
@@ -397,6 +397,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.inference_params = None
 
+        # Reset learning rate params
+        self.if_init_step = True
+        self.reset_lr = self.cfg.get('reset_lr', False)
+        self.reset_lr_steps = self.cfg.get('reset_lr_steps', False)
+        if self.reset_lr and (not self.with_distributed_adam or not self.megatron_amp_O2):
+            raise ValueError(
+                'Learning rate reset feature is only supported with the distributed optmizer and megatron_amp_O2 for now.'
+            )
+
         # default to false since this doesn't work with sequence parallelism currently
         self.use_loss_mask = self.cfg.get('use_loss_mask', False)
 
@@ -535,8 +544,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     config,
                     ddp_config,
                     model_chunk,
-                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
                     # Turn off bucketing for model_chunk 2 onwards, since communication for these
                     # model chunks is overlapped with compute anyway.
                     disable_bucketing=(model_chunk_idx > 0),
@@ -764,6 +771,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Initialize userbuffer communicators.
         if self.initialize_ub:
             self.initialize_ub_func()
+
+        # Reset learning rate
+        if self.if_init_step and self.reset_lr:
+            num_groups = len(self._optimizer.param_groups)
+            for group in range(num_groups):
+                self._optimizer.param_groups[group]['lr'] = (
+                    0.0 if self.cfg.optim.sched.warmup_steps > 0 else self.cfg.optim.lr
+                )
+            self._optimizer.param_groups[0]['reset_lr'] = {
+                'num_steps': self.trainer.global_step,
+                'reset_lr_steps': True if self.reset_lr_steps else False,
+                'if_init_step': self.if_init_step,
+            }
+            self.if_init_step = False
 
         if self.rampup_batch_size:
             num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
@@ -1474,15 +1495,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # E = argmin_e e * N_d >= N, or equivalently E = ceildiv(N, N_d)
         # Where N_d is the total number of samples in a dataset (files), and N is the requested number of samples (provided for every split in the list below).
         # Setting N = 1 we force E to be 1 as well
+        legacy_dataset = self.cfg.data.get("legacy_dataset", False)
         if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            train_valid_test_num_samples[1] = None
+            train_valid_test_num_samples[1] = 1 if legacy_dataset else None
         # Add extra FIM tokens to tokenizer
         if self.cfg.data.get('add_fim', False) and self.cfg.tokenizer.library == 'megatron':
             fim_tokens = self.cfg.data.fim.extra_tokens
             fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
             self.tokenizer.add_special_tokens({'additional_special_tokens': fim_tokens})
 
-        if self.cfg.data.get("legacy_dataset", False):
+        if legacy_dataset:
             self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
                 cfg=self.cfg,
                 trainer=self.trainer,
