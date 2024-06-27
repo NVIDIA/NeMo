@@ -40,15 +40,8 @@ from nemo.utils import AppState, logging
 from nemo.utils.decorators import deprecated_warning
 
 try:
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
-
-try:
     from megatron.core import ModelParallelConfig, parallel_state
+    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatch_calculator
 
     HAVE_MEGATRON_CORE = True
 
@@ -387,7 +380,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         if global_batch_size_per_gpu != gbs // parallel_state.get_data_parallel_world_size():
             # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
             app_state = AppState()
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -397,7 +390,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def _reconfigure_batch_sizes(self, gbs: int, mbs: int):
         app_state = AppState()
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=gbs,

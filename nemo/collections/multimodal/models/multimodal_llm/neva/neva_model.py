@@ -65,16 +65,6 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
 try:
-    import apex.transformer.pipeline_parallel.utils
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
     from megatron.core import InferenceParams, dist_checkpointing, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func

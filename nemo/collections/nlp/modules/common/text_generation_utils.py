@@ -38,16 +38,8 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.utils import AppState
 
 try:
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
     from megatron.core import parallel_state, tensor_parallel
+    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatch_calculator
 
     HAVE_MEGATRON_CORE = True
 
@@ -816,7 +808,7 @@ def sample_sequence_batch(
 
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
-    _reconfigure_microbatch_calculator(
+    reconfigure_num_microbatch_calculator(
         rank=app_state.global_rank,
         rampup_batch_size=None,
         global_batch_size=micro_batch_size,
@@ -1008,7 +1000,7 @@ def tab_sample_sequence_batch(
 ):
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
-    _reconfigure_microbatch_calculator(
+    reconfigure_num_microbatch_calculator(
         rank=app_state.global_rank,
         rampup_batch_size=None,
         global_batch_size=micro_batch_size,

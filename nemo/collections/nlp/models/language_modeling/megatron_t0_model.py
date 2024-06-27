@@ -27,17 +27,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import 
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-
-try:
     from megatron.core import parallel_state
+    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatch_calculator
 
     HAVE_MEGATRON_CORE = True
 
@@ -162,7 +153,7 @@ class MegatronT0Model(MegatronT5SFTModel):
         # This should happen only on the last batch of the validation/test dataset with drop_last=False.
         if global_batch_per_gpu != self.cfg.data.validation_ds.global_batch_size:
             app_state = AppState()
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -194,7 +185,10 @@ class MegatronT0Model(MegatronT5SFTModel):
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
 
     def build_data_loader(
-        self, dataset, data_cfg, consumed_samples=0,
+        self,
+        dataset,
+        data_cfg,
+        consumed_samples=0,
     ):
         """Buld dataloader given an input dataset."""
         logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
@@ -224,13 +218,19 @@ class MegatronT0Model(MegatronT5SFTModel):
         if hasattr(self, '_train_ds'):
             consumed_samples = self.compute_consumed_samples(0)
             self._train_dl = self.build_data_loader(
-                dataset=self._train_ds, data_cfg=self.cfg.data.train_ds, consumed_samples=consumed_samples,
+                dataset=self._train_ds,
+                data_cfg=self.cfg.data.train_ds,
+                consumed_samples=consumed_samples,
             )
 
     def setup_eval_dataloader(self, datasets, data_cfg):
         dataloaders = []
         for dataset in datasets:
-            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
+            eval_dl = self.build_data_loader(
+                dataset=dataset,
+                data_cfg=data_cfg,
+                consumed_samples=0,
+            )
             dataloaders.append(eval_dl)
         return dataloaders
 
