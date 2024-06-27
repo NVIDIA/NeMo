@@ -515,7 +515,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             out_features=self.cfg.hidden_size,
             bias=True,  # self.cfg.get("bias", False),
         )
-        for name, module in self.named_modules():
+        for name, module in self._unwrap_model().named_modules(prefix="model"):
             self._check_and_add_adapter(
                 name,
                 module,
@@ -1145,10 +1145,11 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 self.cfg.data.data_prefix, self.cfg.mm_cfg.vision_encoder.get("crop_size")
             )
         else:
+            model = self._unwrap_model()
             ds_dict = make_supervised_data_module(
                 tokenizer=self.tokenizer,
                 image_processor=(
-                    self.model.module.image_processor if hasattr(self.model, "module") else self.model.image_processor
+                    model.module.image_processor if hasattr(model, "module") else model.image_processor
                 ),
                 model_cfg=self.cfg,
             )

@@ -675,8 +675,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             module.config.no_sync_func = no_sync_func
             module.config.grad_sync_func = grad_sync_func
             module.config.param_sync_func = param_sync_func
-            if self.use_mcore_dist_optim:
-                module.config.finalize_model_grads_func = finalize_model_grads
 
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
@@ -1036,6 +1034,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 scaling_factor=scaling
             )  # @sangkug we think this is causing memory to blow up (hurts perf)
         self.megatron_timer_stop('gradient_allreduce')
+
+        # Additionally call finalize_model_grads from MCore
+        # https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/distributed/finalize_model_grads.py#L100
+        if self.use_mcore_dist_optim:
+            finalize_model_grads(model, num_tokens)
 
     def backward(self, *args, **kwargs):
         """LightningModule hook to do backward.
