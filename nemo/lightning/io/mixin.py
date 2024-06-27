@@ -1,13 +1,13 @@
 import functools
 import inspect
-from dataclasses import is_dataclass
-from pathlib import Path
 import shutil
 import threading
 import types
 import uuid
 from copy import deepcopy
-from typing import Any, Callable, Dict, Optional, Type, TypeVar, Union, List
+from dataclasses import is_dataclass
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
 
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
@@ -15,11 +15,10 @@ from cloudpickle import dump, load
 from fiddle._src.experimental import serialization
 from typing_extensions import Self
 
+from nemo.lightning.io.artifact.base import Artifact
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.connector import ModelConnector
 from nemo.lightning.io.fdl_torch import enable as _enable_ext
-from nemo.lightning.io.artifact.base import Artifact
-
 
 ConnT = TypeVar('ConnT', bound=ModelConnector)
 _enable_ext()
@@ -27,6 +26,7 @@ _enable_ext()
 
 # Thread-local storage for artifacts directory
 _thread_local = threading.local()
+
 
 class IOMixin:
     """
@@ -120,7 +120,7 @@ class IOMixin:
             fdl.Config[Self]: The initialized configuration object.
         """
         return _io_init(self, **kwargs)
-    
+
     @classmethod
     def io_artifacts(cls) -> List[Artifact]:
         return []
@@ -336,8 +336,8 @@ class ConnectorMixin:
             return connector()
 
         return connector(_path)
-    
-    
+
+
 def track_io(target, artifacts: Optional[List[Artifact]] = None):
     """
     Adds IO functionality to the target object or eligible classes in the target module
@@ -354,8 +354,9 @@ def track_io(target, artifacts: Optional[List[Artifact]] = None):
         >>> modified_tokenizers = track_io(tokenizers)
         >>> ModifiedWordTokenizer = track_io(tokenizers.WordTokenizer)
     """
+
     def _add_io_to_class(cls):
-        if (inspect.isclass(cls) and hasattr(cls, '__init__') and not hasattr(cls, '__io__')):
+        if inspect.isclass(cls) and hasattr(cls, '__init__') and not hasattr(cls, '__io__'):
             cls = _io_wrap_init(cls)
             _io_register_serialization(cls)
             cls.__io_artifacts__ = artifacts or []
@@ -376,8 +377,8 @@ def track_io(target, artifacts: Optional[List[Artifact]] = None):
         return _add_io_to_class(target)
     else:
         raise TypeError("Target must be a module or a class")
-    
-    
+
+
 def _io_transform_args(self, init_fn, *args, **kwargs) -> Dict[str, Any]:
     """
     Transforms and captures the arguments passed to the `__init__` method, filtering out
@@ -426,17 +427,17 @@ def _io_init(self, **kwargs) -> fdl.Config[Self]:
         fdl.Config[Self]: The initialized configuration object.
     """
     return fdl.Config(type(self), **kwargs)
-    
-    
+
+
 def _io_wrap_init(cls):
     """Wraps the __init__ method of a class to add IO functionality."""
     original_init = cls.__init__
-    
+
     @functools.wraps(original_init)
     def wrapped_init(self, *args, **kwargs):
         if hasattr(self, "io_transform_args"):
             cfg_kwargs = self.io_transform_args(original_init, *args, **kwargs)
-        else:            
+        else:
             cfg_kwargs = _io_transform_args(self, original_init, *args, **kwargs)
         if hasattr(self, "io_init"):
             self.__io__ = self.io_init(**cfg_kwargs)
@@ -464,7 +465,7 @@ def _io_flatten_object(instance):
     except serialization.UnserializableValueError as e:
         if not hasattr(_thread_local, "artifacts_dir"):
             raise e
-        
+
         artifact_dir = _thread_local.artifacts_dir
         artifact_path = artifact_dir / f"{uuid.uuid4()}.pkl"
         with open(artifact_path, "wb") as f:
@@ -497,7 +498,7 @@ def _artifact_transform(cfg: fdl.Config, output_path: Path):
         current_val = getattr(cfg, artifact.attr)
         new_val = artifact.dump(current_val, output_path)
         setattr(cfg, artifact.attr, new_val)
-            
+
     for attr in dir(cfg):
         try:
             if isinstance(getattr(cfg, attr), fdl.Config):

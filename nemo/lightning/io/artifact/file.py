@@ -1,10 +1,11 @@
-from typing import Union
-from pathlib import Path
 import shutil
+from pathlib import Path
+from typing import Union
+
 from nemo.lightning.io.artifact.base import Artifact
 
-
 # track_io(AutoTokenizer, artifacts={FileArtifact("vocab_file"), FileArtifact("merges_file")})
+
 
 class PathArtifact(Artifact[Path]):
     def dump(self, value: Path, path: Path) -> Path:
@@ -23,7 +24,7 @@ class FileArtifact(Artifact[str]):
     def load(self, path: str) -> str:
         return path
 
-    
+
 def copy_file(src: Union[Path, str], dst: Union[Path, str]):
     output = Path(dst) / Path(src).name
     shutil.copy2(src, output)

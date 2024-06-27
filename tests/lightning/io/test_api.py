@@ -2,9 +2,8 @@ import transformer_engine as te
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.lightning import io
-
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.lightning import io
 
 
 class TestLoad:
@@ -18,7 +17,7 @@ class TestLoad:
                 ffn_hidden_size=4096,
                 num_attention_heads=8,
             ),
-            tokenizer=tokenizer
+            tokenizer=tokenizer,
         )
 
         ckpt = io.TrainerContext(model, trainer)
