@@ -14,10 +14,10 @@
 
 import os
 import warnings
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from math import ceil
 from typing import Any, Dict, List, Optional, Union
-from collections.abc import Sequence, Mapping
 
 import numpy as np
 import torch
