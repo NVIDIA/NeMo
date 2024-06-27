@@ -30,6 +30,7 @@ except Exception as e:
     LOGGER.warning(f"Cannot import the TensorRTMMExporter exporter, it will not be available. {type(e).__name__}: {e}")
     multimodal_supported = False
 
+
 def get_args(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -83,9 +84,7 @@ def get_args(argv):
     parser.add_argument("-mil", "--max_input_len", default=256, type=int, help="Max input length of the model")
     parser.add_argument("-mol", "--max_output_len", default=256, type=int, help="Max output length of the model")
     parser.add_argument("-mbs", "--max_batch_size", default=1, type=int, help="Max batch size of the model")
-    parser.add_argument(
-        "-mml", "--max_multimodal_len", default=1024, type=int, help="Max length of multimodal input"
-    )
+    parser.add_argument("-mml", "--max_multimodal_len", default=1024, type=int, help="Max length of multimodal input")
     args = parser.parse_args(argv)
     return args
 

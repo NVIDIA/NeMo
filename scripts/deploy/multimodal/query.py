@@ -42,7 +42,6 @@ def get_args(argv):
     return args
 
 
-
 if __name__ == '__main__':
     args = get_args(sys.argv[1:])
     nq = NemoQueryMultimodal(url=args.url, model_name=args.model_name, model_type=args.model_type)
@@ -56,6 +55,6 @@ if __name__ == '__main__':
         temperature=args.temperature,
         repetition_penalty=args.repetition_penalty,
         num_beams=args.num_beams,
-        init_timeout=args.init_timeout
+        init_timeout=args.init_timeout,
     )
     print(output)
