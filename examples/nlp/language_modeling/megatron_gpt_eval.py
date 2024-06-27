@@ -275,6 +275,21 @@ def load_model_from_config(trainer, cfg):
         raise ValueError("need at least a nemo file or checkpoint dir")
     return model
 
+def load_prompts(cfg):
+    prompts = []
+    if (cfg_prompts := getattr(cfg, 'prompts', None)) is not None:
+        prompts = OmegaConf.to_container(cfg_prompts)
+    if (prompts_jsonl := getattr(cfg, 'prompts_jsonl', None)) is not None:
+        with open(prompts_jsonl, 'rt') as fp:
+            try:
+                prompts += list(map(json.loads, map(str.rstrip, fp)))
+            except:
+                prompts += list(map(str.rstrip, fp))
+    # Make sure non-empty input
+    assert len(prompts) > 0, "Expected at least one prompt"
+    # Make sure all have the same type
+    assert all(map(lambda x: isinstance(x, type(prompts[0])), prompts)), "Expected all prompts to have the same datatype"
+    return prompts
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
@@ -316,13 +331,7 @@ def main(cfg) -> None:
         "end_strings": cfg.inference.end_strings,
     }
 
-    prompts = []
-    if (cfg_prompts := getattr(cfg, 'prompts', None)) is not None:
-        prompts = OmegaConf.to_container(cfg_prompts)
-    if (prompts_jsonl := getattr(cfg, 'prompts_jsonl', None)) is not None:
-        with open(prompts_jsonl, 'rt') as fp:
-            prompts += list(map(json.loads, map(str.rstrip, fp)))
-    assert len(prompts) > 0, "Expected at least one prompt"
+    prompts = load_prompts(cfg)
 
     fp8_enabled = hasattr(model.cfg, "fp8") and (model.cfg.fp8 == True)
     if fp8_enabled and len(prompts) > 0:
