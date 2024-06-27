@@ -4,8 +4,6 @@ from typing import Union
 
 from nemo.lightning.io.artifact.base import Artifact
 
-# track_io(AutoTokenizer, artifacts={FileArtifact("vocab_file"), FileArtifact("merges_file")})
-
 
 class PathArtifact(Artifact[Path]):
     def dump(self, value: Path, path: Path) -> Path:

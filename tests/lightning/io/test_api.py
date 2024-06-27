@@ -1,5 +1,3 @@
-import transformer_engine as te
-
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
