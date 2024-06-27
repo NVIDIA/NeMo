@@ -1148,9 +1148,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             model = self._unwrap_model()
             ds_dict = make_supervised_data_module(
                 tokenizer=self.tokenizer,
-                image_processor=(
-                    model.module.image_processor if hasattr(model, "module") else model.image_processor
-                ),
+                image_processor=(model.module.image_processor if hasattr(model, "module") else model.image_processor),
                 model_cfg=self.cfg,
             )
             self._train_ds = ds_dict["train_dataset"]
