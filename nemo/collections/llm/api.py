@@ -6,6 +6,7 @@ from typing_extensions import Annotated
 
 from nemo.collections.llm.utils import Config, task
 from nemo.lightning import AutoResume, MegatronStrategy, NeMoLogger, OptimizerModule, Trainer, io, teardown
+from nemo.lightning.pytorch.callbacks import ModelTransform
 
 
 @task(namespace="llm")
@@ -49,6 +50,11 @@ def train(
         >>> train(model, data, trainer, tokenizer='data', source='path/to/ckpt.ckpt', export='final.ckpt')
         PosixPath('/path/to/log_dir')
     """
+    # add ModelTransform callback to Trainer if needed
+    if getattr(model, "model_transform", None):
+        if not any(isinstance(cb, ModelTransform) for cb in trainer.callbacks):
+            trainer.callbacks.append(ModelTransform())
+
     _log = log or NeMoLogger()
     app_state = _log.setup(
         trainer,

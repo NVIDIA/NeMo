@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Callable, List, Optional
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from torch import nn
 from typing_extensions import Annotated
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
@@ -46,8 +47,11 @@ class Mistral7BModel(GPTModel):
         config: Annotated[Optional[Mistral7BConfig], Config[Mistral7BConfig]] = None,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or Mistral7BConfig(), optim=optim, tokenizer=tokenizer)
+        super().__init__(
+            config or Mistral7BConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+        )
 
 
 @io.model_importer(Mistral7BModel, "hf")

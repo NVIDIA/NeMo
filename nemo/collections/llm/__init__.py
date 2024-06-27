@@ -4,6 +4,7 @@ try:
 except ImportError:
     pass
 
+from nemo.collections.llm import peft
 from nemo.collections.llm.api import export_ckpt, import_ckpt, pretrain, train, validate
 from nemo.collections.llm.gpt.data import (
     DollyDataModule,
