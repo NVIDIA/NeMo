@@ -184,6 +184,7 @@ def run_inference(
     use_embedding_sharing=False,
     max_input_len=128,
     max_output_len=128,
+    use_parallel_embedding=False,
     ptuning=False,
     p_tuning_checkpoint=None,
     lora=False,
@@ -205,7 +206,7 @@ def run_inference(
     if Path(checkpoint_path).exists():
         if tp_size > torch.cuda.device_count():
             print(
-                "Path: {0} and model: {1} with {2} gpus won't be tested since available # of gpus = {3}".format(
+                "Path: {0} and model: {1} with {2} tps won't be tested since available # of gpus = {3}".format(
                     checkpoint_path, model_name, tp_size, torch.cuda.device_count()
                 )
             )
@@ -221,7 +222,7 @@ def run_inference(
             )
             print("")
 
-            print("Path: {0} and model: {1} with {2} gpus will be tested".format(checkpoint_path, model_name, tp_size))
+            print("Path: {0} and model: {1} with {2} tps will be tested".format(checkpoint_path, model_name, tp_size))
 
         prompt_embeddings_checkpoint_path = None
         task_ids = None
@@ -277,6 +278,7 @@ def run_inference(
                 max_input_len=max_input_len,
                 max_output_len=max_output_len,
                 max_batch_size=max_batch_size,
+                use_parallel_embedding=use_parallel_embedding,
                 max_prompt_embedding_table_size=max_prompt_embedding_table_size,
                 use_lora_plugin=use_lora_plugin,
                 lora_target_modules=lora_target_modules,
@@ -398,6 +400,7 @@ def run_existing_checkpoints(
     use_vllm,
     tp_size,
     pp_size,
+    use_parallel_embedding=False,
     ptuning=False,
     lora=False,
     streaming=False,
@@ -452,6 +455,7 @@ def run_existing_checkpoints(
         use_vllm=use_vllm,
         max_batch_size=model_info["max_batch_size"],
         use_embedding_sharing=use_embedding_sharing,
+        use_parallel_embedding=use_parallel_embedding,
         max_input_len=512,
         max_output_len=model_info["max_output_len"],
         ptuning=ptuning,
@@ -536,6 +540,11 @@ def get_args():
         default=128,
     )
     parser.add_argument(
+        "--use_parallel_embedding",
+        type=str,
+        default="False",
+    )
+    parser.add_argument(
         "--p_tuning_checkpoint",
         type=str,
     )
@@ -552,16 +561,6 @@ def get_args():
         "--lora",
         default=False,
         action='store_true',
-    )
-    parser.add_argument(
-        "--tp_size",
-        default=1,
-        type=int,
-    )
-    parser.add_argument(
-        "--pp_size",
-        default=1,
-        type=int,
     )
     parser.add_argument(
         "--top_k",
@@ -600,11 +599,6 @@ def get_args():
         action='store_true',
     )
     parser.add_argument(
-        "--ci_upload_test_results_to_cloud",
-        default=False,
-        action='store_true',
-    )
-    parser.add_argument(
         "--test_data_path",
         type=str,
         default=None,
@@ -636,6 +630,7 @@ def get_args():
     args.save_trt_engine = str_to_bool("save_trt_engin", args.save_trt_engine)
     args.run_accuracy = str_to_bool("run_accuracy", args.run_accuracy)
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
+    args.use_parallel_embedding = str_to_bool("use_parallel_embedding", args.use_parallel_embedding)
 
     return args
 
@@ -671,6 +666,7 @@ def run_inference_tests(args):
                 lora=args.lora,
                 tp_size=tps,
                 pp_size=args.pps,
+                use_parallel_embedding=args.use_parallel_embedding,
                 streaming=args.streaming,
                 test_deployment=args.test_deployment,
                 test_cpp_runtime=args.test_cpp_runtime,
@@ -704,6 +700,7 @@ def run_inference_tests(args):
                 max_batch_size=args.max_batch_size,
                 max_input_len=args.max_input_len,
                 max_output_len=args.max_output_len,
+                use_parallel_embedding=args.use_parallel_embedding,
                 ptuning=args.ptuning,
                 p_tuning_checkpoint=args.p_tuning_checkpoint,
                 lora=args.lora,
@@ -738,7 +735,7 @@ def run_inference_tests(args):
                 return "N/A"
             return "PASS" if b else "FAIL"
 
-        print(f"Number of GPUS:                  {num_tps}")
+        print(f"Number of tps:                  {num_tps}")
 
         if functional_result is not None:
             print(f"Functional Test:                 {optional_bool_to_pass_fail(functional_result.regular_pass)}")

@@ -20,7 +20,7 @@ for i in $(env | grep ^PMIX_ | cut -d"=" -f 1); do unset -v $i; done
 set +x
 
 
-python tests/export/nemo_export.py --model_name LLAMA2-7B-base --existing_test_models --min_tps 1 --max_tps 2
+
 python tests/export/nemo_export.py --model_name LLAMA2-7B-base --existing_test_models --min_tps 1 --streaming
 python tests/export/nemo_export.py --model_name LLAMA2-7B-base --existing_test_models --min_tps 2
 python tests/export/nemo_export.py --model_name LLAMA2-7B-base --existing_test_models --ptuning --min_tps 1 --max_tps 2

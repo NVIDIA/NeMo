@@ -119,8 +119,8 @@ class TensorRTLLM(ITritonDeployable):
         model_type: str,
         delete_existing_files: bool = True,
         n_gpus: int = 1,
-        tensor_parallel_size: int = None,
-        pipeline_parallel_size: int = None,
+        tensor_parallel_size: int = 1,
+        pipeline_parallel_size: int = 1,
         gpus_per_node: int = None,
         max_input_len: int = 256,
         max_output_len: int = 256,
@@ -183,6 +183,7 @@ class TensorRTLLM(ITritonDeployable):
                 DeprecationWarning,
                 stacklevel=2,
             )
+            tensor_parallel_size = n_gpus
 
         if model_type not in self.get_supported_models_list:
             raise Exception(
@@ -195,13 +196,6 @@ class TensorRTLLM(ITritonDeployable):
 
         if model_type == "mixtral":
             model_type = "llama"
-
-        if pipeline_parallel_size is None:
-            tensor_parallel_size = n_gpus
-            pipeline_parallel_size = 1
-        elif tensor_parallel_size is None:
-            tensor_parallel_size = 1
-            pipeline_parallel_size = n_gpus
 
         gpus_per_node = tensor_parallel_size if gpus_per_node is None else gpus_per_node
 
