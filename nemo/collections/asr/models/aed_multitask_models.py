@@ -17,6 +17,7 @@ import warnings
 from dataclasses import dataclass, field
 from math import ceil
 from typing import Any, Dict, List, Optional, Union
+from collections.abc import Sequence, Mapping
 
 import numpy as np
 import torch
@@ -404,23 +405,23 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         if prompt_defaults is not None:
             # Perform some assertions on the prompt defaults contents
             # Must be a list-like object
-            if not isinstance(prompt_defaults, (list, tuple, ListConfig)):
+            if not isinstance(prompt_defaults, Sequence):
                 raise ValueError("`prompt_defaults` must be a list of dictionaries")
 
             # Must contain dict-like objects
             for item in prompt_defaults:
-                if not isinstance(item, (dict, DictConfig)):
+                if not isinstance(item, Mapping):
                     raise ValueError("`prompt_defaults` must be a list of dictionaries")
 
                 # Each dict item must have a `role` key
                 if 'role' not in item:
                     raise ValueError(
-                        "`prompt_defaults` must have a `role` key for each item " "in the list of dictionaries"
+                        "`prompt_defaults` must have a `role` key for each item in the list of dictionaries"
                     )
 
                 if 'slots' not in item:
                     raise ValueError(
-                        "`prompt_defaults` must have a `slots` key for each item " "in the list of dictionaries"
+                        "`prompt_defaults` must have a `slots` key for each item in the list of dictionaries"
                     )
 
             # Cast to OmegaConf if not already

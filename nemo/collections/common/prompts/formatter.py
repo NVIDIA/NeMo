@@ -38,13 +38,11 @@ class TextLiteral(BaseModalityType):
     def __init__(self, *items):
         self.allowed_values = items
 
-    def matches(self, value: str):
-        if "<|" in value and "|>" in value:
-            return True  # Special token
+    def matches(self, value: str) -> bool:
         return isinstance(value, str) and value in self.allowed_values
 
     def __repr__(self):
-        return f"{self.__class__.__name__}{self.allowed_values}"
+        return f"{self.__class__.__name__}({self.allowed_values})"
 
 
 class Modality:
