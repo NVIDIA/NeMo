@@ -51,14 +51,14 @@ except Exception:
 LOGGER = logging.getLogger("NeMo")
 
 
-class MultimodalExporter(ITritonDeployable):
+class TensorRTMMExporter(ITritonDeployable):
     """
     Exports nemo checkpoints to TensorRT and run fast inference.
 
     Example:
-        from nemo.export import MultimodalExporter
+        from nemo.export import TensorRTMMExporter
 
-        exporter = MultimodalExporter(model_dir="/path/for/model/files")
+        exporter = TensorRTMMExporter(model_dir="/path/for/model/files")
         exporter.export(
             visual_checkpoint_path="/path/for/nemo/checkpoint",
             model_type="neva",

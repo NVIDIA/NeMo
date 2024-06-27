@@ -13,12 +13,12 @@
 # limitations under the License.
 
 from nemo.core.config import hydra_runner
-from nemo.export.multimodal_exporter import MultimodalExporter
+from nemo.export.tensorrt_mm_exporter import TensorRTMMExporter
 
 
 @hydra_runner(config_path='conf', config_name='neva_export')
 def main(cfg):
-    exporter = MultimodalExporter(model_dir=cfg.infer.output_dir, load_model=False)
+    exporter = TensorRTMMExporter(model_dir=cfg.infer.output_dir, load_model=False)
     exporter.export(
         visual_checkpoint_path=cfg.model.visual_model_path,
         llm_checkpoint_path=cfg.model.llm_model_path,

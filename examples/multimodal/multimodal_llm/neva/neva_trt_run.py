@@ -15,14 +15,14 @@
 import os
 
 from nemo.core.config import hydra_runner
-from nemo.export.multimodal_exporter import MultimodalExporter
+from nemo.export.tensorrt_mm_exporter import TensorRTMMExporter
 
 
 @hydra_runner(config_path='conf', config_name='neva_trt_infer')
 def main(cfg):
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-    exporter = MultimodalExporter(cfg.engine_dir)
+    exporter = TensorRTMMExporter(cfg.engine_dir)
     output = exporter.forward(
         input_text=cfg.input_text,
         input_media=cfg.input_media,
