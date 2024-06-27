@@ -198,10 +198,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             # Callback.setup() is called before the current Strategy.setup(), so we can
             # only perform a check here; adding the callback here would not be sufficient
             if not any(isinstance(cb, ModelTransform) for cb in trainer.callbacks):
-                raise ValueError("You specified a model_transform function in the model, but no"
-                                 "ModelTransform callback was found in the trainer. "
-                                 "Please initialize the trainer with "
-                                 "`trainer = Trainer(..., callbacks=[ModelTransform()])`")
+                raise ValueError(
+                    "You specified a model_transform function in the model, but no"
+                    "ModelTransform callback was found in the trainer. "
+                    "Please initialize the trainer with "
+                    "`trainer = Trainer(..., callbacks=[ModelTransform()])`"
+                )
 
         if trainer.num_sanity_val_steps > 1 and self.pipeline_model_parallel_size > 1:
             # TODO: log here

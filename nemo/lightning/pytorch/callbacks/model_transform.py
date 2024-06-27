@@ -3,9 +3,9 @@ from typing import Any, Callable, Optional, TypeVar
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import model_summary
+from torch import nn
 
 from nemo.utils import logging
-from torch import nn
 
 MODEL_TRANSFORM: Optional[Callable[[nn.Module], nn.Module]] = None
 
@@ -98,7 +98,7 @@ class ModelTransform(pl.Callback):
         global MODEL_TRANSFORM
         if MODEL_TRANSFORM and MODEL_TRANSFORM.__num_calls__ == 0:
             MODEL_TRANSFORM(trainer.model.pipeline)
-        logging.info('After model transform:\n'+str(model_summary.summarize(trainer.model.pipeline)))
+        logging.info('After model transform:\n' + str(model_summary.summarize(trainer.model.pipeline)))
 
 
 T = TypeVar('T', bound=Callable[..., Any])
