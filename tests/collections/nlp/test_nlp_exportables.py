@@ -25,7 +25,7 @@ from omegaconf import DictConfig, OmegaConf
 # Has to be applied before first import of NeMo
 from nemo.core.classes import typecheck
 
-typecheck.disable_wrapping()
+typecheck.enable_wrapping(enabled=False)
 
 from nemo.collections import nlp as nemo_nlp
 from nemo.collections.nlp.models import IntentSlotClassificationModel

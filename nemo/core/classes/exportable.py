@@ -225,6 +225,7 @@ class Exportable(ABC):
                     if dynamic_axes is None:
                         dynamic_axes = self.dynamic_shapes_for_export(use_dynamo)
                     if use_dynamo:
+                        typecheck.enable_wrapping(enabled=False)
                         # https://github.com/pytorch/pytorch/issues/126339
                         with monkeypatched(torch.nn.RNNBase, "flatten_parameters", lambda *args: None):
                             logging.info(f"Running export.export, dynamic shapes:{dynamic_axes}\n")
@@ -279,6 +280,7 @@ class Exportable(ABC):
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
         finally:
+            typecheck.enable_wrapping(enabled=True)
             typecheck.set_typecheck_enabled(enabled=True)
             if forward_method:
                 type(self).forward = old_forward_method
