@@ -581,8 +581,7 @@ class MegatronBaseModel(NLPModel):
 
         after = orig_vocab_size
         multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
-        while (after % multiple) != 0:
-            after += 1
+        after = ((after + multiple - 1) // multiple) * multiple
         logging.info(
             f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
         )
@@ -846,7 +845,9 @@ class MegatronBaseModel(NLPModel):
             if hasattr(self._cfg.optim, 'sched'):
                 sched_config = self._cfg.optim.sched
                 self._scheduler = prepare_lr_scheduler(
-                    optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
+                    optimizer=self._optimizer,
+                    scheduler_config=sched_config,
+                    train_dataloader=self._train_dl,
                 )
 
         if getattr(self._cfg.optim, 'sched', None) is not None and self._scheduler is None:
@@ -861,7 +862,15 @@ class MegatronBaseModel(NLPModel):
 
             # Initialize param buckets if explicitly provided
             if getattr(self, 'distributed_adam_buckets', None) is not None:
-                for bucket in self.distributed_adam_buckets:
+                buckets = self.distributed_adam_buckets
+                if self.cfg.get('distributed_adam_bucket_merge_size', 1) > 1:
+                    # Merge buckets if needed
+                    stride = self.cfg.get('distributed_adam_bucket_merge_size', 1)
+                    buckets = [
+                        list(itertools.chain.from_iterable(buckets[i : i + stride]))
+                        for i in range(0, len(buckets), stride)
+                    ]
+                for bucket in buckets:
                     self._optimizer.init_params_bucket(bucket)
                 self._optimizer.init_params_bucket(self.parameters())
             if hasattr(self, 'distributed_adam_buckets'):
