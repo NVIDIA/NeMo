@@ -65,7 +65,9 @@ class LoRA(PEFT):
     )
     """
 
-    target_modules: List[str] = field(default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2'])
+    target_modules: List[str] = field(
+        default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
+    )
     dim: int = 32
     alpha: int = 32
     dropout: float = 0.0
