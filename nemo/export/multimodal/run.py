@@ -309,8 +309,7 @@ class MultimodalModelRunner:
             input_ids = [fake_prompt_id, pre_input_ids]
         input_ids = torch.cat(input_ids, dim=1).contiguous().to(torch.int32)
 
-        if self.runtime_mapping.is_first_pp_rank():
-            ptuning_args = self.ptuning_setup(visual_features, input_ids, input_lengths)
+        ptuning_args = self.ptuning_setup(visual_features, input_ids, input_lengths)
 
         return input_ids, ptuning_args
 
@@ -371,6 +370,8 @@ class MultimodalModelRunner:
                 f"\n{input_text}\n<extra_id_1>Assistant\n<extra_id_2>quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,correctness:4,coherence:4,complexity:4,verbosity:4\n"
                 ""
             )
+        else:
+            raise RuntimeError(f"Invalid model type {self.model_type}")
 
         # Repeat inputs to match batch size
         pre_prompt = [pre_prompt] * batch_size
