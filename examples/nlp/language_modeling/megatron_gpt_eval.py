@@ -30,6 +30,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
+from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
 
@@ -169,6 +170,7 @@ def remove_padded_prompts(response, nb_paddings):
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
 
+    logging.warning("This file will be depreacted soon. Use the megatron_gpt_mcore_batch_eval.py file instead.")
     callbacks = []
     # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
     if 'enable_progress_bar' not in cfg.trainer or cfg.trainer.enable_progress_bar:
