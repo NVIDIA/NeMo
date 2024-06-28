@@ -1,17 +1,14 @@
 import torch.multiprocessing as mp
+from megatron.core import dist_checkpointing, parallel_state
 from omegaconf.omegaconf import OmegaConf, open_dict
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import AppState, logging
-
-from megatron.core import parallel_state
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.utils.distributed import initialize_distributed
-from megatron.core import dist_checkpointing
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-
 
 mp.set_start_method("spawn", force=True)
 
@@ -69,12 +66,13 @@ UNMATCHED_MEGATRON_KEYS = {
     "encoder_num_layers",
     "decoder_num_layers",
     "use_rotary_position_embeddings",
-    "apply_residual_connection_post_layernorm", # Nemo don't use this
+    "apply_residual_connection_post_layernorm",  # Nemo don't use this
 }
+
 
 def update_config_with_args(cfg, args):
     vargs = vars(args)
-    
+
     assert vargs['use_mcore_models'] is True, 'Megatron-LM model needs to use mcore'
     with open_dict(cfg):
         # matching keys first
@@ -96,7 +94,7 @@ def update_config_with_args(cfg, args):
         else:
             logging.info('Unknown activation function. Use gelu by default.')
             cfg.model.activation = 'gelu'
-        
+
         # Model configuration
         # hardcoded params
         cfg.model.mcore_gpt = True
@@ -107,7 +105,7 @@ def update_config_with_args(cfg, args):
         cfg.model.transformer_block_type = "pre_ln"
         cfg.model.normalize_attention_scores = True
         cfg.model.share_embeddings_and_output_weights = not vargs['untie_embeddings_and_output_weights']
-               
+
         # update model definition using non-matfching keys between mcore and nemo
         cfg.model.transformer_engine = True if vargs['transformer_impl'] == "transformer_engine" else False
         if args.apply_layernorm_1p is True:
@@ -140,9 +138,10 @@ def update_config_with_args(cfg, args):
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
     return cfg
 
+
 def load_distributed_checkpoint(checkpoint_path, gpt_model):
     logging.info('Loading Megatron-LM model..')
-    sharded_state_dict=gpt_model.sharded_state_dict(prefix='')
+    sharded_state_dict = gpt_model.sharded_state_dict(prefix='')
     checkpoint = dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=checkpoint_path)
 
     del checkpoint['args']
@@ -151,18 +150,19 @@ def load_distributed_checkpoint(checkpoint_path, gpt_model):
     del checkpoint['optimizer']
     del checkpoint['opt_param_scheduler']
     del checkpoint['num_floating_point_operations_so_far']
-    
+
     gpt_model.load_state_dict(checkpoint)
 
     logging.info('Megatron-LM model loaded correctly.')
     return gpt_model
 
+
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
-def main(cfg) -> None: 
+def main(cfg) -> None:
     checkpoint_path = cfg.checkpoint_path
     common_sd = dist_checkpointing.load_common_state_dict(checkpoint_path)
     args = common_sd['args']
-    
+
     cfg = update_config_with_args(cfg, args)
 
     # Initialize AppState for Loading Megatron-LM model
@@ -194,7 +194,7 @@ def main(cfg) -> None:
         )
 
     model = MegatronGPTModel(cfg.model, trainer)
-    
+
     gpt_model = model.model
     load_distributed_checkpoint(checkpoint_path, gpt_model)
 
@@ -203,6 +203,7 @@ def main(cfg) -> None:
     model._save_restore_connector = NLPSaveRestoreConnector()
     model.save_to(cfg.nemo_file_path)
     logging.info(f'NeMo model saved to: {cfg.nemo_file_path}')
+
 
 if __name__ == '__main__':
     main()
