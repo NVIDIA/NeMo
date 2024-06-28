@@ -8,7 +8,7 @@ Check-pointing a few activations and recomputing the rest of activations is a co
 Transformer Layer Recomputation
 -------------------------------
 
-NeMo supports Transformer layer recomputation that checkpoints the input of each Transformer layer and recomputes the activations of the rest of layers.
+NeMo supports Transformer layer recomputation that checkpoints the input of each Transformer layer and recomputes the activations on the rest of the layers.
 Transformer layer recomputation significantly reduces the activation memory usage.
 However, this approach increases per-Transformer layer computation cost by 30%, which comes from re-executing the entire layer forwarding computation.
 NeMo also supports partial Transformer layer recomputation, which is beneficial when recomputing a few Transformer layers would fit the training workload on GPU memory.
@@ -21,7 +21,8 @@ When training with the pipeline parallelism, ``activations_checkpoint_num_layers
 If the virtual pipelining is used, ``activations_checkpoint_num_layers`` means the layers per virtual pipeline stage.
 
 NeMo also supports checkpointing the input to a block of multiple consecutive Transformer layers meaning that a block of Transformer layers becomes the recomputation granularity.
-This can further save activation memory at the cost of increasing the recomputation buffer memory. Thus, it can only give memory saving when the model has many Transformer layers or the intermediate layers of a Transformer layer hold relatively small activation stores.
+This can further save activation memory at the cost of increasing the recomputation buffer memory.
+Thus, it is only beneficial for memory savings when the model has many Transformer layers or the intermediate layers of a Transformer layer hold relatively small activation stores.
 This recomputation mode can be enabled by setting ``activations_checkpoint_method=uniform``, and the number of Transformer layers per recomputation block is set using ``activations_checkpoint_num_layers``.
 
 Self-attention Recomputation

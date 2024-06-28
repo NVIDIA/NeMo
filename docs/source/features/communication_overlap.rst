@@ -1,12 +1,12 @@
 Communication Overlap
 ====================
 
-Data-parallel communication overlap
+Data-parallel Communication Overlap
 -----------------------------------
 
 NeMo supports the overlap of the data-parallel (DP) communications with the computations in LLM training.
-NeMo features Distributed Optimizer that distributes optimizer states and the high precision master parameters across GPUs and this introduces two types of data-parallel communications; reduce-scatter of gradients and all-gather of updated parameters.
-The DP communication is chunked by the granularity of a Transformer layer and overlap each communication chunk with computation.
+NeMo features Distributed Optimizer that distributes optimizer states and the high-precision master parameters across GPUs. This introduces two types of data-parallel communications: reduce-scatter of gradients and all-gather of updated parameters.
+The DP communication is chunked by the granularity of a Transformer layer and overlaps each communication chunk with computation.
 This overlap method exposes only one DP communication chunk ensuring efficient large-scale LLM training.
 When training with pipeline-parallelism, the granularity of DP communication becomes the Transformer layers per virtual pipeline stage.
 
@@ -14,7 +14,7 @@ DP gradient reduce-scatter and parameter all-gather overlaps are enabled when se
 The precision of the gradient reduce-scatter is set by ``grad_sync_dtype`` and reduction in bf16 ensures improved performance at large scale training compared to the default precision of fp32.
 When training in fp8 computing precision (with ``fp8=true``), setting ``fp8_params=true`` conducts the parameter all-gather in fp8, reducing the all-gather overhead by half.
 
-Tensor-parallel communication overlap
+Tensor-parallel Communication Overlap
 -------------------------------------
 
 Tensor parallelism, used with the sequence-parallel activation sharding (``sequence_parallel=true``), introduces activation (gradient) all-gather and reduce-scatter as shown in the below figure.
@@ -35,14 +35,14 @@ The pipelined TP communication overlap is implemented in Transformer Engine and 
 The specific overlap methods can be set by a config dictionary, which set and is passed as a yaml file.
 The individual bulk, pipelined all-gather, and reduce-scatter can be en- and disabled by ``tp_comm_bulk_wgrad``, ``tp_comm_bulk_dgrad``, ``tp_comm_overlap_ag``, and ``tp_comm_overlap_rs``, respectively.
 
-Pipeline-parallel communication overlap
+Pipeline-parallel Communication Overlap
 ---------------------------------------
 
 Pipelining introduces P2P activation (gradient) sends and receives between pipeline-parallel (PP) GPUs.
 The PP communication frequency increases when increasing the virtual-pipeline-parallel size because the number of Transformer layers executed per micro-batch decreases.
-This increasing PP communication overhead cancels off the reduced the pipeline bubbles with virtual pipelining.
+This increasing PP communication overhead and it cancels off the reduced the pipeline bubbles with virtual pipelining.
 NeMo supports the overlap of the PP communications with non-dependant computations in the 1F1B stage (the body of pipelining, where 1X forward and 1X backward micro-batch executions are interleaved).
-The PP communications in pipeline fill and flush still exposed.
+The PP communications in pipeline fill and flush are still exposed.
 
 .. image:: ../nlp/nemo_megatron/images/pp_comm_overlap.png
     :align: center
@@ -53,10 +53,10 @@ The PP communication overlap is enabled when setting ``overlap_p2p_comm=true``. 
 NeMo supports PP communication overlap only with virtual pipelining, where PP communication becomes the performance bottleneck.
 Please refer `GPT3 training config file <https://github.com/NVIDIA/NeMo-Framework-Launcher/blob/main/launcher_scripts/conf/training/gpt3/175b.yaml>`_ that uses the PP communication overlap.
 
-Context-parallel communication overlap
+Context-parallel Communication Overlap
 --------------------------------------
 
-Context parallelism partitions activations (gradients) of all layers in sequence domain, which introduces all-gather and reduce-scatter of activations (gradients) in self-attention forward- and back-propagations.
+Context parallelism partitions activations (gradients) on all layers in the sequence domain. This introduces all-gather and reduce-scatter of activations (gradients) in self-attention forward- and back-propagations.
 NeMo hides the context-parallel (CP) communications under the self-attention computation. 
 Like the TP communication overlaps, the CP communications are chunked then pipeline-overlapped with the self-attention computation, where the all-gather and the reduce-scatter of activations (gradients) are replaced with P2P ring exchanges of data.
 

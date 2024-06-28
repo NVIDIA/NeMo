@@ -39,7 +39,7 @@ Enable Data Parallelism
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 In NeMo, DDP is the default parallel deployment method.
-This means the total number of GPUs is the size of DP group and training a LLM with model parallelism would decrease the size of DP group.
+This means that the total number of GPUs corresponds to the size of the DP group and training a LLM with model parallelism decreases the size of the DP group.
 
 Currently, NeMo supports optimizer distribution only for Adam optimizer.
 To enable the distributed adam optimizer, set
@@ -82,7 +82,7 @@ Also, FSDP unloads the effort to search the performance-optimal mappings with 3D
 
 NeMo uses `pytorch's FSDP interface <https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html>`_ to shard LLM model states, which flattens the parameters of each Transformer layer and partitions across datap-parallel GPUs.
 FSDP introduces collectives across data-parallel GPUs; all-gather of the parameters for computation and reduce-scatter of parameter gradients.
-The parameter all-gather happens in both network forward- and back-propagation phases, and the gradient reduce-scatter happens only in the back-propagation.
+The parameter all-gather occurs in both network forward- and back-propagation phases. The gradient reduce-scatter happens only in the back-propagation.
 These FSDP communications are overlapped with Transformer layer computations.
 
 Setting ``fsdp=true`` enables FSDP.
@@ -130,14 +130,14 @@ NeMo integrates Tensor Parallelism through the implementation from Megatron Core
 
 For detailed API usage and additional configurations, consult the `Megatron Core Developer Guide <https://docs.nvidia.com/Megatron-Core/developer-guide/latest/api-guide/tensor_parallel.html>`_.
 
-FSDP + Tensor Parallelism
-~~~~~~~~~
+FSDP with Tensor Parallelism
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 NeMo supports FSDP along with tensor parallelism. This is done by restricting the model state sharding to the data-parallel domain.
-Using FSDP with tensor parallelism can be helpful when the model doesn't have sufficient parallelism to deploy on a large scale training system with the data-parallel mapping; e.g., running a model with the global batch size of 1024 on 2048 GPUs.
+Using FSDP with tensor parallelism can be helpful when the model doesn't have sufficient parallelism to deploy on a large scale training system with the data-parallel mapping. For example, running a model with the global batch size of 1024 on 2048 GPUs.
 Also, tensor parallelism enables FSDP feasibility by reducing the model state size and the activation size per GPU, thus lower the FSDP communication overhead and the activation memory overhead.
 
-FSDP + TP works by enabling FSDP (``fsdp=true``) and setting ``tensor_model_parllel_size > 1``.
+Using both FSDP and TP works by enabling FSDP (``fsdp=true``) and setting ``tensor_model_parllel_size > 1``.
 The user should unset ``CUDA_DEVICE_MAX_CONNECTIONS`` environment variable to enable that sets the number of GPU kernel queue to overlap of the FSDP communication with computation kernels.
 
 Pipeline Parallelism
@@ -275,7 +275,7 @@ Visit our source code for more insights into the implementation:
 - `Transformer Engine attention modules <https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/attention.py>`_
 
 
-Parallelism nomenclature
+Parallelism Nomenclature
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 The following figure illustrates some terms that you may encounter in the NeMo Megatron codebase.
