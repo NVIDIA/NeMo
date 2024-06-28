@@ -90,6 +90,7 @@ def convert_hf_config(nemo_config, tokenizer, vocab_size, dtype, hf_output_path,
     """
     NEMO_ACT2HF = {
         "squared-relu": "relu2",
+        "fast-swiglu": "silu",
     }
     DTYPE2HF = {
         torch.bfloat16: 'bfloat16',
@@ -127,6 +128,10 @@ def convert_hf_config(nemo_config, tokenizer, vocab_size, dtype, hf_output_path,
         "use_cache": True,
         "vocab_size": vocab_size
     }
+    if nemo_config.kv_channels is not None:
+        hf_config['kv_channels'] = nemo_config.kv_channels
+    if nemo_config.activation == 'fast-swiglu':
+        hf_config['gated_mlp'] = True
     json.dump(hf_config, open(f'{hf_output_path}/config.json', 'w'), indent=2)
     
 
@@ -232,7 +237,6 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         
         if mlp_weights.shape[0] != mlp_up_proj_weight.shape[1]:
             # Has projection (used for swi-glu)
-            print('Has Projection')
             assert mlp_weights.shape[0] == 2 * mlp_up_proj_weight.shape[1]
             
             mlp_down_proj_weight = mlp_weights[:ffn_hidden_size, :]
