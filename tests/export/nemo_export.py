@@ -34,6 +34,7 @@ triton_supported = True
 try:
     from nemo.deploy import DeployPyTriton
     from nemo.deploy.nlp import NemoQueryLLM
+    from nemo.deploy.nlp import MegatronLLMDeployable
 except Exception as e:
     LOGGER.warning(f"Cannot import Triton, deployment will not be available. {type(e).__name__}: {e}")
     triton_supported = False
@@ -410,6 +411,7 @@ def run_existing_checkpoints(
     stop_words_list=None,
     test_data_path=None,
     save_trt_engine=False,
+    in_framework=False,
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
     if tp_size > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
@@ -445,37 +447,108 @@ def run_existing_checkpoints(
     else:
         use_embedding_sharing = False
 
-    return run_inference(
-        model_name=model_name,
-        model_type=model_info["model_type"],
-        prompts=model_info["prompt_template"],
-        expected_outputs=model_info["expected_keyword"],
-        checkpoint_path=model_info["checkpoint"],
-        model_dir=model_info["model_dir"],
-        use_vllm=use_vllm,
-        max_batch_size=model_info["max_batch_size"],
-        use_embedding_sharing=use_embedding_sharing,
-        use_parallel_embedding=use_parallel_embedding,
-        max_input_len=512,
-        max_output_len=model_info["max_output_len"],
-        ptuning=ptuning,
-        p_tuning_checkpoint=p_tuning_checkpoint,
-        lora=lora,
-        lora_checkpoint=lora_checkpoint,
-        tp_size=tp_size,
-        pp_size=pp_size,
-        top_k=1,
-        top_p=0.0,
-        temperature=1.0,
-        run_accuracy=run_accuracy,
-        debug=True,
-        streaming=streaming,
-        stop_words_list=stop_words_list,
-        test_cpp_runtime=test_cpp_runtime,
-        test_deployment=test_deployment,
-        test_data_path=test_data_path,
-        save_trt_engine=save_trt_engine,
-    )
+    if in_framework:
+        return run_in_framework_inference(
+            model_name=model_name,
+            prompts=model_info["model_type"],
+            checkpoint_path=model_info["checkpoint"],
+            num_gpus=tp_size,
+            max_output_len=model_info["max_output_len"],
+            run_accuracy=run_accuracy,
+            debug=True,
+            test_data_path=test_data_path,
+        )
+    else:
+        return run_inference(
+            model_name=model_name,
+            model_type=model_info["model_type"],
+            prompts=model_info["prompt_template"],
+            expected_outputs=model_info["expected_keyword"],
+            checkpoint_path=model_info["checkpoint"],
+            model_dir=model_info["model_dir"],
+            use_vllm=use_vllm,
+            max_batch_size=model_info["max_batch_size"],
+            use_embedding_sharing=use_embedding_sharing,
+            use_parallel_embedding=use_parallel_embedding,
+            max_input_len=512,
+            max_output_len=model_info["max_output_len"],
+            ptuning=ptuning,
+            p_tuning_checkpoint=p_tuning_checkpoint,
+            lora=lora,
+            lora_checkpoint=lora_checkpoint,
+            tp_size=tp_size,
+            pp_size=pp_size,
+            top_k=1,
+            top_p=0.0,
+            temperature=1.0,
+            run_accuracy=run_accuracy,
+            debug=True,
+            streaming=streaming,
+            stop_words_list=stop_words_list,
+            test_cpp_runtime=test_cpp_runtime,
+            test_deployment=test_deployment,
+            test_data_path=test_data_path,
+            save_trt_engine=save_trt_engine,
+        )
+
+
+def run_in_framework_inference(
+    model_name,
+    prompts,
+    checkpoint_path,
+    num_gpus=1,
+    max_output_len=128,
+    top_k=1,
+    top_p=0.0,
+    temperature=1.0,
+    run_accuracy=False,
+    debug=True,
+    test_data_path=None,
+) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
+    if Path(checkpoint_path).exists():
+        if debug:
+            print("")
+            print("")
+            print(
+                "################################################## NEW TEST ##################################################"
+            )
+            print("")
+
+            print("Path: {0} and model: {1} will be tested".format(checkpoint_path, model_name))
+
+        deployed_model = MegatronLLMDeployable(checkpoint_path, num_gpus)
+
+        nm = DeployPyTriton(
+            model=deployed_model,
+            triton_model_name=model_name,
+            port=8000,
+        )
+        nm.deploy()
+        nm.run()
+        nq = NemoQueryLLM(url="localhost:8000", model_name=model_name)
+
+        output_deployed = nq.query_llm(
+            prompts=[prompts],
+            top_k=top_k,
+            top_p=top_p,
+            temperature=temperature,
+        )
+
+        # Unwrap the generator if needed
+        output_deployed = list(output_deployed)
+        print("\n --------- Output: ", output_deployed)
+
+        accuracy_result = None
+        if run_accuracy:
+            print("Start model accuracy testing ...")
+            accuracy_result = get_accuracy_with_lambada(None, nq, None, None, test_data_path)
+
+        nm.stop()
+
+        return (None, accuracy_result)
+    else:
+        raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
+
 
 
 def get_args():
@@ -613,6 +686,11 @@ def get_args():
         type=str,
         default="False",
     )
+    parser.add_argument(
+        "--in_framework",
+        type=str,
+        default="False",
+    )
 
     args = parser.parse_args()
 
@@ -631,6 +709,7 @@ def get_args():
     args.run_accuracy = str_to_bool("run_accuracy", args.run_accuracy)
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
     args.use_parallel_embedding = str_to_bool("use_parallel_embedding", args.use_parallel_embedding)
+    args.in_framework = str_to_bool("in_framework", args.in_framework)
 
     return args
 
@@ -673,6 +752,7 @@ def run_inference_tests(args):
                 run_accuracy=args.run_accuracy,
                 test_data_path=args.test_data_path,
                 save_trt_engine=args.save_trt_engine,
+                in_framework=args.in_framework,
             )
 
             tps = tps * 2
@@ -687,35 +767,50 @@ def run_inference_tests(args):
             args.max_tps = args.min_tps
 
         while tps <= args.max_tps:
-            result_dic[tps] = run_inference(
-                model_name=args.model_name,
-                model_type=args.model_type,
-                prompts=prompts,
-                expected_outputs=expected_outputs,
-                checkpoint_path=args.checkpoint_dir,
-                model_dir=args.model_dir,
-                use_vllm=args.use_vllm,
-                tp_size=tps,
-                pp_size=args.pps,
-                max_batch_size=args.max_batch_size,
-                max_input_len=args.max_input_len,
-                max_output_len=args.max_output_len,
-                use_parallel_embedding=args.use_parallel_embedding,
-                ptuning=args.ptuning,
-                p_tuning_checkpoint=args.p_tuning_checkpoint,
-                lora=args.lora,
-                lora_checkpoint=args.lora_checkpoint,
-                top_k=args.top_k,
-                top_p=args.top_p,
-                temperature=args.temperature,
-                run_accuracy=args.run_accuracy,
-                debug=args.debug,
-                streaming=args.streaming,
-                test_deployment=args.test_deployment,
-                test_cpp_runtime=args.test_cpp_runtime,
-                test_data_path=args.test_data_path,
-                save_trt_engine=args.save_trt_engine,
-            )
+            if args.in_framework:
+                result_dic[tps] = run_in_framework_inference(
+                    model_name=args.model_name,
+                    prompts=prompts,
+                    checkpoint_path=args.checkpoint_dir,
+                    num_gpus=tps,
+                    max_output_len=args.max_output_len,
+                    top_k=args.top_k,
+                    top_p=args.top_p,
+                    temperature=args.temperature,
+                    run_accuracy=args.run_accuracy,
+                    debug=True,
+                    test_data_path=args.test_data_path,
+                )
+            else:
+                result_dic[tps] = run_inference(
+                    model_name=args.model_name,
+                    model_type=args.model_type,
+                    prompts=prompts,
+                    expected_outputs=expected_outputs,
+                    checkpoint_path=args.checkpoint_dir,
+                    model_dir=args.model_dir,
+                    use_vllm=args.use_vllm,
+                    tp_size=tps,
+                    pp_size=args.pps,
+                    max_batch_size=args.max_batch_size,
+                    max_input_len=args.max_input_len,
+                    max_output_len=args.max_output_len,
+                    use_parallel_embedding=args.use_parallel_embedding,
+                    ptuning=args.ptuning,
+                    p_tuning_checkpoint=args.p_tuning_checkpoint,
+                    lora=args.lora,
+                    lora_checkpoint=args.lora_checkpoint,
+                    top_k=args.top_k,
+                    top_p=args.top_p,
+                    temperature=args.temperature,
+                    run_accuracy=args.run_accuracy,
+                    debug=args.debug,
+                    streaming=args.streaming,
+                    test_deployment=args.test_deployment,
+                    test_cpp_runtime=args.test_cpp_runtime,
+                    test_data_path=args.test_data_path,
+                    save_trt_engine=args.save_trt_engine,
+                )
 
             tps = tps * 2
 

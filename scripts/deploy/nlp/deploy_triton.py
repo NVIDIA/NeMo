@@ -82,7 +82,7 @@ def get_args(argv):
     parser.add_argument(
         "-tmr", "--triton_model_repository", default=None, type=str, help="Folder for the trt-llm conversion"
     )
-    parser.add_argument("-ng", "--num_gpus", default=None, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
     parser.add_argument("-tps", "--tensor_parallelism_size", default=1, type=int, help="Tensor parallelism size")
     parser.add_argument("-pps", "--pipeline_parallelism_size", default=1, type=int, help="Pipeline parallelism size")
     parser.add_argument(
@@ -112,7 +112,7 @@ def get_args(argv):
         help="Disables the remove input padding option.",
     )
     parser.add_argument(
-        "upe",
+        "-upe",
         "--use_parallel_embedding",
         default=False,
         action='store_true',
