@@ -300,6 +300,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.spec_name = cfg.get('name', '')
         if cfg.get('fp8', False):
             self.prev_step_training = True
+        self.continue_training = True if cfg.get("restore_from_ckpt") else False
 
         self.rampup_batch_size = self.cfg.get('rampup_batch_size', None)
         if self.rampup_batch_size:
@@ -396,6 +397,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.validation_param_sync_overlap = self.cfg.get('validation_param_sync_overlap', False)
 
         self.inference_params = None
+
+        # Reset learning rate params
+        self.if_init_step = True
+        self.reset_lr = self.cfg.get('reset_lr', False)
+        self.reset_lr_steps = self.cfg.get('reset_lr_steps', False)
+        if self.reset_lr and (not self.with_distributed_adam or not self.megatron_amp_O2):
+            raise ValueError(
+                'Learning rate reset feature is only supported with the distributed optmizer and megatron_amp_O2 for now.'
+            )
 
         # default to false since this doesn't work with sequence parallelism currently
         self.use_loss_mask = self.cfg.get('use_loss_mask', False)
@@ -762,6 +772,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Initialize userbuffer communicators.
         if self.initialize_ub:
             self.initialize_ub_func()
+
+        # Reset learning rate
+        if self.if_init_step and self.reset_lr:
+            num_groups = len(self._optimizer.param_groups)
+            for group in range(num_groups):
+                self._optimizer.param_groups[group]['lr'] = (
+                    0.0 if self.cfg.optim.sched.warmup_steps > 0 else self.cfg.optim.lr
+                )
+            self._optimizer.param_groups[0]['reset_lr'] = {
+                'num_steps': self.trainer.global_step,
+                'reset_lr_steps': True if self.reset_lr_steps else False,
+                'if_init_step': self.if_init_step,
+            }
+            self.if_init_step = False
 
         if self.rampup_batch_size:
             num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
@@ -1612,7 +1636,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
 
         resume_checkpoint_path = self.trainer.ckpt_path
-        if resume_checkpoint_path:
+        if resume_checkpoint_path and not self.continue_training:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
             init_consumed_samples = 0
