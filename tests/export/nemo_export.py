@@ -33,8 +33,7 @@ LOGGER = logging.getLogger("NeMo")
 triton_supported = True
 try:
     from nemo.deploy import DeployPyTriton
-    from nemo.deploy.nlp import NemoQueryLLM
-    from nemo.deploy.nlp import MegatronLLMDeployable
+    from nemo.deploy.nlp import MegatronLLMDeployable, NemoQueryLLM
 except Exception as e:
     LOGGER.warning(f"Cannot import Triton, deployment will not be available. {type(e).__name__}: {e}")
     triton_supported = False
@@ -548,7 +547,6 @@ def run_in_framework_inference(
         return (None, accuracy_result)
     else:
         raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
-
 
 
 def get_args():
