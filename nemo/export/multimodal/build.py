@@ -25,7 +25,7 @@ import yaml
 from tensorrt_llm.builder import Builder
 from transformers import AutoModel
 
-from nemo.export import TensorRTLLM
+from nemo.export.tensorrt_llm import TensorRTLLM
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
 
 logger = trt.Logger(trt.Logger.INFO)

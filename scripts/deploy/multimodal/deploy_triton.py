@@ -16,7 +16,6 @@ import argparse
 import logging
 import os
 import sys
-import tempfile
 from pathlib import Path
 
 from nemo.deploy import DeployPyTriton
@@ -48,7 +47,7 @@ def get_args(argv):
         "-mt",
         "--model_type",
         type=str,
-        required=False,
+        required=True,
         choices=["neva", "video-neva"],
         help="Type of the model. neva and video-neva are only supported.",
     )
@@ -56,7 +55,7 @@ def get_args(argv):
         "-lmt",
         "--llm_model_type",
         type=str,
-        required=False,
+        required=True,
         choices=["gptnext", "gpt", "llama", "falcon", "starcoder", "mixtral", "gemma"],
         help="Type of LLM. gptnext, gpt, llama, falcon, and starcoder are only supported."
         " gptnext and gpt are the same and keeping it for backward compatibility",
@@ -81,10 +80,10 @@ def get_args(argv):
         type=str,
         help="dtype of the model on TensorRT",
     )
-    parser.add_argument("-mil", "--max_input_len", default=256, type=int, help="Max input length of the model")
+    parser.add_argument("-mil", "--max_input_len", default=4096, type=int, help="Max input length of the model")
     parser.add_argument("-mol", "--max_output_len", default=256, type=int, help="Max output length of the model")
     parser.add_argument("-mbs", "--max_batch_size", default=1, type=int, help="Max batch size of the model")
-    parser.add_argument("-mml", "--max_multimodal_len", default=1024, type=int, help="Max length of multimodal input")
+    parser.add_argument("-mml", "--max_multimodal_len", default=3072, type=int, help="Max length of multimodal input")
     args = parser.parse_args(argv)
     return args
 
@@ -145,10 +144,7 @@ def get_trt_deployable(args):
 def nemo_deploy(argv):
     args = get_args(argv)
 
-    if args.debug_mode:
-        loglevel = logging.DEBUG
-    else:
-        loglevel = logging.INFO
+    loglevel = logging.INFO
 
     LOGGER.setLevel(loglevel)
     LOGGER.info("Logging level set to {}".format(loglevel))
