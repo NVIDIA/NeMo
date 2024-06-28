@@ -9,13 +9,15 @@
 # limitations under the License.
 
 
+import json
+import os
+from pathlib import Path
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
+
 from nemo.deploy.nlp import NemoQueryLLM
-import json
-from pathlib import Path
-import os
 
 
 class TritonSettings(BaseSettings):
@@ -51,6 +53,7 @@ class TritonSettings(BaseSettings):
 app = FastAPI()
 triton_settings = TritonSettings()
 
+
 class CompletionRequest(BaseModel):
     model: str
     prompt: str
@@ -61,6 +64,7 @@ class CompletionRequest(BaseModel):
     stream: bool = False
     stop: str | None = None
     frequency_penalty: float = 1.0
+
 
 @app.post("/v1/completions/")
 def completions_v1(request: CompletionRequest):
@@ -73,7 +77,7 @@ def completions_v1(request: CompletionRequest):
             top_k=request.n,
             top_p=request.top_p,
             temperature=request.temperature,
-            init_timeout=triton_settings.triton_request_timeout
+            init_timeout=triton_settings.triton_request_timeout,
         )
         return {
             "output": output[0][0],

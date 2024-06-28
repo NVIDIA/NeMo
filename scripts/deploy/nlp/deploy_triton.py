@@ -19,8 +19,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-from nemo.deploy import DeployPyTriton
 import uvicorn
+
+from nemo.deploy import DeployPyTriton
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -62,7 +63,7 @@ def get_args(argv):
     )
     parser.add_argument(
         '-ti', '--task_ids', nargs='+', type=str, required=False, help='Unique task names for the prompt embedding.'
-        )
+    )
     parser.add_argument(
         "-mt",
         "--model_type",
@@ -177,28 +178,20 @@ def get_args(argv):
         const=None,
         default='TensorRT-LLM',
         choices=['TensorRT-LLM', 'vLLM', 'In-Framework'],
-        help="Different options to deploy nemo model."
+        help="Different options to deploy nemo model.",
     )
     parser.add_argument(
         "-srs",
         "--start_rest_service",
         default="False",
         type=str,
-        help="Starts the REST service for OpenAI API support"
+        help="Starts the REST service for OpenAI API support",
     )
     parser.add_argument(
-        "-sha",
-        "--service_http_address",
-        default="0.0.0.0",
-        type=str,
-        help="HTTP address for the REST Service"
+        "-sha", "--service_http_address", default="0.0.0.0", type=str, help="HTTP address for the REST Service"
     )
     parser.add_argument(
-        "-sp",
-        "--service_port",
-        default=8000,
-        type=int,
-        help="Port for the Triton server to listen for requests"
+        "-sp", "--service_port", default=8000, type=int, help="Port for the Triton server to listen for requests"
     )
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
     parser.add_argument(
@@ -273,9 +266,7 @@ def get_trtllm_deployable(args):
 
     if args.start_rest_service:
         if args.service_port == args.triton_port:
-            logging.error(
-                "REST service port and Triton server port cannot use the same port."
-            )
+            logging.error("REST service port and Triton server port cannot use the same port.")
             return
 
     trt_llm_exporter = TensorRTLLM(
@@ -436,7 +427,7 @@ def nemo_deploy(argv):
                     'nemo.deploy.service.rest_model_api:app',
                     host=args.service_http_address,
                     port=args.service_port,
-                    reload=True
+                    reload=True,
                 )
             except Exception as error:
                 logging.error("Error message has occurred during REST service start. Error message: " + str(error))
