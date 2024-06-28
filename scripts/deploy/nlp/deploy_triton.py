@@ -20,7 +20,6 @@ import tempfile
 from pathlib import Path
 
 from nemo.deploy import DeployPyTriton
-from nemo.service.rest_model_api import app
 import uvicorn
 
 LOGGER = logging.getLogger("NeMo")
@@ -430,23 +429,21 @@ def nemo_deploy(argv):
 
     try:
         LOGGER.info("Model serving on Triton is will be started.")
+        if args.start_rest_service == "True":
+            try:
+                LOGGER.info("REST service will be started.")
+                uvicorn.run(
+                    'nemo.deploy.service.rest_model_api:app',
+                    host=args.service_http_address,
+                    port=args.service_port,
+                    reload=True
+                )
+            except Exception as error:
+                logging.error("Error message has occurred during REST service start. Error message: " + str(error))
         nm.serve()
     except Exception as error:
         LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
-
-    if args.start_rest_service == "True":
-        try:
-            logging.info("REST service will be started.")
-            uvicorn.run(
-                'service.rest_model_api:app',
-                host=args.service_http_address,
-                port=args.service_port,
-                reload=True
-            )
-        except Exception as error:
-            logging.error("Error message has occurred during REST service start. Error message: " + str(error))
-
     LOGGER.info("Model serving will be stopped.")
     nm.stop()
 

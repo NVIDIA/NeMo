@@ -12,7 +12,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
-from nemo.deploy import NemoQuery
+from nemo.deploy.nlp import NemoQueryLLM
 import json
 from pathlib import Path
 import os
@@ -26,7 +26,7 @@ class TritonSettings(BaseSettings):
     def __init__(self):
         super(TritonSettings, self).__init__()
         try:
-            with open(os.path.join(Path.cwd(), 'nemo/service/config.json')) as config:
+            with open(os.path.join(Path.cwd(), 'nemo/deploy/service/config.json')) as config:
                 config_json = json.load(config)
                 self._triton_service_port = config_json["triton_service_port"]
                 self._triton_service_ip = config_json["triton_service_ip"]
@@ -66,10 +66,10 @@ class CompletionRequest(BaseModel):
 def completions_v1(request: CompletionRequest):
     try:
         url = triton_settings.triton_service_ip + ":" + str(triton_settings.triton_service_port)
-        nq = NemoQuery(url=url, model_name=request.model)
+        nq = NemoQueryLLM(url=url, model_name=request.model)
         output = nq.query_llm(
             prompts=[request.prompt],
-            max_output_token=request.max_tokens,
+            max_output_len=request.max_tokens,
             top_k=request.n,
             top_p=request.top_p,
             temperature=request.temperature,

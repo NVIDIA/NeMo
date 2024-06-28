@@ -15,5 +15,4 @@
 
 from nemo.deploy.deploy_base import DeployBase
 from nemo.deploy.deploy_pytriton import DeployPyTriton
-from nemo.deploy.query import NemoQuery
 from nemo.deploy.triton_deployable import ITritonDeployable
