@@ -971,6 +971,8 @@ class UNetModel(nn.Module):
                 )
                 logging.info(f"Missing keys: {missing_key}")
                 logging.info(f"Unexpected keys: {unexpected_keys}")
+            else:
+                logging.info(f"There are no missing keys, model loaded properly!")
 
         if unet_precision == "fp16-mixed":  # AMP O2
             self.convert_to_fp16()
@@ -1217,6 +1219,7 @@ class UNetModel(nn.Module):
     def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False, from_NeMo=False):
         state_dict = self._strip_unet_key_prefix(state_dict)
         if not from_NeMo:
+            print("creating state key mapping from HF")
             state_dict = self._state_key_mapping(state_dict)
         state_dict = self._legacy_unet_ckpt_mapping(state_dict)
 
@@ -1242,13 +1245,10 @@ class UNetModel(nn.Module):
         ):
             # GroupNormOpt fuses activation function to one layer, thus the indexing of weights are shifted for following
             for key_ in missing_keys:
-                try:
-                    s = key_.split('.')
-                    idx = int(s[-2])
-                    new_key_ = ".".join(s[:-2] + [str(int(idx + 1))] + [s[-1]])
-                    state_dict[key_] = state_dict[new_key_]
-                except:
-                    continue
+                s = key_.split('.')
+                idx = int(s[-2])
+                new_key_ = ".".join(s[:-2] + [str(int(idx + 1))] + [s[-1]])
+                state_dict[key_] = state_dict[new_key_]
 
         loaded_keys = list(state_dict.keys())
         missing_keys = list(set(expected_keys) - set(loaded_keys))
