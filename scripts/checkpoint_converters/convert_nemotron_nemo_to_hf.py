@@ -198,7 +198,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         print(f"converting layer {l}")
 
         qkv_weights = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_qkv.weight']
-        qkv_weights = qkv_weights.reshape([qkv_total_dim, head_size, hidden_size])
+        qkv_weights = qkv_weights.reshape([qkv_total_dim, -1, hidden_size])
 
         q_slice = torch.cat(
             [
