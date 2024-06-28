@@ -16,10 +16,12 @@ import logging
 import random
 import re
 import tarfile
+from collections.abc import Mapping, Sequence
 from io import BytesIO
 from pathlib import Path
 from typing import Generator, Iterable, List, Literal
 
+import lhotse.serialization
 import soundfile
 from cytoolz import groupby
 from lhotse import AudioSource, Recording, SupervisionSegment
@@ -28,6 +30,7 @@ from lhotse.dataset.dataloading import resolve_seed
 from lhotse.lazy import LazyIteratorChain, LazyJsonlIterator
 from lhotse.serialization import open_best
 from lhotse.utils import compute_num_samples
+
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 
 
@@ -56,11 +59,27 @@ class LazyNeMoIterator:
     Example::
 
         >>> cuts = lhotse.CutSet(LazyNeMoIterator("nemo_manifests/train.json"))
+
+    We allow attaching custom metadata to cuts from files other than the manifest via ``extra_fields`` argument.
+    In the example below, we'll iterate file "questions.txt" together with the manifest and attach each line
+    under ``cut.question`` using the field type ``text_iter``::
+
+        >>> cuts = lhotse.CutSet(LazyNeMoIterator(
+        ...     "nemo_manifests/train.json",
+        ...     extra_fields=[{"type": "text_iter", "name": "question", "path": "questions.txt"}],
+        ... ))
+
+    We also support random sampling of lines with field type ``text_sample``::
+
+        >>> cuts = lhotse.CutSet(LazyNeMoIterator(
+        ...     "nemo_manifests/train.json",
+        ...     extra_fields=[{"type": "text_sample", "name": "question", "path": "questions.txt"}],
+        ... ))
     """
 
     def __init__(
         self,
-        path: str | Path,
+        path: str | Path | list[str],
         text_field: str = "text",
         lang_field: str = "lang",
         metadata_only: bool = False,
@@ -82,6 +101,7 @@ class LazyNeMoIterator:
         self.lang_field = lang_field
         self.metadata_only = metadata_only
         self.extra_fields = extra_fields
+        validate_extra_fields(self.extra_fields)
 
     def __iter__(self) -> Generator[Cut, None, None]:
         seed = resolve_seed(self.shard_seed)
@@ -187,15 +207,33 @@ class LazyNeMoTarredIterator:
     Example of CutSet with inter-shard shuffling enabled::
 
         >>> cuts = lhotse.CutSet(LazyNeMoTarredIterator(
-        ...     manifest_path="nemo_manifests/train.json",
+        ...     manifest_path=["nemo_manifests/sharded_manifests/manifest_0.json", ...],
         ...     tar_paths=["nemo_manifests/audio_0.tar", ...],
         ...     shuffle_shards=True,
+        ... ))
+
+    We allow attaching custom metadata to cuts from files other than the manifest via ``extra_fields`` argument.
+    In the example below, we'll iterate file "questions.txt" together with the manifest and attach each line
+    under ``cut.question`` using the field type ``text_iter``::
+
+        >>> cuts = lhotse.CutSet(LazyNeMoTarredIterator(
+        ...     manifest_path=["nemo_manifests/sharded_manifests/manifest_0.json", ...],
+        ...     tar_paths=["nemo_manifests/audio_0.tar", ...],
+        ...     extra_fields=[{"type": "text_iter", "name": "question", "path": "questions.txt"}],
+        ... ))
+
+    We also support random sampling of lines with field type ``text_sample``::
+
+        >>> cuts = lhotse.CutSet(LazyNeMoTarredIterator(
+        ...     manifest_path=["nemo_manifests/sharded_manifests/manifest_0.json", ...],
+        ...     tar_paths=["nemo_manifests/audio_0.tar", ...],
+        ...     extra_fields=[{"type": "text_sample", "name": "question", "path": "questions.txt"}],
         ... ))
     """
 
     def __init__(
         self,
-        manifest_path: str | Path,
+        manifest_path: str | Path | list[str],
         tar_paths: str | list,
         shuffle_shards: bool = False,
         shard_seed: int | Literal["trng", "randomized"] = "trng",
@@ -275,6 +313,7 @@ class LazyNeMoTarredIterator:
             f"* JSON manifest(s) indicate(s) IDs: {sorted(shard_ids_manifest)}\n"
             f"* Tar path(s) indicate(s) IDs: {sorted(shard_ids_tars)}\n"
         )
+        validate_extra_fields(self.extra_fields)
 
     @property
     def shard_ids(self) -> List[int]:
@@ -354,6 +393,14 @@ class ExtraField:
         assert data["type"] in ExtraField.SUPPORTED_TYPES, f"Unknown transform type: {data['type']}"
         return ExtraField.SUPPORTED_TYPES[data["type"]](**{k: v for k, v in data.items() if k != 'type'})
 
+    @classmethod
+    def is_supported(cls, field_type: str) -> bool:
+        return field_type in cls.SUPPORTED_TYPES
+
+    @classmethod
+    def supported_types(cls) -> list[str]:
+        return list(cls.SUPPORTED_TYPES)
+
 
 class TextIteratorExtraField(ExtraField):
     TYPE = "text_iter"
@@ -399,11 +446,36 @@ class TextSampleExtraField(ExtraField):
         return cut
 
 
-def expand_sharded_filepaths(path: str | Path) -> list[str]:
+def validate_extra_fields(extra_fields):
+    if extra_fields is None:
+        return
+    assert isinstance(
+        extra_fields, Sequence
+    ), f"The argument provided to 'extra_fields' must be a list of dicts. We received {extra_fields=}"
+    for field in extra_fields:
+        assert isinstance(
+            field, Mapping
+        ), f"Each item in 'extra_fields' must be a dict. We received {field=} in {extra_fields=}"
+        field_type = field.get("type")
+        assert ExtraField.is_supported(field_type), (
+            f"Each item in 'extra_fields' must contain a 'type' field with one of "
+            f"the supported values ({ExtraField.supported_types()}). "
+            f"We got {field_type=} in {extra_fields=}"
+        )
+        assert "name" in field, (
+            f"Each item in 'extra_fields' must contain a 'name' field so that the field is available under cut.<name>."
+            f"We found {field=} in {extra_fields=}"
+        )
+
+
+def expand_sharded_filepaths(paths: str | Path | list[str]) -> list[str]:
     # local import to avoid circular imports
     from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths as _expand_sharded_filepaths
 
-    return _expand_sharded_filepaths(str(path), shard_strategy="replicate", world_size=1, global_rank=0)
+    if isinstance(paths, Path):
+        paths = str(paths)
+
+    return _expand_sharded_filepaths(paths, shard_strategy="replicate", world_size=1, global_rank=0)
 
 
 def _to_custom_attr_dict(d: dict, _excluded_fields: set[str] = {"duration", "audio_filepath"}) -> dict:
