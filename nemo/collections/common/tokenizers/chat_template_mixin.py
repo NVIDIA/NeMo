@@ -28,7 +28,7 @@ def render_chat_turn(message, template):
         e.g.
             "[INST] What is your favourite fruit? [/INST]", None
     """
-    assert message['role'] in template['roles']
+    assert message['role'] in template['roles'], (message['role'], template['roles'])
     template = template['roles'][message['role']]
     content = message['content']
     # Parse format and split into meta-vars vs regular strings.
