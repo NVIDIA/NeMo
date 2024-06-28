@@ -12,10 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from argparse import Namespace
 import datetime
 import os
+from argparse import Namespace
 
+from megatron.core.inference.common_inference_params import CommonInferenceParams
+from megatron.core.inference.engines.mcore_engine import MCoreEngine
+from megatron.core.inference.inference_model_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
+from megatron.core.inference.text_generation_controllers.simple_text_generation_controller import (
+    SimpleTextGenerationController,
+)
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -27,14 +33,10 @@ from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
 
-from megatron.core.inference.engines.mcore_engine import MCoreEngine
-from megatron.core.inference.common_inference_params import CommonInferenceParams
-from megatron.core.inference.inference_model_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
-from megatron.core.inference.text_generation_controllers.simple_text_generation_controller import SimpleTextGenerationController
-
 """
 This is the script to run GPT text generation in batch mode using Megatron Core Generate function.
-""" 
+"""
+
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference_batch_mcore")
 def main(cfg) -> None:
@@ -166,7 +168,7 @@ def main(cfg) -> None:
 
     args = Namespace
     args.inference_batch_times_seq_len_threshold = 1000
-    args.padded_vocab_size  = model.padded_vocab_size
+    args.padded_vocab_size = model.padded_vocab_size
     args.fp32_residual_connection = model.cfg.fp32_residual_connection
     args.hidden_size = model.cfg.hidden_size
     args.params_dtype = model.cfg.precision
@@ -178,25 +180,29 @@ def main(cfg) -> None:
             self.tokenizer = tokenizer
             self.eod = tokenizer.eod
             self.vocab_size = tokenizer.vocab_size
-        
+
         def detokenize(self, tokens):
             return self.tokenizer.ids_to_text(tokens)
-        
+
         def tokenize(self, prompt):
             return self.tokenizer.text_to_ids(prompt)
-        
+
     tokenizer = MCoreTokenizerWrappper(model.tokenizer)
 
     inference_wrapped_model = GPTInferenceWrapper(model.model, args)
-    text_generation_controller = SimpleTextGenerationController(inference_wrapped_model=inference_wrapped_model, tokenizer=tokenizer)
-    mcore_engine = MCoreEngine(text_generation_controller=text_generation_controller, max_batch_size=args.max_batch_size)
+    text_generation_controller = SimpleTextGenerationController(
+        inference_wrapped_model=inference_wrapped_model, tokenizer=tokenizer
+    )
+    mcore_engine = MCoreEngine(
+        text_generation_controller=text_generation_controller, max_batch_size=args.max_batch_size
+    )
 
     common_inference_params = CommonInferenceParams(
-        temperature=cfg.common_inference_params.temperature, 
-        top_k=cfg.common_inference_params.top_k, 
-        top_p=cfg.common_inference_params.top_p, 
-        return_log_probs=cfg.common_inference_params.return_log_probs, 
-        num_tokens_to_generate=cfg.common_inference_params.tokens_to_generate
+        temperature=cfg.common_inference_params.temperature,
+        top_k=cfg.common_inference_params.top_k,
+        top_p=cfg.common_inference_params.top_p,
+        return_log_probs=cfg.common_inference_params.return_log_probs,
+        num_tokens_to_generate=cfg.common_inference_params.tokens_to_generate,
     )
 
     results = mcore_engine.generate(
@@ -207,9 +213,8 @@ def main(cfg) -> None:
         print(f' \n------------- RESULT FOR PROMPT {idx} --------------- ')
         result = {
             'id': result.request_id,
-            'input_prompt': result.prompt, 
+            'input_prompt': result.prompt,
             'generated_text': result.generated_text,
-            'generated_tokens' : result.generated_tokens
-            }
+            'generated_tokens': result.generated_tokens,
+        }
         print(result)
-   
