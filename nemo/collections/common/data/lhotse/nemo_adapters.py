@@ -20,7 +20,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import Generator, Iterable, List, Literal
 
-import lhotse.serialization
 import soundfile
 from cytoolz import groupby
 from lhotse import AudioSource, Recording, SupervisionSegment
@@ -67,6 +66,7 @@ class LazyNeMoIterator:
         metadata_only: bool = False,
         shuffle_shards: bool = False,
         shard_seed: int | Literal["randomized", "trng"] = "trng",
+        extra_fields: list[dict[str, str]] | None = None,
     ) -> None:
         self.path = path
         self.shuffle_shards = shuffle_shards
@@ -81,8 +81,12 @@ class LazyNeMoIterator:
         self.text_field = text_field
         self.lang_field = lang_field
         self.metadata_only = metadata_only
+        self.extra_fields = extra_fields
 
     def __iter__(self) -> Generator[Cut, None, None]:
+        seed = resolve_seed(self.shard_seed)
+        # Propagate the random seed
+        extra_fields = [ExtraField.from_dict({"seed": seed, **field_cfg}) for field_cfg in self.extra_fields or ()]
         for data in self.source:
             audio_path = get_full_path(str(data.pop("audio_filepath")), str(self.path))
             duration = data.pop("duration")
@@ -105,6 +109,8 @@ class LazyNeMoIterator:
                 )
             )
             cut.custom = data
+            for extra_field in extra_fields:
+                extra_field.attach_to(cut)
             yield cut
 
     def __len__(self) -> int:
@@ -277,11 +283,12 @@ class LazyNeMoTarredIterator:
     def __iter__(self) -> Generator[Cut, None, None]:
         shard_ids = self.shard_ids
 
-        extra_fields = [ExtraField.from_dict(field_cfg) for field_cfg in self.extra_fields]
-
+        seed = resolve_seed(self.shard_seed)
         if self.shuffle_shards:
-            seed = resolve_seed(self.shard_seed)
             random.Random(seed).shuffle(shard_ids)
+
+        # Propagate the random seed
+        extra_fields = [ExtraField.from_dict({"seed": seed, **field_cfg}) for field_cfg in self.extra_fields or ()]
 
         for sid in shard_ids:
             manifest_path = self.paths[sid] if len(self.paths) > 1 else self.paths[0]
@@ -348,19 +355,20 @@ class ExtraField:
         return ExtraField.SUPPORTED_TYPES[data["type"]](**{k: v for k, v in data.items() if k != 'type'})
 
 
-class TextSequentialExtraField(ExtraField):
-    TYPE = "text"
+class TextIteratorExtraField(ExtraField):
+    TYPE = "text_iter"
 
-    def __init__(self, name: str, path: str):
+    def __init__(self, name: str, path: str, seed=None):
         self.name = name
         self.path = path
         self.iterator = None
 
     def _maybe_init(self):
         if self.iterator is None:
-            self.iterator = iter(map(str.strip, lhotse.serialization.open_best(self.path)))
+            self.iterator = iter(map(str.strip, open_best(self.path)))
 
     def attach_to(self, cut):
+        self._maybe_init()
         try:
             attached_value = next(self.iterator)
         except StopIteration:
@@ -381,10 +389,11 @@ class TextSampleExtraField(ExtraField):
 
     def _maybe_init(self):
         if self.population is None:
-            self.population = list(map(str.strip, lhotse.serialization.open_best(self.path)))
+            self.population = list(map(str.strip, open_best(self.path)))
             self.rng = random.Random(resolve_seed(self.seed))
 
     def attach_to(self, cut):
+        self._maybe_init()
         attached_value = self.rng.choice(self.population)
         setattr(cut, self.name, attached_value)
         return cut
