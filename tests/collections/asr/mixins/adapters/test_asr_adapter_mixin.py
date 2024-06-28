@@ -510,7 +510,8 @@ class TestASRAdapterMixin:
         original_num_params = model.num_weights
 
         # this step should exit without adding adapters and without errors
-        model.add_adapter(name='joint:adapter_0', cfg=get_adapter_cfg())
+        with pytest.raises(ValueError):
+            model.add_adapter(name='joint:adapter_0', cfg=get_adapter_cfg())
         new_num_params = model.num_weights
         assert new_num_params == original_num_params
 

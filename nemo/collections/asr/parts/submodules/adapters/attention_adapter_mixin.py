@@ -55,7 +55,7 @@ class AttentionAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         Args:
             input: Dictionary of packed tensors. The dict should contain at least
                 `x`: output tensor
-                `loc`: Semantic location in module where this adapter was called
+                `loc`: Semantic location in module where this adapter was called. Can be 'mha' or 'post'.
                 `att_mask`: Optional, Attention mask
                 `pos_emb`: Optional, Positional Embedding for Relative Positional Encoding.
                 The output tensor of the calling module is the input to the first adapter, whose output
