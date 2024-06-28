@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from itertools import islice
+
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
 from tqdm import tqdm
@@ -36,13 +38,11 @@ def get_forward_loop(dataloader, num_batches):
         logging.warning(
             f"Dataloader has fewer batches ({len(dataloader)}) than required ({num_batches}) for calibration."
         )
+        num_batches = len(dataloader)
 
     def forward_loop(model):
-        data_iter = iter(dataloader)
-        for i in tqdm(range(num_batches), desc="Calibrating"):
-            if i >= num_batches:
-                break
-
+        data_iter = islice(iter(dataloader), num_batches)
+        for _ in tqdm(range(num_batches), desc="Calibrating"):
             model.fwd_bwd_step(data_iter, forward_only=True)
 
     return forward_loop
@@ -80,6 +80,7 @@ def main(cfg) -> None:
     trainer.fit(model)
 
     # Export the quantized model for TensorRT-LLM inference
+    # INT4 export is not supported yet
     if cfg.quantization.algorithm != "int4":
         quantizer.export(model)
 
