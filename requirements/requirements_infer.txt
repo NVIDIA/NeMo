@@ -1,6 +1,6 @@
-nvidia-pytriton
-tensorstore==0.1.45
-zarr
 fastapi
-uvicorn
+nvidia-pytriton
 pydantic-settings
+tensorstore==0.1.45
+uvicorn
+zarr
