@@ -23,7 +23,6 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
-from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
 
@@ -38,7 +37,6 @@ This is the script to run GPT text generation in batch mode using Megatron Core 
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference_batch_mcore")
 def main(cfg) -> None:
-
     callbacks = []
     # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
     if 'enable_progress_bar' not in cfg.trainer or cfg.trainer.enable_progress_bar:
@@ -163,7 +161,7 @@ def main(cfg) -> None:
         model.model.language_model.encoder.activations_checkpoint_method = None
     except AttributeError:
         pass
-
+    
     args = Namespace
     args.inference_batch_times_seq_len_threshold = 1000
     args.padded_vocab_size  = model.padded_vocab_size
@@ -213,3 +211,5 @@ def main(cfg) -> None:
             }
         print(result)
    
+if __name__ == '__main__':
+    main()  # noqa pylint: disable=no-value-for-parameter
