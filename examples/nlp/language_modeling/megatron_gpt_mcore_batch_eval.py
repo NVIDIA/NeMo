@@ -163,7 +163,7 @@ def main(cfg) -> None:
         model.model.language_model.encoder.activations_checkpoint_method = None
     except AttributeError:
         pass
-    
+
     args = Namespace
     args.inference_batch_times_seq_len_threshold = 1000
     args.padded_vocab_size = model.padded_vocab_size
@@ -216,6 +216,7 @@ def main(cfg) -> None:
             'generated_tokens': result.generated_tokens,
         }
         print(result)
-   
+
+
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
