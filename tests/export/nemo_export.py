@@ -26,7 +26,7 @@ import torch
 
 # Import infer_data_path from the parent folder assuming that the 'tests' package is not installed.
 sys.path.append(str(Path(__file__).parent.parent))
-from infer_data_path import get_infer_test_data
+from tests.infer_data_path import get_infer_test_data
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -274,8 +274,8 @@ def run_inference(
             exporter.export(
                 nemo_checkpoint_path=checkpoint_path,
                 model_type=model_type,
-                tensor_parallel_size=tp_size,
-                pipeline_parallel_size=pp_size,
+                tensor_parallelism_size=tp_size,
+                pipeline_parallelism_size=pp_size,
                 max_input_len=max_input_len,
                 max_output_len=max_output_len,
                 max_batch_size=max_batch_size,
