@@ -33,7 +33,7 @@ Please see docs/source/nlp/quantization.rst for more details on the usage.
 """
 
 
-def get_forward_loop(dataloader, num_batches):
+def get_forward_loop(fwd_bwd_step, dataloader, num_batches):
     if len(dataloader) < num_batches:
         logging.warning(
             f"Dataloader has fewer batches ({len(dataloader)}) than required ({num_batches}) for calibration."
@@ -43,7 +43,7 @@ def get_forward_loop(dataloader, num_batches):
     def forward_loop(model):
         data_iter = islice(iter(dataloader), num_batches)
         for _ in tqdm(range(num_batches), desc="Calibrating"):
-            model.fwd_bwd_step(data_iter, forward_only=True)
+            fwd_bwd_step(data_iter, forward_only=True)
 
     return forward_loop
 
@@ -69,9 +69,13 @@ def main(cfg) -> None:
 
     # Perform PTQ on the SFT Model
     if cfg.quantization.algorithm is not None:
+        model_module_list = model.get_model_module_list()
+        assert len(model_module_list) == 1
+        unwrapped_model = model_module_list[0]
+
         num_batches = cfg.quantization.num_calib_size // cfg.model.global_batch_size
-        forward_loop = get_forward_loop(model.train_dataloader(), num_batches)
-        model = quantizer.quantize(model, forward_loop)
+        forward_loop = get_forward_loop(model.fwd_bwd_step, model.train_dataloader(), num_batches)
+        quantizer.quantize(unwrapped_model, forward_loop)
 
         logging.info("Validating model after PTQ...")
         trainer.validate(model)
