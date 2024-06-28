@@ -53,8 +53,8 @@ def get_args():
         "--input_name_or_path", type=str, default=None, required=True, help="Path to Huggingface Mixtral checkpoints",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
-    valid_precision_values = [16, '16', 'bf16', '16-mixed', 'bf16-mixed', 32, '32']
-    parser.add_argument("--precision", type=str, default="32", choices=valid_precision_values, help="Model precision")
+    valid_precision_values = [16, '16', 'bf16', '16-mixed', 'bf16-mixed']
+    parser.add_argument("--precision", type=str, default="bf16", choices=valid_precision_values, help="Model precision")
     parser.add_argument('--low-ram', action='store_true')
     parser.add_argument('--tmp-dir', default='/tmp/mixtral_ckpt_parts/')
     args = parser.parse_args()
