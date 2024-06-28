@@ -33,11 +33,23 @@ DECODER_MODEL_TYPE = {
 
 def save_val(val, dir, key, tp_num=None):
     suffix = "" if tp_num is None else f".{tp_num}.bin"
-    # Transpose linear layer weights to the correct shape.
-    if len(val.shape) >= 2:
-        val = np.ascontiguousarray(np.transpose(val.reshape(val.shape[0], -1), [1, 0]))
     global weights_dict
-    weights_dict[f"{key}{suffix}"] = val
+
+    # Transpose linear layer weights to the correct shape.
+    if torch.is_tensor(val):
+        val = val.detach().contiguous()
+        if len(val.shape) >= 2:
+            val = val.reshape(val.shape[0], -1)
+            val = torch.transpose(val, 0, 1)
+        if key not in weights_dict:
+            weights_dict[f"{key}{suffix}"] = torch.empty(
+                val.size(), dtype=val.dtype, layout=val.layout, device="cpu", pin_memory=True
+            )
+        weights_dict[f"{key}{suffix}"].copy_(val, non_blocking=True)
+    else:
+        if len(val.shape) >= 2:
+            val = np.ascontiguousarray(np.transpose(val.reshape(val.shape[0], -1), [1, 0]))
+        weights_dict[f"{key}{suffix}"] = val
 
 
 def save_split(split_vals, dir, key, i, split_factor):
@@ -165,6 +177,7 @@ def write_int8(vals, dir, base_key, split_dim, tp_rank, split_factor, kv_cache_o
 # are not split as there is only one head per key/value.
 @torch.no_grad()
 def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_type, act_range, config):
+    print(f"## {torch.cuda.current_device()}-split_and_save_weight {key}")
     use_attention_nemo_shape = config.get("use_attention_nemo_shape", False)
     split_gated_activation = config.get("split_gated_activation", False)
     num_attention_heads = config.get("num_attention_heads", 0)
@@ -173,6 +186,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     multi_query_mode = config.get("multi_query_mode", False)
     num_kv_heads = config.get("num_kv_heads", num_attention_heads)
     size_per_head = config.get("kv_channels", None)
+    convert_on_device = config.get("convert_on_device", False)
 
     save_int8 = int8_outputs == "all" or int8_outputs == "kv_cache_only"
 
@@ -185,10 +199,14 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     if config.get("transpose_weights", False) and vals[0].ndim == 2:
         vals = [val.T for val in vals]
     if "layernorm.weight" in key and config.get("apply_layernorm_1p", False):
-        vals = [val + 1.0 for val in vals]
+        vals = [val.float() + 1.0 for val in vals]
 
-    if torch.is_tensor(vals[0]):
-        vals = [torch_to_numpy(val.cpu().to(storage_type)) for val in vals]
+    vals = [val.to(storage_type) for val in vals]
+    if convert_on_device:
+        assert len(vals) == 1 # Should only convert a single device param per call
+        assert torch.is_tensor(vals[0])
+    elif torch.is_tensor(vals[0]): 
+        vals = [torch_to_numpy(val.cpu()) for val in vals]
 
     if (
         "input_layernorm.weight" in key
@@ -227,7 +245,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
                 key = f'{layer_prefix}.post_layernorm.weight'
             else:
                 key = f'{layer_prefix}.post_layernorm.bias'
-        if tp_rank == 0:
+        if tp_rank == 0 or convert_on_device:
             save_val(vals[0], saved_dir, key)
 
     elif (
@@ -236,14 +254,19 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         or "attention.linear_proj.weight" in key
         or "mlp.linear_fc2.weight" in key
     ):
-        cat_dim = 0
-        val = np.concatenate(vals, axis=cat_dim)
-        split_vals = np.split(val, split_factor, axis=cat_dim)
         if "attention.linear_proj.weight" in key or "attention.dense.weight" in key:
             key = f'{layer_prefix}.attention.dense.weight'
         elif "mlp.linear_fc2.weight" in key or "mlp.dense_4h_to_h.weight" in key:
             key = f'{layer_prefix}.mlp.proj.weight'
-        save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+
+        if convert_on_device:
+            save_val(vals[0], saved_dir, key)
+        else:
+            cat_dim = 0
+            val = np.concatenate(vals, axis=cat_dim)
+            split_vals = np.split(val, split_factor, axis=cat_dim)
+            save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+
         if act_range is not None and int8_outputs == "all":
             base_key = key.replace(".weight", "")
             vals_i8 = generate_int8(val, act_range, multi_query_mode=multi_query_mode)
@@ -255,18 +278,26 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         or "mlp.linear_fc1.weight" in key
         or "mlp.linear_fc1.bias" in key
     ):
-        if split_gated_activation:
-            splits = [np.split(val, 2, axis=-1) for val in vals]
-            vals, gates = list(zip(*splits))
-        cat_dim = -1
-        val = np.concatenate(vals, axis=cat_dim)
-        split_vals = np.split(val, split_factor, axis=cat_dim)
-
         if key.endswith("weight"):
             key = f'{layer_prefix}.mlp.fc.weight'
         else:
             key = f'{layer_prefix}.mlp.fc.bias'
-        save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+
+        if split_gated_activation:
+            if convert_on_device:
+                val, gate = torch.chunk(vals[0], 2, axis=-1)
+            else:
+                splits = [np.split(val, 2, axis=-1) for val in vals]
+                vals, gates = list(zip(*splits))
+
+        if convert_on_device:
+            save_val(val, saved_dir, key)
+        else:
+            cat_dim = -1
+            val = np.concatenate(vals, axis=cat_dim)
+            split_vals = np.split(val, split_factor, axis=cat_dim)
+            save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+
         if act_range is not None and int8_outputs == "all":
             base_key = key.replace(".weight", "")
             vals_i8 = generate_int8(val, act_range, multi_query_mode=multi_query_mode)
@@ -279,47 +310,63 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
             else:
                 key = f'{layer_prefix}.mlp.gate.bias'
 
-            gate = np.concatenate(gates, axis=cat_dim)
-            split_vals = np.split(gate, split_factor, axis=cat_dim)
-            save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+            if convert_on_device:
+                save_val(gate, saved_dir, key)
+            else:
+                gate = np.concatenate(gates, axis=cat_dim)
+                split_vals = np.split(gate, split_factor, axis=cat_dim)
+                save_split(split_vals, saved_dir, key, tp_rank, split_factor)
 
     elif "mlp.dense_h_to_4h_2.weight" in key or "mlp.dense_h_to_4h_2.bias" in key:
-        cat_dim = -1
-        val = np.concatenate(vals, axis=cat_dim)
-        split_vals = np.split(val, split_factor, axis=cat_dim)
-        save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+        if convert_on_device:
+            save_val(vals[0], saved_dir, key)
+        else:
+            cat_dim = -1
+            val = np.concatenate(vals, axis=cat_dim)
+            split_vals = np.split(val, split_factor, axis=cat_dim)
+            save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+
         if act_range is not None and int8_outputs == "all":
             base_key = key.replace(".weight", "")
             vals_i8 = generate_int8(val, act_range, multi_query_mode=multi_query_mode)
             write_int8(vals_i8, saved_dir, base_key, cat_dim, tp_rank, split_factor)
 
     elif "attention.query_key_value.bias" in key or "attention.linear_qkv.bias" in key:
+        key = f'{layer_prefix}.attention.qkv.bias'
         qkv_hidden_dim = vals[0].shape[0]
         size_per_head = qkv_hidden_dim // (num_attention_heads + 2 * num_kv_heads)
         q_num = num_attention_heads // num_kv_heads
 
         # We first concat all sub weights per tp rank together.
-
         len_vals = len(vals)
-        val = np.concatenate(vals, axis=0)
+        if convert_on_device:
+            val = vals[0]
+        else:
+            val = np.concatenate(vals, axis=0)
         val = val.reshape(num_kv_heads * len_vals // tp_size, q_num + 2, size_per_head)
 
         # Split the QKV to separate variables.
+        if convert_on_device:
+            qkv = torch.split(val, [q_num, 1, 1], dim=1)
+            split_vals = torch.concatenate(
+                [qkv[0].reshape(-1), qkv[1].reshape(-1), qkv[2].reshape(-1)], dim=1
+            )
+            save_val(split_vals, saved_dir, key)
+        else:
+            qkv = np.split(val, [q_num, q_num + 1], axis=1)
+            q_split = np.split(qkv[0], split_factor, axis=0)
+            k_split = np.split(qkv[1], split_factor, axis=0)
+            v_split = np.split(qkv[2], split_factor, axis=0)
 
-        qkv = np.split(val, [q_num, q_num + 1], axis=1)
-        q_split = np.split(qkv[0], split_factor, axis=0)
-        k_split = np.split(qkv[1], split_factor, axis=0)
-        v_split = np.split(qkv[2], split_factor, axis=0)
-
-        # Concatenate Q, K, and V together
-        split_vals = [
-            np.concatenate([q_split[i].reshape(-1), k_split[i].reshape(-1), v_split[i].reshape(-1)], axis=0)
-            for i in range(split_factor)
-        ]
-        key = f'{layer_prefix}.attention.qkv.bias'
-        save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+            # Concatenate Q, K, and V together
+            split_vals = [
+                np.concatenate([q_split[i].reshape(-1), k_split[i].reshape(-1), v_split[i].reshape(-1)], axis=0)
+                for i in range(split_factor)
+            ]
+            save_split(split_vals, saved_dir, key, tp_rank, split_factor)
 
     elif "attention.query_key_value.weight" in key or "attention.linear_qkv.weight" in key:
+        key = f'{layer_prefix}.attention.qkv.weight'
         assert use_attention_nemo_shape, "Only support NEMO shape for QKV weights"
         hidden_dim = vals[0].shape[0]
         if size_per_head is None:
@@ -328,35 +375,39 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
 
         # When the merge factor exceeds 1, the 'vals' list will have multiple entries.
         # Depending on the format, 'vals' can look like either [QQQQ..KV, QQQQ..KV, ...](for GQA) or [QKV, QKV, ...](for MHA).
-
         # We first concat all sub weights per tp rank together.
-        len_vals = len(vals)
-        val = np.concatenate(vals, axis=1)
-
-        val = val.reshape(hidden_dim, num_kv_heads * len_vals // tp_size, q_num + 2, size_per_head)
-
-        # Split the QKV to separate variables.
-        qkv = np.split(val, [q_num, q_num + 1], axis=2)
-
-        q_split = np.split(qkv[0], split_factor, axis=1)
-        k_split = np.split(qkv[1], split_factor, axis=1)
-        v_split = np.split(qkv[2], split_factor, axis=1)
-
-        # Concatenate Q, K, and V together
-        split_vals = [
-            np.concatenate(
-                [
-                    q_split[i].reshape(hidden_dim, -1),
-                    k_split[i].reshape(hidden_dim, -1),
-                    v_split[i].reshape(hidden_dim, -1),
-                ],
-                axis=1,
+        if convert_on_device:
+            val = vals[0].reshape(hidden_dim, num_kv_heads // tp_size, q_num + 2, size_per_head)
+            qkv = torch.split(val, [q_num, 1, 1], dim=2)
+            split_vals = torch.concatenate(
+                [qkv[0].reshape(hidden_dim, -1), qkv[1].reshape(hidden_dim, -1), qkv[2].reshape(hidden_dim, -1)], dim=1
             )
-            for i in range(split_factor)
-        ]
+            save_val(split_vals, saved_dir, key)
+        else:
+            len_vals = len(vals)
+            val = np.concatenate(vals, axis=1)
+            val = val.reshape(hidden_dim, num_kv_heads * len_vals // tp_size, q_num + 2, size_per_head)
 
-        key = f'{layer_prefix}.attention.qkv.weight'
-        save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+            # Split the QKV to separate variables.
+            qkv = np.split(val, [q_num, q_num + 1], axis=2)
+            q_split = np.split(qkv[0], split_factor, axis=1)
+            k_split = np.split(qkv[1], split_factor, axis=1)
+            v_split = np.split(qkv[2], split_factor, axis=1)
+
+            # Concatenate Q, K, and V together
+            split_vals = [
+                np.concatenate(
+                    [
+                        q_split[i].reshape(hidden_dim, -1),
+                        k_split[i].reshape(hidden_dim, -1),
+                        v_split[i].reshape(hidden_dim, -1),
+                    ],
+                    axis=1,
+                )
+                for i in range(split_factor)
+            ]
+            save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+
         if save_int8:
             base_key = key.replace(".weight", "")
             vals_i8 = generate_int8(val, act_range, is_qkv=True, multi_query_mode=multi_query_mode)
@@ -414,124 +465,4 @@ def split(v, tp_size, idx, dim=0):
         return np.ascontiguousarray(np.split(v, tp_size)[idx])
     else:
         return np.ascontiguousarray(np.split(v, tp_size, axis=dim)[idx])
-
-
-# Similar to split_save_weight but done on GPU for performance
-@torch.no_grad()
-def split_save_weight_gpu(key, val, config):
-    storage_type = config["storage_type"]
-    split_gated_activation = config["split_gated_activation"]
-    num_attention_heads = config["num_attention_heads"]
-    tp_size = config["tp_size"]
-    num_kv_heads = config["num_kv_heads"]
-    move_to_cpu = config["move_to_cpu"]
-    save_dict = config["save_dict"]
-
-    def save(key, tensor, add_prefix=True):
-        assert torch.is_tensor(tensor)
-        if add_prefix:
-            key = f"transformer.{key}"
-
-        if len(tensor.shape) >= 2:
-            tensor = tensor.reshape(tensor.shape[0], -1)
-            tensor = torch.transpose(tensor, 0, 1)
-        tensor = tensor.detach().contiguous()
-        tensor = tensor.to(storage_type)
-
-        if move_to_cpu:
-            if key not in save_dict:
-                cpu_copy = torch.empty(
-                    tensor.size(), dtype=tensor.dtype, layout=tensor.layout, device="cpu", pin_memory=True
-                )
-                cpu_copy.copy_(tensor, non_blocking=True)
-                save_dict[key] = cpu_copy
-            else:
-                save_dict[key].copy_(tensor, non_blocking=True)
-        else:
-            save_dict[key] = tensor.cuda()
-
-    if config.get("transpose_weights", False) and val.ndim == 2:
-        val = val.T
-
-    if "self_attention" in key:
-        key = key.replace("self_attention", "attention")
-
-    if (
-        'layer_norm_weight' in key
-        or 'layernorm.weight' in key
-        or "final_layernorm.weight" in key
-        or "ln_f.weight" in key
-    ):
-        if "attention.linear_qkv.layer_norm_weight" in key:
-            key = key.replace("attention.linear_qkv.layer_norm_weight", "input_layernorm.weight")
-        elif "mlp.linear_fc1.layer_norm_weight" in key:
-            key = key.replace("mlp.linear_fc1.layer_norm_weight", "post_layernorm.weight")
-        elif "pre_mlp_layernorm.weight" in key:
-            key = key.replace("pre_mlp_layernorm.weight", "post_layernorm.weight")
-
-        if config.get("apply_layernorm_1p", False):
-            val = val.float() + 1.0
-        save(key, val)
-    elif (
-        "input_layernorm.bias" in key
-        or "pre_mlp_layernorm.bias" in key
-        or "ln_f.bias" in key
-        or "vocab_embedding" in key
-    ):
-        if "pre_mlp_layernorm.bias" in key:
-            key = key.replace("pre_mlp_layernorm.bias", "post_layernorm.bias")
-
-        save(key, val)
-    elif (
-        "attention.dense.weight" in key
-        or "mlp.dense_4h_to_h.weight" in key
-        or "attention.linear_proj.weight" in key
-        or "mlp.linear_fc2.weight" in key
-        or "mlp.dense_h_to_4h_2.weight" in key
-        or "mlp.dense_h_to_4h_2.bias" in key
-    ):
-        if "attention.linear_proj.weight" in key:
-            key = key.replace("attention.linear_proj.weight", "attention.dense.weight")
-        elif "mlp.linear_fc2.weight" in key:
-            key = key.replace("mlp.linear_fc2.weight", "mlp.proj.weight")
-        save(key, val)
-
-    elif (
-        "mlp.dense_h_to_4h.weight" in key
-        or "mlp.dense_h_to_4h.bias" in key
-        or "mlp.linear_fc1.weight" in key
-        or "mlp.linear_fc1.bias" in key
-    ):
-        if split_gated_activation:
-            val, gate = torch.chunk(val, 2, axis=-1)
-
-        if "mlp.linear_fc1" in key:
-            key = key.replace("mlp.linear_fc1", "mlp.fc")
-        save(key, val)
-
-        if split_gated_activation:
-            key = key.replace("mlp.fc", "mlp.gate")
-            save(key, gate)
-
-    elif "attention.query_key_value.weight" in key or "attention.linear_qkv.weight" in key:
-        if "attention.linear_qkv.weight" in key:
-            key = key.replace("attention.linear_qkv.weight", "attention.qkv.weight")
-
-        hidden_dim = val.shape[0]
-        size_per_head = hidden_dim // num_attention_heads
-        q_num = num_attention_heads // num_kv_heads
-
-        val = val.reshape(hidden_dim, num_kv_heads // tp_size, q_num + 2, size_per_head)
-
-        # Split the QKV to separate variables.
-        # [qqqqkkvv] - > [qqqq,kk,vv]
-        qkv = torch.split(val, [q_num, 1, 1], dim=2)
-        split_vals = torch.concatenate(
-            [qkv[0].reshape(hidden_dim, -1), qkv[1].reshape(hidden_dim, -1), qkv[2].reshape(hidden_dim, -1)], dim=1
-        )
-        save(key, split_vals)
-
-    elif "lm_head.weight" in key:
-        save(key, val, add_prefix=False)
-    else:
-        raise RuntimeError(f"{key} not handled by NeMo->TRTLLM converter!")
+        
