@@ -537,8 +537,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 checkpoint_state_dict = checkpoint['state_dict']
 
             mcore_model = self.lightning_module.module
+            while hasattr(mcore_model, "module"):
+                mcore_model = mcore_model.module
+
             current = self.model[0]
-            n_nesting = 2
+            n_nesting = 0
             while current != mcore_model:
                 current = current.module
                 n_nesting += 1
