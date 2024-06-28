@@ -97,7 +97,7 @@ def main(cfg) -> None:
             pretrained_cfg.activations_checkpoint_granularity = None
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
-            pretrained_cfg["use_flash_attention"] = cfg.inference.get("use_flash_attention", False)
+            pretrained_cfg["use_flash_attention"] = cfg.get("use_flash_attention", False)
             pretrained_cfg["apply_rope_fusion"] = False
             if pretrained_cfg.get('mcore_gpt', False):
                 # with dist checkpointing we can use the model parallel config specified by the user
@@ -165,12 +165,12 @@ def main(cfg) -> None:
         pass
     
     args = Namespace
-    args.inference_batch_times_seq_len_threshold = 1000
+    args.inference_batch_times_seq_len_threshold = cfg.inference_batch_times_seq_len_threshold
     args.padded_vocab_size = model.padded_vocab_size
     args.fp32_residual_connection = model.cfg.fp32_residual_connection
     args.hidden_size = model.cfg.hidden_size
     args.params_dtype = model.cfg.precision
-    args.max_batch_size = 4
+    args.max_batch_size = cfg.max_batch_size
 
     # We need this wrapper since mcore generate uses tokenizer.detokenize, tokenizer.tokenize to encode and decode prompts
     class MCoreTokenizerWrappper:
