@@ -31,7 +31,7 @@ from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model impo
     NeMoBertModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
-    bert_layer_with_transformer_engine_spec_postln,
+    get_bert_layer_with_transformer_engine_spec_postln,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -66,7 +66,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
+    from megatron.core.models.bert.bert_layer_specs import get_bert_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -138,7 +138,8 @@ class MegatronBertModel(MegatronBaseModel):
 
         if hasattr(self, '_nsys_profile_enabled') or hasattr(self, '_memory_profile_enabled'):
             mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
-            data_parallel_world_size = trainer.world_size // mp_size
+            cp_size = cfg.get('context_parallel_size', 1)
+            data_parallel_world_size = trainer.world_size // (mp_size * cp_size)
             grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
             if hasattr(self, '_nsys_profile_enabled'):
                 self._nsys_profile_start_step *= grad_accum_steps
@@ -153,10 +154,9 @@ class MegatronBertModel(MegatronBaseModel):
         transformer_block_type = cfg.get('transformer_block_type', 'pre_ln')
         if self.mcore_bert:
             if transformer_block_type == 'pre_ln':
-                layer_spec = bert_layer_with_transformer_engine_spec
+                layer_spec = get_bert_layer_with_transformer_engine_spec(cfg.get('context_parallel_size', 1))
             else:
-                layer_spec = bert_layer_with_transformer_engine_spec_postln
-
+                layer_spec = get_bert_layer_with_transformer_engine_spec_postln(cfg.get('context_parallel_size', 1))
             model = MCoreBertModelWrapperWithPostLNSupport(
                 config=self.transformer_config,
                 transformer_layer_spec=layer_spec,
@@ -214,8 +214,8 @@ class MegatronBertModel(MegatronBaseModel):
         return model
 
     def _validate_trainer(self):
-        """ Certain trainer configurations can break training.
-            Here we try to catch them and raise an error.
+        """Certain trainer configurations can break training.
+        Here we try to catch them and raise an error.
         """
         if self.trainer.accumulate_grad_batches > 1:
             raise ValueError(
@@ -225,7 +225,8 @@ class MegatronBertModel(MegatronBaseModel):
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                batch, batch_idx, dataloader_idx = next(dataloader_iter)
+                batch, batch_idx, dataloader_idx = self.get_batch(dataloader_iter)
+
                 tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = (
                     batch['text'].cuda(non_blocking=True),
                     batch['types'].cuda(non_blocking=True),
@@ -235,7 +236,7 @@ class MegatronBertModel(MegatronBaseModel):
                     batch['padding_mask'].cuda(non_blocking=True),
                 )
             else:
-                batch, batch_idx, dataloader_idx = next(dataloader_iter)
+                batch, batch_idx, dataloader_idx = self.get_batch(dataloader_iter)
                 if parallel_state.is_pipeline_first_stage():
                     tokens = batch['text'].cuda(non_blocking=True)
                     types = batch['types'].cuda(non_blocking=True)
@@ -308,7 +309,11 @@ class MegatronBertModel(MegatronBaseModel):
             model = self.model
 
         if self.mcore_bert:
-            output_tensor = model(input_ids, attention_mask, tokentype_ids=token_type_ids,)
+            output_tensor = model(
+                input_ids,
+                attention_mask,
+                tokentype_ids=token_type_ids,
+            )
         else:
             output_tensor = model(
                 input_ids,
@@ -423,21 +428,24 @@ class MegatronBertModel(MegatronBaseModel):
             self.log('lr', lr, batch_size=1)
             self.log('global_step', self.trainer.global_step, prog_bar=True, batch_size=1)
             self.log(
-                'consumed_samples', self._compute_consumed_samples_after_training_step(), prog_bar=True, batch_size=1,
+                'consumed_samples',
+                self._compute_consumed_samples_after_training_step(),
+                prog_bar=True,
+                batch_size=1,
             )
 
         return loss_mean[0]
 
     def _make_data_iterator_list(self, data_iterator: Iterator) -> List[Iterator]:
-        """ Convert data iterator into form expected by Megatron
-            With interleaved pipeline parallelism, Megatron expects a
-            list of one data iterator per model chunk. Each model
-            chunk independently gets data from its data iterator, so
-            we need to interact with the data iterator multiple times
-            for each microbatch step. Instead of incorporating this
-            logic into the data loader, we cache the iterator's output
-            to the first model chunk and reuse it in the other model
-            chunks.
+        """Convert data iterator into form expected by Megatron
+        With interleaved pipeline parallelism, Megatron expects a
+        list of one data iterator per model chunk. Each model
+        chunk independently gets data from its data iterator, so
+        we need to interact with the data iterator multiple times
+        for each microbatch step. Instead of incorporating this
+        logic into the data loader, we cache the iterator's output
+        to the first model chunk and reuse it in the other model
+        chunks.
         """
 
         if not isinstance(self.model, list) or len(self.model) == 1:
@@ -567,6 +575,39 @@ class MegatronBertModel(MegatronBaseModel):
         averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
 
+    def get_batch_on_this_cp_rank(self, batch):
+        """Slice batch input along sequence dimension into multiple chunks,
+        which are parallelized across GPUs in a context parallel group.
+        """
+        cp_size = parallel_state.get_context_parallel_world_size()
+        if not cp_size > 1:
+            return batch
+        cp_rank = parallel_state.get_context_parallel_rank()
+
+        # Distribute the valid tokens evenly among CP ranks
+        # CP currently only supports attention with 'no_mask'
+        assert 'padding_mask' in batch.keys()
+        mbs, max_seqlen = batch['padding_mask'].shape
+        seq_len = max_seqlen // cp_size
+        # assert torch.all(torch.eq(seq_lens, max_seqlen))
+
+        seq_start_idx = seq_len * cp_rank
+        seq_end_idx = seq_len * (cp_rank + 1)
+
+        # assume items in batch have dims of [mbs, seq] or [mbs]
+        for key, val in batch.items():
+            assert len(val.shape) <= 2
+            if len(val.shape) == 2:
+                batch[key] = batch[key][..., seq_start_idx:seq_end_idx]
+
+        return batch
+
+    def get_batch(self, dataloader_iter):
+        batch, batch_idx, dataloader_idx = next(dataloader_iter)
+        batch['padding_mask'] = torch.ones_like(batch['padding_mask'])
+        batch = self.get_batch_on_this_cp_rank(batch)
+        return batch, batch_idx, dataloader_idx
+
     def loss_func(self, loss_mask, sentence_order, output_tensor):
         lm_loss_, sop_logits = output_tensor
 
@@ -575,10 +616,20 @@ class MegatronBertModel(MegatronBaseModel):
 
         # Sometimes when the number of tokens is very small, none of the tokens get masked for prediction. In that case loss mask is all zeros
         # i.e Happens when the entire batch is masked out (Practically when MBS=1 or 2, and the number of tokens in each batch is < 7 )
-        if loss_mask.sum() == 0:
-            lm_loss = torch.sum(lm_loss_.view(-1)) * 0.0
+        if parallel_state.get_context_parallel_world_size() > 1:
+            if loss_mask.sum() == 0:
+                lm_loss = torch.sum(lm_loss_.view(-1) * 0.0).view(1)
+            else:
+                lm_loss = torch.sum(lm_loss_.view(-1) * loss_mask.reshape(-1)).view(1)
+            loss = torch.cat([lm_loss, loss_mask.sum().view(1)])
+            torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
+            lm_loss = loss[0] / loss[1]
+
         else:
-            lm_loss = torch.sum(lm_loss_.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
+            if loss_mask.sum() == 0:
+                lm_loss = torch.sum(lm_loss_.view(-1)) * 0.0
+            else:
+                lm_loss = torch.sum(lm_loss_.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
 
         if sop_logits is not None:
             sop_loss = F.cross_entropy(sop_logits.view(-1, 2).float(), sentence_order.view(-1), ignore_index=-1)
@@ -703,9 +754,9 @@ class MegatronBertModel(MegatronBaseModel):
         ]
 
         if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            train_valid_test_num_samples[
-                1
-            ] = 1  # This is to make sure we only have one epoch on every validation iteration
+            train_valid_test_num_samples[1] = (
+                1  # This is to make sure we only have one epoch on every validation iteration
+            )
 
         self._train_ds, self._validation_ds, self._test_ds = dataset_utils.build_train_valid_test_datasets(
             cfg=self.cfg,
@@ -739,20 +790,20 @@ class MegatronBertModel(MegatronBaseModel):
         return self._train_ds, self._validation_ds, self._test_ds
 
     def backward(self, *args, **kwargs):
-        """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from megatron-core.
-            No need to call it here.
+        """LightningModule hook to do backward.
+        We want this to do nothing since we run backward in the fwd/bwd functions from megatron-core.
+        No need to call it here.
         """
         return
 
     def optimizer_zero_grad(self, *args, **kwargs):
-        """ LightningModule hook to zero grad.
-            We want this to do nothing as we are zeroing grads during the training_step.
+        """LightningModule hook to zero grad.
+        We want this to do nothing as we are zeroing grads during the training_step.
         """
         return
 
     def _append_sequence_parallel_module_grads(self, module, grads):
-        """ Helper method for allreduce_sequence_parallel_gradients"""
+        """Helper method for allreduce_sequence_parallel_gradients"""
 
         for param in module.parameters():
             sequence_parallel_param = getattr(param, 'sequence_parallel', False)
@@ -820,14 +871,15 @@ class MegatronBertModel(MegatronBaseModel):
 
         if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_bert', False):
             self.setup_transformer_engine_tp_groups()
+            self.setup_transformer_engine_cp_groups()
 
     def setup_transformer_engine_tp_groups(self):
-        """ This should be called after model parallel groups have been initialized
-            and only needs to be called when using Transformer Engine.
+        """This should be called after model parallel groups have been initialized
+        and only needs to be called when using Transformer Engine.
         """
         for module in self.get_bert_module_list():
             """Set TP group
-               Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
+            Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
             """
             # Deep iterate but skip self to avoid infinite recursion.
             for index, child in enumerate(module.modules()):
@@ -849,9 +901,9 @@ class MegatronBertModel(MegatronBaseModel):
             return [self.model]
 
     def allreduce_sequence_parallel_gradients(self):
-        """ All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
-            Modified from megatron-lm:
-            https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/3f91f09bb2ab32f9904b47f46f19d2fc3f518ed8/megatron/training.py#L425
+        """All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
+        Modified from megatron-lm:
+        https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/3f91f09bb2ab32f9904b47f46f19d2fc3f518ed8/megatron/training.py#L425
         """
 
         grads = []
@@ -931,10 +983,10 @@ class MegatronBertModel(MegatronBaseModel):
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
-        """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
-            When using pipeline parallelism, we need the global batch to remain on the CPU,
-            since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline.
+        """PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
+        When using pipeline parallelism, we need the global batch to remain on the CPU,
+        since the memory overhead will be too high when using a large number of microbatches.
+        Microbatches are transferred from CPU to GPU inside the pipeline.
         """
         return batch
 
@@ -1154,10 +1206,10 @@ class MegatronBertModel(MegatronBaseModel):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def build_transformer_config(self) -> TransformerConfig:
-        """ Builds the megatron core gpt transformer config for the model.
-            For attributes in the nemo model config that are the same
-            as the megatron core TransformerConfig, we will use the value from the nemo model config.
-            For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
+        """Builds the megatron core gpt transformer config for the model.
+        For attributes in the nemo model config that are the same
+        as the megatron core TransformerConfig, we will use the value from the nemo model config.
+        For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
         activation = self.cfg.get('activation', 'gelu')
         assert activation == 'gelu', "Only gelu activation is support for BERT at the moment."
