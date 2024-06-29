@@ -1236,6 +1236,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             override_config_path,
             map_location,
             strict,
+            validate_access_integrity,
             return_config,
             trainer,
         )
