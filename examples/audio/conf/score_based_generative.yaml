@@ -45,7 +45,7 @@ model:
     scale: ${model.encoder.scale}
 
   estimator:
-    _target_: nemo.collections.audio.parts.submodules.diffusion.SpectrogramNoiseConditionalScoreNetworkPlusPlus
+    _target_: nemo.collections.audio.parts.submodules.ncsnpp.SpectrogramNoiseConditionalScoreNetworkPlusPlus
     in_channels: 2 # concatenation of single-channel perturbed and noisy
     out_channels: 1 # single-channel score estimate
     conditioned_on_time: true

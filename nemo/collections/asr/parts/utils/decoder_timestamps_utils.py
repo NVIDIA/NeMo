@@ -29,7 +29,7 @@ from nemo.collections.asr.parts.submodules.ctc_decoding import (
     CTCDecoding,
     CTCDecodingConfig,
 )
-from nemo.collections.asr.parts.utils.audio_utils import get_samples
+from nemo.collections.asr.parts.preprocessing.segment import get_samples
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, get_uniqname_from_filepath
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
