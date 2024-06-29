@@ -133,7 +133,15 @@ class TiktokenTokenizer(TokenizerSpec):
         return [self.tokenizer.encode_single_token(token) for token in tokens]
 
     def ids_to_tokens(self, token_ids):
-        return [self.tokenizer.decode_single_token_bytes(token - self.num_special_tokens) for token in token_ids]
+        tokens = []
+        for token_id in token_ids:
+            if token_id < self.num_special_tokens:
+                tokens.append(self.special_tokens[token_id])
+            else:
+                token_id -= self.num_special_tokens
+                token_bytes = self.tokenizer.decode_single_token_bytes(token_id)
+                tokens.append(token_bytes.decode('utf-8', errors='replace'))
+        return tokens
 
     def text_to_ids(self, text: str):
         tokens = self.tokenizer.encode(text)
@@ -141,9 +149,15 @@ class TiktokenTokenizer(TokenizerSpec):
         return tokens
 
     def ids_to_text(self, tokens: List[int]):
-        assert self.num_special_tokens <= min(tokens), f"Cannot decode special tokens (EOS, BOS).{tokens}"
-        tokens = [t - self.num_special_tokens for t in tokens if t not in {self.bos, self.eos}]
-        return self.tokenizer.decode(tokens)
+        # Filter out special tokens and adjust the remaining tokens
+        adjusted_tokens = [t - self.num_special_tokens for t in tokens
+                if t not in {self.bos, self.eos} and t >= self.num_special_tokens]
+
+        # Decode only if there are tokens left after filtering
+        if adjusted_tokens:
+            return self.tokenizer.decode(adjusted_tokens)
+        else:
+            return ""  # Return an empty string if all tokens were filtered out
     
     @property
     def bos_id(self):
