@@ -150,7 +150,13 @@ def kmeans_plusplus_torch(
 
     centers = torch.zeros(n_clusters, n_features, dtype=X.dtype)
     center_id = torch.randint(0, n_samples, (1,)).long()
-    indices = torch.full([n_clusters,], -1, dtype=torch.int)
+    indices = torch.full(
+        [
+            n_clusters,
+        ],
+        -1,
+        dtype=torch.int,
+    )
 
     centers[0] = X[center_id].squeeze(0)
     indices[0] = center_id.squeeze(0)
@@ -324,7 +330,7 @@ def getKneighborsConnections(affinity_mat: torch.Tensor, p_value: int, mask_meth
     """
     dim = affinity_mat.shape
     binarized_affinity_mat = torch.zeros_like(affinity_mat).half()
-    sorted_matrix = torch.argsort(affinity_mat, dim=1, descending=True)[:, :p_value]
+    _, sorted_matrix = torch.topk(affinity_mat, p_value, dim=1)
     binarized_affinity_mat[sorted_matrix.T, torch.arange(affinity_mat.shape[0])] = (
         torch.ones(1).to(affinity_mat.device).half()
     )
@@ -511,7 +517,7 @@ def getMultiScaleCosAffinityMatrix(
 
     Returns:
         fused_sim_d (Tensor):
-            An affinity matrix that is obtained by calculating the weighted sum of 
+            An affinity matrix that is obtained by calculating the weighted sum of
             the multiple affinity matrices from the different scales.
     """
     multiscale_weights = torch.squeeze(multiscale_weights, dim=0).to(device)
@@ -986,8 +992,12 @@ class NMESC:
         est_spk_n_dict: Dict[int, torch.Tensor] = {}
         self.p_value_list = self.getPvalueList()
         p_volume = self.p_value_list.shape[0]
-        eig_ratio_list = torch.zeros(p_volume,)
-        est_num_of_spk_list = torch.zeros(p_volume,)
+        eig_ratio_list = torch.zeros(
+            p_volume,
+        )
+        est_num_of_spk_list = torch.zeros(
+            p_volume,
+        )
 
         if self.parallelism:
             futures: List[torch.jit.Future[torch.Tensor]] = []
@@ -1074,9 +1084,8 @@ class NMESC:
         est_num_of_spk, lambdas, lambda_gap_list = estimateNumofSpeakers(
             affinity_mat, self.max_num_speakers, self.cuda
         )
-        arg_sorted_idx = torch.argsort(lambda_gap_list[: self.max_num_speakers], descending=True)
-        max_key = arg_sorted_idx[0]
-        max_eig_gap = lambda_gap_list[max_key] / (torch.max(lambdas).item() + self.eps)
+        max_val = torch.max(lambda_gap_list[: self.max_num_speakers])
+        max_eig_gap = max_val / (torch.max(lambdas).item() + self.eps)
         g_p = (p_neighbors / self.mat.shape[0]) / (max_eig_gap + self.eps)
         return torch.stack([g_p, est_num_of_spk])
 
@@ -1176,10 +1185,10 @@ class SpeakerClustering(torch.nn.Module):
         kmeans_random_trials: int = 1,
     ) -> torch.LongTensor:
         """
-        This function takes a cosine similarity matrix `mat` and returns the speaker labels for the segments 
-        in the given input embeddings. 
-       
-        Args: 
+        This function takes a cosine similarity matrix `mat` and returns the speaker labels for the segments
+        in the given input embeddings.
+
+        Args:
             mat (Tensor):
                 Cosine similarity matrix (affinity matrix) calculated from the provided speaker embeddings.
             oracle_num_speakers (int):
@@ -1202,8 +1211,8 @@ class SpeakerClustering(torch.nn.Module):
                 This value should be optimized on a development set for best results.
                 By default, it is set to -1.0, and the function performs NME-analysis to estimate the threshold.
             kmeans_random_trials (int):
-                The number of random trials for initializing k-means clustering. More trials can result in more stable clustering. The default is 1. 
-                
+                The number of random trials for initializing k-means clustering. More trials can result in more stable clustering. The default is 1.
+
         Returns:
             Y (LongTensor):
                 Speaker labels (clustering output) in integer format for the segments in the given input embeddings.
