@@ -301,14 +301,14 @@ class TiledSiglipImageProcessor:
           scale, origin = calculate_tile_placement(image.size, (tile_w, tile_h), (grid_w, grid_h), self.max_upscale)
           tile_coordinates = generate_tile_coordinates(origin, (tile_w, tile_h), (grid_w, grid_h), scale)
           images = [image.crop(cs) for cs in tile_coordinates]  # square, but needs resize
-          images = self.processor.preprocess(images, return_tensors='pt')['pixel_values']
+          images = self.processor.preprocess(images, return_tensors=return_tensors)['pixel_values']
           #print(images.shape)
           tensors = rearrange(images, '(gh gw) c th tw -> 1 c (gh th) (gw tw)', 
                               gh=grid_h, gw=grid_w, c=3, th=tile_h, tw=tile_w)            
           return {"pixel_values":tensors}
           
         elif self.grid_width == 1 and self.grid_height == 1:
-          return self.processor.preprocess(images, **kwargs)
+          return self.processor.preprocess(images, return_tensors=return_tensors)
 
         raise ValueError("Invalid grid dimensions in the TiledSiglipImageProcessor")
 
