@@ -88,7 +88,7 @@ class PromptFormatter(ABC):
     * ``context_ids`` (all turns minus last one),
     * ``answer_ids`` (last turn)
     * ``input_ids`` (previous two values concatenated)
-    * ``mask`` (boolean mask tensor of the same lenth as ``input_ids`` that's set to True on OUTPUT_ROLE turns)
+    * ``mask`` (boolean mask tensor of the same length as ``input_ids`` that's set to True on OUTPUT_ROLE turns)
 
     Typically, the user will use the ``encode_dialog`` method providing a list of turns to it.
     Example showing how to construct model inputs/outputs for training::
