@@ -174,7 +174,6 @@ class TiledSiglipVisionModel(nn.Module):
             # Arrange vectors inside each tile into the corresponding shape (should be square)
             vw = round((w * v // h) ** 0.5)
             vh = vw * h // w
-            print(vw, vh)
             features = rearrange(features, "b gh gw (vh vw) d -> b gh gw vh vw d",
                                 b=b, gh=self.grid_h, gw=self.grid_w, vh=vh, vw=vw)
 
