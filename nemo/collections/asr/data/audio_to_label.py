@@ -431,7 +431,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim: bool = False,
-        channel_selector: Union[str, int, List[int]] = None,
+        channel_selector: Optional[Union[str, int, List[int]]] = None,
         window_length_in_sec: Optional[float] = 8,
         shift_length_in_sec: Optional[float] = 1,
         normalize_audio: bool = False,
@@ -901,9 +901,12 @@ class AudioToMultiLabelDataset(Dataset):
             All training files which have a duration more than max_duration
             are dropped. Note: Duration is read from the manifest JSON.
             Defaults to None.
-        trim (bool): Whether to use trim silence from beginning and end
+        trim_silence (bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
+        channel selector (Union[str, int, List[int]]): string denoting the downmix mode, an integer denoting the channel to be selected, or an iterable
+            of integers denoting a subset of channels. Channel selector is using zero-based indexing.
+            If set to `None`, the original signal will be used.
         window_length_in_sec (float): length of window/slice (in seconds)
             Use this for speaker recognition and VAD tasks.
         shift_length_in_sec (float): amount of shift of window for generating the frame for VAD task in a batch
@@ -962,6 +965,7 @@ class AudioToMultiLabelDataset(Dataset):
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim_silence: bool = False,
+        channel_selector: Optional[Union[str, int, List[int]]] = None,
         is_regression_task: bool = False,
         cal_labels_occurrence: Optional[bool] = False,
         delimiter: Optional[str] = None,
@@ -985,6 +989,7 @@ class AudioToMultiLabelDataset(Dataset):
 
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim_silence
+        self.channel_selector = channel_selector
         self.is_regression_task = is_regression_task
         self.id2occurrence = {}
         self.labels_occurrence = None
@@ -1042,6 +1047,7 @@ class AudioToMultiLabelDataset(Dataset):
             offset=offset,
             duration=sample.duration,
             trim=self.trim,
+            channel_selector=self.channel_selector,
             normalize_db=self.normalize_audio_db,
         )
 

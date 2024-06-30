@@ -685,10 +685,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
             'sample_rate': sample_rate,
             'channel_selector': 0,
             'batch_size': batch_size,
-            'labels': [
-                'infer',
-            ],
         }
+        self.labels = self.extract_labels(dl_config)
+        dl_config['labels'] = self.labels
         dataloader = self.__setup_dataloader_from_config(config=dl_config)
 
         logits = []
