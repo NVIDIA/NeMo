@@ -99,6 +99,9 @@ except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
+    from typing import Any
+
+    RetroConfig = Any
 
 try:
     import transformer_engine

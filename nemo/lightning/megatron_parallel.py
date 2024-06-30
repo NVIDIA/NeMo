@@ -112,7 +112,12 @@ class MegatronParallel(nn.ModuleList):
         cpu: bool = False,
         convert_module_fn: Optional[Callable[[nn.Module], nn.Module]] = None,
     ) -> None:
-        from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
+        try:
+            from apex.transformer.tensor_parallel.layers import (
+                set_defaults_if_not_set_tensor_model_parallel_attributes,
+            )
+        except ModuleNotFoundError:
+            from nemo.lightning.apex_utils import set_defaults_if_not_set_tensor_model_parallel_attributes
         from megatron.core import parallel_state
 
         _pipeline: List[nn.Module]
