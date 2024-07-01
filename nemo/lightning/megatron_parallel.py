@@ -235,7 +235,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         pipeline = self.pipeline
         data_iterator: List[Iterator[DataT]] = self.to_data_iterator_list(data)
         context = self._build_context({**locals()})
-
+        
         if wrap_forward_step:
             _data_step = data_step or self.data_step
             forward_step_func = self.wrapped_forward_step(
@@ -540,7 +540,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
         return get_forward_backward_func()
-
+    
 
 class _ModuleStepFunction:
     def __init__(self, name: str, is_property: bool = False, includes_self: bool = False):
