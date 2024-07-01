@@ -444,6 +444,9 @@ class NLPDDPStrategy(DDPStrategy):
             bool: True if the number of param groups does not match
         """
         common_state_dict = dist_checkpointing.load_common_state_dict(checkpoint_path)
+        # @akoumparouli: check if it contains an mcore dist opt
+        if common_state_dict.get('optimizer_states', [{}])[0].get('param_groups', None) is None:
+            return False
         model_param_groups = self._get_param_group(common_state_dict)
         checkpoint_param_groups = self._get_param_group(sharded_state_dict)
         return len(model_param_groups) != len(checkpoint_param_groups)
@@ -515,10 +518,14 @@ class NLPDDPStrategy(DDPStrategy):
             # after dist_checkpointing.load, sharded tensors will be replaced with tensors
             checkpoint['state_dict'] = sharded_state_dict
             checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict(is_loading=True)]
-
             if self._check_param_groups_mismatch(checkpoint_path, checkpoint):
-                return self._fix_param_groups(checkpoint_path, checkpoint)
-            return self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
+                checkpoint = self._fix_param_groups(checkpoint_path, checkpoint)
+            else:
+                checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
+
+            if getattr(self.lightning_module, 'continue_training', False):
+                checkpoint = self._integrate_original_checkpoint_data(checkpoint)
+            return checkpoint
 
         # Legacy model parallel checkpointing logic, does not use megatron core
         else:
@@ -528,6 +535,26 @@ class NLPDDPStrategy(DDPStrategy):
                 raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
             torch.cuda.empty_cache()
             return self.checkpoint_io.load_checkpoint(checkpoint_path)
+
+    def _integrate_original_checkpoint_data(self, checkpoint: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Ensures that model and optimizer weights are loaded from the checkpoint.
+        All other metadata are reinitialized.
+        """
+        original_checkpoint = self.lightning_module.trainer._checkpoint_connector.dump_checkpoint()
+        for key in checkpoint:
+            if key not in ['state_dict', 'optimizer_states']:
+                checkpoint[key] = original_checkpoint[key]
+        if 'optimizer' in checkpoint['optimizer_states'][0]:
+            checkpoint['optimizer_states'][0]['optimizer']['param_groups'] = original_checkpoint['optimizer_states'][
+                0
+            ]['optimizer']['param_groups']
+        else:
+            checkpoint['optimizer_states'][0]['param_groups'] = original_checkpoint['optimizer_states'][0][
+                'optimizer'
+            ]['param_groups']
+
+        return checkpoint
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         # check if filepath is a distributed checkpoint
