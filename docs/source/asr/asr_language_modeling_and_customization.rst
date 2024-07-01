@@ -4,8 +4,9 @@ ASR Language Modeling and Customization
 
 Language models have shown to help the accuracy of ASR models. NeMo supports the following two approaches to incorporate language models into the ASR models:
 
-*  :ref:`ngram_modeling`
-*  :ref:`neural_rescoring`
+:ref:`ngram_modeling`
+
+:ref:`neural_rescoring`
 
 It is possible to use both approaches on the same ASR model.
 
@@ -113,34 +114,35 @@ You may evaluate an ASR model as the following:
 
 .. code-block::
 
-    python eval_beamsearch_ngram.py nemo_model_file=<path to the .nemo file of the model> \
-           input_manifest=<path to the evaluation JSON manifest file \
-           kenlm_model_file=<path to the binary KenLM model> \
-           beam_width=[<list of the beam widths, separated with commas>] \
-           beam_alpha=[<list of the beam alphas, separated with commas>] \
-           beam_beta=[<list of the beam betas, separated with commas>] \
+    python eval_beamsearch_ngram_ctc.py model_path=<path to the .nemo file of the model> \
+           dataset_manifest=<path to the evaluation JSON manifest file> \
+           ctc_decoding.strategy=<Beam library such as beam, pyctcdecode or flashlight> \
+           ctc_decoding.beam.nemo_kenlm_path=<path to the binary KenLM model> \
+           ctc_decoding.beam.beam_size=[<list of the beam widths, separated with commas>] \
+           ctc_decoding.beam.beam_alpha=[<list of the beam alphas, separated with commas>] \
+           ctc_decoding.beam.beam_beta=[<list of the beam betas, separated with commas>] \
+           ctc_decoding.beam.flashlight_cfg.lexicon_path=<path to the flashlight lexicon file> \
            preds_output_folder=<optional folder to store the predictions> \
            probs_cache_file=null \
-           decoding_mode=beamsearch_ngram \
-           decoding_strategy="<Beam library such as beam, pyctcdecode or flashlight>"
 
-It can evaluate a model in the three following modes by setting the argument `--decoding_mode`:
+It can evaluate a model in the three following modes by setting the argument `ctc_decoding.strategy`:
 
 *  greedy: Just greedy decoding is done, and no beam search decoding is performed.
-*  beamsearch: The beam search decoding is done but without using the N-gram language model, final results would be equivalent to setting the weight of LM (beam_beta) to zero.
-*  beamsearch_ngram: The beam search decoding is done with N-gram LM.
+*  "" (empty string): The beam search decoding is done but without using the N-gram language model, final results would be equivalent to setting the weight of LM (beam_beta) to zero.
+*  pyctcdecode: The beam search decoding is done with N-gram LM and pyctcdecode Python library.
+*  flashlight: The beam search decoding is done with N-gram LM and flashlight C++ library.
 
-The `beamsearch` mode would evaluate by beam search decoding without any language model.
+With empty string the script would evaluate by flashlight beam search decoding without any language model.
 It would report the performances in terms of Word Error Rate (WER) and Character Error Rate (CER). Moreover,
 the WER/CER of the model when the best candidate is selected among the candidates is also reported as the best WER/CER.
 It can be an indicator of how good the predicted candidates are.
 
 The script would initially load the ASR model and predict the outputs of the model's encoder as log probabilities.
-This part would be computed in batches on a device selected by `--device`, which can be CPU (`--device=cpu`) or a
-single GPU (`--device=cuda:0`). The batch size of this part can get specified by `--acoustic_batch_size`. You may use
-the largest batch size feasible to speed up the step of calculating the log probabilities. You may also use `--use_amp`
-to speed up the calculation of log probabilities and make it possible to use larger sizes for `--acoustic_batch_size`.
-Currently multi-GPU is not supported for calculating the log probabilities, but using `--probs_cache_file` can help.
+This part would be computed in batches on a device selected by `cuda`, which can be CPU (`cuda=-1`) or a
+single GPU (`cuda=0`). The batch size of this part can get specified by `batch_size`. You may use
+the largest batch size feasible to speed up the step of calculating the log probabilities. You may also use `amp`
+to speed up the calculation of log probabilities and make it possible to use larger sizes for acoustic `batch_size`.
+Currently multi-GPU is not supported for calculating the log probabilities, but using `cache_file` can help.
 It stores the log probabilities produced from the model's encoder into a pickle file so that next time the first step
 can get skipped.
 
@@ -149,73 +151,85 @@ The following is the list of the important arguments for the evaluation script:
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | **Argument**                         | **Type** | **Default**      | **Description**                                                         |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| nemo_model_file                      | str      | Required         | The path of the `.nemo` file of the ASR model to extract the tokenizer. |
+| model_path                           | str      | Required         | The path of the `.nemo` file of the ASR model to extract the tokenizer. |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| input_manifest                       | str      | Required         | Path to the training file, it can be a text file or JSON manifest.      |
-+--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| kenlm_model_file                     | str      | Required         | The path to store the KenLM binary model file.                          |
+| dataset_manifest                     | str      | Required         | Path to the training file, it can be a text file or JSON manifest.      |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | preds_output_folder                  | str      | None             | The path to an optional folder to store the predictions.                |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| probs_cache_file                     | str      | None             | The cache file for storing the outputs of the model.                    |
+| cache_file                           | str      | None             | The cache file for storing the outputs of the model.                    |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| acoustic_batch_size                  | int      | 16               | The batch size to calculate log probabilities.                          |
+| batch_size                           | int      | 16               | The batch size to calculate log probabilities.                          |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| use_amp                              | bool     | False            | Whether to use AMP if available to calculate log probabilities.         |
+| amp                                  | bool     | False            | Whether to use AMP if available to calculate log probabilities.         |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| device                               | str      | cuda             | The device to load the model onto to calculate log probabilities.       |
-|                                      |          |                  | It can `cpu`, `cuda`, `cuda:0`, `cuda:1`, ...                           |
+| cuda                                 | str      | None             | The device to load the model onto to calculate log probabilities.       |
+|                                      |          |                  | It can be `None`, `-1` for `cpu`, 0 for `cuda:0`, `1` for `cuda:1`, ... |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| decoding_mode                        | str      | beamsearch_ngram | The decoding scheme to be used for evaluation.                          |
-+--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| beam_width                           | float    | Required         | List of the width or list of the widths of the beam search decoding.    |
-+--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| beam_alpha                           | float    | Required         | List of the alpha parameter for the beam search decoding.               |
-+--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| beam_beta                            | float    | Required         | List of the beta parameter for the beam search decoding.                |
-+--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| beam_batch_size                      | int      | 128              | The batch size to be used for beam search decoding.                     |
-|                                      |          |                  | Larger batch size can be a little faster, but uses larger memory.       |
-+--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| decoding_strategy                    | str      | beam             | String argument for type of decoding strategy for the model.            |
-+--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| decoding                             | Dict     | BeamCTC          | Subdict of beam search configs. Values found via                        |
+| ctc_decoding                         | Dict     | CTCDecodingConfig| Subdict of CTCDecodingConfig configs. Values found via                  |
 |                                      | Config   | InferConfig      | python eval_beamsearch_ngram.py --help                                  |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| text_processing.do_lowercase         | bool     | ``False``        | Whether to make the training text all lower case.                       |
+| ctc_decoding.strategy                | str      | beam             | String argument for type of decoding strategy for the model.            |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| text_processing.punctuation_marks    | str      | ``""``           | String with punctuation marks to process. Example: ".\,?"               |
+| ctc_decoding.beam.beam_size          | float    | Required         | List of the width or list of the widths of the beam search decoding.    |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| text_processing.rm_punctuation       |  bool    | ``False``        | Whether to remove punctuation marks from text.                          |
+| ctc_decoding.beam.nemo_kenlm_path    | str      | Required         | The path to store the KenLM binary model file created by ``train_kenlm.py``.|
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| text_processing.separate_punctuation | bool     | ``True``         | Whether to separate punctuation with the previous word by space.        |
+| ctc_decoding.beam.word_kenlm_path    | str      | Required         | The path to store the word-level KenLM binary model file created by ``lmplz``.|
++--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
+| ctc_decoding.beam.beam_alpha         | float    | Required         | List of the alpha parameter for the beam search decoding.               |
++--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
+| ctc_decoding.beam.beam_beta          | float    | Required         | List of the beta parameter for the beam search decoding.                |
++--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
+| beam_batch_size                      | int      | 1                | The batch size to be used for beam search decoding.                     |
+|                                      |          |                  | Larger batch size can be a little faster, but uses larger memory.       |
++--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
+| text_processing                      | Dict     |TextProcessingConfig| Subdict of TextProcessingConfig.                                      |
+|                                      | Config   |                  | Values found via python eval_beamsearch_ngram.py --help                 |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 
-Width of the beam search (`--beam_width`) specifies the number of top candidates/predictions the beam search decoder
+Width of the beam search (`ctc_decoding.beam.beam_size`) specifies the number of top candidates/predictions the beam search decoder
 would search for. Larger beams result in more accurate but slower predictions.
 
 .. note::
 
-    The ``eval_beamsearch_ngram.py`` script contains the entire subconfig used for CTC Beam Decoding.
+    The ``eval_beamsearch_ngram_ctc.py`` script contains the entire subconfig used for CTC Beam Decoding.
     Therefore it is possible to forward arguments for various beam search libraries such as ``flashlight``
-    and ``pyctcdecode`` via the ``decoding`` subconfig.
+    and ``pyctcdecode`` via the ``ctc_decoding.strategy`` subconfig.
 
 There is also a tutorial to learn more about evaluating the ASR models with N-gram LM here:
 `Offline ASR Inference with Beam Search and External Language Model Rescoring <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Offline_ASR.ipynb>`_
 
-Beam Search Engines
--------------------
+CTC Beam Search Decoding Engines
+--------------------------------
 
-NeMo ASR CTC supports multiple beam search engines for decoding. The default engine is ``beam`` which is the OpenSeq2Seq
+NeMo ASR CTC supports multiple beam search engines for decoding. The default engine is ``beam`` which is the pyctcdecode
 decoding library.
 
-OpenSeq2Seq (``beam``)
-~~~~~~~~~~~~~~~~~~~~~~
 
-CPU-based beam search engine that is quite efficient and supports char and subword models. It requires a character/subword
-KenLM model to be provided.
+There is a table of supported values of ``ctc_decoding.strategy`` with different parameter combinations.
+V - means supported value and X - unsupported.
 
-The config for this decoding library is described above.
++----------+-------------+--------+------------------------+-----------------------+-------------+
+| Decoding | LM type     | greedy | flashlight with lexicon | flashlight no lexicon | pyctcdecode |
++==========+=============+========+========================+=======================+=============+
+| subword  | nemo_kenlm  | V      | V                      | X                     | X           |
++----------+-------------+--------+------------------------+-----------------------+-------------+
+| subword  | word_kenlm  | V      | V                      | X                     | V           |
++----------+-------------+--------+------------------------+-----------------------+-------------+
+| char     | nemo_kenlm  | V      | X                      | X                     | V           |
++----------+-------------+--------+------------------------+-----------------------+-------------+
+| char     | word_kenlm  | V      | V                      | X                     | V           |
++----------+-------------+--------+------------------------+-----------------------+-------------+
+
+**Subword** decoding - applied with ASR model which predicts a sequence of subword units.
+
+**Char** decoding - applied with ASR model which predicts a sequence of characters.
+
+**word_kenlm** - created using pure ``lmplz`` from `KenLM Language Model Toolkit <https://kheafield.com/code/kenlm/>`_
+
+**nemo_kenlm** and **flashlight lexicon** created using `NeMo script train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/ngram_lm/train_kenlm.py>`_
+
 
 Flashlight (``flashlight``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -224,6 +238,10 @@ Flashlight is a C++ library for ASR decoding provided at `https://github.com/fla
 char and subword models. It requires an ARPA KenLM file.
 
 It supports several advanced features such as lexicon based / lexicon free decoding, beam pruning threshold, and more.
+
+Subword based ASR model requires lexicon based decoding. 
+Lexicon for **nemo_kenlm** is created by using script `train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/train_kenlm.py>`_
+and for **word_kenlm** by using script `create_lexicon_from_arpa.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/ngram_lm/create_lexicon_from_arpa.py>`_.
 
 .. code-block:: python
 
@@ -239,17 +257,17 @@ It supports several advanced features such as lexicon based / lexicon free decod
 .. code-block::
 
     # Lexicon-based decoding
-    python eval_beamsearch_ngram.py ... \
-           decoding_strategy="flashlight" \
-           decoding.beam.flashlight_cfg.lexicon_path='/path/to/lexicon.lexicon' \
-           decoding.beam.flashlight_cfg.beam_size_token = 32 \
-           decoding.beam.flashlight_cfg.beam_threshold = 25.0
+    python eval_beamsearch_ngram_ctc.py ... \
+           ctc_decoding.strategy="flashlight" \
+           ctc_decoding.beam.flashlight_cfg.lexicon_path='/path/to/lexicon.lexicon' \
+           ctc_decoding.beam.flashlight_cfg.beam_size_token = 32 \
+           ctc_decoding.beam.flashlight_cfg.beam_threshold = 25.0
 
     # Lexicon-free decoding
-    python eval_beamsearch_ngram.py ... \
-           decoding_strategy="flashlight" \
-           decoding.beam.flashlight_cfg.beam_size_token = 32 \
-           decoding.beam.flashlight_cfg.beam_threshold = 25.0
+    python eval_beamsearch_ngram_ctc.py ... \
+           ctc_decoding.strategy="flashlight" \
+           ctc_decoding.beam.flashlight_cfg.beam_size_token = 32 \
+           ctc_decoding.beam.flashlight_cfg.beam_threshold = 25.0
 
 PyCTCDecode (``pyctcdecode``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -272,11 +290,11 @@ It has advanced features such as word boosting which can be useful for transcrip
 
     # PyCTCDecoding
     python eval_beamsearch_ngram.py ... \
-           decoding_strategy="pyctcdecode" \
-           decoding.beam.pyctcdecode_cfg.beam_prune_logp = -10. \
-           decoding.beam.pyctcdecode_cfg.token_min_logp = -5. \
-           decoding.beam.pyctcdecode_cfg.hotwords=[<List of str words>] \
-           decoding.beam.pyctcdecode_cfg.hotword_weight=10.0
+           ctc_decoding.strategy="pyctcdecode" \
+           ctc_decoding.beam.pyctcdecode_cfg.beam_prune_logp = -10. \
+           ctc_decoding.beam.pyctcdecode_cfg.token_min_logp = -5. \
+           ctc_decoding.beam.pyctcdecode_cfg.hotwords=[<List of str words>] \
+           ctc_decoding.beam.pyctcdecode_cfg.hotword_weight=10.0
 
 
 Hyperparameter Grid Search
@@ -290,10 +308,10 @@ For instance, the following set of parameters would results in 2*1*2=4 beam sear
 
 .. code-block::
 
-    python eval_beamsearch_ngram.py ... \
-                        beam_width=[64,128] \
-                        beam_alpha=[1.0] \
-                        beam_beta=[1.0,0.5]
+    python eval_beamsearch_ngram_ctc.py ... \
+                        ctc_decoding.beam.beam_size=[64,128] \
+                        ctc_decoding.beam.beam_alpha=[1.0] \
+                        ctc_decoding.beam.beam_beta=[1.0,0.5]
 
 
 Beam search ngram decoding for Transducer models (RNNT and HAT)
@@ -465,12 +483,12 @@ You can then pass this file to your flashlight config object during decoding:
 .. code-block::
 
     # Lexicon-based decoding
-    python eval_beamsearch_ngram.py ... \
-           decoding_strategy="flashlight" \
-           decoding.beam.flashlight_cfg.lexicon_path='/path/to/lexicon.lexicon' \
-           decoding.beam.flashlight_cfg.boost_path='/path/to/my_boost_file.boost' \
-           decoding.beam.flashlight_cfg.beam_size_token = 32 \
-           decoding.beam.flashlight_cfg.beam_threshold = 25.0
+    python eval_beamsearch_ngram_ctc.py ... \
+           ctc_decoding.strategy="flashlight" \
+           ctc_decoding.beam.flashlight_cfg.lexicon_path='/path/to/lexicon.lexicon' \
+           ctc_decoding.beam.flashlight_cfg.boost_path='/path/to/my_boost_file.boost' \
+           ctc_decoding.beam.flashlight_cfg.beam_size_token = 32 \
+           ctc_decoding.beam.flashlight_cfg.beam_threshold = 25.0
 
 
 Combine N-gram Language Models

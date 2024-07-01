@@ -24,8 +24,8 @@ same directory during execution.
 << All arguments of `transcribe_speech.py` are inherited by this script, so please refer to `transcribe_speech.py`
 for full list of arguments >>
 
-    dataset_manifest: Required - path to dataset JSON manifest file (in NeMo format)
-    output_filename: Optional - output filename where the transcriptions will be written. (if scores_per_sample=True,
+    dataset_manifest: Required - path to input dataset JSON manifest file (in NeMo format)
+    output_filename: Optional - output filename where the transcriptions will be written. (if scores_per_sample=True, 
     metrics per sample will be written there too)
 
     use_cer: Bool, whether to compute CER or WER
@@ -100,7 +100,10 @@ class EvaluationConfig(transcribe_speech.TranscriptionConfig):
     scores_per_sample: bool = False
 
     text_processing: Optional[TextProcessingConfig] = TextProcessingConfig(
-        punctuation_marks=".,?", separate_punctuation=False, do_lowercase=False, rm_punctuation=False,
+        punctuation_marks=".,?",
+        separate_punctuation=False,
+        do_lowercase=False,
+        rm_punctuation=False,
     )
 
 

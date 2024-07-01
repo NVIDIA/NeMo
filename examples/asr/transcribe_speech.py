@@ -54,7 +54,7 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   model_path: path to .nemo ASR checkpoint
   pretrained_name: name of pretrained ASR model (from NGC registry)
   audio_dir: path to directory with audio files
-  dataset_manifest: path to dataset JSON manifest file (in NeMo format)
+  dataset_manifest: path to input dataset JSON manifest file (in NeMo format)
 
   compute_timestamps: Bool to request greedy time stamp information (if the model supports it)
   compute_langs: Bool to request language ID information (if the model supports it)

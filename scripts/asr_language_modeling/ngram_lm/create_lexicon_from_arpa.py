@@ -26,6 +26,7 @@ import argparse
 import os
 import re
 
+from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.utils import logging
 
 if __name__ == "__main__":
@@ -34,6 +35,7 @@ if __name__ == "__main__":
     parser.add_argument("--dst", help="directory to store generated lexicon", default=None)
     parser.add_argument("--lower", action='store_true', help="Whether to lowercase the arpa vocab")
     parser.add_argument("--model", default=None, help="path to Nemo model for its tokeniser")
+    parser.add_argument("--langid", default=None, help="lang_id for model with AggregateTokenizer")
 
     args = parser.parse_args()
 
@@ -74,6 +76,16 @@ if __name__ == "__main__":
                 if tokenizer is None:
                     f.write("{w}\t{s}\n".format(w=word, s=" ".join(word)))
                 else:
-                    w_ids = tokenizer.text_to_ids(word)
-                    if tokenizer.unk_id not in w_ids:
-                        f.write("{w}\t{s}\n".format(w=word, s=" ".join(tokenizer.text_to_tokens(word))))
+                    if isinstance(tokenizer, AggregateTokenizer):
+                        if not args.langid:
+                            raise ValueError("--langid must be set for model with AggregateTokenizer")
+                        w_ids = tokenizer.text_to_ids(word, lang_id=args.langid)
+                        f.write(
+                            "{w}\t{s}\n".format(
+                                w=word, s=" ".join(tokenizer.text_to_tokens(word, lang_id=args.langid))
+                            )
+                        )
+                    else:
+                        w_ids = tokenizer.text_to_ids(word)
+                        if tokenizer.unk_id not in w_ids:
+                            f.write("{w}\t{s}\n".format(w=word, s=" ".join(tokenizer.text_to_tokens(word))))
