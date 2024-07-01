@@ -229,9 +229,8 @@ class Quantizer:
 
         # Setup model export handling: temporary directory for
         # '.qnemo' tarball or directly write to export_config.save_path
-        # TODO [later]: consider a flag like `export_config.compress`
-        save_qnemo = self.export_config.save_path.endswith(".qnemo")
-        if save_qnemo:
+        compress = self.export_config.get("compress", False)
+        if compress:
             export_handler = temporary_directory()
         else:
             export_handler = nullcontext(enter_result=self.export_config.save_path)
@@ -252,6 +251,6 @@ class Quantizer:
             )
             if dist.get_rank() == 0:
                 save_artifacts(model, export_dir)
-                if save_qnemo:
+                if compress:
                     with tarfile.open(self.export_config.save_path, "w:gz") as tar:
                         tar.add(export_dir, arcname="./")
