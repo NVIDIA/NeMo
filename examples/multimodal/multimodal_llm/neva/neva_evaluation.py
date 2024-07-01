@@ -22,16 +22,14 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.core.config import hydra_runner
 from nemo.utils.get_rank import is_global_rank_zero
 
-import multiprocessing
-
 try:
-    import ammo.torch.quantization as atq
+    import modelopt.torch.quantization as mtq
 
-    HAVE_AMMO = True
+    HAVE_MODELOPT = True
 
 except (ImportError, ModuleNotFoundError):
 
-    HAVE_AMMO = False
+    HAVE_MODELOPT = False
 
 if not torch.cuda.is_available():
     raise EnvironmentError("GPU is needed for the inference")
@@ -89,7 +87,7 @@ class TemporalNevaDataset(Dataset):
                     prompt_dict['prompt'] = self.media_token + " \n" + prompt_dict['prompt']
                 else:
                     prompt_dict['prompt'] = self.media_token + prompt_dict['prompt']
-            elif selfinsert_media_token == 'right':
+            elif self.insert_media_token == 'right':
                 if self.add_media_sep:
                     prompt_dict['prompt'] = prompt_dict['prompt'] + self.media_token + " \n"
                 else:
@@ -179,14 +177,14 @@ def main(cfg) -> None:
     responses, final_prompts = do_inference(dataloader, model, length_params, sampling_params, cfg)
 
     # =================== Start Quantization ====================
-    if HAVE_AMMO and cfg.quantization.enable == True:
+    if HAVE_MODELOPT and cfg.quantization.enable == True:
         print(f"Using quantization algorithm: {cfg.quantization.algorithm}")
         if cfg.quantization.algorithm == "int8_sq":
-            atq_config = atq.INT8_SMOOTHQUANT_CFG
+            mtq_config = mtq.INT8_SMOOTHQUANT_CFG
         elif cfg.quantization.algorithm == "fp8":
-            atq_config = atq.FP8_DEFAULT_CFG
+            mtq_config = mtq.FP8_DEFAULT_CFG
         elif cfg.quantization.algorithm == "awq":
-            atq_config = atq.INT4_AWQ_CFG
+            mtq_config = mtq.INT4_AWQ_CFG
         else:
             raise ValueError(f"Unsupported quantization algorithm: {cfg.quantization.algorithm}")
 
@@ -209,9 +207,10 @@ def main(cfg) -> None:
                                         num_workers=num_workers)
             _, _= do_inference(cur_dataloader, model, length_params, sampling_params, cfg)
 
-        atq.quantize(model, atq_config, forward_loop)
+        mtq.quantize(model, mtq_config, forward_loop)
+
         responses, final_prompts = do_inference(dataloader, model, length_params, sampling_params, cfg)
-        
+
     # ============== Quantization End =========================
 
     # PP middle stages do not yield any responses
