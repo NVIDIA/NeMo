@@ -141,7 +141,6 @@ class TensorRTLLM(ITritonDeployable):
         max_lora_rank: int = 64,
         max_num_tokens: int = None,
         opt_num_tokens: int = None,
-        save_nemo_model_config: bool = False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -173,7 +172,6 @@ class TensorRTLLM(ITritonDeployable):
             max_lora_rank (int): maximum lora rank.
             max_num_tokens (int):
             opt_num_tokens (int):
-            save_nemo_model_config (bool):
         """
 
         if n_gpus is not None:
