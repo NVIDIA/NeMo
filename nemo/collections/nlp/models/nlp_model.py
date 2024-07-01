@@ -459,10 +459,10 @@ class NLPModel(ModelPT, Exportable):
         override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = True,
-        validate_access_integrity: bool = True,
         return_config: bool = False,
         save_restore_connector: SaveRestoreConnector = None,
         trainer: Optional[Trainer] = None,
+        validate_access_integrity: bool = True,
     ):
         if save_restore_connector is None:
             save_restore_connector = NLPSaveRestoreConnector()
@@ -480,8 +480,8 @@ class NLPModel(ModelPT, Exportable):
             override_config_path,
             map_location,
             strict,
-            validate_access_integrity,
             return_config,
             save_restore_connector,
             trainer,
+            validate_access_integrity,
         )

@@ -1201,9 +1201,9 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = True,
-        validate_access_integrity: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
+        validate_access_integrity: bool = True,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -1236,9 +1236,9 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             override_config_path,
             map_location,
             strict,
-            validate_access_integrity,
             return_config,
             trainer,
+            validate_access_integrity,
         )
         if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params

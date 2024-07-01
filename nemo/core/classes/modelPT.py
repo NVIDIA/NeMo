@@ -419,10 +419,10 @@ class ModelPT(LightningModule, Model):
         override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = True,
-        validate_access_integrity: bool = True,
         return_config: bool = False,
         save_restore_connector: SaveRestoreConnector = None,
         trainer: Optional[Trainer] = None,
+        validate_access_integrity: bool = True,
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -471,9 +471,9 @@ class ModelPT(LightningModule, Model):
             override_config_path,
             map_location,
             strict,
-            validate_access_integrity,
             return_config,
             trainer,
+            validate_access_integrity,
         )
         if isinstance(instance, ModelPT):
             instance._save_restore_connector = save_restore_connector
