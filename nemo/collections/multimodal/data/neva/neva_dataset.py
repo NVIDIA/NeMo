@@ -34,16 +34,16 @@ from transformers import CLIPImageProcessor, SiglipImageProcessor
 import nemo.collections.multimodal.data.neva.conversation as conversation_lib
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.data.neva.conversation import (
+    DEFAULT_BOS_TOKEN,
+    DEFAULT_EOS_TOKEN,
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IMAGE_PATCH_TOKEN,
     DEFAULT_IMAGE_TOKEN,
     DEFAULT_LABELS_TOKEN,
-    DEFAULT_VIDEO_TOKEN,
-    DEFAULT_VID_START_TOKEN,
     DEFAULT_VID_END_TOKEN,
-    DEFAULT_BOS_TOKEN,
-    DEFAULT_EOS_TOKEN
+    DEFAULT_VID_START_TOKEN,
+    DEFAULT_VIDEO_TOKEN,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 

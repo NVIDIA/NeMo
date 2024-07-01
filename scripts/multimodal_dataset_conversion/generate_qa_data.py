@@ -104,20 +104,18 @@ python generate_qa_data.py --input_json <path_to_input_json>
 Please refer to the `convert_instruction_dataset.py` script for converting QA dataset to the format required by the model training script.
 """
 
-import json
-import time
-import random
-from pathlib import Path
-from tqdm import tqdm
 import argparse
-
+import json
 import os
-
-from dataclasses import dataclass, asdict
-from typing import List, Union
+import random
+import time
+from dataclasses import asdict, dataclass
 from multiprocessing import Pool
+from pathlib import Path
+from typing import List, Union
 
 import requests
+from tqdm import tqdm
 
 MODEL = "meta/llama3-70b-instruct"
 INVOKE_URL = "https://integrate.api.nvidia.com/v1/chat/completions"

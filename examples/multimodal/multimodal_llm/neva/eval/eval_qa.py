@@ -53,11 +53,13 @@ API_TOKEN=<YOUR API> python eval_qa.py --input_file <path_to_json_file> --output
 """
 
 import argparse
+import ast
 import json
 import os
 import re
-import ast
+
 import requests
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate Video Question Answering task.")

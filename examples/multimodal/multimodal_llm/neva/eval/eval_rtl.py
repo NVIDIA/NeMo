@@ -43,10 +43,10 @@ python eval_rtl.py --input_file <path_to_predictions.json> \
     --output_dir <path_to_output_dir> \
     --save_mid_result
 """
-import json
-import re
-import os
 import argparse
+import json
+import os
+import re
 from collections import defaultdict
 
 

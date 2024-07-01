@@ -111,8 +111,10 @@ python convert_DVC_dataset.py \
 import argparse
 import json
 import os
-import numpy as np
 import random
+
+import numpy as np
+
 #from nemo.collections.multimodal.data.neva.conversation import TIME_TOKEN_TEMPLATE
 TIME_TOKEN_TEMPLATE = "<t{t}>"
 caption_prompts = [

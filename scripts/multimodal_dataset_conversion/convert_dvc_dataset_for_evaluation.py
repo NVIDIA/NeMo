@@ -66,10 +66,11 @@ python convert_dvc_dataset_for_evaluation.py --input <input_file> --output_file 
 
 """
 
-import json
-import random
-import os
 import argparse
+import json
+import os
+import random
+
 
 class RTLConverter:
     def __init__(self, input_file, output_file, sample_ratio, ext):
