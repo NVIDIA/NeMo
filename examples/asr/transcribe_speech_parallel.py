@@ -110,7 +110,7 @@ class ParallelTranscriptionConfig:
     # att_context_size can be set for cache-aware streaming models with multiple look-aheads
     att_context_size: Optional[list] = None
 
-    trainer: TrainerConfig = TrainerConfig(devices=-1, accelerator="gpu", strategy="ddp", use_distributed_sampler=False)
+    trainer: TrainerConfig = TrainerConfig(devices=-1, accelerator="gpu", strategy="ddp")
 
 
 def match_train_config(predict_ds, train_ds):
@@ -169,8 +169,8 @@ def main(cfg: ParallelTranscriptionConfig):
         cfg.predict_ds.lang_field = "target_lang"
         data_loader = model._setup_dataloader_from_config(cfg.predict_ds, inference=True)
         OmegaConf.set_struct(cfg.predict_ds, True)
-
-    data_loader = model._setup_dataloader_from_config(cfg.predict_ds)
+    else:
+        data_loader = model._setup_dataloader_from_config(cfg.predict_ds)
 
     os.makedirs(cfg.output_path, exist_ok=True)
     # trainer.global_rank is not valid before predict() is called. Need this hack to find the correct global_rank.
