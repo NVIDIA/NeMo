@@ -203,3 +203,4 @@ export:
   inference_pipeline_parallel: 1 # Default using 1 PP for inference
   dtype: ${trainer.precision} # Default precision data type
   save_path: ${exp_manager.explicit_log_dir}/${name}-sft-${quantization.algorithm}.qnemo # Path where the quantized model will be saved
+  compress: false # Wheter save_path should be a tarball or a directory
