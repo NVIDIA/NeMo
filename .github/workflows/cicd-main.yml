@@ -2364,6 +2364,24 @@ jobs:
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /mnt/datadrive/TestData:/home/TestData
+    env:
+      # This is to improve p2p overlap on H100
+      NVTE_FWD_LAYERNORM_SM_MARGIN: 8
+      NVTE_BWD_LAYERNORM_SM_MARGIN: 8
+      TORCH_NCCL_AVOID_RECORD_STREAMS: 1
+      NCCL_MIN_NCHANNELS: 4
+      # TP overlap
+      #NVTE_UB_SPLIT_RS: 0
+      #NVTE_UB_ATOMIC_GEMM_RS: 1
+      #NVTE_RS_STRIDED_ATOMIC: 1
+      #NVTE_UB_FP8_RS: 1
+      #UB_SKIPMC: ""
+      # Increase p2p chunksize to 2MB
+      NCCL_P2P_NET_CHUNKSIZE: 2097152
+      # Enable per-communicator nccl option tuning
+      NCCL_CFG_PATH: "/workspace/llm/conf/nccl/custom_communicator_cta.yaml"
+      # Disable gc when switching to/from validation steps
+      NEMO_MANUAL_GC_IN_VALIDATION: 0
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
@@ -2378,6 +2396,14 @@ jobs:
             trainer.max_steps=3 \
             trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+            ++model.transformer_engine=True \
+            ++model.fp8=True \
+            ++model.fp8_hybrid=True \
+            ++model.fp8_amax_history_len=1024 \
+            ++model.fp8_amax_compute_algo=max \
+            ++model.reduce_amax=True \
+            ++model.use_te_rng_tracker=True \
+            ++model.name=megatron_gpt_full_te_layer_autocast \
             model.tensor_model_parallel_size=2 \
             model.optim.name=fused_adam \
             model.optim.lr=2e-4 \
@@ -2413,6 +2439,14 @@ jobs:
             trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
             exp_manager.resume_if_exists=True \
+            ++model.transformer_engine=True \
+            ++model.fp8=True \
+            ++model.fp8_hybrid=True \
+            ++model.fp8_amax_history_len=1024 \
+            ++model.fp8_amax_compute_algo=max \
+            ++model.reduce_amax=True \
+            ++model.use_te_rng_tracker=True \
+            ++model.name=megatron_gpt_full_te_layer_autocast \
             model.tensor_model_parallel_size=2 \
             model.optim.name=fused_adam \
             model.optim.lr=2e-4 \
