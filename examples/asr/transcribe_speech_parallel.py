@@ -112,9 +112,7 @@ class ParallelTranscriptionConfig:
     # att_context_size can be set for cache-aware streaming models with multiple look-aheads
     att_context_size: Optional[list] = None
 
-    trainer: TrainerConfig = TrainerConfig(
-        devices=-1, accelerator="gpu", strategy="ddp", use_distributed_sampler=False
-    )
+    trainer: TrainerConfig = TrainerConfig(devices=-1, accelerator="gpu", strategy="ddp")
 
 
 def match_train_config(predict_ds, train_ds):
