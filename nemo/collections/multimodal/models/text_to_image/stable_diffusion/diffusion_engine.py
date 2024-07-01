@@ -158,6 +158,13 @@ class DiffusionEngine(nn.Module, Serialization):
             out = self.first_stage_model.decode(z)
         return out
 
+    # same as above but differentiable
+    def differentiable_decode_first_stage(self, z):
+        z = 1.0 / self.scale_factor * z
+        with torch.autocast("cuda", enabled=not self.disable_first_stage_autocast):
+            out = self.first_stage_model.decode(z)
+        return out
+
     @torch.no_grad()
     def encode_first_stage(self, x):
         with torch.autocast("cuda", enabled=not self.disable_first_stage_autocast):

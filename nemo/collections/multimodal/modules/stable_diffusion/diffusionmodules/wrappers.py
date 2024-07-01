@@ -37,6 +37,7 @@ class OpenAIWrapper(IdentityWrapper):
     def forward(self, x: torch.Tensor, t: torch.Tensor, c: dict, **kwargs) -> torch.Tensor:
         if c.get("concat", None):
             x = torch.cat((x, c.get("concat")), dim=1)
+
         return self.diffusion_model(
             x, timesteps=t, context=c.get("crossattn", None), y=c.get("vector", None), **kwargs,
         )

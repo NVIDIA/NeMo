@@ -25,6 +25,7 @@ import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
+from pprint import pprint
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
@@ -789,6 +790,7 @@ class UNetModel(nn.Module):
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
                 self._feature_size += ch
                 input_block_chans.append(ch)
+
             if level != len(channel_mult) - 1:
                 out_ch = ch
                 self.input_blocks.append(
@@ -954,9 +956,9 @@ class UNetModel(nn.Module):
             )
 
         if from_pretrained is not None:
+            logging.info(f"Attempting to load pretrained unet from {from_pretrained}")
             if from_pretrained.endswith('safetensors'):
                 from safetensors.torch import load_file as load_safetensors
-
                 state_dict = load_safetensors(from_pretrained)
             else:
                 state_dict = torch.load(from_pretrained, map_location='cpu')
@@ -1021,6 +1023,16 @@ class UNetModel(nn.Module):
                     .replace('conv2', 'out_layers.3')
                     .replace('conv_shortcut', 'skip_connection')
                 )
+                ## Rohit: I've changed this to make sure it is compatible
+                # post_fix = (
+                #     key_[25:]
+                #     .replace('time_emb_proj', 'emb_layers.1')
+                #     .replace('norm1', 'in_layers.0')
+                #     .replace('norm2', 'out_layers.0')
+                #     .replace('conv1', 'in_layers.1')
+                #     .replace('conv2', 'out_layers.2')
+                #     .replace('conv_shortcut', 'skip_connection')
+                # )
                 res_dict["input_blocks." + str(target_id) + '.0.' + post_fix] = value_
             elif "attentions" in key_:
                 id_1 = int(key_[26])
@@ -1168,7 +1180,7 @@ class UNetModel(nn.Module):
         return new_state_dict
 
     def _state_key_mapping(self, state_dict: dict):
-
+        # state_dict is a HF model
         res_dict = {}
         input_dict = {}
         mid_dict = {}
@@ -1205,7 +1217,12 @@ class UNetModel(nn.Module):
     def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False, from_NeMo=False):
         state_dict = self._strip_unet_key_prefix(state_dict)
         if not from_NeMo:
+            print("creating state key mapping from HF")
+            # pprint(list(state_dict.keys()))
+            # input()
             state_dict = self._state_key_mapping(state_dict)
+            # pprint(state_dict.keys())
+            # input()
         state_dict = self._legacy_unet_ckpt_mapping(state_dict)
 
         model_state_dict = self.state_dict()
@@ -1214,6 +1231,11 @@ class UNetModel(nn.Module):
         original_loaded_keys = loaded_keys
         missing_keys = list(set(expected_keys) - set(loaded_keys))
         unexpected_keys = list(set(loaded_keys) - set(expected_keys))
+
+        # pprint(sorted(missing_keys))
+        # input("these are missing...")
+        # pprint(sorted(unexpected_keys))
+        # input("these are unexpected...")
 
         # SDXL specific mapping
         if 'output_blocks.2.2.conv.bias' in missing_keys and 'output_blocks.2.1.conv.bias' in loaded_keys:
