@@ -54,7 +54,7 @@ def get_args():
         help="Path to Huggingface Mistral-7b checkpoints",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
-    parser.add_argument("--precision", type=str, default="32", help="Model precision")
+    parser.add_argument("--precision", type=str, default="bf16", help="Model precision")
     args = parser.parse_args()
     return args
 
@@ -101,7 +101,7 @@ def load_config(mistral_config, tokenizer_path):
     ).model
     # akoumparouli: verify this.
     nemo_config.encoder_seq_length = mistral_config['sliding_window']
-    nemo_config.num_layers = int(mistral_config['num_hidden_layers'])
+    nemo_config.num_layers = 2 #int(mistral_config['num_hidden_layers'])
     nemo_config.hidden_size = mistral_config['hidden_size']
     nemo_config.ffn_hidden_size = mistral_config['intermediate_size']
     nemo_config.num_attention_heads = mistral_config['num_attention_heads']
@@ -331,7 +331,7 @@ def convert(args):
 
     model.save_to(args.output_path)
     logging.info(f'NeMo model saved to: {args.output_path}')
-
+    print(tokenizer)
 
 if __name__ == '__main__':
     args = get_args()
