@@ -71,7 +71,7 @@ class Quantizer:
 
     Available quantization methods are listed in `QUANT_CFG_CHOICES` dictionary above.
     Please consult Model Optimizer documentation https://nvidia.github.io/TensorRT-Model-Optimizer/ for details.
-    You can also inspect different choices in examples/nlp/language_modeling/conf/megatron_gpt_quantization.yaml
+    You can also inspect different choices in examples/nlp/language_modeling/conf/megatron_gpt_ptq.yaml
     for quantization algorithms and calibration data as well as recommended settings.
 
     Quantization algorithm can also be conveniently set to 'null' to perform only weights export step
