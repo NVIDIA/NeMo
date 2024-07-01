@@ -1,20 +1,19 @@
 import transformer_engine as te
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import io
 
-from pytorch_lightning.loggers import TensorBoardLogger
-
 
 class TestLoad:
     def test_reload_ckpt(self, tmpdir):
         trainer = nl.Trainer(
-            devices=1, 
-            accelerator="cpu", 
+            devices=1,
+            accelerator="cpu",
             strategy=nl.MegatronStrategy(),
-            logger=TensorBoardLogger("tb_logs", name="my_model")
+            logger=TensorBoardLogger("tb_logs", name="my_model"),
         )
         tokenizer = get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
         model = llm.GPTModel(

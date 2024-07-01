@@ -359,7 +359,7 @@ def track_io(target, artifacts: Optional[List[Artifact]] = None):
         if inspect.isclass(cls) and hasattr(cls, '__init__') and not hasattr(cls, '__io__'):
             if cls in [str, int, float, tuple, list, dict, bool, type(None)]:
                 return cls
-            
+
             cls = _io_wrap_init(cls)
             _io_register_serialization(cls)
             cls.__io_artifacts__ = artifacts or []
