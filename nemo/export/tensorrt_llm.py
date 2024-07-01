@@ -23,10 +23,13 @@ from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
+import safetensors
 import tensorrt_llm
 import torch
 import wrapt
 
+
+from tensorrt_llm._utils import numpy_to_torch
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
@@ -142,6 +145,7 @@ class TensorRTLLM(ITritonDeployable):
         max_num_tokens: int = None,
         opt_num_tokens: int = None,
         save_nemo_model_config: bool = False,
+        save_trtllm_ckpt: bool = False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -174,6 +178,7 @@ class TensorRTLLM(ITritonDeployable):
             max_num_tokens (int):
             opt_num_tokens (int):
             save_nemo_model_config (bool):
+            save_trtllm_ckpt (bool): if True, save TensorRT-LLM checkpoint and skip building engines
         """
 
         if n_gpus is not None:
@@ -281,6 +286,18 @@ class TensorRTLLM(ITritonDeployable):
                     use_parallel_embedding=use_parallel_embedding,
                     use_embedding_sharing=use_embedding_sharing,
                 )
+
+                if save_trtllm_ckpt:
+                    with open(os.path.join(self.model_dir, 'config.json'), 'w') as f:
+                        json.dump(model_configs[0].to_dict(), f, indent=4)
+
+                    for weight_dict, model_config in zip(weights_dicts, model_configs):
+                        weight_dict = {k: numpy_to_torch(v) for k, v in weight_dict.items()}
+                        safetensors.torch.save_file(
+                            weight_dict, os.path.join(self.model_dir, f'rank{model_config.mapping.rank}.safetensors')
+                        )
+
+                    return
 
                 for weight_dict, model_config in zip(weights_dicts, model_configs):
                     build_and_save_engine(
