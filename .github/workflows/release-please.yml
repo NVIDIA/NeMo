@@ -1,0 +1,130 @@
+name: "Prepare release"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Type of version bump'
+        required: true
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+          - pre-release
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.run_id }}
+          fetch-depth: 0
+          fetch-tags: true
+          
+      - name: Bump version
+        id: bump-version
+        env:
+          VERSION_FILE: ${{ github.run_id }}/nemo/package_info.py
+        run: |
+          MAJOR=$(sed -n 's/^MAJOR\s*=\s*\([0-9]\+\)/\1/p' $VERSION_FILE)
+          MINOR=$(sed -n 's/^MINOR\s*=\s*\([0-9]\+\)/\1/p' $VERSION_FILE)
+          PATCH=$(sed -n 's/^PATCH\s*=\s*\([0-9]\+\)/\1/p' $VERSION_FILE)
+          PRE_RELEASE=$(sed -n "s/^PRE_RELEASE\s*=\s*'\([^']\+\)'/\1/p" $VERSION_FILE) 
+
+          if [[ "${{ inputs.version_bump }}" == "major" ]]; then
+            MAJOR=$(( $MAJOR + 1 ))
+            MINOR=0
+            PATCH=0
+            PRE_RELEASE="''"
+          elif [[ "${{ inputs.version_bump }}" == "minor" ]]; then
+            MINOR=$(( $MINOR + 1 ))
+            PATCH=0
+            PRE_RELEASE="''"
+          elif [[ "${{ inputs.version_bump }}" == "minor" ]]; then
+            PATCH=$(( $PATCH + 1 ))
+            PRE_RELEASE="''"
+          elif [[ "${{ inputs.version_bump }}" == "pre-release" ]]; then
+            PRE_RELEASE="'"${PRE_RELEASE:0:2}$(( ${PRE_RELEASE:2} + 1 ))"'"
+          fi
+
+          sed -i 's/^MAJOR\s*=\s*[0-9]\+/MAJOR = '$MAJOR'/' $VERSION_FILE
+          sed -i 's/^MINOR\s*=\s*[0-9]\+/MINOR = '$MINOR'/' $VERSION_FILE
+          sed -i 's/^PATCH\s*=\s*[0-9]\+/PATCH = '$PATCH'/' $VERSION_FILE
+          sed -i 's/^PRE_RELEASE\s*=\s*'.*'/PRE_RELEASE = '$PRE_RELEASE'/' $VERSION_FILE
+
+          cat $VERSION_FILE
+          PRE_RELEASE=$(echo $PRE_RELEASE | tr -d "'")
+          echo "VERSION=$MAJOR.$MINOR.$PATCH$PRE_RELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Get most recent tag
+        id: recent-tag
+        run: |
+          cd ${{ github.run_id }}
+          TAG=$(git describe --tags "$(git rev-list --tags --max-count=1)")
+          echo "TAG=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build Changelog
+        id: build-changelog
+        uses: mikepenz/release-changelog-builder-action@v3.3.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Configuration file is setup with filters for domains
+          # owner:repo must point to current repo
+          # fromTag: Auto resolved from historical tag order (previous tag compared to current tag)
+          # toTag: Current tag reference
+          configuration: ".github/workflows/config/changelog-config.json"
+          owner: "ko3n1g"
+          repo: "NeMo"
+          ignorePreReleases: "false"
+          failOnError: "false"
+          fromTag: ${{ steps.recent-tag.outputs.TAG }}
+          toTag: ${{ github.sha }}
+
+      - name: Append Changelog
+        run: |
+          echo "${{ steps.build-changelog.outputs.changelog }}"
+
+
+      - name: Create Release PR
+        uses: peter-evans/create-pull-request@v6
+        id: create-pull-request
+        with:
+          path: ${{ github.run_id }}
+          branch: release/${{ steps.bump-version.outputs.VERSION }}
+          title: 'Release `${{ steps.bump-version.outputs.VERSION }}`'
+          body: |
+            🚀 PR to release NeMo `${{ steps.bump-version.outputs.VERSION }}`.
+
+            📝 Please remember the following to-do's before merge:
+            - [ ] Fill-in the comment `Highlights`
+            - [ ] Review the comment `Detailed Changelogs`
+
+            🚨 Please also keep in mind to _not_ delete the headings of the task commits. They are required by the post-merge automation.
+
+            🙏 Please merge this PR only if the CI workflow completed successfully.
+
+          commit-message: "[🤠]: Howdy folks, let's release NeMo `${{ steps.bump-version.outputs.VERSION }}` !"
+          signoff: true
+          # assignees: ericharper
+          labels: 'Run CICD'
+
+      - name: Add Summary comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ steps.create-pull-request.outputs.pull-request-number }}
+          body: |
+            # Highlights
+            _<here-goes-the-summary...>_
+
+      - name: Add Changelog comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ steps.create-pull-request.outputs.pull-request-number }}
+          body: |
+            # Detailed Changelogs
+            ${{ steps.build-changelog.outputs.changelog }}
+            
