@@ -344,33 +344,33 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return model
 
-    # def forward(
-    #     self,
-    #     encoder_input_ids,
-    #     decoder_input_ids,
-    #     encoder_attn_mask,
-    #     decoder_attn_mask,
-    #     token_type_ids=None,
-    #     lm_labels=None,
-    #     enc_output=None,
-    #     enc_output_attn_mask=None,
-    #     output_enc_hidden_only=False,
-    #     enc_input=None,
-    # ):
-    #     output_tensor = self.enc_dec_model(
-    #         enc_input_ids=encoder_input_ids,
-    #         dec_input_ids=decoder_input_ids,
-    #         enc_attn_mask=encoder_attn_mask,
-    #         dec_attn_mask=decoder_attn_mask,
-    #         token_type_ids=token_type_ids,
-    #         labels=lm_labels,
-    #         enc_output=enc_output,
-    #         enc_output_attn_mask=enc_output_attn_mask,
-    #         output_enc_hidden_only=output_enc_hidden_only,
-    #         enc_input=enc_input,
-    #     )
+    def forward(
+        self,
+        encoder_input_ids,
+        decoder_input_ids,
+        encoder_attn_mask,
+        decoder_attn_mask,
+        token_type_ids=None,
+        lm_labels=None,
+        enc_output=None,
+        enc_output_attn_mask=None,
+        output_enc_hidden_only=False,
+        enc_input=None,
+    ):
+        output_tensor = self.enc_dec_model(
+            enc_input_ids=encoder_input_ids,
+            dec_input_ids=decoder_input_ids,
+            enc_attn_mask=encoder_attn_mask,
+            dec_attn_mask=decoder_attn_mask,
+            token_type_ids=token_type_ids,
+            labels=lm_labels,
+            enc_output=enc_output,
+            enc_output_attn_mask=enc_output_attn_mask,
+            output_enc_hidden_only=output_enc_hidden_only,
+            enc_input=enc_input,
+        )
 
-    #     return output_tensor
+        return output_tensor
 
     def _execute_fwd_bwd_function(self, data_iterator, forward_only, tensor_shape, decoder_seq_length):
         """
@@ -459,11 +459,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # from multiple simultaneous NCCL calls
             self._optimizer._finish_bucket_grad_sync()
         elif self.megatron_amp_O2:
-            # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
-            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
+            if (
+                self.cfg.get('pipeline_model_parallel_size', 1) > 1
+                or self.cfg.get('sequence_parallel', False)
+                or not self.cfg.get('async_grad_allreduce', True)
+            ):
                 # main grads are stored in the MainParamsOptimizer wrapper
                 self._optimizer.allreduce_main_grads()
-
         else:
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we allreduce gradients after the pipeline
