@@ -50,13 +50,6 @@ try:
 except Exception:
     use_deploy = False
 
-try:
-    from megatron.core import parallel_state
-
-    HAVE_MEGATRON_CORE = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_MEGATRON_CORE = False
-
 
 @wrapt.decorator
 def noop_decorator(func):

@@ -456,7 +456,6 @@ def dist_model_to_trt_llm_ckpt(
         save_val(lm_head, dir=None, key='lm_head.weight', tp_num=None)
 
     for starmap_arg in tqdm(starmap_args, desc="saving weights"):
-        key = starmap_arg['key']
         split_and_save_weight(**starmap_arg)
 
     return weights_dict
