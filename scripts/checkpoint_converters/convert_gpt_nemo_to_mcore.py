@@ -88,6 +88,9 @@ def get_mcore_model_from_nemo_file(nemo_restore_from_path, cpu_only=False):
     model_cfg.mcore_gpt = True
     model_cfg.use_cpu_initialization = cpu_only
 
+    # The key mappings use TE spec, hence set the TE flag to True
+    model_cfg.transformer_engine = True
+
     logging.info("*** initializing mcore model with the following config")
     logging.info(OmegaConf.to_yaml(model_cfg))
     trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
