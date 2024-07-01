@@ -15,7 +15,6 @@ from typing import (
 )
 
 import torch
-from torch import Tensor
 from lightning_fabric.accelerators import CPUAccelerator
 from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.plugins.collectives.torch_collective import default_pg_timeout
@@ -23,35 +22,33 @@ from lightning_fabric.plugins.environments.cluster_environment import ClusterEnv
 from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
 from lightning_fabric.plugins.precision import Precision
 from lightning_fabric.strategies import DDPStrategy
-from lightning_fabric.utilities.imports import (
-    _TORCH_GREATER_EQUAL_2_1,
-)
 from lightning_fabric.strategies.strategy import _validate_keys_for_strict_loading
-from lightning_fabric.utilities.types import _PATH
-from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
+from lightning_fabric.utilities.imports import _TORCH_GREATER_EQUAL_2_1
+from lightning_fabric.utilities.types import _PATH, _Stateful
+from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.loops.fetchers import _DataFetcher
+from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.utilities.combined_loader import CombinedLoader
 from pytorch_lightning.utilities.model_helpers import is_overridden
-from lightning_fabric.utilities.types import _PATH, _Stateful
-from torch import nn
+from torch import Tensor, nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn import Module
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
-from megatron.core.distributed import DistributedDataParallelConfig
 from nemo.lightning import _strategy_lib
-from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
-from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.fabric.conversion import to_fabric
+from nemo.lightning.io.pl import MegatronCheckpointIO
+from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.strategies import MegatronStrategy
 
 if TYPE_CHECKING:
     from megatron.core.model_parallel_config import ModelParallelConfig
+
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
-    
-    
+
+
 DDPLiteral = Literal["megatron", "pytorch"]
 
 
@@ -102,16 +99,16 @@ class FabricMegatronStrategy(DDPStrategy):
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
         self.pipeline_dtype = pipeline_dtype
-        
+
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.megatron_callbacks = CallbackConnector()
         if megatron_callbacks:
             self.megatron_callbacks.add(megatron_callbacks)
         self.output_data_idx = output_data_idx
-        
+
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
-        
+
         self._ddp = ddp
         if ddp == "megatron":
             self.ddp_config = DistributedDataParallelConfig()
@@ -126,7 +123,7 @@ class FabricMegatronStrategy(DDPStrategy):
     @override
     def _setup_distributed(self) -> None:
         self._set_world_ranks()
-        
+
         assert self.cluster_environment is not None
         _strategy_lib.init_parallel_ranks(
             world_size=self.cluster_environment.world_size(),
@@ -134,10 +131,10 @@ class FabricMegatronStrategy(DDPStrategy):
             local_rank=self.cluster_environment.local_rank(),
             parallel_config=self.parallelism,
         )
-        
+
         super()._setup_distributed()
         torch.cuda.set_device(self.cluster_environment.local_rank())
-        
+
         # if self.data_config is not None:
         #     _strategy_lib.initialize_data(self.cluster_environment.global_rank(), self.data_config)
         _strategy_lib.init_model_parallel()
@@ -147,9 +144,7 @@ class FabricMegatronStrategy(DDPStrategy):
         loader = _strategy_lib.process_dataloader(dataloader, self.data_config)
 
         # Code taken from: https://github.com/Lightning-AI/pytorch-lightning/blob/6cbe9ceb560d798892bdae9186291acf9bf5d2e3/src/lightning/pytorch/loops/fit_loop.py#L258-L260
-        output = _MegatronDataLoaderIterDataFetcher(
-            self.data_config, output_data_idx=self.output_data_idx
-        )
+        output = _MegatronDataLoaderIterDataFetcher(self.data_config, output_data_idx=self.output_data_idx)
         output.setup(CombinedLoader(loader, "max_size_cycle"))
         iter(output)
 
@@ -168,11 +163,11 @@ class FabricMegatronStrategy(DDPStrategy):
     @override
     def setup_module(self, module: Module) -> MegatronParallel:
         _strategy_lib.set_model_parallel_attributes(module, self.parallelism)
-        
+
         # Call configure_model if it's overridden (relevant for LightningModules with lazy initialization)
         if hasattr(module, "configure_model"):
             module.configure_model()
-        
+
         convert_module_fn = None
         if hasattr(self.precision, "convert_module"):
             convert_module_fn = self.precision.convert_module
@@ -188,10 +183,11 @@ class FabricMegatronStrategy(DDPStrategy):
 
         if not self.ddp_config:
             from megatron.core import mpu
+
             from nemo.utils import AppState
-        
+
             app_state = AppState()
-            
+
             if app_state.model_parallel_size is not None:
                 self._ddp_kwargs["process_group"] = mpu.get_data_parallel_group()
 
@@ -205,7 +201,7 @@ class FabricMegatronStrategy(DDPStrategy):
                 dist_data_parallel.register_comm_hook(None, noop_hook)
 
             return dist_data_parallel
-        
+
         return megatron_parallel
 
     def module_init_context(self, empty_init: Optional[bool] = None) -> ContextManager:
@@ -221,10 +217,10 @@ class FabricMegatronStrategy(DDPStrategy):
         stack.enter_context(module_sharded_ctx)
 
         return stack
-    
+
     def module_to_device(self, module: nn.Module) -> None:
         pass
-    
+
     @override
     def save_checkpoint(
         self,
@@ -247,7 +243,7 @@ class FabricMegatronStrategy(DDPStrategy):
         """
         state = self._convert_stateful_objects_in_state(state, filter=(filter_dict or {}))
         self.checkpoint_io.save_checkpoint(checkpoint=state, path=path, storage_options=storage_options)
-        
+
     def load_checkpoint(
         self,
         path: _PATH,
@@ -256,7 +252,7 @@ class FabricMegatronStrategy(DDPStrategy):
     ) -> Dict[str, Any]:
         if isinstance(state, Optimizer):
             raise NotImplementedError("Optimizer loading is not supported, pass it as a dict including the model")
-        
+
         torch.cuda.empty_cache()
 
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors
@@ -274,16 +270,14 @@ class FabricMegatronStrategy(DDPStrategy):
                 if isinstance(obj, Module):
                     sharded_state_dict["state_dict"] = obj.sharded_state_dict()
                 elif isinstance(obj, Optimizer):
-                    sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(
-                        obj, is_loading=True
-                    )
-                
+                    sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(obj, is_loading=True)
+
         checkpoint = self.checkpoint_io.load_checkpoint(path, sharded_state_dict=sharded_state_dict)
-        
+
         if isinstance(state, Module):
             self.load_module_state_dict(module=state, state_dict=checkpoint, strict=strict)
             return {}
-        
+
         _validate_keys_for_strict_loading(state.keys(), checkpoint.keys(), strict=strict)
         for name, obj in state.copy().items():
             if name not in checkpoint:
@@ -295,15 +289,15 @@ class FabricMegatronStrategy(DDPStrategy):
                     obj.load_state_dict(checkpoint.pop(name))
             else:
                 state[name] = checkpoint.pop(name)
-        
+
         return checkpoint
-    
+
     @override
     def load_module_state_dict(
         self, module: Module, state_dict: Dict[str, Union[Any, Tensor]], strict: bool = True
     ) -> None:
         from megatron.core import parallel_state
-        
+
         for index, p_module in enumerate(module):
             if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                 if "state_dict" in state_dict:
@@ -352,16 +346,16 @@ class FabricMegatronStrategy(DDPStrategy):
 
         from megatron.core.transformer.custom_layers import transformer_engine as _te
 
-        original = _te._get_extra_te_kwargs   # noqa: SLF001
-        _te._get_extra_te_kwargs = monkey_patched   # noqa: SLF001
+        original = _te._get_extra_te_kwargs  # noqa: SLF001
+        _te._get_extra_te_kwargs = monkey_patched  # noqa: SLF001
 
         self.parallelism.perform_initialization = False
         self.parallelism.use_cpu_initialization = True
 
         yield
 
-        _te._get_extra_te_kwargs = original   # noqa: SLF001
-        
+        _te._get_extra_te_kwargs = original  # noqa: SLF001
+
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
@@ -371,7 +365,7 @@ class FabricMegatronStrategy(DDPStrategy):
             self._checkpoint_io.checkpoint_io = MegatronCheckpointIO()
 
         return self._checkpoint_io
-        
+
     @property
     def parallelism(self):
         from megatron.core.model_parallel_config import ModelParallelConfig
@@ -390,9 +384,7 @@ class FabricMegatronStrategy(DDPStrategy):
 
 # TODO: Fix this
 class _MegatronDataLoaderIterDataFetcher(_DataFetcher):
-    def __init__(
-        self, data_config, *args: Any, output_data_idx: bool = False, **kwargs: Any
-    ) -> None:
+    def __init__(self, data_config, *args: Any, output_data_idx: bool = False, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.data_config = data_config
         self.output_data_idx = output_data_idx
@@ -402,9 +394,7 @@ class _MegatronDataLoaderIterDataFetcher(_DataFetcher):
 
     def __iter__(self) -> "_MegatronDataLoaderIterDataFetcher":
         super().__iter__()
-        self.iterator_wrapper = iter(
-            _DataFetcherWrapper(self, output_data_idx=self.output_data_idx)
-        )
+        self.iterator_wrapper = iter(_DataFetcherWrapper(self, output_data_idx=self.output_data_idx))
         return self
 
     def __next__(self) -> Iterator["_DataFetcherWrapper"]:  # type: ignore[override]
@@ -448,13 +438,11 @@ class _DataFetcherWrapper(Iterator):
         fetcher = self.data_fetcher
         if fetcher.done:
             raise StopIteration
-        batch, batch_idx, dataloader_idx = super(
-            _MegatronDataLoaderIterDataFetcher, fetcher
-        ).__next__()
+        batch, batch_idx, dataloader_idx = super(_MegatronDataLoaderIterDataFetcher, fetcher).__next__()
         # save the state so the loops can access it
-        fetcher._batch = batch   # noqa: SLF001
-        fetcher._batch_idx = batch_idx   # noqa: SLF001
-        fetcher._dataloader_idx = dataloader_idx   # noqa: SLF001
+        fetcher._batch = batch  # noqa: SLF001
+        fetcher._batch_idx = batch_idx  # noqa: SLF001
+        fetcher._dataloader_idx = dataloader_idx  # noqa: SLF001
 
         if not self.output_data_idx:
             return batch

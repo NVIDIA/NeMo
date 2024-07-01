@@ -70,7 +70,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
 
     def setup_optimizer(self, optimizer: Optimizer) -> Optimizer:
         from nemo.core.optim import MainParamsOptimizerWrapper
-        
+
         return MainParamsOptimizerWrapper(
             optimizer,
             # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_base_model.py#L496
@@ -86,7 +86,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         """
         if not hasattr(module, "module"):
             return module
-        
+
         from megatron.core.transformer.module import Float16Module
         from megatron.core.utils import get_model_config
 
@@ -105,7 +105,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         **kwargs: Any,
     ) -> None:
         from nemo.core.optim import MainParamsOptimizerWrapper
-        
+
         assert isinstance(
             optimizer, MainParamsOptimizerWrapper
         ), "MegatronHalfPrecisionPlugin supports only the optimizer with master parameters"

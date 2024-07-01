@@ -5,8 +5,9 @@ import pytorch_lightning as pl
 from typing_extensions import Self
 
 from nemo.lightning.io.mixin import IOMixin, serialization, track_io
-from nemo.lightning.fabric.fabric import Fabric
 from nemo.lightning.fabric.conversion import to_fabric
+from nemo.lightning.fabric.fabric import Fabric
+from nemo.lightning.io.mixin import IOMixin
 
 
 class Trainer(pl.Trainer, IOMixin):
@@ -30,7 +31,7 @@ class Trainer(pl.Trainer, IOMixin):
             strategy = self.__io__.strategy
             if isinstance(strategy, fdl.Config):
                 strategy = fdl.build(strategy)
-            
+
             strategy = to_fabric(strategy)
         if hasattr(self.__io__, "plugins"):
             plugins = self.__io__.plugins

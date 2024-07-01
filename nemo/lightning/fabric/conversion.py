@@ -1,8 +1,10 @@
 from functools import singledispatch
 from typing import Any, TypeVar
 
-from pytorch_lightning import strategies as pl_strategies, plugins as pl_plugins
-from lightning_fabric import strategies as fl_strategies, plugins as fl_plugins
+from lightning_fabric import plugins as fl_plugins
+from lightning_fabric import strategies as fl_strategies
+from pytorch_lightning import plugins as pl_plugins
+from pytorch_lightning import strategies as pl_strategies
 
 T = TypeVar('T')
 FabricT = TypeVar('FabricT')
@@ -26,24 +28,24 @@ def to_fabric(obj: Any) -> Any:
         >>> from pytorch_lightning.strategies import Strategy as PLStrategy
         >>> from lightning_fabric.strategies import Strategy as FabricStrategy
         >>> from nemo.lightning.fabric.conversion import to_fabric
-        >>> 
+        >>>
         >>> # Define a custom PyTorch Lightning strategy
         >>> class CustomPLStrategy(PLStrategy):
         ...     def __init__(self, custom_param: str):
         ...         super().__init__()
         ...         self.custom_param = custom_param
-        >>> 
+        >>>
         >>> # Define a custom Fabric strategy
         >>> class CustomFabricStrategy(FabricStrategy):
         ...     def __init__(self, custom_param: str):
         ...         super().__init__()
         ...         self.custom_param = custom_param
-        >>> 
+        >>>
         >>> # Register a custom conversion
         >>> @to_fabric.register(CustomPLStrategy)
         ... def _custom_converter(strategy: CustomPLStrategy) -> CustomFabricStrategy:
         ...     return CustomFabricStrategy(custom_param=strategy.custom_param)
-        >>> 
+        >>>
         >>> # Use the custom conversion
         >>> pl_strategy = CustomPLStrategy(custom_param="test")
         >>> fabric_strategy = to_fabric(pl_strategy)
@@ -76,9 +78,9 @@ def _ddp_converter(strategy: pl_strategies.DDPStrategy) -> fl_strategies.DDPStra
         process_group_backend=strategy.process_group_backend,
         timeout=strategy._timeout,
         start_method=strategy._start_method,
-        **strategy._ddp_kwargs
+        **strategy._ddp_kwargs,
     )
-    
+
 
 @to_fabric.register(pl_strategies.FSDPStrategy)
 def _fsdp_converter(strategy: pl_strategies.FSDPStrategy) -> fl_strategies.FSDPStrategy:
@@ -88,7 +90,7 @@ def _fsdp_converter(strategy: pl_strategies.FSDPStrategy) -> fl_strategies.FSDPS
         cluster_environment=strategy.cluster_environment,
         process_group_backend=strategy.process_group_backend,
         timeout=strategy._timeout,
-        **strategy.kwargs
+        **strategy.kwargs,
     )
 
 

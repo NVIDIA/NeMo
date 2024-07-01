@@ -5,8 +5,8 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Protocol, TypeVar
 
 import torch
-from torch import nn
 from lightning.pytorch.utilities.model_helpers import is_overridden
+from torch import nn
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
@@ -118,8 +118,8 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 if hasattr(child, "set_tensor_parallel_group"):
                     tp_group = parallel_state.get_tensor_model_parallel_group()
                     child.set_tensor_parallel_group(tp_group)
-                    
-                    
+
+
 def set_model_parallel_attributes(model, parallelism):
     # Right now mcore sub-classes ModelParellelConfig, we should remove that
     # Given Lightning's structure it would be better if parallelism is a different object
@@ -137,9 +137,9 @@ def set_model_parallel_attributes(model, parallelism):
         config.expert_model_parallel_size = parallelism.expert_model_parallel_size
         config.moe_extended_tp = parallelism.moe_extended_tp
         config.sequence_parallel = parallelism.sequence_parallel
-        
+
         return config
-    
+
     return None
 
 

@@ -1,8 +1,11 @@
 import pytest
-from pytorch_lightning import strategies as pl_strategies, plugins as pl_plugins
-from lightning_fabric import strategies as fl_strategies, plugins as fl_plugins
-from nemo.lightning.fabric.conversion import to_fabric
+from lightning_fabric import plugins as fl_plugins
+from lightning_fabric import strategies as fl_strategies
+from pytorch_lightning import plugins as pl_plugins
+from pytorch_lightning import strategies as pl_strategies
+
 from nemo import lightning as nl
+from nemo.lightning.fabric.conversion import to_fabric
 
 
 class TestConversion:
@@ -43,7 +46,7 @@ class TestConversion:
             to_fabric(UnsupportedObject())
 
         assert "No Fabric converter registered for UnsupportedObject" in str(excinfo.value)
-        
+
     def test_megatron_strategy_conversion(self):
         pl_strategy = nl.MegatronStrategy(
             tensor_model_parallel_size=2,
@@ -64,7 +67,7 @@ class TestConversion:
         assert fabric_strategy.sequence_parallel is True
         assert fabric_strategy.expert_model_parallel_size == 2
         assert fabric_strategy.moe_extended_tp is True
-        
+
     def test_megatron_precision_conversion(self):
         pl_plugin = nl.MegatronMixedPrecision(precision='16-mixed')
         fabric_plugin = to_fabric(pl_plugin)

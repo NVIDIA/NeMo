@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Callable, Dict, Literal, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional
 
 import pytorch_lightning as L
 import torch
@@ -16,8 +16,8 @@ if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-    
-    
+
+
 def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
 
@@ -77,7 +77,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
 
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
-    
+
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
 
