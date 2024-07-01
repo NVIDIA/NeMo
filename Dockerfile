@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.01-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.02-py3
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
@@ -62,23 +62,27 @@ RUN apt-get update && \
   rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/
+
+ARG TE_TAG=bfe21c3d68b0a9951e5716fb520045db53419c5e
+ARG MCORE_TAG=02871b4df8c69fac687ab6676c4246e936ce92d0
+ARG APEX_TAG=810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c
 # Install megatron core, this can be removed once 0.3 pip package is released
 # We leave it here in case we need to work off of a specific commit in main
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
-  git checkout 02871b4df8c69fac687ab6676c4246e936ce92d0 && \
+  git checkout ${MCORE_TAG} && \
   pip install .
 
 # Performance optimizations for distributed optimizer: https://github.com/NVIDIA/apex/pull/1771
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
-  git checkout f058162b215791b15507bb542f22ccfde49c872d && \
+  git checkout ${APEX_TAG} && \
   pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
 # Transformer Engine 1.2.0
 RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
   cd TransformerEngine && \
-  git fetch origin da30634a6c9ccdbb6c587b6c93b1860e4b038204 && \
+  git fetch origin ${bfe21c3d68b0a9951e5716fb520045db53419c5e} && \
   git checkout FETCH_HEAD && \
   git submodule init && git submodule update && \
   NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
@@ -152,6 +156,7 @@ RUN --mount=from=nemo-src,target=/tmp/nemo,rw cd /tmp/nemo && pip install ".[all
 
 # Check install
 RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
+  python -c "import nemo.collections.asr as nemo_asr" && \
   python -c "import nemo.collections.tts as nemo_tts" && \
   python -c "import nemo_text_processing.text_normalization as text_normalization"
 
