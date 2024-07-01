@@ -463,7 +463,6 @@ def create_neva_model_and_processor(cfg):
                 else:
                     num_frames = min(len(vr), neva_cfg.data.num_frames)
                     indices = np.linspace(0, len(vr) - 1, num_frames, dtype=int)
-                    #frames = vr.get_batch(indices)
                     frames = [Image.fromarray(vr[i].asnumpy()).convert('RGB') for i in indices]
                     while len(frames) < neva_cfg.data.num_frames:
                         frames.append(frames[-1])
@@ -471,12 +470,15 @@ def create_neva_model_and_processor(cfg):
             frames = maybe_video_path
 
         dtype = torch_dtype_from_precision(neva_cfg.precision)
-        if neva_cfg.mm_cfg.vision_encoder.from_hf:
-            processor = CLIPImageProcessor.from_pretrained(
-                neva_cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=dtype
-            )
+
+        if neva_cfg.mm_cfg.vision_encoder.get("from_hf", False):
+            if "siglip" in neva_cfg.mm_cfg.vision_encoder.from_pretrained:
+                processor = SiglipImageProcessor.from_pretrained(neva_cfg.mm_cfg.vision_encoder.from_pretrained)
+            else:
+                # for clip and vit model
+                processor = CLIPImageProcessor.from_pretrained(neva_cfg.mm_cfg.vision_encoder.from_pretrained)
         else:
-            processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14", torch_dtype=dtype)
+            processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14")
 
         # support single video inference
         if neva_cfg.data.image_aspect_ratio == 'keep':

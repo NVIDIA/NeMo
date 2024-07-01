@@ -169,12 +169,14 @@ def eval(pred_file, output_dir, save_mid_result=True):
     for metric in metrics:
         values = []
         for vid in metrics[metric]:
-            values.extend(metrics[metric][vid])
-        # get average value
+            # get single video metric value
+            cur_metric_values = metrics[metric][vid]
+            values.append(sum(cur_metric_values)/len(cur_metric_values))
+        # get global average video metric value
         values = sum(values) / len(values)
         final_result[metric] = values
     
-    
+    print(final_result)
     output_file = os.path.join(output_dir, 'metrics.json')
     with open(output_file, 'w') as f:
         json.dump(final_result, f, indent=2)

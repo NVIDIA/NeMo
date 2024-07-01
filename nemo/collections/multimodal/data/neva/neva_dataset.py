@@ -175,7 +175,6 @@ class TarOrFolderVideoLoader:
             else:
                 num_frames = min(len(cap), self.data_cfg['num_frames'])
                 indices = np.linspace(0, len(cap) - 1, num_frames, dtype=int)
-                # frames = cap.get_batch(indices)
                 frames = [Image.fromarray(cap[i].asnumpy()).convert('RGB') for i in indices]
                 while len(frames) < self.data_cfg['num_frames']:
                     frames.append(frames[-1])
@@ -279,14 +278,15 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     if not is_multimodal:
         return sources
 
-    num_patches = image_token_len
-
-    if media_type == 'video':
-        num_patches *= multimodal_cfg['num_frames']
-
+    num_frames = multimodal_cfg['num_frames']
+    # vila
     if multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
-        num_patches //= 4
         image_token_len //= 4
+
+    num_patches = image_token_len
+    # TO DO: to support multiple images
+    if media_type == 'video':
+        num_patches *= num_frames
 
     if multimodal_cfg['use_im_start_end']:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * num_patches
@@ -298,7 +298,6 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
         if not multimodal_cfg.get('lita', None):
             raise ValueError("LITA config is missing")
         lita_video_arch = multimodal_cfg['lita']['lita_video_arch']
-        num_frames = multimodal_cfg['num_frames']
         num_temporal_tokens, num_spatial_tokens = num_frames, 0
         if lita_video_arch == 'temporal_all_resolution':
             sample_frames = min(multimodal_cfg['lita']['sample_frames'], num_frames)
@@ -310,21 +309,28 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
         num_tokens = num_temporal_tokens + num_spatial_tokens
 
         visual_token_format = multimodal_cfg['lita'].get('visual_token_format', 'v1')
+        media_start = DEFAULT_IM_START_TOKEN[model_type]
+        media_end = DEFAULT_IM_END_TOKEN[model_type]
+        image_patch = DEFAULT_IMAGE_PATCH_TOKEN[model_type]
         if visual_token_format == 'im_vid_start_end':
-            # insert vid start and vid end tokens & img_start and img_end
+            image_start, image_end = DEFAULT_IM_START_TOKEN[model_type], DEFAULT_IM_END_TOKEN[model_type]
+            vid_start, vid_end = DEFAULT_VID_START_TOKEN, DEFAULT_VID_END_TOKEN
             if multimodal_cfg['use_im_start_end']:
-                replace_token = DEFAULT_VID_START_TOKEN + num_temporal_tokens * DEFAULT_IMAGE_PATCH_TOKEN[model_type] + DEFAULT_VID_END_TOKEN + \
-                            DEFAULT_IM_START_TOKEN[model_type] + num_spatial_tokens * DEFAULT_IMAGE_PATCH_TOKEN[model_type] + DEFAULT_IM_END_TOKEN[model_type]
+                replace_token_list = [image_start + image_patch * image_token_len + image_end] * sample_frames
+                replace_token_list += [vid_start + image_patch * num_temporal_tokens + vid_end]
+                replace_token = "".join(replace_token_list)
             else:
-                replace_token = DEFAULT_VID_START_TOKEN + (num_temporal_tokens - 1) * DEFAULT_IMAGE_PATCH_TOKEN[model_type] + DEFAULT_VID_END_TOKEN + \
-                            DEFAULT_IM_START_TOKEN[model_type] + (num_spatial_tokens - 1) * DEFAULT_IMAGE_PATCH_TOKEN[model_type] + DEFAULT_IM_END_TOKEN[model_type]
-            replace_token = DEFAULT_IM_START_TOKEN[model_type] + replace_token + DEFAULT_IM_END_TOKEN[model_type]
+                replace_token_list = [image_start + image_patch * (image_token_len - 1) + image_end]
+                replace_token_list +=  [image_start + image_patch * image_token_len + image_end] * (sample_frames -1)
+                replace_token_list += [vid_start + image_patch * (num_temporal_tokens - 1) + vid_end]
+                replace_token = "".join(replace_token_list)
+            replace_token = media_start + replace_token + media_end
         else:
             if multimodal_cfg['use_im_start_end']:
-                replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * num_tokens
+                replace_token = image_patch * num_tokens
             else:
-                replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * (num_tokens - 2 )
-            replace_token = DEFAULT_IM_START_TOKEN[model_type] + replace_token + DEFAULT_IM_END_TOKEN[model_type]
+                replace_token = image_patch * (num_tokens - 2 )
+            replace_token = media_start + replace_token + media_end
 
     for source in sources:
         conversation = source['conversations']
@@ -343,7 +349,6 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
             conversation[0]['value'] = default_token
         for turn in conversation:
             turn["value"] = turn["value"].replace(default_token, replace_token)
-
     return sources
 
 
@@ -629,6 +634,7 @@ def preprocess_v1(
     tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
     tokens[tokens == bos_id] = 1  # <s>
     tokens[tokens == eos_id] = 2  # </s>
+    #tokens = torch.concat((torch.tensor([[1]]), tokens), axis=1) #lita 1.5 legacy
     labels = tokens.clone().detach()
 
     # Mask labels

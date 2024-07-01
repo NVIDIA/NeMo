@@ -43,13 +43,15 @@ class TemporalNevaDataset(Dataset):
                     media_token,
                     insert_media_token = None,
                     image_processor = None,
-                    video_processor = None):
+                    video_processor = None,
+                    add_media_sep = False):
         self.prompt_dicts = prompt_dicts
         self.media_token = media_token
         self.insert_media_token = insert_media_token
         self.media_base_path = media_base_path
         self.image_processor = image_processor
         self.video_processor = video_processor
+        self.add_media_sep = add_media_sep
         # [(media_name, [prompt_dict, prompt_dict, ...]), ...}
         self.media_prompt_list = []
         self.group_by_media(media_token)
@@ -83,9 +85,15 @@ class TemporalNevaDataset(Dataset):
             if 'prompt' not in prompt_dict:
                 prompt_dict['prompt'] = prompt_dict['text'] if 'text' in prompt_dict else prompt_dict['question']
             if self.insert_media_token == 'left':
-                prompt_dict['prompt'] = self.media_token + prompt_dict['prompt']
+                if self.add_media_sep:
+                    prompt_dict['prompt'] = self.media_token + " \n" + prompt_dict['prompt']
+                else:
+                    prompt_dict['prompt'] = self.media_token + prompt_dict['prompt']
             elif selfinsert_media_token == 'right':
-                prompt_dict['prompt'] = prompt_dict['prompt'] + self.media_token
+                if self.add_media_sep:
+                    prompt_dict['prompt'] = prompt_dict['prompt'] + self.media_token + " \n"
+                else:
+                    prompt_dict['prompt'] = prompt_dict['prompt'] + self.media_token
             if 'image' in prompt_dict:
                 prompt_dict['image_path'] = prompt_dict['image']
                 image_path = os.path.join(self.media_base_path, prompt_dict['image'])
@@ -159,7 +167,8 @@ def main(cfg) -> None:
                                   cfg.inference.media_base_path, \
                                   media_token, insert_media_token, \
                                   image_processor,
-                                  video_processor)
+                                  video_processor,
+                                  cfg.get("add_media_sep", False))
     #num_workers = min(multiprocessing.cpu_count()-1, 4)
     num_workers = 2
     dataloader = DataLoader(dataset,
@@ -191,7 +200,8 @@ def main(cfg) -> None:
                                               cfg.inference.media_base_path, \
                                               media_token, insert_media_token, \
                                               image_processor,
-                                              video_processor)
+                                              video_processor,
+                                              cfg.get("add_media_sep", False))
             cur_dataloader = DataLoader(cur_dataset,
                                         batch_size=cfg.inference.get("batch_size", 1),
                                         shuffle=False,

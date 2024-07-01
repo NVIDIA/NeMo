@@ -53,7 +53,7 @@ to nemo video training dataset format and convert the timestamps to the format r
         "conversations": [
             {
                 "from": "human",
-                "value": "<video>\n What is the first task performed in the video, and when does it start and end?"
+                "value": "<video> \nWhat is the first task performed in the video, and when does it start and end?"
             },
             {
                 "from": "gpt",
@@ -155,7 +155,7 @@ def convert(qa_dataset, output_file, num_time_tokens, ext=".mp4"):
             
             new_content = process(new_content, sample["duration"], num_time_tokens)
             if idx == 0 and new_role == "human":
-                new_content = "<video>\n" + new_content
+                new_content = "<video> \n" + new_content
             conversations.append({"from": new_role, "value": new_content})
     
         new_sample['id'] = id

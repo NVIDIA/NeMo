@@ -72,12 +72,13 @@ model:
       freeze: False
       model_type: llama_2 # `nvgpt` or `llama_2` supported
     vision_encoder:
-      from_pretrained: "Lin-Chen/ShareGPT4V-13B_Pretrained_vit-large336-l12" # path or name
+      from_pretrained: 'google/siglip-so400m-patch14-384' # path or name
       from_hf: True
-      crop_size: [336, 336]
+      crop_size: [384, 384]
       patch_dim: 14
-      hidden_size: 1024 # could be found from model but tricky in code
+      hidden_size: 1152 # could be found from model but tricky in code
       vision_select_layer: -2   # default to the last layer
+      vision_select_feature: 'cls_patch' # default is patch
       class_token_length: 1
       freeze: True
     lita:
@@ -86,7 +87,8 @@ model:
       sample_frames: 4  # for lita 1.5 sample_frames are used for spatial tokens, and spatial tokens will no longer do pooling and instead, it will use full tokens
     use_lita: True
     pretrain_mm_mlp_adapter: null # path to pretrained mm adapter
-    mm_mlp_adapter_type: mlp2x_gelu  # ['linear', 'mlp2x_gelu', 'mlp_downsample']
+    mm_mlp_adapter_type: mlp_downsample  # ['linear', 'mlp2x_gelu', 'mlp_downsample']
+    
     use_im_start_end: False
 
 
@@ -95,12 +97,12 @@ model:
   mcore_gpt: True
 
   # model architecture
-  encoder_seq_length: 4096
+  encoder_seq_length: 8192
   max_position_embeddings: ${.encoder_seq_length}
   position_embedding_type: rope
   num_layers: 32
   hidden_size: 4096
-  ffn_hidden_size: 11008 # Transformer FFN hidden size. Usually 4 * hidden_size.
+  ffn_hidden_size: 14336 # Transformer FFN hidden size. Usually 4 * hidden_size.
   num_attention_heads: 32
   init_method_std: 0.014 # Standard deviation of the zero mean normal distribution used for weight initialization.')
   use_scaled_init_method: True # use scaled residuals initialization
@@ -122,12 +124,13 @@ model:
   transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
   normalize_attention_scores: True # Whether to scale the output Q * K^T by 1 / sqrt(hidden_size_per_head). This arg is provided as a configuration option mostly for compatibility with models that have been weight-converted from HF. You almost always want to se this to True.
   rotary_percentage: 1.0 # If using position_embedding_type=rope, then the per head dim is multiplied by this.
+  rotary_base: 500000.0 # default is 10000
   attention_type: 'multihead' # Attention type. Options ['multihead']
   share_embeddings_and_output_weights: False # Share embedding and output layer weights.
   overlap_p2p_comm: False # Overlap p2p communication with computes. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE ex: https://arxiv.org/abs/2306.15595.
-  num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used.
+  num_query_groups: 8 # Number of query groups for group query attention. If None, normal attention is used.
 
   ## Activation Checkpointing
   activations_checkpoint_granularity: null # 'selective' or 'full'
@@ -178,9 +181,9 @@ model:
   gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
 
   tokenizer:
-    library: 'sentencepiece'
-    type: null
-    model: /ws/converted_nemo_model/tokenizer_1_5.model
+    library: 'huggingface'
+    type: /ws/converted_models/tokenizer
+    model: null
     vocab_file: null
     merge_file: null
     delimiter: null # only used for tabular tokenizer
@@ -199,8 +202,8 @@ model:
     num_frames: 256 # selects the number of frames to use from the video
     sep_token_between_frames: False # TODO: allow usage of separator tokens between frames
     sep_image_conv_front: False
-    image_token_len: 576
-    conv_template: v1 # check `nemo/collections/multimodal/data/neva/conversation.py`
+    image_token_len: 784 # 28x28
+    conv_template: llama_3 # check `nemo/collections/multimodal/data/neva/conversation.py`
     image_folder: null
     video_folder: null
     image_aspect_ratio: 'pad'

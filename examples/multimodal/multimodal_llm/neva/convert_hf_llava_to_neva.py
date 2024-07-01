@@ -31,7 +31,8 @@ from llava import LlavaLlamaForCausalLM
 from omegaconf import OmegaConf
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.trainer.trainer import Trainer
-from transformers import LlamaTokenizer
+from transformers import LlamaTokenizer, AutoTokenizer
+from safetensors import safe_open
 
 from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -65,6 +66,7 @@ def get_args():
     parser.add_argument("--mm_projector_ckpt_dir", type=str, default=None, \
                         help="Path to multimodal projector checkpoint directory \
                         This will overlap the projector weights in in-file hf checkpoint")
+    parser.add_argument("--mm_vision_tower", type=str, default=None)
     args = parser.parse_args()
     return args
 
@@ -119,6 +121,9 @@ def load_config(args, llava_config):
     nemo_config.mm_cfg.vision_encoder.from_pretrained = llava_config.get(
         'mm_vision_tower', 'openai/clip-vit-large-patch14'
     )
+
+    if args.mm_vision_tower is not None:
+        nemo_config.mm_cfg.vision_encoder.from_pretrained = args.mm_vision_tower
     if '336' in nemo_config.mm_cfg.vision_encoder.from_pretrained:
         nemo_config.data.image_token_len = 576
     nemo_config.encoder_seq_length = llava_config['max_position_embeddings']
@@ -137,14 +142,33 @@ def load_config(args, llava_config):
     nemo_config.data.image_aspect_ratio = llava_config.get('image_aspect_ratio', 'square')
     nemo_config.mm_cfg.model_type = args.conv_template
     if args.tokenizer_model is None:
-        nemo_config.tokenizer.model = llava_config['tokenizer_model']
+        if 'tokenizer_model' in llava_config:
+            nemo_config.tokenizer.model = llava_config['tokenizer_model']
+        else:
+            # Llama3 uses converted TikToken Tokenizer
+            tokenizer_dict = {
+                'library': 'huggingface',
+                'type': args.in_file,
+                'use_fast': True,
+            }
+            nemo_config.tokenizer = tokenizer_dict
     else:
-        nemo_config.tokenizer.model = args.tokenizer_model
+        # if tokenizer_model is directory
+        if os.path.isdir(args.tokenizer_model):
+            tokenizer_dict = {
+                'library': 'huggingface',
+                'type': args.tokenizer_model,
+                'use_fast': True,
+            }
+        else:
+            nemo_config.tokenizer.model = args.tokenizer_model
     if llava_config['rope_scaling'] is not None:
         if llava_config['rope_scaling']['type'] == 'linear':
             nemo_config['seq_len_interpolation_factor'] = llava_config['rope_scaling']['factor']
         else:
             raise ValueError("Only linear rope scaling type is supported now")
+    if llava_config.get('rope_theta', None):
+        nemo_config['rotary_base'] = llava_config['rope_theta']
 
     base = 128
     while llava_config['vocab_size'] % base != 0:
@@ -157,9 +181,13 @@ def load_config(args, llava_config):
 def convert(args):
     logging.info(f"loading checkpoint {args.in_file}")
     model = LlavaLlamaForCausalLM.from_pretrained(args.in_file)
-    tokenizer = LlamaTokenizer.from_pretrained(args.in_file)
     hf_config = vars(model.config)
-    hf_config['tokenizer_model'] = str(tokenizer.vocab_file)
+    if os.path.exists(f'{args.in_file}/tokenizer.model'):
+        tokenizer = LlamaTokenizer.from_pretrained(args.in_file)
+        hf_config['tokenizer_model'] = str(tokenizer.vocab_file)
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(args.in_file)
+
     print(f"hf_config: {hf_config}")
     print("named parameters:")
     for name, param in model.named_parameters():
@@ -247,12 +275,25 @@ def convert(args):
     # Replace or add the projection weights
     proj_ckpt = None
     if args.mm_projector_ckpt_dir is not None:
-        proj_ckpt = torch.load(os.path.join(args.mm_projector_ckpt_dir, "mm_projector.bin"))
-        if 'mm_projector' in key:
-            mm_projection_layer_suffix = key.split('mm_projector')[1]
-            checkpoint['state_dict'][
-                f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'
-            ] = param_to_weights(proj_ckpt[key])
+        if os.path.exists(args.mm_projector_ckpt_dir):
+            ckpt_path = os.path.join(args.mm_projector_ckpt_dir, "mm_projector.bin")
+            if os.path.exists(ckpt_path):
+                proj_ckpt = torch.load(ckpt_path)
+            else:
+                ckpt_path = os.path.join(args.mm_projector_ckpt_dir, "model.safetensors")
+                proj_ckpt = {}
+                with safe_open(ckpt_path, framework="pt", device="cuda") as f:
+                    for key in f.keys():
+                        new_key = key.replace("layers.", "mm_projector.")
+                        proj_ckpt[new_key] = f.get_tensor(key)
+        else:
+            raise FileNotFoundError(f"mm_projector_ckpt_dir {args.mm_projector_ckpt_dir} does not exist.")
+        for key in model.state_dict():
+            if 'mm_projector' in key:
+                mm_projection_layer_suffix = key.split('mm_projector')[1]
+                checkpoint['state_dict'][
+                    f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'
+                ] = param_to_weights(proj_ckpt[key])
         import json
         proj_conf_file = open(os.path.join(args.mm_projector_ckpt_dir, "config.json"))
 

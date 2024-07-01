@@ -138,6 +138,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         media_start_id,
         media_end_id,
         vision_select_layer=-1,
+        vision_select_feature="patch",
         class_token_length=1,
         use_im_start_end=False,
     ):
@@ -148,6 +149,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         self.class_token_length = class_token_length
         self.use_im_start_end = use_im_start_end
         self.vision_select_layer = vision_select_layer
+        self.vision_select_feature = vision_select_feature
         self.media = None
         self.set_accepted_adapter_types([MultimodalProjectorAdapterConfig._target_])
 
@@ -185,7 +187,10 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
                 self.vision_encoder.backbone.transformer.return_select_layer = self.vision_select_layer
                 vision_x = self.vision_encoder(vision_x)
         vision_x = rearrange(vision_x, "(b T F) v d -> b T F v d", b=b, T=T, F=F)
-        vision_x = vision_x[:, :, :, self.class_token_length :]
+        if self.vision_select_feature == "patch":
+            vision_x = vision_x[:, :, :, self.class_token_length :]
+        elif self.vision_select_feature == "cls_patch":
+            vision_x = vision_x
         assert self.is_adapter_available(), "Cannot find multimodal vision adapter!"
         vision_connector = self.get_adapter_module(AdapterName.MULTIMODAL_PROJECTOR_ADAPTER)
         vision_x = vision_connector(vision_x)
@@ -309,9 +314,11 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
         elif self.lita_video_arch == 'temporal_all_resolution':
             idx = np.round(np.linspace(0, tokens.shape[1] - 1, self.sample_frames)).astype(int)
             im_features = tokens[:, idx, ...] # B, num_frames, S, D
-            s_tokens = im_features.view(b, -1, H) # flatten the B, num_frames * S, D
-            t_tokens = reduce(tokens, 'b t s d -> b t d', 'mean')
-            return t_tokens, s_tokens
+            #im_tokens = im_features.view(b, -1, H) # flatten the B, num_frames * S, D
+            im_tokens = im_features
+            vid_tokens = reduce(tokens, 'b t s d -> b t d', 'mean')
+            # s and t tokens have been changed position
+            return im_tokens, vid_tokens
         else:
             raise ValueError(f"Unknown video architecture: {self.lita_video_arch}")
 
@@ -336,9 +343,9 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
         B, T, F, S, H = media_features.shape
         assert T == 1, "multiple videos per sample not supported yet"
         media_features = media_features.squeeze(1)
-        temporal_tokens, spatial_tokens = self.add_lita_layer(media_features) # B, T, D & B, M, D
-        T = temporal_tokens.shape[1]
-        M = spatial_tokens.shape[1]
+        t_tokens, s_tokens = self.add_lita_layer(media_features) # B, T, D & B, M, D
+        T = t_tokens.shape[1]
+        M = s_tokens.shape[1]
         inputs_embeds = inputs_embeds.clone()
         for idx, input_id in enumerate(input_ids):
             media_start_position = torch.where(input_id == self.media_start_id)[0]
@@ -360,21 +367,27 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
                 t_token_start, t_token_end = start, start + T
                 s_token_start, s_token_end = start + T, start + T + M
                 assert s_token_end == end + 1, "Token replacement error"
-            elif self.visual_token_format == 'im_vid_start_end':
-                t_token_start, t_token_end = start + 1, start + 1 + T # + 1 to skip vid_start
-                s_token_start, s_token_end = start + 3 + T, start + 3 + T + M # + 2 to skip vid_end and img_start
+                inputs_embeds[idx, t_token_start:t_token_end] = temporal_tokens[idx]
+                inputs_embeds[idx, s_token_start:s_token_end] = spatial_tokens[idx]
+            elif self.visual_token_format == 'im_vid_start_end': # v1.5 lita
                 if not self.use_media_start_end:
                     # replace the media start and media end embedding with
-                    # vid start embedding and img_end embedding
+                    # img_start and vid_end token embedding
                     inputs_embeds[idx, start] = inputs_embeds[idx, start + 1]
                     inputs_embeds[idx, end] = inputs_embeds[idx, end - 1]
-                assert s_token_end == end
+                # TO DO: To optimize the below codes
+                im_features, vid_features = t_tokens[idx], s_tokens[idx]
+                # im_feature: num_frames * S, D
+                emb_start = start + 1 # skip the img_start token
+                num_frames, S, D = im_features.shape
+                for i in range(num_frames):
+                    inputs_embeds[idx, emb_start : emb_start + S] = im_features[i]
+                    emb_start = emb_start + S + 2 # skip the img_end token and img_start token
+                T = vid_features.shape[0]
+                inputs_embeds[idx, emb_start : emb_start + T] = vid_features
+                assert emb_start + T == end
             else:
                 raise ValueError(f"Unsupported visual_token_format {self.visual_token_format}")
-
-            inputs_embeds[idx, t_token_start:t_token_end] = temporal_tokens[idx]
-            inputs_embeds[idx, s_token_start:s_token_end] = spatial_tokens[idx]
-
         return inputs_embeds
 
 
@@ -429,6 +442,7 @@ class NevaBaseModel:
                 media_start_id,
                 media_end_id,
                 vision_select_layer=mm_cfg.vision_encoder.get("vision_select_layer", -2),
+                vision_select_feature=mm_cfg.vision_encoder.get("vision_select_feature", "patch"),
                 class_token_length=mm_cfg.vision_encoder.get("class_token_length", 1),
                 use_im_start_end=mm_cfg.get("use_im_start_end", False),
             )

@@ -44,7 +44,7 @@ The converted dataset format is as follows:
         "video: "xxxx.mp4",
         "conversations":
         [
-            {"from": "human", "value": "<video>\n "Provide a detailed description of the given video.Prepend each sentence with its start and end timestamps."}, 
+            {"from": "human", "value": "<video> \n"Provide a detailed description of the given video.Prepend each sentence with its start and end timestamps."},
             {"from": "gpt", "value": "<t1> <t2> Apply eyeshadow on the crease with brush <t3> <t4> Apply eyeshadow on the outer corner of eyes with brush"}
         ],
         "duration": 125.0
@@ -55,7 +55,7 @@ The converted dataset format is as follows:
         "video: "xxxx.mp4",
         "conversations":
         [
-            {"from": "human", "value": "<video>\n "What is the action performed in this video?"}, 
+            {"from": "human", "value": "<video> \n"What is the action performed in this video?"},
             {"from": "gpt", "value": "brush hair"}
         ],
         "duration": 34.0
@@ -66,7 +66,7 @@ The converted dataset format is as follows:
         "video: "xxxx.mp4",
         "conversations":
         [
-            {"from": "human", "value": "<video>\n When does brush hair happen in the video? Answer the question only using start and end timestamps."}, 
+            {"from": "human", "value": "<video> \nWhen does brush hair happen in the video? Answer the question only using start and end timestamps."},
             {"from": "gpt", "value": "<t2> <t10>"}
         ],
         "duration": 34.0
@@ -178,7 +178,7 @@ def convert(input_dvc_dataset,
             else:
                 task_prompt = random.choice(prompts) + ' ' + random.choice(time_prompts)
 
-        return '<video>' + '\n' + task_prompt 
+        return '<video>' + ' \n' + task_prompt
 
     
     dvc_dataset = {}
@@ -205,6 +205,8 @@ def convert(input_dvc_dataset,
             if subtask == "event_localization":
                 # only pick one sentence and timestamps
                 idx = random.choice(range(len(texts)))
+                #rng = np.random.RandomState()
+                #idx = rng.choice(list(range(len(timestamps))))
                 texts = [texts[idx]]
                 timestamps = [timestamps[idx]]
             gpt_value = ""

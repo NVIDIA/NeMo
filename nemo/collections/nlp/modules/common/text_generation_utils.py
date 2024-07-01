@@ -152,7 +152,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
 
 
 def decode_time_tokens(tokenizer, text: str, duration: float, time_tokens: list[str], time_token_ids: list[int]):
-    """Decode the time tokens <t1>....<t99> in the text to the actual time in seconds.
+    """Decode the time tokens <t0>....<t99> in the text to the actual time in seconds.
        TO DO: to do time decoding on output ids instead of text
 
     Args:
@@ -183,8 +183,8 @@ def decode_time_tokens(tokenizer, text: str, duration: float, time_tokens: list[
         last_processed = indices[j]
     pred_seq = [int(x) for x in output_ids[last_processed + 1:]]
     new_output_ids.extend(pred_seq)
-    output_ids = [new_output_ids]
-    decoded_text = tokenizer.ids_to_text(output_ids)[0]
+    output_ids = new_output_ids
+    decoded_text = tokenizer.ids_to_text(output_ids)
     return decoded_text
 
 def encode_time_str(text: str, duration: float, num_time_tokens: int = 100, time_token_template: str = "<t{t}>"):
@@ -263,8 +263,12 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
                 r'|', r'\|'
             )
         )
-        pattern_lita = re.compile(rf'{DEFAULT_IM_START_TOKEN[model_type]}{DEFAULT_VID_START_TOKEN}( ⁇ )+{DEFAULT_VID_END_TOKEN}{DEFAULT_IM_START_TOKEN[model_type]}( ⁇ )+{DEFAULT_IM_END_TOKEN[model_type]}{DEFAULT_IM_END_TOKEN[model_type]}')
-        combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}|{pattern_lita.pattern}')
+
+        if use_lita:
+            pattern_lita = re.compile(rf'{DEFAULT_IM_START_TOKEN[model_type]}(.)+{DEFAULT_IM_END_TOKEN[model_type]}')
+            combined_pattern = re.compile(f'{pattern_lita.pattern}')
+        else:
+            combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}')
         clean_text = re.sub(combined_pattern, f"<{media_type_token}>", response['sentences'][0])
 
         clean_response = clean_text
