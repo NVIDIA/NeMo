@@ -17,7 +17,6 @@ from inspect import isfunction
 
 import torch
 import torch.nn.functional as F
-from apex.contrib.group_norm import GroupNorm
 from einops import rearrange, repeat
 from torch import einsum, nn
 from torch._dynamo import disable
@@ -25,9 +24,13 @@ from torch._dynamo import disable
 if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
     from nemo.gn_native import GroupNormNormlization as GroupNorm
 else:
-    from apex.contrib.group_norm import GroupNorm
+    try:
+        from apex.contrib.group_norm import GroupNorm
 
-from transformer_engine.pytorch.module import LayerNormLinear, LayerNormMLP
+        OPT_GROUP_NORM = True
+    except Exception:
+        print('Fused optimized group norm has not been installed.')
+        OPT_GROUP_NORM = False
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import checkpoint
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
@@ -36,6 +39,14 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.core import adapter_mixins
 from nemo.utils import logging
+
+try:
+    from transformer_engine.pytorch.module import LayerNormLinear, LayerNormMLP
+
+    HAVE_TE = True
+
+except (ImportError, ModuleNotFoundError):
+    HAVE_TE = False
 
 
 def check_cuda():
@@ -56,7 +67,6 @@ try:
     from flash_attn.modules.mha import FlashCrossAttention, FlashSelfAttention
 
     flash_attn_installed = check_cuda()
-    print("FlashAttention Installed")
 
     # Disable TorchDynamo on FlashAttention
     FlashSelfAttention.forward = disable(FlashSelfAttention.forward)
@@ -112,7 +122,11 @@ class FeedForward(nn.Module):
         if use_te:
             activation = 'gelu' if not glu else 'geglu'
             # TODO: more parameters to be confirmed, dropout, seq_length
-            self.net = LayerNormMLP(hidden_size=dim, ffn_hidden_size=inner_dim, activation=activation,)
+            self.net = LayerNormMLP(
+                hidden_size=dim,
+                ffn_hidden_size=inner_dim,
+                activation=activation,
+            )
         else:
             norm = nn.LayerNorm(dim)
             project_in = nn.Sequential(LinearWrapper(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
@@ -254,7 +268,7 @@ class CrossAttention(nn.Module):
         self.query_dim = query_dim
         self.dim_head = dim_head
 
-        self.scale = dim_head ** -0.5
+        self.scale = dim_head**-0.5
         self.heads = heads
 
         self.to_k = LinearWrapper(context_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
