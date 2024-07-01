@@ -154,41 +154,23 @@ class StragglerDetectionParams:
     gpu_relative_perf_threshold: float = 0.7
     gpu_individual_perf_threshold: float = 0.7
     stop_if_detected: bool = False
-
+    
 
 @dataclass
 class FaultToleranceParams:
-    """
-    NOTE: This config section is also read by the launcher.
-    NOTE: Default values should match fault_tolerance.FaultToleranceConfig.
-    """
-
-    """ Periodic workload check interval in workload monitor """
+    # NOTE: This config section is also read by the launcher.
+    # NOTE: Default values should match fault_tolerance.FaultToleranceConfig.
+    
     workload_check_interval: float = 5.0
-    """ Timeout for first heartbeat from a rank:
-    if rank does not send first heartbeat within `initial_rank_heartbeat_timeout`, failure is detected.
-    If None this timeout needs to be deduced and set during runtime, based the observed heartbeat intervals. """
     initial_rank_heartbeat_timeout: Optional[float] = 60.0 * 60.0
-    """ Timeout for subsequent heartbeats from a rank: 
-    if no rank heartbeat is received within `rank_heartbeat_timeout`, failure is detected 
-    If None this timeout needs to be deduced and set during runtime, based the observed heartbeat intervals. """
     rank_heartbeat_timeout: Optional[float] = 45.0 * 60.0
-    """ Try to calculate `rank_heartbeat_timeout` and `initial_rank_heartbeat_timeout`
-        based on the observed heartbeat intervals. """
     calculate_timeouts: bool = True
-    """ Signal used to terminate the rank when failure is detected """
     rank_termination_signal: signal.Signals = signal.SIGKILL
-    """ Log level for the FT client and server(rank monitor) """
     log_level: str = 'INFO'
-    """ Used by FT launcher: Max number of restarts for a rank """
     max_rank_restarts: int = 0
-    """ Used by FT launcher: How many subsequent job failures allowed until stop autoresuming. 0 - do not autoresume """
     max_subsequent_job_failures: int = 0
-    """ Additional FT launcher params """
     additional_ft_launcher_args: str = ''
-    """ For debug and development purposes only. """
     simulated_fault: Optional[Any] = None
-
 
 @dataclass
 class ExpManagerConfig:
