@@ -468,7 +468,7 @@ def convert_model_config_to_dict_config(cfg: Union['DictConfig', 'NemoConfig']) 
 
 
 def _convert_config(cfg: 'OmegaConf'):
-    """ Recursive function convertint the configuration from old hydra format to the new one. """
+    """Recursive function convertint the configuration from old hydra format to the new one."""
     if not _HAS_HYDRA:
         logging.error("This function requires Hydra/Omegaconf and it was not installed.")
         exit(1)
@@ -671,9 +671,9 @@ def inject_model_parallel_rank(filepath, fsdp_sharded_ckpt=False):
 
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
-    """ PTL considers checkpoints as .ckpt files.
-        This method removes the extension and returns a path
-        to be used as a directory for distributed checkpoints
+    """PTL considers checkpoints as .ckpt files.
+    This method removes the extension and returns a path
+    to be used as a directory for distributed checkpoints
     """
 
     filepath = Path(filepath)

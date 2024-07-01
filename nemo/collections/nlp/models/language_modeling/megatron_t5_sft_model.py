@@ -57,7 +57,7 @@ __all__ = ['MegatronT5SFTModel']
 
 
 class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
-    """ T5 Finetuning model in the same format as MegatronGPTSFTModel """
+    """T5 Finetuning model in the same format as MegatronGPTSFTModel"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         if not HAVE_APEX:
@@ -290,8 +290,8 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
 
     def fwd_bwd_step(self, dataloader_iter, forward_only):
         """
-            Dataloader produces a global batch which is turned into a list of microbatches.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        Dataloader produces a global batch which is turned into a list of microbatches.
+        The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         # If tuple, 1st element in it is the batch since dataloader_iter returns batch, batch_idx, dataloader_idx
         batch = next(dataloader_iter)
@@ -605,7 +605,13 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
         # return super().on_test_epoch_end()
 
     def build_data_loader(
-        self, dataset, global_batch_size, shuffle, num_workers, pin_memory, drop_last,
+        self,
+        dataset,
+        global_batch_size,
+        shuffle,
+        num_workers,
+        pin_memory,
+        drop_last,
     ):
         """Buld dataloader given an input dataset."""
 
@@ -652,9 +658,11 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
         for dataset in datasets:
             eval_dl = self.build_data_loader(
                 dataset,
-                global_batch_size=self.cfg.data.test_ds.global_batch_size
-                if hasattr(self.cfg.data, "test_ds")
-                else self.cfg.data.validation_ds.global_batch_size,
+                global_batch_size=(
+                    self.cfg.data.test_ds.global_batch_size
+                    if hasattr(self.cfg.data, "test_ds")
+                    else self.cfg.data.validation_ds.global_batch_size
+                ),
                 shuffle=data_cfg.shuffle,
                 num_workers=data_cfg.num_workers,
                 pin_memory=data_cfg.pin_memory,

@@ -190,8 +190,7 @@ class BertTokenClassificationDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
@@ -214,7 +213,7 @@ class BertTokenClassificationDataset(Dataset):
         ignore_start_end: bool = False,
         use_cache: bool = True,
     ):
-        """ Initializes BertTokenClassificationDataset. """
+        """Initializes BertTokenClassificationDataset."""
 
         data_dir = os.path.dirname(text_file)
         text_filename = os.path.basename(text_file)
@@ -315,8 +314,7 @@ class BertTokenClassificationInferDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
@@ -325,7 +323,10 @@ class BertTokenClassificationInferDataset(Dataset):
         }
 
     def __init__(
-        self, queries: List[str], max_seq_length: int, tokenizer: TokenizerSpec,
+        self,
+        queries: List[str],
+        max_seq_length: int,
+        tokenizer: TokenizerSpec,
     ):
         """
         Initializes BertTokenClassificationInferDataset

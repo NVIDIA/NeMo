@@ -374,7 +374,7 @@ def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
 
 def wrap_module(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
     """
-    Generic function generator to replace BaseT module with DestT wrapper. 
+    Generic function generator to replace BaseT module with DestT wrapper.
     Args:
         BaseT : module type to replace
         DestT : destination module type
@@ -441,7 +441,7 @@ script_replacements = {}
 
 def replace_for_export(model: nn.Module) -> nn.Module:
     """
-    Top-level function to replace 'default set' of modules in model, called from _prepare_for_export. 
+    Top-level function to replace 'default set' of modules in model, called from _prepare_for_export.
     NOTE: This occurs in place, if you want to preserve model then make sure to copy it first.
     Args:
         model : top level module

@@ -59,7 +59,7 @@ REPLACE_NOT_ALLOWED_CHARACTERS_IN_FILE_NAME = re.compile(f"-*[^a-zA-Z0-9_.-]+-*"
 DATASET_PARAMETERS_TMPL = "{prefix}.tokens{tokens_in_batch}.max_seq_length{max_seq_length}.{tokenizer}"
 TAR_FINAL_TMPL = ".batches{num_batches}.{ctr}.tar"
 
-PROGRESS_REPORT_PERIOD = 10 ** 4
+PROGRESS_REPORT_PERIOD = 10**4
 
 METADATA_PUNCT_LABEL_VOCAB_KEY = 'punct_label_vocab_file'
 METADATA_CAPIT_LABEL_VOCAB_KEY = 'capit_label_vocab_file'
@@ -192,9 +192,12 @@ def process_fragment(
             oafd, tmp_audio = tempfile.mkstemp(
                 suffix='.txt', prefix=f'audio_{fragment_idx}_', dir=output_dir, text=True
             )
-        with text_file.open() as tf, labels_file.open() as lf, os.fdopen(otfd, 'w') as otf, os.fdopen(
-            olfd, 'w'
-        ) as olf:  # handle audio manifest
+        with (
+            text_file.open() as tf,
+            labels_file.open() as lf,
+            os.fdopen(otfd, 'w') as otf,
+            os.fdopen(olfd, 'w') as olf,
+        ):  # handle audio manifest
             if use_audio:
                 mf = audio_file.open()
                 mf.seek(audio_file_start_pos)
@@ -958,7 +961,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports. """
+        """Returns definitions of module output ports."""
         if self.use_audio:
             return {
                 'input_ids': NeuralType(('B', 'T'), ChannelType()),

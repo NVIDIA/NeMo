@@ -289,7 +289,7 @@ class ThutmoseTaggerModel(NLPModel):
     # Functions for inference
     @torch.no_grad()
     def _infer(self, sents: List[str]) -> List[List[int]]:
-        """ Main function for Inference
+        """Main function for Inference
 
         Args:
             sents: A list of input sentences (lowercase spoken-domain words separated by space).
