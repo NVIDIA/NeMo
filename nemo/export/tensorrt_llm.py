@@ -347,7 +347,9 @@ class TensorRTLLM(ITritonDeployable):
         """
         assert tensorrt_llm.mpi_rank() == torch.distributed.get_rank()
         self.use_refit, self.model_type, self.gpus_per_node = use_refit, model_type, gpus_per_node
-        self.mp_rank, self.dp_rank, self.tp_size, self.pp_size, self.dp_size = init_model_parallel_from_nemo(reshard_model)
+        self.mp_rank, self.dp_rank, self.tp_size, self.pp_size, self.dp_size = init_model_parallel_from_nemo(
+            reshard_model
+        )
         self.tokenizer = build_tokenizer(tokenizer)
 
         if self.dp_size > 1:
@@ -364,8 +366,9 @@ class TensorRTLLM(ITritonDeployable):
             use_parallel_embedding=True,
             use_distributed_convert=True,
             model_parallel_rank=self.mp_rank,
-            vocab_size=self.tokenizer.vocab_size)
-            
+            vocab_size=self.tokenizer.vocab_size,
+        )
+
         engine = build_and_save_engine(
             max_input_len=max_input_len,
             max_output_len=max_output_len,
@@ -375,7 +378,8 @@ class TensorRTLLM(ITritonDeployable):
             model_dir=self.model_dir,
             model_type=model_type,
             custom_all_reduce=False,
-            use_refit=use_refit)
+            use_refit=use_refit,
+        )
         torch.distributed.barrier()
 
         cfg_path = Path(os.path.join(self.model_dir, f'config_{torch.distributed.get_rank()}.json'))

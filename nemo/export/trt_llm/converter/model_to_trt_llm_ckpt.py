@@ -393,7 +393,7 @@ def dist_model_to_trt_llm_ckpt(
         if not have_tensor:
             return None
 
-        if reshard_model: # Broadcast tensor to all PP groups
+        if reshard_model:  # Broadcast tensor to all PP groups
             if torch.distributed.get_rank() == pp_src_idx:
                 shape = tensor.shape
             else:
@@ -407,12 +407,14 @@ def dist_model_to_trt_llm_ckpt(
     # ----------------Convert Final Layernorm----------------
     if pp_is_last or reshard_model:
         ln_f = try_get_model_level_weight(
-            get_layer_name("final_layernorm.weight", transformer_layer_prefix), pp_last_rank)
+            get_layer_name("final_layernorm.weight", transformer_layer_prefix), pp_last_rank
+        )
         if ln_f is not None:
             starmap_args.append(starmap_config | {'key': "final_layernorm.weight", 'vals': ln_f})
 
         ln_f_bias = try_get_model_level_weight(
-            get_layer_name("final_layernorm.bias", transformer_layer_prefix), pp_last_rank)
+            get_layer_name("final_layernorm.bias", transformer_layer_prefix), pp_last_rank
+        )
         if ln_f_bias is not None:
             starmap_args.append(starmap_config | {'key': "final_layernorm.bias", 'vals': ln_f_bias})
 
@@ -422,10 +424,11 @@ def dist_model_to_trt_llm_ckpt(
         if tensor is None:
             return None
 
-        if tp_size > 1: # Gather padded tensor chunks
+        if tp_size > 1:  # Gather padded tensor chunks
             vocab_size_padded = tensor.shape[0] * tp_size
             vocab_start_index, vocab_end_index = VocabUtility.vocab_range_from_global_vocab_size(
-                vocab_size_padded, tp_rank, tp_size)
+                vocab_size_padded, tp_rank, tp_size
+            )
             dim_size = list(tensor.size())
             dim_size[0] = vocab_size_padded
             gathered_tensor = torch.zeros(dim_size, dtype=tensor.dtype, device=torch.cuda.current_device())
@@ -433,11 +436,12 @@ def dist_model_to_trt_llm_ckpt(
             torch.distributed.all_reduce(gathered_tensor, group=tp_group)
             tensor = gathered_tensor
         unpadded = tensor[:tokenizer_vocab_size]
-        if tp_size > 1: #Split gathered tensor for tensor parallel embedding
+        if tp_size > 1:  # Split gathered tensor for tensor parallel embedding
             vocab_start_index, vocab_end_index = VocabUtility.vocab_range_from_global_vocab_size(
-                tokenizer_vocab_size, tp_rank, tp_size)
-            unpadded = unpadded[vocab_start_index:vocab_end_index] 
-        return unpadded.T #TRTLLM expects (vocab_size, hidden_size) so need extra transpose
+                tokenizer_vocab_size, tp_rank, tp_size
+            )
+            unpadded = unpadded[vocab_start_index:vocab_end_index]
+        return unpadded.T  # TRTLLM expects (vocab_size, hidden_size) so need extra transpose
 
     if pp_is_first or reshard_model:
         vocab_embed = get_remove_vocab_padding(get_layer_name("word_embedding", prefix))
