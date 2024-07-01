@@ -89,6 +89,10 @@ model:
   megatron_legacy: False
   persist_layer_norm: True
 
+
+  # mixed-precision
+  attention_softmax_in_fp32: False
+
   # Distributed checkpoint setup
   dist_ckpt_format: 'zarr' # Set to 'torch_dist' to use PyTorch distributed checkpoint format.
   dist_ckpt_load_on_device: True # whether to load checkpoint weights directly on GPU or to CPU
@@ -97,7 +101,7 @@ model:
 
   tokenizer:
     library: 'huggingface'
-    type: 'EleutherAI/gpt-neox-20b'
+    type: 'EleutherAI/gpt-neox-20b' 
     model: null 
     vocab_file: null
     merge_file: null 
@@ -120,7 +124,7 @@ model:
   bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
   get_attention_mask_from_fusion: True # When using fused softmax it will create the attention mask so we won't copy it to the pipeline stages.
-  apply_rope_fusion: False # Use a kernel to add rotary positional embeddings. Only used if position_embedding_type=rope
+  apply_rope_fusion: True # Use a kernel to add rotary positional embeddings. Only used if position_embedding_type=rope
 
   # miscellaneous
   seed: 1234

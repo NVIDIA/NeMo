@@ -17,13 +17,12 @@ from megatron.core.models.mamba import MambaModel
 from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
-
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 
 
 class MegatronJambaModel(MegatronGPTModel):
     """
-    Megatron Griffin pretraining.
+    Megatron Mamba pretraining.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):

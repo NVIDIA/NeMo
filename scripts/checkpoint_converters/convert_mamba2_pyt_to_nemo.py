@@ -49,7 +49,7 @@ def get_args():
 
 def convert(args):
 
-    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')
+    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')['model']
     new_state_dict = {}
 
     if 'backbone' in list(checkpoint_weights.keys())[0]:

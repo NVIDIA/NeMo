@@ -37,24 +37,21 @@ def main(cfg) -> None:
     cfg.trainer.precision = precision
     exp_manager(trainer, cfg.exp_manager)
 
-    model = MegatronJambaSFTModel(cfg.model, trainer)
+    model_cfg = MegatronJambaSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
+    model = MegatronJambaSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
 
-    # model_cfg = MegatronJambaSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
-    # model = MegatronJambaSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
+    peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
 
-    # peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
-
-    # if cfg.model.peft.restore_from_path is not None:
-    #     # initialize peft weights from a check`point instead of randomly
-    #     # This is not the same as resume training because optimizer states are not restored.
-    #     logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
-    #     model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
-    # elif peft_cfg_cls is not None:
-    #     logging.info("Adding adapter weights to the model for PEFT")
-    #     model.add_adapter(peft_cfg_cls(model_cfg))
-    # else:
-    #     logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
-    # print("LOADED SUCCESSFULLY")
+    if cfg.model.peft.restore_from_path is not None:
+        # initialize peft weights from a check`point instead of randomly
+        # This is not the same as resume training because optimizer states are not restored.
+        logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
+        model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
+    elif peft_cfg_cls is not None:
+        logging.info("Adding adapter weights to the model for PEFT")
+        model.add_adapter(peft_cfg_cls(model_cfg))
+    else:
+        logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
 
     trainer.fit(model)
 

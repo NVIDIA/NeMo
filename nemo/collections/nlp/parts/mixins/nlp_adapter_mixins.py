@@ -439,6 +439,7 @@ class NLPAdapterModelMixin:
                 assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
                 super().load_state_dict(state_dict, strict=False)
         else:
+            # state_dict = {"model.module.module" + key[12:]: value for key, value in state_dict.items()}
             super().load_state_dict(state_dict, strict=True)
 
     def on_load_checkpoint(self, checkpoint) -> None:

@@ -100,7 +100,16 @@ model:
   # Megatron O2-style half-precision
   megatron_amp_O2: False # Enable O2-level automatic mixed precision using main parameters
   grad_allreduce_chunk_size_mb: 125
-  grad_div_ar_fusion: False 
+
+  # Fusion
+  grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce. Only used with O2 and no pipeline parallelism..
+  gradient_accumulation_fusion: True # Fuse weight gradient accumulation to GEMMs. Only used with pipeline parallelism and O2.
+  bias_activation_fusion: False # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+  bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
+  masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+  get_attention_mask_from_fusion: True # When using fused softmax it will create the attention mask so we won't copy it to the pipeline stages.
+  apply_rope_fusion: True # Use a kernel to add rotary positional embeddings. Only used if position_embedding_type=rope
+
 
   # miscellaneous
   seed: 1234
