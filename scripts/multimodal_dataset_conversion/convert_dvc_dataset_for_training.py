@@ -115,27 +115,26 @@ import random
 
 import numpy as np
 
-#from nemo.collections.multimodal.data.neva.conversation import TIME_TOKEN_TEMPLATE
+# from nemo.collections.multimodal.data.neva.conversation import TIME_TOKEN_TEMPLATE
 TIME_TOKEN_TEMPLATE = "<t{t}>"
 caption_prompts = [
-            "Provide a detailed description of the given video.",
-            "Describe the provided video in detail.",
-            "Summarize the visual content of the video.",
-            "Write a informative summary of the video."
-        ]
+    "Provide a detailed description of the given video.",
+    "Describe the provided video in detail.",
+    "Summarize the visual content of the video.",
+    "Write a informative summary of the video.",
+]
 
 event_prompts = [
-            "What is the action performed in this video?",
-            "Can you highlight the action performed in this video?"
-            "What is the main event or action captured in this video?",
-            "Could you summarize the sequence of events depicted in this video?"
-        ]
+    "What is the action performed in this video?",
+    "Can you highlight the action performed in this video?" "What is the main event or action captured in this video?",
+    "Could you summarize the sequence of events depicted in this video?",
+]
 
 time_prompts = [
-            "Each sentence should begin with the start and end timestamps.",
-            "At the beginning of each sentence, include the start and end timestamps.",
-            "Prepend each sentence with its start and end timestamps."
-        ]
+    "Each sentence should begin with the start and end timestamps.",
+    "At the beginning of each sentence, include the start and end timestamps.",
+    "Prepend each sentence with its start and end timestamps.",
+]
 
 event_loc_prompts = [
     "When does \"%s\" happen in the video?",
@@ -150,24 +149,27 @@ event_loc_time_prompts = [
     "Convey your answer using start and end timestamps exclusively.",
 ]
 
-def convert(input_dvc_dataset,
-            output_dataset,
-            video_path_prefix,
-            num_time_tokens,
-            disable_dvc_time_tokens,
-            prompts,
-            time_prompts,
-            field,
-            ext=".mp4",
-            subtask="custom_caption",
-            data_multiplier=1):
-    
+
+def convert(
+    input_dvc_dataset,
+    output_dataset,
+    video_path_prefix,
+    num_time_tokens,
+    disable_dvc_time_tokens,
+    prompts,
+    time_prompts,
+    field,
+    ext=".mp4",
+    subtask="custom_caption",
+    data_multiplier=1,
+):
+
     def time_to_string(time):
         # time is normalized in [0, 1]
         max_offset = float(num_time_tokens - 1)
         time = int(np.round(max_offset * time))
         return TIME_TOKEN_TEMPLATE.format(t=time)
-    
+
     def get_prompt(subtask, prompts, time_prompts, sentence=None):
         if subtask == "event_localization":
             desc_prompt = random.choice(prompts)
@@ -182,11 +184,10 @@ def convert(input_dvc_dataset,
 
         return '<video>' + ' \n' + task_prompt
 
-    
     dvc_dataset = {}
     with open(input_dvc_dataset, "r") as f:
         dvc_dataset = json.load(f)
-    
+
     list_data_dict = []
     for i in range(data_multiplier):
         for video_name, video_info in dvc_dataset.items():
@@ -207,8 +208,8 @@ def convert(input_dvc_dataset,
             if subtask == "event_localization":
                 # only pick one sentence and timestamps
                 idx = random.choice(range(len(texts)))
-                #rng = np.random.RandomState()
-                #idx = rng.choice(list(range(len(timestamps))))
+                # rng = np.random.RandomState()
+                # idx = rng.choice(list(range(len(timestamps))))
                 texts = [texts[idx]]
                 timestamps = [timestamps[idx]]
             gpt_value = ""
@@ -251,15 +252,28 @@ def load_prompts(prompts_path):
     assert len(prompts) > 0, "Event prompts should not be empty"
     return prompts
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_dvc_dataset", type=str, required=True)
     parser.add_argument("--output_file", default="dvc_train.json", type=str, required=True)
-    parser.add_argument("--subtask", choices=["custom_event", "custom_caption", "event_localization"], type=str, required=True)
+    parser.add_argument(
+        "--subtask", choices=["custom_event", "custom_caption", "event_localization"], type=str, required=True
+    )
     parser.add_argument("--video_path_prefix", default=None, type=str, required=False)
-    parser.add_argument("--event_prompts", type=str, default=None, required=False, help="Path to the event prompt json file; Optional")
-    parser.add_argument("--caption_prompts", type=str, default=None, required=False, help="Path to the caption prompt json file; Optional")
-    parser.add_argument("--num_time_tokens", type=int, default=100, help="Number of time tokens to use for time tokens")
+    parser.add_argument(
+        "--event_prompts", type=str, default=None, required=False, help="Path to the event prompt json file; Optional"
+    )
+    parser.add_argument(
+        "--caption_prompts",
+        type=str,
+        default=None,
+        required=False,
+        help="Path to the caption prompt json file; Optional",
+    )
+    parser.add_argument(
+        "--num_time_tokens", type=int, default=100, help="Number of time tokens to use for time tokens"
+    )
     parser.add_argument("--disable_dvc_time_tokens", action="store_true")
     parser.add_argument("--data_multiplier", type=int, default=1, help="Number of times to repeat the dataset")
     args = parser.parse_args()
@@ -270,13 +284,13 @@ def main():
         custom_event_prompts = load_prompts(args.event_prompts)
     else:
         custom_event_prompts = event_prompts
-    
+
     custom_caption_prompts = []
     if args.caption_prompts:
         custom_caption_prompts = load_prompts(args.caption_prompts)
     else:
         custom_caption_prompts = caption_prompts
-    
+
     t_prompts = time_prompts
     if args.subtask == "custom_event":
         prompts = custom_event_prompts
@@ -285,20 +299,23 @@ def main():
     elif args.subtask == "event_localization":
         prompts = event_loc_prompts
         t_prompts = event_loc_time_prompts
-    
+
     field = "events" if args.subtask == "custom_event" else "sentences"
-    
-    convert(args.input_dvc_dataset,
-            args.output_file,
-            args.video_path_prefix,
-            args.num_time_tokens,
-            args.disable_dvc_time_tokens,
-            prompts,
-            t_prompts,
-            field,
-            ext=".mp4",
-            subtask=args.subtask,
-            data_multiplier=args.data_multiplier)
+
+    convert(
+        args.input_dvc_dataset,
+        args.output_file,
+        args.video_path_prefix,
+        args.num_time_tokens,
+        args.disable_dvc_time_tokens,
+        prompts,
+        t_prompts,
+        field,
+        ext=".mp4",
+        subtask=args.subtask,
+        data_multiplier=args.data_multiplier,
+    )
+
 
 if __name__ == "__main__":
     main()

@@ -149,7 +149,7 @@ class TarOrFolderVideoLoader:
                     cap = decord.VideoReader(f)
                     return self.flatten_frames(cap)
         else:
-            #decord.bridge.set_bridge("torch")
+            # decord.bridge.set_bridge("torch")
             cap = decord.VideoReader(os.path.join(self.video_folder, file_name))
             return self.flatten_frames(cap)
         return None
@@ -227,6 +227,7 @@ def tokenize(
         result = result[0]
     return result
 
+
 def get_tokens_ids(tokenizer, tokens):
     """
     Returns the token id for a given token.
@@ -244,6 +245,7 @@ def get_tokens_ids(tokenizer, tokens):
         The token ids.
     """
     return [tokenizer.token_to_id(token) for token in tokens]
+
 
 def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: int, use_plain: bool = False) -> Dict:
     """
@@ -321,7 +323,7 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
                 replace_token = "".join(replace_token_list)
             else:
                 replace_token_list = [image_start + image_patch * (image_token_len - 1) + image_end]
-                replace_token_list +=  [image_start + image_patch * image_token_len + image_end] * (sample_frames -1)
+                replace_token_list += [image_start + image_patch * image_token_len + image_end] * (sample_frames - 1)
                 replace_token_list += [vid_start + image_patch * (num_temporal_tokens - 1) + vid_end]
                 replace_token = "".join(replace_token_list)
             replace_token = media_start + replace_token + media_end
@@ -329,7 +331,7 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
             if multimodal_cfg['use_im_start_end']:
                 replace_token = image_patch * num_tokens
             else:
-                replace_token = image_patch * (num_tokens - 2 )
+                replace_token = image_patch * (num_tokens - 2)
             replace_token = media_start + replace_token + media_end
 
     for source in sources:
@@ -646,7 +648,7 @@ def preprocess_v1(
     tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
     tokens[tokens == bos_id] = 1  # <s>
     tokens[tokens == eos_id] = 2  # </s>
-    #tokens = torch.concat((torch.tensor([[1]]), tokens), axis=1) #lita 1.5 legacy
+    # tokens = torch.concat((torch.tensor([[1]]), tokens), axis=1) #lita 1.5 legacy
     labels = tokens.clone().detach()
 
     # Mask labels
@@ -1068,7 +1070,11 @@ class LazySupervisedDataset(Dataset):
                                 result = Image.new(pil_img.mode, (height, height), background_color)
                                 result.paste(pil_img, ((height - width) // 2, 0))
                                 return result
-                        frames = [expand2square(frame, tuple(int(x * 255) for x in self.processor.image_mean)) for frame in frames]
+
+                        frames = [
+                            expand2square(frame, tuple(int(x * 255) for x in self.processor.image_mean))
+                            for frame in frames
+                        ]
                         frames = self.processor.preprocess(frames, return_tensors='pt')['pixel_values']
                     else:
                         frames = self.processor.preprocess(frames, return_tensors='pt')['pixel_values']

@@ -451,7 +451,7 @@ def create_neva_model_and_processor(cfg):
     def video_processor(maybe_video_path):
 
         if isinstance(maybe_video_path, str):
-            #decord.bridge.set_bridge("torch") # this line will break `first`, `middle`, `last`
+            # decord.bridge.set_bridge("torch") # this line will break `first`, `middle`, `last`
             vr = decord.VideoReader(maybe_video_path)
             if neva_cfg.data.splice_single_frame == 'first':
                 frames = [Image.fromarray(vr[0].asnumpy()).convert('RGB')]
@@ -505,6 +505,7 @@ def create_neva_model_and_processor(cfg):
                     result = Image.new(pil_img.mode, (height, height), background_color)
                     result.paste(pil_img, ((height - width) // 2, 0))
                     return result
+
             frames = [expand2square(frame, tuple(int(x * 255) for x in processor.image_mean)) for frame in frames]
             frames = processor.preprocess(frames, return_tensors='pt')['pixel_values']
         else:
@@ -518,8 +519,7 @@ def create_neva_model_and_processor(cfg):
 
 def create_image_processor(mm_cfg):
     if mm_cfg.vision_encoder.get("from_hf", False):
-        if "clip" in mm_cfg.vision_encoder.from_pretrained \
-            or "vit" in mm_cfg.vision_encoder.from_pretrained:
+        if "clip" in mm_cfg.vision_encoder.from_pretrained or "vit" in mm_cfg.vision_encoder.from_pretrained:
             image_processor = CLIPImageProcessor.from_pretrained(
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )

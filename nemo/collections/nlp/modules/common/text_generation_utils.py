@@ -176,16 +176,18 @@ def decode_time_tokens(tokenizer, text: str, duration: float, time_tokens: list[
         new_output_ids.extend(tokenizer.text_to_ids(time_str))
 
         last_processed = indices[j]
-    pred_seq = [int(x) for x in output_ids[last_processed + 1:]]
+    pred_seq = [int(x) for x in output_ids[last_processed + 1 :]]
     new_output_ids.extend(pred_seq)
     output_ids = new_output_ids
     decoded_text = tokenizer.ids_to_text(output_ids)
     return decoded_text
 
+
 def encode_time_str(text: str, duration: float, num_time_tokens: int = 100, time_token_template: str = "<t{t}>"):
     """
     Encode the common time expression to its time token expression
     """
+
     def time_to_string(time):
         # time is normalized in [0, 1]
         max_offset = float(num_time_tokens - 1)
@@ -211,7 +213,7 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
     if use_lita:
         num_time_tokens = model.cfg.data.get('num_time_tokens', 100)
         TIME_TOKEN_TEMPLATE = "<t{t}>"
-        time_tokens = [ TIME_TOKEN_TEMPLATE.format(t=i) for i in range(num_time_tokens)]
+        time_tokens = [TIME_TOKEN_TEMPLATE.format(t=i) for i in range(num_time_tokens)]
         time_token_ids = model.tokenizer.tokens_to_ids(time_tokens)
 
     model_type = model.cfg.mm_cfg.llm.get("model_type", "nvgpt")
@@ -223,7 +225,9 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
         if use_lita:
             if prompt_dict.get("duration") is not None:
                 duration = prompt_dict.get("duration")
-                prompt_dict['prompt'] = encode_time_str(prompt_dict['prompt'], duration, num_time_tokens, TIME_TOKEN_TEMPLATE)
+                prompt_dict['prompt'] = encode_time_str(
+                    prompt_dict['prompt'], duration, num_time_tokens, TIME_TOKEN_TEMPLATE
+                )
             else:
                 print("duration field is not in prompt file, skipping time encoding.")
         response = generate(
@@ -290,7 +294,9 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
         if use_lita:
             if prompt_dict.get("duration", None) is not None:
                 duration = prompt_dict.get("duration")
-                clean_response = decode_time_tokens(model.tokenizer, clean_response, duration, time_tokens, time_token_ids)
+                clean_response = decode_time_tokens(
+                    model.tokenizer, clean_response, duration, time_tokens, time_token_ids
+                )
             else:
                 print("duration field is not in prompt file, skipping time decoding.")
         clean_response = clean_response.strip()

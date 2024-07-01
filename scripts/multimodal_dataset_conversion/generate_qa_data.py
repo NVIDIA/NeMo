@@ -120,10 +120,12 @@ from tqdm import tqdm
 MODEL = "meta/llama3-70b-instruct"
 INVOKE_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 
+
 @dataclass
 class Message:
     role: str
     content: str
+
 
 @dataclass
 class Conversation:
@@ -148,7 +150,7 @@ def request_nvidia_api(messages, temperature):
         "top_p": 1.0,
         "max_tokens": 2048,
         "seed": 42,
-        "stream": True
+        "stream": True,
     }
     invoke_url = INVOKE_URL
     response = requests.post(invoke_url, headers=headers, json=payload, stream=True)
@@ -159,7 +161,7 @@ def request_nvidia_api(messages, temperature):
         if line:
             res = json.loads(line.decode("utf-8").split("data: ")[1])
             if 'content' in res['choices'][0]['delta']:
-                output += res['choices'][0]['delta']['content']    
+                output += res['choices'][0]['delta']['content']
     return output.lstrip().strip()
 
 
@@ -223,6 +225,7 @@ Example Prompts:
 Do not include anything besides json in the response.
 """
 
+
 def load_data(data_path):
     result = []
 
@@ -246,11 +249,10 @@ def load_data(data_path):
 
 
 def generate_question_answers(dense_caption):
-    answer = request_nvidia_api([
-        {"role": "system", "content": PROMPT_QA},
-        {"role": "user", "content": dense_caption}
-    ], 0.6)
-    
+    answer = request_nvidia_api(
+        [{"role": "system", "content": PROMPT_QA}, {"role": "user", "content": dense_caption}], 0.6
+    )
+
     try:
         return json.loads(answer)
     except:
@@ -259,11 +261,10 @@ def generate_question_answers(dense_caption):
 
 
 def rewrite_dense_caption(dense_caption):
-    answer = request_nvidia_api([
-        {"role": "system", "content": PROMPT_REWRITE_DENSE_CAPTION},
-        {"role": "user", "content": dense_caption}
-    ], 0.6)
-    
+    answer = request_nvidia_api(
+        [{"role": "system", "content": PROMPT_REWRITE_DENSE_CAPTION}, {"role": "user", "content": dense_caption}], 0.6
+    )
+
     try:
         return json.loads(answer)
     except:
@@ -292,11 +293,7 @@ def generate_one(video_id, dense_caption, duration):
             conversations.append(Message("assistant", question_answers[i]["answer"]))
         else:
             print(f"Invalid question answer: {question_answers[i]}")
-    return Conversation(
-        video_id=video_id,
-        duration=duration,
-        conversations=conversations
-    )
+    return Conversation(video_id=video_id, duration=duration, conversations=conversations)
 
 
 def wrapped_generate(param):
@@ -311,8 +308,9 @@ def wrapped_generate(param):
             time.sleep(5)
             continue
         results.append(asdict(data))
-    
+
     return results, video_id
+
 
 def batch_generate(data, save_dir):
 
@@ -323,13 +321,17 @@ def batch_generate(data, save_dir):
 
     # Skip the existing files
     existing_files = set(file.stem for file in temp_dir.glob("*.json") if len(json.loads(file.read_text())) > 0)
-    data = [(video_id, dense_caption, duration) for video_id, dense_caption, duration in data if video_id not in existing_files]
+    data = [
+        (video_id, dense_caption, duration)
+        for video_id, dense_caption, duration in data
+        if video_id not in existing_files
+    ]
 
     with Pool(50) as executor:
         for results, video_id in tqdm(executor.imap_unordered(wrapped_generate, data), total=len(data)):
             if len(results) == 0:
                 print(f"Failed to generate for {video_id}")
-            
+
             with open(temp_dir / f"{video_id}.json", "w") as f:
                 json.dump(results, f, indent=2)
 
@@ -341,7 +343,7 @@ def batch_generate(data, save_dir):
 
     with open(save_dir / "train.json", "w") as f:
         json.dump(result, f, indent=2)
-    
+
     print(f"Generated {len(result)} conversations")
 
 
@@ -356,11 +358,12 @@ def main(data_path, save_dir, generate_one_sample):
         print("Generating QA dataset...")
         batch_generate(data, save_dir)
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Batch generate QA data from DVC dataset.")
     parser.add_argument("--input_json", type=str, help="Path to the JSON file containing the dataset.")
     parser.add_argument("--output_dir", type=str, help="Directory to save the generated data.")
     parser.add_argument("--generate_one_sample", action="store_true", help="Test QA generation for 1 data sample.")
-    
+
     args = parser.parse_args()
     main(args.input_json, args.output_dir, args.generate_one_sample)

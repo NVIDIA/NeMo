@@ -103,8 +103,10 @@ import argparse
 import json
 import re
 import numpy as np
-#from nemo.collections.multimodal.data.neva.conversation import TIME_TOKEN_TEMPLATE
+
+# from nemo.collections.multimodal.data.neva.conversation import TIME_TOKEN_TEMPLATE
 TIME_TOKEN_TEMPLATE = "<t{t}>"
+
 
 def process(value, duration: float, num_time_tokens: int = 100):
     def time_to_string(time):
@@ -112,7 +114,7 @@ def process(value, duration: float, num_time_tokens: int = 100):
         max_offset = float(num_time_tokens - 1)
         time = int(np.round(max_offset * time))
         return TIME_TOKEN_TEMPLATE.format(t=time)
-        
+
     def repl(match):
         value = float(match.group(1)) / duration
         return time_to_string(value) + f"<!|t{value}t|!>"
@@ -121,7 +123,7 @@ def process(value, duration: float, num_time_tokens: int = 100):
     value = re.sub(r"\s([\d.]{1,20})s[\s|\.|,|>]", repl, value)
     value = re.sub(r"\s([\d.]{1,20}) seconds", repl, value)
     value = re.sub(r"\s([\d.]{1,20}) second", repl, value)
-    
+
     # This is to remove the timestamps from the text
     value = re.sub(r"<!\|t([\d.]+)t\|!>", "", value)
     return value.strip()
@@ -130,12 +132,12 @@ def process(value, duration: float, num_time_tokens: int = 100):
 def convert(qa_dataset, output_file, num_time_tokens, ext=".mp4"):
     with open(qa_dataset, 'r') as f:
         qa_data = json.load(f)
-    
+
     role_mapping = {
-            "user": "human",
-            "assistant": "gpt",
-            "system": "system",
-        }
+        "user": "human",
+        "assistant": "gpt",
+        "system": "system",
+    }
 
     list_data_dict = []
     for sample in qa_data:
@@ -152,21 +154,21 @@ def convert(qa_dataset, output_file, num_time_tokens, ext=".mp4"):
                 new_content = conversation["value"]
             else:
                 raise ValueError("Invalid conversation format")
-            
+
             new_content = process(new_content, sample["duration"], num_time_tokens)
             if idx == 0 and new_role == "human":
                 new_content = "<video> \n" + new_content
             conversations.append({"from": new_role, "value": new_content})
-    
+
         new_sample['id'] = id
         new_sample['video'] = video
         new_sample['conversations'] = conversations
         new_sample["duration"] = sample["duration"]
         list_data_dict.append(new_sample)
-    
+
     with open(output_file, 'w') as f:
         json.dump(list_data_dict, f, indent=4)
-    
+
 
 def main():
     parser = argparse.ArgumentParser(description='Convert QA dataset to NeMo video training dataset format')
@@ -174,8 +176,9 @@ def main():
     parser.add_argument('--output_file', type=str, required=True, help='Output file in json format')
     parser.add_argument('--num_time_tokens', type=int, default=100, help='Number of time tokens')
     args = parser.parse_args()
-    
+
     convert(args.qa_dataset, args.output_file, args.num_time_tokens)
+
 
 if __name__ == "__main__":
     main()

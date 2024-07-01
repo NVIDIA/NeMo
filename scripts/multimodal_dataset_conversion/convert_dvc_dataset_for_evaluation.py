@@ -92,14 +92,14 @@ class RTLConverter:
 
     def convert(self):
         converted_data = []
-        
+
         # Load JSON data
         with open(self.input_file, 'r') as file:
             data = json.load(file)
 
         # Fix random seed for reproducibility
         random.seed(42)
-        
+
         # Randomly sample entries based on the sample ratio
         vid_list = list(data.keys())
         sampled_vids = random.sample(vid_list, k=int(len(vid_list) * self.sample_ratio))
@@ -118,18 +118,20 @@ class RTLConverter:
                 time_prompt = random.choice(self.time_prompts)
                 start_time, end_time = timestamps[i]
                 answer = f"<{start_time}> <{end_time}> {sentence}"
-                
+
                 # Construct question
                 question = (desc_prompt % sentence) + ' ' + time_prompt
 
                 # Create entry in converted data
-                converted_data.append({
-                    "video": vid + self.ext,
-                    "question_id": question_id,
-                    "question": question,
-                    "answer": answer,
-                    "duration": duration
-                })
+                converted_data.append(
+                    {
+                        "video": vid + self.ext,
+                        "question_id": question_id,
+                        "question": question,
+                        "answer": answer,
+                        "duration": duration,
+                    }
+                )
 
         # Ensure the output directory exists
         os.makedirs(os.path.dirname(self.output_file), exist_ok=True)
@@ -152,6 +154,7 @@ def main():
 
     converter = RTLConverter(args.input, args.output_file, args.ratio, args.ext)
     converter.convert()
+
 
 if __name__ == "__main__":
     main()

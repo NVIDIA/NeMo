@@ -280,7 +280,13 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
 
 
 class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
-    def init_lita(self, lita_video_arch: str, visual_token_format: str = "v1", use_media_start_end: bool = False, sample_frames: int = 4):
+    def init_lita(
+        self,
+        lita_video_arch: str,
+        visual_token_format: str = "v1",
+        use_media_start_end: bool = False,
+        sample_frames: int = 4,
+    ):
         """_summary_
 
         Args:
@@ -325,19 +331,19 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
             s_tokens = tokens[:, selected_frames, ...]
             s_tokens = rearrange(s_tokens, 'b t (h w) d -> (b t) d h w', h=h, w=w)
             s_tokens = F.avg_pool2d(s_tokens, kernel_size=pool_size)
-            s_tokens = rearrange(s_tokens, '(b t) d h w -> b (t h w) d', b=b) # B, M, D
+            s_tokens = rearrange(s_tokens, '(b t) d h w -> b (t h w) d', b=b)  # B, M, D
             t_tokens = reduce(tokens, 'b t s d -> b t d', 'mean')
-            #tokens = torch.cat([t_tokens, s_tokens], dim=1)  # B, T + M, D
+            # tokens = torch.cat([t_tokens, s_tokens], dim=1)  # B, T + M, D
             return t_tokens, s_tokens
         elif self.lita_video_arch == 'temporal_spatial':
             t_tokens = reduce(tokens, 'b t s d -> b t d', 'mean')
             s_tokens = reduce(tokens, 'b t s d -> b s d', 'mean')
-            #tokens = torch.cat([t_tokens, s_tokens], dim=1)  # B, T + M, D
+            # tokens = torch.cat([t_tokens, s_tokens], dim=1)  # B, T + M, D
             return t_tokens, s_tokens
         elif self.lita_video_arch == 'temporal_all_resolution':
             idx = np.round(np.linspace(0, tokens.shape[1] - 1, self.sample_frames)).astype(int)
-            im_features = tokens[:, idx, ...] # B, num_frames, S, D
-            #im_tokens = im_features.view(b, -1, H) # flatten the B, num_frames * S, D
+            im_features = tokens[:, idx, ...]  # B, num_frames, S, D
+            # im_tokens = im_features.view(b, -1, H) # flatten the B, num_frames * S, D
             im_tokens = im_features
             vid_tokens = reduce(tokens, 'b t s d -> b t d', 'mean')
             # s and t tokens have been changed position
@@ -366,7 +372,7 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
         B, T, F, S, H = media_features.shape
         assert T == 1, "multiple videos per sample not supported yet"
         media_features = media_features.squeeze(1)
-        t_tokens, s_tokens = self.add_lita_layer(media_features) # B, T, D & B, M, D
+        t_tokens, s_tokens = self.add_lita_layer(media_features)  # B, T, D & B, M, D
         T = t_tokens.shape[1]
         M = s_tokens.shape[1]
         inputs_embeds = inputs_embeds.clone()
@@ -392,7 +398,7 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
                 assert s_token_end == end + 1, "Token replacement error"
                 inputs_embeds[idx, t_token_start:t_token_end] = temporal_tokens[idx]
                 inputs_embeds[idx, s_token_start:s_token_end] = spatial_tokens[idx]
-            elif self.visual_token_format == 'im_vid_start_end': # v1.5 lita
+            elif self.visual_token_format == 'im_vid_start_end':  # v1.5 lita
                 if not self.use_media_start_end:
                     # replace the media start and media end embedding with
                     # img_start and vid_end token embedding
@@ -401,11 +407,11 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
                 # TO DO: To optimize the below codes
                 im_features, vid_features = t_tokens[idx], s_tokens[idx]
                 # im_feature: num_frames * S, D
-                emb_start = start + 1 # skip the img_start token
+                emb_start = start + 1  # skip the img_start token
                 num_frames, S, D = im_features.shape
                 for i in range(num_frames):
                     inputs_embeds[idx, emb_start : emb_start + S] = im_features[i]
-                    emb_start = emb_start + S + 2 # skip the img_end token and img_start token
+                    emb_start = emb_start + S + 2  # skip the img_end token and img_start token
                 T = vid_features.shape[0]
                 inputs_embeds[idx, emb_start : emb_start + T] = vid_features
                 assert emb_start + T == end
@@ -456,8 +462,8 @@ class NevaBaseModel:
                 self.embedding.word_embeddings.init_lita(
                     lita_video_arch=lita_conf.get('lita_video_arch', 'temporal_spatial_pool'),
                     visual_token_format=lita_conf.get('visual_token_format', 'v1'),
-                    use_media_start_end=mm_cfg.get('use_im_start_end', False),   # we need to make this clear
-                    sample_frames=lita_conf.get('sample_frames', 4)
+                    use_media_start_end=mm_cfg.get('use_im_start_end', False),  # we need to make this clear
+                    sample_frames=lita_conf.get('sample_frames', 4),
                 )
 
             self.embedding.word_embeddings.init_vision(
@@ -473,8 +479,7 @@ class NevaBaseModel:
     def create_vision_encoder_and_processor(self, mm_cfg):
         # Initialize vision encoder and freeze it
         if mm_cfg.vision_encoder.get("from_hf", False):
-            if "clip" in mm_cfg.vision_encoder.from_pretrained \
-                or "vit" in mm_cfg.vision_encoder.from_pretrained:
+            if "clip" in mm_cfg.vision_encoder.from_pretrained or "vit" in mm_cfg.vision_encoder.from_pretrained:
                 vision_encoder = CLIPVisionModel.from_pretrained(
                     mm_cfg.vision_encoder.from_pretrained,
                     torch_dtype=torch.bfloat16,
