@@ -129,6 +129,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
         self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
 
+        self._ddp = ddp
         if ddp == "megatron":
             self.ddp_config = DistributedDataParallelConfig()
         elif isinstance(ddp, DistributedDataParallelConfig):

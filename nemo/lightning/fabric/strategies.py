@@ -44,6 +44,8 @@ from megatron.core.distributed import DistributedDataParallelConfig
 from nemo.lightning import _strategy_lib
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.io.pl import MegatronCheckpointIO
+from nemo.lightning.fabric.conversion import to_fabric
+from nemo.lightning.pytorch.strategies import MegatronStrategy
 
 if TYPE_CHECKING:
     from megatron.core.model_parallel_config import ModelParallelConfig
@@ -110,6 +112,7 @@ class FabricMegatronStrategy(DDPStrategy):
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
         
+        self._ddp = ddp
         if ddp == "megatron":
             self.ddp_config = DistributedDataParallelConfig()
         elif isinstance(ddp, DistributedDataParallelConfig):
@@ -457,3 +460,21 @@ class _DataFetcherWrapper(Iterator):
             return batch
 
         return batch, batch_idx, dataloader_idx
+
+
+@to_fabric.register(MegatronStrategy)
+def convert_megatron_strategy(strategy: MegatronStrategy) -> FabricMegatronStrategy:
+    return FabricMegatronStrategy(
+        tensor_model_parallel_size=strategy.tensor_model_parallel_size,
+        pipeline_model_parallel_size=strategy.pipeline_model_parallel_size,
+        virtual_pipeline_model_parallel_size=strategy.virtual_pipeline_model_parallel_size,
+        context_parallel_size=strategy.context_parallel_size,
+        sequence_parallel=strategy.sequence_parallel,
+        expert_model_parallel_size=strategy.expert_model_parallel_size,
+        moe_extended_tp=strategy.moe_extended_tp,
+        pipeline_dtype=strategy.pipeline_dtype,
+        ddp=strategy._ddp,
+        process_group_backend=strategy.process_group_backend,
+        timeout=strategy._timeout,
+        start_method=strategy._start_method,
+    )

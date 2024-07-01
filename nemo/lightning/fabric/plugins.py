@@ -8,6 +8,8 @@ from torch import nn
 from torch.optim import Optimizer
 
 from nemo.lightning._strategy_lib import GradScaler
+from nemo.lightning.fabric.conversion import to_fabric
+from nemo.lightning.pytorch.plugins.mixed_precision import MegatronMixedPrecision
 
 AnyT = TypeVar("AnyT")
 
@@ -132,3 +134,12 @@ class FabricMegatronMixedPrecision(MixedPrecision):
             yield
         finally:
             pass
+
+
+@to_fabric.register(MegatronMixedPrecision)
+def _convert_megatron_mixed_precision(plugin: MegatronMixedPrecision) -> FabricMegatronMixedPrecision:
+    return FabricMegatronMixedPrecision(
+        precision=plugin.precision,
+        device=plugin.device,
+        scaler=plugin.scaler,
+    )
