@@ -90,7 +90,8 @@ class MegatronMixedPrecision(MixedPrecision):
             config = get_model_config(module.module)
             config.fp16 = self.precision == "16-mixed"
             config.bf16 = self.precision == "bf16-mixed"
-            module.module = Float16Module(config, module.module)
+            if not isinstance(module.module, Float16Module):
+                module.module = Float16Module(config, module.module)
 
         return module
 

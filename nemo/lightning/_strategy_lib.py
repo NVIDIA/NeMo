@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Protocol, Type
 
 import torch
 from torch import nn
+from lightning.pytorch.utilities.model_helpers import is_overridden
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
@@ -117,6 +118,29 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 if hasattr(child, "set_tensor_parallel_group"):
                     tp_group = parallel_state.get_tensor_model_parallel_group()
                     child.set_tensor_parallel_group(tp_group)
+                    
+                    
+def set_model_parallel_attributes(model, parallelism):
+    # Right now mcore sub-classes ModelParellelConfig, we should remove that
+    # Given Lightning's structure it would be better if parallelism is a different object
+    # Since then it can be passed to the Strategy
+
+    from megatron.core.transformer.transformer_config import TransformerConfig
+
+    has_mcore_config = isinstance(getattr(model, "config", None), TransformerConfig)
+    if has_mcore_config and hasattr(model, "configure_model"):
+        config: TransformerConfig = model.config
+        config.tensor_model_parallel_size = parallelism.tensor_model_parallel_size
+        config.pipeline_model_parallel_size = parallelism.pipeline_model_parallel_size
+        config.virtual_pipeline_model_parallel_size = parallelism.virtual_pipeline_model_parallel_size
+        config.context_parallel_size = parallelism.context_parallel_size
+        config.expert_model_parallel_size = parallelism.expert_model_parallel_size
+        config.moe_extended_tp = parallelism.moe_extended_tp
+        config.sequence_parallel = parallelism.sequence_parallel
+        
+        return config
+    
+    return None
 
 
 @contextmanager

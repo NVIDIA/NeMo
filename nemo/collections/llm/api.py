@@ -122,7 +122,7 @@ def import_ckpt(
 
 
 def load_connector_from_trainer_ckpt(path: Path, target: str) -> io.ModelConnector:
-    return io.load_ckpt(path).model.exporter(target, path)
+    return io.load_context(path).model.exporter(target, path)
 
 
 @task(name="export", namespace="llm")

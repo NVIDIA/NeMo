@@ -146,23 +146,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def connect(self, model: pl.LightningModule) -> None:
         super().connect(model)
 
-        # Right now mcore sub-classes ModelParellelConfig, we should remove that
-        # Given Lightning's structure it would be better if parallelism is a different object
-        # Since then it can be passed to the Strategy
-
-        from megatron.core.transformer.transformer_config import TransformerConfig
-
-        has_mcore_config = isinstance(getattr(model, "config", None), TransformerConfig)
-        if has_mcore_config and is_overridden("configure_model", model):
-            config: TransformerConfig = model.config
-            config.tensor_model_parallel_size = self.tensor_model_parallel_size
-            config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
-            config.virtual_pipeline_model_parallel_size = self.virtual_pipeline_model_parallel_size
-            config.context_parallel_size = self.context_parallel_size
-            config.expert_model_parallel_size = self.expert_model_parallel_size
-            config.moe_extended_tp = self.moe_extended_tp
-            config.sequence_parallel = self.sequence_parallel
-            self._mcore_config = config
+        _maybe_mcore_config = _strategy_lib.set_model_parallel_attributes(model, self.parallelism)
+        if _maybe_mcore_config:
+            self._mcore_config = _maybe_mcore_config
 
         has_optim = getattr(model, "optim", None)
         if has_optim:
@@ -644,6 +630,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
+            context_parallel_size=self.context_parallel_size,
+            sequence_parallel=self.sequence_parallel,
+            expert_model_parallel_size=self.expert_model_parallel_size,
+            moe_extended_tp=self.moe_extended_tp,
             pipeline_dtype=self.pipeline_dtype,
         )
 

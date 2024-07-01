@@ -30,6 +30,7 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor, nn
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
+ModelT = TypeVar("ModelT", bound=nn.Module)
 
 
 @runtime_checkable
@@ -55,7 +56,7 @@ def default_forward_step(model: nn.Module, batch, *args, **kwargs) -> torch.Tens
     return model(batch, *args, **kwargs)
 
 
-class MegatronParallel(nn.ModuleList):
+class MegatronParallel(nn.ModuleList, Generic[ModelT]):
     """Implements distributed model parallelism that is based on Megatron-LM.
 
     This supports various forms of parallelism:
@@ -101,16 +102,16 @@ class MegatronParallel(nn.ModuleList):
 
     def __init__(
         self,
-        pipeline: Union[nn.Module, Iterable[nn.Module]],
+        pipeline: Union[ModelT, Iterable[ModelT]],
         precision_plugin: Optional[PrecisionPluginProtocol] = None,
         callbacks: Optional["CallbackConnector"] = None,
         data_step: Optional[Callable[[Iterator[DataT]], DataT]] = None,
-        forward_step: Optional[Callable[[nn.Module, DataT], Tensor]] = None,
-        loss_reduction: Optional[Callable[[nn.Module], "MegatronLossReduction"]] = None,
+        forward_step: Optional[Callable[[ModelT, DataT], Tensor]] = None,
+        loss_reduction: Optional[Callable[[ModelT], "MegatronLossReduction"]] = None,
         vp_size: Optional[int] = None,
         ddp_config: Optional[DistributedDataParallelConfig] = None,
         cpu: bool = False,
-        convert_module_fn: Optional[Callable[[nn.Module], nn.Module]] = None,
+        convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
         from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
         from megatron.core import parallel_state
@@ -524,11 +525,15 @@ class MegatronParallel(nn.ModuleList):
         raise ValueError("Could not find sharded state dict")
 
     @property
-    def pipeline(self) -> Union[nn.Module, List[nn.Module]]:
+    def pipeline(self) -> Union[ModelT, List[ModelT]]:
         if len(self) == 1:
             return self[0]
         else:
             return list(self)
+        
+    @property
+    def module(self) -> ModelT:
+        return self[0]
 
     @property
     def forward_backward_func(self) -> "MegatronStepProtocol":
