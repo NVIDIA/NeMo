@@ -154,13 +154,13 @@ class StragglerDetectionParams:
     gpu_relative_perf_threshold: float = 0.7
     gpu_individual_perf_threshold: float = 0.7
     stop_if_detected: bool = False
-    
+
 
 @dataclass
 class FaultToleranceParams:
     # NOTE: This config section is also read by the launcher.
     # NOTE: Default values should match fault_tolerance.FaultToleranceConfig.
-    
+
     workload_check_interval: float = 5.0
     initial_rank_heartbeat_timeout: Optional[float] = 60.0 * 60.0
     rank_heartbeat_timeout: Optional[float] = 45.0 * 60.0
@@ -171,6 +171,7 @@ class FaultToleranceParams:
     max_subsequent_job_failures: int = 0
     additional_ft_launcher_args: str = ''
     simulated_fault: Optional[Any] = None
+
 
 @dataclass
 class ExpManagerConfig:
