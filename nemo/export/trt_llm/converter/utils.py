@@ -15,6 +15,7 @@
 
 import numpy as np
 import torch
+import tensorrt_llm
 from tensorrt_llm._utils import torch_to_numpy
 
 # A global dicts to store exported weights.
@@ -285,13 +286,13 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
 
         if split_gated_activation:
             if convert_on_device:
-                val, gate = torch.chunk(vals[0], 2, axis=-1)
+                vals, gates = [[n] for n in torch.chunk(vals[0], 2, axis=-1)]
             else:
                 splits = [np.split(val, 2, axis=-1) for val in vals]
                 vals, gates = list(zip(*splits))
 
         if convert_on_device:
-            save_val(val, saved_dir, key)
+            save_val(vals[0], saved_dir, key)
         else:
             cat_dim = -1
             val = np.concatenate(vals, axis=cat_dim)
@@ -311,7 +312,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
                 key = f'{layer_prefix}.mlp.gate.bias'
 
             if convert_on_device:
-                save_val(gate, saved_dir, key)
+                save_val(gates[0], saved_dir, key)
             else:
                 gate = np.concatenate(gates, axis=cat_dim)
                 split_vals = np.split(gate, split_factor, axis=cat_dim)
@@ -466,3 +467,22 @@ def split(v, tp_size, idx, dim=0):
     else:
         return np.ascontiguousarray(np.split(v, tp_size, axis=dim)[idx])
         
+def init_model_parallel_from_nemo(reshard_model):
+    from megatron.core import parallel_state
+    pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+    tp_size = parallel_state.get_tensor_model_parallel_world_size()
+    dp_size = parallel_state.get_data_parallel_world_size()
+    tp_rank = parallel_state.get_tensor_model_parallel_rank()
+    pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+    dp_rank = parallel_state.get_data_parallel_rank()
+
+    if reshard_model and pp_size > 1:
+        dp_size = dp_size * pp_size
+        dp_rank = torch.distributed.get_rank() // tp_size
+        pp_rank = 0
+        pp_size = 1
+
+    mp_rank = tp_size * pp_rank + tp_rank
+    tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)    
+
+    return mp_rank, dp_rank, tp_size, pp_size, dp_size

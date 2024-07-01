@@ -31,12 +31,14 @@ from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
 from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_trt_llm_ckpt
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import get_tokenzier, is_nemo_file, load_nemo_model
+from nemo.export.trt_llm.converter.utils import init_model_parallel_from_nemo
+
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import get_tokenzier, is_nemo_file, load_nemo_model, build_tokenizer
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
 from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
 from nemo.export.trt_llm.qnemo.utils import is_qnemo_checkpoint
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
-from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_distributed
+from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_distributed, refit
 
 use_deploy = True
 try:
@@ -331,65 +333,38 @@ class TensorRTLLM(ITritonDeployable):
 
     def build(
         self,
-        nemo_model,
-        nemo_model_config,
-        trt_model_type,
+        model,
+        model_config,
+        model_type,
+        gpus_per_node,
         tokenizer,
         max_input_len: int = 1024,
-        max_input_tokens: int = 4096,
         max_output_len: int = 1024,
         max_batch_size: int = 4,
         use_refit: bool = True,
-        trt_model_dir: str = None,
         reshard_model: bool = False,
     ):        
         """
-        Convert an instantiated nemo model to TensorRT-LLM.
+        Convert a model parallel nemo model to TensorRT-LLM.
         """
-
         assert tensorrt_llm.mpi_rank() == torch.distributed.get_rank()
-        from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import build_tokenizer
-
-        global_devices = [None for _ in range(torch.distributed.get_world_size())]
-        torch.distributed.all_gather_object(global_devices, torch.cuda.current_device())
-        gpus_per_node = max(global_devices) + 1
-
-        self.use_refit = use_refit
+        self.use_refit, self.model_type, self.gpus_per_node = use_refit, model_type, gpus_per_node
+        self.mp_rank, self.dp_rank, self.tp_size, self.pp_size, self.dp_size = init_model_parallel_from_nemo(reshard_model)
         self.tokenizer = build_tokenizer(tokenizer)
-        self.trt_model_type = trt_model_type
 
-        pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-        tp_size = parallel_state.get_tensor_model_parallel_world_size()
-        dp_size = parallel_state.get_data_parallel_world_size()
-        tp_rank = parallel_state.get_tensor_model_parallel_rank()
-        pp_rank = parallel_state.get_pipeline_model_parallel_rank()
-        dp_rank = parallel_state.get_data_parallel_rank()
-
-        if reshard_model and pp_size > 1:
-            self.reshard_model = True
-            dp_size = dp_size * pp_size
-            dp_rank = torch.distributed.get_rank() // tp_size
-            pp_rank = 0
-            pp_size = 1
-        else:
-            self.reshard_model = False
-
-        if dp_size > 1:
-            self.model_dir = os.path.join(self.model_dir, f"dp_rank{dp_rank}")
-        mp_rank = tp_size * pp_rank + tp_rank
-        tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)        
-
+        if self.dp_size > 1:
+            self.model_dir = os.path.join(self.model_dir, f"dp_rank{self.dp_rank}") 
         weights, model_config = model_to_trtllm_ckpt(
-            model=nemo_model,
-            nemo_model_config=nemo_model_config,
-            nemo_export_dir=trt_model_dir,
-            decoder_type=trt_model_type,
-            tensor_parallel_size=tp_size,
-            pipeline_parallel_size=pp_size,
+            model=model,
+            nemo_model_config=model_config,
+            nemo_export_dir=self.model_dir,
+            decoder_type=model_type,
+            tensor_parallel_size=self.tp_size,
+            pipeline_parallel_size=self.pp_size,
             gpus_per_node=gpus_per_node,
             use_parallel_embedding=True,
             use_distributed_convert=True,
-            model_parallel_rank=mp_rank,
+            model_parallel_rank=self.mp_rank,
             vocab_size=self.tokenizer.vocab_size,
         )
 
@@ -400,7 +375,7 @@ class TensorRTLLM(ITritonDeployable):
             model_config=model_config[0],
             model_weights=weights[0],
             model_dir=self.model_dir,
-            model_type=trt_model_type,
+            model_type=model_type,
             custom_all_reduce=False,
             use_refit=use_refit
         )
@@ -411,32 +386,22 @@ class TensorRTLLM(ITritonDeployable):
         with open(cfg_path, "w", encoding="utf-8") as f:
             json.dump(engine.config.to_dict(), f, indent=4)
 
-        self.model_runner, self.session_params = load_distributed(
-            engine_dir=self.model_dir, model_parallel_rank=mp_rank, gpus_per_node=gpus_per_node)
+        load_distributed(self.model_dir, self.mp_rank, gpus_per_node)
 
-    def refit(self, model, nemo_model_config):
+    def refit(self, model, model_config):
         """
         Refits an TensorRT engine using an instantiated nemo model.
         This function should only be used after calling build()
         """
-
-        pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-        tp_size = parallel_state.get_tensor_model_parallel_world_size()
-        if self.reshard_model:
-            pp_size = 1
-
         weights_dict = dist_model_to_trt_llm_ckpt(
             model=model, 
-            nemo_model_config=nemo_model_config, 
-            inference_tp_size=tp_size,
-            inference_pp_size=pp_size,
+            nemo_model_config=model_config, 
+            inference_tp_size=self.tp_size,
+            inference_pp_size=self.pp_size,
             tokenizer_vocab_size=self.tokenizer.vocab_size,
         )
-
-        if not hasattr(self.model_runner, "session"):
-            self.model_runner.session = create_gpt_session(self.session_params)
-        self.model_runner.session.refit_engine(
-            weights_dict, self.session_params.model_config.data_type)
+        load_distributed(self.model_dir, self.mp_rank, self.gpus_per_node)
+        refit(weights_dict)
 
     def forward(
         self,

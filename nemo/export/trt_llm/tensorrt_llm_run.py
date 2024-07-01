@@ -408,25 +408,13 @@ def forward(
 
         raise RuntimeError("Internal error")
 
-
-@dataclass
-class GptSession_params:
-    session_config: GptSessionConfig
-    model_config: ModelConfig
-    world_config: WorldConfig
-    engine_data: bytearray
-
-def create_gpt_session(session_params: GptSession_params, engine_data: bytearray = None):
-    if engine_data is None:
-        engine_data = session_params.engine_data
-    return GptSession(
-        session_params.session_config, session_params.model_config, session_params.world_config, engine_data
-    )
-
 def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
     """Loads TRTLLM engines in a distributed gpu environment, in particular 
     this function creates a custom mapping of device_id to WorldConfig
     """
+    global tensorrt_llm_worker_context
+    if isinstance(tensorrt_llm_worker_context.decoder, ModelRunnerCppGptSession):
+        return
 
     config_path = Path(engine_dir) / f"config_{torch.distributed.get_rank()}.json"
     json_config = GptJsonConfig.parse_file(config_path)
@@ -468,12 +456,8 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
     with open(serialize_path, "rb") as f:
         engine_data = bytearray(f.read())
 
-    session_params = GptSession_params(
-        session_config=session_config, model_config=model_config, world_config=world_config, engine_data=engine_data
-    )
-    session = create_gpt_session(session_params, engine_data)
-
-    model_runner = ModelRunnerCppGptSession(
+    session = GptSession(session_config, model_config, world_config, engine_data)
+    decoder = ModelRunnerCppGptSession(
         session,
         lora_manager=None,
         max_batch_size=max_batch_size,
@@ -481,8 +465,17 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
         max_seq_len=max_seq_len,
         max_beam_width=max_beam_width,
     )
-    return model_runner, session_params
+    
+    tensorrt_llm_worker_context.decoder = decoder
+    tensorrt_llm_worker_context.max_batch_size = max_batch_size
+    tensorrt_llm_worker_context.max_input_len = max_input_len
+    # Save the model config in case for refit
+    tensorrt_llm_worker_context.model_config = model_config 
 
+def refit(weights_dict):
+    global tensorrt_llm_worker_context
+    dtype = tensorrt_llm_worker_context.model_config.data_type
+    tensorrt_llm_worker_context.decoder.session.refit_engine(weights_dict, dtype)
 
 def prepare_input_tensors(
     input_texts: List[str],
