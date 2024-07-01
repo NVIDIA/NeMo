@@ -17,7 +17,6 @@ import csv
 import json
 import logging
 import os
-import csv
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,20 +26,12 @@ import numpy as np
 import tensorrt_llm
 import torch
 from mpi4py.futures import MPIPoolExecutor
+from tensorrt_llm.bindings import GptJsonConfig, GptSession, GptSessionConfig, KvCacheConfig, WorldConfig
 from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
 from tensorrt_llm.runtime import ModelConfig, ModelRunner, ModelRunnerCpp, SamplingConfig
-from transformers import PreTrainedTokenizer
-
-from tensorrt_llm.bindings import (
-    GptJsonConfig,
-    GptSession,
-    GptSessionConfig,
-    KvCacheConfig,
-    WorldConfig
-)
 from tensorrt_llm.runtime.model_runner_cpp import ModelRunnerCppGptSession
-
+from transformers import PreTrainedTokenizer
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -408,8 +399,9 @@ def forward(
 
         raise RuntimeError("Internal error")
 
+
 def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
-    """Loads TRTLLM engines in a distributed gpu environment, in particular 
+    """Loads TRTLLM engines in a distributed gpu environment, in particular
     this function creates a custom mapping of device_id to WorldConfig
     """
     global tensorrt_llm_worker_context
@@ -433,9 +425,9 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
     # is not true for the megatron mapping of TP->DP->PP.
     # So we manipulate TRTLLM to emulate a TP->PP single node setup
     # TRTLLM is expected to fix this in future releases
-    offset = (torch.cuda.current_device()-model_parallel_rank%gpus_per_node+gpus_per_node) % gpus_per_node
+    offset = (torch.cuda.current_device() - model_parallel_rank % gpus_per_node + gpus_per_node) % gpus_per_node
     device_ids = [i for i in range(gpus_per_node)]
-    for _ in range(offset):        
+    for _ in range(offset):
         device_ids.append(device_ids.pop(0))
     world_config = WorldConfig.mpi(
         gpus_per_node=gpus_per_node, tensor_parallelism=tp_size, pipeline_parallelism=pp_size, device_ids=device_ids
@@ -465,17 +457,19 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
         max_seq_len=max_seq_len,
         max_beam_width=max_beam_width,
     )
-    
+
     tensorrt_llm_worker_context.decoder = decoder
     tensorrt_llm_worker_context.max_batch_size = max_batch_size
     tensorrt_llm_worker_context.max_input_len = max_input_len
     # Save the model config in case for refit
-    tensorrt_llm_worker_context.model_config = model_config 
+    tensorrt_llm_worker_context.model_config = model_config
+
 
 def refit(weights_dict):
     global tensorrt_llm_worker_context
     dtype = tensorrt_llm_worker_context.model_config.data_type
     tensorrt_llm_worker_context.decoder.session.refit_engine(weights_dict, dtype)
+
 
 def prepare_input_tensors(
     input_texts: List[str],

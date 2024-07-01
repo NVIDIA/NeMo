@@ -46,7 +46,7 @@ def build_and_save_engine(
     remove_input_padding: bool = True,
     paged_context_fmha: bool = False,
     custom_all_reduce: bool = True,
-    use_refit: bool = False, 
+    use_refit: bool = False,
     max_num_tokens: int = None,
     opt_num_tokens: int = None,
     max_beam_width: int = 1,

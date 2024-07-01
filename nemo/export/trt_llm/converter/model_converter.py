@@ -24,7 +24,10 @@ from tensorrt_llm.functional import non_gated_version
 from tensorrt_llm.layers import MoeConfig
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
 
-from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import convert_model_to_trt_llm_ckpt, dist_model_to_trt_llm_ckpt
+from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import (
+    convert_model_to_trt_llm_ckpt,
+    dist_model_to_trt_llm_ckpt,
+)
 from nemo.export.trt_llm.converter.utils import DECODER_MODEL_TYPE, split
 
 LOGGER = logging.getLogger("NeMo")
@@ -63,6 +66,7 @@ def prompt_convert(prompt_config, prompt_weights):
 
     return vtokens_embeddings
 
+
 def model_to_trtllm_ckpt(
     model,
     nemo_model_config,
@@ -85,11 +89,11 @@ def model_to_trtllm_ckpt(
         )
         use_embedding_sharing = True
 
-    #If the model has been sharded with model parallelism, convert the model in a gpu-distributed manner
+    # If the model has been sharded with model parallelism, convert the model in a gpu-distributed manner
     if use_distributed_convert:
         weights_dict = dist_model_to_trt_llm_ckpt(
-            model=model, 
-            nemo_model_config=nemo_model_config, 
+            model=model,
+            nemo_model_config=nemo_model_config,
             inference_tp_size=tensor_parallel_size,
             inference_pp_size=pipeline_parallel_size,
             tokenizer_vocab_size=vocab_size,
@@ -160,7 +164,7 @@ def model_to_trtllm_ckpt(
         'logits_dtype': 'float32',
         'world_size': world_size,
         'tp_size': tensor_parallel_size,
-        'pp_size': pipeline_parallel_size,   
+        'pp_size': pipeline_parallel_size,
     }
     model_configs = []
     weights_dicts = []
@@ -177,10 +181,11 @@ def model_to_trtllm_ckpt(
         config["gpus_per_node"] = gpus_per_node
         model_configs.append(PretrainedConfig(**config))
         model_configs[0].mapping = tensorrt_llm.Mapping(
-            world_size=world_size, 
-            rank=model_parallel_rank, 
-            tp_size=tensor_parallel_size, 
-            pp_size=pipeline_parallel_size)
+            world_size=world_size,
+            rank=model_parallel_rank,
+            tp_size=tensor_parallel_size,
+            pp_size=pipeline_parallel_size,
+        )
         weights_dicts.append(weights_dict)
         return weights_dicts, model_configs
 

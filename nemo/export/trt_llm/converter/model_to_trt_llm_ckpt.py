@@ -24,8 +24,8 @@ import torch
 from tensorrt_llm._utils import pad_vocab_size, str_dtype_to_torch, torch_to_numpy
 from tqdm import tqdm
 
-from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision 
-from nemo.export.trt_llm.converter.utils import split_and_save_weight, weights_dict, save_val
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
+from nemo.export.trt_llm.converter.utils import save_val, split_and_save_weight, weights_dict
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -68,10 +68,11 @@ def get_layer_prefix(layer_names, is_mcore):
 
     return model_prefix, transformer_layer_prefix
 
+
 def rename_key(new_key: str):
     if "self_attention" in new_key:
         new_key = new_key.replace("self_attention", "attention")
-    if "attention.linear_qkv.layer_norm_weight" in new_key:            
+    if "attention.linear_qkv.layer_norm_weight" in new_key:
         new_key = new_key.replace("attention.linear_qkv.layer_norm_weight", "input_layernorm.weight")
     if "attention.linear_qkv.layer_norm_bias" in new_key:
         new_key = new_key.replace("attention.linear_qkv.layer_norm_bias", "input_layernorm.bias")
@@ -82,6 +83,7 @@ def rename_key(new_key: str):
 
     return new_key
 
+
 def rename_key_dist_ckpt(old_key: str, layer: int):
     new_key = old_key
     if "layers." in old_key:
@@ -90,6 +92,7 @@ def rename_key_dist_ckpt(old_key: str, layer: int):
         new_key = ".".join(split_key)
 
     return rename_key(new_key)
+
 
 @torch.no_grad()
 def convert_model_to_trt_llm_ckpt(
@@ -245,24 +248,27 @@ def _get_layer_index(split_key):
             return index + 1
     raise ValueError(f"Unknown layer name format: {split_key}")
 
+
 def rename_layer_num(param_name, layer_num):
     split_key = param_name.split(".")
     layer_index = int(_get_layer_index(split_key))
     split_key[layer_index] = str(layer_num)
     return ".".join(split_key)
 
+
 def get_layer_num(param_name):
     split_key = param_name.split(".")
     layer_index = int(_get_layer_index(split_key))
     return int(split_key[layer_index])
 
+
 @torch.no_grad()
 def dist_model_to_trt_llm_ckpt(
-    model, 
-    nemo_model_config, 
+    model,
+    nemo_model_config,
     inference_tp_size,
     inference_pp_size,
-    tokenizer_vocab_size, 
+    tokenizer_vocab_size,
 ):
     from megatron.core import parallel_state
     from megatron.core.tensor_parallel.utils import VocabUtility
@@ -287,7 +293,9 @@ def dist_model_to_trt_llm_ckpt(
         if inference_pp_size == 1 and pp_size > 1 and inference_tp_size == tp_size:
             reshard_model = True
         else:
-            raise NotImplementedError(f"NeMo currently only supports PP>1 -> PP=1 resharding, other types of resharding will come in future releases.")
+            raise NotImplementedError(
+                f"NeMo currently only supports PP>1 -> PP=1 resharding, other types of resharding will come in future releases."
+            )
 
     num_layers = nemo_model_config["num_layers"]
     num_kv_heads = nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads'])
@@ -304,20 +312,20 @@ def dist_model_to_trt_llm_ckpt(
         in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"],
         "num_attention_heads": nemo_model_config["num_attention_heads"],
         "num_kv_heads": num_kv_heads,
-        "convert_on_device" : True,
+        "convert_on_device": True,
         "use_attention_nemo_shape": True,
         "transpose_weights": True,
     }
 
     starmap_config = {
-        "tp_rank" : None,
-        "saved_dir" : None, #unused
-        "split_factor" : 0,
-        "storage_type" : storage_type,
-        "act_range" : None,
-        "config": export_config
+        "tp_rank": None,
+        "saved_dir": None,  # unused
+        "split_factor": 0,
+        "storage_type": storage_type,
+        "act_range": None,
+        "config": export_config,
     }
-            
+
     tl_params = {}
     model_level_params = {}
     starmap_args = []
@@ -400,12 +408,14 @@ def dist_model_to_trt_llm_ckpt(
     # ----------------Convert Final Layernorm----------------
     if pp_is_last or reshard_model:
         ln_f = try_get_model_level_weight(
-            get_layer_name("final_layernorm.weight", transformer_layer_prefix), pp_last_rank)
+            get_layer_name("final_layernorm.weight", transformer_layer_prefix), pp_last_rank
+        )
         if ln_f is not None:
             starmap_args.append(starmap_config | {'key': "final_layernorm.weight", 'vals': ln_f})
 
         ln_f_bias = try_get_model_level_weight(
-            get_layer_name("final_layernorm.bias", transformer_layer_prefix), pp_last_rank)
+            get_layer_name("final_layernorm.bias", transformer_layer_prefix), pp_last_rank
+        )
         if ln_f_bias is not None:
             starmap_args.append(starmap_config | {'key': "final_layernorm.bias", 'vals': ln_f_bias})
 
@@ -428,8 +438,9 @@ def dist_model_to_trt_llm_ckpt(
         if tp_size > 1 and pp_is_first:
             vocab_embed = remove_vocab_padding(vocab_embed)
             vocab_start_index, vocab_end_index = VocabUtility.vocab_range_from_global_vocab_size(
-                tokenizer_vocab_size, tp_rank, tp_size)
-            vocab_embed = vocab_embed[...,vocab_start_index:vocab_end_index]
+                tokenizer_vocab_size, tp_rank, tp_size
+            )
+            vocab_embed = vocab_embed[..., vocab_start_index:vocab_end_index]
         vocab_embed = try_get_model_level_weight(vocab_embed, pp_first_rank)
         save_val(vocab_embed, dir=None, key='transformer.vocab_embedding.weight', tp_num=None)
 
@@ -449,6 +460,7 @@ def dist_model_to_trt_llm_ckpt(
         split_and_save_weight(**starmap_arg)
 
     return weights_dict
+
 
 def create_export_dir(nemo_export_dir):
     out_dir = Path(nemo_export_dir)

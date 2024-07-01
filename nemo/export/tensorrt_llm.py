@@ -32,8 +32,12 @@ from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
 from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_trt_llm_ckpt
 from nemo.export.trt_llm.converter.utils import init_model_parallel_from_nemo
-
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import get_tokenzier, is_nemo_file, load_nemo_model, build_tokenizer
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
+    build_tokenizer,
+    get_tokenzier,
+    is_nemo_file,
+    load_nemo_model,
+)
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
 from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
 from nemo.export.trt_llm.qnemo.utils import is_qnemo_checkpoint
@@ -48,6 +52,7 @@ except Exception:
 
 try:
     from megatron.core import parallel_state
+
     HAVE_MEGATRON_CORE = True
 except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
@@ -343,17 +348,19 @@ class TensorRTLLM(ITritonDeployable):
         max_batch_size: int = 4,
         use_refit: bool = True,
         reshard_model: bool = False,
-    ):        
+    ):
         """
         Convert a model parallel nemo model to TensorRT-LLM.
         """
         assert tensorrt_llm.mpi_rank() == torch.distributed.get_rank()
         self.use_refit, self.model_type, self.gpus_per_node = use_refit, model_type, gpus_per_node
-        self.mp_rank, self.dp_rank, self.tp_size, self.pp_size, self.dp_size = init_model_parallel_from_nemo(reshard_model)
+        self.mp_rank, self.dp_rank, self.tp_size, self.pp_size, self.dp_size = init_model_parallel_from_nemo(
+            reshard_model
+        )
         self.tokenizer = build_tokenizer(tokenizer)
 
         if self.dp_size > 1:
-            self.model_dir = os.path.join(self.model_dir, f"dp_rank{self.dp_rank}") 
+            self.model_dir = os.path.join(self.model_dir, f"dp_rank{self.dp_rank}")
         weights, model_config = model_to_trtllm_ckpt(
             model=model,
             nemo_model_config=model_config,
@@ -377,10 +384,10 @@ class TensorRTLLM(ITritonDeployable):
             model_dir=self.model_dir,
             model_type=model_type,
             custom_all_reduce=False,
-            use_refit=use_refit
+            use_refit=use_refit,
         )
         torch.distributed.barrier()
-    
+
         myrank = torch.distributed.get_rank()
         cfg_path = Path(os.path.join(self.model_dir, f'config_{myrank}.json'))
         with open(cfg_path, "w", encoding="utf-8") as f:
@@ -394,8 +401,8 @@ class TensorRTLLM(ITritonDeployable):
         This function should only be used after calling build()
         """
         weights_dict = dist_model_to_trt_llm_ckpt(
-            model=model, 
-            nemo_model_config=model_config, 
+            model=model,
+            nemo_model_config=model_config,
             inference_tp_size=self.tp_size,
             inference_pp_size=self.pp_size,
             tokenizer_vocab_size=self.tokenizer.vocab_size,
