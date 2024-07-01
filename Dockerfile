@@ -130,7 +130,8 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/installers/install_k2.sh); INSTALL
 WORKDIR /tmp/nemo
 ENV LHOTSE_REQUIRE_TORCHAUDIO=0
 COPY requirements .
-RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
+# exclude requirements_vllm.txt, since `vllm==0.5.0` breaks the container due to hardcoded requirements `torch==2.3.0`
+RUN for f in $(ls requirements*.txt | grep -v 'requirements_vllm.txt'); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
 
 # install flash attention
 RUN pip install flash-attn
