@@ -341,7 +341,7 @@ def convert(args):
             model.cfg.tokenizer.chat_template = OmegaConf.create(
                 {
                     'prefix': "{_bos_}",
-                    'roles': {'user': "[INST] {_content_} [/INST]", 'assistant': "{_content_}{_eos_}"},
+                    'roles': {'User': "[INST] {_content_} [/INST]", 'Assistant': "{_content_}{_eos_}"},
                 }
             )
 
