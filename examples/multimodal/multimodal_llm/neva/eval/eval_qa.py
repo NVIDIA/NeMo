@@ -68,9 +68,11 @@ def parse_args():
     parser.add_argument("--save_mid_result", action="store_true", help="Whether to save the intermediate results.")
     return parser.parse_args()
 
+
 INVOKE_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
-#MODEL="mistralai/mixtral-8x22b-instruct-v0.1"  # no `system` role
+# MODEL="mistralai/mixtral-8x22b-instruct-v0.1"  # no `system` role
 MODEL = "meta/llama3-70b-instruct"
+
 
 def request_nvidia_api(messages):
     API_TOKEN = os.getenv("API_TOKEN", "")  # ADD NGC API TOKEN HERE
@@ -88,7 +90,7 @@ def request_nvidia_api(messages):
         "top_p": 1.0,
         "max_tokens": 2048,
         "seed": 42,
-        "stream": True
+        "stream": True,
     }
     invoke_url = INVOKE_URL
     response = requests.post(invoke_url, headers=headers, json=payload, stream=True)
@@ -102,55 +104,50 @@ def request_nvidia_api(messages):
                 output += res['choices'][0]['delta']['content']
     return output.lstrip().strip()
 
+
 def convert_time_token(text):
     # use regular expression to convert <12> <56>  to <12s> <56s>
     return re.sub(r'<(\d+)>', r'<\1s>', text)
 
-    
+
 def get_result(question, answer, pred, key, output_dir, save_mid_result=False):
-    messages=[
-                {
-                    "role": "system",
-                    "content":
-                        "You are an intelligent chatbot designed for evaluating the correctness of generative outputs for question-answer pairs. "
-                        "Your task is to compare the predicted answer with the correct answer and determine if they match meaningfully. Here's how you can accomplish the task:"
-                        "------"
-                        "##INSTRUCTIONS: "
-                        "- Focus on the meaningful match between the predicted answer and the correct answer.\n"
-                        "- Consider synonyms or paraphrases as valid matches.\n"
-                        "- Evaluate the correctness of the prediction compared to the answer."
-                },
-                {
-                    "role": "user",
-                    "content":
-                        "Please evaluate the following video-based question-answer pair:\n\n"
-                        f"Question: {question}\n"
-                        f"Correct Answer: {answer}\n"
-                        f"Predicted Answer: {pred}\n\n"
-                        "Provide your evaluation only as a yes/no and score where the score is an integer value between 0 and 5, with 5 indicating the highest meaningful match. "
-                        "Please generate the response in the form of a Python dictionary string with keys 'pred' and 'score', where value of 'pred' is  a string of 'yes' or 'no' and value of 'score' is in INTEGER, not STRING."
-                        "DO NOT PROVIDE ANY OTHER OUTPUT TEXT OR EXPLANATION. Only provide the Python dictionary string. "
-                        "For example, your response should look like this: {'pred': 'yes', 'score': 4.8}."
-                }
-            ]
+    messages = [
+        {
+            "role": "system",
+            "content": "You are an intelligent chatbot designed for evaluating the correctness of generative outputs for question-answer pairs. "
+            "Your task is to compare the predicted answer with the correct answer and determine if they match meaningfully. Here's how you can accomplish the task:"
+            "------"
+            "##INSTRUCTIONS: "
+            "- Focus on the meaningful match between the predicted answer and the correct answer.\n"
+            "- Consider synonyms or paraphrases as valid matches.\n"
+            "- Evaluate the correctness of the prediction compared to the answer.",
+        },
+        {
+            "role": "user",
+            "content": "Please evaluate the following video-based question-answer pair:\n\n"
+            f"Question: {question}\n"
+            f"Correct Answer: {answer}\n"
+            f"Predicted Answer: {pred}\n\n"
+            "Provide your evaluation only as a yes/no and score where the score is an integer value between 0 and 5, with 5 indicating the highest meaningful match. "
+            "Please generate the response in the form of a Python dictionary string with keys 'pred' and 'score', where value of 'pred' is  a string of 'yes' or 'no' and value of 'score' is in INTEGER, not STRING."
+            "DO NOT PROVIDE ANY OTHER OUTPUT TEXT OR EXPLANATION. Only provide the Python dictionary string. "
+            "For example, your response should look like this: {'pred': 'yes', 'score': 4.8}.",
+        },
+    ]
     try:
         response_message = request_nvidia_api(messages)
         response_dict = ast.literal_eval(response_message)
     except Exception as e:
         print(f"Error processing file {key}: {e}")
         return []
-    qa_set = {
-        "question": question,
-        "ref_answer": answer,
-        "pred_answer": pred
-    }
+    qa_set = {"question": question, "ref_answer": answer, "pred_answer": pred}
     result_qa_pair = [response_dict, qa_set]
     if save_mid_result:
         with open(f"{output_dir}/{key}.json", "w") as f:
-                json.dump(result_qa_pair, f)
+            json.dump(result_qa_pair, f)
     return result_qa_pair
 
-    
+
 def main():
     args = parse_args()
     input_file = args.input_file
@@ -158,16 +155,15 @@ def main():
     save_mid_result = args.save_mid_result
     with open(input_file, "r") as f:
         data = json.load(f)
-    
+
     tasks = []
     key = 0
     for item in data:
         question = item["question"]
         item["ref_answer"] = convert_time_token(item["ref_answer"])
-        tasks.append((question, item["ref_answer"], item["pred_answer"], \
-                      key, output_dir, save_mid_result))
+        tasks.append((question, item["ref_answer"], item["pred_answer"], key, output_dir, save_mid_result))
         key += 1
-    
+
     # TODO: parallelize the requests
     results = []
     while len(tasks) > 0:
@@ -178,20 +174,20 @@ def main():
             tasks.append(task)
             continue
         results.append((key, cur_result))
-    
+
     score_sum = count = yes_count = no_count = 0
     for key, result in results:
         try:
             count += 1
             score_sum += int(result[0]["score"])
-            
+
             if "yes" in result[0]["pred"].lower():
                 yes_count += 1
             elif "no" in result[0]["pred"].lower():
                 no_count += 1
         except:
             print(f"Error processing file {key}")
-    
+
     average_score = score_sum / count
     accuracy = yes_count / (yes_count + no_count)
     result_file = os.path.join(output_dir, "metrics.json")
@@ -200,12 +196,12 @@ def main():
         "accuracy": accuracy,
         "no_count": no_count,
         "yes_count": yes_count,
-        "model": MODEL
+        "model": MODEL,
     }
     print("Metrics: ", metrics)
     with open(result_file, "w") as f:
         json.dump(metrics, f, indent=2)
 
+
 if __name__ == "__main__":
     main()
-    

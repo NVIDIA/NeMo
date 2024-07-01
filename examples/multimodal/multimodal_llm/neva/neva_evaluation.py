@@ -37,13 +37,16 @@ if not torch.cuda.is_available():
 
 
 class TemporalNevaDataset(Dataset):
-    def __init__(self, prompt_dicts,
-                    media_base_path,
-                    media_token,
-                    insert_media_token = None,
-                    image_processor = None,
-                    video_processor = None,
-                    add_media_sep = False):
+    def __init__(
+        self,
+        prompt_dicts,
+        media_base_path,
+        media_token,
+        insert_media_token=None,
+        image_processor=None,
+        video_processor=None,
+        add_media_sep=False,
+    ):
         self.prompt_dicts = prompt_dicts
         self.media_token = media_token
         self.insert_media_token = insert_media_token
@@ -62,7 +65,7 @@ class TemporalNevaDataset(Dataset):
         media_dict = {}
         media = media_token.lstrip('<').rstrip('>')
         for prompt_dict in self.prompt_dicts:
-            media_name = prompt_dict[media] # video or image file name
+            media_name = prompt_dict[media]  # video or image file name
             if media_name not in media_dict:
                 media_dict[media_name] = []
             media_dict[media_name].append(prompt_dict)
@@ -106,9 +109,11 @@ class TemporalNevaDataset(Dataset):
             cur_item.append(prompt_dict)
         return cur_media_feature, cur_item
 
+
 def collate_function(batch):
     # do nothing
     return batch
+
 
 def do_inference(dataloader, model, length_params, sampling_params, cfg):
     responses = []
@@ -122,8 +127,11 @@ def do_inference(dataloader, model, length_params, sampling_params, cfg):
             for prompt in prompts:
                 prompt[media] = media_feature
             cur_batch_responses = model.generate(
-                input_prompts=prompts, length_params=length_params, sampling_params=sampling_params, inference_config=cfg
-                )
+                input_prompts=prompts,
+                length_params=length_params,
+                sampling_params=sampling_params,
+                inference_config=cfg,
+            )
             responses.extend(cur_batch_responses)
     return responses, all_prompts
 
@@ -162,19 +170,24 @@ def main(cfg) -> None:
     media_token = f"<{media_type_token}>"
 
     insert_media_token = cfg.inference.get("insert_media_token", None)
-    dataset = TemporalNevaDataset(prompt_dicts, \
-                                  cfg.inference.media_base_path, \
-                                  media_token, insert_media_token, \
-                                  image_processor,
-                                  video_processor,
-                                  cfg.get("add_media_sep", False))
-    #num_workers = min(multiprocessing.cpu_count()-1, 4)
+    dataset = TemporalNevaDataset(
+        prompt_dicts,
+        cfg.inference.media_base_path,
+        media_token,
+        insert_media_token,
+        image_processor,
+        video_processor,
+        cfg.get("add_media_sep", False),
+    )
+    # num_workers = min(multiprocessing.cpu_count()-1, 4)
     num_workers = 2
-    dataloader = DataLoader(dataset,
-                            batch_size=cfg.inference.get("batch_size", 1),
-                            shuffle=False,
-                            collate_fn=collate_function,
-                            num_workers=num_workers)
+    dataloader = DataLoader(
+        dataset,
+        batch_size=cfg.inference.get("batch_size", 1),
+        shuffle=False,
+        collate_fn=collate_function,
+        num_workers=num_workers,
+    )
     responses, final_prompts = do_inference(dataloader, model, length_params, sampling_params, cfg)
 
     # =================== Start Quantization ====================
@@ -195,18 +208,23 @@ def main(cfg) -> None:
                 cur_prompt_dicts = prompt_dicts
             else:
                 cur_prompt_dicts = prompt_dicts[:num_samples]
-            cur_dataset = TemporalNevaDataset(cur_prompt_dicts, \
-                                              cfg.inference.media_base_path, \
-                                              media_token, insert_media_token, \
-                                              image_processor,
-                                              video_processor,
-                                              cfg.get("add_media_sep", False))
-            cur_dataloader = DataLoader(cur_dataset,
-                                        batch_size=cfg.inference.get("batch_size", 1),
-                                        shuffle=False,
-                                        collate_fn=collate_function,
-                                        num_workers=num_workers)
-            _, _= do_inference(cur_dataloader, model, length_params, sampling_params, cfg)
+            cur_dataset = TemporalNevaDataset(
+                cur_prompt_dicts,
+                cfg.inference.media_base_path,
+                media_token,
+                insert_media_token,
+                image_processor,
+                video_processor,
+                cfg.get("add_media_sep", False),
+            )
+            cur_dataloader = DataLoader(
+                cur_dataset,
+                batch_size=cfg.inference.get("batch_size", 1),
+                shuffle=False,
+                collate_fn=collate_function,
+                num_workers=num_workers,
+            )
+            _, _ = do_inference(cur_dataloader, model, length_params, sampling_params, cfg)
 
         mtq.quantize(model, mtq_config, forward_loop)
 

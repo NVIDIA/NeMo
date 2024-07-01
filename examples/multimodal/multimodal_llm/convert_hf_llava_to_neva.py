@@ -48,7 +48,11 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--in-file", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
+        "--in-file",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to Huggingface LLaMA checkpoints",
     )
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument(
@@ -63,9 +67,13 @@ def get_args():
     )
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
     parser.add_argument("--config-file", type=str, default="llava_config.yaml")
-    parser.add_argument("--mm_projector_ckpt_dir", type=str, default=None, \
-                        help="Path to multimodal projector checkpoint directory \
-                        This will overlap the projector weights in in-file hf checkpoint")
+    parser.add_argument(
+        "--mm_projector_ckpt_dir",
+        type=str,
+        default=None,
+        help="Path to multimodal projector checkpoint directory \
+                        This will overlap the projector weights in in-file hf checkpoint",
+    )
     parser.add_argument("--mm_vision_tower", type=str, default=None)
     args = parser.parse_args()
     return args
@@ -212,7 +220,7 @@ def convert(args):
         scaler = None
         if precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
-                init_scale=nemo_config.get('native_amp_init_scale', 2 ** 32),
+                init_scale=nemo_config.get('native_amp_init_scale', 2**32),
                 growth_interval=nemo_config.get('native_amp_growth_interval', 1000),
                 hysteresis=nemo_config.get('hysteresis', 2),
             )
@@ -268,9 +276,9 @@ def convert(args):
     for key in model.state_dict():
         if 'mm_projector' in key:
             mm_projection_layer_suffix = key.split('mm_projector')[1]
-            checkpoint['state_dict'][
-                f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'
-            ] = param_to_weights(model.state_dict()[key])
+            checkpoint['state_dict'][f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'] = (
+                param_to_weights(model.state_dict()[key])
+            )
 
     # Replace or add the projection weights
     proj_ckpt = None
@@ -291,15 +299,18 @@ def convert(args):
         for key in model.state_dict():
             if 'mm_projector' in key:
                 mm_projection_layer_suffix = key.split('mm_projector')[1]
-                checkpoint['state_dict'][
-                    f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'
-                ] = param_to_weights(proj_ckpt[key])
+                checkpoint['state_dict'][f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'] = (
+                    param_to_weights(proj_ckpt[key])
+                )
         import json
+
         proj_conf_file = open(os.path.join(args.mm_projector_ckpt_dir, "config.json"))
 
         proj_conf = json.load(proj_conf_file)
         if proj_conf['mm_projector_type'] != nemo_config.mm_cfg.mm_mlp_adapter_type:
-            logging.warning(f"Overriding mm_projector_type from {nemo_config.mm_cfg.mm_mlp_adapter_type} to {proj_conf['mm_projector_type']}")
+            logging.warning(
+                f"Overriding mm_projector_type from {nemo_config.mm_cfg.mm_mlp_adapter_type} to {proj_conf['mm_projector_type']}"
+            )
             nemo_config.mm_cfg.mm_mlp_adapter_type = proj_conf['mm_projector_type']
         proj_conf_file.close()
     embed_weight = model.state_dict()[f'model.embed_tokens.weight']

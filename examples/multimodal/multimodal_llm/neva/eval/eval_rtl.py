@@ -61,21 +61,21 @@ def iou(seg1, seg2):
         float: IoU value
     """
     assert seg1[1] >= seg1[0] and seg2[1] >= seg2[0]
-    
+
     x1 = max(seg1[0], seg2[0])
     x2 = min(seg1[1], seg2[1])
     inter = max(x2 - x1, 0)
-    
+
     len1 = max(seg1[1] - seg1[0], 0)
     len2 = max(seg2[1] - seg2[0], 0)
-    
+
     union = len1 + len2 - inter
-    
+
     if union == 0:
         return 0.0
     else:
-        return inter/union
-    
+        return inter / union
+
 
 def precision_func(thres):
     """calculate the precision based on the threshold.
@@ -85,8 +85,10 @@ def precision_func(thres):
     Args:
         thres (float): threshold value [0.0, 1.0]
     """
+
     def precision(seg1, seg2):
         return float(iou(seg1, seg2) >= thres)
+
     return precision
 
 
@@ -98,7 +100,7 @@ def parse_start_end_timestamps(outputs, duration, strict=False):
         assert len(list(matches)) >= 2, "cannot find timestamps"
     elif len(list(matches)) < 2:
         return outputs, [0, duration]
-    
+
     prev_end = 0
     sentence = ""
     timestamps = []
@@ -113,7 +115,7 @@ def parse_start_end_timestamps(outputs, duration, strict=False):
         prev_end = end
     sentence += outputs[prev_end:]
     sentence = sentence.strip()
-    
+
     return sentence, [min(timestamps), max(timestamps)]
 
 
@@ -122,21 +124,17 @@ def eval(pred_file, output_dir, save_mid_result=True):
 
     Args:
         pred_file (str): path to the predictions JSON file
-        output_dir (str): path to the output directory, 
+        output_dir (str): path to the output directory,
             where the `answers.json` and `metrics.json` result will be saved.
     """
-    metric_func = {
-        'iou': iou,
-        'precision@0.5': precision_func(0.5)
-    }
+    metric_func = {'iou': iou, 'precision@0.5': precision_func(0.5)}
     metrics = {}
     for metric in metric_func:
         metrics[metric] = defaultdict(list)
-    
 
     with open(pred_file, 'r') as f:
         pred_data = json.load(f)
-    
+
     out_list = []
     for pred in pred_data:
         assert "pred_answer" in pred, "pred_answer field is missing"
@@ -144,19 +142,21 @@ def eval(pred_file, output_dir, save_mid_result=True):
         duration = pred['duration']
         pred_answer, pred_timestamps = parse_start_end_timestamps(pred['pred_answer'], duration, strict=False)
         ref_answer, ref_timestamps = parse_start_end_timestamps(pred['ref_answer'], duration, strict=False)
-        
+
         for metric in metric_func:
             metrics[metric][pred['video']].append(metric_func[metric](pred_timestamps, ref_timestamps))
-        
-        out_list.append({
-            'video': pred['video'],
-            'question_id': pred['question_id'],
-            'question': pred['question'],
-            'pred_answer': pred_answer,
-            'ref_answer': ref_answer,
-            'pred_timestamps': pred_timestamps,
-            'ref_timestamps': ref_timestamps
-        })
+
+        out_list.append(
+            {
+                'video': pred['video'],
+                'question_id': pred['question_id'],
+                'question': pred['question'],
+                'pred_answer': pred_answer,
+                'ref_answer': ref_answer,
+                'pred_timestamps': pred_timestamps,
+                'ref_timestamps': ref_timestamps,
+            }
+        )
     # save result
     os.makedirs(output_dir, exist_ok=True)
     if save_mid_result:
@@ -164,23 +164,23 @@ def eval(pred_file, output_dir, save_mid_result=True):
         print(f"Saving intermediate result to {output_file}")
         with open(output_file, 'w') as f:
             json.dump(out_list, f, indent=2)
-    
+
     final_result = {}
     for metric in metrics:
         values = []
         for vid in metrics[metric]:
             # get single video metric value
             cur_metric_values = metrics[metric][vid]
-            values.append(sum(cur_metric_values)/len(cur_metric_values))
+            values.append(sum(cur_metric_values) / len(cur_metric_values))
         # get global average video metric value
         values = sum(values) / len(values)
         final_result[metric] = values
-    
+
     print(final_result)
     output_file = os.path.join(output_dir, 'metrics.json')
     with open(output_file, 'w') as f:
         json.dump(final_result, f, indent=2)
-        
+
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate the predictions against the ground truth")
@@ -188,8 +188,9 @@ def main():
     parser.add_argument("--output_dir", help="Path to the output directory", required=True)
     parser.add_argument("--save_mid_result", action="store_true", help="Save intermediate result")
     args = parser.parse_args()
-    
+
     eval(args.input_file, args.output_dir, args.save_mid_result)
 
+
 if __name__ == "__main__":
-    main()       
+    main()
