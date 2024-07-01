@@ -747,9 +747,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.cfg.get('hidden_size'),
         ]
 
-        te_module.base.initialize_ub(
+        te_module.initialize_ub(
             shape=input_shape,
-            tp_size=self.cfg.get('tensor_model_parallel_size'),
+            tp_group=torch.distributed.new_group(backend="nccl"),
             use_fp8=self.cfg.get('fp8'),
             ub_cfgs=ub_cfgs,
         )
