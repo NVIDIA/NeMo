@@ -69,7 +69,7 @@ try:
         get_t5_decoder_with_transformer_engine_block_spec,
         get_t5_encoder_with_local_block_spec,
         get_t5_encoder_with_transformer_engine_block_spec,
-    )    
+    )
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -108,7 +108,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         self.mcore_t5 = cfg.get('mcore_t5', False)
         if self.mcore_t5:
-            self.transformer_config = self.build_transformer_config() 
+            self.transformer_config = self.build_transformer_config()
 
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
@@ -149,7 +149,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             self._wrap_model_for_O2()
 
             # DEBUGGING
-            self.enc_dec_model = self.model # when wrapping, only self.model is wrapped in MCoreFloat16Module, and not self.enc_dec_model
+            self.enc_dec_model = (
+                self.model
+            )  # when wrapping, only self.model is wrapped in MCoreFloat16Module, and not self.enc_dec_model
 
         self.enable_autocast = (
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
@@ -273,7 +275,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder.arch == 'perceiver':
             raise ValueError(f"Perceivers with pipeline parallel > 1 is not supported yet.")
 
-
         if hasattr(self, 'mcore_t5') and self.mcore_t5:
             assert HAVE_MEGATRON_CORE, "Cannot use MCore T5 since Megatron Core is not found"
             assert self.cfg.get(
@@ -286,7 +287,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 )
             else:
                 enc_dec_spec_fns = (
-                    get_t5_encoder_with_local_block_spec, 
+                    get_t5_encoder_with_local_block_spec,
                     get_t5_decoder_with_local_block_spec,
                 )
 
@@ -810,7 +811,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # processing forward args for mcore T5
             if self.mcore_t5:
                 # when run encoding
-                if output_name=="hiddens":
+                if output_name == "hiddens":
                     (
                         encoder_input_ids,
                         encoder_attn_mask,
@@ -822,18 +823,18 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     )
 
                     output = model(
-                            encoder_input_ids=encoder_input_ids,
-                            decoder_input_ids=None,
-                            encoder_attn_mask=encoder_attn_mask_3d,
-                            decoder_attn_mask=None,
-                            encoder_decoder_attn_mask=None,
-                            lm_labels=None,
-                            encoder_hidden_states=None,
-                            output_encoder_hidden_only=True,
+                        encoder_input_ids=encoder_input_ids,
+                        decoder_input_ids=None,
+                        encoder_attn_mask=encoder_attn_mask_3d,
+                        decoder_attn_mask=None,
+                        encoder_decoder_attn_mask=None,
+                        lm_labels=None,
+                        encoder_hidden_states=None,
+                        output_encoder_hidden_only=True,
                     ).contiguous()
 
                 # when run decoding
-                elif output_name=="logits":
+                elif output_name == "logits":
                     (
                         encoder_hidden_states,
                         encoder_attn_mask,
@@ -851,23 +852,26 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     enc_dec_attn_mask_3d = build_attention_mask_3d(
                         decoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
                     )
-                    
+
                     # re-transpose encoder_hidden_states from [batch, seq_len, hidden] to [seq_len, batch, hidden]
                     encoder_hidden_states = encoder_hidden_states.transpose(1, 0)
 
                     output = model(
-                            encoder_input_ids=None,
-                            decoder_input_ids=decoder_input_ids,
-                            encoder_attn_mask=encoder_attn_mask_3d,
-                            decoder_attn_mask=decoder_attn_mask_3d,
-                            encoder_decoder_attn_mask=enc_dec_attn_mask_3d,
-                            lm_labels=None,
-                            encoder_hidden_states=encoder_hidden_states,
-                            output_encoder_hidden_only=False,
+                        encoder_input_ids=None,
+                        decoder_input_ids=decoder_input_ids,
+                        encoder_attn_mask=encoder_attn_mask_3d,
+                        decoder_attn_mask=decoder_attn_mask_3d,
+                        encoder_decoder_attn_mask=enc_dec_attn_mask_3d,
+                        lm_labels=None,
+                        encoder_hidden_states=encoder_hidden_states,
+                        output_encoder_hidden_only=False,
                     ).contiguous()
 
                 else:
-                    assert output_name in ["hiddens", "logits"], "output_name argument must be either 'hiddens' or 'logits'"
+                    assert output_name in [
+                        "hiddens",
+                        "logits",
+                    ], "output_name argument must be either 'hiddens' or 'logits'"
 
             else:
                 # map batch and shared args into forward args
@@ -1159,12 +1163,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             self.setup_transformer_engine_tp_groups()
 
     def setup_transformer_engine_tp_groups(self):
-        """ This should be called after model parallel groups have been initialized
-            and only needs to be called when using Transformer Engine.
+        """This should be called after model parallel groups have been initialized
+        and only needs to be called when using Transformer Engine.
         """
         for module in self.get_t5_module_list():
             """Set TP group
-               Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
+            Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
             """
             # Deep iterate but skip self to avoid infinite recursion.
             for index, child in enumerate(module.modules()):
@@ -1264,7 +1268,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # build input arguments description
         if tokens_enc is not None:
-            if self.mcore_t5 is True: 
+            if self.mcore_t5 is True:
                 batch_for_pipeline = [tokens_enc, enc_mask]
                 arg_names = []
             else:
@@ -1282,9 +1286,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             arg_names.append('enc_input')
 
         if self.mcore_t5:
-            forward_step_func = self._get_forward_output_only_func(
-                arg_names=arg_names, output_name="hiddens"
-            )
+            forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="hiddens")
         else:
             forward_step_func = self._get_forward_output_only_func(
                 arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True
@@ -1821,10 +1823,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def build_transformer_config(self) -> TransformerConfig:
-        """ Builds the megatron core gpt transformer config for the model.
-            For attributes in the nemo model config that are the same
-            as the megatron core TransformerConfig, we will use the value from the nemo model config.
-            For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
+        """Builds the megatron core gpt transformer config for the model.
+        For attributes in the nemo model config that are the same
+        as the megatron core TransformerConfig, we will use the value from the nemo model config.
+        For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
 
         # for T5 model, transformers hyperparameters are stored in self.cfg.encoder/self.cfg.decoder
@@ -1868,7 +1870,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return transformer_config
 
     def setup_mcore_distributed_parallel(self):
-        """Set up mcore distributed data parallel """
+        """Set up mcore distributed data parallel"""
         if self.with_distributed_adam and self.use_mcore_dist_optim:
             config = get_model_config(self.model[0])
             ddp_config = DistributedDataParallelConfig(
