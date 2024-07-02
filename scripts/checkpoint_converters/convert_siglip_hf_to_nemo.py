@@ -26,7 +26,7 @@ from argparse import ArgumentParser
 
 import torch
 from omegaconf import OmegaConf
-from transformers import AutoProcessor, AutoModel
+from transformers import AutoModel, AutoProcessor
 
 from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import MegatronCLIPModel
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
@@ -38,85 +38,179 @@ from nemo.utils import logging
 def create_rename_keys(num_hidden_layers):
     rename_keys = []
     for i in range(num_hidden_layers):
-        rename_keys.extend([
-            (f"text_model.encoder.layers.{i}.self_attn.k_proj.weight", f"model.text_encoder.decoder.layers.{i}.self_attention.linear_k.weight"),
-            (f"text_model.encoder.layers.{i}.self_attn.k_proj.bias", f"model.text_encoder.decoder.layers.{i}.self_attention.linear_k.bias"),
-            (f"text_model.encoder.layers.{i}.self_attn.q_proj.weight", f"model.text_encoder.decoder.layers.{i}.self_attention.linear_q.weight"),
-            (f"text_model.encoder.layers.{i}.self_attn.q_proj.bias", f"model.text_encoder.decoder.layers.{i}.self_attention.linear_q.bias"),
-            (f"text_model.encoder.layers.{i}.self_attn.v_proj.weight", f"model.text_encoder.decoder.layers.{i}.self_attention.linear_v.weight"),
-            (f"text_model.encoder.layers.{i}.self_attn.v_proj.bias", f"model.text_encoder.decoder.layers.{i}.self_attention.linear_v.bias"),
-            (f"text_model.encoder.layers.{i}.self_attn.out_proj.weight", f"model.text_encoder.decoder.layers.{i}.self_attention.linear_proj.weight"),
-            (f"text_model.encoder.layers.{i}.self_attn.out_proj.bias", f"model.text_encoder.decoder.layers.{i}.self_attention.linear_proj.bias"),
-            (f"text_model.encoder.layers.{i}.layer_norm1.weight", f"model.text_encoder.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight"),
-            (f"text_model.encoder.layers.{i}.layer_norm1.bias", f"model.text_encoder.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_bias"),
-            (f"text_model.encoder.layers.{i}.mlp.fc1.weight", f"model.text_encoder.decoder.layers.{i}.mlp.linear_fc1.weight"),
-            (f"text_model.encoder.layers.{i}.mlp.fc1.bias", f"model.text_encoder.decoder.layers.{i}.mlp.linear_fc1.bias"),
-            (f"text_model.encoder.layers.{i}.mlp.fc2.weight", f"model.text_encoder.decoder.layers.{i}.mlp.linear_fc2.weight"),
-            (f"text_model.encoder.layers.{i}.mlp.fc2.bias", f"model.text_encoder.decoder.layers.{i}.mlp.linear_fc2.bias"),
-            (f"text_model.encoder.layers.{i}.layer_norm2.weight", f"model.text_encoder.decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight"),
-            (f"text_model.encoder.layers.{i}.layer_norm2.bias", f"model.text_encoder.decoder.layers.{i}.mlp.linear_fc1.layer_norm_bias"),
+        rename_keys.extend(
+            [
+                (
+                    f"text_model.encoder.layers.{i}.self_attn.k_proj.weight",
+                    f"model.text_encoder.decoder.layers.{i}.self_attention.linear_k.weight",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.self_attn.k_proj.bias",
+                    f"model.text_encoder.decoder.layers.{i}.self_attention.linear_k.bias",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.self_attn.q_proj.weight",
+                    f"model.text_encoder.decoder.layers.{i}.self_attention.linear_q.weight",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.self_attn.q_proj.bias",
+                    f"model.text_encoder.decoder.layers.{i}.self_attention.linear_q.bias",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.self_attn.v_proj.weight",
+                    f"model.text_encoder.decoder.layers.{i}.self_attention.linear_v.weight",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.self_attn.v_proj.bias",
+                    f"model.text_encoder.decoder.layers.{i}.self_attention.linear_v.bias",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.self_attn.out_proj.weight",
+                    f"model.text_encoder.decoder.layers.{i}.self_attention.linear_proj.weight",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.self_attn.out_proj.bias",
+                    f"model.text_encoder.decoder.layers.{i}.self_attention.linear_proj.bias",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.layer_norm1.weight",
+                    f"model.text_encoder.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.layer_norm1.bias",
+                    f"model.text_encoder.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_bias",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.mlp.fc1.weight",
+                    f"model.text_encoder.decoder.layers.{i}.mlp.linear_fc1.weight",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.mlp.fc1.bias",
+                    f"model.text_encoder.decoder.layers.{i}.mlp.linear_fc1.bias",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.mlp.fc2.weight",
+                    f"model.text_encoder.decoder.layers.{i}.mlp.linear_fc2.weight",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.mlp.fc2.bias",
+                    f"model.text_encoder.decoder.layers.{i}.mlp.linear_fc2.bias",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.layer_norm2.weight",
+                    f"model.text_encoder.decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight",
+                ),
+                (
+                    f"text_model.encoder.layers.{i}.layer_norm2.bias",
+                    f"model.text_encoder.decoder.layers.{i}.mlp.linear_fc1.layer_norm_bias",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.self_attn.k_proj.weight",
+                    f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_k.weight",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.self_attn.k_proj.bias",
+                    f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_k.bias",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.self_attn.v_proj.weight",
+                    f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_v.weight",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.self_attn.v_proj.bias",
+                    f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_v.bias",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.self_attn.q_proj.weight",
+                    f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_q.weight",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.self_attn.q_proj.bias",
+                    f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_q.bias",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.self_attn.out_proj.weight",
+                    f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_proj.weight",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.self_attn.out_proj.bias",
+                    f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_proj.bias",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.layer_norm1.weight",
+                    f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.layer_norm1.bias",
+                    f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_bias",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.mlp.fc1.weight",
+                    f"model.vision_encoder.decoder.layers.{i}.mlp.linear_fc1.weight",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.mlp.fc1.bias",
+                    f"model.vision_encoder.decoder.layers.{i}.mlp.linear_fc1.bias",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.mlp.fc2.weight",
+                    f"model.vision_encoder.decoder.layers.{i}.mlp.linear_fc2.weight",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.mlp.fc2.bias",
+                    f"model.vision_encoder.decoder.layers.{i}.mlp.linear_fc2.bias",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.layer_norm2.weight",
+                    f"model.vision_encoder.decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight",
+                ),
+                (
+                    f"vision_model.encoder.layers.{i}.layer_norm2.bias",
+                    f"model.vision_encoder.decoder.layers.{i}.mlp.linear_fc1.layer_norm_bias",
+                ),
+            ]
+        )
 
-            (f"vision_model.encoder.layers.{i}.self_attn.k_proj.weight",
-             f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_k.weight"),
-            (f"vision_model.encoder.layers.{i}.self_attn.k_proj.bias",
-             f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_k.bias"),
-            (f"vision_model.encoder.layers.{i}.self_attn.v_proj.weight",
-             f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_v.weight"),
-            (f"vision_model.encoder.layers.{i}.self_attn.v_proj.bias",
-             f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_v.bias"),
-            (f"vision_model.encoder.layers.{i}.self_attn.q_proj.weight",
-             f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_q.weight"),
-            (f"vision_model.encoder.layers.{i}.self_attn.q_proj.bias",
-             f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_q.bias"),
-            (f"vision_model.encoder.layers.{i}.self_attn.out_proj.weight",
-             f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_proj.weight"),
-            (f"vision_model.encoder.layers.{i}.self_attn.out_proj.bias",
-             f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_proj.bias"),
-            (f"vision_model.encoder.layers.{i}.layer_norm1.weight",
-             f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight"),
-            (f"vision_model.encoder.layers.{i}.layer_norm1.bias",
-             f"model.vision_encoder.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_bias"),
-            (f"vision_model.encoder.layers.{i}.mlp.fc1.weight",
-             f"model.vision_encoder.decoder.layers.{i}.mlp.linear_fc1.weight"),
-            (f"vision_model.encoder.layers.{i}.mlp.fc1.bias",
-             f"model.vision_encoder.decoder.layers.{i}.mlp.linear_fc1.bias"),
-            (f"vision_model.encoder.layers.{i}.mlp.fc2.weight",
-             f"model.vision_encoder.decoder.layers.{i}.mlp.linear_fc2.weight"),
-            (f"vision_model.encoder.layers.{i}.mlp.fc2.bias",
-             f"model.vision_encoder.decoder.layers.{i}.mlp.linear_fc2.bias"),
-            (f"vision_model.encoder.layers.{i}.layer_norm2.weight",
-             f"model.vision_encoder.decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight"),
-            (f"vision_model.encoder.layers.{i}.layer_norm2.bias",
-             f"model.vision_encoder.decoder.layers.{i}.mlp.linear_fc1.layer_norm_bias")
-        ])
-
-    rename_keys.extend([
-        ("logit_scale", "model.logit_scale"),
-        ("logit_bias", "model.logit_bias"),
-        ("vision_model.embeddings.patch_embedding.weight", "model.vision_encoder.conv1.weight"),
-        ("vision_model.embeddings.patch_embedding.bias", "model.vision_encoder.conv1.bias"),
-        ("vision_model.embeddings.position_embedding.weight", "model.vision_encoder.position_embeddings.weight"),
-        ("vision_model.post_layernorm.weight", "model.vision_encoder.final_layernorm.weight"),
-        ("vision_model.post_layernorm.bias", "model.vision_encoder.final_layernorm.bias"),
-        ("vision_model.head.probe", "model.vision_encoder.head.probe"),
-        ("vision_model.head.attention.in_proj_weight", "model.vision_encoder.head.cross_attention.linear_qkv.weight"),
-        ("vision_model.head.attention.in_proj_bias", "model.vision_encoder.head.cross_attention.linear_qkv.bias"),
-        ("vision_model.head.attention.out_proj.weight", "model.vision_encoder.head.cross_attention.linear_proj.weight"),
-        ("vision_model.head.attention.out_proj.bias", "model.vision_encoder.head.cross_attention.linear_proj.bias"),
-        ("vision_model.head.layernorm.weight", "model.vision_encoder.head.mlp.linear_fc1.layer_norm_weight"),
-        ("vision_model.head.layernorm.bias", "model.vision_encoder.head.mlp.linear_fc1.layer_norm_bias"),
-        ("vision_model.head.mlp.fc1.weight", "model.vision_encoder.head.mlp.linear_fc1.weight"),
-        ("vision_model.head.mlp.fc1.bias", "model.vision_encoder.head.mlp.linear_fc1.bias"),
-        ("vision_model.head.mlp.fc2.weight", "model.vision_encoder.head.mlp.linear_fc2.weight"),
-        ("vision_model.head.mlp.fc2.bias", "model.vision_encoder.head.mlp.linear_fc2.bias"),
-
-        ("text_model.embeddings.token_embedding.weight", "model.text_encoder.embedding.word_embeddings.weight"),
-        ("text_model.embeddings.position_embedding.weight", "model.text_encoder.embedding.position_embeddings.weight"),
-        ("text_model.final_layer_norm.weight", "model.text_encoder.final_layernorm.weight"),
-        ("text_model.final_layer_norm.bias", "model.text_encoder.final_layernorm.bias"),
-        ("text_model.head.weight", "model.text_encoder.head.weight"),
-        ("text_model.head.bias", "model.text_encoder.head.bias")
-    ])
+    rename_keys.extend(
+        [
+            ("logit_scale", "model.logit_scale"),
+            ("logit_bias", "model.logit_bias"),
+            ("vision_model.embeddings.patch_embedding.weight", "model.vision_encoder.conv1.weight"),
+            ("vision_model.embeddings.patch_embedding.bias", "model.vision_encoder.conv1.bias"),
+            ("vision_model.embeddings.position_embedding.weight", "model.vision_encoder.position_embeddings.weight"),
+            ("vision_model.post_layernorm.weight", "model.vision_encoder.final_layernorm.weight"),
+            ("vision_model.post_layernorm.bias", "model.vision_encoder.final_layernorm.bias"),
+            ("vision_model.head.probe", "model.vision_encoder.head.probe"),
+            (
+                "vision_model.head.attention.in_proj_weight",
+                "model.vision_encoder.head.cross_attention.linear_qkv.weight",
+            ),
+            ("vision_model.head.attention.in_proj_bias", "model.vision_encoder.head.cross_attention.linear_qkv.bias"),
+            (
+                "vision_model.head.attention.out_proj.weight",
+                "model.vision_encoder.head.cross_attention.linear_proj.weight",
+            ),
+            (
+                "vision_model.head.attention.out_proj.bias",
+                "model.vision_encoder.head.cross_attention.linear_proj.bias",
+            ),
+            ("vision_model.head.layernorm.weight", "model.vision_encoder.head.mlp.linear_fc1.layer_norm_weight"),
+            ("vision_model.head.layernorm.bias", "model.vision_encoder.head.mlp.linear_fc1.layer_norm_bias"),
+            ("vision_model.head.mlp.fc1.weight", "model.vision_encoder.head.mlp.linear_fc1.weight"),
+            ("vision_model.head.mlp.fc1.bias", "model.vision_encoder.head.mlp.linear_fc1.bias"),
+            ("vision_model.head.mlp.fc2.weight", "model.vision_encoder.head.mlp.linear_fc2.weight"),
+            ("vision_model.head.mlp.fc2.bias", "model.vision_encoder.head.mlp.linear_fc2.bias"),
+            ("text_model.embeddings.token_embedding.weight", "model.text_encoder.embedding.word_embeddings.weight"),
+            (
+                "text_model.embeddings.position_embedding.weight",
+                "model.text_encoder.embedding.position_embeddings.weight",
+            ),
+            ("text_model.final_layer_norm.weight", "model.text_encoder.final_layernorm.weight"),
+            ("text_model.final_layer_norm.bias", "model.text_encoder.final_layernorm.bias"),
+            ("text_model.head.weight", "model.text_encoder.head.weight"),
+            ("text_model.head.bias", "model.text_encoder.head.bias"),
+        ]
+    )
 
     return rename_keys
 
@@ -242,7 +336,8 @@ def get_args():
         "--hparams_file",
         type=str,
         default=os.path.join(
-            os.path.dirname(__file__), '../../examples/multimodal/vision_language_foundation/clip/conf/megatron_siglip_so400m_14_384.yaml'
+            os.path.dirname(__file__),
+            '../../examples/multimodal/vision_language_foundation/clip/conf/megatron_siglip_so400m_14_384.yaml',
         ),
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
@@ -282,8 +377,9 @@ def convert(args):
 
     logging.info(f'=' * 100)
     # Verifications
-    from PIL import Image
     import requests
+    from PIL import Image
+
     url = "http://images.cocodataset.org/val2017/000000039769.jpg"
     image = Image.open(requests.get(url, stream=True).raw)
 
@@ -306,7 +402,9 @@ def convert(args):
         y = model2(p)
     except:
         pass
-    import pdb; pdb.set_trace()
+    import pdb
+
+    pdb.set_trace()
     # print(y)
     # import pdb; pdb.set_trace()
     # input_texts = [

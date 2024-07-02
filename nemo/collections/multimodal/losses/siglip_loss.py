@@ -99,8 +99,9 @@ class NeighbourExchangeBidir(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, *grad_outputs):
-        return (None, None, None) + \
-            NeighbourExchangeBidir.apply(ctx.right_rank, ctx.left_rank, ctx.group, *grad_outputs)
+        return (None, None, None) + NeighbourExchangeBidir.apply(
+            ctx.right_rank, ctx.left_rank, ctx.group, *grad_outputs
+        )
 
 
 def neighbour_exchange_bidir_with_grad(left_rank, right_rank, tensor_to_left, tensor_to_right, group=None):
@@ -108,7 +109,7 @@ def neighbour_exchange_bidir_with_grad(left_rank, right_rank, tensor_to_left, te
 
 
 class SigLipLoss(torch.nn.Module):
-    """ Sigmoid Loss for Language Image Pre-Training (SigLIP) - https://arxiv.org/abs/2303.15343
+    """Sigmoid Loss for Language Image Pre-Training (SigLIP) - https://arxiv.org/abs/2303.15343
 
     @article{zhai2023sigmoid,
       title={Sigmoid loss for language image pre-training},
@@ -119,12 +120,12 @@ class SigLipLoss(torch.nn.Module):
     """
 
     def __init__(
-            self,
-            cache_labels=False,
-            rank=0,
-            world_size=1,
-            group=None,
-            bidir=True,
+        self,
+        cache_labels=False,
+        rank=0,
+        world_size=1,
+        group=None,
+        bidir=True,
     ):
         super().__init__()
         self.cache_labels = cache_labels
@@ -132,7 +133,6 @@ class SigLipLoss(torch.nn.Module):
         self.world_size = world_size
         self.group = group
         self.bidir = bidir
-
 
     def get_ground_truth(self, device, dtype, num_logits, negative_only=False) -> torch.Tensor:
         labels = -torch.ones((num_logits, num_logits), device=device, dtype=dtype)
@@ -188,7 +188,8 @@ class SigLipLoss(torch.nn.Module):
 
                 if remainder:
                     text_features_recv = neighbour_exchange_with_grad(
-                        left_rank, right_rank, text_features_to_right, group=self.group)
+                        left_rank, right_rank, text_features_to_right, group=self.group
+                    )
 
                     loss += self._loss(
                         image_features,
@@ -201,7 +202,8 @@ class SigLipLoss(torch.nn.Module):
                 text_features_to_right = text_features
                 for i in range(self.world_size - 1):
                     text_features_from_left = neighbour_exchange_with_grad(
-                        left_rank, right_rank, text_features_to_right, group=self.group)
+                        left_rank, right_rank, text_features_to_right, group=self.group
+                    )
 
                     loss += self._loss(
                         image_features,

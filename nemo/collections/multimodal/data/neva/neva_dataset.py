@@ -1220,7 +1220,10 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
         )
         if crop_size is None:
-            crop_size = (image_processor.crop_size['height'], image_processor.crop_size['width'],)
+            crop_size = (
+                image_processor.crop_size['height'],
+                image_processor.crop_size['width'],
+            )
         assert crop_size == (
             image_processor.crop_size['height'],
             image_processor.crop_size['width'],

@@ -1028,10 +1028,12 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         logging.info('Building Neva datasets.')
         if self.cfg.data.get("packed_sequence", False):
             assert self.cfg.micro_batch_size == 1, "Micro batch size must be 1 if using packed sequence"
-            self._train_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix,
-                                                   self.cfg.mm_cfg.vision_encoder.get("crop_size"))
-            self._validation_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix,
-                                                        self.cfg.mm_cfg.vision_encoder.get("crop_size"))
+            self._train_ds = NevaPackedSeqDatatset(
+                self.cfg.data.data_prefix, self.cfg.mm_cfg.vision_encoder.get("crop_size")
+            )
+            self._validation_ds = NevaPackedSeqDatatset(
+                self.cfg.data.data_prefix, self.cfg.mm_cfg.vision_encoder.get("crop_size")
+            )
         else:
             ds_dict = make_supervised_data_module(
                 tokenizer=self.tokenizer,

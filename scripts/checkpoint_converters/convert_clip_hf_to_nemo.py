@@ -174,17 +174,15 @@ def mapping_hf_state_dict(hf_model):
             v_bias = v_bias.reshape(num_query_groups, head_size)
             qkv_bias = torch.empty((0, head_size), device=q_bias.device)
             for i in range(num_query_groups):
-                qkv_bias = torch.cat((qkv_bias, q_bias[i * heads_per_group: (i + 1) * heads_per_group, :]))
-                qkv_bias = torch.cat((qkv_bias, k_bias[i: i + 1, :]))
-                qkv_bias = torch.cat((qkv_bias, v_bias[i: i + 1, :]))
+                qkv_bias = torch.cat((qkv_bias, q_bias[i * heads_per_group : (i + 1) * heads_per_group, :]))
+                qkv_bias = torch.cat((qkv_bias, k_bias[i : i + 1, :]))
+                qkv_bias = torch.cat((qkv_bias, v_bias[i : i + 1, :]))
             qkv_bias = qkv_bias.reshape([head_size * (head_num + 2 * num_query_groups)])
             nemo_state_dict[key_new] = qkv_bias
         elif not ('k_proj' in key_ or 'v_proj' in key_ or 'position_ids' in key_):
             nemo_state_dict[key_] = hf_state_dict[key]
 
-    nemo_state_dict["vision_encoder.class_token"] = nemo_state_dict[
-        "vision_encoder.class_token"
-    ].reshape(1, 1, -1)
+    nemo_state_dict["vision_encoder.class_token"] = nemo_state_dict["vision_encoder.class_token"].reshape(1, 1, -1)
 
     return nemo_state_dict
 
