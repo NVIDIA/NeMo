@@ -292,6 +292,7 @@ def main():
         custom_caption_prompts = caption_prompts
 
     t_prompts = time_prompts
+    prompts = []
     if args.subtask == "custom_event":
         prompts = custom_event_prompts
     elif args.subtask == "custom_caption":

@@ -213,8 +213,8 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         vision_x = rearrange(vision_x, "(b T F) v d -> b T F v d", b=b, T=T, F=F)
         if self.vision_select_feature == "patch":
             vision_x = vision_x[:, :, :, self.class_token_length :]
-        elif self.vision_select_feature == "cls_patch":
-            vision_x = vision_x
+        elif self.vision_select_feature != "cls_patch":
+            raise ValueError(f"Unsupported vision_select_feature {self.vision_select_feature}")
         assert self.is_adapter_available(), "Cannot find multimodal vision adapter!"
         vision_connector = self.get_adapter_module(AdapterName.MULTIMODAL_PROJECTOR_ADAPTER)
         vision_x = vision_connector(vision_x)

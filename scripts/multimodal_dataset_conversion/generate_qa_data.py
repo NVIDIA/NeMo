@@ -255,7 +255,7 @@ def generate_question_answers(dense_caption):
 
     try:
         return json.loads(answer)
-    except:
+    except Exception as e:
         print(f"Failed to parse the response: {answer}")
         return None
 
@@ -267,7 +267,7 @@ def rewrite_dense_caption(dense_caption):
 
     try:
         return json.loads(answer)
-    except:
+    except Exception as e:
         print(f"Failed to parse the response: {answer}")
         return None
 

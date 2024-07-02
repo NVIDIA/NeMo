@@ -2,7 +2,7 @@ name: nemo_video_lita_neva
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  devices: 8
+  devices: 1
   num_nodes: 1
   accelerator: gpu
   precision: bf16

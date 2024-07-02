@@ -185,7 +185,7 @@ def main():
                 yes_count += 1
             elif "no" in result[0]["pred"].lower():
                 no_count += 1
-        except:
+        except Exception as e:
             print(f"Error processing file {key}")
 
     average_score = score_sum / count

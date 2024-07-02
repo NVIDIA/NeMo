@@ -471,8 +471,6 @@ def create_neva_model_and_processor(cfg):
         else:
             frames = maybe_video_path
 
-        dtype = torch_dtype_from_precision(neva_cfg.precision)
-
         if neva_cfg.mm_cfg.vision_encoder.get("from_hf", False):
             if "siglip" in neva_cfg.mm_cfg.vision_encoder.from_pretrained:
                 processor = SiglipImageProcessor.from_pretrained(neva_cfg.mm_cfg.vision_encoder.from_pretrained)
