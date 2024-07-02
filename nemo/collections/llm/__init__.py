@@ -43,8 +43,8 @@ from nemo.collections.llm.gpt.model import (
     gpt_forward_step,
 )
 from nemo.collections.llm.gpt.model.api import (
-    mistral_model,
-    mixtral_model,
+    mistral,
+    mixtral,
     llama2_7b,
     llama3_8b,
     llama2_13b,
@@ -102,8 +102,8 @@ __all__ = [
     "mock",
     "squad",
     "dolly",
-    "mistral_model",
-    "mixtral_model",
+    "mistral",
+    "mixtral",
     "llama2_7b",
     "llama3_8b",
     "llama2_13b",

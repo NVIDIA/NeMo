@@ -26,12 +26,12 @@ import pytorch_lightning as pl
 
 
 @factory
-def mistral_model() -> pl.LightningModule:
+def mistral() -> pl.LightningModule:
     return MistralModel(MistralConfig7B())
 
 
 @factory
-def mixtral_model() -> pl.LightningModule:
+def mixtral() -> pl.LightningModule:
     return MixtralModel(MixtralConfig8x7B())
 
 
@@ -106,8 +106,8 @@ def code_gemma_7b() -> pl.LightningModule:
 
 
 __all__ = [
-    "mistral_model",
-    "mixtral_model",
+    "mistral",
+    "mixtral",
     "llama2_7b",
     "llama3_8b",
     "llama2_13b",
