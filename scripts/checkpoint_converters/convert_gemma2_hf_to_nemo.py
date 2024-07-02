@@ -13,11 +13,19 @@
 # limitations under the License.
 
 """
-Requires HF transformers updated to support Gemma 2 Models
-   python3 /opt/NeMo/scripts/checkpoint_converters/convert_gemma2_hf_to_nemo.py \
-   --input_name_or_path /path/to/gemma2/checkpoints/hf/9b \
-   --output_path /path/to/gemma2-9b.nemo \
-   --tokenizer_path /path/to/tokenizer.model
+Requires HF transformers updated to v4.42 to support Gemma 2 Models
+
+    huggingface-cli login
+    >>> from huggingface_hub import snapshot_download
+    >>> snapshot_download(repo_id="google/gemma-2-9b", local_dir="/path/to/gemma2/checkpoints/hf/9b")
+
+    python3 /opt/NeMo/scripts/checkpoint_converters/convert_gemma2_hf_to_nemo.py \
+    --input_name_or_path /path/to/gemma2/checkpoints/hf/9b \
+    --output_path /path/to/gemma2-9b.nemo \
+    --tokenizer_path /path/to/gemma2/checkpoints/hf/9b/tokenizer.model
+    [--cpu]
+
+If you encounter a torch.cuda.OutOfMemoryError, try converting on CPU with --cpu.
 """
 
 import os
@@ -215,7 +223,8 @@ def get_args():
     parser.add_argument(
         "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weight saved"
     )
-    parser.add_argument("--skip_verification", action="store_true")
+    parser.add_argument("--run_verification", action="store_true")
+    parser.add_argument("--cpu", action="store_true")
 
     args = parser.parse_args()
     return args
@@ -270,6 +279,9 @@ def convert(args):
     nemo_config.model.tokenizer["model"] = args.tokenizer_path
 
     nemo_config.trainer["precision"] = args.precision
+    if args.cpu:
+        nemo_config.model['use_cpu_initialization'] = True
+        nemo_config.trainer['accelerator'] = 'cpu'
     trainer = MegatronTrainerBuilder(nemo_config).create_trainer()
     model = MegatronGPTModel(nemo_config.model, trainer)
 
@@ -280,13 +292,14 @@ def convert(args):
     nemo_state_dict = adjust_tensor_shapes(model, new_state_dict)
     model.load_state_dict(nemo_state_dict, strict=False)
 
-    if not args.skip_verification:
+    if args.run_verification and not args.cpu:
         logging.info(f'=' * 100)
         verify(model, hf_tokenizer, hf_model)
         logging.info(f'=' * 100)
 
     dtype = torch_dtype_from_precision(args.precision)
     model = model.to(dtype=dtype)
+    model.cfg.use_cpu_initialization = False
     model.save_to(args.output_path)
     logging.info(f'NeMo model saved to: {args.output_path}')
 
