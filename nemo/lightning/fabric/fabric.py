@@ -42,6 +42,39 @@ class Fabric(lb.Fabric, IOMixin):
         path: Union[str, Path],
         model_type: Type[ModelT],
     ) -> "DistributedModel[ModelT]":
+        """
+        Import a model from a given path and set it up for distributed training.
+
+        This method imports a model of the specified type from the given path, loads it,
+        and sets it up for distributed training using the current Fabric instance.
+
+        Args:
+            path (Union[str, Path]): The path to the model. Can be a local path or a
+                Hugging Face model identifier.
+            model_type (Type[ModelT]): The type of the model to import. Must be a subclass
+                of ConnectorMixin.
+
+        Returns:
+            DistributedModel[ModelT]: The imported and distributed model.
+
+        Raises:
+            TypeError: If the provided model_type is not a subclass of ConnectorMixin.
+
+        Example:
+            >>> from nemo import lightning as nl
+            >>> from nemo.collections.llm import MistralModel
+            >>> 
+            >>> trainer = nl.Trainer(
+            ...     devices=2,
+            ...     strategy=nl.MegatronStrategy(tensor_model_parallel_size=2),
+            ...     plugins=nl.MegatronMixedPrecision(precision='16-mixed')
+            ... )
+            >>> fabric = trainer.to_fabric()
+            >>> model = fabric.import_model("hf://mistralai/Mistral-7B-v0.1", MistralModel)
+            >>> 
+            >>> # The model is now ready for distributed training
+            >>> # You can use it with your data and training loop
+        """
         from nemo.lightning.io import ConnectorMixin
 
         if not issubclass(model_type, ConnectorMixin):
