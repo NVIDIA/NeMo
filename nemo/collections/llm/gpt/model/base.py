@@ -4,16 +4,15 @@ from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 import pytorch_lightning as L
 import torch
 import torch.distributed
-from megatron.core.optimizer import OptimizerConfig
-from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.models.gpt import gpt_layer_specs
+from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.transformer.transformer_config import TransformerConfig
 
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
-
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
@@ -67,17 +66,13 @@ def gpt_forward_step(model, batch) -> torch.Tensor:
 
 def transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
     return gpt_layer_specs.get_gpt_layer_with_transformer_engine_spec(
-        num_experts=config.num_moe_experts, 
-        moe_grouped_gemm=config.moe_grouped_gemm,
-        qk_layernorm=config.qk_layernorm
+        num_experts=config.num_moe_experts, moe_grouped_gemm=config.moe_grouped_gemm, qk_layernorm=config.qk_layernorm
     )
-    
+
 
 def local_layer_spect(config: "GPTConfig") -> ModuleSpec:
     return gpt_layer_specs.get_gpt_layer_local_spec(
-        num_experts=config.num_moe_experts,
-        moe_grouped_gemm=config.moe_grouped_gemm,
-        qk_layernorm=config.qk_layernorm
+        num_experts=config.num_moe_experts, moe_grouped_gemm=config.moe_grouped_gemm, qk_layernorm=config.qk_layernorm
     )
 
 
@@ -111,7 +106,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
 
         from megatron.core import parallel_state
         from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-        
+
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(self)
