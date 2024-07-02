@@ -16,12 +16,6 @@ import os
 from typing import List, Optional
 
 from transformers import (
-    ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
-    BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
-    CAMEMBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
-    DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
-    GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
-    ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
     AlbertConfig,
     AutoModel,
     BertConfig,
@@ -47,37 +41,37 @@ HUGGINGFACE_MODELS = {
         "default": "bert-base-uncased",
         "class": BertEncoder,
         "config": BertConfig,
-        "pretrained_model_list": BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+        "pretrained_model_list": None,  # BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
     "DistilBertModel": {
         "default": "distilbert-base-uncased",
         "class": DistilBertEncoder,
         "config": DistilBertConfig,
-        "pretrained_model_list": DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+        "pretrained_model_list": None,  # DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
     "CamembertModel": {
         "default": "camembert-base-uncased",
         "class": CamembertEncoder,
         "config": CamembertConfig,
-        "pretrained_model_list": CAMEMBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+        "pretrained_model_list": None,  # CAMEMBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
     "RobertaModel": {
         "default": "roberta-base",
         "class": RobertaEncoder,
         "config": RobertaConfig,
-        "pretrained_model_list": ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
+        "pretrained_model_list": None,  # ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
     "AlbertModel": {
         "default": "albert-base-v2",
         "class": AlbertEncoder,
         "config": AlbertConfig,
-        "pretrained_model_list": ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+        "pretrained_model_list": None,  # ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
     "GPT2Model": {
         "default": "gpt2",
         "class": GPT2Encoder,
         "config": GPT2Config,
-        "pretrained_model_list": GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
+        "pretrained_model_list": None,  # GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
 }
 
@@ -94,7 +88,9 @@ VOCAB_FILE_NAME = {
 
 
 def get_huggingface_lm_model(
-    pretrained_model_name: str, config_dict: Optional[dict] = None, config_file: Optional[str] = None,
+    pretrained_model_name: str,
+    config_dict: Optional[dict] = None,
+    config_file: Optional[str] = None,
 ):
     """
     Returns lm model instantiated with Huggingface
@@ -135,7 +131,9 @@ def get_huggingface_lm_model(
         raise ValueError(f"Use HuggingFace API directly in NeMo for {pretrained_model_name}")
 
 
-def get_huggingface_pretrained_lm_models_list(include_external: bool = False,) -> List[str]:
+def get_huggingface_pretrained_lm_models_list(
+    include_external: bool = False,
+) -> List[str]:
     """
     Returns the list of pretrained HuggingFace language models
 
@@ -144,9 +142,9 @@ def get_huggingface_pretrained_lm_models_list(include_external: bool = False,) -
 
     Returns the list of HuggingFace models
     """
-
-    huggingface_models = []
-    for model in HUGGINGFACE_MODELS:
-        model_names = HUGGINGFACE_MODELS[model]["pretrained_model_list"]
-        huggingface_models.extend(model_names)
-    return huggingface_models
+    logging.warning(
+        "pretrained_model_list no longer exists in HF transformers v4.40 and later. "
+        "See https://github.com/huggingface/transformers/pull/29112 for details. "
+        "This function will return an empty list."
+    )
+    return []
