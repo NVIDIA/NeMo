@@ -15,7 +15,6 @@ class TestNeMoLogger:
     def test_loggers(self):
         trainer = nl.Trainer(accelerator="cpu")
         logger = nl.NeMoLogger(
-            name="test",
             update_logger_directory=True,
             wandb=WandbLogger(save_dir="test", offline=True),
         )
@@ -25,7 +24,9 @@ class TestNeMoLogger:
         assert len(logger.extra_loggers) == 0
         assert len(trainer.loggers) == 2
         assert isinstance(trainer.loggers[1], WandbLogger)
-
+        assert str(trainer.loggers[1].save_dir).endswith("nemo_experiments")
+        assert trainer.loggers[1]._name == "default"
+        
     def test_explicit_log_dir(self, trainer):
         explicit_dir = "explicit_test_dir"
         logger = nl.NeMoLogger(name="test", explicit_log_dir=explicit_dir)
