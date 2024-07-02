@@ -993,7 +993,7 @@ def model_inference_strategy_dispatcher(model, **args):
     if isinstance(model, MegatronGriffinModel):
         return GriffinModelTextGenerationStrategy(model)
     if isinstance(model, MegatronMambaModel):
-        return MambaModelTextGenerationStrategy(model)
+        return GPTModelTextGenerationStrategy(model)
     if isinstance(model, MegatronNevaModel):
         return NevaModelTextGenerationStrategy(model)
     if isinstance(model, MegatronGPTPromptLearningModel):
