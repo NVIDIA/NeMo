@@ -29,14 +29,13 @@ def task(*args: Any, **kwargs: Any) -> Callable[[T], T]:
 
         return noop_decorator
 
+
 @overload
-def factory() -> Callable[[T], T]:
-    ...
+def factory() -> Callable[[T], T]: ...
 
 
 @overload
-def factory(*args: Any, **kwargs: Any) -> Callable[[T], T]:
-    ...
+def factory(*args: Any, **kwargs: Any) -> Callable[[T], T]: ...
 
 
 def factory(*args: Any, **kwargs: Any) -> Union[Callable[[T], T], T]:

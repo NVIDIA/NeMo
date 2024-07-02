@@ -1,3 +1,5 @@
+import pytorch_lightning as pl
+
 from nemo.collections.llm.gpt.model.gemma import (
     CodeGemmaConfig2B,
     CodeGemmaConfig7B,
@@ -20,9 +22,7 @@ from nemo.collections.llm.gpt.model.llama import (
 )
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
-
 from nemo.collections.llm.utils import factory
-import pytorch_lightning as pl
 
 
 @factory

@@ -13,7 +13,7 @@ from nemo.collections.llm.gpt.data import (
     PreTrainingDataModule,
     SquadDataModule,
 )
-from nemo.collections.llm.gpt.data.api import mock, squad, dolly
+from nemo.collections.llm.gpt.data.api import dolly, mock, squad
 from nemo.collections.llm.gpt.model import (
     CodeGemmaConfig2B,
     CodeGemmaConfig7B,
@@ -43,13 +43,8 @@ from nemo.collections.llm.gpt.model import (
     gpt_forward_step,
 )
 from nemo.collections.llm.gpt.model.api import (
-    mistral,
-    mixtral,
-    llama2_7b,
-    llama3_8b,
-    llama2_13b,
-    llama2_70b,
-    llama3_70b,
+    code_gemma_2b,
+    code_gemma_7b,
     code_llama_7b,
     code_llama_13b,
     code_llama_34b,
@@ -57,8 +52,13 @@ from nemo.collections.llm.gpt.model.api import (
     gemma,
     gemma_2b,
     gemma_7b,
-    code_gemma_2b,
-    code_gemma_7b,
+    llama2_7b,
+    llama2_13b,
+    llama2_70b,
+    llama3_8b,
+    llama3_70b,
+    mistral,
+    mixtral,
 )
 
 __all__ = [
