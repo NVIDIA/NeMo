@@ -697,9 +697,9 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
         if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-            num_microbatches = get_num_microbatches()
+            num_batches = get_num_microbatches()
             batch_iter = []
-            for _ in range(num_microbatches):
+            for _ in range(num_batches):
                 try:
                     batch_iter.append(next(dataloader_iter))
                 except StopIteration:
