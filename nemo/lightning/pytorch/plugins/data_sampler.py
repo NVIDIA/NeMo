@@ -47,7 +47,7 @@ class MegatronDataSampler(DataSampler):
             micro_batch_size=self.micro_batch_size,
             global_batch_size=self.global_batch_size,
             rampup_batch_size=self.rampup_batch_size,
-            consumed_samples=consumed_samples,
+            consumed_samples=consumed_samples or self.init_consumed_samples,
             dataloader_type=self.dataloader_type,
         )
 

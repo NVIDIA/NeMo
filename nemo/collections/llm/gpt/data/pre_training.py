@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
@@ -52,6 +52,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
         self.seed = seed
         self.split = split
         self.index_mapping_dir = index_mapping_dir
+        self.init_global_step = 0
 
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -119,6 +120,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
         return self._create_dataloader(self._test_ds)
 
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
+        self.init_global_step = self.trainer.global_step
         return DataLoader(
             dataset,
             num_workers=self.num_workers,
@@ -143,3 +145,43 @@ class PreTrainingDataModule(pl.LightningDataModule):
             reset_attention_mask=self.reset_attention_mask,
             eod_mask_loss=self.eod_mask_loss,
         )
+
+    def state_dict(self) -> Dict[str, Any]:
+        """Called when saving a checkpoint, implement to generate and save datamodule state.
+
+        Returns:
+            A dictionary containing datamodule state.
+
+        """
+        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
+        return {'consumed_samples': consumed_samples}
+
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        """Called when loading a checkpoint, implement to reload datamodule state given datamodule stat
+
+        Args:
+            state_dict: the datamodule state returned by ``state_dict``.
+
+        """
+        try:
+            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        except ModuleNotFoundError:
+            from nemo.lightning.apex_utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        consumed_samples = state_dict['consumed_samples']
+        self.data_sampler.init_consumed_samples = consumed_samples
+        self.data_sampler.prev_consumed_samples = consumed_samples
+        num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR  # noqa: SLF001
+
+        num_microbatch_calculator.update(
+            consumed_samples=consumed_samples,
+            consistency_check=False,
+        )
+        current_global_batch_size = num_microbatch_calculator.current_global_batch_size
+        '''pl_module.log(
+            "global_batch_size",
+            current_global_batch_size,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )'''
+        self.if_first_step = 1
