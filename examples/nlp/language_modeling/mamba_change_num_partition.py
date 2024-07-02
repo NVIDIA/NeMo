@@ -21,6 +21,7 @@ import torch
 from omegaconf import open_dict
 from pytorch_lightning import Trainer
 
+from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
 from nemo.collections.nlp.parts.nlp_overrides import (
     NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE,
     GradScaler,
@@ -306,10 +307,11 @@ def split_tp_partition_only(args, model, original_model, tp_size, write_path=Non
     # This is done so that the last PP rank will save the last TP rank only after all other PP TP ranks are saved
     # The final rank will then save a new NeMo file with all other ranks inside.
     write_tp_pp_split(model, splits, app_state, tp_size, pp_rank=0, write_path=write_path)
-    
+
     with tarfile.open(write_path, 'r') as tar:
         # Extract all contents to the specified path
         tar.extractall(path=os.path.dirname(write_path))
+
 
 def main():
     parser = ArgumentParser()
