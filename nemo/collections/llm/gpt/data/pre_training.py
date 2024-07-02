@@ -91,7 +91,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
 
         if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
             # This is to make sure we only have one epoch on every validation iteration
-            num_val_samples = 1
+            num_val_samples = None
 
         train_valid_test_num_samples = [num_train_samples, num_val_samples, num_test_samples]
         self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
