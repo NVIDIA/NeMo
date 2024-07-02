@@ -33,19 +33,6 @@ class FabricMegatronMixedPrecision(MixedPrecision):
 
         super().__init__(precision, device, scaler)
         dtype = None
-        # MixedPrecisionPlugin class in PTL >= 2.0 takes only "16-mixed" or "bf16-mixed" for precision arg
-        if precision == "16-mixed":
-            dtype = torch.float16
-
-            def float16_convertor(val):
-                return val.half()
-
-        elif precision == "bf16-mixed":
-            dtype = torch.bfloat16
-
-            def float16_convertor(val):
-                return val.bfloat16()
-
         torch.set_autocast_gpu_dtype(dtype)
         self.float16_convertor = float16_convertor
         self.amp_02 = amp_02

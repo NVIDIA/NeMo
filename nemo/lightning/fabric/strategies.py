@@ -134,6 +134,7 @@ class FabricMegatronStrategy(DDPStrategy):
         super()._setup_distributed()
         torch.cuda.set_device(self.cluster_environment.local_rank())
 
+        # TODO: Fix this:
         # if self.data_config is not None:
         #     _strategy_lib.initialize_data(self.cluster_environment.global_rank(), self.data_config)
         _strategy_lib.init_model_parallel()
