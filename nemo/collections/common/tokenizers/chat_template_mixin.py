@@ -4,6 +4,7 @@ from functools import cache
 TEMPLATE_VAR_VALIDATION_PAT = re.compile(r'^\{_[A-Za-z][A-Za-z0-9_]*_\}$')
 TEMPLATE_VAR_SEARCH_PAT = re.compile('({_[^}]+_})')
 
+
 class ChatTemplateMixin:
     def apply_chat_template(self, messages):
         assert self.chat_template is not None
@@ -13,17 +14,20 @@ class ChatTemplateMixin:
     def has_chat_template(self):
         return self.chat_template is not None
 
+
 @cache
 def is_template_var(s):
     # It should start with {_ and end with _}, be non-empty and not contain { or } within.
     return re.match(TEMPLATE_VAR_VALIDATION_PAT, s)
 
+
 def extract_template_parts(template, skip_empty=True):
-    for part in re.split(TEMPLATE_VAR_SEARCH_PAT , template):
+    for part in re.split(TEMPLATE_VAR_SEARCH_PAT, template):
         # skip empty parts
         if skip_empty and part == '':
             continue
         yield part
+
 
 def strip_template_wrap(s):
     if not is_template_var(s):
@@ -31,8 +35,9 @@ def strip_template_wrap(s):
     # Strip the "{_" prefix and the "_}" suffix
     return s[2:-2]
 
+
 def render_chat_turn(message, template):
-    """ Renders a chat turn based on template
+    """Renders a chat turn based on template
 
     Args:
         message (Dict)
@@ -59,6 +64,7 @@ def render_chat_turn(message, template):
             # Otherwise it is literal string
             ans.append(template_part)
     yield ''.join(ans), None
+
 
 def encode_string_with_special_token(tokenizer, inputs, special_token):
     """
@@ -92,6 +98,7 @@ def encode_string_with_special_token(tokenizer, inputs, special_token):
         assert hasattr(tokenizer, special_token), f"Special_token {special_token} is not part of tokenizer"
         ans += [getattr(tokenizer, special_token)]
     return ans
+
 
 def tokenize_with_chat_template(tokenizer, messages, template):
     assert is_chat_input(messages), "Expected input to be chat-template"
@@ -137,8 +144,9 @@ def extract_turns(messages, axis):
     """
     ans = []
     for turn in messages:
-        ans.append({k: v[axis] for k,v in turn.items()})
+        ans.append({k: v[axis] for k, v in turn.items()})
     return ans
+
 
 def explode_chat_template_input(messages):
     """
@@ -155,9 +163,13 @@ def explode_chat_template_input(messages):
     assert isinstance(messages, list), "Expected messages to be a list"
     assert len(messages) > 0, "Expected non empty messages"
     assert all(map(lambda x: isinstance(x, dict), messages)), "Expected messages to contain dicts"
-    assert all(map(lambda x: 'role' in x and 'content' in x, messages)), "Expected messages each dict to contain 'role' and 'content' fields"
+    assert all(
+        map(lambda x: 'role' in x and 'content' in x, messages)
+    ), "Expected messages each dict to contain 'role' and 'content' fields"
     n = len(messages[0]['role'])
-    assert all(map(lambda x: len(x['role']) == n, messages)), "Expected all batch messages to contain equal number of roles in all turns"
+    assert all(
+        map(lambda x: len(x['role']) == n, messages)
+    ), "Expected all batch messages to contain equal number of roles in all turns"
     for i in range(n):
         yield extract_turns(messages, axis=i)
 

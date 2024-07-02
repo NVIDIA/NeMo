@@ -21,12 +21,11 @@ from typing import List, Set, Tuple
 
 import torch
 from transformers import CLIPImageProcessor
+
+from nemo.collections.common.tokenizers.chat_template_mixin import explode_chat_template_input, is_chat_input
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-
-from nemo.collections.common.tokenizers.chat_template_mixin import explode_chat_template_input, is_chat_input
-
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -98,7 +97,9 @@ class TextGenerationStrategy:
         """
         tokenizer = self.model.tokenizer
         if is_chat_input(sentences):
-            assert getattr(tokenizer, 'has_chat_template', False), "Got chat-template input but tokenizer does not support chat template formating."
+            assert getattr(
+                tokenizer, 'has_chat_template', False
+            ), "Got chat-template input but tokenizer does not support chat template formating."
             context_tokens = list(map(tokenizer.text_to_ids, explode_chat_template_input(sentences)))
         elif add_BOS:
             context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]

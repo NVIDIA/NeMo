@@ -92,7 +92,7 @@ def get_tokenizer(
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
         bpe_dropout: (experimental) BPE dropout tries to corrupt the standard segmentation
             procedure of BPE to help
-            model better learn word compositionality and become robust to segmentation errors. 
+            model better learn word compositionality and become robust to segmentation errors.
             It has emperically been shown to improve inference time BLEU scores.
     """
     if special_tokens is None:
@@ -117,7 +117,10 @@ def get_tokenizer(
     if tokenizer_name == 'sentencepiece':
         logging.info("tokenizer_model: " + str(tokenizer_model))
         return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
-            model_path=tokenizer_model, special_tokens=special_tokens, legacy=True, chat_template=chat_template,
+            model_path=tokenizer_model,
+            special_tokens=special_tokens,
+            legacy=True,
+            chat_template=chat_template,
         )
     elif tokenizer_name == 'word':
         return WordTokenizer(vocab_file=vocab_file, **special_tokens_dict)
@@ -189,7 +192,9 @@ def get_nmt_tokenizer(
     elif library == 'sentencepiece':
         logging.info(f'Getting SentencePiece with model: {tokenizer_model}')
         return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
-            model_path=tokenizer_model, legacy=legacy, chat_template=chat_template,
+            model_path=tokenizer_model,
+            legacy=legacy,
+            chat_template=chat_template,
         )
     elif library == 'byte-level':
         logging.info(f'Using byte-level tokenization')
@@ -211,7 +216,9 @@ def get_nmt_tokenizer(
         logging.info(
             f'Getting Megatron tokenizer for pretrained model name: {model_name}, custom vocab file: {vocab_file}, and merges file: {merges_file}'
         )
-        return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file, merges_file=merges_file, chat_template=chat_template)
+        return get_tokenizer(
+            tokenizer_name=model_name, vocab_file=vocab_file, merges_file=merges_file, chat_template=chat_template
+        )
     elif library == 'tabular':
         return TabularTokenizer(vocab_file, delimiter=delimiter)
     else:

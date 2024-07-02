@@ -20,8 +20,8 @@ import sentencepiece
 import torch
 
 from nemo.collections.common.parts.utils import if_exist
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.common.tokenizers.chat_template_mixin import ChatTemplateMixin
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
 __all__ = ['SentencePieceTokenizer', 'create_spt_model']
@@ -39,8 +39,11 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
     """
 
     def __init__(
-        self, model_path: str, special_tokens: Optional[Union[Dict[str, str], List[str]]] = None,
-        legacy: bool = False, chat_template: Optional[Dict] = None,
+        self,
+        model_path: str,
+        special_tokens: Optional[Union[Dict[str, str], List[str]]] = None,
+        legacy: bool = False,
+        chat_template: Optional[Dict] = None,
     ):
         self.chat_template = chat_template
         if not model_path or not os.path.exists(model_path):

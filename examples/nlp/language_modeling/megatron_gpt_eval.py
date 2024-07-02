@@ -275,6 +275,7 @@ def load_model_from_config(trainer, cfg):
         raise ValueError("need at least a nemo file or checkpoint dir")
     return model
 
+
 def load_prompts(cfg):
     prompts = []
     if (cfg_prompts := getattr(cfg, 'prompts', None)) is not None:
@@ -288,8 +289,11 @@ def load_prompts(cfg):
     # Make sure non-empty input
     assert len(prompts) > 0, "Expected at least one prompt"
     # Make sure all have the same type
-    assert all(map(lambda x: isinstance(x, type(prompts[0])), prompts)), "Expected all prompts to have the same datatype"
+    assert all(
+        map(lambda x: isinstance(x, type(prompts[0])), prompts)
+    ), "Expected all prompts to have the same datatype"
     return prompts
+
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
