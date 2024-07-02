@@ -28,12 +28,11 @@ Requires HF transformers updated to v4.42 to support Gemma 2 Models
 If you encounter a torch.cuda.OutOfMemoryError, try converting on CPU with --cpu.
 """
 
+import math
 import os
 from argparse import ArgumentParser
 
 import torch
-import math
-
 from megatron.core import parallel_state
 from omegaconf import OmegaConf
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -229,6 +228,7 @@ def get_args():
     args = parser.parse_args()
     return args
 
+
 def verify(nemo_model, hf_tokenizer, hf_model):
     # Verifications
     input_texts = [
@@ -256,8 +256,9 @@ def verify(nemo_model, hf_tokenizer, hf_model):
     ]
     for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
         attn_mask, _, pos_ids = attn_mask_and_pos_ids
-        outputs = nemo_model(tokens=tokens.cuda(), text_position_ids=pos_ids.cuda(), attention_mask=attn_mask.cuda(),
-                        labels=None)
+        outputs = nemo_model(
+            tokens=tokens.cuda(), text_position_ids=pos_ids.cuda(), attention_mask=attn_mask.cuda(), labels=None
+        )
 
     hf_next_token = hf_outputs.logits[0, -1].argmax()
     next_token = outputs.squeeze()[-1].argmax()
@@ -265,8 +266,9 @@ def verify(nemo_model, hf_tokenizer, hf_model):
     logging.info(f"HF predicted next token is: '{hf_tokenizer._convert_id_to_token(hf_next_token)}'.")
     logging.info(f"NeMo predicted next token is: '{hf_tokenizer._convert_id_to_token(next_token)}'.")
     assert (
-            hf_next_token == next_token
+        hf_next_token == next_token
     ), f'prediction mismatch: {hf_tokenizer.decode(hf_next_token)} != {hf_tokenizer.decode(next_token)}'
+
 
 def convert(args):
     logging.info(f"Loading checkpoint from HF Gemma 2: `{args.input_name_or_path}`")

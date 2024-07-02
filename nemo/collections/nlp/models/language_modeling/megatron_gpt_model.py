@@ -2037,8 +2037,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
 
         normalization = self.cfg.get('normalization', 'layernorm').lower()
-        layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p' or \
-                                        self.cfg.get("layernorm_zero_centered_gamma", False)
+        layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p' or self.cfg.get(
+            "layernorm_zero_centered_gamma", False
+        )
         if normalization == 'layernorm':
             normalization = 'LayerNorm'
         elif normalization == 'rmsnorm':
