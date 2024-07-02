@@ -75,6 +75,7 @@ model:
       from_hf: True
       patch_dim: 14
       hidden_size: 1024 # could be found from model but tricky in code
+      crop_size: [224,224]
       vision_select_layer: -2   # default to the last layer
       class_token_length: 1
       freeze: True
