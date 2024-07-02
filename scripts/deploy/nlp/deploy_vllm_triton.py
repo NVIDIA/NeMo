@@ -64,7 +64,9 @@ def get_args(argv):
         type=str,
         help="dtype of the model on TensorRT-LLM or vLLM",
     )
-    parser.add_argument("-mml", "--max_model_len", default=512, type=int, help="Max input + ouptut length of the model")
+    parser.add_argument(
+        "-mml", "--max_model_len", default=512, type=int, help="Max input + ouptut length of the model"
+    )
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
     parser.add_argument(
         "-es", '--enable_streaming', default=False, action='store_true', help="Enables streaming sentences."
@@ -138,7 +140,7 @@ def nemo_deploy(argv):
     LOGGER.info(args)
 
     triton_deployable = get_vllm_deployable(args)
-    
+
     try:
         nm = DeployPyTriton(
             model=triton_deployable,

@@ -42,7 +42,9 @@ in_framework_supported = True
 try:
     from nemo.deploy.nlp import MegatronLLMDeployable
 except Exception as e:
-    LOGGER.warning(f"Cannot import MegatronLLMDeployable, in-framework inference will not be available. {type(e).__name__}: {e}")
+    LOGGER.warning(
+        f"Cannot import MegatronLLMDeployable, in-framework inference will not be available. {type(e).__name__}: {e}"
+    )
     in_framework_supported = False
 
 trt_llm_supported = True
@@ -273,7 +275,7 @@ def run_inference(
                 tensor_parallel_size=tp_size,
                 pipeline_parallel_size=pp_size,
                 max_model_len=max_input_len + max_output_len,
-                gpu_memory_utilization=args.gpu_memory_utilization
+                gpu_memory_utilization=args.gpu_memory_utilization,
             )
         else:
             exporter = TensorRTLLM(model_dir, lora_ckpt_list, load_model=False)
@@ -706,7 +708,7 @@ def get_args():
     parser.add_argument(
         "-gmu",
         '--gpu_memory_utilization',
-        default=0.95, # 0.95 is needed to run Mixtral-8x7B on 2x48GB GPUs
+        default=0.95,  # 0.95 is needed to run Mixtral-8x7B on 2x48GB GPUs
         type=float,
         help="GPU memory utilization percentage for vLLM.",
     )
@@ -740,7 +742,7 @@ def run_inference_tests(args):
 
     if args.use_vllm and not vllm_supported:
         raise UsageError("vLLM engine is not supported in this environment.")
-    
+
     if args.in_framework and not in_framework_supported:
         raise UsageError("In-framework inference is not supported in this environment.")
 
@@ -752,14 +754,15 @@ def run_inference_tests(args):
 
     if args.run_accuracy and args.test_data_path is None:
         raise UsageError("Accuracy testing requires the --test_data_path argument.")
-    
-    
+
     if args.max_tps is None:
         args.max_tps = args.min_tps
 
     if args.use_vllm and args.min_tps != args.max_tps:
-        raise UsageError("vLLM doesn't support changing tensor parallel group size without relaunching the process. "
-                         "Use the same value for --min_tps and --max_tps.")
+        raise UsageError(
+            "vLLM doesn't support changing tensor parallel group size without relaunching the process. "
+            "Use the same value for --min_tps and --max_tps."
+        )
 
     result_dic: Dict[int, Tuple[FunctionalResult, Optional[AccuracyResult]]] = {}
 
