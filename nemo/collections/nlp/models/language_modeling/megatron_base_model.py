@@ -152,7 +152,6 @@ class MegatronBaseModel(NLPModel):
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam' or self.use_mcore_dist_optim
         self.with_megatron_fused_adam = cfg.optim.get('name') == 'megatron_fused_adam'
 
-
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
 
