@@ -17,7 +17,6 @@ import logging
 import os
 import sys
 import tempfile
-from pathlib import Path
 
 from nemo.deploy import DeployPyTriton
 
@@ -55,7 +54,7 @@ def get_args(argv):
     parser.add_argument(
         "-tmr", "--triton_model_repository", default=None, type=str, help="Folder for the vLLM conversion"
     )
-    parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("-tps", "--tensor_parallelism_size", default=1, type=int, help="Tensor parallelism size")
     parser.add_argument(
         "-dt",
         "--dtype",
@@ -113,7 +112,7 @@ def get_vllm_deployable(args):
             nemo_checkpoint=args.nemo_checkpoint,
             model_dir=model_dir,
             model_type=args.model_type,
-            tensor_parallel_size=args.num_gpus,
+            tensor_parallel_size=args.tensor_parallelism_size,
             max_model_len=args.max_model_len,
             dtype=args.dtype,
             weight_storage=args.weight_storage,
