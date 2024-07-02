@@ -1,3 +1,4 @@
+
 # This is here to import it once, which improves the speed of launch when in debug-mode
 try:
     import transformer_engine  # noqa
@@ -13,6 +14,7 @@ from nemo.collections.llm.gpt.data import (
     PreTrainingDataModule,
     SquadDataModule,
 )
+from nemo.collections.llm.gpt.data.api import dolly, mock, squad
 from nemo.collections.llm.gpt.model import (
     CodeGemmaConfig2B,
     CodeGemmaConfig7B,
@@ -40,6 +42,24 @@ from nemo.collections.llm.gpt.model import (
     MixtralModel,
     gpt_data_step,
     gpt_forward_step,
+)
+from nemo.collections.llm.gpt.model.api import (
+    code_gemma_2b,
+    code_gemma_7b,
+    code_llama_7b,
+    code_llama_13b,
+    code_llama_34b,
+    code_llama_70b,
+    gemma,
+    gemma_2b,
+    gemma_7b,
+    llama2_7b,
+    llama2_13b,
+    llama2_70b,
+    llama3_8b,
+    llama3_70b,
+    mistral,
+    mixtral,
 )
 
 __all__ = [
@@ -80,4 +100,23 @@ __all__ = [
     "pretrain",
     "validate",
     "tokenizer",
+    "mock",
+    "squad",
+    "dolly",
+    "mistral",
+    "mixtral",
+    "llama2_7b",
+    "llama3_8b",
+    "llama2_13b",
+    "llama2_70b",
+    "llama3_70b",
+    "code_llama_7b",
+    "code_llama_13b",
+    "code_llama_34b",
+    "code_llama_70b",
+    "gemma",
+    "gemma_2b",
+    "gemma_7b",
+    "code_gemma_2b",
+    "code_gemma_7b",
 ]
