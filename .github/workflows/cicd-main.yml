@@ -3267,226 +3267,226 @@ jobs:
 
         python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
         model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
-  #       model.peft.restore_from_path=/home/TestData/nlp/lora_tuning_tp2/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo \
-  #       model.tensor_model_parallel_size=2 \
-  #       trainer.devices=2 \
-  #       model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
-  #       model.data.test_ds.names=['quarel4'] \
-  #       model.global_batch_size=2 \
-  #       model.micro_batch_size=1 \
-  #       model.data.test_ds.tokens_to_generate=10 \
-  #       model.data.test_ds.write_predictions_to_file=True \
-  #       model.data.test_ds.output_file_path_prefix='/home/TestData/nlp/lora_tuning_tp2/out' \
-  #       inference.greedy=True \
-  #       inference.repetition_penalty=1.0 \
-  #       inference.outfile_path='/home/TestData/nlp/lora_tuning_tp2/out.jsonl'
-  #     AFTER_SCRIPT: |
-  #       rm -rf /home/TestData/nlp/lora_tuning_tp2
+        model.peft.restore_from_path=/home/TestData/nlp/lora_tuning_tp2/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo \
+        model.tensor_model_parallel_size=2 \
+        trainer.devices=2 \
+        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
+        model.data.test_ds.names=['quarel4'] \
+        model.global_batch_size=2 \
+        model.micro_batch_size=1 \
+        model.data.test_ds.tokens_to_generate=10 \
+        model.data.test_ds.write_predictions_to_file=True \
+        model.data.test_ds.output_file_path_prefix='/home/TestData/nlp/lora_tuning_tp2/out' \
+        inference.greedy=True \
+        inference.repetition_penalty=1.0 \
+        inference.outfile_path='/home/TestData/nlp/lora_tuning_tp2/out.jsonl'
+      AFTER_SCRIPT: |
+        rm -rf /home/TestData/nlp/lora_tuning_tp2
 
-  # L2_Megatron_GPT_Eval:
-  #   needs: [cicd-test-container-setup]
-  #   uses: ./.github/workflows/_test_template.yml
-  #   with:
-  #     RUNNER: self-hosted-azure
-  #     SCRIPT: |
-  #       python examples/nlp/language_modeling/megatron_gpt_eval.py \
-  #           gpt_model_file=/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo \
-  #           prompts=['How to fix GPU memory? A:'] \
-  #           tensor_model_parallel_size=1 \
-  #           inference.tokens_to_generate=32 \
-  #           trainer.precision=32
+  L2_Megatron_GPT_Eval:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python examples/nlp/language_modeling/megatron_gpt_eval.py \
+            gpt_model_file=/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo \
+            prompts=['How to fix GPU memory? A:'] \
+            tensor_model_parallel_size=1 \
+            inference.tokens_to_generate=32 \
+            trainer.precision=32
 
-  # L2_Megatron_GPT_Eval_PP2:
-  #   needs: [cicd-test-container-setup]
-  #   uses: ./.github/workflows/_test_template.yml
-  #   with:
-  #     RUNNER: self-hosted-azure
-  #     SCRIPT: |
-  #       python examples/nlp/language_modeling/megatron_gpt_eval.py \
-  #           gpt_model_file=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
-  #           server=False \
-  #           tensor_model_parallel_size=1 \
-  #           pipeline_model_parallel_size=2 \
-  #           trainer.devices=2 \
-  #           trainer.num_nodes=1 \
-  #           trainer.precision=32
+  L2_Megatron_GPT_Eval_PP2:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python examples/nlp/language_modeling/megatron_gpt_eval.py \
+            gpt_model_file=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
+            server=False \
+            tensor_model_parallel_size=1 \
+            pipeline_model_parallel_size=2 \
+            trainer.devices=2 \
+            trainer.num_nodes=1 \
+            trainer.precision=32
 
-  # L2_Megatron_GPT_SFT_Eval_inference_seq_len_greaterThan_training_seq_len:
-  #   needs: [cicd-test-container-setup]
-  #   uses: ./.github/workflows/_test_template.yml
-  #   with:
-  #     RUNNER: self-hosted-azure
-  #     SCRIPT: |
-  #       python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
-  #           model.restore_from_path=/home/TestData/nlp/megatron_gpt_sft/megatron_gpt_rope_sft.nemo \
-  #           model.peft.restore_from_path=null \
-  #           model.data.test_ds.file_names=[/home/TestData/nlp/megatron_gpt_sft/sample.jsonl] \
-  #           model.data.test_ds.names=[test] \
-  #           model.data.test_ds.global_batch_size=1 \
-  #           model.data.test_ds.micro_batch_size=1 \
-  #           model.data.test_ds.tokens_to_generate=30 \
-  #           model.data.test_ds.max_seq_length=6000 \
-  #           model.data.test_ds.write_predictions_to_file=True \
-  #           model.data.test_ds.output_file_path_prefix=examples/nlp/language_modeling/out \
-  #           inference.greedy=True \
-  #           inference.repetition_penalty=1.0 \
-  #           inference.outfile_path=examples/nlp/language_modeling/out.jsonl 
-  #     AFTER_SCRIPT: |
-  #       rm -rf examples/nlp/language_modeling/out.jsonl
+  L2_Megatron_GPT_SFT_Eval_inference_seq_len_greaterThan_training_seq_len:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
+            model.restore_from_path=/home/TestData/nlp/megatron_gpt_sft/megatron_gpt_rope_sft.nemo \
+            model.peft.restore_from_path=null \
+            model.data.test_ds.file_names=[/home/TestData/nlp/megatron_gpt_sft/sample.jsonl] \
+            model.data.test_ds.names=[test] \
+            model.data.test_ds.global_batch_size=1 \
+            model.data.test_ds.micro_batch_size=1 \
+            model.data.test_ds.tokens_to_generate=30 \
+            model.data.test_ds.max_seq_length=6000 \
+            model.data.test_ds.write_predictions_to_file=True \
+            model.data.test_ds.output_file_path_prefix=examples/nlp/language_modeling/out \
+            inference.greedy=True \
+            inference.repetition_penalty=1.0 \
+            inference.outfile_path=examples/nlp/language_modeling/out.jsonl 
+      AFTER_SCRIPT: |
+        rm -rf examples/nlp/language_modeling/out.jsonl
 
-  #   # TODO: Add this test back. Test was failing on CI machines due to HW error
-  #   # - name: L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval
-  #   #   when {
-  #   #     anyOf {
-  #   #       branch main
-  #   #       changeRequest target: main
-  #   #     }
-  #   #   }
-  #   #   failFast true
-  #   #   - run: |
-  #   #     python -m torch.distributed.launch --nproc_per_node=2 \
-  #   #     examples/nlp/language_modeling/megatron_lm_ckpt_to_nemo.py \
-  #   #     --checkpoint_folder=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700 \
-  #   #     --checkpoint_name=model_optim_rng.pt \
-  #   #     --hparams_file=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700/hparams.yaml \
-  #   #     --nemo_file_path=examples/nlp/language_modeling/small_gpt.nemo \
-  #   #     --model_type=gpt \
-  #   #     --pipeline_model_parallel_size=1 \
-  #   #     --gpus_per_node=2 \
-  #   #     --tensor_model_parallel_size=2"
-  #   #     python examples/nlp/language_modeling/megatron_gpt_eval.py \
-  #   #     --gpt_model_file=examples/nlp/language_modeling/small_gpt.nemo \
-  #   #     --tokens_to_generate=32 \
-  #   #     --tensor_model_parallel_size=2 \
-  #   #     --prompt=This is a test.
-  #   #     rm examples/nlp/language_modeling/small_gpt.nemo
+    # TODO: Add this test back. Test was failing on CI machines due to HW error
+    # - name: L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval
+    #   when {
+    #     anyOf {
+    #       branch main
+    #       changeRequest target: main
+    #     }
+    #   }
+    #   failFast true
+    #   - run: |
+    #     python -m torch.distributed.launch --nproc_per_node=2 \
+    #     examples/nlp/language_modeling/megatron_lm_ckpt_to_nemo.py \
+    #     --checkpoint_folder=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700 \
+    #     --checkpoint_name=model_optim_rng.pt \
+    #     --hparams_file=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700/hparams.yaml \
+    #     --nemo_file_path=examples/nlp/language_modeling/small_gpt.nemo \
+    #     --model_type=gpt \
+    #     --pipeline_model_parallel_size=1 \
+    #     --gpus_per_node=2 \
+    #     --tensor_model_parallel_size=2"
+    #     python examples/nlp/language_modeling/megatron_gpt_eval.py \
+    #     --gpt_model_file=examples/nlp/language_modeling/small_gpt.nemo \
+    #     --tokens_to_generate=32 \
+    #     --tensor_model_parallel_size=2 \
+    #     --prompt=This is a test.
+    #     rm examples/nlp/language_modeling/small_gpt.nemo
   
-  # # L2_Megatron_Change_Partitions
-  # L2_Megatron_Change_Partitions_Reduce_TP_Num_Partitions_-2_to_1-_and_PP_Num_Partitions_-1_to_2:
-  #   needs: [cicd-test-container-setup]
-  #   uses: ./.github/workflows/_test_template.yml
-  #   with:
-  #     RUNNER: self-hosted-azure
-  #     SCRIPT: |
-  #       python examples/nlp/language_modeling/megatron_change_num_partitions.py \
-  #           --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
-  #           --target_file /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo \
-  #           --tensor_model_parallel_size 2 \
-  #           --target_tensor_model_parallel_size 1 \
-  #           --pipeline_model_parallel_size 1 \
-  #           --target_pipeline_model_parallel_size 2
-  #     AFTER_SCRIPT: |
-  #       rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo
+  # L2_Megatron_Change_Partitions
+  L2_Megatron_Change_Partitions_Reduce_TP_Num_Partitions_-2_to_1-_and_PP_Num_Partitions_-1_to_2:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python examples/nlp/language_modeling/megatron_change_num_partitions.py \
+            --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+            --target_file /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo \
+            --tensor_model_parallel_size 2 \
+            --target_tensor_model_parallel_size 1 \
+            --pipeline_model_parallel_size 1 \
+            --target_pipeline_model_parallel_size 2
+      AFTER_SCRIPT: |
+        rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo
 
-  # L2_Megatron_Change_Partitions_Increase_TP_Num_Partitions_-2_to_4-_and_PP_Num_Partitions_-1_to_2:
-  #   needs: [cicd-test-container-setup]
-  #   uses: ./.github/workflows/_test_template.yml
-  #   with:
-  #     RUNNER: self-hosted-azure
-  #     SCRIPT: |
-  #       python examples/nlp/language_modeling/megatron_change_num_partitions.py \
-  #           --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
-  #           --target_file /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo \
-  #           --tensor_model_parallel_size 2 \
-  #           --target_tensor_model_parallel_size 4 \
-  #           --pipeline_model_parallel_size 1 \
-  #           --target_pipeline_model_parallel_size 1
-  #     AFTER_SCRIPT: |
-  #       rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo
+  L2_Megatron_Change_Partitions_Increase_TP_Num_Partitions_-2_to_4-_and_PP_Num_Partitions_-1_to_2:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python examples/nlp/language_modeling/megatron_change_num_partitions.py \
+            --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+            --target_file /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo \
+            --tensor_model_parallel_size 2 \
+            --target_tensor_model_parallel_size 4 \
+            --pipeline_model_parallel_size 1 \
+            --target_pipeline_model_parallel_size 1
+      AFTER_SCRIPT: |
+        rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo
 
-  # L2_Megatron_T5_Pretraining_and_Resume_Training_TP2:
-  #   needs: [cicd-test-container-setup]
-  #   uses: ./.github/workflows/_test_template.yml
-  #   with:
-  #     RUNNER: self-hosted-azure
-  #     SCRIPT: |
-  #       python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-  #       trainer.devices=2 \
-  #       trainer.accelerator=gpu \
-  #       trainer.log_every_n_steps=1 \
-  #       trainer.val_check_interval=10 \
-  #       trainer.limit_val_batches=2 \
-  #       trainer.accumulate_grad_batches=1 \
-  #       trainer.max_steps=10 \
-  #       trainer.precision=16 \
-  #       trainer.gradient_clip_val=1.0 \
-  #       exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-  #       model.tensor_model_parallel_size=2 \
-  #       model.seq_length=128 \
-  #       model.encoder.num_layers=4 \
-  #       model.encoder.hidden_size=64 \
-  #       model.encoder.num_attention_heads=8 \
-  #       model.encoder.activation=swiglu \
-  #       model.encoder.masked_softmax_fusion=False \
-  #       model.encoder.bias_activation_fusion=False \
-  #       model.encoder.activations_checkpoint_method=block \
-  #       model.encoder.activations_checkpoint_num_layers=1 \
-  #       model.encoder.position_embedding_type=relative \
-  #       model.decoder.num_layers=2 \
-  #       model.decoder.hidden_size=64 \
-  #       model.decoder.num_attention_heads=8 \
-  #       model.decoder.activation=fast-swiglu \
-  #       model.decoder.masked_softmax_fusion=False \
-  #       model.decoder.bias_activation_fusion=False \
-  #       model.decoder.activations_checkpoint_method=block \
-  #       model.decoder.activations_checkpoint_num_layers=1 \
-  #       model.encoder.transformer_block_type=pre_ln \
-  #       model.decoder.transformer_block_type=pre_ln \
-  #       model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
-  #       model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
-  #       model.data.data_impl=text_mmap \
-  #       +model.data.data_impl_kwargs.newline_int=10 \
-  #       +model.data.data_impl_kwargs.header_lines=0 \
-  #       +model.data.data_impl_kwargs.workers=null \
-  #       +model.data.data_impl_kwargs.sort_dataset_paths=False \
-  #       model.share_token_embeddings=False \
-  #       model.share_decoder_tokens_head_embeddings=False
+  L2_Megatron_T5_Pretraining_and_Resume_Training_TP2:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
+        trainer.devices=2 \
+        trainer.accelerator=gpu \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=10 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=10 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
+        model.tensor_model_parallel_size=2 \
+        model.seq_length=128 \
+        model.encoder.num_layers=4 \
+        model.encoder.hidden_size=64 \
+        model.encoder.num_attention_heads=8 \
+        model.encoder.activation=swiglu \
+        model.encoder.masked_softmax_fusion=False \
+        model.encoder.bias_activation_fusion=False \
+        model.encoder.activations_checkpoint_method=block \
+        model.encoder.activations_checkpoint_num_layers=1 \
+        model.encoder.position_embedding_type=relative \
+        model.decoder.num_layers=2 \
+        model.decoder.hidden_size=64 \
+        model.decoder.num_attention_heads=8 \
+        model.decoder.activation=fast-swiglu \
+        model.decoder.masked_softmax_fusion=False \
+        model.decoder.bias_activation_fusion=False \
+        model.decoder.activations_checkpoint_method=block \
+        model.decoder.activations_checkpoint_num_layers=1 \
+        model.encoder.transformer_block_type=pre_ln \
+        model.decoder.transformer_block_type=pre_ln \
+        model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
+        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
+        model.data.data_impl=text_mmap \
+        +model.data.data_impl_kwargs.newline_int=10 \
+        +model.data.data_impl_kwargs.header_lines=0 \
+        +model.data.data_impl_kwargs.workers=null \
+        +model.data.data_impl_kwargs.sort_dataset_paths=False \
+        model.share_token_embeddings=False \
+        model.share_decoder_tokens_head_embeddings=False
 
-  #       python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-  #       trainer.devices=2 \
-  #       trainer.accelerator=gpu \
-  #       trainer.log_every_n_steps=1 \
-  #       trainer.val_check_interval=1 \
-  #       trainer.limit_val_batches=2 \
-  #       trainer.accumulate_grad_batches=1 \
-  #       trainer.max_steps=10 \
-  #       trainer.precision=16 \
-  #       trainer.gradient_clip_val=1.0 \
-  #       exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-  #       exp_manager.resume_if_exists=True \
-  #       model.tensor_model_parallel_size=2 \
-  #       model.seq_length=128 \
-  #       model.encoder.num_layers=4 \
-  #       model.encoder.hidden_size=64 \
-  #       model.encoder.num_attention_heads=8 \
-  #       model.encoder.activation=swiglu \
-  #       model.encoder.masked_softmax_fusion=False \
-  #       model.encoder.bias_activation_fusion=False \
-  #       model.encoder.activations_checkpoint_method=block \
-  #       model.encoder.activations_checkpoint_num_layers=1 \
-  #       model.encoder.position_embedding_type=relative \
-  #       model.decoder.num_layers=2 \
-  #       model.decoder.hidden_size=64 \
-  #       model.decoder.num_attention_heads=8 \
-  #       model.decoder.activation=fast-swiglu \
-  #       model.decoder.masked_softmax_fusion=False \
-  #       model.decoder.bias_activation_fusion=False \
-  #       model.decoder.activations_checkpoint_method=block \
-  #       model.decoder.activations_checkpoint_num_layers=1 \
-  #       model.encoder.transformer_block_type=pre_ln \
-  #       model.decoder.transformer_block_type=pre_ln \
-  #       model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
-  #       model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
-  #       model.data.data_impl=text_mmap \
-  #       +model.data.data_impl_kwargs.newline_int=10 \
-  #       +model.data.data_impl_kwargs.header_lines=0 \
-  #       +model.data.data_impl_kwargs.workers=null \
-  #       +model.data.data_impl_kwargs.sort_dataset_paths=False \
-  #       model.share_token_embeddings=False \
-  #       model.share_decoder_tokens_head_embeddings=False
-  #     AFTER_SCRIPT: |
-  #       rm -rf examples/nlp/language_modeling/t5_pretrain_results
-  #       rm -rf examples/nlp/language_modeling/t5_index_mappings
+        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
+        trainer.devices=2 \
+        trainer.accelerator=gpu \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=1 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=10 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
+        exp_manager.resume_if_exists=True \
+        model.tensor_model_parallel_size=2 \
+        model.seq_length=128 \
+        model.encoder.num_layers=4 \
+        model.encoder.hidden_size=64 \
+        model.encoder.num_attention_heads=8 \
+        model.encoder.activation=swiglu \
+        model.encoder.masked_softmax_fusion=False \
+        model.encoder.bias_activation_fusion=False \
+        model.encoder.activations_checkpoint_method=block \
+        model.encoder.activations_checkpoint_num_layers=1 \
+        model.encoder.position_embedding_type=relative \
+        model.decoder.num_layers=2 \
+        model.decoder.hidden_size=64 \
+        model.decoder.num_attention_heads=8 \
+        model.decoder.activation=fast-swiglu \
+        model.decoder.masked_softmax_fusion=False \
+        model.decoder.bias_activation_fusion=False \
+        model.decoder.activations_checkpoint_method=block \
+        model.decoder.activations_checkpoint_num_layers=1 \
+        model.encoder.transformer_block_type=pre_ln \
+        model.decoder.transformer_block_type=pre_ln \
+        model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
+        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
+        model.data.data_impl=text_mmap \
+        +model.data.data_impl_kwargs.newline_int=10 \
+        +model.data.data_impl_kwargs.header_lines=0 \
+        +model.data.data_impl_kwargs.workers=null \
+        +model.data.data_impl_kwargs.sort_dataset_paths=False \
+        model.share_token_embeddings=False \
+        model.share_decoder_tokens_head_embeddings=False
+      AFTER_SCRIPT: |
+        rm -rf examples/nlp/language_modeling/t5_pretrain_results
+        rm -rf examples/nlp/language_modeling/t5_index_mappings
 
   L2_Megatron_Core_T5_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
