@@ -32,9 +32,6 @@ class FabricMegatronMixedPrecision(MixedPrecision):
             )
 
         super().__init__(precision, device, scaler)
-        dtype = None
-        torch.set_autocast_gpu_dtype(dtype)
-        self.float16_convertor = float16_convertor
         self.amp_02 = amp_02
 
     def convert_input(self, data: AnyT) -> AnyT:
