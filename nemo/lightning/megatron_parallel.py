@@ -21,6 +21,7 @@ from typing import (
     cast,
     runtime_checkable,
 )
+from typing_extensions import override
 
 import torch
 import torch.distributed
@@ -540,6 +541,21 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
         return get_forward_backward_func()
+    
+    @override
+    def __getattr__(self, item: Any) -> Any:
+        if len(self) == 0:
+            return super().__getattr__(item)
+        
+        try:
+            # __getattr__ gets called as a last resort if the attribute does not exist
+            # call nn.Module's implementation first
+            return super().__getattr__(item)
+        except AttributeError:
+            # If the attribute is not available on the _FabricModule wrapper, redirect to the wrapped nn.Module
+            attr = getattr(self._modules[self._get_abs_string_index(0)], item)
+
+            return attr
 
 
 class _ModuleStepFunction:

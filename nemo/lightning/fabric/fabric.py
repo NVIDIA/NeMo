@@ -5,7 +5,7 @@ from typing import Optional, Protocol, Type, TypeVar, Union, runtime_checkable
 import fiddle as fdl
 import lightning_fabric as lb
 from torch import nn
-from typing_extensions import Self
+from typing_extensions import Self, override
 
 from nemo.lightning.io.mixin import IOMixin, serialization, track_io
 
@@ -28,6 +28,32 @@ class Fabric(lb.Fabric, IOMixin):
         path: Union[str, Path],
         model: Optional[ModelT] = None,
     ) -> "DistributedModel[ModelT]":
+        """Load and set up a model for distributed training.
+
+        This method loads a model from the given path, sets it up for distributed training
+        using the current Fabric instance, and returns a DistributedModel.
+
+        Args:
+            path (Union[str, Path]): The path to the saved model checkpoint.
+            model (Optional[ModelT], optional): An optional pre-instantiated model. If not
+            provided, the model will be loaded from the checkpoint. Defaults to None.
+
+        Returns:
+            DistributedModel[ModelT]: The loaded and distributed model.
+
+        Example:
+            >>> from nemo import lightning as nl
+            >>> 
+            >>> trainer = nl.Trainer(
+            ...     devices=2,
+            ...     strategy=nl.MegatronStrategy(tensor_model_parallel_size=2),
+            ...     plugins=nl.MegatronMixedPrecision(precision='16-mixed')
+            ... )
+            >>> fabric = trainer.to_fabric()
+            >>> distributed_model = fabric.load_model("path/to/checkpoint/dir")
+            >>> 
+            >>> # You can now interact with the parallel model
+        """
         self.launch()
 
         from nemo.lightning.io import load_context
@@ -76,8 +102,7 @@ class Fabric(lb.Fabric, IOMixin):
             >>> fabric = trainer.to_fabric()
             >>> model = fabric.import_model("hf://mistralai/Mistral-7B-v0.1", MistralModel)
             >>> 
-            >>> # The model is now ready for distributed training
-            >>> # You can use it with your data and training loop
+            >>> # You can now interact with the parallel model
         """
         from nemo.lightning.io import ConnectorMixin
 
@@ -87,6 +112,21 @@ class Fabric(lb.Fabric, IOMixin):
         model: ModelT = model_type.import_from(path)
 
         return self.load_model(model.ckpt_path, model)
+    
+    @override
+    def setup_module(
+        self, module: nn.Module, move_to_device: bool = True, _reapply_compile: bool = True
+    ):
+        from nemo.lightning.fabric.strategies import FabricMegatronStrategy
+        
+        out = super().setup_module(module, move_to_device=move_to_device, _reapply_compile=_reapply_compile)
+        
+        # We don't want to return a _FabricModule for megatron since we only want to precision convert
+        # at the beginning and end of the pipeline
+        if isinstance(self.strategy, FabricMegatronStrategy):
+            return out._forward_module
+        
+        return out
 
 
 @runtime_checkable

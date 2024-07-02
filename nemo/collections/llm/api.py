@@ -139,8 +139,12 @@ def export_ckpt(
 def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, tokenizer: str) -> None:
     if tokenizer == "data":
         model.tokenizer = data.tokenizer
+        if hasattr(model, "__io__"):
+            model.__io__.tokenizer = data.tokenizer
     elif tokenizer == "model":
         data.tokenizer = model.tokenizer
+        if hasattr(data, "__io__"):
+            data.__io__.tokenizer = model.tokenizer
 
 
 def _add_ckpt_path(source, model, kwargs) -> None:
