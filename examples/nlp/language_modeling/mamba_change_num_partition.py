@@ -16,7 +16,7 @@ import os
 import tarfile
 import tempfile
 from argparse import ArgumentParser
-from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
+
 import torch
 from omegaconf import open_dict
 from pytorch_lightning import Trainer
@@ -672,9 +672,9 @@ def main():
                         model.cfg.tokenizer.model = tokenizer_model_path
 
             model.cfg, restore_dict = force_cpu_model(model.cfg)
-            
+
             from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-            
+
             _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_global_batch_size = 1
             _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_micro_batch_size = 1
             model.cfg.global_batch_size = 1
