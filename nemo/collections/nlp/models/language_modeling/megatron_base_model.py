@@ -290,7 +290,11 @@ class MegatronBaseModel(NLPModel):
         Returns:
             The wrapped model. Returns a list of wrapped modules or a single wrapped module.
         """
-        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
+        is_mcore_model = (
+            self.__dict__.get('mcore_gpt', False)
+            or self.__dict__.get('mcore_bert', False)
+            or self.__dict__.get('mcore_t5', False)
+        )
 
         Float16Wrapper = MCoreFloat16Module if is_mcore_model else Float16Module
 
@@ -1021,7 +1025,11 @@ class MegatronBaseModel(NLPModel):
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self):
         """Returns the total number of parameters across all model parallel groups."""
-        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
+        is_mcore_model = (
+            self.__dict__.get('mcore_gpt', False)
+            or self.__dict__.get('mcore_bert', False)
+            or self.__dict__.get('mcore_t5', False)
+        )
         # log number of parameters
         model = self.get_model_module_list()
         if isinstance(model, list):
