@@ -31,7 +31,7 @@ class MegatronDataSampler(DataSampler):
         self.rampup_batch_size = rampup_batch_size
         self.dataloader_type = dataloader_type
         self.init_consumed_samples = init_consumed_samples
-        self.prev_consumed_samples = self.init_consumes_samples
+        self.prev_consumed_samples = self.init_consumed_samples
         self.if_first_step = 0
         self.prev_global_batch_size = None
 
