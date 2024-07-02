@@ -5,7 +5,6 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Protocol, TypeVar
 
 import torch
-from lightning.pytorch.utilities.model_helpers import is_overridden
 from torch import nn
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"

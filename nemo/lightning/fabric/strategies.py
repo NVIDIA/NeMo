@@ -29,7 +29,6 @@ from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.loops.fetchers import _DataFetcher
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.utilities.combined_loader import CombinedLoader
-from pytorch_lightning.utilities.model_helpers import is_overridden
 from torch import Tensor, nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn import Module
