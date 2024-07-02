@@ -130,7 +130,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 model_type=ModelType.encoder_and_decoder,
             )[0]
 
-        # DEBUGGING
+        # set up self.model from self.enc_dec_model due to many inherited methods work on self.model 
         self.model = self.enc_dec_model
 
         # We don't need to call it explicitly? Since it is a pytorch lightning hook function
@@ -148,8 +148,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # Model wrapper to convert both model and inputs to half precision
             self._wrap_model_for_O2()
-
-            # DEBUGGING
             self.enc_dec_model = self.model # when wrapping, only self.model is wrapped in MCoreFloat16Module, and not self.enc_dec_model
 
         self.enable_autocast = (
@@ -212,7 +210,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 param._disable_greedy_grad_copy = not self.megatron_amp_O2
                 param._disable_overlap_grad_sync = True
 
-            # ???
             # Make sure embedding grads are reduced in FP32
             with_fp32_embedding_grads = self.cfg.get('with_fp32_embedding_grads', True)
             for name, param in self.named_parameters():
@@ -1729,7 +1726,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         for key in list(checkpoint_state_dict.keys())
                     }
 
-                    # DEBUGGING
+                    # addressing the current T5 mcore version's implementation of sharded_state_dict
                     checkpoint_state_dict['lm_head.output_layer.bias'] = checkpoint_state_dict['output_layer.bias']
 
                     module.load_state_dict(checkpoint_state_dict, strict=True)
