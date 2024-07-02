@@ -38,7 +38,7 @@ from nemo.utils.app_state import AppState
 """
 Usage:
 
-### Tensor Parallelism and Pipeline Parallelism conversion ###
+### Tensor Parallelism conversion ###
 
 # Megatron Mamba
 python /home/ataghibakhsh/NeMo/examples/nlp/language_modeling/mamba_change_num_partition.py \
@@ -46,8 +46,11 @@ python /home/ataghibakhsh/NeMo/examples/nlp/language_modeling/mamba_change_num_p
     --target_file=/home/ataghibakhsh/TP4-ADLR-mamba-hybrid/mamba2-TP4.nemo \
     --tensor_model_parallel_size=1 \
     --target_tensor_model_parallel_size=4 \
-    --precision=bf16
-
+    --precision=bf16 \
+    --d_model=4096 \
+    --mamba_version=2 \
+    --mamba2_n_groups=8 \
+    --mamba2_head_dim=64
 
 """
 
@@ -219,82 +222,6 @@ def restore_model_config(cfg, original_dict):
             logging.info(f"Restoring model config key ({key}) from {cfg[key]} to original value of {val}")
             cfg[key] = val
     return cfg
-
-
-#################
-### Utilities ###
-#################
-
-
-def compute_tp_splits(
-    param_name, param, partitions, global_idx, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy, model_cfg
-):
-    """
-    Function to compute the splits required for tensor-parallelism.
-
-    Args:
-        param_name: Name of the current parameter of the current model (TP X PP Y)
-        param: Value of the current parameter of the current compute_tp_splitsmodel (TP X PP Y)
-        partitions: Partitions of the flattened parameter of the current model (TP 1 PP 1)
-        global_idx: The index used to select the parameter in the global partition.
-        tp_size: Int, tensor-parallelism size.
-        pp_size: Int, pipeline-parallelism size.
-        pp_rank: Int, pipeline-parallelism rank.
-        pp_split_rank: Int, pipeline-parallelism split rank. This should be > 1 if TP is being used with EncDec models (T5)
-        megatron_legacy: Bool, whether the model is a legacy Megatron model or not.
-        model_cfg: The model config as a OmegaConf DictConfig.
-
-    Returns:
-        List of torch tensors, each of which is a split of the current parameter.
-    """
-    # alias the global index to idx
-    idx = global_idx
-
-    fast_glu_activation = str(model_cfg.get('activation', '')).lower() in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
-
-    if param.shape == partitions[0][idx].shape:
-        split = [partitions[0][idx].data] * tp_size
-        logging.debug(">> Perfect match, no splitting needed")
-    elif param.shape[0] == partitions[0][idx].shape[0]:
-        split = torch.split(partitions[0][idx].data, param.shape[-1], dim=-1)
-    else:
-        # For T5-converted weights, the splitting needs to be strided such that q,k,v weights are bunched together on each tensor-parallel rank.
-        if '.query_key_value.' in param_name and megatron_legacy:  # weight or bias
-            split_dim = partitions[0][idx].data.shape[0]
-            if split_dim % (tp_size * 3) != 0:
-                raise ValueError(
-                    f"Can not split Q,K,V parameter {param_name} with shape {param.shape} into tensor parallel size {tp_size}. Not divisible by {tp_size * 3}."
-                )
-            tp_qkv_splits = torch.chunk(partitions[0][idx].data, tp_size * 3, dim=0)
-            split = []
-            for i in range(tp_size):
-                tp_qkv = torch.cat([tp_qkv_splits[item] for item in range(i, tp_size * 3, tp_size)])
-                split.append(tp_qkv)
-        elif '.key_value.' in param_name and megatron_legacy:  # weight or bias
-            split_dim = partitions[0][idx].data.shape[0]
-            if split_dim % (tp_size * 2) != 0:
-                raise ValueError(
-                    f"Can not split K,V parameter {param_name} with shape {param.shape} into tensor parallel size {tp_size}. Not divisible by {tp_size * 2}."
-                )
-            tp_qkv_splits = torch.chunk(partitions[0][idx].data, tp_size * 2, dim=0)
-            split = []
-            for i in range(tp_size):
-                tp_qkv = torch.cat([tp_qkv_splits[item] for item in range(i, tp_size * 2, tp_size)])
-                split.append(tp_qkv)
-        elif ('dense_h_to_4h' in param_name or 'linear_fc1' in param_name) and fast_glu_activation:
-            # For Megatron GPT model with Fast Glu activation
-            # Handle gated linear units
-            # concat all the first halves ('W's) and all the second halves ('V's)
-            w_split, k_split = torch.chunk(partitions[0][idx].data, 2, dim=0)
-            w_split = torch.chunk(w_split, tp_size, dim=0)
-            k_split = torch.chunk(k_split, tp_size, dim=0)
-            split = [torch.cat(weights, dim=0) for weights in zip(w_split, k_split)]  # split per tp rank
-
-        # Regular split for Megatron and NeMo-Megatron models.
-        else:
-            split = torch.split(partitions[0][idx].data, param.shape[0], dim=0)
-
-    return split
 
 
 def write_tp_pp_split(model, splits, app_state, tp_size, pp_rank, write_path):

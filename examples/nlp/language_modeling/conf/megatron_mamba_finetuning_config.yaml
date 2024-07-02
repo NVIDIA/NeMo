@@ -106,6 +106,7 @@ model:
     vocab_file: null
     merge_file: null 
     sentencepiece_legacy: False
+    use_fast: True
 
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32

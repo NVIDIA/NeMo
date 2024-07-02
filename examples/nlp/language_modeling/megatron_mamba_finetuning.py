@@ -25,7 +25,7 @@ from nemo.utils.exp_manager import exp_manager
 mp.set_start_method("spawn", force=True)
 
 
-@hydra_runner(config_path="conf", config_name="megatron_jamba_finetuning_config")
+@hydra_runner(config_path="conf", config_name="megatron_mamba_finetuning_config")
 def main(cfg) -> None:
 
     logging.info("\n\n************** Experiment configuration ***********")
@@ -37,8 +37,8 @@ def main(cfg) -> None:
     cfg.trainer.precision = precision
     exp_manager(trainer, cfg.exp_manager)
 
-    model_cfg = MegatronJambaSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
-    model = MegatronJambaSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
+    model_cfg = MegatronMambaSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
+    model = MegatronMambaSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
 
     peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
 

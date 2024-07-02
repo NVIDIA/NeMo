@@ -27,7 +27,7 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 mp.set_start_method("spawn", force=True)
 
 
-@hydra_runner(config_path="conf", config_name="megatron_jamba_generate_config")
+@hydra_runner(config_path="conf", config_name="megatron_mamba_generate_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
