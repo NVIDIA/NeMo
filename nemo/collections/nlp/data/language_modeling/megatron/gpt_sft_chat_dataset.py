@@ -37,8 +37,8 @@ TYPE_INSTRUCTION = {
 
 
 def _get_header_conversation_type_mask_role(source, special_tokens):
-    END_SIGNAL = special_tokens['end_of_turn']
-    END_NAME_SIGNAL = special_tokens['end_of_name']
+    END_TURN_TOKEN = special_tokens['end_of_turn']
+    END_NAME_TOKEN = special_tokens['end_of_name']
 
     data_type = None
     if 'type' in source:
@@ -51,7 +51,10 @@ def _get_header_conversation_type_mask_role(source, special_tokens):
         if TYPE_INSTRUCTION[data_type] != '':
             conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
     mask_role = source.get('mask', 'User')
-    header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{END_NAME_SIGNAL}{conversation}{END_SIGNAL}"
+    if 'conversation_header' in special_tokens:
+        header = special_tokens['conversation_header']
+    else:
+        header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{END_NAME_TOKEN}{conversation}{END_TURN_TOKEN}"
     conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type, special_tokens)
     return header, conversation, data_type, mask_role
 
@@ -118,7 +121,7 @@ def _mask_targets(
         num_turn_start_tokens (int): number of tokens of the turn_start str
     """
     TURN_TOKEN = special_tokens['turn_start']
-    END_NAME_SIGNAL = special_tokens['end_of_name']
+    END_NAME_TOKEN = special_tokens['end_of_name']
     label_start_ids = torch.tensor(label_start_ids)
     name_end_token_ids = torch.tensor(name_end_token_ids)
 
@@ -127,10 +130,10 @@ def _mask_targets(
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
         # note, sentence piece will add extra empty token in front. has to compute the diff
         id1 = tokenizer.text_to_ids(PREFIX_STR)
-        id2 = tokenizer.text_to_ids(PREFIX_STR + TURN_TOKEN + speaker + END_NAME_SIGNAL)
+        id2 = tokenizer.text_to_ids(PREFIX_STR + TURN_TOKEN + speaker + END_NAME_TOKEN)
         skip_name_len = len(id2) - len(
             id1
-        )  # s_ids[:skip_name_len] is the name part of the prompt 'TURN_TOKEN + speaker + END_NAME_SIGNAL'
+        )  # s_ids[:skip_name_len] is the name part of the prompt 'TURN_TOKEN + speaker + END_NAME_TOKEN'
         # get the position of the label start string in this turn
         location = identify_start_index_of_subsequence(label_start_ids, s_id)
 
@@ -179,9 +182,9 @@ def _mask_targets(
         cur_idx += tokenized_len
 
 
-def response_value_formater(label, label_start, end_signal):
+def response_value_formater(label, label_start, END_TURN_TOKEN):
     if isinstance(label, str):
-        return label_start + label + end_signal
+        return label_start + label + END_TURN_TOKEN
     elif label is None:
         return ''
     else:
@@ -190,9 +193,9 @@ def response_value_formater(label, label_start, end_signal):
 
 def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
     TURN_TOKEN = special_tokens['turn_start']
-    END_SIGNAL = special_tokens['end_of_turn']
+    END_TURN_TOKEN = special_tokens['end_of_turn']
     LABEL_START = special_tokens['label_start']
-    END_NAME_SIGNAL = special_tokens['end_of_name']
+    END_NAME_TOKEN = special_tokens['end_of_name']
 
     """Add speaker and start/end signal on each round."""
     BEGIN_SIGNAL = ""
@@ -202,32 +205,32 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
         role_token = TURN_TOKEN
         if gtype is None:
             sentence["value"] = (
-                BEGIN_SIGNAL + role_token + sentence_from + END_NAME_SIGNAL + sentence["value"] + END_SIGNAL
+                BEGIN_SIGNAL + role_token + sentence_from + END_NAME_TOKEN + sentence["value"] + END_TURN_TOKEN
             )
         elif gtype == "VALUE_TO_TEXT":
             sentence["value"] = (
                 BEGIN_SIGNAL
                 + role_token
                 + sentence_from
-                + END_NAME_SIGNAL
+                + END_NAME_TOKEN
                 + (
-                    response_value_formater(sentence['label'], LABEL_START, END_NAME_SIGNAL)
+                    response_value_formater(sentence['label'], LABEL_START, END_NAME_TOKEN)
                     if 'label' in sentence
                     else ''
                 )
                 + sentence["value"]
-                + END_SIGNAL
+                + END_TURN_TOKEN
             )
         elif gtype == "TEXT_TO_VALUE":
             sentence["value"] = (
                 BEGIN_SIGNAL
                 + role_token
                 + sentence_from
-                + END_NAME_SIGNAL
+                + END_NAME_TOKEN
                 + sentence["value"]
-                + END_SIGNAL
+                + END_TURN_TOKEN
                 + (
-                    response_value_formater(sentence['label'], LABEL_START, END_NAME_SIGNAL)
+                    response_value_formater(sentence['label'], LABEL_START, END_NAME_TOKEN)
                     if 'label' in sentence
                     else ''
                 )
@@ -312,13 +315,13 @@ class GPTSFTChatDataset(GPTSFTDataset):
         super()._build_samples_mapping()
         assert hasattr(self.tokenizer, "vocab"), "tokenizer should have vocab property, not supported"
         LABEL_START = self.special_tokens['label_start']
-        END_NAME_SIGNAL = self.special_tokens['end_of_name']
+        END_NAME_TOKEN = self.special_tokens['end_of_name']
 
         id1 = self.tokenizer.text_to_ids(PREFIX_STR)
         id2 = self.tokenizer.text_to_ids(PREFIX_STR + LABEL_START)
         self.label_start_tokens = id2[len(id1) :]
 
-        id1 = self.tokenizer.text_to_ids(PREFIX_STR + END_NAME_SIGNAL)
+        id1 = self.tokenizer.text_to_ids(PREFIX_STR + END_NAME_TOKEN)
         id2 = self.tokenizer.text_to_ids(PREFIX_STR)
         self.name_end_token_ids = id1[len(id2) :]
 
