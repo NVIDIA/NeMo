@@ -13,15 +13,12 @@
 # limitations under the License.
 
 import os
-import shutil
 import tarfile
 import tempfile
 from argparse import ArgumentParser
-from typing import Dict, List
 from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
 import torch
-import torch.nn as nn
-from omegaconf import OmegaConf, open_dict
+from omegaconf import open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -32,7 +29,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
-from nemo.utils import logging, model_utils
+from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
 """
@@ -41,9 +38,9 @@ Usage:
 ### Tensor Parallelism conversion ###
 
 # Megatron Mamba
-python /home/ataghibakhsh/NeMo/examples/nlp/language_modeling/mamba_change_num_partition.py \
-    --model_file=/home/ataghibakhsh/adlr_mamba2/mamba2-hybrid-8b-3t-4k.nemo \
-    --target_file=/home/ataghibakhsh/TP4-ADLR-mamba-hybrid/mamba2-TP4.nemo \
+python /opt/NeMo/examples/nlp/language_modeling/mamba_change_num_partition.py \
+    --model_file=<path to source .nemo model> \
+    --target_file=<path to target .nemo model> \
     --tensor_model_parallel_size=1 \
     --target_tensor_model_parallel_size=4 \
     --precision=bf16 \
@@ -340,7 +337,7 @@ def main():
     parser.add_argument(
         "--model_class",
         type=str,
-        default="nemo.collections.nlp.models.language_modeling.megatron_jamba_model.MegatronJambaModel",
+        default="nemo.collections.nlp.models.language_modeling.megatron_mamba_model.MegatronMambaModel",
         help="NeMo model class. This script should support all NeMo megatron models that use Tensor Parallel",
     )
     parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
@@ -673,6 +670,13 @@ def main():
                         model.cfg.tokenizer.model = tokenizer_model_path
 
             model.cfg, restore_dict = force_cpu_model(model.cfg)
+            
+            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            
+            _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_global_batch_size = 1
+            _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_micro_batch_size = 1
+            model.cfg.global_batch_size = 1
+            model.cfg.micro_batch_size = 1
 
             model = MegatronMambaModel(model.cfg, trainer)
             model = model.to('cpu')
