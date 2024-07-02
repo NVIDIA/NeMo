@@ -72,7 +72,7 @@ class SemiSortBatchSampler(DistributedSampler):
             RuntimeError: Unexpected behavior.
 
         .. SSB_: 
-            https://www.isca-speech.org/archive/pdfs/interspeech_2021/ge21_interspeech.pdf
+            https://www.isca-archive.org/interspeech_2021/ge21_interspeech.pdf
         """
         if randomization_factor is None:
             randomization_factor = 0.1
