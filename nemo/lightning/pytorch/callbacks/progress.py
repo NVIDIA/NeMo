@@ -26,7 +26,7 @@ class MegatronProgressBar(TQDMProgressBar):
         return self.bar
 
     def on_train_epoch_start(self, trainer, *_):
-        if trainer.max_steps > 0: #and (trainer.ckpt_path is not None):
+        if trainer.max_steps > 0:  # and (trainer.ckpt_path is not None):
             # while resuming from a ckpt use trainer.max_steps as the total for progress bar as trainer.num_training_batches
             # is truncated to max_steps - step being resumed at
             num_training_batches = trainer.max_steps
@@ -37,7 +37,7 @@ class MegatronProgressBar(TQDMProgressBar):
         # app_state = AppState()
         # app_state.
 
-        #num_training_batches = num_training_batches // calculate_data_parallel_groups()
+        # num_training_batches = num_training_batches // calculate_data_parallel_groups()
 
         self.train_progress_bar.reset(num_training_batches)
         self.train_progress_bar.initial = 0
