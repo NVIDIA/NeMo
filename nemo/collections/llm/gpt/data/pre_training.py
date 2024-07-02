@@ -17,7 +17,8 @@ if TYPE_CHECKING:
 class PreTrainingDataModule(pl.LightningDataModule):
     def __init__(
         self,
-        path: Path,
+        paths: Path | List[Path],
+        weights: Optional[List[float]] = None,
         seq_length: int = 2048,
         tokenizer: Optional["TokenizerSpec"] = None,
         micro_batch_size: int = 4,
@@ -37,7 +38,14 @@ class PreTrainingDataModule(pl.LightningDataModule):
         index_mapping_dir: Optional[str] = None,
     ) -> None:
         super().__init__()
-        self.path = path
+        if not isinstance(paths, List):
+            paths = [paths]
+        if weights is None:
+            weights = [1.0] * len(paths)
+        assert len(weights) == len(paths)
+
+        self.paths = paths
+        self.weights = weights
         self.seq_length = seq_length
         self.tokenizer = tokenizer
         self.num_train_samples = num_train_samples
@@ -135,7 +143,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
         from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
 
         return GPTDatasetConfig(
-            blend=[[str(self.path)], [1.0]],
+            blend=[[str(path) for path in self.paths], self.weights],
             random_seed=self.seed,
             sequence_length=self.seq_length,
             tokenizer=self.tokenizer,
