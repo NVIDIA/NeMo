@@ -1217,12 +1217,7 @@ class UNetModel(nn.Module):
     def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False, from_NeMo=False):
         state_dict = self._strip_unet_key_prefix(state_dict)
         if not from_NeMo:
-            print("creating state key mapping from HF")
-            # pprint(list(state_dict.keys()))
-            # input()
             state_dict = self._state_key_mapping(state_dict)
-            # pprint(state_dict.keys())
-            # input()
         state_dict = self._legacy_unet_ckpt_mapping(state_dict)
 
         model_state_dict = self.state_dict()
