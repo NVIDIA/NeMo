@@ -55,7 +55,7 @@ class FalconTransformerLayer(TransformerLayer):
 
     Transformer layer takes input with size [s, b, h] and returns an
     output of the same size.
-        
+
     """
 
     def __init__(

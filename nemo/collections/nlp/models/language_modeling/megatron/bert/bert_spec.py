@@ -59,7 +59,11 @@ bert_layer_with_transformer_engine_spec_postln = ModuleSpec(
         self_attn_bda=get_bias_dropout_add,
         post_att_layernorm=TENorm,
         mlp=ModuleSpec(
-            module=MLP, submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear,),
+            module=MLP,
+            submodules=MLPSubmodules(
+                linear_fc1=TEColumnParallelLinear,
+                linear_fc2=TERowParallelLinear,
+            ),
         ),
         mlp_bda=get_bias_dropout_add,
         post_mlp_layernorm=TENorm,
@@ -84,7 +88,11 @@ bert_layer_local_spec_postln = ModuleSpec(
         self_attn_bda=get_bias_dropout_add,
         post_att_layernorm=FusedLayerNorm,
         mlp=ModuleSpec(
-            module=MLP, submodules=MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,),
+            module=MLP,
+            submodules=MLPSubmodules(
+                linear_fc1=ColumnParallelLinear,
+                linear_fc2=RowParallelLinear,
+            ),
         ),
         mlp_bda=get_bias_dropout_add,
         post_mlp_layernorm=FusedLayerNorm,

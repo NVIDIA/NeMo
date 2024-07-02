@@ -112,7 +112,7 @@ def get_final_text(pred_text: str, orig_text: str, do_lower_case: bool, verbose_
     def _strip_spaces(text):
         ns_chars = []
         ns_to_s_map = collections.OrderedDict()
-        for (i, c) in enumerate(text):
+        for i, c in enumerate(text):
             if c == " ":
                 continue
             ns_to_s_map[len(ns_chars)] = i
@@ -141,14 +141,16 @@ def get_final_text(pred_text: str, orig_text: str, do_lower_case: bool, verbose_
     if len(orig_ns_text) != len(tok_ns_text):
         if verbose_logging:
             logging.warning(
-                "Length not equal after stripping spaces: '%s' vs '%s'", orig_ns_text, tok_ns_text,
+                "Length not equal after stripping spaces: '%s' vs '%s'",
+                orig_ns_text,
+                tok_ns_text,
             )
         return orig_text
 
     # We then project the characters in `pred_text` back to `orig_text` using
     # the character-to-character alignment.
     tok_s_to_ns_map = {}
-    for (i, tok_index) in tok_ns_to_s_map.items():
+    for i, tok_index in tok_ns_to_s_map.items():
         tok_s_to_ns_map[tok_index] = i
 
     orig_start_position = None

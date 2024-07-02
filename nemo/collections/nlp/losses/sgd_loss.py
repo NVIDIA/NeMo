@@ -157,7 +157,10 @@ class SGDDialogueStateLoss(Loss, Typing):
         if len(categorical_slot_status) == 0:
             cat_slot_status_loss = torch.clamp(torch.max(old_logit_cat_slot_status.view(-1)), 0, 0)
         else:
-            cat_slot_status_loss = self._cross_entropy(logit_cat_slot_status, categorical_slot_status,)
+            cat_slot_status_loss = self._cross_entropy(
+                logit_cat_slot_status,
+                categorical_slot_status,
+            )
         old_logit_cat_slot_value_status = logit_cat_slot_value_status
         logit_cat_slot_value_status, categorical_slot_value_status = self._helper(
             logit_cat_slot_value_status, categorical_slot_value_status, task_mask[:, 3]
@@ -176,7 +179,10 @@ class SGDDialogueStateLoss(Loss, Typing):
         if len(noncategorical_slot_status) == 0:
             noncat_slot_status_loss = torch.clamp(torch.max(old_logit_noncat_slot_status.view(-1)), 0, 0)
         else:
-            noncat_slot_status_loss = self._cross_entropy(logit_noncat_slot_status, noncategorical_slot_status,)
+            noncat_slot_status_loss = self._cross_entropy(
+                logit_noncat_slot_status,
+                noncategorical_slot_status,
+            )
 
         logit_noncat_slot_start, logit_noncat_slot_end = torch.unbind(logit_spans, dim=-1)
 

@@ -18,7 +18,7 @@ from typing import List
 
 @dataclass
 class QAExample(object):
-    """ A single training/test example for a QA dataset, as loaded from disk """
+    """A single training/test example for a QA dataset, as loaded from disk"""
 
     qas_id: str  # The example's unique identifier
     question_text: str
@@ -27,7 +27,7 @@ class QAExample(object):
     answer_text: str
     start_position_character: int  # The character position of the start of the answer, 0 indexed
     title: str
-    answers: List[
-        str
-    ] = None  # None by default, this is used during evaluation. Holds answers as well as their start positions
+    answers: List[str] = (
+        None  # None by default, this is used during evaluation. Holds answers as well as their start positions
+    )
     is_impossible: bool = False  # False by default, set to True if the example has no possible answer

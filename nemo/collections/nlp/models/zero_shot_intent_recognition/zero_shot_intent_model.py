@@ -155,7 +155,6 @@ class ZeroShotIntentModel(TextClassificationModel):
         entailment_idx=1,
         contradiction_idx=0,
     ) -> List[Dict]:
-
         """
         Given a list of queries and a list of candidate labels, return a ranked list of labels and scores for each query.
 

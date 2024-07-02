@@ -61,10 +61,10 @@ except (ImportError, ModuleNotFoundError):
     ASR_AVAILABLE = False
 
 
-MAX_NUM_QUERIES_IN_SPLIT = 10 ** 4
-TOKENIZATION_PROGRESS_REPORT_PERIOD = 10 ** 3
-BATCH_MARK_UP_PROGRESS_REPORT_PERIOD = 10 ** 4
-BATCH_BUILDING_PROGRESS_REPORT_PERIOD = 10 ** 4
+MAX_NUM_QUERIES_IN_SPLIT = 10**4
+TOKENIZATION_PROGRESS_REPORT_PERIOD = 10**3
+BATCH_MARK_UP_PROGRESS_REPORT_PERIOD = 10**4
+BATCH_BUILDING_PROGRESS_REPORT_PERIOD = 10**4
 
 LABEL_ID_DIR_FOR_NEMO_CHECKPOINT = "label_id_files_for_nemo_checkpoint"
 
@@ -704,7 +704,13 @@ def _get_features(
         with mp.Pool(n_jobs) as pool:
             result = pool.starmap(
                 TokenizeCreateMasksClipWorker(
-                    max_seq_length, tokenizer, punct_label_ids, capit_label_ids, pad_label, verbose, progress_queue,
+                    max_seq_length,
+                    tokenizer,
+                    punct_label_ids,
+                    capit_label_ids,
+                    pad_label,
+                    verbose,
+                    progress_queue,
                 ),
                 args,
             )
@@ -713,7 +719,13 @@ def _get_features(
         for x in args:
             result.append(
                 TokenizeCreateMasksClipWorker(
-                    max_seq_length, tokenizer, punct_label_ids, capit_label_ids, pad_label, verbose, progress_queue,
+                    max_seq_length,
+                    tokenizer,
+                    punct_label_ids,
+                    capit_label_ids,
+                    pad_label,
+                    verbose,
+                    progress_queue,
                 )(*x)
             )
     if create_progress_process:
@@ -1007,7 +1019,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports. """
+        """Returns definitions of module output ports."""
         if self.use_audio:
             return {
                 'input_ids': NeuralType(('B', 'T'), ChannelType()),
@@ -1063,7 +1075,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         use_bucketing: Optional[bool] = True,
         preload_audios: Optional[bool] = True,
     ) -> None:
-        """ Initializes BertPunctuationCapitalizationDataset. """
+        """Initializes BertPunctuationCapitalizationDataset."""
         if isinstance(punct_label_ids, DictConfig):
             punct_label_ids = OmegaConf.to_container(punct_label_ids)
         if isinstance(capit_label_ids, DictConfig):
@@ -1348,9 +1360,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 raise_not_equal_labels_error(
                     first_labels=parameter_punct_label_ids,
                     second_labels=pkl_punct_label_ids,
-                    first_labels_desc="Punctuation labels passed in parameter `punct_label_ids`"
-                    if punct_label_vocab_file is None
-                    else f"Punctuation labels loaded from file {punct_label_vocab_file}",
+                    first_labels_desc=(
+                        "Punctuation labels passed in parameter `punct_label_ids`"
+                        if punct_label_vocab_file is None
+                        else f"Punctuation labels loaded from file {punct_label_vocab_file}"
+                    ),
                     second_labels_desc=f"Punctuation label ids loaded from features file {self.features_pkl}",
                 )
         if not isinstance(pkl_capit_label_ids, dict):
@@ -1363,9 +1377,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 raise_not_equal_labels_error(
                     first_labels=parameter_capit_label_ids,
                     second_labels=pkl_capit_label_ids,
-                    first_labels_desc="Capitalization labels passed in parameter `capit_label_ids`"
-                    if capit_label_vocab_file is None
-                    else f"Capitalization labels loaded from file {capit_label_vocab_file}",
+                    first_labels_desc=(
+                        "Capitalization labels passed in parameter `capit_label_ids`"
+                        if capit_label_vocab_file is None
+                        else f"Capitalization labels loaded from file {capit_label_vocab_file}"
+                    ),
                     second_labels_desc=f"Capitalization label ids loaded from features file {self.features_pkl}",
                 )
 

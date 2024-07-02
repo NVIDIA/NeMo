@@ -18,7 +18,7 @@ from typing import List, Optional
 
 @dataclass
 class S2SQAInputExample(object):
-    """ A single set of features of a QA example for T5/BART-like model """
+    """A single set of features of a QA example for T5/BART-like model"""
 
     unique_id: int
     input_ids: List[int]
