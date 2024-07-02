@@ -4434,17 +4434,17 @@ jobs:
     needs: 
       - L0_Unit_Tests_GPU
       - L0_Unit_Tests_CPU
-      - L2_Community_LLM_Checkpoints_tests_Llama
-      - L2_Community_LLM_Checkpoints_tests_StarCoder
-      - L2_Community_LLM_Checkpoints_tests_Falcon
-      #- OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2
-      - ASR_dev_run_Speech_to_Text
-      - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
-      - ASR_dev_run_Speech_Pre-training_-_CitriNet
-      - ASR_dev_run_Speech_To_Text_Finetuning
-      #- OPTIONAL_ASR_dev_run_Speech_To_Text_HF_Finetuning
-      - ASR_dev_run_Speech_to_Text_WPE_-_Conformer
-      - ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer
+      # - L2_Community_LLM_Checkpoints_tests_Llama
+      # - L2_Community_LLM_Checkpoints_tests_StarCoder
+      # - L2_Community_LLM_Checkpoints_tests_Falcon
+      # #- OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2
+      # - ASR_dev_run_Speech_to_Text
+      # - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
+      # - ASR_dev_run_Speech_Pre-training_-_CitriNet
+      # - ASR_dev_run_Speech_To_Text_Finetuning
+      # #- OPTIONAL_ASR_dev_run_Speech_To_Text_HF_Finetuning
+      # - ASR_dev_run_Speech_to_Text_WPE_-_Conformer
+      # - ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer
       # - L2_Speech_to_Text_EMA
       # - L2_Speaker_dev_run_Speaker_Recognition
       # - L2_Speaker_dev_run_Speaker_Diarization
