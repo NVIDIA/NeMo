@@ -18,7 +18,7 @@ import tarfile
 import tempfile
 from argparse import ArgumentParser
 from typing import Dict, List
-
+from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
 import torch
 import torch.nn as nn
 from omegaconf import OmegaConf, open_dict
@@ -47,11 +47,10 @@ python /home/ataghibakhsh/NeMo/examples/nlp/language_modeling/mamba_change_num_p
     --tensor_model_parallel_size=1 \
     --target_tensor_model_parallel_size=4 \
     --precision=bf16 \
-    --d_model=4096 \
-    --mamba_version=2 \
-    --mamba2_n_groups=8 \
-    --mamba2_head_dim=64
-
+    --d-model=4096 \
+    --mamba-version=2 \
+    --mamba2-n-groups=8 \
+    --mamba2-head-dim=64
 """
 
 
@@ -310,7 +309,10 @@ def split_tp_partition_only(args, model, original_model, tp_size, write_path=Non
     # This is done so that the last PP rank will save the last TP rank only after all other PP TP ranks are saved
     # The final rank will then save a new NeMo file with all other ranks inside.
     write_tp_pp_split(model, splits, app_state, tp_size, pp_rank=0, write_path=write_path)
-
+    
+    with tarfile.open(write_path, 'r') as tar:
+        # Extract all contents to the specified path
+        tar.extractall(path=os.path.dirname(write_path))
 
 def main():
     parser = ArgumentParser()
@@ -433,12 +435,11 @@ def main():
         hparams_filepath = None
 
     # Import the class of the model
-    cls = model_utils.import_class_by_path(args.model_class)
 
     if args.model_file is None and args.model_extracted_dir is None:
         raise ValueError("Cannot pass model_file and model_extracted_dir as None at the same time.")
 
-    tmp_cfg = cls.restore_from(
+    tmp_cfg = MegatronMambaModel.restore_from(
         restore_path=args.model_file,
         trainer=Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision),
         map_location=torch.device("cpu"),
@@ -469,7 +470,7 @@ def main():
 
     if tp_size < 0 or pp_size < 0:
         logging.info(f"Loading model config from {args.model_file} to get TP and PP size")
-        model_config_internal = cls.restore_from(
+        model_config_internal = MegatronMambaModel.restore_from(
             restore_path=args.model_file,
             trainer=trainer,
             map_location=torch.device("cpu"),
@@ -558,7 +559,7 @@ def main():
     else:
         model_filepath = args.model_extracted_dir
 
-    tmp_cfg = cls.restore_from(
+    tmp_cfg = MegatronMambaModel.restore_from(
         restore_path=model_filepath,
         trainer=trainer,
         map_location=torch.device("cpu"),
@@ -568,7 +569,7 @@ def main():
 
     tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
 
-    model = cls.restore_from(
+    model = MegatronMambaModel.restore_from(
         restore_path=model_filepath,
         trainer=trainer,
         map_location=torch.device("cpu"),
@@ -576,7 +577,7 @@ def main():
         override_config_path=tmp_cfg,
     )
 
-    original_model = cls.restore_from(
+    original_model = MegatronMambaModel.restore_from(
         restore_path=model_filepath,
         trainer=trainer,
         map_location=torch.device("cpu"),
@@ -673,7 +674,7 @@ def main():
 
             model.cfg, restore_dict = force_cpu_model(model.cfg)
 
-            model = cls(model.cfg, trainer)
+            model = MegatronMambaModel(model.cfg, trainer)
             model = model.to('cpu')
             model._save_restore_connector = NLPSaveRestoreConnector()
             model.freeze()
