@@ -1,6 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch
-from pathlib import Path
+from unittest.mock import patch
 
 from pytorch_lightning.callbacks import ModelCheckpoint as PTLModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
