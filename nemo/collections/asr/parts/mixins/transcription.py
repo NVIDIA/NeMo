@@ -28,8 +28,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
-from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment, ChannelSelectorType
 from nemo.utils import logging, logging_mode
 
 TranscriptionReturnType = Union[List[str], List['Hypothesis'], Tuple[List[str]], Tuple[List['Hypothesis']]]
@@ -148,11 +147,9 @@ class TranscriptionTensorDataset(Dataset):
         # Calculate seq length
         seq_len = torch.tensor(samples.shape[0], dtype=torch.long)
 
-        # Dummy text tokens
-        text_tokens = torch.tensor([0], dtype=torch.long)
-        text_tokens_len = torch.tensor(1, dtype=torch.long)
-
-        return (samples, seq_len, text_tokens, text_tokens_len)
+        # Typically NeMo ASR models expect the mini-batch to be a 4-tuple of (audio, audio_len, text, text_len).
+        # For inference, we set text and text_len to None to not disrupt the shape of the tuple.
+        return samples, seq_len, None, None
 
 
 class TranscriptionMixin(ABC):
@@ -183,7 +180,7 @@ class TranscriptionMixin(ABC):
 
     """
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def transcribe(
         self,
         audio: Union[str, List[str], np.ndarray, DataLoader],
@@ -383,7 +380,6 @@ class TranscriptionMixin(ABC):
                 for test_batch in tqdm(dataloader, desc="Transcribing", disable=not verbose):
                     # Move batch to device
                     test_batch = move_to_device(test_batch, transcribe_cfg._internal.device)
-
                     # Run forward pass
                     model_outputs = self._transcribe_forward(test_batch, transcribe_cfg)
                     processed_outputs = self._transcribe_output_processing(model_outputs, transcribe_cfg)

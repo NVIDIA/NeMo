@@ -27,8 +27,8 @@ from torch.utils.data import ChainDataset
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
-from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import Dataset, IterableDataset
@@ -75,7 +75,9 @@ def _speech_collate_fn(batch, pad_id):
     has_audio = audio_lengths[0] is not None
     if has_audio:
         max_audio_len = max(audio_lengths).item()
-    max_tokens_len = max(tokens_lengths).item()
+    has_tokens = tokens_lengths[0] is not None
+    if has_tokens:
+        max_tokens_len = max(tokens_lengths).item()
 
     audio_signal, tokens = [], []
     for b in batch:
@@ -89,19 +91,24 @@ def _speech_collate_fn(batch, pad_id):
                 pad = (0, max_audio_len - sig_len)
                 sig = torch.nn.functional.pad(sig, pad)
             audio_signal.append(sig)
-        tokens_i_len = tokens_i_len.item()
-        if tokens_i_len < max_tokens_len:
-            pad = (0, max_tokens_len - tokens_i_len)
-            tokens_i = torch.nn.functional.pad(tokens_i, pad, value=pad_id)
-        tokens.append(tokens_i)
+        if has_tokens:
+            tokens_i_len = tokens_i_len.item()
+            if tokens_i_len < max_tokens_len:
+                pad = (0, max_tokens_len - tokens_i_len)
+                tokens_i = torch.nn.functional.pad(tokens_i, pad, value=pad_id)
+            tokens.append(tokens_i)
 
     if has_audio:
         audio_signal = torch.stack(audio_signal)
         audio_lengths = torch.stack(audio_lengths)
     else:
         audio_signal, audio_lengths = None, None
-    tokens = torch.stack(tokens)
-    tokens_lengths = torch.stack(tokens_lengths)
+    if has_tokens:
+        tokens = torch.stack(tokens)
+        tokens_lengths = torch.stack(tokens_lengths)
+    else:
+        tokens = None
+        tokens_lengths = None
     if sample_ids is None:
         return audio_signal, audio_lengths, tokens, tokens_lengths
     else:

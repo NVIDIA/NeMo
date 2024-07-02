@@ -97,7 +97,14 @@ class SquareRootConstantPolicy(_LRScheduler):
     """
 
     def __init__(
-        self, optimizer, *, constant_steps=None, constant_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1
+        self,
+        optimizer,
+        *,
+        constant_steps=None,
+        constant_ratio=None,
+        max_steps=None,
+        min_lr=0.0,
+        last_epoch=-1,
     ):
         assert not (
             constant_steps is not None and constant_ratio is not None
@@ -279,6 +286,16 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
             )
 
         step = self.last_epoch
+
+        # Reset learning rate
+        if 'reset_lr' in self.optimizer.param_groups[0].keys():
+            reset_lr = self.optimizer.param_groups[0]['reset_lr']
+            num_steps = reset_lr['num_steps']
+            step -= num_steps
+            if reset_lr['if_init_step'] and reset_lr['reset_lr_steps']:
+                self.decay_steps -= num_steps
+                self.max_steps -= num_steps
+                self.optimizer.param_groups[0]['reset_lr']['if_init_step'] = False
 
         # Warmup steps
         if self.warmup_steps > 0 and step <= self.warmup_steps:
@@ -542,7 +559,15 @@ class CosineAnnealing(WarmupAnnealHoldPolicy):
 
 class NoamAnnealing(_LRScheduler):
     def __init__(
-        self, optimizer, *, d_model, warmup_steps=None, warmup_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1
+        self,
+        optimizer,
+        *,
+        d_model,
+        warmup_steps=None,
+        warmup_ratio=None,
+        max_steps=None,
+        min_lr=0.0,
+        last_epoch=-1,
     ):
         self._normalize = d_model ** (-0.5)
         assert not (

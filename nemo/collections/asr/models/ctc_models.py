@@ -45,9 +45,9 @@ from nemo.collections.asr.parts.mixins import (
     TranscribeConfig,
 )
 from nemo.collections.asr.parts.mixins.transcription import GenericTranscriptionType, TranscriptionReturnType
+from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
-from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.asr.parts.utils.ipl_utils import *
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
@@ -776,7 +776,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
     def _transcribe_on_begin(self, audio, trcfg: TranscribeConfig):
         super()._transcribe_on_begin(audio, trcfg)
 
-        # Freeze the encoder and decoure_exder modules
+        # Freeze the encoder and decoder modules
         self.encoder.freeze()
         self.decoder.freeze()
 
@@ -814,7 +814,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             logits_len = logits_len.cpu()
             # dump log probs per file
             for idx in range(logits_cpu.shape[0]):
-                current_hypotheses[idx].y_sequence = logits_cpu[idx][: logits_len[idx]]
+                # We clone because we don't want references to the
+                # cudaMallocHost()-allocated tensor to be floating
+                # around. Were that to be the case, then the pinned
+                # memory cache would always miss.
+                current_hypotheses[idx].y_sequence = logits_cpu[idx, : logits_len[idx]].clone()
                 if current_hypotheses[idx].alignments is None:
                     current_hypotheses[idx].alignments = current_hypotheses[idx].y_sequence
             del logits_cpu
@@ -982,6 +986,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         results.append(model)
 
         return results
+
+    @property
+    def adapter_module_names(self) -> List[str]:
+        return ['', 'encoder', 'decoder']
 
     @property
     def wer(self):

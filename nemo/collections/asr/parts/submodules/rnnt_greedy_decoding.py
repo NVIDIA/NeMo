@@ -383,14 +383,13 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
             hypotheses = []
             # Process each sequence independently
-            with self.decoder.as_frozen(), self.joint.as_frozen():
-                for batch_idx in range(encoder_output.size(0)):
-                    inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
-                    logitlen = encoded_lengths[batch_idx]
+            for batch_idx in range(encoder_output.size(0)):
+                inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
+                logitlen = encoded_lengths[batch_idx]
 
-                    partial_hypothesis = partial_hypotheses[batch_idx] if partial_hypotheses is not None else None
-                    hypothesis = self._greedy_decode(inseq, logitlen, partial_hypotheses=partial_hypothesis)
-                    hypotheses.append(hypothesis)
+                partial_hypothesis = partial_hypotheses[batch_idx] if partial_hypotheses is not None else None
+                hypothesis = self._greedy_decode(inseq, logitlen, partial_hypotheses=partial_hypothesis)
+                hypotheses.append(hypothesis)
 
             # Pack results into Hypotheses
             packed_result = pack_hypotheses(hypotheses, encoded_lengths)
@@ -592,7 +591,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         loop_labels: bool = True,
-        use_cuda_graph_decoder: bool = False,
+        use_cuda_graph_decoder: bool = True,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -720,12 +719,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             self.decoder.eval()
             self.joint.eval()
 
-            with self.decoder.as_frozen(), self.joint.as_frozen():
-                inseq = encoder_output  # [B, T, D]
+            inseq = encoder_output  # [B, T, D]
 
-                hypotheses = self._greedy_decode(
-                    inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
-                )
+            hypotheses = self._greedy_decode(
+                inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
+            )
 
             # Pack the hypotheses results
             packed_result = pack_hypotheses(hypotheses, logitlen)
@@ -2360,7 +2358,7 @@ class GreedyBatchedRNNTInferConfig:
     tdt_include_duration_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
     loop_labels: bool = True
-    use_cuda_graph_decoder: bool = False
+    use_cuda_graph_decoder: bool = True
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
@@ -2487,14 +2485,13 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
 
             hypotheses = []
             # Process each sequence independently
-            with self.decoder.as_frozen(), self.joint.as_frozen():
-                for batch_idx in range(encoder_output.size(0)):
-                    inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
-                    logitlen = encoded_lengths[batch_idx]
+            for batch_idx in range(encoder_output.size(0)):
+                inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
+                logitlen = encoded_lengths[batch_idx]
 
-                    partial_hypothesis = partial_hypotheses[batch_idx] if partial_hypotheses is not None else None
-                    hypothesis = self._greedy_decode(inseq, logitlen, partial_hypotheses=partial_hypothesis)
-                    hypotheses.append(hypothesis)
+                partial_hypothesis = partial_hypotheses[batch_idx] if partial_hypotheses is not None else None
+                hypothesis = self._greedy_decode(inseq, logitlen, partial_hypotheses=partial_hypothesis)
+                hypotheses.append(hypothesis)
 
             # Pack results into Hypotheses
             packed_result = pack_hypotheses(hypotheses, encoded_lengths)
@@ -2712,7 +2709,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         preserve_frame_confidence: bool = False,
         include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
-        use_cuda_graph_decoder: bool = False,
+        use_cuda_graph_decoder: bool = True,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -2775,11 +2772,10 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             self.decoder.eval()
             self.joint.eval()
 
-            with self.decoder.as_frozen(), self.joint.as_frozen():
-                inseq = encoder_output  # [B, T, D]
-                hypotheses = self._greedy_decode(
-                    inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
-                )
+            inseq = encoder_output  # [B, T, D]
+            hypotheses = self._greedy_decode(
+                inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
+            )
 
             # Pack the hypotheses results
             packed_result = pack_hypotheses(hypotheses, logitlen)
