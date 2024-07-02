@@ -9,12 +9,11 @@ import lightning_fabric as fl
 import pytorch_lightning as pl
 from fiddle._src.experimental import serialization
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
+from pytorch_lightning.loggers import Logger, MLFlowLogger, TensorBoardLogger, WandbLogger
 
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-
-from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger, Logger
 
 
 @dataclass
@@ -120,7 +119,7 @@ class NeMoLogger:
         self._setup_file_logging(log_dir)
 
         return app_state
-    
+
     def _setup_trainer_loggers(self, trainer, dir, version):
         loggers = [self.tensorboard, self.wandb, self.mlflow, *self.extra_loggers]
         loggers = [logger for logger in loggers if logger is not None]
@@ -128,16 +127,16 @@ class NeMoLogger:
             if trainer.logger is not None and not self.tensorboard:
                 loggers = [trainer.logger] + loggers
             trainer._logger_connector.configure_logger(loggers)
-        
+
         if trainer.logger is not None and self.update_logger_directory:
             logging.warning(
                 f'"update_logger_directory" is True. Overwriting logger "save_dir" to {dir} and "name" to {self.name}'
             )
             trainer.logger._root_dir = dir
             trainer.logger._name = self.name
-            
+
         trainer.logger._version = version or ""
-            
+
     def _setup_trainer_model_checkpoint(self, trainer, log_dir, ckpt=None):
         if ckpt:
             _overwrite_i = None
@@ -171,7 +170,7 @@ class NeMoLogger:
                         f"{trainer.max_steps}. Please ensure that max_steps will run for at least "
                         f"{trainer.check_val_every_n_epoch} epochs to ensure that checkpointing will not error out."
                     )
-                
+
         for callback in trainer.callbacks:
             if isinstance(callback, PTLModelCheckpoint):
                 if callback.dirpath is None:
@@ -179,32 +178,32 @@ class NeMoLogger:
                 if callback.filename is None:
                     callback.filename = f'{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}'
                 ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + '-last'
-    
+
     def _handle_task_config(self, task_config, log_dir):
         task_config.save_config_img(log_dir / "task.png")
         task_json = serialization.dump_json(task_config)
         with open(log_dir / "task.json", "w") as f:
             f.write(task_json)
-    
+
     def _setup_file_logging(self, log_dir):
         """Set up file logging based on rank settings."""
         from nemo.constants import NEMO_ENV_VARNAME_TESTING
         from nemo.utils.env_var_parsing import get_envbool
         from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
-        
+
         # This is set if the env var NEMO_TESTING is set to True.
         nemo_testing = get_envbool(NEMO_ENV_VARNAME_TESTING, False)
         log_file = log_dir / f'nemo_log_globalrank-{self.global_rank}_localrank-{self.local_rank}.txt'
-        
+
         if self.log_local_rank_0_only and not nemo_testing and self.local_rank == 0:
             logging.add_file_handler(log_file)
         elif self.log_global_rank_0_only and not nemo_testing and self.global_rank == 0:
             logging.add_file_handler(log_file)
         elif not (self.log_local_rank_0_only or self.log_global_rank_0_only):
             logging.add_file_handler(log_file)
-        
+
         add_handlers_to_mcore_logger()
-        
+
     def _setup_files_to_move(self, log_dir, app_state):
         files_to_move = []
         if Path(log_dir).exists():
