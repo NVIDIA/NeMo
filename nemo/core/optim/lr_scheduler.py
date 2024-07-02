@@ -417,6 +417,95 @@ class SquareRootAnnealing(WarmupPolicy):
         return new_lrs
 
 
+class DoubleCosineAnnealing(_LRScheduler):
+    def __init__(
+        self,
+        optimizer,
+        max_steps,
+        milestone,
+        max_lr1=None,
+        max_lr2=None,
+        min_lr1=0.0,
+        min_lr2=0.0,
+        warmup_steps1=None,
+        warmup_steps2=None,
+        warmup_ratio1=None,
+        warmup_ratio2=None,
+        last_epoch=-1,
+    ):
+
+        assert not (
+            warmup_steps1 is not None and warmup_ratio1 is not None
+        ), "Either use particular number of step or ratio"
+        assert warmup_ratio1 is None or max_steps is not None, "If there is a ratio, there should be a total steps"
+
+        assert not (
+            warmup_steps2 is not None and warmup_ratio2 is not None
+        ), "Either use particular number of step or ratio"
+        assert warmup_ratio2 is None or max_steps is not None, "If there is a ratio, there should be a total steps"
+
+        if milestone < 0:
+            raise ValueError(f"{self} received a negative milestone value.")
+        self.max_lr1 = max_lr1 or max(group['lr'] for group in optimizer.param_groups)
+        self.max_lr2 = max_lr2 or self.max_lr1
+
+        if warmup_steps1 is not None:
+            self.warmup_steps1 = warmup_steps1
+        elif warmup_ratio1 is not None:
+            self.warmup_steps1 = int(warmup_ratio1 * max_steps)
+        else:
+            self.warmup_steps1 = 0
+
+        if warmup_steps2 is not None:
+            self.warmup_steps2 = warmup_steps2
+        elif warmup_ratio2 is not None:
+            self.warmup_steps2 = int(warmup_ratio2 * max_steps)
+        else:
+            self.warmup_steps2 = 0
+
+        self.max_steps1 = milestone
+        self.max_steps2 = max_steps - milestone
+
+        assert self.max_lr1 is not None and self.max_lr1 > min_lr1, "max_lr1 must be defined and greater than min_lr1"
+        assert self.max_lr2 is not None and self.max_lr2 > min_lr2, "max_lr2 must be defined and greater than min_lr2"
+
+        self.warmup_steps1 = int(warmup_ratio1 * self.max_steps1) if warmup_ratio1 is not None else warmup_steps1
+        self.warmup_steps2 = int(warmup_ratio2 * self.max_steps2) if warmup_ratio2 is not None else warmup_steps2
+
+        self.min_lr1 = min_lr1
+        self.min_lr2 = min_lr2
+
+        self.milestone = milestone
+
+        super().__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        if not self._get_lr_called_within_step:
+            warnings.warn(
+                "To get the last learning rate computed by the scheduler, please use `get_last_lr()`.", UserWarning
+            )
+
+        step = self.last_epoch
+        if step <= self.milestone:
+            max_lr = self.max_lr1
+            warmup_steps = self.warmup_steps1
+            min_lr = self.min_lr1
+            decay_steps = self.max_steps1 - self.warmup_steps1
+        else:
+            max_lr = self.max_lr2
+            warmup_steps = self.warmup_steps2
+            step -= self.max_steps1
+            min_lr = self.min_lr2
+            decay_steps = self.max_steps2 - self.warmup_steps2
+        new_lrs = [
+            _linear_warmup_with_cosine_annealing(
+                max_lr=max_lr, warmup_steps=warmup_steps, step=step, decay_steps=decay_steps, min_lr=min_lr
+            )
+            for _ in self.base_lrs
+        ]
+        return new_lrs
+
+
 class CosineAnnealing(WarmupAnnealHoldPolicy):
     def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, **kwargs):
         super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
@@ -998,6 +1087,7 @@ AVAILABLE_SCHEDULERS = {
     'WarmupHoldPolicy': WarmupHoldPolicy,
     'SquareAnnealing': SquareAnnealing,
     'CosineAnnealing': CosineAnnealing,
+    'DoubleCosineAnnealing': DoubleCosineAnnealing,
     'NoamAnnealing': NoamAnnealing,
     'NoamHoldAnnealing': NoamHoldAnnealing,
     'WarmupAnnealing': WarmupAnnealing,

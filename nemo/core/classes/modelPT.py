@@ -788,7 +788,9 @@ class ModelPT(LightningModule, Model):
             self._optimizer = optimizer
 
         self._scheduler = prepare_lr_scheduler(
-            optimizer=self._optimizer, scheduler_config=scheduler_config, train_dataloader=self._train_dl
+            optimizer=self._optimizer,
+            scheduler_config=scheduler_config,
+            train_dataloader=self._train_dl,
         )
 
         # Return the optimizer with/without scheduler
@@ -1739,6 +1741,7 @@ class ModelPT(LightningModule, Model):
         See more options at: https://docs.nvidia.com/nsight-systems/UserGuide/index.html#cli-profiling
 
         Enables CUDA memory profiling
+
         To use, add the following options to the model config:
         ## CUDA memory profiling options
         memory_profile:
