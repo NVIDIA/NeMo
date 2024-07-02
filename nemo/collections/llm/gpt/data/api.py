@@ -1,4 +1,3 @@
-
 import pytorch_lightning as pl
 
 from nemo.collections.llm.gpt.data.dolly import DollyDataModule
