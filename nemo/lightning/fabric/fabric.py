@@ -7,7 +7,7 @@ import lightning_fabric as lb
 from torch import nn
 from typing_extensions import Self
 
-from nemo.lightning.io.mixin import IOMixin
+from nemo.lightning.io.mixin import IOMixin, serialization, track_io
 
 ModelT = TypeVar("ModelT", bound=nn.Module)
 
@@ -16,6 +16,10 @@ class Fabric(lb.Fabric, IOMixin):
     def io_init(self, **kwargs) -> fdl.Config[Self]:
         # Each argument of the trainer can be stateful so we copy them
         cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items()}
+        
+        for val in cfg_kwargs.values():
+            if not serialization.find_node_traverser(type(val)):
+                track_io(type(val))
 
         return fdl.Config(type(self), **cfg_kwargs)
 
