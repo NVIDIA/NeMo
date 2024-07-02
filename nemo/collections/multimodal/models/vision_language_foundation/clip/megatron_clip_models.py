@@ -441,10 +441,9 @@ class MCoreCLIPTextModel(MCoreGPTModel):
             self.position_ids = torch.arange(kwargs['max_sequence_length']).expand(1, -1).cuda()
 
     def forward(self, input_ids):
-
         x = super().forward(input_ids, position_ids=self.position_ids, attention_mask=None)
         x = self.final_layernorm(x)
-        x = x[input_ids.argmax(dim=-1)]
+        x = x[input_ids.argmax(dim=-1), torch.arange(x.shape[1])]
         x = self.head(x)
         return x
 
