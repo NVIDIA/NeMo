@@ -26,7 +26,7 @@ class TestNeMoLogger:
         assert isinstance(trainer.loggers[1], WandbLogger)
         assert str(trainer.loggers[1].save_dir).endswith("nemo_experiments")
         assert trainer.loggers[1]._name == "default"
-        
+
     def test_explicit_log_dir(self, trainer):
         explicit_dir = "explicit_test_dir"
         logger = nl.NeMoLogger(name="test", explicit_log_dir=explicit_dir)

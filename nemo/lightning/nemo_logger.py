@@ -9,7 +9,7 @@ import lightning_fabric as fl
 import pytorch_lightning as pl
 from fiddle._src.experimental import serialization
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
-from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger, Logger
+from pytorch_lightning.loggers import Logger, TensorBoardLogger, WandbLogger
 
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.utils import logging
@@ -122,13 +122,13 @@ class NeMoLogger:
     def _setup_trainer_loggers(self, trainer, dir, version):
         loggers = [self.tensorboard, self.wandb, *self.extra_loggers]
         loggers = [logger for logger in loggers if logger is not None]
-        
+
         if self.update_logger_directory and self.wandb:
             self.wandb._save_dir = dir
             self.wandb._wandb_init["dir"] = dir
             self.wandb._wandb_init["name"] = self.name
             self.wandb._name = self.name
-        
+
         if loggers:
             if trainer.logger is not None and not self.tensorboard:
                 loggers = [trainer.logger] + loggers
