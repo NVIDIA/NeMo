@@ -15,6 +15,7 @@
 import itertools
 import json
 import os
+from functools import partial
 from typing import List, Optional, Union
 
 import hydra
@@ -361,43 +362,195 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         return encoder_input, attention_mask, labels, loss_mask, encoder_length
 
-    def forward(
-        self,
-        audio_batch,
-        checkpoint_activations_all_layers,
+    def _gpt_forward(
+        self, input_ids, position_ids, encoder_input, attention_mask, labels, checkpoint_activations_all_layers
     ):
-        """
-        Forward pass of the model. We prepend audio embeddings to the instruction and label text tokens as the LLM input.
-        """
-        if 'audio_ratio' in audio_batch:
-            self.log(
-                'local_batch_size',
-                audio_batch['audio_ratio'].shape[0],
-                prog_bar=True,
-                batch_size=1,
-                rank_zero_only=False,
-            )
-
-        encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
+        """Forward pass of the GPT model."""
         if self.mcore_gpt:
             output = self.model(
-                input_ids=None,
-                position_ids=None,
+                input_ids=input_ids,
+                position_ids=position_ids,
                 decoder_input=encoder_input,
                 attention_mask=attention_mask,
                 labels=labels,
             )
         else:
             output = self.model(
-                input_ids=None,
-                position_ids=None,
+                input_ids=input_ids,
+                position_ids=position_ids,
                 encoder_input=encoder_input,
                 attention_mask=attention_mask,
                 labels=labels,
                 checkpoint_activations_all_layers=checkpoint_activations_all_layers,
             )
+        return output
 
-        return output, loss_mask
+    def forward(
+        self,
+        batch,
+        checkpoint_activations_all_layers,
+    ):
+        """
+        Forward pass of the model. We prepend audio embeddings to the instruction and label text tokens as the LLM input.
+        """
+        audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_")}
+        text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
+
+        output, loss_mask = None, None
+
+        multimodal_output = {}
+        if 'audio_signal' in audio_batch:
+            encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
+            output = self._gpt_forward(
+                None, None, encoder_input, attention_mask, labels, checkpoint_activations_all_layers
+            )
+            multimodal_output['audio_text'] = (output, loss_mask)
+        if text_batch:
+            input_ids = text_batch["text_input_ids"][:, :-1]
+            labels = text_batch["text_input_ids"][:, 1:]
+            attention_mask = self._create_attention_mask(input_ids)
+            loss_mask = text_batch["text_masks"][:, 1:]
+            output = self._gpt_forward(
+                input_ids, None, None, attention_mask, labels, checkpoint_activations_all_layers
+            )
+            multimodal_output['text'] = (output, loss_mask)
+        if not audio_batch and not text_batch:
+            raise ValueError("No input data found for the model.")
+
+        return multimodal_output
+
+    def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
+        """
+        Copy of megatron_gpt_sft_model.py function with the same name.
+        Modified not to assume certain fields like 'tokens' are always available in the mini-batch,
+        since we have mixed text/audio dataloading and sometimes one of the modalities might be missing.
+        """
+        # TODO(pzelasko): I marked the sections that are modified from the original with TODOs like this one.
+
+        # Local imports mimic global imports in the original file that had this func.
+        from apex.transformer.pipeline_parallel.utils import get_micro_batch_size
+        from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+        from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
+
+        from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+
+        # Return only batch if batch, batch_idx, dataloder_idx are extracted as a tuple in the previous func
+        # call like validation_step otherwise return tuple (in which case dataloader_iter is still a PTL _DataFetcherWrapper object)
+        if isinstance(dataloader_iter, _DataFetcherWrapper):
+            batch, _, _ = next(dataloader_iter)
+        else:
+            batch = next(dataloader_iter)
+
+        audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_")}
+        text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
+
+        # TODO(pzelasko): restore this logging once we decide what's the right format for joint text-audio batches
+        # log_token_counts = self.cfg.get('log_token_counts', False)
+        # if log_token_counts:
+        #     token_count_avg = sum(batch['token_count']) / len(batch['token_count'])
+
+        # Note: We want to perform full fwd+bwd separately for each modality,
+        #       as it allows us to save GPU memory. Otherwise, we'd have to
+        #       hold the activations from one modality in memory while running
+        #       forward for the other.
+        batch_losses = []
+        for batch in (audio_batch, text_batch):
+            if not batch:
+                continue
+
+            # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
+            batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
+
+            # TODO(pzelasko): For the prototype, computing seq_length as a max from both modalities,
+            #                 but I feel like this needs larger refactoring
+            if 'tokens' in batch and 'text_input_ids' in batch:
+                seq_length = max(batch['tokens'].shape[1], batch['text_input_ids'].shape[1])
+            elif 'tokens' in batch:
+                seq_length = batch['tokens'].shape[1]
+            elif 'text_input_ids' in batch:
+                seq_length = batch['text_input_ids'].shape[1]
+            else:
+                seq_length = None  # TODO(pzelasko): not sure if it is even needed ???
+
+            data_iter = get_iterator_k_split(batch, get_num_microbatches())
+
+            # TODO(pzelasko): restore this logging once we decide what's the right format for joint text-audio batches
+            # if log_token_counts:
+            #     self.log('seq_length_padded', seq_length, prog_bar=True, batch_size=1)
+            #     self.log('tokens_avg', token_count_avg, prog_bar=True, sync_dist=True, batch_size=1)
+
+            # handle asynchronous grad reduction
+            no_sync_func = None
+            grad_sync_func = None
+            param_sync_func = None
+            if not forward_only and self.with_distributed_adam:
+                no_sync_func = partial(
+                    self._optimizer.no_sync,
+                    greedy_grad_copy=self.megatron_amp_O2,
+                )
+                grad_sync_func = self.reduce_overlap_gradients
+                param_sync_func = self.sync_overlap_parameters
+
+            for module in self.get_model_module_list():
+                module.config.no_sync_func = no_sync_func
+                module.config.grad_sync_func = grad_sync_func
+                module.config.param_sync_func = param_sync_func
+
+            fwd_bwd_function = get_forward_backward_func()
+
+            losses_reduced_per_micro_batch = fwd_bwd_function(
+                forward_step_func=self.get_forward_output_and_loss_func(tuning=True, validation_step=forward_only),
+                data_iterator=self._make_data_iterator_list(data_iter),
+                model=self.model,
+                num_microbatches=get_num_microbatches(),
+                forward_only=forward_only,
+                seq_length=seq_length,
+                micro_batch_size=get_micro_batch_size(),
+                first_val_step=first_val_step,
+            )
+
+            non_loss_tensors = {}
+            # only the last stages of the pipeline return losses
+            if losses_reduced_per_micro_batch:
+                for item in losses_reduced_per_micro_batch:
+                    for k, v in item.items():
+                        if k != 'avg':
+                            av = non_loss_tensors.get(k, [])
+                            av.append(v)
+                            non_loss_tensors[k] = av
+                if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+                    # average loss across micro batches
+                    loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+                    loss_tensor = torch.concat(loss_tensors_list)
+                    loss_mean = loss_tensor.mean()
+                else:
+                    # Get the total loss since micro batches sizes are not uniform
+                    loss_sum_tensors_list = [
+                        loss_sum['loss_sum_and_ub_size']
+                        for loss_sum in losses_reduced_per_micro_batch
+                        if loss_sum['loss_sum_and_ub_size'][1] > 0
+                    ]
+                    loss_mean = (
+                        torch.vstack(loss_sum_tensors_list).sum(axis=0)
+                        if len(loss_sum_tensors_list) > 0
+                        else torch.tensor([0.0, 0.0]).cuda()
+                    )
+            else:
+                # we're not on the last pipeline stage so no losses
+                if forward_only:
+                    loss_mean = []
+                else:
+                    loss_mean = torch.tensor(0.0).cuda()
+            batch_losses.append(loss_mean.unsqueeze(0))
+
+        loss_mean = torch.cat(batch_losses).mean()
+
+        # if forward_only:
+        # return loss_mean
+        if non_loss_tensors:  # TODO: need a nicer way to do this via inheritance (@adithyare)
+            return loss_mean, non_loss_tensors
+        else:
+            return loss_mean
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
@@ -483,18 +636,41 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             if not self.mcore_gpt:
                 batch['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
 
-            output_tensor, loss_mask = self.forward(
+            multimodal_output = self.forward(
                 batch, checkpoint_activations_all_layers=checkpoint_activations_all_layers
             )
-            batch['loss_mask'] = loss_mask
 
-            def loss_func(output_tensor):
+            def loss_func(multimodal_output):
                 # Loss for a micro-batch (ub)
-                loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
+                loss_for_ub = 0
+
+                modality_weights = self.cfg.get("modality_loss_weights")
+
+                for key, (output, loss_mask) in multimodal_output.items():
+                    cur_loss = self.loss_func(loss_mask.contiguous(), loss_mask.sum(), output.contiguous())
+                    if modality_weights is not None:
+                        assert (
+                            key in modality_weights
+                        ), f"Expected cfg.modality_loss_weights={modality_weights} to contain key {key}"
+                        cur_loss = cur_loss * modality_weights[key]
+                    loss_for_ub += cur_loss
+                    self.log(
+                        f'{key}_loss',
+                        cur_loss.mean(),
+                        prog_bar=True,
+                        batch_size=1,
+                        rank_zero_only=False,
+                    )
+                    self.log(
+                        f'{key}_batch_size',
+                        loss_mask.shape[0],
+                        prog_bar=True,
+                        batch_size=1,
+                        rank_zero_only=False,
+                    )
+
                 cp_size = self.cfg.get('context_parallel_size', 1)
-                if self.cfg.data.get(
-                    "return_output_tensors", False
-                ):  # TODO: need a better way to check if loss_func is returning more stuff than just loss... (@adithyare)
+                if self.cfg.data.get("return_output_tensors", False):
                     loss_for_ub, q_hs, d_hs, pos_cs, neg_cs, diff_cs = loss_for_ub
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
                     pos_cs = average_losses_across_data_parallel_group([pos_cs])
@@ -534,7 +710,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
                     return loss_for_ub * cp_size, {'avg': reduced_loss}
 
-            return output_tensor, loss_func
+            return multimodal_output, loss_func
 
         return fwd_output_and_loss_func
 
@@ -1060,6 +1236,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         Used for validation and test steps, added postprocessing after calling self.predict_step().
         """
+        # Evaluation of multimodal data follows the same pattern as training except predict_step
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
@@ -1147,6 +1324,10 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         Used to get LLM predictions for validation and test steps based on the given inference config.
         """
+        # TODO: we expect only one modality in each batch of inference. In lhotse, can we specify a list of datasets which only have one modality either audio-text or text-only?
+        # TODO: support text-only part of mini-batch
+        # the following supports STT (audio-text) inference
+
         inference_config = self.get_inference_config()
         if inference_config is not None:
             # need to overwrite some configuration, make it immutable
