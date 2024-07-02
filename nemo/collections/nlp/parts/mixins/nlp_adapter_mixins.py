@@ -17,8 +17,9 @@ import tempfile
 from typing import List, Optional, Union
 
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
 from megatron.core.transformer.identity_op import IdentityOp
+from omegaconf import DictConfig, OmegaConf, open_dict
+
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:

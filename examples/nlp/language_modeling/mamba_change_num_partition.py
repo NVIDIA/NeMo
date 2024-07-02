@@ -253,7 +253,7 @@ def write_tp_pp_split(model, splits, app_state, tp_size, pp_rank, write_path):
                 raise RuntimeError(
                     f"Can not handle parameter {name}, required shape: {param.shape}, split shape: {split_val.shape}."
                 )
-            
+
             param.data = split_val
             idx += 1
 
