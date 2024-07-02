@@ -6,8 +6,8 @@ import pytorch_lightning as L
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch.optim import Optimizer
 
-from nemo.lightning.megatron_parallel import CallbackMethods
 from nemo.lightning.io.mixin import IOMixin
+from nemo.lightning.megatron_parallel import CallbackMethods
 
 
 class LRSchedulerModule(L.Callback, CallbackMethods, IOMixin, ABC):

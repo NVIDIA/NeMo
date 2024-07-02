@@ -4,10 +4,9 @@ import fiddle as fdl
 import pytorch_lightning as pl
 from typing_extensions import Self
 
-from nemo.lightning.io.mixin import IOMixin, serialization, track_io
 from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.fabric.fabric import Fabric
-from nemo.lightning.io.mixin import IOMixin
+from nemo.lightning.io.mixin import IOMixin, serialization, track_io
 
 
 class Trainer(pl.Trainer, IOMixin):

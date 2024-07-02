@@ -16,7 +16,7 @@ class Fabric(lb.Fabric, IOMixin):
     def io_init(self, **kwargs) -> fdl.Config[Self]:
         # Each argument of the trainer can be stateful so we copy them
         cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items()}
-        
+
         for val in cfg_kwargs.values():
             if not serialization.find_node_traverser(type(val)):
                 track_io(type(val))
@@ -43,7 +43,7 @@ class Fabric(lb.Fabric, IOMixin):
 
         Example:
             >>> from nemo import lightning as nl
-            >>> 
+            >>>
             >>> trainer = nl.Trainer(
             ...     devices=2,
             ...     strategy=nl.MegatronStrategy(tensor_model_parallel_size=2),
@@ -51,7 +51,7 @@ class Fabric(lb.Fabric, IOMixin):
             ... )
             >>> fabric = trainer.to_fabric()
             >>> distributed_model = fabric.load_model("path/to/checkpoint/dir")
-            >>> 
+            >>>
             >>> # You can now interact with the parallel model
         """
         self.launch()
@@ -93,7 +93,7 @@ class Fabric(lb.Fabric, IOMixin):
         Example:
             >>> from nemo import lightning as nl
             >>> from nemo.collections.llm import MistralModel
-            >>> 
+            >>>
             >>> trainer = nl.Trainer(
             ...     devices=2,
             ...     strategy=nl.MegatronStrategy(tensor_model_parallel_size=2),
@@ -101,7 +101,7 @@ class Fabric(lb.Fabric, IOMixin):
             ... )
             >>> fabric = trainer.to_fabric()
             >>> model = fabric.import_model("hf://mistralai/Mistral-7B-v0.1", MistralModel)
-            >>> 
+            >>>
             >>> # You can now interact with the parallel model
         """
         from nemo.lightning.io import ConnectorMixin
@@ -112,20 +112,18 @@ class Fabric(lb.Fabric, IOMixin):
         model: ModelT = model_type.import_from(path)
 
         return self.load_model(model.ckpt_path, model)
-    
+
     @override
-    def setup_module(
-        self, module: nn.Module, move_to_device: bool = True, _reapply_compile: bool = True
-    ):
+    def setup_module(self, module: nn.Module, move_to_device: bool = True, _reapply_compile: bool = True):
         from nemo.lightning.fabric.strategies import FabricMegatronStrategy
-        
+
         out = super().setup_module(module, move_to_device=move_to_device, _reapply_compile=_reapply_compile)
-        
+
         # We don't want to return a _FabricModule for megatron since we only want to precision convert
         # at the beginning and end of the pipeline
         if isinstance(self.strategy, FabricMegatronStrategy):
             return out._forward_module
-        
+
         return out
 
 

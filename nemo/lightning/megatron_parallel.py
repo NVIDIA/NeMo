@@ -21,7 +21,6 @@ from typing import (
     cast,
     runtime_checkable,
 )
-from typing_extensions import override
 
 import torch
 import torch.distributed
@@ -29,6 +28,7 @@ from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor, nn
+from typing_extensions import override
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 ModelT = TypeVar("ModelT", bound=nn.Module)
@@ -541,12 +541,12 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
         return get_forward_backward_func()
-    
+
     @override
     def __getattr__(self, item: Any) -> Any:
         if len(self) == 0:
             return super().__getattr__(item)
-        
+
         try:
             # __getattr__ gets called as a last resort if the attribute does not exist
             # call nn.Module's implementation first
