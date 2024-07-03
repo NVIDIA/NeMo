@@ -109,7 +109,9 @@ VOCAB_FILE_NAME = {
 
 
 def get_huggingface_lm_model(
-    pretrained_model_name: str, config_dict: Optional[dict] = None, config_file: Optional[str] = None,
+    pretrained_model_name: str,
+    config_dict: Optional[dict] = None,
+    config_file: Optional[str] = None,
 ):
     """
     Returns lm model instantiated with Huggingface
@@ -150,7 +152,9 @@ def get_huggingface_lm_model(
         raise ValueError(f"Use HuggingFace API directly in NeMo for {pretrained_model_name}")
 
 
-def get_huggingface_pretrained_lm_models_list(include_external: bool = False,) -> List[str]:
+def get_huggingface_pretrained_lm_models_list(
+    include_external: bool = False,
+) -> List[str]:
     """
     Returns the list of pretrained HuggingFace language models
 
