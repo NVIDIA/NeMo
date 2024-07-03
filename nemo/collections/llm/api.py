@@ -6,10 +6,10 @@ import pytorch_lightning as pl
 from torch import nn
 from typing_extensions import Annotated
 
-from nemo.utils import logging
 from nemo.collections.llm.utils import Config, task
 from nemo.lightning import AutoResume, MegatronStrategy, NeMoLogger, OptimizerModule, Trainer, io, teardown
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
+from nemo.utils import logging
 
 
 @task(namespace="llm")
@@ -58,7 +58,7 @@ def train(
     if resume and resume.adapter_path and _log.ckpt:
         logging.info(f"Disabling try_restore_best_ckpt restoration for adapters")
         _log.ckpt.try_restore_best_ckpt = False
-    
+
     app_state = _log.setup(
         trainer,
         resume_if_exists=getattr(resume, "resume_if_exists", False),
@@ -66,7 +66,7 @@ def train(
     )
     if resume is not None:
         resume.setup(model, trainer)
-            
+
     if optim:
         optim.connect(model)
     if tokenizer:  # TODO: Improve this

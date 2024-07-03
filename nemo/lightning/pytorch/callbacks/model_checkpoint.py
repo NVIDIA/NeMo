@@ -264,7 +264,7 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
                     f"{self} was told to save the best checkpoint at the end of training, but no saved checkpoints "
                     "were found. Saving latest model instead."
                 )
-            
+
             else:
                 if os.path.isdir(self.best_model_path.split('.ckpt')[0]):
                     self.best_model_path = self.best_model_path.split('.ckpt')[0]
