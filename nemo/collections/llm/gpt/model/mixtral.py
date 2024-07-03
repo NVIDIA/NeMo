@@ -57,7 +57,9 @@ class MixtralModel(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or MixtralConfig8x7B(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or MixtralConfig8x7B(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+        )
 
 
 @io.model_importer(MixtralModel, ext="hf")
