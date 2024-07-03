@@ -6,11 +6,13 @@ from pytorch_lightning.callbacks import model_summary
 from torch import nn
 
 from nemo.utils import logging
+from nemo.lightning.io.mixin import IOMixin
+
 
 MODEL_TRANSFORM: Optional[Callable[[nn.Module], nn.Module]] = None
 
 
-class ModelTransform(pl.Callback):
+class ModelTransform(pl.Callback, IOMixin):
     """
     A PyTorch Lightning callback that applies a model transformation function at the start of fitting or validation.
 
@@ -70,20 +72,23 @@ class ModelTransform(pl.Callback):
             # Replace the model's transform function with the wrapped one
             pl_module.model_transform = MODEL_TRANSFORM
 
-    def on_load_checkpoint(self, trainer, pl_module, checkpoint):
-        """
-        Apply the model transformation before training.
-        This method is called by PyTorch Lightning immediately after loading the
-        distributed checkpoint from disk into a dictionary, but before the dictionary
-        is loaded into the model.
-
-        It calls the _maybe_apply_transform method to apply the transformation if necessary.
-
-        Args:
-            trainer (pl.Trainer): The PyTorch Lightning trainer instance.
-            pl_module (pl.LightningModule): The LightningModule being trained.
-        """
+    def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         self._maybe_apply_transform(trainer)
+    
+    # def on_load_checkpoint(self, trainer, pl_module, checkpoint):
+    #     """
+    #     Apply the model transformation before training.
+    #     This method is called by PyTorch Lightning immediately after loading the
+    #     distributed checkpoint from disk into a dictionary, but before the dictionary
+    #     is loaded into the model.
+
+    #     It calls the _maybe_apply_transform method to apply the transformation if necessary.
+
+    #     Args:
+    #         trainer (pl.Trainer): The PyTorch Lightning trainer instance.
+    #         pl_module (pl.LightningModule): The LightningModule being trained.
+    #     """
+    #     self._maybe_apply_transform(trainer)
 
     def _maybe_apply_transform(self, trainer):
         """
@@ -95,10 +100,14 @@ class ModelTransform(pl.Callback):
         Args:
             trainer (pl.Trainer): The PyTorch Lightning trainer instance.
         """
-        global MODEL_TRANSFORM
-        if MODEL_TRANSFORM and MODEL_TRANSFORM.__num_calls__ == 0:
+        if self._needs_to_call:
+            global MODEL_TRANSFORM
             MODEL_TRANSFORM(trainer.model)
         logging.info('After model transform:\n' + str(model_summary.summarize(trainer.model.pipeline)))
+        
+    @property
+    def _needs_to_call(self) -> bool:
+        return MODEL_TRANSFORM and MODEL_TRANSFORM.__num_calls__ == 0
 
 
 T = TypeVar('T', bound=Callable[..., Any])

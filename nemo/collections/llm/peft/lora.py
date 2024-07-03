@@ -4,7 +4,7 @@ from typing import List, Literal
 from megatron.core import parallel_state
 from torch import nn
 
-from nemo.lightning.peft import PEFT, AdapterWrapper
+from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 
 

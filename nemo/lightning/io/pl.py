@@ -46,7 +46,7 @@ class TrainerContext(IOMixin, Generic[LightningModuleT]):
         return extra
 
 
-class MegatronCheckpointIO(CheckpointIO):
+class MegatronCheckpointIO(CheckpointIO, IOMixin):
     """CheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
     common for most use cases.
 
@@ -154,28 +154,6 @@ class MegatronCheckpointIO(CheckpointIO):
 
         logging.info(f'Using {save_strategy} dist-ckpt save strategy.')
         return save_strategy
-
-
-class AdapterCheckpointIO(MegatronCheckpointIO):
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
-        """
-        Save only adapter weights for PEFT training
-
-        Args:
-            checkpoint: dict containing model and trainer state
-            path: write-target path
-            storage_options: not used in ``TorchCheckpointIO.save_checkpoint``
-
-        Raises
-        ------
-            TypeError:
-                If ``storage_options`` arg is passed in
-
-        """
-        checkpoint['sharded_state_dict'] = dict(
-            filter(lambda x: '.adapter.' in x[0], checkpoint['sharded_state_dict'].items())
-        )
-        return super().save_checkpoint(checkpoint, path, storage_options)
 
 
 def _fix_tensors_device(ckpt: Dict) -> Dict:

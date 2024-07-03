@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Callable, Optional, Union
+from copy import deepcopy
 
 from torch import nn
 import pytorch_lightning as pl
@@ -7,8 +8,7 @@ from typing_extensions import Annotated
 
 from nemo.collections.llm.utils import Config, task
 from nemo.lightning import AutoResume, MegatronStrategy, NeMoLogger, OptimizerModule, Trainer, io, teardown
-from nemo.lightning.pytorch.callbacks import ModelTransform
-from nemo.lightning.peft import PEFT
+from nemo.lightning.pytorch.callbacks import ModelTransform, PEFT
 
 
 @task(namespace="llm")
@@ -20,7 +20,7 @@ def train(
     resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
     tokenizer: Optional[str] = None,
-    model_transform: Optional[Union[Callable[[nn.Module], nn.Module], PEFT]] = None,
+    model_transform: Optional[Union[Callable[[nn.Module], nn.Module], ModelTransform, PEFT]] = None,
     # TODO: Fix export export: Optional[str] = None,
 ) -> Path:
     """
@@ -72,7 +72,10 @@ def train(
     # Add ModelTransform callback to Trainer if needed
     if getattr(model, "model_transform", None):
         if not any(isinstance(cb, ModelTransform) for cb in trainer.callbacks):
-            trainer.callbacks.append(ModelTransform())
+            if isinstance(model_transform, ModelTransform):
+                trainer.callbacks.append(model_transform)
+            else:
+                trainer.callbacks.append(ModelTransform())
 
     trainer.fit(model, data)
 
@@ -208,8 +211,8 @@ def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, toke
  
 def _set_with_io(obj, attr, value):
     setattr(obj, attr, value)
-    if hasattr(obj, "__io__"):
-        setattr(obj.__io__, attr, value)
+    if hasattr(obj, "__io__") and hasattr(value, "__io__"):
+        setattr(obj.__io__, attr, deepcopy(value.__io__))
 
 
 def _add_ckpt_path(source, model, kwargs) -> None:
