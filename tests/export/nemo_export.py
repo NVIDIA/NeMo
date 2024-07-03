@@ -95,7 +95,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
             all_expected_outputs.append(expected_output)
             if model is not None:
                 if isinstance(model, MegatronLLMDeployable):
-                    model_output = model.model.generate(
+                    model_output = model.generate(
                         inputs=[prompt],
                         length_params={
                             "min_length":1,
@@ -563,6 +563,7 @@ def run_in_framework_inference(
             top_k=top_k,
             top_p=top_p,
             temperature=temperature,
+            max_length=max_output_len
         )
         output_deployed = output_deployed["sentences"]
         # MegatronLLMDeployable will return the prompt + generated output, so cut off the prompt
@@ -577,9 +578,7 @@ def run_in_framework_inference(
         if run_accuracy:
             print("Start model accuracy testing ...")
             # This script is not written with torch.distributed support in mind, so running non-deployed in-framework models on multiple devices will not work
-            if num_gpus > 1:
-                LOGGER.warning("Export script does not support local (non-deployed) accuracy testing with in-framework models and num_tps > 1. Continuing with deployed model testing only.")
-            accuracy_result = get_accuracy_with_lambada(deployed_model if num_gpus==1 else None, nq, None, None, test_data_path)
+            accuracy_result = get_accuracy_with_lambada(deployed_model, nq, None, None, test_data_path)
 
         nm.stop()
 
