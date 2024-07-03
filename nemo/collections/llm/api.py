@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Callable, Optional, Union
 
 import pytorch_lightning as pl
-from torch import nn
 from typing_extensions import Annotated
 
 from nemo.collections.llm.utils import Config, task
