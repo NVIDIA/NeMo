@@ -56,6 +56,7 @@ def default_data_step(dataloader_iter: Iterator[DataT]) -> DataT:
 def default_forward_step(model: nn.Module, batch, *args, **kwargs) -> torch.Tensor:
     return model(batch, *args, **kwargs)
 
+
 def extract_ddp_funcs(ddp_config, pipeline):
     no_sync_func, grad_sync_func = None, None
 
@@ -68,6 +69,7 @@ def extract_ddp_funcs(ddp_config, pipeline):
             grad_sync_func = grad_sync_func[0] if len(pipeline) == 1 else grad_sync_func
 
     return no_sync_func, grad_sync_func
+
 
 class MegatronParallel(nn.ModuleList, Generic[ModelT]):
     """Implements distributed model parallelism that is based on Megatron-LM.
