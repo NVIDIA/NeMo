@@ -38,7 +38,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
         index_mapping_dir: Optional[str] = None,
     ) -> None:
         super().__init__()
-        if not isinstance(paths, List):
+        if not isinstance(paths, (list, tuple)):
             paths = [paths]
         if weights is not None:
             assert len(weights) == len(paths)
