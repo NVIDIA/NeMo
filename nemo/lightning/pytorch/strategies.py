@@ -12,7 +12,7 @@ import pytorch_lightning as pl
 import torch
 import torch.distributed
 from lightning_fabric.plugins import CheckpointIO, ClusterEnvironment
-from lightning_fabric.utilities.optimizer import _optimizers_to_device
+from lightning_fabric.utilities.optimizer import _optimizer_to_device, _optimizers_to_device
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.accelerators import CPUAccelerator
@@ -23,7 +23,6 @@ from pytorch_lightning.overrides.distributed import _sync_module_states
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.trainer.states import RunningStage, TrainerFn
-from pytorch_lightning.utilities.model_helpers import is_overridden
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
@@ -129,6 +128,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
         self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
 
+        self._ddp = ddp
         if ddp == "megatron":
             self.ddp_config = DistributedDataParallelConfig()
         elif isinstance(ddp, DistributedDataParallelConfig):
@@ -146,23 +146,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def connect(self, model: pl.LightningModule) -> None:
         super().connect(model)
 
-        # Right now mcore sub-classes ModelParellelConfig, we should remove that
-        # Given Lightning's structure it would be better if parallelism is a different object
-        # Since then it can be passed to the Strategy
-
-        from megatron.core.transformer.transformer_config import TransformerConfig
-
-        has_mcore_config = isinstance(getattr(model, "config", None), TransformerConfig)
-        if has_mcore_config and is_overridden("configure_model", model):
-            config: TransformerConfig = model.config
-            config.tensor_model_parallel_size = self.tensor_model_parallel_size
-            config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
-            config.virtual_pipeline_model_parallel_size = self.virtual_pipeline_model_parallel_size
-            config.context_parallel_size = self.context_parallel_size
-            config.expert_model_parallel_size = self.expert_model_parallel_size
-            config.moe_extended_tp = self.moe_extended_tp
-            config.sequence_parallel = self.sequence_parallel
-            self._mcore_config = config
+        _maybe_mcore_config = _strategy_lib.set_model_parallel_attributes(model, self.parallelism)
+        if _maybe_mcore_config:
+            self._mcore_config = _maybe_mcore_config
 
         has_optim = getattr(model, "optim", None)
         if has_optim:
@@ -466,7 +452,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     callback.__class__ = MegatronProgressBar
                     break
 
-    def optimizer_sharded_state_dict(self):
+    def optimizer_sharded_state_dict(self, is_loading=False):
         """
         Sharded state dictionary for an MainParamsOptimizerWrapper.
         Used to save and load the optimizer state when training with distributed_checkpoint.
@@ -481,7 +467,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)
 
-        return _strategy_lib.optimizer_sharded_state_dict(self.megatron_parallel, optimizer)
+        return _strategy_lib.optimizer_sharded_state_dict(self.megatron_parallel, optimizer, is_loading=is_loading)
 
     @override
     def save_checkpoint(
@@ -509,11 +495,21 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
             if self.lightning_module.optimizers(use_pl_optimizer=False):
-                sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict()]
+                sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
         checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=sharded_state_dict)
 
         return checkpoint
+
+    @override
+    def load_optimizer_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
+        if not self.ckpt_include_optimizer:
+            return
+
+        optimizer_states = checkpoint["optimizer"]
+        for optimizer, opt_state in zip(self.optimizers, optimizer_states):
+            optimizer.load_state_dict(opt_state)
+            _optimizer_to_device(optimizer, self.root_device)
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         if self.is_global_zero:
@@ -530,8 +526,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 checkpoint_state_dict = checkpoint['state_dict']
 
             mcore_model = self.lightning_module.module
+            while hasattr(mcore_model, "module"):
+                mcore_model = mcore_model.module
+
             current = self.model[0]
-            n_nesting = 2
+            n_nesting = 0
             while current != mcore_model:
                 current = current.module
                 n_nesting += 1
@@ -634,6 +633,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
+            context_parallel_size=self.context_parallel_size,
+            sequence_parallel=self.sequence_parallel,
+            expert_model_parallel_size=self.expert_model_parallel_size,
+            moe_extended_tp=self.moe_extended_tp,
             pipeline_dtype=self.pipeline_dtype,
         )
 
