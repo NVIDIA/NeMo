@@ -74,21 +74,6 @@ class ModelTransform(pl.Callback, IOMixin):
     def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         self._maybe_apply_transform(trainer)
 
-    # def on_load_checkpoint(self, trainer, pl_module, checkpoint):
-    #     """
-    #     Apply the model transformation before training.
-    #     This method is called by PyTorch Lightning immediately after loading the
-    #     distributed checkpoint from disk into a dictionary, but before the dictionary
-    #     is loaded into the model.
-
-    #     It calls the _maybe_apply_transform method to apply the transformation if necessary.
-
-    #     Args:
-    #         trainer (pl.Trainer): The PyTorch Lightning trainer instance.
-    #         pl_module (pl.LightningModule): The LightningModule being trained.
-    #     """
-    #     self._maybe_apply_transform(trainer)
-
     def _maybe_apply_transform(self, trainer):
         """
         Apply the model transformation if it hasn't been applied yet.
