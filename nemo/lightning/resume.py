@@ -153,9 +153,9 @@ class AutoResume(Resume, io.IOMixin):
 
 
 class AdapterPath(BasePath):
-    adapter_path: Path
+    adapter_path: Optional[Path]
     
-    def __new__(cls, *args, adapter_path: Path, **kwargs):
+    def __new__(cls, *args, adapter_path: Optional[Path] = None, **kwargs):
         output = super().__new__(cls, *args, **kwargs)
         output.adapter_path = adapter_path
         return output

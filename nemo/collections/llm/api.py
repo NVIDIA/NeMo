@@ -20,7 +20,7 @@ def train(
     resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
     tokenizer: Optional[str] = None,
-    model_transform: Optional[Union[Callable[[nn.Module], nn.Module], ModelTransform, PEFT]] = None,
+    model_transform: Optional[Union[Callable[[nn.Module], nn.Module], PEFT]] = None,
     # TODO: Fix export export: Optional[str] = None,
 ) -> Path:
     """
