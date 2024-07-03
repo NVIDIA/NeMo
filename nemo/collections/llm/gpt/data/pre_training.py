@@ -40,9 +40,8 @@ class PreTrainingDataModule(pl.LightningDataModule):
         super().__init__()
         if not isinstance(paths, List):
             paths = [paths]
-        if weights is None:
-            weights = [1.0] * len(paths)
-        assert len(weights) == len(paths)
+        if weights is not None:
+            assert len(weights) == len(paths)
 
         self.paths = paths
         self.weights = weights
@@ -85,9 +84,9 @@ class PreTrainingDataModule(pl.LightningDataModule):
         assert max_train_steps > 0, "Please specify trainer.max_steps"
         eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
-        num_train_samples = max_train_steps * self.data_sampler.global_batch_size
-        num_val_samples = eval_iters * self.data_sampler.global_batch_size
-        num_test_samples = test_iters * self.data_sampler.global_batch_size
+        num_train_samples = int(max_train_steps * self.data_sampler.global_batch_size)
+        num_val_samples = int(eval_iters * self.data_sampler.global_batch_size)
+        num_test_samples = int(test_iters * self.data_sampler.global_batch_size)
 
         if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
             # This is to make sure we only have one epoch on every validation iteration
