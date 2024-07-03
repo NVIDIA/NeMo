@@ -17,6 +17,16 @@ from typing import List, Optional
 
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
+from transformers import (
+    AlbertConfig,
+    AutoModel,
+    BertConfig,
+    CamembertConfig,
+    DistilBertConfig,
+    GPT2Config,
+    RobertaConfig,
+)
+
 try:
     from transformers import (
         ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
@@ -25,13 +35,6 @@ try:
         DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
         GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
         ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
-        AlbertConfig,
-        AutoModel,
-        BertConfig,
-        CamembertConfig,
-        DistilBertConfig,
-        GPT2Config,
-        RobertaConfig,
     )
 
 except (ImportError, ModuleNotFoundError):
@@ -45,13 +48,6 @@ except (ImportError, ModuleNotFoundError):
     DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
     GPT2_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
     ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
-    AlbertConfig = ApexGuardDefaults
-    AutoModel = ApexGuardDefaults
-    BertConfig = ApexGuardDefaults
-    CamembertConfig = ApexGuardDefaults
-    DistilBertConfig = ApexGuardDefaults
-    GPT2Config = ApexGuardDefaults
-    RobertaConfig = ApexGuardDefaults
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
