@@ -345,7 +345,7 @@ def main(cfg) -> None:
 
     fp8_enabled = hasattr(model.cfg, "fp8") and (model.cfg.fp8 == True)
     if fp8_enabled and len(prompts) > 0:
-        padded_len = round_to_mult((len(prompts), 8)
+        padded_len = round_to_mult(len(prompts), 8)
         nb_paddings = padded_len - len(prompts)
         if nb_paddings > 0:
             nb_paddings += [''] * nb_paddings
