@@ -45,6 +45,13 @@ except (ImportError, ModuleNotFoundError):
     DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
     GPT2_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
     ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
+    AlbertConfig = ApexGuardDefaults
+    AutoModel = ApexGuardDefaults
+    BertConfig = ApexGuardDefaults
+    CamembertConfig = ApexGuardDefaults
+    DistilBertConfig = ApexGuardDefaults
+    GPT2Config = ApexGuardDefaults
+    RobertaConfig = ApexGuardDefaults
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
