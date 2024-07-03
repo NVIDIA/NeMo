@@ -560,8 +560,8 @@ class CLIPModel(MegatronModule):
             )
 
         if self.use_siglip:
-            self.logit_scale = torch.nn.Parameter(torch.randn(1))
-            self.logit_bias = torch.nn.Parameter(torch.randn(1))
+            self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(10))
+            self.logit_bias = torch.nn.Parameter(torch.ones([]) * (-10))
         else:
             self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
@@ -575,6 +575,13 @@ class CLIPModel(MegatronModule):
         text_features = self.text_encoder(captions)
 
         if self.post_process:
+            if self.use_siglip:
+                return (
+                    F.normalize(image_features, dim=-1),
+                    F.normalize(text_features, dim=-1),
+                    self.logit_scale.exp(),
+                    self.logit_bias,
+                )
             return F.normalize(image_features, dim=-1), F.normalize(text_features, dim=-1), self.logit_scale.exp()
 
         return image_features, text_features
@@ -754,6 +761,15 @@ class MegatronCLIPModel(MegatronBaseModel):
         """Model depends on pipeline paralellism."""
         vision_transformer_config = self.build_transformer_config(self.cfg.vision) if self.mcore_gpt else None
         text_transformer_config = self.build_transformer_config(self.cfg.text) if self.mcore_gpt else None
+
+        if self.mcore_gpt and not parallel_state.is_initialized():
+
+            def dummy():
+                return
+
+            if self.trainer.strategy.launcher is not None:
+                self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
+            self.trainer.strategy.setup_environment()
 
         model = CLIPModel(
             model_cfg=self.cfg,

@@ -157,7 +157,8 @@ class SigLipLoss(torch.nn.Module):
         loss = -F.logsigmoid(labels * logits).sum() / image_features.shape[0]
         return loss
 
-    def forward(self, image_features, text_features, logit_scale, logit_bias=None, output_dict=False):
+    def forward(self, output_tensor,):
+        image_features, text_features, logit_scale, logit_bias = output_tensor
         loss = self._loss(image_features, text_features, logit_scale, logit_bias)
 
         if self.world_size > 1:
@@ -213,5 +214,4 @@ class SigLipLoss(torch.nn.Module):
                         negative_only=True,
                     )
                     text_features_to_right = text_features_from_left
-
-        return {"contrastive_loss": loss} if output_dict else loss
+        return loss, {"loss": loss}
