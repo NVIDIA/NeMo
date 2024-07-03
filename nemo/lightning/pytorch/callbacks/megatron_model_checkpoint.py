@@ -30,6 +30,7 @@ from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import TrainerContext
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
+from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.model_utils import ckpt_to_dir
 
 
@@ -239,13 +240,7 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
             return None
 
         # check if we need to save a last checkpoint manually as validation isn't always run based on the interval
-        ## TODO: there is some sort of bug in this code.
-        ## this is what is causing the failure with async checkpointing when "epoch" is part of the ckpt name
-        ## I think this is unnecessary because we will automatically save a final checkpoint
-        ## during on_train_batch_end
-        ## see https://github.com/Lightning-AI/pytorch-lightning/blob/f6fd046552a1504023cb3386a8a0df418a810e4f/src/lightning/pytorch/callbacks/model_checkpoint.py#L315
-        ## we should change the logic to only save a final checkpoint if it wasn't just saveds
-        '''if self.save_last and trainer.val_check_interval != 0:
+        if self.save_last and trainer.val_check_interval != 0:
             should_save_last_checkpoint = False
             if isinstance(trainer.val_check_interval, float) and trainer.val_check_interval % trainer.global_step != 0:
                 should_save_last_checkpoint = True
@@ -256,7 +251,7 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
                 if self.last_model_path == self.format_checkpoint_name(monitor_candidates, self.CHECKPOINT_NAME_LAST):
                     logging.debug(f'Last checkpoint {self.last_model_path} already saved')
                 else:
-                    super()._save_last_checkpoint(trainer, monitor_candidates)'''
+                    super()._save_last_checkpoint(trainer, monitor_candidates)
         # Call parent on_train_end() to save the -last checkpoint
         super().on_train_end(trainer, pl_module)
 

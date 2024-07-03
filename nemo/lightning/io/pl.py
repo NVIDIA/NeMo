@@ -14,7 +14,7 @@ from typing_extensions import Self, override
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
-
+from nemo.utils.callbacks.torch_dist_async import TorchDistAsyncSaveShardedStrategy
 
 log = logging.getLogger(__name__)
 

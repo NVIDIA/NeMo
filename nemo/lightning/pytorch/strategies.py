@@ -559,8 +559,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @override
     def checkpoint_io(self) -> CheckpointIO:
         if self._checkpoint_io is None:
-            self._checkpoint_io = MegatronCheckpointIO()
-        elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
             checkpoint_callback = self.trainer.checkpoint_callback
             async_save = getattr(checkpoint_callback, "async_save", False)
             if async_save:
@@ -573,6 +571,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 self.trainer.callbacks.append(AsyncFinalizerCallback())
             else:
                 self._checkpoint_io = MegatronCheckpointIO()
+        elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
+            self._checkpoint_io.checkpoint_io = MegatronCheckpointIO()
 
         return self._checkpoint_io
 
