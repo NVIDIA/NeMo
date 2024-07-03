@@ -130,8 +130,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 wrap_with_ddp=False,
                 model_type=ModelType.encoder_and_decoder,
             )[0]
-            # # set up self.model from self.enc_dec_model due to many inherited methods work on self.model 
-            # self.model = self.enc_dec_model
 
         # We don't need to call it explicitly? Since it is a pytorch lightning hook function
         # self.setup_optimizer_param_groups()
