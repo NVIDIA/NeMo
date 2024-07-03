@@ -178,6 +178,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO):
         logging.info(f'Using {save_strategy} dist-ckpt save strategy.')
         return save_strategy
 
+
 def _fix_tensors_device(ckpt: Dict) -> Dict:
     """Ensure checkpoint tensors are on the correct device."""
     assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
