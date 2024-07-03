@@ -295,6 +295,12 @@ def load_prompts(cfg):
     return prompts
 
 
+def round_to_mult(n, mult=8):
+    """
+    Rounds number n to be a multiple of mult
+    """
+    return ((n + mult - 1) // mult) * mult
+
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
 
@@ -339,7 +345,7 @@ def main(cfg) -> None:
 
     fp8_enabled = hasattr(model.cfg, "fp8") and (model.cfg.fp8 == True)
     if fp8_enabled and len(prompts) > 0:
-        padded_len = ((len(prompts) + 7) // 8) * 8
+        padded_len = round_to_mult((len(prompts), 8)
         nb_paddings = padded_len - len(prompts)
         if nb_paddings > 0:
             nb_paddings += [''] * nb_paddings
