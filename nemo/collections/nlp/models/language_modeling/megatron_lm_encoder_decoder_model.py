@@ -107,9 +107,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Make sure trainer.accumulate_grad_batches is 1.
         self._validate_trainer()
 
-        self.transformer_config = self.build_transformer_config()
-
         self.mcore_t5 = cfg.get('mcore_t5', False)
+
+        if self.mcore_t5:
+            self.transformer_config = self.build_transformer_config()
 
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
