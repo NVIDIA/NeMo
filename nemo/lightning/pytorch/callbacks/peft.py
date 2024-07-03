@@ -255,16 +255,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO):
         else:
             self.model_ckpt_path = path
 
-        # adapter_ckpt = None
-        # if self.adapter_ckpt_path:
-        #     adapter_ckpt = self.checkpoint_io.load_checkpoint(self.adapter_ckpt_path, sharded_state_dict, map_location)
-        #     # The state of the adapters will be loaded later (after we apply model-transform)
-        #     del adapter_ckpt["state_dict"]
-
+        # Note: this will include the Trainer-state of the model-checkpoint
         model_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict, map_location)
-        # if adapter_ckpt:
-        #     adapter_ckpt["state_dict"] = model_ckpt
-
-        #     return adapter_ckpt
 
         return model_ckpt
