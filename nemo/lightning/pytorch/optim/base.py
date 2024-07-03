@@ -1,7 +1,7 @@
 import types
 from abc import ABC, abstractmethod
-from typing import List, Optional
 from copy import deepcopy
+from typing import List, Optional
 
 import pytorch_lightning as L
 from pytorch_lightning.utilities.types import OptimizerLRScheduler

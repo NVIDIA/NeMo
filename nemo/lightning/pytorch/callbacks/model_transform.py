@@ -5,9 +5,8 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import model_summary
 from torch import nn
 
-from nemo.utils import logging
 from nemo.lightning.io.mixin import IOMixin
-
+from nemo.utils import logging
 
 MODEL_TRANSFORM: Optional[Callable[[nn.Module], nn.Module]] = None
 
@@ -74,7 +73,7 @@ class ModelTransform(pl.Callback, IOMixin):
 
     def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         self._maybe_apply_transform(trainer)
-    
+
     # def on_load_checkpoint(self, trainer, pl_module, checkpoint):
     #     """
     #     Apply the model transformation before training.
@@ -104,7 +103,7 @@ class ModelTransform(pl.Callback, IOMixin):
             global MODEL_TRANSFORM
             MODEL_TRANSFORM(trainer.model)
         logging.info('After model transform:\n' + str(model_summary.summarize(trainer.model.pipeline)))
-        
+
     @property
     def _needs_to_call(self) -> bool:
         return MODEL_TRANSFORM and MODEL_TRANSFORM.__num_calls__ == 0

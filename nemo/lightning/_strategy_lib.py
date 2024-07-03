@@ -2,7 +2,7 @@ import itertools
 import os
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Protocol, TypeVar, Mapping
+from typing import TYPE_CHECKING, Any, Dict, Generator, Mapping, Optional, Protocol, TypeVar
 
 import torch
 from torch import nn
@@ -476,7 +476,7 @@ def optimizer_sharded_state_dict(
 
 def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
     from megatron.core import parallel_state
-    
+
     for index, module in enumerate(megatron_parallel):
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
             if "state_dict" in checkpoint:
@@ -488,7 +488,7 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
                 checkpoint_state_dict = checkpoint["state_dict"]
             else:
                 checkpoint_state_dict = checkpoint
-        
+
         n_nesting = 0
         mcore_model = megatron_parallel.module
         while hasattr(mcore_model, "module"):

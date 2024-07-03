@@ -534,7 +534,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         assert self.megatron_parallel is not None
-        
+
         _strategy_lib.load_model_state_dict(self.megatron_parallel, checkpoint, strict=strict)
 
     @property

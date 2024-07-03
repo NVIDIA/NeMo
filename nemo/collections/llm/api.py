@@ -1,14 +1,14 @@
+from copy import deepcopy
 from pathlib import Path
 from typing import Callable, Optional, Union
-from copy import deepcopy
 
-from torch import nn
 import pytorch_lightning as pl
+from torch import nn
 from typing_extensions import Annotated
 
 from nemo.collections.llm.utils import Config, task
 from nemo.lightning import AutoResume, MegatronStrategy, NeMoLogger, OptimizerModule, Trainer, io, teardown
-from nemo.lightning.pytorch.callbacks import ModelTransform, PEFT
+from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 
 
 @task(namespace="llm")
@@ -65,10 +65,10 @@ def train(
         optim.connect(model)
     if tokenizer:  # TODO: Improve this
         _use_tokenizer(model, data, tokenizer)
-        
+
     if model_transform:
         _set_with_io(model, "model_transform", model_transform)
-        
+
     # Add ModelTransform callback to Trainer if needed
     if getattr(model, "model_transform", None):
         if not any(isinstance(cb, ModelTransform) for cb in trainer.callbacks):
@@ -107,7 +107,7 @@ def finetune(
 ) -> Path:
     """
     Finetunes a model using the specified data and trainer, with optional logging, resuming, and PEFT.
-    
+
     It will use the tokenizer from the model.
 
     Args:
@@ -133,7 +133,7 @@ def finetune(
         >>> finetune(model, data, trainer, peft=llm.peft.LoRA()])
         PosixPath('/path/to/log_dir')
     """
-    
+
     return train(
         model=model,
         data=data,
@@ -208,7 +208,7 @@ def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, toke
     elif tokenizer == "model":
         _set_with_io(data, "tokenizer", model.tokenizer)
 
- 
+
 def _set_with_io(obj, attr, value):
     setattr(obj, attr, value)
     if hasattr(obj, "__io__") and hasattr(value, "__io__"):

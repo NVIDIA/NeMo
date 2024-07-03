@@ -1,5 +1,5 @@
-from pathlib import Path, PosixPath, WindowsPath
 import os
+from pathlib import Path, PosixPath, WindowsPath
 from typing import Optional, Union
 
 import lightning_fabric as fl
@@ -9,7 +9,6 @@ from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import uninject_model_parallel_rank
-
 
 # Dynamically inherit from the correct Path subclass based on the operating system.
 if os.name == 'nt':
@@ -90,7 +89,6 @@ class AutoResume(Resume, io.IOMixin):
             if self.adapter_path:
                 return AdapterPath(output, adapter_path=Path(self.adapter_path))
             return output
-            
 
         ### refactored from exp_manager
         checkpoint = None
@@ -154,7 +152,7 @@ class AutoResume(Resume, io.IOMixin):
 
 class AdapterPath(BasePath):
     adapter_path: Optional[Path]
-    
+
     def __new__(cls, *args, adapter_path: Optional[Path] = None, **kwargs):
         output = super().__new__(cls, *args, **kwargs)
         output.adapter_path = adapter_path
