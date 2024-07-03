@@ -26,6 +26,7 @@ __all__ = ['GPTSFTChatDataset', 'get_prompt_template_example']
 PREFIX_STR = (
     "\x00"  # the prefix string used in the tokenizer to deal with the added empty token for some of the tokenizers
 )
+PREFIX_STR = ''
 
 IGNORE_INDEX = -100
 SYSTEM_TOKEN = "System"
@@ -55,6 +56,10 @@ def _get_header_conversation_type_mask_role(source, special_tokens):
         header = special_tokens['conversation_header']
     else:
         header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{END_NAME_TOKEN}{conversation}{END_TURN_TOKEN}"
+    # llama3
+    header = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+You are a helpful AI assistant for travel tips and recommendations<|eot_id|>"""
     conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type, special_tokens)
     return header, conversation, data_type, mask_role
 
@@ -313,6 +318,11 @@ class GPTSFTChatDataset(GPTSFTDataset):
 
     def _build_samples_mapping(self):
         super()._build_samples_mapping()
+        # llama3
+        self.special_tokens['turn_start'] = '<|start_header_id|>'
+        self.special_tokens['end_of_name'] = '<|end_header_id|>'
+        self.special_tokens['end_of_turn'] = '<|eot_id|>'
+
         assert hasattr(self.tokenizer, "vocab"), "tokenizer should have vocab property, not supported"
         LABEL_START = self.special_tokens['label_start']
         END_NAME_TOKEN = self.special_tokens['end_of_name']
