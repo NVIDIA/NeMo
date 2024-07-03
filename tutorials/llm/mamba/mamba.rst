@@ -1,11 +1,11 @@
-Mamba2 and Mamba2-Transformer Hybrid Models Fine-Tuning and Evaluation
-======================================================================
+Mamba2 and Mamba2-Transformer Hybrid Models Fine-Tuning
+=======================================================
 
-`State Space Models (SSMs) <https://arxiv.org/pdf/2405.21060>`__  have recently emerged as a potential replacement for transformers. They have desirable features such as linear time complexity with respect to sequence length and constant cache size for inference, enabling them to process longer sequences and have higher throughput. However, while pure SSM-based models match or exceed Transformers on many tasks, they lag behind Transformer models on tasks that require strong copying or in-context learning abilities. In order to leverage best of the both worlds, SSM-Hybrid models combine MLP, Transformer, and SSM block in their architecture, and as mentioned in `a study by NVIDIA  <https://arxiv.org/pdf/2406.07887>`__. Based on the experiments, Mamba2-Hybrid models outperform transformed baselines of the same size while leveraging faster inference thanks to the SSM blocks.
+`State Space Models (SSMs) <https://arxiv.org/pdf/2405.21060>`__ have recently emerged as a promising alternative to transformers. SSMs offer advantages such as linear time complexity relative to sequence length and a constant cache size for inference. These features enable the processing of longer sequences and higher throughput. Despite these benefits, SSMs alone may fall short compared to transformers on tasks that demand strong copying or in-context learning capabilities.
 
+To harness the strengths of both approaches, SSM-Hybrid models incorporate MLP, Transformer, and SSM blocks in their architecture. As highlighted in `a study by NVIDIA <https://arxiv.org/pdf/2406.07887>`__, these hybrid models outperform traditional transformers of the same size by achieving faster inference times due to the inclusion of SSM blocks. Based on experimental results, Mamba2-Hybrid models not only surpass transformer baselines in performance but also benefit from increased computational efficiency.
 
-Mamba2 models from the `Transformers are SSMs <https://arxiv.org/pdf/2405.21060>`__ paper have been offered in 5 different sizes, namely 130m, 370m, 780m, 1.3b, and 2.7b. The Mamba2-Hybrid models and their Mamba2 baseline released by `NVIDIA  <https://arxiv.org/pdf/2406.07887>`__ are all of the size of 8b. 
-
+The Mamba2 models discussed in the `Transformers are SSMs <https://arxiv.org/pdf/2405.21060>`__ paper are available in five different sizes: 130 million, 370 million, 780 million, 1.3 billion, and 2.7 billion parameters. The Mamba2-Hybrid models, along with their Mamba2 baseline as released by `NVIDIA <https://arxiv.org/pdf/2406.07887>`__, are provided in an 8 billion parameter size.
 
 `Low-Rank Adaptation (LoRA) <https://arxiv.org/pdf/2106.09685>`__ has emerged as a popular Parameter Efficient Fine-Tuning (PEFT) technique that tunes a very small number of additional parameters as compared to full fine-tuning, thereby reducing the compute required. LoRA tuning can be applied to the linear layers in the Transformer and MLP blocks for the Mamba2-Hybrid models. 
 
@@ -83,7 +83,7 @@ The HuggingFace checkpoint for the 8b model is for TP of size 1, and so is the `
           --target_tensor_model_parallel_size=4 \
           --precision=bf16 \
 
-After running this script, a ``.nemo`` model along with the TP-size number of folders (4 in this example) will be generated in the target path. The folders for each rank will be displayed as ``mp_rank_00`` to ``mp_rank_04`` in this example. 
+After running this script, a ``.nemo`` model along with the TP-size number of folders (4 in this example) will be generated in the target path. The folders for each rank will be displayed as ``mp_rank_00`` to ``mp_rank_03`` in this example. 
 
 * Note: You can only use Tensor Parallelism for the 8b models by `NVIDIA <https://arxiv.org/pdf/2406.07887>`__ (Mamba2 8b and Mamba2-Hybrid 8b). This is due to the fact that the ``nroups`` parameter in the model architecture should be divisible by TP size. ``nroups`` parameter is 8 for NVIDIA models and 1 for other models in the list.
 
