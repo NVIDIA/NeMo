@@ -12,7 +12,7 @@ NVIDIA NeMo Framework is an end-to-end, cloud-native framework designed to build
 - Flash Attention
 - Activation Recomputation
 - Positional Embeddings and Positional Interpolation
-- Post-Training Quantization (PTQ) with Ammo
+- Post-Training Quantization (PTQ) and Quantization Aware Training (QAT) with `TensorRT Model Optimizer <https://github.com/NVIDIA/TensorRT-Model-Optimizer>`_
 - Sequence Packing
 
 `NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ has separate collections for:
@@ -69,7 +69,7 @@ For more information, browse the developer docs for your area of interest in the
    :name: APIs
    :titlesonly:
 
-   core/core_index
+   apis
 
 .. toctree::
    :maxdepth: 1

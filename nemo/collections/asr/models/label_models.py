@@ -136,7 +136,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         if 'loss' in cfg:
             cfg_eval_loss = copy.deepcopy(cfg.loss)
 
-            if 'angular' in cfg.loss._target_:
+            if '_target_' in cfg.loss and 'angular' in cfg.loss._target_:
                 OmegaConf.set_struct(cfg, True)
                 with open_dict(cfg):
                     cfg.decoder.angular = True
@@ -333,15 +333,16 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             "embs": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
         }
 
-    def forward_for_export(self, processed_signal, processed_signal_len):
-        encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
+    def forward_for_export(self, audio_signal, length):
+        encoded, length = self.encoder(audio_signal=audio_signal, length=length)
         logits, embs = self.decoder(encoder_output=encoded, length=length)
         return logits, embs
 
     @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
-            input_signal=input_signal, length=input_signal_length,
+            input_signal=input_signal,
+            length=input_signal_length,
         )
 
         if self.spec_augmentation is not None and self.training:
@@ -627,7 +628,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         dataset = AudioToSpeechLabelDataset(manifest_filepath=manifest_filepath, labels=None, featurizer=featurizer)
 
         dataloader = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=batch_size, collate_fn=dataset.fixed_seq_collate_fn,
+            dataset=dataset,
+            batch_size=batch_size,
+            collate_fn=dataset.fixed_seq_collate_fn,
         )
 
         logits = []

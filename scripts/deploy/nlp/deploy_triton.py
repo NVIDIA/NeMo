@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,15 +19,28 @@ import sys
 from pathlib import Path
 
 from nemo.deploy import DeployPyTriton
-from nemo.export import TensorRTLLM
-
 
 LOGGER = logging.getLogger("NeMo")
+
+megatron_llm_supported = True
+try:
+    from nemo.deploy.nlp import MegatronLLMDeployable
+except Exception as e:
+    LOGGER.warning(f"Cannot import MegatronLLMDeployable, it will not be available. {type(e).__name__}: {e}")
+    megatron_llm_supported = False
+
+trt_llm_supported = True
+try:
+    from nemo.export.tensorrt_llm import TensorRTLLM
+except Exception as e:
+    LOGGER.warning(f"Cannot import the TensorRTLLM exporter, it will not be available. {type(e).__name__}: {e}")
+    trt_llm_supported = False
 
 
 def get_args(argv):
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=f"Deploy nemo models to Triton",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=f"Deploy nemo models to Triton",
     )
     parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source .nemo file")
     parser.add_argument(
@@ -62,6 +75,8 @@ def get_args(argv):
         "-tmr", "--triton_model_repository", default=None, type=str, help="Folder for the trt-llm conversion"
     )
     parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("-tps", "--tensor_parallelism_size", default=1, type=int, help="Tensor parallelism size")
+    parser.add_argument("-pps", "--pipeline_parallelism_size", default=1, type=int, help="Pipeline parallelism size")
     parser.add_argument(
         "-dt",
         "--dtype",
@@ -73,18 +88,27 @@ def get_args(argv):
     parser.add_argument("-mil", "--max_input_len", default=256, type=int, help="Max input length of the model")
     parser.add_argument("-mol", "--max_output_len", default=256, type=int, help="Max output length of the model")
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
+    parser.add_argument("-mnt", "--max_num_tokens", default=None, type=int, help="Max number of tokens")
+    parser.add_argument("-ont", "--opt_num_tokens", default=None, type=int, help="Optimum number of tokens")
     parser.add_argument(
         "-mpet", "--max_prompt_embedding_table_size", default=None, type=int, help="Max prompt embedding table size"
     )
     parser.add_argument(
-        "-upkc", "--use_paged_kv_cache", default=False, action='store_true', help="Enable paged kv cache."
+        "-npkc", "--no_paged_kv_cache", default=False, action='store_true', help="Enable paged kv cache."
     )
     parser.add_argument(
-        "-dcf",
-        "--disable_context_fmha",
+        "-drip",
+        "--disable_remove_input_padding",
         default=False,
         action='store_true',
-        help="Disable fused Context MultiHeadedAttention (required for V100 support).",
+        help="Disables the remove input padding option.",
+    )
+    parser.add_argument(
+        "-upe",
+        "--use_parallel_embedding",
+        default=False,
+        action='store_true',
+        help='Use parallel embedding feature of TensorRT-LLM.',
     )
     parser.add_argument(
         "-mbm",
@@ -101,7 +125,6 @@ def get_args(argv):
         '--use_lora_plugin',
         nargs='?',
         const=None,
-        default=False,
         choices=['float16', 'float32', 'bfloat16'],
         help="Activates the lora plugin which enables embedding sharing.",
     )
@@ -109,7 +132,16 @@ def get_args(argv):
         '--lora_target_modules',
         nargs='+',
         default=None,
-        choices=["attn_qkv", "attn_q", "attn_k", "attn_v", "attn_dense", "mlp_h_to_4h", "mlp_gate", "mlp_4h_to_h",],
+        choices=[
+            "attn_qkv",
+            "attn_q",
+            "attn_k",
+            "attn_v",
+            "attn_dense",
+            "mlp_h_to_4h",
+            "mlp_gate",
+            "mlp_4h_to_h",
+        ],
         help="Add lora in which modules. Only be activated when use_lora_plugin is enabled.",
     )
     parser.add_argument(
@@ -122,58 +154,58 @@ def get_args(argv):
     parser.add_argument(
         "-lc", "--lora_ckpt", default=None, type=str, nargs="+", help="The checkpoint list of LoRA weights"
     )
+    parser.add_argument(
+        "-ucr",
+        '--use_cpp_runtime',
+        default=False,
+        action='store_true',
+        help='Use TensorRT LLM C++ runtime',
+    )
+    parser.add_argument(
+        "-b",
+        '--backend',
+        nargs='?',
+        const=None,
+        default='TensorRT-LLM',
+        choices=['TensorRT-LLM', 'In-Framework'],
+        help="Different options to deploy nemo model.",
+    )
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
-
     args = parser.parse_args(argv)
     return args
 
 
-def nemo_deploy(argv):
-    args = get_args(argv)
-
-    if args.debug_mode:
-        loglevel = logging.DEBUG
-    else:
-        loglevel = logging.INFO
-
-    LOGGER.setLevel(loglevel)
-    LOGGER.info("Logging level set to {}".format(loglevel))
-    LOGGER.info(args)
-
+def get_trtllm_deployable(args):
     if args.triton_model_repository is None:
         trt_llm_path = "/tmp/trt_llm_model_dir/"
         LOGGER.info(
             "/tmp/trt_llm_model_dir/ path will be used as the TensorRT LLM folder. "
-            "Please set this parameter if you'd like to use a path that has already "
-            "included the TensorRT LLM model files."
+            "Please set the --triton_model_repository parameter if you'd like to use a path that already "
+            "includes the TensorRT LLM model files."
         )
         Path(trt_llm_path).mkdir(parents=True, exist_ok=True)
     else:
         trt_llm_path = args.triton_model_repository
 
     if args.nemo_checkpoint is None and args.triton_model_repository is None:
-        LOGGER.error(
+        raise ValueError(
             "The provided model repository is not a valid TensorRT-LLM model "
             "directory. Please provide a --nemo_checkpoint."
         )
-        return
 
     if args.nemo_checkpoint is None and not os.path.isdir(args.triton_model_repository):
-        LOGGER.error(
+        raise ValueError(
             "The provided model repository is not a valid TensorRT-LLM model "
             "directory. Please provide a --nemo_checkpoint."
         )
-        return
 
     if args.nemo_checkpoint is not None and args.model_type is None:
-        LOGGER.error("Model type is required to be defined if a nemo checkpoint is provided.")
-        return
+        raise ValueError("Model type is required to be defined if a nemo checkpoint is provided.")
 
     ptuning_tables_files = []
     if not args.ptuning_nemo_checkpoint is None:
         if args.max_prompt_embedding_table_size is None:
-            LOGGER.error("max_prompt_embedding_table_size parameter is needed for the prompt tuning table(s).")
-            return
+            raise ValueError("max_prompt_embedding_table_size parameter is needed for the prompt tuning table(s).")
 
         for pt_checkpoint in args.ptuning_nemo_checkpoint:
             ptuning_nemo_checkpoint_path = Path(pt_checkpoint)
@@ -181,21 +213,23 @@ def nemo_deploy(argv):
                 if ptuning_nemo_checkpoint_path.is_file():
                     ptuning_tables_files.append(pt_checkpoint)
                 else:
-                    LOGGER.error("Could not read the prompt tuning tables from {0}".format(pt_checkpoint))
-                    return
+                    raise IsADirectoryError("Could not read the prompt tuning tables from {0}".format(pt_checkpoint))
             else:
-                LOGGER.error("File or directory {0} does not exist.".format(pt_checkpoint))
-                return
+                raise FileNotFoundError("File or directory {0} does not exist.".format(pt_checkpoint))
 
         if args.task_ids is not None:
             if len(ptuning_tables_files) != len(args.task_ids):
-                LOGGER.error(
+                raise RuntimeError(
                     "Number of task ids and prompt embedding tables have to match. "
                     "There are {0} tables and {1} task ids.".format(len(ptuning_tables_files), len(args.task_ids))
                 )
-                return
 
-    trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path, lora_ckpt_list=args.lora_ckpt)
+    trt_llm_exporter = TensorRTLLM(
+        model_dir=trt_llm_path,
+        lora_ckpt_list=args.lora_ckpt,
+        load_model=(args.nemo_checkpoint is None),
+        use_python_runtime=(not args.use_cpp_runtime),
+    )
 
     if args.nemo_checkpoint is not None:
         try:
@@ -204,24 +238,25 @@ def nemo_deploy(argv):
                 nemo_checkpoint_path=args.nemo_checkpoint,
                 model_type=args.model_type,
                 n_gpus=args.num_gpus,
-                tensor_parallel_size=args.num_gpus,
-                pipeline_parallel_size=1,
-                max_input_token=args.max_input_len,
-                max_output_token=args.max_output_len,
+                tensor_parallelism_size=args.tensor_parallelism_size,
+                pipeline_parallelism_size=args.pipeline_parallelism_size,
+                max_input_len=args.max_input_len,
+                max_output_len=args.max_output_len,
                 max_batch_size=args.max_batch_size,
+                max_num_tokens=args.max_num_tokens,
+                opt_num_tokens=args.opt_num_tokens,
+                use_parallel_embedding=args.use_parallel_embedding,
                 max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
-                paged_kv_cache=args.use_paged_kv_cache,
-                enable_context_fmha=not args.disable_context_fmha,
+                paged_kv_cache=(not args.no_paged_kv_cache),
+                remove_input_padding=(not args.disable_remove_input_padding),
                 dtype=args.dtype,
                 enable_multi_block_mode=args.multi_block_mode,
                 use_lora_plugin=args.use_lora_plugin,
                 lora_target_modules=args.lora_target_modules,
                 max_lora_rank=args.max_lora_rank,
-                save_nemo_model_config=True,
             )
         except Exception as error:
-            LOGGER.error("An error has occurred during the model export. Error message: " + str(error))
-            return
+            raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))
 
     try:
         for i, prompt_embeddings_checkpoint_path in enumerate(ptuning_tables_files):
@@ -236,15 +271,50 @@ def nemo_deploy(argv):
                 )
             )
             trt_llm_exporter.add_prompt_table(
-                task_name=str(task_id), prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+                task_name=str(task_id),
+                prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
             )
     except Exception as error:
-        LOGGER.error("An error has occurred during adding the prompt embedding table(s). Error message: " + str(error))
-        return
+        raise RuntimeError(
+            "An error has occurred during adding the prompt embedding table(s). Error message: " + str(error)
+        )
+    return trt_llm_exporter
+
+
+def get_nemo_deployable(args):
+    if args.nemo_checkpoint is None:
+        raise ValueError("In-Framework deployment requires a .nemo checkpoint")
+
+    return MegatronLLMDeployable(args.nemo_checkpoint, args.num_gpus)
+
+
+def nemo_deploy(argv):
+    args = get_args(argv)
+
+    if args.debug_mode:
+        loglevel = logging.DEBUG
+    else:
+        loglevel = logging.INFO
+
+    LOGGER.setLevel(loglevel)
+    LOGGER.info("Logging level set to {}".format(loglevel))
+    LOGGER.info(args)
+
+    backend = args.backend.lower()
+    if backend == 'tensorrt-llm':
+        if not trt_llm_supported:
+            raise ValueError("TensorRT-LLM engine is not supported in this environment.")
+        triton_deployable = get_trtllm_deployable(args)
+    elif backend == 'in-framework':
+        if not megatron_llm_supported:
+            raise ValueError("MegatronLLMDeployable is not supported in this environment.")
+        triton_deployable = get_nemo_deployable(args)
+    else:
+        raise ValueError("Backend: {0} is not supported.".format(backend))
 
     try:
         nm = DeployPyTriton(
-            model=trt_llm_exporter,
+            model=triton_deployable,
             triton_model_name=args.triton_model_name,
             triton_model_version=args.triton_model_version,
             max_batch_size=args.max_batch_size,
