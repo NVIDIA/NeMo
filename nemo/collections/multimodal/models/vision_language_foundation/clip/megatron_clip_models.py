@@ -63,7 +63,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import parallel_state
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
-    from megatron.core.distributed import DistributedDataParallelConfig, finalize_model_grads
+    from megatron.core.distributed import DistributedDataParallelConfig
     from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.vision.clip_vit_model import CLIPViTModel
@@ -77,10 +77,10 @@ try:
         TERowParallelLinear,
     )
     from megatron.core.transformer.enums import AttnMaskType as MCoreAttnMaskType
-    from megatron.core.transformer.identity_op import IdentityFuncOp, IdentityOp
+    from megatron.core.transformer.identity_op import IdentityOp
     from megatron.core.transformer.mlp import MLP, MLPSubmodules
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
-    from megatron.core.transformer.spec_utils import ModuleSpec, build_module
+    from megatron.core.transformer.spec_utils import ModuleSpec
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
     from megatron.core.utils import (
@@ -1478,13 +1478,14 @@ class MegatronCLIPModel(MegatronBaseModel):
         else:
             return self.model.parameters()
 
-    def build_transformer_config(self, model_cfg) -> TransformerConfig:
+    def build_transformer_config(self, model_cfg=None) -> TransformerConfig:
         """Builds the megatron core gpt transformer config for the model.
         For attributes in the nemo model config that are the same
         as the megatron core TransformerConfig, we will use the value from the nemo model config.
         For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
-
+        if model_cfg is None:
+            model_cfg = self.cfg
         normalization = model_cfg.get('normalization', 'layernorm').lower()
         layernorm_zero_centered_gamma = model_cfg.get('normalization', 'layernorm') == 'layernorm1p'
         if normalization == 'layernorm':

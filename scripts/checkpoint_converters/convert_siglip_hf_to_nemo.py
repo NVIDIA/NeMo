@@ -21,7 +21,6 @@ Requires HF transformers updated to support Gemma Models
 """
 
 import os
-import pdb
 from argparse import ArgumentParser
 
 import torch
@@ -29,7 +28,6 @@ from omegaconf import OmegaConf
 from transformers import AutoModel, AutoProcessor
 
 from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import MegatronCLIPModel
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
@@ -353,15 +351,11 @@ def get_args():
 
 def convert(args):
     logging.info(f"Loading checkpoint from HF: `{args.input_name_or_path}`")
-    # hf_tokenizer = AutoTokenizer.from_pretrained(args.input_name_or_path)
-    # hf_model = AutoModelForCausalLM.from_pretrained(args.input_name_or_path)
     hf_model = AutoModel.from_pretrained(args.input_name_or_path)
-    hf_processor = AutoProcessor.from_pretrained(args.input_name_or_path)
+    # hf_processor = AutoProcessor.from_pretrained(args.input_name_or_path)
     logging.info("HF Model loading done.")
 
     nemo_config = OmegaConf.load(args.hparams_file)
-    # nemo_config.model = adjust_nemo_config(nemo_config.model, hf_model.config.__dict__)
-    # nemo_config.model.tokenizer["model"] = args.tokenizer_path
 
     nemo_config.trainer["precision"] = args.precision
     trainer = MegatronTrainerBuilder(nemo_config).create_trainer()
