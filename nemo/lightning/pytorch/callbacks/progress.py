@@ -33,12 +33,6 @@ class MegatronProgressBar(TQDMProgressBar):
         else:
             num_training_batches = trainer.num_training_batches
 
-        # from nemo.utils import AppState
-        # app_state = AppState()
-        # app_state.
-
-        # num_training_batches = num_training_batches // calculate_data_parallel_groups()
-
         self.train_progress_bar.reset(num_training_batches)
         self.train_progress_bar.initial = 0
         self.train_progress_bar.set_description(f"Epoch {trainer.current_epoch}")
