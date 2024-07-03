@@ -534,42 +534,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         assert self.megatron_parallel is not None
-        from megatron.core import parallel_state
-
-        for index, module in enumerate(self.megatron_parallel):
-            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
-            else:
-                checkpoint_state_dict = checkpoint['state_dict']
-
-            mcore_model = self.lightning_module.module
-            while hasattr(mcore_model, "module"):
-                mcore_model = mcore_model.module
-
-            current = self.model[0]
-            n_nesting = 0
-            while current != mcore_model:
-                current = current.module
-                n_nesting += 1
-
-            _state_dict = {}
-            for key, value in checkpoint_state_dict.items():
-                # Count the number of "module." at the start of the key
-                count, _key = 0, key
-                while _key.startswith("module."):
-                    _key = _key[len("module.") :]
-                    count += 1
-
-                # Adjust the number of "module." prefixes
-                if count < n_nesting:
-                    to_add = "module." * (n_nesting - count)
-                    _state_dict[f"{to_add}{key}"] = value
-                elif count > n_nesting:
-                    to_remove = "module." * (count - n_nesting)
-                    _state_dict[key[len(to_remove) :]] = value
-            checkpoint_state_dict = _state_dict
-
-            module.load_state_dict(checkpoint_state_dict, strict=strict)
+        
+        _strategy_lib.load_model_state_dict(self.megatron_parallel, checkpoint, strict=strict)
 
     @property
     @override

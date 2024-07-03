@@ -97,7 +97,7 @@ class ModelTransform(pl.Callback):
         """
         global MODEL_TRANSFORM
         if MODEL_TRANSFORM and MODEL_TRANSFORM.__num_calls__ == 0:
-            MODEL_TRANSFORM(trainer.model.pipeline)
+            MODEL_TRANSFORM(trainer.model)
         logging.info('After model transform:\n' + str(model_summary.summarize(trainer.model.pipeline)))
 
 

@@ -1,12 +1,14 @@
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
+from torch import nn
 import pytorch_lightning as pl
 from typing_extensions import Annotated
 
 from nemo.collections.llm.utils import Config, task
 from nemo.lightning import AutoResume, MegatronStrategy, NeMoLogger, OptimizerModule, Trainer, io, teardown
 from nemo.lightning.pytorch.callbacks import ModelTransform
+from nemo.lightning.peft import PEFT
 
 
 @task(namespace="llm")
@@ -18,6 +20,7 @@ def train(
     resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
     tokenizer: Optional[str] = None,
+    model_transform: Optional[Union[Callable[[nn.Module], nn.Module], PEFT]] = None,
     # TODO: Fix export export: Optional[str] = None,
 ) -> Path:
     """
@@ -33,28 +36,23 @@ def train(
             from the model will be used.
         tokenizer (Optional[str]): Tokenizer setting to be applied. Can be 'data' or 'model'.
         export (Optional[str]): Filename to save the exported checkpoint after training.
+        model_transform (Optional[Union[Callable[[nn.Module], nn.Module], PEFT]]): A model transform to be applied.
 
     Returns
     -------
         Path: The directory path where training artifacts are saved.
 
-    Raises
-    ------
-        ValueError: If the trainer's strategy is not MegatronStrategy.
-
     Examples
     --------
-        >>> model = MyModel()
-        >>> data = MyDataModule()
-        >>> trainer = Trainer(strategy=MegatronStrategy())
-        >>> train(model, data, trainer, tokenizer='data', source='path/to/ckpt.ckpt', export='final.ckpt')
+        >>> from nemo.collections import llm
+        >>> from nemo import lightning as nl
+        >>> model = llm.MistralModel()
+        >>> data = llm.SquadDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
+        >>> precision = nl.MegatronMixedPrecision(precision="bf16-mixed")
+        >>> trainer = nl.Trainer(strategy=nl.MegatronStrategy(tensor_model_parallel_size=2), plugins=precision)
+        >>> train(model, data, trainer, tokenizer="data")
         PosixPath('/path/to/log_dir')
     """
-    # add ModelTransform callback to Trainer if needed
-    if getattr(model, "model_transform", None):
-        if not any(isinstance(cb, ModelTransform) for cb in trainer.callbacks):
-            trainer.callbacks.append(ModelTransform())
-
     _log = log or NeMoLogger()
     app_state = _log.setup(
         trainer,
@@ -67,6 +65,14 @@ def train(
         optim.connect(model)
     if tokenizer:  # TODO: Improve this
         _use_tokenizer(model, data, tokenizer)
+        
+    if model_transform:
+        _set_with_io(model, "model_transform", model_transform)
+        
+    # Add ModelTransform callback to Trainer if needed
+    if getattr(model, "model_transform", None):
+        if not any(isinstance(cb, ModelTransform) for cb in trainer.callbacks):
+            trainer.callbacks.append(ModelTransform())
 
     trainer.fit(model, data)
 
@@ -84,6 +90,57 @@ def pretrain(
     # export: Optional[str] = None
 ) -> Path:
     return train(model=model, data=data, trainer=trainer, tokenizer="data", source=source)
+
+
+@task(namespace="llm")
+def finetune(
+    model: pl.LightningModule,
+    data: pl.LightningDataModule,
+    trainer: Trainer,
+    log: Annotated[Optional[NeMoLogger], Config[NeMoLogger]] = None,
+    resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
+    optim: Optional[OptimizerModule] = None,
+    peft: Optional[PEFT] = None,
+) -> Path:
+    """
+    Finetunes a model using the specified data and trainer, with optional logging, resuming, and PEFT.
+    
+    It will use the tokenizer from the model.
+
+    Args:
+        model (pl.LightningModule): The model to be finetuned.
+        data (pl.LightningDataModule): The data module containing finetuning data.
+        trainer (Trainer): The trainer instance configured with a MegatronStrategy.
+        log (NeMoLogger): A nemologger instance.
+        resume (Optional[AutoResume]): Resume training from a checkpoint.
+        optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default
+            optimizer from the model will be used.
+        peft (Optional[PEFT]): A PEFT (Parameter-Efficient Fine-Tuning) configuration to be applied.
+
+    Returns:
+        Path: The directory path where finetuning artifacts are saved.
+
+    Examples:
+        >>> from nemo.collections import llm
+        >>> from nemo import lightning as nl
+        >>> model = llm.MistralModel()
+        >>> data = llm.SquadDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
+        >>> precision = nl.MegatronMixedPrecision(precision="bf16-mixed")
+        >>> trainer = nl.Trainer(strategy=nl.MegatronStrategy(tensor_model_parallel_size=2), plugins=precision)
+        >>> finetune(model, data, trainer, peft=llm.peft.LoRA()])
+        PosixPath('/path/to/log_dir')
+    """
+    
+    return train(
+        model=model,
+        data=data,
+        trainer=trainer,
+        log=log,
+        resume=resume,
+        optim=optim,
+        tokenizer="model",
+        model_transform=peft,
+    )
 
 
 @task(namespace="llm")
@@ -144,13 +201,15 @@ def export_ckpt(
 
 def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, tokenizer: str) -> None:
     if tokenizer == "data":
-        model.tokenizer = data.tokenizer
-        if hasattr(model, "__io__"):
-            model.__io__.tokenizer = data.tokenizer
+        _set_with_io(model, "tokenizer", data.tokenizer)
     elif tokenizer == "model":
-        data.tokenizer = model.tokenizer
-        if hasattr(data, "__io__"):
-            data.__io__.tokenizer = model.tokenizer
+        _set_with_io(data, "tokenizer", model.tokenizer)
+
+ 
+def _set_with_io(obj, attr, value):
+    setattr(obj, attr, value)
+    if hasattr(obj, "__io__"):
+        setattr(obj.__io__, attr, value)
 
 
 def _add_ckpt_path(source, model, kwargs) -> None:

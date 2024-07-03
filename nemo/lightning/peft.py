@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional, Tuple
 
 import torch.nn as nn
+from nemo.lightning.io.mixin import IOMixin
+
 
 if TYPE_CHECKING:
     from megatron.core.dist_checkpointing.mapping import ShardedStateDict
@@ -120,7 +122,7 @@ class AdapterWrapper(nn.Module):
             self.adapter.load_state_dict(adapter_state_dict, strict)
 
 
-class PEFT(ABC):
+class PEFT(ABC, IOMixin):
     """Abstract base class for Parameter-Efficient Fine-Tuning (PEFT) methods.
 
     This class defines the interface for PEFT methods, which are used to fine-tune
