@@ -143,7 +143,7 @@ Run Fine-Tuning
     export NVTE_FLASH_ATTN=0
 
     MASTER_PORT=15008 torchrun --nproc_per_node=${NUM_DEVICES} 
-            /home/ataghibakhsh/NeMo/examples/nlp/language_modeling/megatron_mamba_finetuning.py \
+            /home/ataghibakhsh/NeMo/examples/nlp/language_modeling/tuning/megatron_mamba_finetuning.py \
             --config-path=${CONFIG_PATH} \
             --config-name=${CONFIG_NAME} \
             trainer.devices=${NUM_DEVICES} \
@@ -210,7 +210,7 @@ Evaluating the Fine-Tuned Model
     PATH_TO_NEMO_MODEL=<path to .nemo file>
     TRAIN_DATASET_PATH=<path to training dataset file>
     VAL_DATASET_PATH=<path to validation dataset file>
-    CONFIG_PATH="/opt/NeMo/examples/nlp/language_modeling/conf/"
+    CONFIG_PATH="/opt/NeMo/examples/nlp/language_modeling/tuning/conf/"
     CONFIG_NAME="megatron_mamba_finetuning_config"
     SAVE_DIR=<path to the saving directory>
     TOKENIZER_MODEL=<path to tokenizer model> # Only for the 8b models, for other models, set to null
@@ -247,10 +247,10 @@ Evaluating the Fine-Tuned Model
 
     TEST_DATASET="[<path to test datasets (list)>]"
 
-    CONFIG_PATH="/opt/NeMo/examples/nlp/language_modeling/conf/"
+    CONFIG_PATH="/opt/NeMo/examples/nlp/language_modeling/tuning/conf/"
     CONFIG_NAME="megatron_mamba_generate_config"
 
-    MASTER_PORT=15008 torchrun --nproc_per_node=${NUM_DEVICES}  /opt/NeMo/examples/nlp/language_modeling/megatron_mamba_generate.py \
+    MASTER_PORT=15008 torchrun --nproc_per_node=${NUM_DEVICES}  /opt/NeMo/examples/nlp/language_modeling/tuning/megatron_mamba_generate.py \
             --config-path=${CONFIG_PATH} \
             --config-name=${CONFIG_NAME} \
             trainer.devices=${NUM_DEVICES} \
