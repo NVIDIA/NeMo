@@ -26,9 +26,12 @@ import torch
 import torch.distributed
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor, nn
+from typing_extensions import override
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
+ModelT = TypeVar("ModelT", bound=nn.Module)
 
 
 @runtime_checkable
@@ -54,7 +57,7 @@ def default_forward_step(model: nn.Module, batch, *args, **kwargs) -> torch.Tens
     return model(batch, *args, **kwargs)
 
 
-class MegatronParallel(nn.ModuleList):
+class MegatronParallel(nn.ModuleList, Generic[ModelT]):
     """Implements distributed model parallelism that is based on Megatron-LM.
 
     This supports various forms of parallelism:
@@ -100,15 +103,16 @@ class MegatronParallel(nn.ModuleList):
 
     def __init__(
         self,
-        pipeline: Union[nn.Module, Iterable[nn.Module]],
+        pipeline: Union[ModelT, Iterable[ModelT]],
         precision_plugin: Optional[PrecisionPluginProtocol] = None,
         callbacks: Optional["CallbackConnector"] = None,
         data_step: Optional[Callable[[Iterator[DataT]], DataT]] = None,
-        forward_step: Optional[Callable[[nn.Module, DataT], Tensor]] = None,
-        loss_reduction: Optional[Callable[[nn.Module], "MegatronLossReduction"]] = None,
+        forward_step: Optional[Callable[[ModelT, DataT], Tensor]] = None,
+        loss_reduction: Optional[Callable[[ModelT], "MegatronLossReduction"]] = None,
         vp_size: Optional[int] = None,
         ddp_config: Optional[DistributedDataParallelConfig] = None,
         cpu: bool = False,
+        convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
         from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
         from megatron.core import parallel_state
@@ -133,9 +137,14 @@ class MegatronParallel(nn.ModuleList):
                         _model.configure_model()
                     _pipeline.append(_model)
 
+        if convert_module_fn:
+            for i in range(len(_pipeline)):
+                _pipeline[i] = convert_module_fn(_pipeline[i])
+
         if isinstance(ddp_config, DistributedDataParallelConfig):
             for model_chunk_idx, model_chunk in enumerate(_pipeline):
                 module = model_chunk.module
+
                 ddp = DDP(
                     module.config,
                     ddp_config,
@@ -517,17 +526,36 @@ class MegatronParallel(nn.ModuleList):
         raise ValueError("Could not find sharded state dict")
 
     @property
-    def pipeline(self) -> Union[nn.Module, List[nn.Module]]:
+    def pipeline(self) -> Union[ModelT, List[ModelT]]:
         if len(self) == 1:
             return self[0]
         else:
             return list(self)
 
     @property
+    def module(self) -> ModelT:
+        return self[0]
+
+    @property
     def forward_backward_func(self) -> "MegatronStepProtocol":
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
         return get_forward_backward_func()
+
+    @override
+    def __getattr__(self, item: Any) -> Any:
+        if len(self) == 0:
+            return super().__getattr__(item)
+
+        try:
+            # __getattr__ gets called as a last resort if the attribute does not exist
+            # call nn.Module's implementation first
+            return super().__getattr__(item)
+        except AttributeError:
+            # If the attribute is not available on the _FabricModule wrapper, redirect to the wrapped nn.Module
+            attr = getattr(self._modules[self._get_abs_string_index(0)], item)
+
+            return attr
 
 
 class _ModuleStepFunction:
@@ -567,6 +595,27 @@ def getattr_proxy(self, item: Any) -> Any:
 
 
 class DDP(McoreDDP):
+    def __init__(
+        self,
+        config: TransformerConfig,
+        ddp_config: DistributedDataParallelConfig,
+        module: torch.nn.Module,
+        disable_bucketing: bool = False,
+        **kwargs,
+    ):
+        init_parameters = inspect.signature(McoreDDP.__init__).parameters
+        # Updates to the McoreDDP class have removed some parameters, so we need to
+        #  filter out any kwargs that are not part of the updated signature, if a new
+        #  version of mcore is being used.
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in init_parameters}
+        super().__init__(
+            config=config,
+            ddp_config=ddp_config,
+            module=module,
+            disable_bucketing=disable_bucketing,
+            **filtered_kwargs,
+        )
+
     def state_dict(self, prefix='', keep_vars=False, **kwargs):
         self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
 
