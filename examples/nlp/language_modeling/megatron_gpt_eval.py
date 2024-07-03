@@ -301,6 +301,7 @@ def round_to_mult(n, mult=8):
     """
     return ((n + mult - 1) // mult) * mult
 
+
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
 
