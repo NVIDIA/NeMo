@@ -15,8 +15,6 @@
 import os
 from typing import List, Optional
 
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
-
 from transformers import (
     AlbertConfig,
     AutoModel,
@@ -26,6 +24,8 @@ from transformers import (
     GPT2Config,
     RobertaConfig,
 )
+
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 try:
     from transformers import (
