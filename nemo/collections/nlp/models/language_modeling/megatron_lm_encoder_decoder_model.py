@@ -130,9 +130,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 wrap_with_ddp=False,
                 model_type=ModelType.encoder_and_decoder,
             )[0]
-
-        # set up self.model from self.enc_dec_model due to many inherited methods work on self.model 
-        self.model = self.enc_dec_model
+            # # set up self.model from self.enc_dec_model due to many inherited methods work on self.model 
+            # self.model = self.enc_dec_model
 
         # We don't need to call it explicitly? Since it is a pytorch lightning hook function
         # self.setup_optimizer_param_groups()
@@ -141,15 +140,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             if not self.with_distributed_adam:
                 # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-                if isinstance(self.model, list):
-                    for module in self.model:
+                if isinstance(self.enc_dec_model, list):
+                    for module in self.enc_dec_model:
                         module.cuda(torch.cuda.current_device())
                 else:
-                    self.model.cuda(torch.cuda.current_device())
+                    self.enc_dec_model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
             self._wrap_model_for_O2()
-            self.enc_dec_model = self.model # when wrapping, only self.model is wrapped in MCoreFloat16Module, and not self.enc_dec_model
 
         self.enable_autocast = (
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
@@ -440,7 +438,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # PyTorch directly passes embedding parameters into a C++,
             # bypassing this process. A quick-and-dirty hack is to
             # manually interact with the parameter.
-            modules = self.model if isinstance(self.model, list) else [self.model]
+            modules = self.enc_dec_model if isinstance(self.enc_dec_model, list) else [self.enc_dec_model]
             for module in modules:
                 if isinstance(module, (Float16Module, MCoreFloat16Module)):
                     module = module.module
@@ -1107,15 +1105,15 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     child.set_tensor_parallel_group(tp_group)
 
     def get_t5_module_list(self):
-        if isinstance(self.model, list):
+        if isinstance(self.enc_dec_model, list):
             return [
                 model.module if isinstance(model, (Float16Module, MCoreFloat16Module)) else model
-                for model in self.model
+                for model in self.enc_dec_model
             ]
-        elif isinstance(self.model, (Float16Module, MCoreFloat16Module)):
-            return [self.model.module]
+        elif isinstance(self.enc_dec_model, (Float16Module, MCoreFloat16Module)):
+            return [self.enc_dec_model.module]
         else:
-            return [self.model]
+            return [self.enc_dec_model]
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
@@ -1704,10 +1702,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if self.mcore_t5:
             checkpoint['sharded_state_dict'] = self.sharded_state_dict()
         else:
-            if isinstance(self.model, list):
-                for i in range(len(self.model)):
+            if isinstance(self.enc_dec_model, list):
+                for i in range(len(self.enc_dec_model)):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    checkpoint[f'model{i}'] = self.model[i].module.state_dict_for_save_checkpoint()
+                    checkpoint[f'model{i}'] = self.enc_dec_model[i].module.state_dict_for_save_checkpoint()
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def on_load_checkpoint(self, checkpoint) -> None:
@@ -1734,10 +1732,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             else:
                 checkpoint['state_dict'] = {}
         else:
-            if isinstance(self.model, list):
-                for i in range(len(self.model)):
+            if isinstance(self.enc_dec_model, list):
+                for i in range(len(self.enc_dec_model)):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
+                    self.enc_dec_model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def build_transformer_config(self) -> TransformerConfig:
@@ -1790,7 +1788,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def setup_mcore_distributed_parallel(self):
         """Set up mcore distributed data parallel """
         if self.with_distributed_adam and self.use_mcore_dist_optim:
-            config = get_model_config(self.model[0])
+            config = get_model_config(self.enc_dec_model[0])
             ddp_config = DistributedDataParallelConfig(
                 grad_reduce_in_fp32=(self.cfg.optim.get('grad_sync_dtype', 'fp32') == 'fp32'),
                 overlap_grad_reduce=self.cfg.optim.get('overlap_grad_sync', False),
@@ -1800,7 +1798,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 # using bucket_cap_mb to configure bucket_size here
                 bucket_size=self.cfg.optim.get('ddp_bucket_size', None),
             )
-            self.model = [
+            self.enc_dec_model = [
                 McoreDDP(
                     config,
                     ddp_config,
@@ -1811,7 +1809,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     # model chunks is overlapped with compute anyway.
                     disable_bucketing=(model_chunk_idx > 0),
                 )
-                for (model_chunk_idx, model_chunk) in enumerate(self.model)
+                for (model_chunk_idx, model_chunk) in enumerate(self.enc_dec_model)
             ]
 
             # (TODO) Broadcast params from data parallel src rank to other data parallel ranks.
