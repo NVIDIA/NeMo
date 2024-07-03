@@ -157,7 +157,10 @@ class SigLipLoss(torch.nn.Module):
         loss = -F.logsigmoid(labels * logits).sum() / image_features.shape[0]
         return loss
 
-    def forward(self, output_tensor,):
+    def forward(
+        self,
+        output_tensor,
+    ):
         image_features, text_features, logit_scale, logit_bias = output_tensor
         loss = self._loss(image_features, text_features, logit_scale, logit_bias)
 
