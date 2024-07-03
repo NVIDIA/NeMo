@@ -11,7 +11,7 @@ from nemo.lightning import io, teardown
 from nemo.lightning.pytorch.optim import OptimizerModule
 
 if TYPE_CHECKING:
-    from transformers import MixtralConfig, MixtralForCausalLM
+    from transformers import MixtralForCausalLM
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
