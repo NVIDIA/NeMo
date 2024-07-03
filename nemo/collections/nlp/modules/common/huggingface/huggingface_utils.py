@@ -15,21 +15,36 @@
 import os
 from typing import List, Optional
 
-from transformers import (
-    ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
-    BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
-    CAMEMBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
-    DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
-    GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
-    ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
-    AlbertConfig,
-    AutoModel,
-    BertConfig,
-    CamembertConfig,
-    DistilBertConfig,
-    GPT2Config,
-    RobertaConfig,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+
+try:
+    from transformers import (
+        ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+        BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+        CAMEMBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+        DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+        GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
+        ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
+        AlbertConfig,
+        AutoModel,
+        BertConfig,
+        CamembertConfig,
+        DistilBertConfig,
+        GPT2Config,
+        RobertaConfig,
+    )
+
+except (ImportError, ModuleNotFoundError):
+
+    # Guard deprecated imports
+    # Temporary solution
+    # TODO(@dimapihtar): fix current file in respect to transformers >= 4.40
+    ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
+    BERT_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
+    CAMEMBERT_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
+    DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
+    GPT2_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
+    ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
