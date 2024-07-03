@@ -104,6 +104,7 @@ try:
 except ImportError:
     nltk_available = False
 
+
 # https://stackoverflow.com/questions/33139531/preserve-empty-lines-with-nltks-punkt-tokenizer
 class CustomLanguageVars(nltk.tokenize.punkt.PunktLanguageVars):
 
@@ -221,10 +222,16 @@ def get_args():
         help='What tokenizer library to use.',
     )
     group.add_argument(
-        '--tokenizer-type', type=str, default=None, help='What type of tokenizer to use.',
+        '--tokenizer-type',
+        type=str,
+        default=None,
+        help='What type of tokenizer to use.',
     )
     group.add_argument(
-        '--tokenizer-model', type=str, default=None, help='Path to tokenizer model.',
+        '--tokenizer-model',
+        type=str,
+        default=None,
+        help='Path to tokenizer model.',
     )
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
     group.add_argument('--files-filter', type=str, default='**/*.json*', help='files filter str')
@@ -275,7 +282,11 @@ def main():
         print('Searching folder for .json or .jsonl or json.gz or .jsonl.gz files...')
         assert os.path.exists(args.input), f'Folder does not exist: {args.input}'
         json_files = (str(f) for f in pathlib.Path(args.input).glob(args.files_filter))
-        json_files = [f for f in json_files if f.endswith('.json') or f.endswith('.jsonl') or f.endswith('.json.gz') or f.endswith('.jsonl.gz')]
+        json_files = [
+            f
+            for f in json_files
+            if f.endswith('.json') or f.endswith('.jsonl') or f.endswith('.json.gz') or f.endswith('.jsonl.gz')
+        ]
         if len(json_files) == 0:
             raise FileNotFoundError('No .json or .jsonl or json.gz or .jsonl.gz files found in folder.')
         else:
