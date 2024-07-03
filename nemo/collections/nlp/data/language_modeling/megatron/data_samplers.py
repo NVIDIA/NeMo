@@ -78,7 +78,7 @@ class BaseMegatronSampler:
         )
 
     def __len__(self):
-        num_available_samples: int = self.total_samples - self.consumed_samples
+        num_available_samples: int = self.total_samples
         if self.global_batch_size is not None:
             if self.drop_last:
                 num_global_batches = num_available_samples // self.global_batch_size
