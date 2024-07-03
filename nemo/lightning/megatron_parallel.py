@@ -25,14 +25,14 @@ from typing import (
 
 import torch
 import torch.distributed
+from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor, nn
-from typing_extensions import override
+from pytorch_lightning.utilities import move_data_to_device
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
-ModelT = TypeVar("ModelT", bound=nn.Module)
 
 
 @runtime_checkable
@@ -43,36 +43,43 @@ class PrecisionPluginProtocol(Protocol[DataT]):
 
 
 def default_data_step(dataloader_iter: Iterator[DataT]) -> DataT:
-    batch = next(dataloader_iter)
+    """
+    Moves the data to a device.
 
-    if isinstance(batch, tuple) and len(batch) == 3:
-        batch = batch[0]
+    In this case we utilize the match function to unpack the dataloader iterator. There may be a wrapper on the dataloader
+    iter from here: https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/fabric/strategies.py#L441.
 
-    if isinstance(batch, dict):
-        batch = {k: v.cuda(non_blocking=True) for k, v in batch.items()}
+    This will not subset the data for your with context parallel so please override this function if you
+    want to use context parallel.
 
-    return batch
+    Examples:
+        If the dataloader_iter returns: [Tuple[<tensor>, <int>, <int>]] -> move to device
+        If the dataloader_iter returns: [<tensor>, <tensor>] -> move to device
+
+    Returns:
+        DataT: The data moved to the device.
+    """
+    if parallel_state.get_context_parallel_world_size() > 1:
+        raise ValueError("Default data step is being used in a context parallel environment."
+                         "Please define your own data step that appropriately slices the data for context parallel."
+                         )
+
+    match next(dataloader_iter):
+        # If its wrapped in a tuple, unpack it.
+        case (batch, int(_), int(_)):
+            pass
+        # Canonical
+        case batch:
+            pass
+
+    return move_data_to_device(batch, torch.cuda.current_device())    
 
 
 def default_forward_step(model: nn.Module, batch, *args, **kwargs) -> torch.Tensor:
     return model(batch, *args, **kwargs)
 
 
-def extract_ddp_funcs(ddp_config, pipeline):
-    no_sync_func, grad_sync_func = None, None
-
-    if getattr(ddp_config, "overlap_grad_reduce", False):
-        no_sync_func = [model_chunk.no_sync for model_chunk in pipeline]
-        no_sync_func = no_sync_func[0] if len(pipeline) == 1 else no_sync_func
-        # TODO(@akoumparouli): why is True default here?
-        if getattr(ddp_config, "delay_grad_reduce", True):
-            grad_sync_func = [model_chunk.start_grad_sync for model_chunk in pipeline]
-            grad_sync_func = grad_sync_func[0] if len(pipeline) == 1 else grad_sync_func
-
-    return no_sync_func, grad_sync_func
-
-
-class MegatronParallel(nn.ModuleList, Generic[ModelT]):
+class MegatronParallel(nn.ModuleList):
     """Implements distributed model parallelism that is based on Megatron-LM.
 
     This supports various forms of parallelism:
@@ -118,16 +125,16 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
     def __init__(
         self,
-        pipeline: Union[ModelT, Iterable[ModelT]],
+        pipeline: Union[nn.Module, Iterable[nn.Module]],
         precision_plugin: Optional[PrecisionPluginProtocol] = None,
         callbacks: Optional["CallbackConnector"] = None,
         data_step: Optional[Callable[[Iterator[DataT]], DataT]] = None,
-        forward_step: Optional[Callable[[ModelT, DataT], Tensor]] = None,
-        loss_reduction: Optional[Callable[[ModelT], "MegatronLossReduction"]] = None,
+        forward_step: Optional[Callable[[nn.Module, DataT], Tensor]] = None,
+        loss_reduction: Optional[Callable[[nn.Module], "MegatronLossReduction"]] = None,
         vp_size: Optional[int] = None,
         ddp_config: Optional[DistributedDataParallelConfig] = None,
         cpu: bool = False,
-        convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
+        convert_module_fn: Optional[Callable[[nn.Module], nn.Module]] = None,
     ) -> None:
         from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
         from megatron.core import parallel_state
@@ -173,12 +180,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 model_chunk.module = ddp
                 model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
                 model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
-
-            # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
-            no_sync_func, grad_sync_func = extract_ddp_funcs(ddp_config, _pipeline)
-            for module in _pipeline:
-                module.config.no_sync_func = no_sync_func
-                module.config.grad_sync_func = grad_sync_func
 
         for i, model_module in enumerate(_pipeline):
             if not cpu:
@@ -547,36 +548,17 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         raise ValueError("Could not find sharded state dict")
 
     @property
-    def pipeline(self) -> Union[ModelT, List[ModelT]]:
+    def pipeline(self) -> Union[nn.Module, List[nn.Module]]:
         if len(self) == 1:
             return self[0]
         else:
             return list(self)
 
     @property
-    def module(self) -> ModelT:
-        return self[0]
-
-    @property
     def forward_backward_func(self) -> "MegatronStepProtocol":
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
         return get_forward_backward_func()
-
-    @override
-    def __getattr__(self, item: Any) -> Any:
-        if len(self) == 0:
-            return super().__getattr__(item)
-
-        try:
-            # __getattr__ gets called as a last resort if the attribute does not exist
-            # call nn.Module's implementation first
-            return super().__getattr__(item)
-        except AttributeError:
-            # If the attribute is not available on the _FabricModule wrapper, redirect to the wrapped nn.Module
-            attr = getattr(self._modules[self._get_abs_string_index(0)], item)
-
-            return attr
 
 
 class _ModuleStepFunction:
