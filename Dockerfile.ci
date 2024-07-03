@@ -31,6 +31,9 @@ EOF
 
 WORKDIR /workspace
 
+RUN git config --global user.name "a" && \
+    git config --global user.email "a"
+
 # Install NeMo requirements
 ARG TE_TAG=7d576ed25266a17a7b651f2c12e8498f67e0baea
 ARG MODELOPT_VERSION=0.13.0
