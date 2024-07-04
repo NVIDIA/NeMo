@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import torch
-from megatron.core.models.mamba import MambaModel
-from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
+# from megatron.core.models.mamba import MambaModel
+# from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
