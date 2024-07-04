@@ -15,7 +15,7 @@ class NsysCallback(Callback, IOMixin):
     This callback enables profiling of specific steps during training using NVIDIA Nsys.
     It allows for precise control over when profiling starts and ends, which ranks are profiled,
     and whether to generate detailed shape information.
-    
+
     More info about nsys can be found [here](https://developer.nvidia.com/nsight-systems).
 
     Args:
@@ -28,7 +28,7 @@ class NsysCallback(Callback, IOMixin):
         >>> callback = NsysCallback(start_step=100, end_step=200, ranks=[0, 1], gen_shape=True)
         >>> trainer = Trainer(callbacks=[callback])
     """
-    
+
     def __init__(
         self,
         start_step: int,

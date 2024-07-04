@@ -47,14 +47,14 @@ class ModelTransform(pl.Callback, IOMixin):
         any forward passes or parameter updates occur, but after the original weights
         have been loaded.
     """
-    
+
     def __init__(self):
         super().__init__()
         self.model_transform: Optional[Callable[[nn.Module], nn.Module]] = None
 
     def setup(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str) -> None:
         logging.info(f"Setting up ModelTransform for stage: {stage}")
-        
+
         if hasattr(pl_module, 'model_transform'):
             logging.info("Found model_transform attribute on pl_module")
             self.model_transform = _call_counter(pl_module.model_transform)

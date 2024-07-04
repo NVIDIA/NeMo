@@ -54,7 +54,7 @@ class PreemptionCallback(Callback):
             if self.preemption_supported:
                 self._handler_context = self._preemption_handler()
                 self._handler_context.__enter__()
-    
+
     def on_train_end(self, trainer: Trainer, pl_module) -> None:
         if self._handler_context:
             self._handler_context.__exit__(None, None, None)
@@ -68,7 +68,7 @@ class PreemptionCallback(Callback):
         if isinstance(exception, PreemptionException):
             logging.info("Handling PreemptionException")
             trainer.should_stop = True
-            
+
     @contextlib.contextmanager
     def _preemption_handler(self):
         if not self.preemption_supported:
@@ -92,7 +92,7 @@ class PreemptionCallback(Callback):
             yield
         finally:
             signal.signal(self.sig, original_handler)
-            
+
     @property
     def preemption_supported(self) -> bool:
         if self._preemption_supported is None:

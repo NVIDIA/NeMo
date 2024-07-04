@@ -1,10 +1,12 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import pytorch_lightning as pl
-from unittest.mock import MagicMock, patch
-from nemo.lightning.pytorch.callbacks.peft import PEFT, WrappedAdapterIO
+
 from nemo.collections.llm import fn
+from nemo.lightning.pytorch.callbacks.peft import PEFT, WrappedAdapterIO
 
 
 class TestPEFT:
@@ -21,9 +23,9 @@ class TestPEFT:
     def test_peft_call(self):
         model = self.DummyModel()
         peft = self.DummyPEFT()
-        
+
         transformed_model = peft(model)
-        
+
         assert transformed_model.linear.weight.requires_grad == False
         assert transformed_model.conv.weight.requires_grad == False
 
@@ -31,10 +33,10 @@ class TestPEFT:
         peft = self.DummyPEFT()
         trainer = MagicMock()
         pl_module = MagicMock()
-        
+
         pl_module.model_transform = peft
         peft.setup(trainer, pl_module, "fit")
-        
+
         assert isinstance(trainer.strategy._checkpoint_io, WrappedAdapterIO)
         assert peft.model_transform is not None
         assert peft._needs_to_call is True
@@ -45,28 +47,26 @@ class TestPEFT:
         trainer = MagicMock()
         pl_module = MagicMock()
         pl_module.model_transform = peft
-        
+
         peft.setup(trainer, pl_module, "fit")
-        
+
         assert peft.model_transform is not None
         assert peft._needs_to_call is True
-        
+
         peft.wrapped_io = MagicMock()
         peft.wrapped_io.adapter_ckpt_path = "dummy_path"
         peft.wrapped_io.load_checkpoint.return_value = {"dummy_state": "dummy_value"}
         peft.on_train_epoch_start(trainer, pl_module)
-        
+
         mock_logging.info.assert_called_once_with("Loading adapters from dummy_path")
-        trainer.strategy.load_model_state_dict.assert_called_once_with(
-            {"dummy_state": "dummy_value"}, strict=False
-        )
+        trainer.strategy.load_model_state_dict.assert_called_once_with({"dummy_state": "dummy_value"}, strict=False)
 
     def test_peft_on_load_checkpoint(self):
         peft = self.DummyPEFT()
         trainer = MagicMock()
         pl_module = MagicMock()
         checkpoint = {}
-        
+
         peft.on_load_checkpoint(trainer, pl_module, checkpoint)
-        
+
         assert pl_module.strict_loading == False

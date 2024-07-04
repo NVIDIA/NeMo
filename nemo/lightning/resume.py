@@ -6,10 +6,10 @@ import lightning_fabric as fl
 import pytorch_lightning as pl
 
 from nemo.lightning import io
+from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import uninject_model_parallel_rank
-from nemo.lightning.io.mixin import IOMixin
 
 # Dynamically inherit from the correct Path subclass based on the operating system.
 if os.name == 'nt':
