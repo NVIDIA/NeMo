@@ -1,11 +1,34 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-
+import torch
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
 
 
 class TestNsysCallback:
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self):
+        self.cuda_mock = patch('torch.cuda')
+        self.cudart_mock = patch('torch.cuda.cudart')
+        self.emit_nvtx_mock = patch('torch.autograd.profiler.emit_nvtx')
+        self.get_rank_mock = patch('nemo.lightning.pytorch.callbacks.nsys.get_rank')
+
+        self.cuda_mock.start()
+        self.cudart_mock.start()
+        self.emit_nvtx_mock.start()
+        self.get_rank_mock.start()
+
+        # Mock CUDA availability
+        torch.cuda.is_available = MagicMock(return_value=True)
+        torch.cuda.current_device = MagicMock(return_value=0)
+
+        yield
+
+        self.cuda_mock.stop()
+        self.cudart_mock.stop()
+        self.emit_nvtx_mock.stop()
+        self.get_rank_mock.stop()
+    
     @pytest.fixture
     def mock_trainer(self):
         trainer = MagicMock()
@@ -149,11 +172,9 @@ class TestNsysCallback:
             mock_cudart().cudaProfilerStart.assert_not_called()
             mock_emit_nvtx.assert_not_called()
 
-    @patch('nemo.lightning.pytorch.callbacks.nsys.get_rank')
-    @patch('torch.cuda.cudart')
-    def test_single_profile_range(self, mock_cudart, mock_get_rank, mock_trainer, mock_pl_module):
+    def test_single_profile_range(self, mock_trainer, mock_pl_module):
         """Test behavior with a single profile range."""
-        mock_get_rank.return_value = 0
+        self.get_rank_mock.return_value = 0
         callback = NsysCallback(start_step=10, end_step=40, ranks=[0])
 
         # Ensure the device type is 'cuda'
@@ -161,12 +182,12 @@ class TestNsysCallback:
 
         # Start of range
         callback.on_train_batch_start(mock_trainer, mock_pl_module, None, 10)
-        assert mock_cudart().cudaProfilerStart.call_count == 1, "cudaProfilerStart was not called"
+        assert self.cudart_mock().cudaProfilerStart.call_count == 1, "cudaProfilerStart was not called"
 
         # Middle of range
         callback.on_train_batch_start(mock_trainer, mock_pl_module, None, 25)
-        assert mock_cudart().cudaProfilerStart.call_count == 1, "cudaProfilerStart was called again"
+        assert self.cudart_mock().cudaProfilerStart.call_count == 1, "cudaProfilerStart was called again"
 
         # End of range
         callback.on_train_batch_end(mock_trainer, mock_pl_module, None, None, 40)
-        assert mock_cudart().cudaProfilerStop.call_count == 1, "cudaProfilerStop was not called"
+        assert self.cudart_mock().cudaProfilerStop.call_count == 1, "cudaProfilerStop was not called"
