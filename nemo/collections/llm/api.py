@@ -1,6 +1,6 @@
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Callable, Literal, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import pytorch_lightning as pl
 from typing_extensions import Annotated
@@ -148,7 +148,7 @@ def finetune(
     log: Annotated[Optional[NeMoLogger], Config[NeMoLogger]] = None,
     resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
-    peft: Optional[PEFT] = None,
+    peft: Optional[Union[PEFT, ModelTransform, Callable]] = None,
 ) -> Path:
     """
     Finetunes a model using the specified data and trainer, with optional logging, resuming, and PEFT.
