@@ -94,10 +94,47 @@ def pretrain(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
     trainer: Trainer,
-    source: Optional[str] = None,
-    # export: Optional[str] = None
+    log: Annotated[Optional[NeMoLogger], Config[NeMoLogger]] = None,
+    resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
+    optim: Optional[OptimizerModule] = None,
 ) -> Path:
-    return train(model=model, data=data, trainer=trainer, tokenizer="data", source=source)
+    """
+    Pretrains a model using the specified data and trainer, with optional logging, resuming, and optimization.
+
+    This function is a wrapper around the `train` function, specifically configured for pretraining tasks.
+    It uses the tokenizer from the model.
+
+    Args:
+        model (pl.LightningModule): The model to be pretrained.
+        data (pl.LightningDataModule): The data module containing pretraining data.
+        trainer (Trainer): The trainer instance configured with a MegatronStrategy.
+        log (NeMoLogger): A nemologger instance.
+        resume (Optional[AutoResume]): Resume training from a checkpoint.
+        optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default
+            optimizer from the model will be used.
+
+    Returns:
+        Path: The directory path where pretraining artifacts are saved.
+
+    Examples:
+        >>> from nemo.collections import llm
+        >>> from nemo import lightning as nl
+        >>> model = llm.MistralModel()
+        >>> data = llm.PretrainingDataModule(paths=[...], seq_length=4096, global_batch_size=16, micro_batch_size=2)
+        >>> precision = nl.MegatronMixedPrecision(precision="bf16-mixed")
+        >>> trainer = nl.Trainer(strategy=nl.MegatronStrategy(tensor_model_parallel_size=2), plugins=precision)
+        >>> llm.pretrain(model, data, trainer)
+        PosixPath('/path/to/log_dir')
+    """
+    return train(
+        model=model,
+        data=data,
+        trainer=trainer,
+        log=log,
+        resume=resume,
+        optim=optim,
+        tokenizer="model",
+    )
 
 
 @task(namespace="llm")
