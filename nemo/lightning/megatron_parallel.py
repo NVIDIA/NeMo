@@ -28,8 +28,10 @@ from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor, nn
+from typing_extensions import override
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
+ModelT = TypeVar("ModelT", bound=nn.Module)
 
 
 @runtime_checkable
@@ -55,7 +57,21 @@ def default_forward_step(model: nn.Module, batch, *args, **kwargs) -> torch.Tens
     return model(batch, *args, **kwargs)
 
 
-class MegatronParallel(nn.ModuleList):
+def extract_ddp_funcs(ddp_config, pipeline):
+    no_sync_func, grad_sync_func = None, None
+
+    if getattr(ddp_config, "overlap_grad_reduce", False):
+        no_sync_func = [model_chunk.no_sync for model_chunk in pipeline]
+        no_sync_func = no_sync_func[0] if len(pipeline) == 1 else no_sync_func
+        # TODO(@akoumparouli): why is True default here?
+        if getattr(ddp_config, "delay_grad_reduce", True):
+            grad_sync_func = [model_chunk.start_grad_sync for model_chunk in pipeline]
+            grad_sync_func = grad_sync_func[0] if len(pipeline) == 1 else grad_sync_func
+
+    return no_sync_func, grad_sync_func
+
+
+class MegatronParallel(nn.ModuleList, Generic[ModelT]):
     """Implements distributed model parallelism that is based on Megatron-LM.
 
     This supports various forms of parallelism:
@@ -101,16 +117,16 @@ class MegatronParallel(nn.ModuleList):
 
     def __init__(
         self,
-        pipeline: Union[nn.Module, Iterable[nn.Module]],
+        pipeline: Union[ModelT, Iterable[ModelT]],
         precision_plugin: Optional[PrecisionPluginProtocol] = None,
         callbacks: Optional["CallbackConnector"] = None,
         data_step: Optional[Callable[[Iterator[DataT]], DataT]] = None,
-        forward_step: Optional[Callable[[nn.Module, DataT], Tensor]] = None,
-        loss_reduction: Optional[Callable[[nn.Module], "MegatronLossReduction"]] = None,
+        forward_step: Optional[Callable[[ModelT, DataT], Tensor]] = None,
+        loss_reduction: Optional[Callable[[ModelT], "MegatronLossReduction"]] = None,
         vp_size: Optional[int] = None,
         ddp_config: Optional[DistributedDataParallelConfig] = None,
         cpu: bool = False,
-        convert_module_fn: Optional[Callable[[nn.Module], nn.Module]] = None,
+        convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
         from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
         from megatron.core import parallel_state
@@ -156,6 +172,12 @@ class MegatronParallel(nn.ModuleList):
                 model_chunk.module = ddp
                 model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
                 model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
+
+            # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
+            no_sync_func, grad_sync_func = extract_ddp_funcs(ddp_config, _pipeline)
+            for module in _pipeline:
+                module.config.no_sync_func = no_sync_func
+                module.config.grad_sync_func = grad_sync_func
 
         for i, model_module in enumerate(_pipeline):
             if not cpu:
@@ -524,17 +546,36 @@ class MegatronParallel(nn.ModuleList):
         raise ValueError("Could not find sharded state dict")
 
     @property
-    def pipeline(self) -> Union[nn.Module, List[nn.Module]]:
+    def pipeline(self) -> Union[ModelT, List[ModelT]]:
         if len(self) == 1:
             return self[0]
         else:
             return list(self)
 
     @property
+    def module(self) -> ModelT:
+        return self[0]
+
+    @property
     def forward_backward_func(self) -> "MegatronStepProtocol":
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
         return get_forward_backward_func()
+
+    @override
+    def __getattr__(self, item: Any) -> Any:
+        if len(self) == 0:
+            return super().__getattr__(item)
+
+        try:
+            # __getattr__ gets called as a last resort if the attribute does not exist
+            # call nn.Module's implementation first
+            return super().__getattr__(item)
+        except AttributeError:
+            # If the attribute is not available on the _FabricModule wrapper, redirect to the wrapped nn.Module
+            attr = getattr(self._modules[self._get_abs_string_index(0)], item)
+
+            return attr
 
 
 class _ModuleStepFunction:
