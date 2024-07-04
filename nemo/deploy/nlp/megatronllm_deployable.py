@@ -130,6 +130,10 @@ class MegatronLLMDeployable(ITritonDeployable):
                 nemo_checkpoint_filepath, trainer=trainer, return_config=True
             )
             # transformer_engine should always be true according to EricH, but GPT-2B model will fail if it is enabled
+            if not custom_config.transformer_engine:
+                LOGGER.warning("MegatronLLMDeployable expects model config transformer_engine=True, but this model has it =False. "
+                               "Overriding it to =True, but this may break certain checkpoints converted on older Nemo versions. "
+                               "If your model breaks, please try re-converting the checkpoint on the current Nemo version.")
             custom_config.transformer_engine = True
             # using multi-gpu for tensor parallelism directly for now, could do pipeline parallel instead or a combination
             custom_config.tensor_model_parallel_size = num_devices
