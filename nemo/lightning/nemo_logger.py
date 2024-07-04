@@ -12,12 +12,13 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLM
 from pytorch_lightning.loggers import Logger, TensorBoardLogger, WandbLogger
 
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
+from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
 
 @dataclass
-class NeMoLogger:
+class NeMoLogger(IOMixin):
     """Logger for NeMo runs.
 
     Args:

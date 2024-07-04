@@ -1,6 +1,6 @@
 from copy import deepcopy
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Literal, Optional, Union
 
 import pytorch_lightning as pl
 from typing_extensions import Annotated
@@ -11,6 +11,9 @@ from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
 
 
+TokenizerType = Any
+
+
 @task(namespace="llm")
 def train(
     model: pl.LightningModule,
@@ -19,7 +22,7 @@ def train(
     log: Annotated[Optional[NeMoLogger], Config[NeMoLogger]] = None,
     resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
-    tokenizer: Optional[str] = None,
+    tokenizer: Optional[TokenizerType] = None,
     model_transform: Optional[Union[PEFT, ModelTransform, Callable]] = None,
     # TODO: Fix export export: Optional[str] = None,
 ) -> Path:
@@ -34,7 +37,7 @@ def train(
         resume (Optional[Union[AutoResume, Resume]]): Resume training from a checkpoint.
         optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
             from the model will be used.
-        tokenizer (Optional[str]): Tokenizer setting to be applied. Can be 'data' or 'model'.
+        tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model' or an instance of TokenizerSpec.
         export (Optional[str]): Filename to save the exported checkpoint after training.
         model_transform (Optional[Union[Callable[[nn.Module], nn.Module], PEFT]]): A model transform to be applied.
 
@@ -244,11 +247,22 @@ def export_ckpt(
     return io.export_ckpt(path, target, output_path, overwrite, load_connector)
 
 
-def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, tokenizer: str) -> None:
+def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, tokenizer: TokenizerType) -> None:
     if tokenizer == "data":
         _set_with_io(model, "tokenizer", data.tokenizer)
     elif tokenizer == "model":
         _set_with_io(data, "tokenizer", model.tokenizer)
+    else:
+        try:
+            from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+            
+            if isinstance(tokenizer, TokenizerSpec):
+                _set_with_io(model, "tokenizer", tokenizer)
+                _set_with_io(data, "tokenizer", tokenizer)
+            else:
+                raise ValueError(f"Expected TokenizerSpec or 'data' or 'model', got: {tokenizer}")
+        except ImportError:
+            raise ValueError("TokenizerSpec is not available")
 
 
 def _set_with_io(obj, attr, value):
