@@ -17,7 +17,7 @@ import shutil
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from time import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import pytorch_lightning as pl
 from lightning_fabric.plugins import CheckpointIO
@@ -33,6 +33,7 @@ try:
     from megatron.core.dist_checkpointing.dict_utils import extract_matching_values
     from megatron.core.dist_checkpointing.mapping import ShardedBase
     from megatron.core.dist_checkpointing.strategies import tensorstore
+    from megatron.core.dist_checkpointing.validation import StrictHandling
 
     from nemo.utils.callbacks.torch_dist_async import AsyncCallsQueue, AsyncRequest, TorchDistAsyncSaveShardedStrategy
 
@@ -183,6 +184,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         self,
         save_ckpt_format: str,
         load_directly_on_device: bool = True,
+        load_strictness: StrictHandling = StrictHandling.ASSUME_OK_UNEXPECTED,
         async_save: bool = False,
     ):
         super().__init__()
@@ -191,6 +193,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
         self.save_ckpt_format = save_ckpt_format
         self.load_directly_on_device = load_directly_on_device
+        self.load_strictness = load_strictness
         self.async_save = async_save
         self.save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
 
@@ -207,6 +210,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         return cls(
             save_ckpt_format=model_cfg.get('dist_ckpt_format', 'zarr'),
             load_directly_on_device=model_cfg.get('dist_ckpt_load_on_device', True),
+            load_strictness=model_cfg.get('dist_ckpt_load_strictness', 'assume_ok_unexpected'),
             async_save=async_save,
         )
 
@@ -241,7 +245,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         path: _PATH,
         map_location: Optional[Any] = None,
         sharded_state_dict: Dict[str, Any] = None,
-        strict: Optional[bool] = True,
+        strict: Union[None, bool, StrictHandling] = None,
         validate_access_integrity: Optional[bool] = True,
     ) -> Dict[str, Any]:
         """Loads a distributed checkpoint.
@@ -253,6 +257,9 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
                 defines the loading procedure for the distributed checkpoint.
                 Defaults to None to comply with the CheckpointIO interface,
                 but it's a required argument.
+            strict (bool, StrictHandling, optional): adjust load strictness. bool value
+                is translated to StrictHandling instance. Defaults to None, in which
+                case `self.load_strictness` is used as a default.
 
         Returns:
             Dist[str, Any]: loaded checkpoint.
@@ -267,39 +274,18 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         else:
             sharded_strategy = None
 
-        if not strict:
-            sharded_state_dict = self.adjust_non_strict_load(path, sharded_state_dict)
+        if strict is None:
+            strict = self.load_strictness
+        elif isinstance(strict, bool):
+            strict = StrictHandling.RAISE_ALL if strict else StrictHandling.LOG_ALL
 
         return dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict,
             checkpoint_dir=path,
             sharded_strategy=sharded_strategy,
             validate_access_integrity=validate_access_integrity,
+            strict=strict,
         )
-
-    def adjust_non_strict_load(self, path: _PATH, sharded_state_dict: Dict[str, Any]):
-        ckpt_sharded_metadata = dist_checkpointing.load_tensors_metadata(path)
-        loaded_keys = []
-        missing_keys = []
-        unexpected_keys = []
-
-        def should_remove_missing_sharded_base(x: Any):
-            if isinstance(x, ShardedBase):
-                if x.key in ckpt_sharded_metadata:
-                    loaded_keys.append(x.key)
-                    return False
-                else:
-                    unexpected_keys.append(x.key)
-                    return True
-            return False
-
-        _, sharded_state_dict = extract_matching_values(sharded_state_dict, should_remove_missing_sharded_base)
-        logging.info(f'The following keys are not in the checkpoint and will not be loaded: {unexpected_keys}')
-
-        # TODO: compute missing_keys by:
-        #  1. all_gather_object of loaded_keys
-        #  2. missing_keys = ckpt_sharded_metadata.keys() - loaded_keys
-        return sharded_state_dict
 
     @_debug_time('DistributedCheckpointIO.remove_checkpoint')
     def remove_checkpoint(self, path: _PATH) -> None:
