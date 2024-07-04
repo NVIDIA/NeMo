@@ -28,7 +28,7 @@ class TestNsysCallback:
         self.cudart_mock.stop()
         self.emit_nvtx_mock.stop()
         self.get_rank_mock.stop()
-    
+
     @pytest.fixture
     def mock_trainer(self):
         trainer = MagicMock()
