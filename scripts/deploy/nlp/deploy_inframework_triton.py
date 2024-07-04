@@ -46,9 +46,6 @@ def get_args(argv):
     )
     parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
-    parser.add_argument(
-        "-es", '--enable_streaming', default=False, action='store_true', help="Enables streaming sentences."
-    )
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
     args = parser.parse_args(argv)
     return args
@@ -85,7 +82,6 @@ def nemo_deploy(argv):
             max_batch_size=args.max_batch_size,
             port=args.triton_port,
             address=args.triton_http_address,
-            streaming=args.enable_streaming,
         )
 
         LOGGER.info("Triton deploy function will be called.")
