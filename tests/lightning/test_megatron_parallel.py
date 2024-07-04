@@ -1,7 +1,7 @@
 from collections import defaultdict
+from unittest.mock import MagicMock
 
 import pytest
-from unittest.mock import MagicMock
 from megatron.core import parallel_state
 from torch import nn
 
