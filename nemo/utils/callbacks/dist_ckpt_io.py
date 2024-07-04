@@ -176,6 +176,9 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         load_directly_on_device (bool, optional): if True, loads the weights directly
             on GPU. Has effect only for `zarr` based checkpoints (PyT Distributed
             always loads on device). Defaults to True.
+        load_strictness (StrictHandling, optional): defines loading strictness.
+            If not None, overwrites the `strict` flag passed to `load_checkpoint`.
+            Defaults to None.
         async_save (bool): whether to save asynchronously. Should be set to True if
             this class will be wrapped with AsyncFinalizableCheckpointIO.
     """
@@ -184,7 +187,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         self,
         save_ckpt_format: str,
         load_directly_on_device: bool = True,
-        load_strictness: 'StrictHandling' = 'assume_ok_unexpected',
+        load_strictness: Optional['StrictHandling'] = None,
         async_save: bool = False,
     ):
         super().__init__()
@@ -210,7 +213,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         return cls(
             save_ckpt_format=model_cfg.get('dist_ckpt_format', 'zarr'),
             load_directly_on_device=model_cfg.get('dist_ckpt_load_on_device', True),
-            load_strictness=model_cfg.get('dist_ckpt_load_strictness', 'assume_ok_unexpected'),
+            load_strictness=model_cfg.get('dist_ckpt_load_strictness', None),
             async_save=async_save,
         )
 
@@ -258,8 +261,9 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
                 Defaults to None to comply with the CheckpointIO interface,
                 but it's a required argument.
             strict (bool, StrictHandling, optional): adjust load strictness. bool value
-                is translated to StrictHandling instance. Defaults to None, in which
-                case `self.load_strictness` is used as a default.
+                is translated to StrictHandling instance. Gets overwritten by
+                `self.load_strictness`. Defaults to None. If `self.load_strictness`
+                is also None, strict becomes StrictHandling.ASSUME_OK_UNEXPECTED.
 
         Returns:
             Dist[str, Any]: loaded checkpoint.
@@ -274,10 +278,14 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         else:
             sharded_strategy = None
 
-        if strict is None:
-            strict = self.load_strictness
-        elif isinstance(strict, bool):
+        if isinstance(strict, bool):
             strict = StrictHandling.ASSUME_OK_UNEXPECTED if strict else StrictHandling.LOG_ALL
+        if self.load_strictness is not None:
+            # Overwrites function argument
+            strict = self.load_strictness
+        if strict is None:
+            # Default behavior
+            strict = StrictHandling.ASSUME_OK_UNEXPECTED
 
         return dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict,
