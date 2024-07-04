@@ -241,8 +241,8 @@ def run_trt_llm_inference(
             nemo_checkpoint_path=checkpoint_path,
             model_type=model_type,
             n_gpus=n_gpu,
-            tensor_parallel_size=tp_size,
-            pipeline_parallel_size=pp_size,
+            tensor_parallelism_size=tp_size,
+            pipeline_parallelism_size=pp_size,
             max_input_len=max_input_len,
             max_output_len=max_output_len,
             max_batch_size=max_batch_size,
@@ -252,7 +252,6 @@ def run_trt_llm_inference(
             max_num_tokens=int(max_input_len * max_batch_size * 0.2),
             opt_num_tokens=60,
             use_embedding_sharing=use_embedding_sharing,
-            save_nemo_model_config=True,
         )
 
         if ptuning:

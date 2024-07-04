@@ -26,12 +26,14 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLM
 from pytorch_lightning.callbacks.model_checkpoint import _is_local_file_protocol
 from pytorch_lightning.utilities import rank_zero_info
 
+from nemo.lightning.io.mixin import IOMixin
+from nemo.lightning.io.pl import TrainerContext
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import ckpt_to_dir
 
 
-class ModelCheckpoint(PTLModelCheckpoint):
+class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
 
     UNFINISHED_CHECKPOINT_SUFFIX = "-unfinished"
 
@@ -48,10 +50,12 @@ class ModelCheckpoint(PTLModelCheckpoint):
         train_time_interval: Optional[timedelta] = None,
         save_best_model: bool = False,
         save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
+        enable_nemo_ckpt_io: bool = True,
         **kwargs,
     ):
         self.save_best_model = save_best_model
         self.previous_best_path = ""
+        self.enable_nemo_ckpt_io = enable_nemo_ckpt_io
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(
@@ -82,11 +86,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             log_dir = app_state.log_dir
 
             # Check to see if any files exist that need to be moved
-            files_to_move = []
-            if Path(log_dir).exists():
-                for child in Path(log_dir).iterdir():
-                    if child.is_file():
-                        files_to_move.append(child)
+            files_to_move = app_state.files_to_move
 
             if len(files_to_move) > 0:
                 # Move old files to a new folder
@@ -96,25 +96,34 @@ class ModelCheckpoint(PTLModelCheckpoint):
                     if fold.is_dir():
                         run_count += 1
                 new_run_dir = Path(Path(log_dir) / f"run_{run_count}")
-                new_run_dir.mkdir()
-                for _file in files_to_move:
-                    shutil.move(str(_file), str(new_run_dir))
+                if not new_run_dir.exists():
+                    new_run_dir.mkdir()
+                    for _file in files_to_move:
+                        shutil.move(str(_file), str(new_run_dir))
 
             # Move files_to_copy to folder and add git information if present
             if app_state.files_to_copy:
                 for _file in app_state.files_to_copy:
-                    shutil.copy(Path(_file), log_dir)
+                    src_path = Path(_file)
+                    dst_path = Path(log_dir) / src_path.name
+                    if not dst_path.exists():
+                        shutil.copy(src_path, dst_path)
 
             # Create files for cmd args and git info
-            with open(log_dir / 'cmd-args.log', 'w', encoding='utf-8') as _file:
-                _file.write(" ".join(app_state.cmd_args))
+            if app_state.cmd_args:
+                cmd_args_file = log_dir / 'cmd-args.log'
+                if not cmd_args_file.exists():
+                    with open(cmd_args_file, 'w', encoding='utf-8') as _file:
+                        _file.write(" ".join(app_state.cmd_args))
 
             # Try to get git hash
             git_repo, git_hash = get_git_hash()
             if git_repo:
-                with open(log_dir / 'git-info.log', 'w', encoding='utf-8') as _file:
-                    _file.write(f'commit hash: {git_hash}')
-                    _file.write(get_git_diff())
+                git_info_file = log_dir / 'git-info.log'
+                if not git_info_file.exists():
+                    with open(git_info_file, 'w', encoding='utf-8') as _file:
+                        _file.write(f'commit hash: {git_hash}\n')
+                        _file.write(get_git_diff())
 
             # Add err_file logging to global_rank zero
             logging.add_err_file_handler(log_dir / 'nemo_error_log.txt')
@@ -366,6 +375,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
         ema_callback = self._ema_callback(trainer)
+
         if ema_callback is not None:
             with ema_callback.save_original_optimizer_state(trainer):
                 super()._save_checkpoint(trainer, filepath)
@@ -393,6 +403,11 @@ class ModelCheckpoint(PTLModelCheckpoint):
             logging.debug(f'Finalize callback called for step {global_step}, filepath {filepath}')
             self._last_global_step_saved = global_step
             self._last_checkpoint_saved = filepath
+
+            from nemo.utils.get_rank import is_global_rank_zero
+
+            if self.enable_nemo_ckpt_io and is_global_rank_zero():
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath))
 
             # notify loggers
             if trainer.is_global_zero:

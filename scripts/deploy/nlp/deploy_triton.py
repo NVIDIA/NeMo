@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,10 +19,22 @@ import sys
 from pathlib import Path
 
 from nemo.deploy import DeployPyTriton
-from nemo.deploy.nlp import MegatronLLMDeployable
-from nemo.export import TensorRTLLM
 
 LOGGER = logging.getLogger("NeMo")
+
+megatron_llm_supported = True
+try:
+    from nemo.deploy.nlp import MegatronLLMDeployable
+except Exception as e:
+    LOGGER.warning(f"Cannot import MegatronLLMDeployable, it will not be available. {type(e).__name__}: {e}")
+    megatron_llm_supported = False
+
+trt_llm_supported = True
+try:
+    from nemo.export.tensorrt_llm import TensorRTLLM
+except Exception as e:
+    LOGGER.warning(f"Cannot import the TensorRTLLM exporter, it will not be available. {type(e).__name__}: {e}")
+    trt_llm_supported = False
 
 
 def get_args(argv):
@@ -63,6 +75,8 @@ def get_args(argv):
         "-tmr", "--triton_model_repository", default=None, type=str, help="Folder for the trt-llm conversion"
     )
     parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("-tps", "--tensor_parallelism_size", default=1, type=int, help="Tensor parallelism size")
+    parser.add_argument("-pps", "--pipeline_parallelism_size", default=1, type=int, help="Pipeline parallelism size")
     parser.add_argument(
         "-dt",
         "--dtype",
@@ -88,6 +102,13 @@ def get_args(argv):
         default=False,
         action='store_true',
         help="Disables the remove input padding option.",
+    )
+    parser.add_argument(
+        "-upe",
+        "--use_parallel_embedding",
+        default=False,
+        action='store_true',
+        help='Use parallel embedding feature of TensorRT-LLM.',
     )
     parser.add_argument(
         "-mbm",
@@ -146,11 +167,10 @@ def get_args(argv):
         nargs='?',
         const=None,
         default='TensorRT-LLM',
-        choices=['TensorRT-LLM', 'vLLM', 'In-Framework'],
+        choices=['TensorRT-LLM', 'In-Framework'],
         help="Different options to deploy nemo model.",
     )
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
-
     args = parser.parse_args(argv)
     return args
 
@@ -160,8 +180,8 @@ def get_trtllm_deployable(args):
         trt_llm_path = "/tmp/trt_llm_model_dir/"
         LOGGER.info(
             "/tmp/trt_llm_model_dir/ path will be used as the TensorRT LLM folder. "
-            "Please set this parameter if you'd like to use a path that has already "
-            "included the TensorRT LLM model files."
+            "Please set the --triton_model_repository parameter if you'd like to use a path that already "
+            "includes the TensorRT LLM model files."
         )
         Path(trt_llm_path).mkdir(parents=True, exist_ok=True)
     else:
@@ -218,13 +238,14 @@ def get_trtllm_deployable(args):
                 nemo_checkpoint_path=args.nemo_checkpoint,
                 model_type=args.model_type,
                 n_gpus=args.num_gpus,
-                tensor_parallel_size=args.num_gpus,
-                pipeline_parallel_size=1,
+                tensor_parallelism_size=args.tensor_parallelism_size,
+                pipeline_parallelism_size=args.pipeline_parallelism_size,
                 max_input_len=args.max_input_len,
                 max_output_len=args.max_output_len,
                 max_batch_size=args.max_batch_size,
                 max_num_tokens=args.max_num_tokens,
                 opt_num_tokens=args.opt_num_tokens,
+                use_parallel_embedding=args.use_parallel_embedding,
                 max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
                 paged_kv_cache=(not args.no_paged_kv_cache),
                 remove_input_padding=(not args.disable_remove_input_padding),
@@ -233,7 +254,6 @@ def get_trtllm_deployable(args):
                 use_lora_plugin=args.use_lora_plugin,
                 lora_target_modules=args.lora_target_modules,
                 max_lora_rank=args.max_lora_rank,
-                save_nemo_model_config=True,
             )
         except Exception as error:
             raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))
@@ -282,11 +302,13 @@ def nemo_deploy(argv):
 
     backend = args.backend.lower()
     if backend == 'tensorrt-llm':
+        if not trt_llm_supported:
+            raise ValueError("TensorRT-LLM engine is not supported in this environment.")
         triton_deployable = get_trtllm_deployable(args)
     elif backend == 'in-framework':
+        if not megatron_llm_supported:
+            raise ValueError("MegatronLLMDeployable is not supported in this environment.")
         triton_deployable = get_nemo_deployable(args)
-    elif backend == 'vllm':
-        raise ValueError("vLLM will be supported in the next release.")
     else:
         raise ValueError("Backend: {0} is not supported.".format(backend))
 
