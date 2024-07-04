@@ -220,6 +220,3 @@ class NeMoLogger(IOMixin):
 
         app_state.files_to_move = files_to_move
         app_state.files_to_copy = self.files_to_copy
-
-    def teardown(self):
-        pass

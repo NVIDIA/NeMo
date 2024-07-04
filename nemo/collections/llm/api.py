@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 from typing_extensions import Annotated
 
 from nemo.collections.llm.utils import Config, task
-from nemo.lightning import AutoResume, MegatronStrategy, NeMoLogger, OptimizerModule, Trainer, io, teardown
+from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
 
@@ -56,38 +56,18 @@ def train(
         >>> train(model, data, trainer, tokenizer="data")
         PosixPath('/path/to/log_dir')
     """
-    _log = log or NeMoLogger()
-    if resume and resume.adapter_path and _log.ckpt:
-        logging.info(f"Disabling try_restore_best_ckpt restoration for adapters")
-        _log.ckpt.try_restore_best_ckpt = False
-
-    app_state = _log.setup(
-        trainer,
-        resume_if_exists=getattr(resume, "resume_if_exists", False),
-        task_config=getattr(train, "__io__", None),
+    app_state = _setup(
+        model=model, 
+        data=data, 
+        trainer=trainer, 
+        log=log, 
+        resume=resume, 
+        optim=optim, 
+        tokenizer=tokenizer, 
+        model_transform=model_transform
     )
-    if resume is not None:
-        resume.setup(model, trainer)
-
-    if optim:
-        optim.connect(model)
-    if tokenizer:  # TODO: Improve this
-        _use_tokenizer(model, data, tokenizer)
-
-    if model_transform:
-        _set_with_io(model, "model_transform", model_transform)
-
-    # Add ModelTransform callback to Trainer if needed
-    if getattr(model, "model_transform", None):
-        if not any(isinstance(cb, ModelTransform) for cb in trainer.callbacks):
-            if isinstance(model_transform, ModelTransform):
-                trainer.callbacks.append(model_transform)
-            else:
-                trainer.callbacks.append(ModelTransform())
 
     trainer.fit(model, data)
-
-    _log.teardown()
 
     return app_state.exp_dir
 
@@ -105,7 +85,7 @@ def pretrain(
     Pretrains a model using the specified data and trainer, with optional logging, resuming, and optimization.
 
     This function is a wrapper around the `train` function, specifically configured for pretraining tasks.
-    It uses the tokenizer from the model.
+    Note, by default it will use the tokenizer from the model.
 
     Args:
         model (pl.LightningModule): The model to be pretrained.
@@ -136,7 +116,7 @@ def pretrain(
         log=log,
         resume=resume,
         optim=optim,
-        tokenizer="model",
+        tokenizer="data",
     )
 
 
@@ -153,7 +133,7 @@ def finetune(
     """
     Finetunes a model using the specified data and trainer, with optional logging, resuming, and PEFT.
 
-    It will use the tokenizer from the model.
+    Note, by default it will use the tokenizer from the model.
 
     Args:
         model (pl.LightningModule): The model to be finetuned.
@@ -196,30 +176,53 @@ def validate(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
     trainer: Trainer,
-    tokenizer: Optional[str] = None,
-    source: Optional[str] = None,
-    export: Optional[str] = None,
+    log: Annotated[Optional[NeMoLogger], Config[NeMoLogger]] = None,
+    resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
+    optim: Optional[OptimizerModule] = None,
+    tokenizer: Optional[TokenizerType] = None,
+    model_transform: Optional[Union[PEFT, ModelTransform, Callable]] = None,
 ) -> Path:
-    if not isinstance(trainer.strategy, MegatronStrategy):
-        raise ValueError("Only MegatronStrategy is supported")
+    """
+    Validates a model using the specified data and trainer, with optional logging, resuming, and model transformations.
 
-    validate_kwargs = {}
-    run_dir = Path(trainer.logger.log_dir)
-    export_dir = run_dir / "export"
+    Args:
+        model (pl.LightningModule): The model to be validated.
+        data (pl.LightningDataModule): The data module containing validation data.
+        trainer (Trainer): The trainer instance configured with a MegatronStrategy.
+        log (NeMoLogger): A nemologger instance.
+        resume (Optional[AutoResume]): Resume from a checkpoint for validation.
+        optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
+            from the model will be used.
+        tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model' or an instance of TokenizerSpec.
+        model_transform (Optional[Union[Callable[[nn.Module], nn.Module], PEFT]]): A model transform to be applied.
 
-    if tokenizer:  # TODO: Improve this
-        _use_tokenizer(model, data, tokenizer)
-    if source:
-        _add_ckpt_path(source, model, validate_kwargs)
+    Returns:
+        Path: The directory path where validation artifacts are saved.
 
-    trainer.validate(model, data, **validate_kwargs)
-    trainer.save_checkpoint(export_dir)
-    if export:
-        teardown(trainer)
-        del trainer, model, data
-        export_ckpt(export_dir, export)
+    Examples:
+        >>> from nemo.collections import llm
+        >>> from nemo import lightning as nl
+        >>> model = llm.MistralModel()
+        >>> data = llm.SquadDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
+        >>> precision = nl.MegatronMixedPrecision(precision="bf16-mixed")
+        >>> trainer = nl.Trainer(strategy=nl.MegatronStrategy(tensor_model_parallel_size=2), plugins=precision)
+        >>> validate(model, data, trainer, tokenizer="data")
+        PosixPath('/path/to/log_dir')
+    """
+    app_state = _setup(
+        model=model, 
+        data=data, 
+        trainer=trainer, 
+        log=log, 
+        resume=resume, 
+        optim=optim, 
+        tokenizer=tokenizer, 
+        model_transform=model_transform
+    )
+    
+    trainer.validate(model, data)
 
-    return run_dir
+    return app_state.exp_dir
 
 
 @task(name="import", namespace="llm")
@@ -265,23 +268,49 @@ def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, toke
             raise ValueError("TokenizerSpec is not available")
 
 
+def _setup(
+    model: pl.LightningModule,
+    data: pl.LightningDataModule,
+    trainer: Trainer,
+    log: Optional[NeMoLogger],
+    resume: Optional[AutoResume],
+    optim: Optional[OptimizerModule],
+    tokenizer: Optional[TokenizerType],
+    model_transform: Optional[Union[PEFT, ModelTransform, Callable]]
+) -> Any:  # Return type is Any because app_state's type is not specified
+    _log = log or NeMoLogger()
+    if resume and resume.adapter_path and _log.ckpt:
+        logging.info("Disabling try_restore_best_ckpt restoration for adapters")
+        _log.ckpt.try_restore_best_ckpt = False
+
+    app_state = _log.setup(
+        trainer,
+        resume_if_exists=getattr(resume, "resume_if_exists", False),
+        task_config=getattr(train, "__io__", None),
+    )
+    if resume is not None:
+        resume.setup(model, trainer)
+
+    if optim:
+        optim.connect(model)
+    if tokenizer:  # TODO: Improve this
+        _use_tokenizer(model, data, tokenizer)
+
+    if model_transform:
+        _set_with_io(model, "model_transform", model_transform)
+
+    # Add ModelTransform callback to Trainer if needed
+    if getattr(model, "model_transform", None):
+        if not any(isinstance(cb, ModelTransform) for cb in trainer.callbacks):
+            if isinstance(model_transform, ModelTransform):
+                trainer.callbacks.append(model_transform)
+            else:
+                trainer.callbacks.append(ModelTransform())
+
+    return app_state
+
+
 def _set_with_io(obj, attr, value):
     setattr(obj, attr, value)
     if hasattr(obj, "__io__") and hasattr(value, "__io__"):
         setattr(obj.__io__, attr, deepcopy(value.__io__))
-
-
-def _add_ckpt_path(source, model, kwargs) -> None:
-    if io.is_distributed_ckpt(source):
-        kwargs["ckpt_path"] = source
-    else:
-        kwargs["ckpt_path"] = model.import_ckpt(source)
-
-
-def _save_config_img(*args, **kwargs):
-    try:
-        from nemo_sdk.utils import save_config_img
-
-        save_config_img(*args, **kwargs)
-    except ImportError:
-        pass

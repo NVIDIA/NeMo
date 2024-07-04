@@ -1,11 +1,8 @@
-import logging
-
 import pytest
 import pytorch_lightning as pl
-import torch
 from torch import nn
 
-from nemo.lightning.pytorch.callbacks.model_transform import MODEL_TRANSFORM, ModelTransform, _call_counter
+from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 
 
 class TestModelTransformCallback:

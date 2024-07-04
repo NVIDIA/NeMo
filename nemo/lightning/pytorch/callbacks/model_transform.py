@@ -2,13 +2,10 @@ from functools import wraps
 from typing import Any, Callable, Optional, TypeVar
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import model_summary
 from torch import nn
 
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
-
-MODEL_TRANSFORM = None
 
 
 class ModelTransform(pl.Callback, IOMixin):

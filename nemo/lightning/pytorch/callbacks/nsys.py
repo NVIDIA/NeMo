@@ -1,4 +1,4 @@
-from typing import List, Optional, Union
+from typing import List, Optional
 
 import torch
 from pytorch_lightning.callbacks.callback import Callback

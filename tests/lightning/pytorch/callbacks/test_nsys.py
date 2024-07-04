@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
-from nemo.utils.get_rank import get_rank
 
 
 class TestNsysCallback:

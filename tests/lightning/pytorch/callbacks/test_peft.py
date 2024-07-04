@@ -1,10 +1,7 @@
+
 from unittest.mock import MagicMock, patch
 
-import pytest
-import pytorch_lightning as pl
-import torch
 import torch.nn as nn
-
 from nemo.collections.llm import fn
 from nemo.lightning.pytorch.callbacks.peft import PEFT, WrappedAdapterIO
 
