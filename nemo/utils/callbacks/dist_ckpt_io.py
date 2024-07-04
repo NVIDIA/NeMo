@@ -277,7 +277,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         if strict is None:
             strict = self.load_strictness
         elif isinstance(strict, bool):
-            strict = StrictHandling.RAISE_ALL if strict else StrictHandling.LOG_ALL
+            strict = StrictHandling.ASSUME_OK_UNEXPECTED if strict else StrictHandling.LOG_ALL
 
         return dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict,
