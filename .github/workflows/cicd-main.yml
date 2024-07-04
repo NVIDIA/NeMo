@@ -2352,10 +2352,8 @@ jobs:
 
   L2_Megatron_GPT_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-gpus-2-h100
     timeout-minutes: 10
-    with:
-        RUNNER: self-hosted-azure-gpus-2-h100
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
