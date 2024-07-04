@@ -255,7 +255,7 @@ def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, toke
     else:
         try:
             from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-            
+
             if isinstance(tokenizer, TokenizerSpec):
                 _set_with_io(model, "tokenizer", tokenizer)
                 _set_with_io(data, "tokenizer", tokenizer)
