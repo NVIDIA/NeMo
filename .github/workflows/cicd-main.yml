@@ -2354,6 +2354,8 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     timeout-minutes: 10
+    with:
+        RUNNER: self-hosted-azure-gpus-2-h100
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -2378,8 +2380,6 @@ jobs:
       #UB_SKIPMC: ""
       # Increase p2p chunksize to 2MB
       NCCL_P2P_NET_CHUNKSIZE: 2097152
-      # Enable per-communicator nccl option tuning
-      NCCL_CFG_PATH: "/workspace/llm/conf/nccl/custom_communicator_cta.yaml"
       # Disable gc when switching to/from validation steps
       NEMO_MANUAL_GC_IN_VALIDATION: 0
     steps:
