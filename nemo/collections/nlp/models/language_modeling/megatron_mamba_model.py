@@ -45,14 +45,16 @@ class MegatronMambaModel(MegatronGPTModel):
         self.transformer_config.layernorm_epsilon = self.cfg.get('layernorm_epsilon', 1e-5)
 
         # TODO @ataghibakhsh: add mamba_ssm_ngroups=self.cfg.get('mamba_ssm_ngroups', 8) once MLM MR merged
-
-        model = MambaModel(
+        # TODO @ataghibakhsh: add the following
+        '''MambaModel(
             config=self.transformer_config,
             max_sequence_length=self.cfg.get('encoder_seq_length', 4096),
             vocab_size=self.cfg.get('vocab_size', 65536),
             mamba_stack_spec=mamba_stack_spec,
             hybrid_override_pattern=self.hybrid_override_pattern,
-        )
+        )'''
+        # after package mismatch is resovled
+        model = None
 
         return model
 
