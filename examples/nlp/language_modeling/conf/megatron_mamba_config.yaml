@@ -59,7 +59,7 @@ model:
   gated_linear_unit: False
   add_bias_linear: False
   num_query_groups: 8
-  ngroups_mamba: 8
+  mamba_ssm_ngroups: 8
   attention_dropout: 0.0
   hidden_dropout: 0.0
   hidden_size: 4096

@@ -16,7 +16,7 @@ import os
 import tarfile
 import tempfile
 from argparse import ArgumentParser
-
+import re
 import torch
 from omegaconf import open_dict
 from pytorch_lightning import Trainer
@@ -50,16 +50,6 @@ python /opt/NeMo/examples/nlp/language_modeling/mamba_change_num_partition.py \
     --mamba2-n-groups=8 \
     --mamba2-head-dim=64
 """
-
-
-import argparse
-import copy
-import os
-import re
-import shutil
-from collections import OrderedDict
-
-import torch
 
 tp_split_dim = {
     'word_embeddings.weight': 0,
@@ -258,15 +248,6 @@ def write_tp_pp_split(model, splits, app_state, tp_size, pp_rank, write_path):
             logging.info(f"Writing pp rank {pp_rank} tp rank {tp_rank} to file {write_path}")
             model.save_to(write_path)
 
-
-def debug_log_split_param_diff(idx, param, param_name, partitions):
-    # Log some useful comparison of tensors that are being mapped.
-    # Note that the global param index for layers and modules may be different but the shapes
-    # and semantics of the layer should match.
-    logging.debug(f"Index: {idx} Model Params : {param_name} - {param.shape}")
-    logging.debug(f"Index: {idx} Global params: {partitions[1][idx]} - {partitions[0][idx].shape}")
-
-
 ##################
 ### Converters ###
 ##################
@@ -464,7 +445,6 @@ def main():
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
         # Set precision None after precision plugins are created as PTL >= 2.1 does not allow both
         # precision plugins and precision to exist
-        precision = None
     trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
 
     if tp_size < 0 or pp_size < 0:

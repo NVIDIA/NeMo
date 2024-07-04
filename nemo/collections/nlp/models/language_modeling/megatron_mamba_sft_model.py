@@ -20,10 +20,6 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_model import Me
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
 
-try:
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
 
 __all__ = ['MegatronMambaSFTModel']
 
@@ -34,10 +30,6 @@ class MegatronMambaSFTModel(MegatronGPTSFTModel, MegatronMambaModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
 
         super().__init__(cfg, trainer=trainer)
         self.mcore_gpt = True

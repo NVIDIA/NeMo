@@ -30,7 +30,7 @@ CUDA_VISIBLE_DEVICES="0" python /NeMo/scripts/checkpoint_converters/convert_mamb
                                 --input_name_or_path <path to the source pytorch model> \
                                 --output_path <path to target .nemo model> \
                                 --ngroups_mamba 8 \
-                                --precision 32
+                                --precision bf16
 '''
 
 
@@ -122,7 +122,7 @@ def convert(args):
         elif 'mlp' in layer_types:
             layer_pattern += '-'
         else:
-            AssertionError("Layer not found. Each layer must be eiher MLP, Mamba, or Attention")
+            raise AssertionError("Layer not found. Each layer must be eiher MLP, Mamba, or Attention")
 
     nemo_config = OmegaConf.load(args.hparams_file)
     nemo_config.trainer["precision"] = args.precision
