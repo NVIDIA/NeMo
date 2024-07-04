@@ -4,6 +4,7 @@ from typing import Optional, Union
 import lightning_fabric as fl
 import pytorch_lightning as pl
 
+from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
@@ -22,7 +23,7 @@ class Resume:
             trainer.checkpoint_callback.last_model_path = ckpt_path
 
 
-class AutoResume(Resume):
+class AutoResume(Resume, io.IOMixin):
     """Class that handles the logic for setting checkpoint paths and restoring from
     checkpoints in NeMo.
     """
