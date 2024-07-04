@@ -68,6 +68,8 @@ class TestPreemptionCallback:
             patch.object(PreemptionCallback, '_check_preemption_support', return_value=is_supported),
             patch('torch.distributed.broadcast'),
             patch('torch.tensor', return_value=torch.tensor(interrupted)),
+            patch('torch.cuda.is_available', return_value=True),
+            patch('torch.cuda.current_device', return_value=0),
         ):
             callback._interrupted = interrupted
             assert callback.interrupted == expected
