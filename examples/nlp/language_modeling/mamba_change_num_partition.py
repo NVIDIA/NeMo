@@ -413,8 +413,6 @@ def main():
                 'This will cause each ckpt file to be temporarily laoded onto GPU memory!\n\n'
                 'It is highly recommended to pass `hparams_file` argument to avoid this.\n'
             )
-    else:
-        hparams_filepath = None
 
     # Import the class of the model
 

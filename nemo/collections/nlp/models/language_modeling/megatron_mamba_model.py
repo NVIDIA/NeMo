@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+from nemo.utils import logging
 from megatron.core.models.mamba import MambaModel
 from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
 from omegaconf.dictconfig import DictConfig
@@ -30,6 +31,7 @@ class MegatronMambaModel(MegatronGPTModel):
         self.vocab_size = cfg.get('vocab_size', 65536)
         self.cfg = cfg
         super().__init__(cfg=cfg, trainer=trainer)
+        logging.warning("Overriding mcore_gpt=True")
         self.mcore_gpt = True
 
     def model_provider_func(self, pre_process, post_process):
