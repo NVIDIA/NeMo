@@ -184,7 +184,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         self,
         save_ckpt_format: str,
         load_directly_on_device: bool = True,
-        load_strictness: StrictHandling = StrictHandling.ASSUME_OK_UNEXPECTED,
+        load_strictness: 'StrictHandling' = 'assume_ok_unexpected',
         async_save: bool = False,
     ):
         super().__init__()
@@ -245,7 +245,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         path: _PATH,
         map_location: Optional[Any] = None,
         sharded_state_dict: Dict[str, Any] = None,
-        strict: Union[None, bool, StrictHandling] = None,
+        strict: Union[None, bool, 'StrictHandling'] = None,
         validate_access_integrity: Optional[bool] = True,
     ) -> Dict[str, Any]:
         """Loads a distributed checkpoint.
