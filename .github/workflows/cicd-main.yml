@@ -4365,7 +4365,7 @@ jobs:
   #           rm -rf examples/multimodal/text_to_image/nerf/dreamfusion_results
   #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
   #         if: "failure()"
-  
+
   Speech_Checkpoints_tests:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
