@@ -57,14 +57,14 @@ def train(
         PosixPath('/path/to/log_dir')
     """
     app_state = _setup(
-        model=model, 
-        data=data, 
-        trainer=trainer, 
-        log=log, 
-        resume=resume, 
-        optim=optim, 
-        tokenizer=tokenizer, 
-        model_transform=model_transform
+        model=model,
+        data=data,
+        trainer=trainer,
+        log=log,
+        resume=resume,
+        optim=optim,
+        tokenizer=tokenizer,
+        model_transform=model_transform,
     )
 
     trainer.fit(model, data)
@@ -210,16 +210,16 @@ def validate(
         PosixPath('/path/to/log_dir')
     """
     app_state = _setup(
-        model=model, 
-        data=data, 
-        trainer=trainer, 
-        log=log, 
-        resume=resume, 
-        optim=optim, 
-        tokenizer=tokenizer, 
-        model_transform=model_transform
+        model=model,
+        data=data,
+        trainer=trainer,
+        log=log,
+        resume=resume,
+        optim=optim,
+        tokenizer=tokenizer,
+        model_transform=model_transform,
     )
-    
+
     trainer.validate(model, data)
 
     return app_state.exp_dir
@@ -276,7 +276,7 @@ def _setup(
     resume: Optional[AutoResume],
     optim: Optional[OptimizerModule],
     tokenizer: Optional[TokenizerType],
-    model_transform: Optional[Union[PEFT, ModelTransform, Callable]]
+    model_transform: Optional[Union[PEFT, ModelTransform, Callable]],
 ) -> Any:  # Return type is Any because app_state's type is not specified
     _log = log or NeMoLogger()
     if resume and resume.adapter_path and _log.ckpt:
