@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import torch
-from nemo.utils import logging
 from megatron.core.models.mamba import MambaModel
 from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
+
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.utils import logging
 
 
 class MegatronMambaModel(MegatronGPTModel):
