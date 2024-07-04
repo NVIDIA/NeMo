@@ -40,7 +40,7 @@ class MegatronMambaModel(MegatronGPTModel):
         self.transformer_config.add_bias_linear = self.cfg.get('add_bias_linear', False)
         self.transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', False)
         self.transformer_config.layernorm_epsilon = self.cfg.get('layernorm_epsilon', 1e-5)
-        
+
         # TODO @ataghibakhsh: add mamba_ssm_ngroups=self.cfg.get('mamba_ssm_ngroups', 8) once MLM MR merged
 
         model = MambaModel(

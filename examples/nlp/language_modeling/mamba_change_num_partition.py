@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import os
+import re
 import tarfile
 import tempfile
 from argparse import ArgumentParser
-import re
+
 import torch
 from omegaconf import open_dict
 from pytorch_lightning import Trainer
@@ -247,6 +248,7 @@ def write_tp_pp_split(model, splits, app_state, tp_size, pp_rank, write_path):
         if write_path is not None:
             logging.info(f"Writing pp rank {pp_rank} tp rank {tp_rank} to file {write_path}")
             model.save_to(write_path)
+
 
 ##################
 ### Converters ###
