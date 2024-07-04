@@ -7,6 +7,7 @@ import pytorch_lightning as pl
 from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
+from nemo.utils.model_utils import uninject_model_parallel_rank
 
 
 class Resume:
@@ -102,15 +103,15 @@ class AutoResume(Resume, io.IOMixin):
                     warn = f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir :{checkpoint_dir}. "
                     if checkpoint is None:
                         warn += "Training from scratch."
-                    elif checkpoint == resume_from_checkpoint:
-                        warn += f"Training from {resume_from_checkpoint}."
+                    elif checkpoint == self.path:
+                        warn += f"Training from {self.path}."
                     logging.warning(warn)
                 else:
                     raise NotFoundError(
                         f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Cannot resume."
                     )
             elif len(end_checkpoints) > 0:
-                if resume_past_end:
+                if self.resume_past_end:
                     if len(end_checkpoints) > 1:
                         if 'mp_rank' in str(end_checkpoints[0]):
                             checkpoint = end_checkpoints[0]
