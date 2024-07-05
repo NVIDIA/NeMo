@@ -566,10 +566,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     MegatronCheckpointIO(
                         save_ckpt_format='torch_dist',
                         async_save=True,
-                        torch_dist_multiproc=None, ## TODO: make configurable
+                        torch_dist_multiproc=None,  ## TODO: make configurable
                         assume_constant_structure=False,
-                        parallel_save=True, ## TODO: make configurable
-                        parallel_load=True, ## TODO: make configurable
+                        parallel_save=True,  ## TODO: make configurable
+                        parallel_load=True,  ## TODO: make configurable
                     )
                 )
                 self.trainer.callbacks.append(AsyncFinalizerCallback())

@@ -8,13 +8,12 @@ import torch
 from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.types import _PATH
-from torch import nn
-from typing_extensions import Self, override
+from megatron.core.dist_checkpointing.serialization import (
+    get_default_load_sharded_strategy,
+    get_default_save_sharded_strategy,
+)
 
-from nemo.lightning.io.capture import IOProtocol
-from nemo.lightning.io.mixin import IOMixin
-from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
-#from nemo.utils.callbacks.torch_dist_async import TorchDistAsyncSaveShardedStrategy
+# from nemo.utils.callbacks.torch_dist_async import TorchDistAsyncSaveShardedStrategy
 from megatron.core.dist_checkpointing.strategies.async_utils import AsyncCallsQueue, AsyncRequest
 from megatron.core.dist_checkpointing.strategies.base import SaveShardedStrategy
 from megatron.core.dist_checkpointing.strategies.fully_parallel import (
@@ -23,10 +22,12 @@ from megatron.core.dist_checkpointing.strategies.fully_parallel import (
 )
 from megatron.core.dist_checkpointing.strategies.torch import TorchDistSaveShardedStrategy
 from megatron.core.parallel_state import get_data_parallel_group
-from megatron.core.dist_checkpointing.serialization import (
-    get_default_load_sharded_strategy,
-    get_default_save_sharded_strategy,
-)
+from torch import nn
+from typing_extensions import Self, override
+
+from nemo.lightning.io.capture import IOProtocol
+from nemo.lightning.io.mixin import IOMixin
+from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 
 log = logging.getLogger(__name__)
 
