@@ -191,7 +191,7 @@ def get_args(argv):
         "-sha", "--service_http_address", default="0.0.0.0", type=str, help="HTTP address for the REST Service"
     )
     parser.add_argument(
-        "-sp", "--service_port", default=8000, type=int, help="Port for the Triton server to listen for requests"
+        "-sp", "--service_port", default=8080, type=int, help="Port for the REST Service"
     )
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
     parser.add_argument(
