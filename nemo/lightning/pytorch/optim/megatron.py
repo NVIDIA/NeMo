@@ -54,7 +54,7 @@ class MegatronOptimizerModule(OptimizerModule):
         self.scale_lr_cond = scale_lr_cond
         self.lr_mult = lr_mult
 
-    def setup(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str):
+    def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"):
         """We will add the finalize_model_grads function to the model config.
 
         Args:
@@ -106,6 +106,17 @@ class MegatronOptimizerModule(OptimizerModule):
             scale_lr_cond=self.scale_lr_cond,
             lr_mult=self.lr_mult,
         )
+
+        if getattr(model.ddp_config, "overlap_param_sync", False) and getattr(
+            model.ddp_config, "delay_param_gather", False
+        ):
+            param_sync_func = [
+                lambda x, model_index=model_index: mcore_opt.finish_param_sync(model_index, x)
+                for model_index in range(len(pipeline))
+            ]
+            param_sync_func = param_sync_func[0] if len(pipeline) == 1 else param_sync_func
+            for module in model:
+                module.config.param_sync_func = param_sync_func
 
         return [McoreOpt(mcore_opt)]
 
