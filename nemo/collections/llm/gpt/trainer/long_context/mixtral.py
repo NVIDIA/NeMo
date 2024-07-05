@@ -48,7 +48,7 @@ def mixtral_8x3b_64k_trainer(devices=8, amp_O2=False) -> nl.Trainer:
 
 
 @sdk.factory
-def mixtral_8x3b_16k_trainer(devices=8, amp_O2=False) -> nl.Trainer:
+def mixtral_8x7b_16k_trainer(devices=8, amp_O2=False) -> nl.Trainer:
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=8,
         pipeline_model_parallel_size=4,
@@ -68,7 +68,7 @@ def mixtral_8x3b_16k_trainer(devices=8, amp_O2=False) -> nl.Trainer:
 
 
 @sdk.factory
-def mixtral_8x3b_64k_trainer(devices=8, amp_O2=False) -> nl.Trainer:
+def mixtral_8x7b_64k_trainer(devices=8, amp_O2=False) -> nl.Trainer:
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=8,
         pipeline_model_parallel_size=8,
