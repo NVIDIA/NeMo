@@ -31,9 +31,6 @@ EOF
 
 WORKDIR /workspace
 
-RUN git config --global user.name "a" && \
-    git config --global user.email "a"
-
 # Install NeMo requirements
 ARG TE_TAG=7d576ed25266a17a7b651f2c12e8498f67e0baea
 ARG MODELOPT_VERSION=0.13.0
@@ -60,7 +57,6 @@ pip install --no-cache-dir --no-build-isolation --extra-index-url https://pypi.n
 git clone https://github.com/NVIDIA/Megatron-LM.git && \
 pushd Megatron-LM && \
 git checkout ${MCORE_TAG} && \
-git cherry-pick 38d05361f51012826ee8cfad7227f5a07a0ed66b && \
   pushd megatron/core/datasets && \
   make && \
   popd && \
@@ -94,4 +90,3 @@ chmod 777 -R /workspace
 EOF
 
 ENV PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
-
