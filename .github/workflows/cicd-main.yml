@@ -3336,9 +3336,9 @@ jobs:
         +model.fp8_amax_history_len=32 \
         +model.fp8_amax_compute_algo=max \
         +model.reduce_amax=False \
-        +model.ub_tp_comm_overlap=True \
-        +model.tp_comm_overlap_ag=True \
-        +model.tp_comm_overlap_rs=True \
+        +model.ub_tp_comm_overlap=False \
+        +model.tp_comm_overlap_ag=False \
+        +model.tp_comm_overlap_rs=False \
         +model.tp_comm_disable_qkv=True \
         model.peft.peft_scheme='lora' \
         model.peft.lora_tuning.adapter_dim=16 \
