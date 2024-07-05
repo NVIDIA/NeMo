@@ -30,6 +30,7 @@ import os
 
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from torch.export import Dim
 
 from nemo.collections.nlp.models.language_modeling.megatron_bart_model import MegatronBARTModel
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
@@ -74,7 +75,7 @@ def nemo_export(cfg):
     assert nemo_in is not None, "NeMo model not provided. Please provide the path to the .nemo or .ckpt file"
 
     onnx_out = cfg.onnx_model_file
-
+    print(f"onnx_out: {onnx_out}")
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
@@ -149,18 +150,28 @@ def nemo_export(cfg):
     try:
         model.to(device=cfg.export_options.device).freeze()
         model.eval()
+
+        sequence = "sequence"
+        batch = "batch"
+
+        use_dynamo = False
+        if use_dynamo:
+            sequence = Dim("sequence")
+            batch = Dim("batch")
+
         model.export(
             onnx_out,
             onnx_opset_version=cfg.export_options.onnx_opset,
             do_constant_folding=cfg.export_options.do_constant_folding,
-            dynamic_axes={
-                'input_ids': {0: "sequence", 1: "batch"},
-                'position_ids': {0: "sequence", 1: "batch"},
-                'logits': {0: "sequence", 1: "batch"},
-            },
             check_trace=check_trace,
             check_tolerance=cfg.export_options.check_tolerance,
             verbose=cfg.export_options.verbose,
+            dynamic_axes={
+                'input_ids': {0: sequence, 1: batch},
+                'position_ids': {0: sequence, 1: batch},
+                'logits': {0: sequence, 1: batch},
+            },
+            use_dynamo=use_dynamo,
         )
     except Exception as e:
         logging.error(

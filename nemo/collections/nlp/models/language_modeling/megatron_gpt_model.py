@@ -196,7 +196,8 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
 
         self.dtype = utils_funcs.torch_dtype_from_precision(model.cfg.precision)
 
-    def forward(self, tokens, position_ids, attention_mask):
+    def forward(self, input_ids, position_ids, attention_mask):
+        device = str(next(self.parameters()).device)
         if self.fp8_enabled and HAVE_TE:
             with (
                 transformer_engine.pytorch.onnx_export(self.fp8_enabled),
@@ -207,10 +208,12 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
                 warnings.catch_warnings(),
             ):
                 warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning, module=r'.*')
-                assert tokens.shape == position_ids.shape
-                assert attention_mask.shape[2] == attention_mask.shape[3] == tokens.shape[1] == position_ids.shape[1]
+                assert input_ids.shape == position_ids.shape
+                assert (
+                    attention_mask.shape[2] == attention_mask.shape[3] == input_ids.shape[1] == position_ids.shape[1]
+                )
                 output_tensor = self.model.forward(
-                    tokens=tokens.cuda(),
+                    tokens=input_ids.cuda(),
                     text_position_ids=position_ids.cuda(),
                     attention_mask=attention_mask.cuda(),
                     labels=None,
@@ -219,16 +222,18 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
             with (
                 torch.no_grad(),
                 torch.inference_mode(),
-                torch.autocast('cuda', dtype=self.dtype),
+                torch.autocast(device, dtype=self.dtype),
                 warnings.catch_warnings(),
             ):
                 warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning, module=r'.*')
-                assert tokens.shape == position_ids.shape
-                assert attention_mask.shape[2] == attention_mask.shape[3] == tokens.shape[1] == position_ids.shape[1]
+                assert input_ids.shape == position_ids.shape
+                assert (
+                    attention_mask.shape[2] == attention_mask.shape[3] == input_ids.shape[1] == position_ids.shape[1]
+                )
                 output_tensor = self.model.forward(
-                    tokens=tokens.cuda(),
-                    text_position_ids=position_ids.cuda(),
-                    attention_mask=attention_mask.cuda(),
+                    tokens=input_ids.to(device=device),
+                    text_position_ids=position_ids.to(device=device),
+                    attention_mask=attention_mask.to(device=device),
                     labels=None,
                 )
 

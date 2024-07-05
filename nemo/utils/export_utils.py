@@ -72,10 +72,12 @@ class LinearWithBiasSkip(nn.Module):
         self.weight = weight
         self.skip_bias_add = skip_bias_add
 
-    def forward(self, x):
+    def forward(self, x, weight=None):
+        if weight is None:
+            weight = self.weight
         if self.skip_bias_add:
-            return F.linear(x, self.weight), self.bias
-        return F.linear(x, self.weight, self.bias), None
+            return F.linear(x, weight), self.bias
+        return F.linear(x, weight, self.bias), None
 
 
 def get_export_format(filename: str):
@@ -239,7 +241,10 @@ try:
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
     from apex.normalization import MixedFusedRMSNorm
     from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
-    from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
+    from megatron.core.fusions.fused_layer_norm import FusedLayerNorm as MCoreFusedLayerNorm
+
+    # from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
+    from megatron.core.fusions.fused_softmax import FusedScaleMaskSoftmax
     from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.LayerNorm]:
@@ -255,6 +260,9 @@ try:
 
         if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
             shape, eps, affine = n.normalized_shape, n.eps, n.elementwise_affine
+            n_state = n.state_dict()
+        elif isinstance(n, MCoreFusedLayerNorm):
+            shape, eps, affine = n.weight.shape, n.eps, True
             n_state = n.state_dict()
         elif isinstance(n, FastLayerNorm):
             shape, eps, affine = n.weight.shape, n.epsilon, True
@@ -306,7 +314,7 @@ try:
         mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(dev)
 
         n_state = n.state_dict()
-        mod.load_state_dict(n_state)
+        mod.load_state_dict(n_state, strict=False)
         return mod
 
     def replace_FusedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
@@ -318,7 +326,7 @@ try:
            Equivalent LayerNorm module
         """
         if not isinstance(n, FusedScaleMaskSoftmax):
-            logging.warning("This function can only change the FusedScaleMaskSoftmax module.")
+            logging.warning(f"This function can only change the FusedScaleMaskSoftmax module, got: {n.__class__}")
             return n
 
         # disable the fusion only
@@ -331,6 +339,7 @@ try:
     default_Apex_replacements = {
         "FusedLayerNorm": replace_FusedLayerNorm,
         "MixedFusedLayerNorm": replace_FusedLayerNorm,
+        "MCoreFusedLayerNorm": replace_FusedLayerNorm,
         "FastLayerNorm": replace_FusedLayerNorm,
         "RowParallelLinear": replace_ParallelLinear,
         "ColumnParallelLinear": replace_ParallelLinear,
