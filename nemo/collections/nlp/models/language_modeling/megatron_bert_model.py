@@ -67,10 +67,10 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import parallel_state
     from megatron.core.models.bert.bert_layer_specs import get_bert_layer_with_transformer_engine_spec
+    from megatron.core.packed_seq_params import PackedSeqParams
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
-    from megatron.core.packed_seq_params import PackedSeqParams
 
     HAVE_MEGATRON_CORE = True
 
@@ -622,7 +622,7 @@ class MegatronBertModel(MegatronBaseModel):
             zero = torch.zeros(1, dtype=torch.int32)
             batch['cu_seqlens'] = torch.cat((zero, cu_seqlens))
             batch['max_seqlen'] = max(padding_sum)
-            
+
         batch = self.get_batch_on_this_cp_rank(batch)
         return batch, batch_idx, dataloader_idx
 
@@ -649,6 +649,7 @@ class MegatronBertModel(MegatronBaseModel):
             else:
                 lm_loss = torch.sum(lm_loss_.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
         import pdb
+
         pdb.set_trace()
 
         if sop_logits is not None:
