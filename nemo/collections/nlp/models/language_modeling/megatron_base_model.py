@@ -431,6 +431,7 @@ class MegatronBaseModel(NLPModel):
             special_tokens=self.cfg.tokenizer.get('special_tokens', None),
             trust_remote_code=self.cfg.tokenizer.get('trust_remote_code', False),
             legacy=legacy,
+            chat_template=getattr(self._cfg.tokenizer, "chat_template", None),
         )
 
         if self._cfg.tokenizer.get('additional_special_tokens', None) is not None:
@@ -581,8 +582,7 @@ class MegatronBaseModel(NLPModel):
 
         after = orig_vocab_size
         multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
-        while (after % multiple) != 0:
-            after += 1
+        after = ((after + multiple - 1) // multiple) * multiple
         logging.info(
             f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
         )
@@ -846,7 +846,9 @@ class MegatronBaseModel(NLPModel):
             if hasattr(self._cfg.optim, 'sched'):
                 sched_config = self._cfg.optim.sched
                 self._scheduler = prepare_lr_scheduler(
-                    optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
+                    optimizer=self._optimizer,
+                    scheduler_config=sched_config,
+                    train_dataloader=self._train_dl,
                 )
 
         if getattr(self._cfg.optim, 'sched', None) is not None and self._scheduler is None:
