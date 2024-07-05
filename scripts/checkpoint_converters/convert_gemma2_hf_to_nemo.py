@@ -28,11 +28,11 @@ Requires HF transformers updated to v4.42 to support Gemma 2 Models
 If you encounter a torch.cuda.OutOfMemoryError, try converting on CPU with --cpu.
 """
 
-import math
 import os
 from argparse import ArgumentParser
 
 import torch
+
 from megatron.core import parallel_state
 from omegaconf import OmegaConf
 from transformers import AutoModelForCausalLM, AutoTokenizer
