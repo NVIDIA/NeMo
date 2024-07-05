@@ -166,9 +166,9 @@ def get_huggingface_pretrained_lm_models_list(
 
     Returns the list of HuggingFace models
     """
-
-    huggingface_models = []
-    for model in HUGGINGFACE_MODELS:
-        model_names = HUGGINGFACE_MODELS[model]["pretrained_model_list"]
-        huggingface_models.extend(model_names)
-    return huggingface_models
+    logging.warning(
+        "pretrained_model_list no longer exists in HF transformers v4.40 and later. "
+        "See https://github.com/huggingface/transformers/pull/29112 for details. "
+        "`get_huggingface_pretrained_lm_models_list()` will return an empty list."
+    )
+    return []
