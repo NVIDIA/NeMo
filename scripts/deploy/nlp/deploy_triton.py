@@ -190,9 +190,7 @@ def get_args(argv):
     parser.add_argument(
         "-sha", "--service_http_address", default="0.0.0.0", type=str, help="HTTP address for the REST Service"
     )
-    parser.add_argument(
-        "-sp", "--service_port", default=8080, type=int, help="Port for the REST Service"
-    )
+    parser.add_argument("-sp", "--service_port", default=8080, type=int, help="Port for the REST Service")
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
     parser.add_argument(
         '-ws',
