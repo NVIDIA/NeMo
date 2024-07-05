@@ -27,6 +27,8 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
 
+    from nemo.lightning.apex_utils import setup_microbatch_calculator
+
     HAVE_APEX = False
 
 try:
@@ -158,7 +160,8 @@ def initialize_model_parallel_for_nemo(
 
     app_state._is_megatron_initialized = True
 
-    set_logging_level(apex_transformer_log_level)
+    if HAVE_APEX:
+        set_logging_level(apex_transformer_log_level)
 
 
 def _set_random_seed(seed_):

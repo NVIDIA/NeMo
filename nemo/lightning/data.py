@@ -53,11 +53,16 @@ def setup_microbatch_calculator(
     else:
         init_global_rank = global_rank
 
-    from apex.transformer.microbatches import ConstantNumMicroBatches
-    from apex.transformer.pipeline_parallel.utils import (
-        _GLOBAL_NUM_MICROBATCHES_CALCULATOR,
-        setup_microbatch_calculator,
-    )
+    try:
+        from apex.transformer.microbatches import ConstantNumMicroBatches
+        from apex.transformer.pipeline_parallel.utils import (
+            _GLOBAL_NUM_MICROBATCHES_CALCULATOR,
+            setup_microbatch_calculator,
+        )
+
+        HAVE_APEX = True
+    except (ImportError, ModuleNotFoundError):
+        from nemo.lightning.apex_utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR, setup_microbatch_calculator
 
     if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
         setup_microbatch_calculator(

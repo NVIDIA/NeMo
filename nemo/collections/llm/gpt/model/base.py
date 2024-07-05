@@ -91,12 +91,21 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
 
         from megatron.core import parallel_state
-        from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
         from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
+
+        try:
+            import transformer_engine
+            from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
+
+            get_gpt_layer_spec = get_gpt_layer_with_transformer_engine_spec
+        except (ImportError, ModuleNotFoundError):
+            from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_local_spec
+
+            get_gpt_layer_spec = get_gpt_layer_local_spec
 
         return MCoreGPTModel(
             self,
-            transformer_layer_spec=get_gpt_layer_with_transformer_engine_spec(self.num_moe_experts),
+            transformer_layer_spec=get_gpt_layer_spec(self.num_moe_experts),
             vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
             max_sequence_length=self.seq_length,
             fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
