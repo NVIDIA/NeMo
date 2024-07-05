@@ -167,7 +167,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             # Note, when we freeze init_ddp still needs to be called to allow for adapters
         else:
             self.init_ddp(_pipeline)
-        
+
         for i, model_module in enumerate(_pipeline):
             if not cpu:
                 model_module.cuda(torch.cuda.current_device())
@@ -462,13 +462,13 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             return 1
 
         raise ValueError("Cannot infer `num_microbatches` from data, please specify it manually")
-    
+
     def init_ddp(self, pipeline=None):
         if not isinstance(self.ddp_config, DistributedDataParallelConfig):
             return
-        
+
         from megatron.core import parallel_state
-        
+
         _pipeline = pipeline or self
         for model_chunk_idx, model_chunk in enumerate(_pipeline):
             module = model_chunk.module
