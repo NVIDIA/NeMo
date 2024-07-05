@@ -305,28 +305,22 @@ class MegatronBaseModel(NLPModel):
 
         args = mcore_args if is_mcore_model else nemo_args
         # Model wrapper to convert both model and inputs to half precision
-        if hasattr(self, "enc_dec_model"):
-            if isinstance(self.enc_dec_model, list):
-                converted_model = []
-                for module in self.enc_dec_model:
-                    args['module'] = module
-                    converted_model.append(Float16Wrapper(**args))
-                self.enc_dec_model = converted_model
+        if isinstance((self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model), list):
+            converted_model = []
+            for module in (self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model):
+                args['module'] = module
+                converted_model.append(Float16Wrapper(**args))
+            if hasattr(self, "enc_dec_model"):
+                self.enc_dec_model = converted_model    
             else:
-                args['module'] = self.enc_dec_model
-                self.enc_dec_model = Float16Wrapper(**args)
-            args.pop('module')
-        else:
-            if isinstance(self.model, list):
-                converted_model = []
-                for module in self.model:
-                    args['module'] = module
-                    converted_model.append(Float16Wrapper(**args))
                 self.model = converted_model
+        else:
+            args['module'] = (self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model)
+            if hasattr(self, "enc_dec_model"):
+                self.enc_dec_model = Float16Wrapper(**args)
             else:
-                args['module'] = self.model
                 self.model = Float16Wrapper(**args)
-            args.pop('module')
+        args.pop('module')
 
     def get_model_module_list(self):
         def extract_module(model):
@@ -335,16 +329,10 @@ class MegatronBaseModel(NLPModel):
             else:
                 return model
 
-        if hasattr(self, "enc_dec_model"):
-            if isinstance(self.enc_dec_model, list):
-                return list(map(extract_module, self.enc_dec_model))
-            else:
-                return [extract_module(self.enc_dec_model)]
+        if isinstance((self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model), list):
+            return list(map(extract_module, (self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model)))
         else:
-            if isinstance(self.model, list):
-                return list(map(extract_module, self.model))
-            else:
-                return [extract_module(self.model)]
+            return [extract_module(self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model)]
 
     def _reconfigure_limit_batches(self, limit_batches, dataloader, mode):
         """
