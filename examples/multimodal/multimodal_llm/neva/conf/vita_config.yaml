@@ -2,7 +2,7 @@ name: nemo_video_lita_neva
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  devices: 1
+  devices: 8
   num_nodes: 1
   accelerator: gpu
   precision: bf16
@@ -56,9 +56,9 @@ model:
 
   # Batch size guideline for different types of dataset
   micro_batch_size: 1 # limited by GPU memory
-  global_batch_size: 2 # will use more micro batches to reach global batch size
+  global_batch_size: 128 # will use more micro batches to reach global batch size
 
-  tensor_model_parallel_size: 1 # intra-layer model parallelism
+  tensor_model_parallel_size: 4 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   context_parallel_size: 1 # kqv model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
