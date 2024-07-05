@@ -127,14 +127,15 @@ class NLPAdapterModelMixin:
                     f'model.{mcore_target}',
                     f'model.module.{mcore_target}',
                 ]:  # simple string match for now
-                    swap_mcore_mixin(module, mcore_mixin)
-                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                        module.add_adapter(
-                            name=peft_name,
-                            cfg=peft_cfg,
-                            base_model_cfg=self.cfg,
-                            model_parallel_config=self.model_parallel_config,
-                        )
+                    if not isinstance(module, IdentityOp):
+                        swap_mcore_mixin(module, mcore_mixin)
+                        if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                            module.add_adapter(
+                                name=peft_name,
+                                cfg=peft_cfg,
+                                base_model_cfg=self.cfg,
+                                model_parallel_config=self.model_parallel_config,
+                            )
         elif isinstance(module, AdapterModuleMixin):
             if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                 module.add_adapter(
@@ -179,10 +180,9 @@ class NLPAdapterModelMixin:
                 for layer in layers:
                     if layer.layer_number in (layer_selection or list(range(1, self.cfg.num_layers + 1))):
                         for name, module in layer.named_modules():
-                            if not isinstance(module, IdentityOp):
-                                self._check_and_add_adapter(
-                                    name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins
-                                )
+                            self._check_and_add_adapter(
+                                name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins
+                            )
             else:
                 # Non GPT models, as well as GPT+PTuning do not support layer selection
                 if layer_selection is not None:
