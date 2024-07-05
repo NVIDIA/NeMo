@@ -75,21 +75,30 @@ class PEFT(ABC, ModelTransform):
         Returns:
             nn.Module: The transformed model with PEFT applied.
         """
-
-        model.freeze()
+        
         model.walk(self.transform)
 
         return model
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         super().setup(trainer, pl_module, stage=stage)
-
+        
+        pl_module.freeze()
+        
+        if hasattr(pl_module, "lazy_freeze"):
+            pl_module.lazy_freeze()
+        
         self.wrapped_io = WrappedAdapterIO(trainer.strategy.checkpoint_io)
         trainer.strategy._checkpoint_io = self.wrapped_io
+        trainer.strategy._setup_optimizers = False
 
     def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         needs_to_call = self._needs_to_call
         self._maybe_apply_transform(trainer)
+        
+        if needs_to_call:
+            logging.info("Setting up optimizers")
+            trainer.strategy.setup_optimizers(trainer)
 
         # Check if we need to load the adapters
         if needs_to_call and self.wrapped_io.adapter_ckpt_path is not None:

@@ -113,9 +113,14 @@ class FNMixin:
         by setting `requires_grad` to False.
         """
         assert isinstance(self, nn.Module), "self is not a nn.Module"
+        
+        self._should_freeze = True
 
         for param in self.parameters():
             param.requires_grad = False
+            
+    def lazy_freeze(self) -> None:
+        self._should_freeze = True
 
     def unfreeze(self) -> None:
         """
@@ -126,3 +131,28 @@ class FNMixin:
 
         for param in self.parameters():
             param.requires_grad = True
+            
+    @property
+    def should_freeze(self) -> bool:
+        """
+        Determines if the module should be frozen.
+
+        This property is particularly useful when working with lazy LightningModules that use
+        `configure_module` to initialize the model. It allows for setting the freeze state before
+        the model is fully initialized.
+
+        Returns:
+            bool: True if the module should be frozen and is not currently frozen, False otherwise.
+
+        Note:
+            This property checks both the `_should_freeze` attribute (set by the `freeze` method)
+            and the current frozen state of the parameters. This ensures that the freezing occurs
+            only when necessary, even if the actual parameter initialization happens later in the
+            LightningModule lifecycle.
+        """
+        should_freeze = getattr(self, "_should_freeze", False)
+        
+        # Check if there are any parameters
+        has_params = any(True for _ in self.parameters())
+        
+        return should_freeze and (not has_params or any(p.requires_grad for p in self.parameters()))
