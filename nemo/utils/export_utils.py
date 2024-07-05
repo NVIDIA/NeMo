@@ -260,24 +260,17 @@ try:
 
         if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
             shape, eps, affine = n.normalized_shape, n.eps, n.elementwise_affine
-            n_state = n.state_dict()
         elif isinstance(n, MCoreFusedLayerNorm):
             shape, eps, affine = n.weight.shape, n.eps, True
-            n_state = n.state_dict()
         elif isinstance(n, FastLayerNorm):
             shape, eps, affine = n.weight.shape, n.epsilon, True
-            n_state = n.state_dict()
-        elif isinstance(n, MixedFusedRMSNorm):
-            shape, eps, affine = n.normalized_shape, n.eps, n.elementwise_affine
-            tmp_n_state = n.state_dict()
-            n_state = {'weight': tmp_n_state['weight'], 'bias': torch.zeros_like(tmp_n_state['weight'])}
         else:
             return None
 
         n_state = n.state_dict()
         mod = nn.LayerNorm(shape, eps=eps, elementwise_affine=affine, device=p.device, dtype=p.dtype)
 
-        mod.load_state_dict(n_state)
+        mod.load_state_dict(n_state, strict=True)
 
         return mod
 
