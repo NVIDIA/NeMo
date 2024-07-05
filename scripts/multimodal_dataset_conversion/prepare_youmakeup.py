@@ -13,22 +13,21 @@
 # limitations under the License.
 #
 
-from multiprocessing import Pool
-
-import os
-import json
-import subprocess as sp
-import decord
-from pathlib import Path
-from tqdm import tqdm
-import random
-from multiprocessing import Pool
-from concurrent.futures import ThreadPoolExecutor
 import argparse
-from moviepy.video.io.VideoFileClip import VideoFileClip
+import json
+import os
+import random
 import subprocess
+import subprocess as sp
+from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import Pool
+from pathlib import Path
 
+import decord
+from moviepy.video.io.VideoFileClip import VideoFileClip
+from tqdm import tqdm
 from yt_dlp import YoutubeDL
+
 
 def clean_video_folder(video_folder):
     """Remove non-11-character.mp4 files from the video folder."""
@@ -36,29 +35,39 @@ def clean_video_folder(video_folder):
         if len(video.stem) != 11:
             video.unlink()
 
+
 def get_video_duration(video_path):
     """Function to get the duration of a video using ffprobe."""
-    cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', video_path]
+    cmd = [
+        'ffprobe',
+        '-v',
+        'error',
+        '-show_entries',
+        'format=duration',
+        '-of',
+        'default=noprint_wrappers=1:nokey=1',
+        video_path,
+    ]
     duration = subprocess.check_output(cmd).strip()
     return float(duration)
 
 
 def prepare_dataset(source, video_folder, chunk_length=120):
     """Prepare dataset from source JSON and download videos."""
-    
+
     with open(source, 'r') as f:
         data = json.load(f)
 
     dataset = {}
     video_missing_counter = 0
     total_videos = len(data.keys())
-    
+
     for key, value in tqdm(data.items()):
-        if not os.path.exists(os.path.join(video_folder, key+".mp4")):
+        if not os.path.exists(os.path.join(video_folder, key + ".mp4")):
             print(f"Video if {key} does not exist")
             video_missing_counter += 1
             continue
-        
+
         duration = value['duration']
         timestamps = value['timestamps']
         sentences = value['sentences']
@@ -99,11 +108,11 @@ def prepare_dataset(source, video_folder, chunk_length=120):
             if idx == 0:
                 video_begin = max(0, start - 5)
                 video_end = end
-            if end - video_begin > chunk_length: # Use 2 minute chunks
+            if end - video_begin > chunk_length:  # Use 2 minute chunks
                 since_last_end = start - new_timestamps[-1][1] if new_timestamps else 0
                 since_last_end = min(since_last_end, 10)
                 pad = since_last_end // 2
-                video_end = video_end + pad # pad the end
+                video_end = video_end + pad  # pad the end
 
                 new_data[f"{key}_{counter}"] = {
                     "video_begin": video_begin,
@@ -112,15 +121,15 @@ def prepare_dataset(source, video_folder, chunk_length=120):
                     "sentences": new_sentences,
                 }
                 counter += 1
-        
+
                 new_timestamps = []
                 new_sentences = []
-                video_begin = max(0, start - pad) # pad the start
+                video_begin = max(0, start - pad)  # pad the start
 
             new_timestamps.append([int(start), int(end)])
             new_sentences.append(sentence)
             video_end = end
-        
+
             if idx == len(timestamps) - 1:
                 video_end = min(duration, end + 5)
 
@@ -132,7 +141,7 @@ def prepare_dataset(source, video_folder, chunk_length=120):
                 "sentences": new_sentences,
             }
             counter += 1
-        
+
         dataset.update(new_data)
 
     print(f"Got {len(dataset)} videos")
@@ -147,6 +156,7 @@ def crop_video(input_file, output_file, start_seconds, end_seconds):
     cropped_video = cropped_video.without_audio()
     cropped_video.write_videofile(output_file, codec='libx264', audio_codec='aac')
 
+
 def process_video(key, value, video_folder, ignore=False):
     """Process a video."""
     video_begin = value['video_begin']
@@ -154,11 +164,11 @@ def process_video(key, value, video_folder, ignore=False):
     timestamps = value['timestamps']
     sentences = value['sentences']
     key_orig = key.rsplit('_', 1)[0]
-    video_chunk_dir = os.path.join(Path(video_folder), 'videos') 
+    video_chunk_dir = os.path.join(Path(video_folder), 'videos')
     os.makedirs(video_chunk_dir, exist_ok=True)
-    video_path = os.path.join(Path(video_folder), 'videos_original', key_orig+".mp4")  
-    save_video_path = os.path.join(video_chunk_dir,  key + ".mp4")
-    if ignore==False:
+    video_path = os.path.join(Path(video_folder), 'videos_original', key_orig + ".mp4")
+    save_video_path = os.path.join(video_chunk_dir, key + ".mp4")
+    if ignore == False:
         crop_video(video_path, save_video_path, video_begin, video_end)
 
     try:
@@ -176,9 +186,11 @@ def process_video(key, value, video_folder, ignore=False):
         "sentences": sentences,
     }
 
+
 def convert_to_seconds(time_str):
     h, m, s = map(int, time_str.split(':'))
     return h * 3600 + m * 60 + s
+
 
 def download_video(video_id_output_folder):
 
@@ -227,7 +239,7 @@ def download_videos(json_file, output_folder):
 def parse_dense_video_captions(original_file_path, output_dir):
 
     output_file_path = os.path.join(output_dir, 'train_original.json')
-    
+
     data_dict = {}
     with open(original_file_path, 'r') as f:
         for line in f:
@@ -245,11 +257,7 @@ def parse_dense_video_captions(original_file_path, output_dir):
                 timestamps.append([start_time, end_time])
                 sentences.append(step['caption'])
 
-            new_data = {
-                'duration': duration,
-                'timestamps': timestamps,
-                'sentences': sentences
-            }
+            new_data = {'duration': duration, 'timestamps': timestamps, 'sentences': sentences}
 
             data_dict[video_id] = new_data
 
@@ -259,14 +267,14 @@ def parse_dense_video_captions(original_file_path, output_dir):
 
 
 def chunk(args, original_json):
-    
+
     video_folder = os.path.join(args.output_dir, 'videos_original')
     video_folder = Path(video_folder)
     output_json = os.path.join(args.output_dir, 'train.json')
     clean_video_folder(video_folder)
     dataset = prepare_dataset(original_json, video_folder, args.chunk_length)
     fixed_data = {}
-    
+
     # Function to process a single video
     def process_single_video(key, value):
         video_chunk_dir = os.path.join(args.output_dir, 'videos')
@@ -276,7 +284,7 @@ def chunk(args, original_json):
         if os.path.exists(save_video_path):
             print(f"Chunk for video {key} already exists. Skipping...")
             ignore = True
-        
+
         key, value = process_video(key, value, args.output_dir, ignore=ignore)
 
         return key, value
@@ -299,7 +307,14 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--download", type=bool, help="Whether to download videos.", default=False)
     parser.add_argument("-i", "--input_json", help="Path to the input JSON file.")
     parser.add_argument("-o", "--output_dir", help="Path to the output_dir.")
-    parser.add_argument("-l", "--chunk_length", type=int, help="Length of each chunked video in seconds (Default=120).", default=120, required=False)
+    parser.add_argument(
+        "-l",
+        "--chunk_length",
+        type=int,
+        help="Length of each chunked video in seconds (Default=120).",
+        default=120,
+        required=False,
+    )
 
     args = parser.parse_args()
 

@@ -28,6 +28,7 @@ Example to run this conversion script:
    --conv-template llama_2 # nvgpt, llama_2, v1, llama_3 (vicuna)
 """
 
+import json
 import os
 from argparse import ArgumentParser
 from collections import OrderedDict
@@ -49,8 +50,6 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging
-
-import json
 
 
 def get_args():
@@ -136,13 +135,11 @@ def load_config(args, llava_config):
     nemo_config = OmegaConf.load(os.path.join(os.path.dirname(__file__), 'conf', args.config_file)).model
     nemo_config.mm_cfg.mm_mlp_adapter_type = llava_config.get('mm_projector_type', 'linear')
 
-    mm_vision_tower = llava_config.get(
-        'mm_vision_tower', 'openai/clip-vit-large-patch14'
-    )
+    mm_vision_tower = llava_config.get('mm_vision_tower', 'openai/clip-vit-large-patch14')
 
     if args.mm_vision_tower is not None:
-        mm_vision_tower = args.mm_vision_tower    
-    
+        mm_vision_tower = args.mm_vision_tower
+
     nemo_config.mm_cfg.vision_encoder.from_pretrained = mm_vision_tower
     if args.mm_vision_tower is not None:
         config_file = os.path.join(args.mm_vision_tower, "config.json")
@@ -152,7 +149,7 @@ def load_config(args, llava_config):
                 nemo_config.mm_cfg.vision_encoder["model_type"] = vision_model_config.get("model_type", 'clip')
                 crop_size = vision_model_config.get("image_size", 224)
                 nemo_config.mm_cfg.vision_encoder.crop_size = [crop_size, crop_size]
-    else:        
+    else:
         if '336' in mm_vision_tower:
             nemo_config.data.image_token_len = 576
             nemo_config.mm_cfg.vision_encoder.crop_size = [336, 336]
@@ -160,7 +157,7 @@ def load_config(args, llava_config):
             nemo_config.data.image_token_len = 256
             nemo_config.mm_cfg.vision_encoder.crop_size = [224, 224]
         nemo_config.mm_cfg.vision_encoder.patch_dim = 14
-            
+
     nemo_config.encoder_seq_length = llava_config['max_position_embeddings']
     nemo_config.num_layers = int(llava_config['num_hidden_layers'])
     nemo_config.hidden_size = llava_config['hidden_size']
@@ -185,22 +182,12 @@ def load_config(args, llava_config):
             nemo_config.tokenizer.model = llava_config['tokenizer_model']
         else:
             # Llama3 uses converted TikToken Tokenizer
-            tokenizer_dict = {
-                'library': 'huggingface',
-                'type': args.in_file,
-                'use_fast': True,
-                'model': None
-            }
+            tokenizer_dict = {'library': 'huggingface', 'type': args.in_file, 'use_fast': True, 'model': None}
             nemo_config.tokenizer.update(tokenizer_dict)
     else:
         # if tokenizer_model is directory
         if os.path.isdir(args.tokenizer_model):
-            tokenizer_dict = {
-                'library': 'huggingface',
-                'type': args.tokenizer_model,
-                'use_fast': True,
-                'model': None
-            }
+            tokenizer_dict = {'library': 'huggingface', 'type': args.tokenizer_model, 'use_fast': True, 'model': None}
             nemo_config.tokenizer.update(tokenizer_dict)
         else:
             nemo_config.tokenizer.library = 'sentencepiece'
@@ -329,8 +316,9 @@ def convert(args):
         for key in proj_ckpt.keys():
             if 'mm_projector' in key:
                 mm_projection_layer_suffix = key.split('mm_projector')[1]
-                checkpoint['state_dict'][f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'] = \
-                                                    (param_to_weights(proj_ckpt[key]))
+                checkpoint['state_dict'][f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'] = (
+                    param_to_weights(proj_ckpt[key])
+                )
 
         proj_conf_file = open(os.path.join(args.mm_projector_ckpt_dir, "config.json"))
 
