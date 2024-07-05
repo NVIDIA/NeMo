@@ -3319,13 +3319,14 @@ jobs:
         trainer.max_steps=3 \
         trainer.val_check_interval=3 \
         ++trainer.limit_val_batches=2 \
-        trainer.precision=16 \
+        trainer.precision=bf16 \
         exp_manager.exp_dir=/home/TestData/nlp/lora_tuning_tp2_sp1 \
         +model.mcore_gpt=True \
         model.pipeline_model_parallel_size=1 \
         model.tensor_model_parallel_size=2 \
         model.sequence_parallel=True \
         model.megatron_amp_O2=True \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
         +model.fp8=True \
         +model.fp8_params=True \
         +model.fp8_hybrid=True \
