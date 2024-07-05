@@ -1,11 +1,12 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, Literal, Optional
+from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional
 
 import pytorch_lightning as L
 import torch
 import torch.distributed
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
+from torch import nn
 
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
@@ -16,112 +17,6 @@ if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-
-
-@dataclass
-class GPTConfig(TransformerConfig, io.IOMixin):
-    # From megatron.core.models.gpt.gpt_model.GPTModel
-    fp16_lm_cross_entropy: bool = False
-    parallel_output: bool = True
-    share_embeddings_and_output_weights: bool = True
-    make_vocab_size_divisible_by: int = 128
-    position_embedding_type: Literal["learned_absolute", "rope"] = "learned_absolute"
-    rotary_base: int = 10000
-    rotary_percent: float = 1.0
-    seq_len_interpolation_factor: Optional[float] = None
-    seq_length: int = 1024
-
-    # TODO: Move this to better places?
-    get_attention_mask_from_fusion: bool = False
-
-    def configure_model(self, tokenizer) -> "MCoreGPTModel":
-        vp_size = self.virtual_pipeline_model_parallel_size
-        if vp_size:
-            p_size = self.pipeline_model_parallel_size
-            assert (
-                self.num_layers // p_size
-            ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
-
-        from megatron.core import parallel_state
-        from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
-        from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-
-        return MCoreGPTModel(
-            self,
-            transformer_layer_spec=get_gpt_layer_with_transformer_engine_spec(self.num_moe_experts),
-            vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
-            max_sequence_length=self.seq_length,
-            fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
-            parallel_output=self.parallel_output,
-            share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
-            position_embedding_type=self.position_embedding_type,
-            rotary_percent=self.rotary_percent,
-            rotary_base=self.rotary_base,
-            seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-            pre_process=parallel_state.is_pipeline_first_stage(),
-            post_process=parallel_state.is_pipeline_last_stage(),
-        )
-
-
-class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
-    def __init__(
-        self,
-        config: GPTConfig,
-        # TODO: Add transformer_layer_spec when we update mcore
-        optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
-    ):
-        super().__init__()
-        self.config = config
-        self.tokenizer = tokenizer
-        self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
-        self.optim.connect(self)  # This will bind the `configure_optimizers` method
-
-    def configure_model(self) -> None:
-        if not hasattr(self, "module"):
-            self.module = self.config.configure_model(self.tokenizer)
-
-    def forward(
-        self,
-        input_ids: torch.Tensor,
-        position_ids: torch.Tensor,
-        attention_mask: torch.Tensor,
-        labels: Optional[torch.Tensor] = None,
-        decoder_input: Optional[torch.Tensor] = None,
-        inference_params=None,
-    ) -> torch.Tensor:
-        output_tensor = self.module(
-            input_ids,
-            position_ids,
-            attention_mask,
-            decoder_input=decoder_input,
-            labels=labels,
-            inference_params=inference_params,
-        )
-
-        return output_tensor
-
-    def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
-        return gpt_data_step(dataloader_iter)
-
-    def forward_step(self, batch) -> torch.Tensor:
-        return gpt_forward_step(self, batch)
-
-    def training_step(self, batch, batch_idx=None) -> torch.Tensor:
-        # In mcore the loss-function is part of the forward-pass (when labels are provided)
-
-        return self.forward_step(batch)
-
-    def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
-        # In mcore the loss-function is part of the forward-pass (when labels are provided)
-
-        return self.forward_step(batch)
-
-    def training_loss_reduction(self) -> MaskedTokenLossReduction:
-        return MaskedTokenLossReduction()
-
-    def validation_loss_reduction(self) -> MaskedTokenLossReduction:
-        return MaskedTokenLossReduction(validation_step=True)
 
 
 def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
@@ -166,6 +61,116 @@ def gpt_forward_step(model, batch) -> torch.Tensor:
         forward_args['packed_seq_params'] = get_packed_seq_params(batch)
 
     return model(**forward_args)
+
+
+@dataclass
+class GPTConfig(TransformerConfig, io.IOMixin):
+    # From megatron.core.models.gpt.gpt_model.GPTModel
+    fp16_lm_cross_entropy: bool = False
+    parallel_output: bool = True
+    share_embeddings_and_output_weights: bool = True
+    make_vocab_size_divisible_by: int = 128
+    position_embedding_type: Literal["learned_absolute", "rope"] = "learned_absolute"
+    rotary_base: int = 10000
+    rotary_percent: float = 1.0
+    seq_len_interpolation_factor: Optional[float] = None
+    seq_length: int = 1024
+
+    # TODO: Move this to better places?
+    get_attention_mask_from_fusion: bool = False
+
+    forward_step_fn: Callable = gpt_forward_step
+    data_step_fn: Callable = gpt_data_step
+
+    def configure_model(self, tokenizer) -> "MCoreGPTModel":
+        vp_size = self.virtual_pipeline_model_parallel_size
+        if vp_size:
+            p_size = self.pipeline_model_parallel_size
+            assert (
+                self.num_layers // p_size
+            ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
+
+        from megatron.core import parallel_state
+        from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
+        from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
+
+        return MCoreGPTModel(
+            self,
+            transformer_layer_spec=get_gpt_layer_with_transformer_engine_spec(self.num_moe_experts),
+            vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
+            max_sequence_length=self.seq_length,
+            fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
+            parallel_output=self.parallel_output,
+            share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
+            position_embedding_type=self.position_embedding_type,
+            rotary_percent=self.rotary_percent,
+            rotary_base=self.rotary_base,
+            seq_len_interpolation_factor=self.seq_len_interpolation_factor,
+            pre_process=parallel_state.is_pipeline_first_stage(),
+            post_process=parallel_state.is_pipeline_last_stage(),
+        )
+
+
+class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+    def __init__(
+        self,
+        config: GPTConfig,
+        # TODO: Add transformer_layer_spec when we update mcore
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+    ):
+        super().__init__()
+        self.config = config
+        self.tokenizer = tokenizer
+        self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
+        self.optim.connect(self)  # This will bind the `configure_optimizers` method
+        self.model_transform = model_transform
+
+    def configure_model(self) -> None:
+        if not hasattr(self, "module"):
+            self.module = self.config.configure_model(self.tokenizer)
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        labels: Optional[torch.Tensor] = None,
+        decoder_input: Optional[torch.Tensor] = None,
+        inference_params=None,
+    ) -> torch.Tensor:
+        output_tensor = self.module(
+            input_ids,
+            position_ids,
+            attention_mask,
+            decoder_input=decoder_input,
+            labels=labels,
+            inference_params=inference_params,
+        )
+
+        return output_tensor
+
+    def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
+        return self.config.data_step_fn(dataloader_iter)
+
+    def forward_step(self, batch) -> torch.Tensor:
+        return self.config.forward_step_fn(self, batch)
+
+    def training_step(self, batch, batch_idx=None) -> torch.Tensor:
+        # In mcore the loss-function is part of the forward-pass (when labels are provided)
+        return self.forward_step(batch)
+
+    def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
+        # In mcore the loss-function is part of the forward-pass (when labels are provided)
+
+        return self.forward_step(batch)
+
+    def training_loss_reduction(self) -> MaskedTokenLossReduction:
+        return MaskedTokenLossReduction()
+
+    def validation_loss_reduction(self) -> MaskedTokenLossReduction:
+        return MaskedTokenLossReduction(validation_step=True)
 
 
 def get_batch_on_this_context_parallel_rank(batch):
