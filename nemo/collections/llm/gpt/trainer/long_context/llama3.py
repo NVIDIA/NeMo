@@ -30,7 +30,7 @@ def llama3_8b_64k_trainer(devices=8, amp_O2=False) -> nl.Trainer:
         tensor_model_parallel_size=8,
         pipeline_model_parallel_size=1,
         virtual_pipeline_model_parallel_size=None,
-        context_parallel_size=2,
+        context_parallel_size=4,
         sequence_parallel=True,
         expert_model_parallel_size=1,
     )
