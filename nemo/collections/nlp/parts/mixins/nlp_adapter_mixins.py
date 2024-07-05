@@ -180,9 +180,10 @@ class NLPAdapterModelMixin:
                 for layer in layers:
                     if layer.layer_number in (layer_selection or list(range(1, self.cfg.num_layers + 1))):
                         for name, module in layer.named_modules():
-                            self._check_and_add_adapter(
-                                name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins
-                            )
+                            if not isinstance(module, IdentityOp):
+                                self._check_and_add_adapter(
+                                    name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins
+                                )
             else:
                 # Non GPT models, as well as GPT+PTuning do not support layer selection
                 if layer_selection is not None:
