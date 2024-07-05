@@ -3312,7 +3312,7 @@ jobs:
       SCRIPT: |
         rm -rf /home/TestData/nlp/lora_tuning_tp2_sp1
 
-        python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
+        NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=1 python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
         trainer.devices=2 \
         trainer.log_every_n_steps=1 \
         trainer.max_epochs=9999 \
@@ -3324,6 +3324,7 @@ jobs:
         model.pipeline_model_parallel_size=1 \
         model.tensor_model_parallel_size=2 \
         model.sequence_parallel=True \
+        model.megatron_amp_O2=True \
         model.restore_from_path=/home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
         +model.fp8=True \
         +model.fp8_params=True \
@@ -3334,13 +3335,18 @@ jobs:
         +model.fp8_amax_history_len=32 \
         +model.fp8_amax_compute_algo=max \
         +model.reduce_amax=False \
+        +model.ub_tp_comm_overlap=True \
+        +model.tp_comm_overlap_ag=True \
+        +model.tp_comm_overlap_rs=True \
         +model.tp_comm_disable_qkv=True \
         model.peft.peft_scheme='lora' \
         model.peft.lora_tuning.adapter_dim=16 \
         model.peft.lora_tuning.alpha=32 \
+        model.peft.lora_tuning.column_init_method="kaiming" \
         +model.peft.lora_tuning.dropout_position='pre' \
         model.peft.lora_tuning.target_modules=['attention'] \
         model.peft.lora_tuning.adapter_dropout=0.1 \
+        +model.peft.lora_tuning.a2a_experimental=1 \
         model.answer_only_loss=True \
         model.micro_batch_size=1 \
         model.global_batch_size=1 \
