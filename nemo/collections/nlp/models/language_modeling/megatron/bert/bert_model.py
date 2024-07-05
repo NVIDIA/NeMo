@@ -384,6 +384,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         tokentype_ids: Tensor = None,
         lm_labels: Tensor = None,
         inference_params=None,
+        packed_seq_params=None,
     ):
         """Forward function of BERT model
 
@@ -397,7 +398,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
 
         # We set this to false since we just want to get the hidden states from the encoder
         self.post_process = False
-        hidden_states = super().forward(input_ids, attention_mask, tokentype_ids, lm_labels, inference_params)
+        hidden_states = super().forward(input_ids, attention_mask, tokentype_ids, lm_labels, inference_params, packed_seq_params)
         self.post_process = original_post_process
 
         if not self.post_process:

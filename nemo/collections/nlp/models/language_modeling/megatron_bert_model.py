@@ -70,6 +70,7 @@ try:
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
+    from megatron.core.packed_seq_params import PackedSeqParams
 
     HAVE_MEGATRON_CORE = True
 
@@ -224,9 +225,11 @@ class MegatronBertModel(MegatronBaseModel):
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
+
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 batch, batch_idx, dataloader_idx = self.get_batch(dataloader_iter)
-
+                cu_seqlens = batch['cu_seqlens'].cuda(non_blocking=True)
+                max_seqlen = batch['max_seqlen'].cuda(non_blocking=True)
                 tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = (
                     batch['text'].cuda(non_blocking=True),
                     batch['types'].cuda(non_blocking=True),
@@ -237,6 +240,8 @@ class MegatronBertModel(MegatronBaseModel):
                 )
             else:
                 batch, batch_idx, dataloader_idx = self.get_batch(dataloader_iter)
+                cu_seqlens = batch['cu_seqlens'].cuda(non_blocking=True)
+                max_seqlen = batch['max_seqlen'].cuda(non_blocking=True)
                 if parallel_state.is_pipeline_first_stage():
                     tokens = batch['text'].cuda(non_blocking=True)
                     types = batch['types'].cuda(non_blocking=True)
@@ -272,6 +277,12 @@ class MegatronBertModel(MegatronBaseModel):
                 forward_args["token_type_ids"] = types
             else:
                 forward_args["tokentype_ids"] = types
+                forward_args['packed_seq_params'] = PackedSeqParams(
+                    cu_seqlens_q=cu_seqlens,
+                    cu_seqlens_kv=cu_seqlens,
+                    max_seqlen_q=max_seqlen,
+                    max_seqlen_kv=max_seqlen,
+                )
 
             output_tensor = None
             if self.mcore_bert:
@@ -604,7 +615,14 @@ class MegatronBertModel(MegatronBaseModel):
 
     def get_batch(self, dataloader_iter):
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
-        batch['padding_mask'] = torch.ones_like(batch['padding_mask'])
+        # batch['padding_mask'] = torch.ones_like(batch['padding_mask']) #TODO REMOVE
+        if 'cu_seqlens' not in batch:
+            padding_sum = batch['padding_mask'].sum(dim=1)
+            cu_seqlens = padding_sum.cumsum(dim=0).to(torch.int32)
+            zero = torch.zeros(1, dtype=torch.int32)
+            batch['cu_seqlens'] = torch.cat((zero, cu_seqlens))
+            batch['max_seqlen'] = max(padding_sum)
+            
         batch = self.get_batch_on_this_cp_rank(batch)
         return batch, batch_idx, dataloader_idx
 
@@ -630,6 +648,8 @@ class MegatronBertModel(MegatronBaseModel):
                 lm_loss = torch.sum(lm_loss_.view(-1)) * 0.0
             else:
                 lm_loss = torch.sum(lm_loss_.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
+        import pdb
+        pdb.set_trace()
 
         if sop_logits is not None:
             sop_loss = F.cross_entropy(sop_logits.view(-1, 2).float(), sentence_order.view(-1), ignore_index=-1)
