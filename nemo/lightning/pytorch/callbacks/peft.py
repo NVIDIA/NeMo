@@ -84,7 +84,6 @@ class PEFT(ABC, ModelTransform):
         super().setup(trainer, pl_module, stage=stage)
 
         pl_module.freeze()
-
         if hasattr(pl_module, "lazy_freeze"):
             pl_module.lazy_freeze()
 
@@ -97,6 +96,9 @@ class PEFT(ABC, ModelTransform):
         self._maybe_apply_transform(trainer)
 
         if needs_to_call:
+            if hasattr(trainer.model, "init_ddp"):
+                logging.info("Setting up DDP")
+                trainer.model.init_ddp()
             logging.info("Setting up optimizers")
             trainer.strategy.setup_optimizers(trainer)
 

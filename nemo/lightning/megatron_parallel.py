@@ -164,31 +164,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             for model in _pipeline:
                 for param in model.parameters():
                     param.requires_grad = False
-
-        if isinstance(ddp_config, DistributedDataParallelConfig):
-            for model_chunk_idx, model_chunk in enumerate(_pipeline):
-                module = model_chunk.module
-
-                ddp = DDP(
-                    module.config,
-                    ddp_config,
-                    module,
-                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
-                    # Turn off bucketing for model_chunk 2 onwards, since communication for these
-                    # model chunks is overlapped with compute anyway.
-                    disable_bucketing=(model_chunk_idx > 0),
-                )
-                model_chunk.module = ddp
-                model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
-                model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
-
-            # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
-            no_sync_func, grad_sync_func = extract_ddp_funcs(ddp_config, _pipeline)
-            for module in _pipeline:
-                module.config.no_sync_func = no_sync_func
-                module.config.grad_sync_func = grad_sync_func
-
+            # Note, when we freeze init_ddp still needs to be called to allow for adapters
+        else:
+            self.init_ddp(_pipeline)
+        
         for i, model_module in enumerate(_pipeline):
             if not cpu:
                 model_module.cuda(torch.cuda.current_device())
@@ -483,6 +462,36 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             return 1
 
         raise ValueError("Cannot infer `num_microbatches` from data, please specify it manually")
+    
+    def init_ddp(self, pipeline=None):
+        if not isinstance(self.ddp_config, DistributedDataParallelConfig):
+            return
+        
+        from megatron.core import parallel_state
+        
+        _pipeline = pipeline or self
+        for model_chunk_idx, model_chunk in enumerate(_pipeline):
+            module = model_chunk.module
+
+            ddp = DDP(
+                module.config,
+                self.ddp_config,
+                module,
+                data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                # Turn off bucketing for model_chunk 2 onwards, since communication for these
+                # model chunks is overlapped with compute anyway.
+                disable_bucketing=(model_chunk_idx > 0),
+            )
+            model_chunk.module = ddp
+            model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
+            model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
+
+        # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
+        no_sync_func, grad_sync_func = extract_ddp_funcs(self.ddp_config, _pipeline)
+        for module in _pipeline:
+            module.config.no_sync_func = no_sync_func
+            module.config.grad_sync_func = grad_sync_func
 
     def _build_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
         if "self" in context:
