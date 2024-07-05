@@ -113,12 +113,12 @@ class FNMixin:
         by setting `requires_grad` to False.
         """
         assert isinstance(self, nn.Module), "self is not a nn.Module"
-        
+
         self._should_freeze = True
 
         for param in self.parameters():
             param.requires_grad = False
-            
+
     def lazy_freeze(self) -> None:
         self._should_freeze = True
 
@@ -131,7 +131,7 @@ class FNMixin:
 
         for param in self.parameters():
             param.requires_grad = True
-            
+
     @property
     def should_freeze(self) -> bool:
         """
@@ -151,8 +151,8 @@ class FNMixin:
             LightningModule lifecycle.
         """
         should_freeze = getattr(self, "_should_freeze", False)
-        
+
         # Check if there are any parameters
         has_params = any(True for _ in self.parameters())
-        
+
         return should_freeze and (not has_params or any(p.requires_grad for p in self.parameters()))

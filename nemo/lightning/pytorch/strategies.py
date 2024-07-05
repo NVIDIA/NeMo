@@ -289,7 +289,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             convert_module_fn=convert_module_fn,
             freeze=getattr(self.lightning_module, "should_freeze", False),
         )
-        self.megatron_parallel.trainer = trainer        
+        self.megatron_parallel.trainer = trainer
 
         # check signature-def of self.model.configure_optimizers to check if there's an optional arg: megatron_parallel
         sig = inspect.signature(self.model.configure_optimizers)
@@ -342,7 +342,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             model = dist_data_parallel
 
         return model
-    
+
     @override
     def setup_optimizers(self, trainer: "pl.Trainer") -> None:
         super().setup_optimizers(trainer)
