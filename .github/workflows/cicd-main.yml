@@ -3321,6 +3321,7 @@ jobs:
         ++trainer.limit_val_batches=2 \
         trainer.precision=16 \
         exp_manager.exp_dir=/home/TestData/nlp/lora_tuning_tp2_sp1 \
+        model.mcore_gpt=True \
         model.pipeline_model_parallel_size=1 \
         model.tensor_model_parallel_size=2 \
         model.sequence_parallel=True \
