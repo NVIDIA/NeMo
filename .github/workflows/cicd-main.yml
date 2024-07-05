@@ -3326,7 +3326,6 @@ jobs:
         model.tensor_model_parallel_size=2 \
         model.sequence_parallel=True \
         model.megatron_amp_O2=True \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
         +model.fp8=True \
         +model.fp8_params=True \
         +model.fp8_hybrid=True \
