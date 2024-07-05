@@ -157,14 +157,16 @@ def main(cfg) -> None:
     }
 
     prompt_dicts = []
-    if cfg.prompt_file.endswith('.jsonl'):
+    if cfg.prompt_file.endswith('.json'):
         with open(cfg.prompt_file, 'r') as f:
             prompt_dicts = json.load(f)
-    else:
+    elif cfg.prompt_file.endswith('.jsonl'):
         with open(cfg.prompt_file, 'r') as f:
             lines = f.readlines()
         for line in lines:
             prompt_dicts.append(json.loads(line))
+    else:
+        raise ValueError(f"Unsupported prompt file format: {cfg.prompt_file}")
 
     media_type_token = cfg.inference.get("media_type", "image")
     media_token = f"<{media_type_token}>"
@@ -253,7 +255,7 @@ def main(cfg) -> None:
             results.append(prompt)
 
         with open(cfg.output_file, 'w') as f:
-            if cfg.output_file.endswith('.jsonl'):
+            if cfg.output_file.endswith('.json'):
                 json.dump(results, f, indent=2)
             else:
                 for result in results:

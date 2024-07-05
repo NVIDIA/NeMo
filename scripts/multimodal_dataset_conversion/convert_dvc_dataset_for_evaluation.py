@@ -40,21 +40,21 @@ The converted format will be as follows:
         "video": "-4RXOT_UfpM_3.mp4",
         "question_id": "-4RXOT_UfpM_3_0",
         "question": "When does \"Apply eyeshadow on the lower area then crease with brush\" happen in the video? Provide a response using only start and end timestamps.",
-        "answer": "<5> <58> Apply eyeshadow on the lower area then crease with brush",
+        "ref_answer": "<5> <58> Apply eyeshadow on the lower area then crease with brush",
         "duration": 118.01801801801803
     },
     {
         "video": "-4RXOT_UfpM_3.mp4",
         "question_id": "-4RXOT_UfpM_3_1",
         "question": "When is \"Apply eyeshadow on the outer corner of eyes with brush\" depicted in the video? Convey your answer using start and end timestamps exclusively.",
-        "answer": "<66> <82> Apply eyeshadow on the outer corner of eyes with brush",
+        "ref_answer": "<66> <82> Apply eyeshadow on the outer corner of eyes with brush",
         "duration": 118.01801801801803
     },
     {
         "video": "-4RXOT_UfpM_3.mp4",
         "question_id": "-4RXOT_UfpM_3_2",
         "question": "When does \"Apply eyeshadow on the outer half of eyes with brush\" happen in the video? Provide a response using only start and end timestamps.",
-        "answer": "<82> <96> Apply eyeshadow on the outer half of eyes with brush",
+        "ref_answer": "<82> <96> Apply eyeshadow on the outer half of eyes with brush",
         "duration": 118.01801801801803
     },
     .....
@@ -128,7 +128,7 @@ class RTLConverter:
                         "video": vid + self.ext,
                         "question_id": question_id,
                         "question": question,
-                        "answer": answer,
+                        "ref_answer": answer,
                         "duration": duration,
                     }
                 )

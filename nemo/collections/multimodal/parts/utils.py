@@ -472,7 +472,8 @@ def create_neva_model_and_processor(cfg):
             frames = maybe_video_path
 
         if neva_cfg.mm_cfg.vision_encoder.get("from_hf", False):
-            if "siglip" in neva_cfg.mm_cfg.vision_encoder.from_pretrained:
+            if "siglip" in neva_cfg.mm_cfg.vision_encoder.from_pretrained or \
+                    "siglip" in neva_cfg.mm_cfg.vision_encoder.get("model_type", ""):
                 processor = SiglipImageProcessor.from_pretrained(neva_cfg.mm_cfg.vision_encoder.from_pretrained)
             else:
                 # for clip and vit model
@@ -517,11 +518,14 @@ def create_neva_model_and_processor(cfg):
 
 def create_image_processor(mm_cfg):
     if mm_cfg.vision_encoder.get("from_hf", False):
-        if "clip" in mm_cfg.vision_encoder.from_pretrained or "vit" in mm_cfg.vision_encoder.from_pretrained:
+        if "clip" in mm_cfg.vision_encoder.from_pretrained or \
+            "vit" in mm_cfg.vision_encoder.from_pretrained or \
+            "clip" in mm_cfg.vision_encoder.get("model_type", ""):
             image_processor = CLIPImageProcessor.from_pretrained(
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )
-        elif "siglip" in mm_cfg.vision_encoder.from_pretrained:
+        elif "siglip" in mm_cfg.vision_encoder.from_pretrained or \
+            "siglip" in mm_cfg.vision_encoder.get("model_type", ""):
             image_processor = SiglipImageProcessor.from_pretrained(
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )

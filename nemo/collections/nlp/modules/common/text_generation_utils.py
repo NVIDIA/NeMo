@@ -287,7 +287,7 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
             clean_response = clean_response.rsplit("[/INST] ", 1)[-1]
         elif conv_template == "llama_3":
             clean_response = clean_response.rsplit("assistant<|end_header_id|>\n\n", 1)[-1]
-            clean_response = clean_response.rstrip("<|eot_id|>")
+            clean_response = re.sub(r"(<\|eot_id\|>)+$", "", clean_response)
         elif conv_template == "v1":
             clean_response = clean_response.rsplit("ASSISTANT: ", 1)[-1]
 

@@ -2,7 +2,7 @@ name: nemo_video_lita_neva
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  devices: 8
+  devices: 1
   num_nodes: 1
   accelerator: gpu
   precision: bf16
@@ -70,9 +70,10 @@ model:
     llm:
       from_pretrained: null #path to nemo checkpoint
       freeze: False
-      model_type: llama_2 # `nvgpt` or `llama_2` supported
+      model_type: vita
     vision_encoder:
-      from_pretrained: 'google/siglip-so400m-patch14-384' # path or name
+      from_pretrained: null # path or name
+      model_type: null
       from_hf: True
       crop_size: [384, 384]
       patch_dim: 14
@@ -206,7 +207,7 @@ model:
     conv_template: llama_3 # check `nemo/collections/multimodal/data/neva/conversation.py`
     image_folder: null
     video_folder: null
-    image_aspect_ratio: 'pad'
+    image_aspect_ratio: 'pad'  # in vila, it's `resize`
 
   # Nsys profiling options
   nsys_profile:

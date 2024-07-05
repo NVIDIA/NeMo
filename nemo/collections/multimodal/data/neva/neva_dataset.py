@@ -1046,7 +1046,7 @@ class LazySupervisedDataset(Dataset):
                 frames = self.video_loader.open_video(video_file)
                 if frames is None:
                     logging.warning(f"Video {video_file} could not be found!")
-                if isinstance(self.processor, CLIPImageProcessor):
+                if isinstance(self.processor, CLIPImageProcessor) or isinstance(self.processor, SiglipImageProcessor):
                     # image processor from HF
                     if self.multimodal_cfg['image_aspect_ratio'] == 'keep':
                         max_hw, min_hw = max(frames.size), min(frames.size)
