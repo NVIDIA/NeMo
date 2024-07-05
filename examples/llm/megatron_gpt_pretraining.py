@@ -37,7 +37,7 @@ if __name__ == '__main__':
         merges_file=args.merges_path,
     )
     data = PreTrainingDataModule(
-        path=args.data_path,
+        paths=args.data_path,
         seq_length=2048,
         global_batch_size=32,
         seed=1234,
