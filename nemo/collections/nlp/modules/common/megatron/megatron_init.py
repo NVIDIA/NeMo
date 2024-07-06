@@ -76,6 +76,7 @@ def initialize_model_parallel_for_nemo(
     seed=1234,
     apex_transformer_log_level=30,
     use_tp_pp_dp_mapping=False,
+    use_te_rng_tracker=False,
 ):
 
     if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
@@ -128,6 +129,7 @@ def initialize_model_parallel_for_nemo(
     set_pipeline_model_parallel_world_size(app_state.pipeline_model_parallel_size)
     set_pipeline_model_parallel_split_rank(app_state.pipeline_model_parallel_split_rank)
 
+    tensor_parallel.random.initialize_rng_tracker(use_te_rng_tracker=use_te_rng_tracker)
     if seed is not None:
         # @chcui not setting seed is for model conversion. always set seed for training/inference.
         _set_random_seed(seed)
@@ -315,7 +317,7 @@ def fake_initialize_model_parallel(
     if expert_model_parallel_size_ is not None and expert_model_parallel_size_ > 1:
         for ranks in rank_generator.get_ranks('ep', independent_ep=True):
             if rank in ranks:
-                expert_model_parallel_rank = list(ranks).index(rank) // tensor_model_parallel_size
+                expert_model_parallel_rank = list(ranks).index(rank)
 
     # Build the pipeline model-parallel groups and embedding groups
     # (first and last rank in each pipeline model-parallel group).

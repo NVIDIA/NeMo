@@ -39,7 +39,7 @@ from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron
     CLIPVisionTransformer,
     MegatronCLIPModel,
 )
-from nemo.collections.multimodal.parts.utils import load_nemo_model_weights
+from nemo.collections.multimodal.parts.utils import create_image_processor, load_nemo_model_weights
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
@@ -332,7 +332,6 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
     ):
         self.vision_encoder = vision_encoder
         self.from_hf = isinstance(vision_encoder, CLIPVisionModel) or isinstance(vision_encoder, TiledSiglipVisionModel)
-        self.from_open_clip = "open_clip" in str(vision_encoder.__module__)
         self.media_start_id = media_start_id
         self.media_end_id = media_end_id
         self.class_token_length = class_token_length
@@ -494,57 +493,32 @@ class NevaBaseModel:
         if mm_cfg.vision_encoder.get("from_hf", False):
             if "clip" in mm_cfg.vision_encoder.from_pretrained:
                 vision_encoder = CLIPVisionModel.from_pretrained(
-                    mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16,
+                    mm_cfg.vision_encoder.from_pretrained,
+                    torch_dtype=torch.bfloat16,
                 ).cuda()
                 vision_encoder = vision_encoder.to(torch.bfloat16)
                 if mm_cfg.vision_encoder.freeze:
                     for param in vision_encoder.parameters():
                         param.requires_grad = False
                     vision_encoder = vision_encoder.eval()
-                image_processor = CLIPImageProcessor.from_pretrained(
-                    mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
-                )
             elif "siglip" in mm_cfg.vision_encoder.from_pretrained:
                 vision_encoder = SiglipVisionModel.from_pretrained(
-                    mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+                    mm_cfg.vision_encoder.from_pretrained,
+                    torch_dtype=torch.bfloat16,
                 ).cuda()
                 vision_encoder = vision_encoder.to(torch.bfloat16)
                 if mm_cfg.vision_encoder.freeze:
                     for param in vision_encoder.parameters():
                         param.requires_grad = False
                     vision_encoder = vision_encoder.eval()
-
+                
                 vision_encoder = TiledSiglipVisionModel(vision_encoder,                                                         
                                                         grid_height = mm_cfg.vision_encoder.get("grid_height", 1),
                                                         grid_width = mm_cfg.vision_encoder.get("grid_width", 1),
                                                         vision_select_layer=mm_cfg.vision_encoder.get("vision_select_layer", -1),
                                                         ).cuda()
-
-                image_processor = SiglipImageProcessor.from_pretrained(
-                    mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
-                )
-
-                image_processor = TiledSiglipImageProcessor(image_processor,
-                                                            grid_width = mm_cfg.vision_encoder.get("grid_width", 1),
-                                                            grid_height = mm_cfg.vision_encoder.get("grid_height", 1),
-                                                            max_upscale = mm_cfg.vision_encoder.get("max_upscale", 2.0),
-                                                            )
             else:
-                raise(ValueError("Currently only support CLIPVisionModel and SigLipVisionModel from Huggingface"))
-        elif mm_cfg.vision_encoder.get("from_open_clip", False):
-            assert mm_cfg.vision_encoder.get("open_clip_model_name") is not None, \
-                f"`open_clip_model_name` needs to be set."
-            model, _, image_processor = open_clip.create_model_and_transforms(
-                mm_cfg.vision_encoder.open_clip_model_name,
-                pretrained=mm_cfg.vision_encoder.from_pretrained, precision=torch.bfloat16,
-            )
-            vision_encoder = model.visual.cuda()
-            del model
-            vision_encoder = vision_encoder.to(torch.bfloat16)
-            if mm_cfg.vision_encoder.freeze:
-                for param in vision_encoder.parameters():
-                    param.requires_grad = False
-                vision_encoder = vision_encoder.eval()
+                raise (ValueError("Currently only support CLIPVisionModel and SigLipVisionModel from Huggingface"))
         else:
             vision_cfg = MegatronCLIPModel.restore_from(
                 mm_cfg.vision_encoder.from_pretrained, return_config=True
@@ -553,8 +527,8 @@ class NevaBaseModel:
             self.load_vision_encoder_weights(vision_encoder, mm_cfg.vision_encoder.from_pretrained)
             if mm_cfg.vision_encoder.freeze:
                 vision_encoder.freeze()
-            crop_size = mm_cfg.get("crop_size", (224, 224))
-            image_processor = image_transform(crop_size, is_train=False, mean=None, std=None, )
+
+        image_processor = create_image_processor(mm_cfg)
 
         return vision_encoder, image_processor
 
@@ -1274,13 +1248,18 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         logging.info('Building Neva datasets.')
         if self.cfg.data.get("packed_sequence", False):
             assert self.cfg.micro_batch_size == 1, "Micro batch size must be 1 if using packed sequence"
-            self._train_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix, self.cfg.data.get("crop_size"))
-            self._validation_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix, self.cfg.data.get("crop_size"))
+            self._train_ds = NevaPackedSeqDatatset(
+                self.cfg.data.data_prefix, self.cfg.mm_cfg.vision_encoder.get("crop_size")
+            )
+            self._validation_ds = NevaPackedSeqDatatset(
+                self.cfg.data.data_prefix, self.cfg.mm_cfg.vision_encoder.get("crop_size")
+            )
         else:
             ds_dict = make_supervised_data_module(
                 tokenizer=self.tokenizer,
-                image_processor=self.model.module.image_processor if hasattr(self.model,
-                                                                             "module") else self.model.image_processor,
+                image_processor=(
+                    self.model.module.image_processor if hasattr(self.model, "module") else self.model.image_processor
+                ),
                 model_cfg=self.cfg,
             )
             self._train_ds = ds_dict["train_dataset"]

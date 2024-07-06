@@ -15,14 +15,17 @@ import os
 import tempfile
 from typing import Any, Callable, Tuple
 
+import decord
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from transformers import CLIPImageProcessor
+from transformers import CLIPImageProcessor, SiglipImageProcessor
+from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 
+from nemo.collections.multimodal.data.neva.neva_dataset import process_image
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
@@ -368,6 +371,7 @@ def create_neva_model_and_processor(cfg):
             neva_cfg.activations_checkpoint_method = None
             neva_cfg.precision = trainer.precision
             neva_cfg.mm_cfg.llm.from_pretrained = cfg.get('base_model_file', None)
+            neva_cfg.apply_rope_fusion = False
             neva_cfg.fp8 = False
             neva_cfg.tensor_model_parallel_size = cfg.tensor_model_parallel_size
             neva_cfg.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
@@ -429,8 +433,9 @@ def create_neva_model_and_processor(cfg):
         else:
             image = maybe_image_path
 
-        processor = model.model.module.image_processor \
-            if hasattr(model.model, "module") else model.model.image_processor
+        processor = (
+            model.model.module.image_processor if hasattr(model.model, "module") else model.model.image_processor
+        )
         image = process_image(processor, image, neva_cfg.data.image_aspect_ratio)
         if neva_cfg.precision in [16, '16', '16-mixed']:
             media = image.type(torch.float16)
@@ -443,23 +448,23 @@ def create_neva_model_and_processor(cfg):
 
     # add video processor for video neva
     def video_processor(maybe_video_path):
-        from decord import VideoReader
 
         if isinstance(maybe_video_path, str):
-            vr = VideoReader(maybe_video_path)
+            decord.bridge.set_bridge("torch")
+            vr = decord.VideoReader(maybe_video_path)
             if neva_cfg.data.splice_single_frame == 'first':
-                frames = [Image.fromarray(vr[0].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[0].asnumpy()).convert('RGB')]
             elif neva_cfg.data.splice_single_frame == 'middle':
-                frames = [Image.fromarray(vr[len(vr) // 2].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[len(vr) // 2].asnumpy()).convert('RGB')]
             elif neva_cfg.data.splice_single_frame == 'last':
-                frames = [Image.fromarray(vr[-1].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[-1].asnumpy()).convert('RGB')]
             else:
                 if neva_cfg.data.num_frames == -1:
-                    frames = [Image.fromarray(frame.asnumpy()[:, :, ::-1]).convert('RGB') for frame in vr]
+                    frames = [Image.fromarray(frame.asnumpy()).convert('RGB') for frame in vr]
                 else:
                     num_frames = min(len(vr), neva_cfg.data.num_frames)
                     indices = np.linspace(0, len(vr) - 1, num_frames, dtype=int)
-                    frames = [Image.fromarray(vr[i].asnumpy()[:, :, ::-1]).convert('RGB') for i in indices]
+                    frames = vr.get_batch(indices)
 
                     while len(frames) < neva_cfg.data.num_frames:
                         frames.append(frames[-1])
@@ -506,3 +511,35 @@ def create_neva_model_and_processor(cfg):
         return media_tensors.unsqueeze(dim=0).unsqueeze(dim=0)
 
     return model, image_processor, video_processor
+
+
+def create_image_processor(mm_cfg):
+    if mm_cfg.vision_encoder.get("from_hf", False):
+        if "clip" in mm_cfg.vision_encoder.from_pretrained:
+            image_processor = CLIPImageProcessor.from_pretrained(
+                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+            )
+        elif "siglip" in mm_cfg.vision_encoder.from_pretrained:
+            image_processor = SiglipImageProcessor.from_pretrained(
+                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+            )
+        else:
+            raise (ValueError("Currently only support CLIPImageProcessor and SiglipImageProcessor from Huggingface"))
+
+        crop_size = mm_cfg.vision_encoder.get("crop_size")
+        if hasattr(image_processor, 'crop_size') and crop_size is not None:
+            assert crop_size == (
+                image_processor.crop_size['height'],
+                image_processor.crop_size['width'],
+            ), f"Crop size {crop_size} does not match the HuggingFace CLIP model's crop size {(image_processor.crop_size['height'], image_processor.crop_size['width'])}"
+
+    else:
+        # Corresponds to MegatronCLIPModel
+        crop_size = mm_cfg.get("crop_size", (224, 224))
+        image_processor = image_transform(
+            crop_size,
+            is_train=False,
+            mean=None,
+            std=None,
+        )
+    return image_processor
