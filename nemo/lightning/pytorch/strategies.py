@@ -499,7 +499,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)
         sharding_type = 'fully_sharded_model_space' if self.parallel_save_optim else 'dp_zero_gather_scatter'
 
-        return _strategy_lib.optimizer_sharded_state_dict(self.megatron_parallel, optimizer, is_loading=is_loading, sharding_type=sharding_type)
+        return _strategy_lib.optimizer_sharded_state_dict(
+            self.megatron_parallel, optimizer, is_loading=is_loading, sharding_type=sharding_type
+        )
 
     @override
     def save_checkpoint(
@@ -567,9 +569,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 parallel_load=self.parallel_load,
             )
             if async_save:
-                self._checkpoint_io = AsyncFinalizableCheckpointIO(
-                    self._checkpoint_io
-                )
+                self._checkpoint_io = AsyncFinalizableCheckpointIO(self._checkpoint_io)
                 have_async_callback = False
                 for callback in self.trainer.callbacks:
                     if isinstance(callback, AsyncFinalizerCallback):
