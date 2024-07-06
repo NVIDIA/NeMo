@@ -242,8 +242,6 @@ try:
     from apex.normalization import MixedFusedRMSNorm
     from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
     from megatron.core.fusions.fused_layer_norm import FusedLayerNorm as MCoreFusedLayerNorm
-
-    # from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
     from megatron.core.fusions.fused_softmax import FusedScaleMaskSoftmax
     from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
 
