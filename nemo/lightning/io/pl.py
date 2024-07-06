@@ -14,6 +14,7 @@ from megatron.core.dist_checkpointing.serialization import (
 )
 
 # from nemo.utils.callbacks.torch_dist_async import TorchDistAsyncSaveShardedStrategy
+from megatron.core.dist_checkpointing.strategies import tensorstore
 from megatron.core.dist_checkpointing.strategies.async_utils import AsyncCallsQueue, AsyncRequest
 from megatron.core.dist_checkpointing.strategies.base import SaveShardedStrategy
 from megatron.core.dist_checkpointing.strategies.fully_parallel import (
