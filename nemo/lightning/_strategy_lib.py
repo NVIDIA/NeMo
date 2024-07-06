@@ -399,7 +399,7 @@ def enable_nvidia_optimizations() -> None:
 
 
 def optimizer_sharded_state_dict(
-    model: SharedStateDictProtocol, optimizer: "Optimizable", is_loading=False, sharding_type='dp_zero_gather_scatter'
+    model: SharedStateDictProtocol, optimizer: "Optimizable", is_loading=False, sharding_type='fully_sharded_model_space'
 ) -> Dict[str, torch.Tensor]:
     """
     Sharded state dictionary for an MainParamsOptimizerWrapper.
