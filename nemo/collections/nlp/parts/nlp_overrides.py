@@ -573,8 +573,8 @@ class NLPDDPStrategy(DDPStrategy):
             ]['optimizer']['param_groups']
         else:
             checkpoint['optimizer_states'][0]['param_groups'] = original_checkpoint['optimizer_states'][0][
-                'optimizer'
-            ]['param_groups']
+                'param_groups'
+            ]
 
         return checkpoint
 
@@ -1007,7 +1007,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                         model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
                     model.trainer.strategy.setup_environment()
                 sharded_state_dict = model.sharded_state_dict()
-                checkpoint_io = DistributedCheckpointIO(model.cfg.get('dist_ckpt_format', 'zarr'))
+                checkpoint_io = DistributedCheckpointIO.from_config(model.cfg, async_save=False)
                 checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_dir)
 
                 if HAVE_MODELOPT and hasattr(model, "get_model_module_list"):
