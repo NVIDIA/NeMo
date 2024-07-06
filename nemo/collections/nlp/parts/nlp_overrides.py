@@ -573,8 +573,8 @@ class NLPDDPStrategy(DDPStrategy):
             ]['optimizer']['param_groups']
         else:
             checkpoint['optimizer_states'][0]['param_groups'] = original_checkpoint['optimizer_states'][0][
-                'optimizer'
-            ]['param_groups']
+                'param_groups'
+            ]
 
         return checkpoint
 
@@ -1007,7 +1007,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                         model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
                     model.trainer.strategy.setup_environment()
                 sharded_state_dict = model.sharded_state_dict()
-                checkpoint_io = DistributedCheckpointIO(model.cfg.get('dist_ckpt_format', 'zarr'))
+                checkpoint_io = DistributedCheckpointIO.from_config(model.cfg, async_save=False)
                 checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_dir)
 
                 if HAVE_MODELOPT and hasattr(model, "get_model_module_list"):
@@ -1233,6 +1233,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
+        validate_access_integrity: bool = True,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -1267,6 +1268,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             strict,
             return_config,
             trainer,
+            validate_access_integrity,
         )
         if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
@@ -1316,7 +1318,10 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
                 checkpoint_io = DistributedCheckpointIO.from_config(conf)
                 checkpoint = checkpoint_io.load_checkpoint(
-                    tmp_model_weights_dir, sharded_state_dict=checkpoint, strict=strict
+                    tmp_model_weights_dir,
+                    sharded_state_dict=checkpoint,
+                    strict=strict,
+                    validate_access_integrity=validate_access_integrity,
                 )
                 instance.on_load_checkpoint(checkpoint)
                 if hasattr(instance, 'setup_transformer_engine_tp_groups'):
