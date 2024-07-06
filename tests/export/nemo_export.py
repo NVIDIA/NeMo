@@ -768,7 +768,7 @@ def get_args():
 
 
 def run_inference_tests(args):
-    if not args.use_vllm and not trt_llm_supported:
+    if not args.use_vllm and not args.in_framework and not trt_llm_supported:
         raise UsageError("TensorRT-LLM engine is not supported in this environment.")
 
     if args.use_vllm and not vllm_supported:
