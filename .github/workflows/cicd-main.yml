@@ -187,6 +187,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
+        export PYTHONPATH=/home/TestData/multimodal/video_neva/LLaVA:$PYTHONPATH
         CUDA_VISIBLE_DEVICES=0 python examples/multimodal/multimodal_llm/neva/convert_llava_to_neva.py \
           --in-file /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/llm \
           --mm-projector-ckpt-dir /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/mm_projector \
@@ -4457,6 +4458,7 @@ jobs:
       - L2_Community_LLM_Checkpoints_tests_Llama
       - L2_Community_LLM_Checkpoints_tests_StarCoder
       - L2_Community_LLM_Checkpoints_tests_Falcon
+      - L2_Community_vita_Checkpoints_tests_Llama3
       #- OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2
       - ASR_dev_run_Speech_to_Text
       - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
