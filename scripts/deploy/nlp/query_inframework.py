@@ -19,6 +19,7 @@ import typing
 import numpy as np
 from nemo.deploy.nlp.query_llm import NemoQueryLLMPyTorch
 
+
 def get_args(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -50,8 +51,15 @@ def query_llm(
     init_timeout=60.0,
 ):
     nemo_query = NemoQueryLLMPyTorch(url, model_name)
-    return nemo_query.query_llm(prompts=prompts, max_length=max_output_len, top_k=top_k, top_p=top_p, temperature=temperature, init_timeout=init_timeout)
-    
+    return nemo_query.query_llm(
+        prompts=prompts,
+        max_length=max_output_len,
+        top_k=top_k,
+        top_p=top_p,
+        temperature=temperature,
+        init_timeout=init_timeout,
+    )
+
 
 def query(argv):
     args = get_args(argv)

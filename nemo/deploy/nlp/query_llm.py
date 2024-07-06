@@ -30,6 +30,7 @@ class NemoQueryLLMBase(ABC):
         self.url = url
         self.model_name = model_name
 
+
 class NemoQueryLLMPyTorch(NemoQueryLLMBase):
     """
     Sends a query to Triton for LLM inference
@@ -122,6 +123,7 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
             result_dict = client.infer_batch(**inputs)
             return result_dict
+
 
 class NemoQueryLLM(NemoQueryLLMBase):
     """

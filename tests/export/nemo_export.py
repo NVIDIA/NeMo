@@ -106,10 +106,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
                 if isinstance(model, MegatronLLMDeployable):
                     model_output = model.generate(
                         inputs=[prompt],
-                        length_params={
-                            "min_length":1,
-                            "max_length":1
-                        },
+                        length_params={"min_length": 1, "max_length": 1},
                         sampling_params={
                             "use_greedy": True,
                             "temperature": 0.1,
@@ -120,10 +117,10 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
                             "all_probs": False,
                             "compute_logprob": False,
                             "end_strings": ["<|endoftext|>", "<extra_id_1>"],
-                        }
+                        },
                     )
                     # MegatronLLMDeployable returns prompt + generated output, so need to slice off prompt
-                    model_output = model_output["sentences"][0][len(prompt):].strip().lower()
+                    model_output = model_output["sentences"][0][len(prompt) :].strip().lower()
                 else:
                     model_output = model.forward(
                         input_texts=[prompt],
@@ -159,7 +156,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
                         temperature=0.1,
                     )
                     # MegatronLLMDeployable returns prompt + generated output, so need to slice off prompt
-                    deployed_output = deployed_output["sentences"][0][0][len(prompt):].decode().strip().lower()
+                    deployed_output = deployed_output["sentences"][0][0][len(prompt) :].decode().strip().lower()
                 else:
                     deployed_output = nq.query_llm(
                         prompts=[prompt],
@@ -570,16 +567,12 @@ def run_in_framework_inference(
         nq = NemoQueryLLMPyTorch(url="localhost:8000", model_name=model_name)
 
         output_deployed = nq.query_llm(
-            prompts=prompts,
-            top_k=top_k,
-            top_p=top_p,
-            temperature=temperature,
-            max_length=max_output_len
+            prompts=prompts, top_k=top_k, top_p=top_p, temperature=temperature, max_length=max_output_len
         )
         output_deployed = output_deployed["sentences"]
         # MegatronLLMDeployable will return the prompt + generated output, so cut off the prompt
         for i, output in enumerate(output_deployed):
-            output = output[len(prompts[i]):] 
+            output = output[len(prompts[i]) :]
 
         # Unwrap the generator if needed
         output_deployed = list(output_deployed)
@@ -917,9 +910,8 @@ def run_inference_tests(args):
             print(f"Deployed Model Accuracy:         {accuracy_result.deployed_accuracy:.4f}")
             print(f"Deployed Relaxed Model Accuracy: {accuracy_result.deployed_accuracy_relaxed:.4f}")
             print(f"Evaluation Time [s]:             {accuracy_result.evaluation_time:.2f}")
-            if (
-                (deployed_tests_only and accuracy_result.deployed_accuracy_relaxed < 0.5) or
-                (not deployed_tests_only and accuracy_result.accuracy_relaxed < 0.5)
+            if (deployed_tests_only and accuracy_result.deployed_accuracy_relaxed < 0.5) or (
+                not deployed_tests_only and accuracy_result.accuracy_relaxed < 0.5
             ):
                 accuracy_test_result = "FAIL"
 
