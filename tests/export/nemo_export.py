@@ -489,7 +489,7 @@ def run_existing_checkpoints(
     if in_framework:
         return run_in_framework_inference(
             model_name=model_name,
-            prompts=model_info["model_type"],
+            prompts=model_info["prompt_template"],
             checkpoint_path=model_info["checkpoint"],
             num_gpus=tp_size,
             max_output_len=model_info["max_output_len"],
