@@ -396,7 +396,7 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
                 super()._save_checkpoint(trainer, filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
-            # Async save passed the finalization function to checkpoint_io,
+            # Async save passes the finalization function to checkpoint_io,
             # sync save calls the finalization function immediately after save.
             finalize_fn = self._get_finalize_save_checkpoint_callback(trainer, filepath, trainer.global_step)
             if self.async_save:
