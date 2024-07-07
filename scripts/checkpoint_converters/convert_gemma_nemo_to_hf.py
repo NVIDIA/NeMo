@@ -56,7 +56,11 @@ This script is adapted from convert_llama_nemo_to_hf.py
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, default=None, required=True, help="Path to .nemo file or extracted folder",
+        "--input_name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to .nemo file or extracted folder",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to HF .bin file")
     parser.add_argument(
@@ -99,6 +103,7 @@ def get_args():
     args = parser.parse_args()
     return args
 
+
 def verify_forward(model_path, tokenizer_path, model_string):
     logging.info(f"=" * 100)
     logging.info(f"Verifying forward pass for {model_string}")
@@ -107,7 +112,7 @@ def verify_forward(model_path, tokenizer_path, model_string):
         'query: how much protein should an adult eat',
     ]
     logging.info(f"Running verifications {input_texts} ...")
-    
+
     tokenizer = GemmaTokenizer.from_pretrained(tokenizer_path, local_files_only=True)
     tokenizer.pad_token = tokenizer.eos_token
     batch_dict = tokenizer(input_texts, max_length=512, padding=True, truncation=True, return_tensors="pt")
@@ -126,8 +131,8 @@ def verify_forward(model_path, tokenizer_path, model_string):
         model = MegatronGPTModel.restore_from(
             model_path, trainer=dummy_trainer, override_config_path=model_config, map_location=None
         )
-        
-        ids  = batch_dict_cuda['input_ids']
+
+        ids = batch_dict_cuda['input_ids']
         id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids.cpu()]
         masks_and_position_ids = [
             get_ltor_masks_and_position_ids(id_tensor, tokenizer.eos_token, False, False, False)
@@ -137,7 +142,9 @@ def verify_forward(model_path, tokenizer_path, model_string):
         for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
             attn_mask, _, pos_ids = attn_mask_and_pos_ids
 
-            outputs = model(tokens=tokens, text_position_ids=pos_ids.cuda(), attention_mask=attn_mask.cuda(), labels=None)
+            outputs = model(
+                tokens=tokens, text_position_ids=pos_ids.cuda(), attention_mask=attn_mask.cuda(), labels=None
+            )
         next_token = outputs.squeeze()[-1].argmax()
     else:
         raise ValueError(f"Model string {model_string} not recognized.")
@@ -263,7 +270,9 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     checkpoint[final_ln_base_name] = param_to_weights(final_ln_weight - 1.0)
 
     # NOTE: Gemmas uses weight tying
-    output_layer_weight = model.state_dict()[f'model.embedding.word_embeddings.weight'] # model.state_dict()[f'model.output_layer.weight']
+    output_layer_weight = model.state_dict()[
+        f'model.embedding.word_embeddings.weight'
+    ]  # model.state_dict()[f'model.output_layer.weight']
     output_layer_base_name = f'lm_head.weight'
     checkpoint[output_layer_base_name] = param_to_weights(output_layer_weight)
 
@@ -275,13 +284,26 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
 
 
 def replace_hf_weights_and_tokenizer(
-    weights_file, dtype, input_hf_path, output_hf_path, tokenizer_path, output_hf_tokenizer,
+    weights_file,
+    dtype,
+    input_hf_path,
+    output_hf_path,
+    tokenizer_path,
+    output_hf_tokenizer,
 ):
-    model = AutoModelForCausalLM.from_pretrained(input_hf_path, local_files_only=True, torch_dtype=dtype,)
+    model = AutoModelForCausalLM.from_pretrained(
+        input_hf_path,
+        local_files_only=True,
+        torch_dtype=dtype,
+    )
     nemo_exported = torch.load(weights_file)
 
     if tokenizer_path:
-        tokenizer = GemmaTokenizer.from_pretrained(tokenizer_path, local_files_only=True, legacy=False,)
+        tokenizer = GemmaTokenizer.from_pretrained(
+            tokenizer_path,
+            local_files_only=True,
+            legacy=False,
+        )
         tmp_tokenizer = convert_slow_tokenizer.convert_slow_tokenizer(tokenizer)
         fast_tokenizer = GemmaTokenizerFast(tokenizer_object=tmp_tokenizer)
         tokenizer_length = len(fast_tokenizer)
