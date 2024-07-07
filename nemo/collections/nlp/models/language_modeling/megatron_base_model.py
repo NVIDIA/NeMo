@@ -290,7 +290,11 @@ class MegatronBaseModel(NLPModel):
         Returns:
             The wrapped model. Returns a list of wrapped modules or a single wrapped module.
         """
-        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False) or self.__dict__.get('mcore_t5', False)
+        is_mcore_model = (
+            self.__dict__.get('mcore_gpt', False)
+            or self.__dict__.get('mcore_bert', False)
+            or self.__dict__.get('mcore_t5', False)
+        )
 
         Float16Wrapper = MCoreFloat16Module if is_mcore_model else Float16Module
 
@@ -307,15 +311,15 @@ class MegatronBaseModel(NLPModel):
         # Model wrapper to convert both model and inputs to half precision
         if isinstance((self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model), list):
             converted_model = []
-            for module in (self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model):
+            for module in self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model:
                 args['module'] = module
                 converted_model.append(Float16Wrapper(**args))
             if hasattr(self, "enc_dec_model"):
-                self.enc_dec_model = converted_model    
+                self.enc_dec_model = converted_model
             else:
                 self.model = converted_model
         else:
-            args['module'] = (self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model)
+            args['module'] = self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model
             if hasattr(self, "enc_dec_model"):
                 self.enc_dec_model = Float16Wrapper(**args)
             else:
@@ -1028,7 +1032,11 @@ class MegatronBaseModel(NLPModel):
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self):
         """Returns the total number of parameters across all model parallel groups."""
-        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False) or self.__dict__.get('mcore_t5', False)
+        is_mcore_model = (
+            self.__dict__.get('mcore_gpt', False)
+            or self.__dict__.get('mcore_bert', False)
+            or self.__dict__.get('mcore_t5', False)
+        )
         # log number of parameters
         model = self.get_model_module_list()
         if isinstance(model, list):
