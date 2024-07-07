@@ -3504,8 +3504,8 @@ jobs:
         trainer.precision=bf16 \
         model.megatron_amp_O2=True \
         exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        +model.mcore_t5=True \
-        +model.transformer_engine=True \
+        model.mcore_t5=True \
+        model.transformer_engine=True \
         model.tensor_model_parallel_size=2 \
         model.micro_batch_size=4 \
         model.global_batch_size=4 \
@@ -3537,8 +3537,8 @@ jobs:
         model.megatron_amp_O2=True \
         exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
         exp_manager.resume_if_exists=True \
-        +model.mcore_t5=True \
-        +model.transformer_engine=True \
+        model.mcore_t5=True \
+        model.transformer_engine=True \
         model.tensor_model_parallel_size=2 \
         model.micro_batch_size=4 \
         model.global_batch_size=4 \
