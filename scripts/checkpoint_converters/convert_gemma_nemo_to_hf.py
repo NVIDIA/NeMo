@@ -22,6 +22,7 @@ from pytorch_lightning import Trainer
 from transformers import AutoModelForCausalLM, GemmaTokenizer, GemmaTokenizerFast, convert_slow_tokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
 
@@ -97,6 +98,52 @@ def get_args():
     )
     args = parser.parse_args()
     return args
+
+def verify_forward(model_path, tokenizer_path, model_string):
+    logging.info(f"=" * 100)
+    logging.info(f"Verifying forward pass for {model_string}")
+
+    input_texts = [
+        'query: how much protein should an adult eat',
+    ]
+    logging.info(f"Running verifications {input_texts} ...")
+    
+    tokenizer = GemmaTokenizer.from_pretrained(tokenizer_path, local_files_only=True)
+    tokenizer.pad_token = tokenizer.eos_token
+    batch_dict = tokenizer(input_texts, max_length=512, padding=True, truncation=True, return_tensors="pt")
+    batch_dict_cuda = {k: v.cuda() for k, v in batch_dict.items()}
+
+    if model_string == "hf":
+        model = AutoModelForCausalLM.from_pretrained(model_path, local_files_only=True)
+        model = model.cuda().eval()
+        outputs = model(**batch_dict_cuda, output_hidden_states=True)
+        next_token = outputs.logits[0, -1].argmax()
+    elif model_string == 'nemo':
+        dummy_trainer = Trainer(devices=1, accelerator='auto', strategy=NLPDDPStrategy())
+        model_config = MegatronGPTModel.restore_from(model_path, trainer=dummy_trainer, return_config=True)
+        model_config.tensor_model_parallel_size = 1
+        model_config.pipeline_model_parallel_size = 1
+        model = MegatronGPTModel.restore_from(
+            model_path, trainer=dummy_trainer, override_config_path=model_config, map_location=None
+        )
+        
+        ids  = batch_dict_cuda['input_ids']
+        id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids.cpu()]
+        masks_and_position_ids = [
+            get_ltor_masks_and_position_ids(id_tensor, tokenizer.eos_token, False, False, False)
+            for id_tensor in id_tensors
+        ]
+
+        for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
+            attn_mask, _, pos_ids = attn_mask_and_pos_ids
+
+            outputs = model(tokens=tokens, text_position_ids=pos_ids.cuda(), attention_mask=attn_mask.cuda(), labels=None)
+        next_token = outputs.squeeze()[-1].argmax()
+    else:
+        raise ValueError(f"Model string {model_string} not recognized.")
+
+    logging.info(f"{model_string} predicted next token is: '{tokenizer.convert_ids_to_tokens([next_token])}'.")
+    logging.info(f"=" * 100)
 
 
 def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> None:
@@ -254,8 +301,9 @@ if __name__ == '__main__':
     args = get_args()
     if not args.hf_output_tokenizer and args.hf_output_path:
         args.hf_output_tokenizer = args.hf_output_path
-    dtype = convert(args.input_name_or_path, args.output_path, precision=args.precision, cpu_only=args.cpu_only)
+    # dtype = convert(args.input_name_or_path, args.output_path, precision=args.precision, cpu_only=args.cpu_only)
     if args.hf_input_path and args.hf_output_path:
+        """
         replace_hf_weights_and_tokenizer(
             args.output_path,
             dtype,
@@ -264,6 +312,9 @@ if __name__ == '__main__':
             args.input_tokenizer,
             args.hf_output_tokenizer,
         )
+        """
+        verify_forward(args.input_name_or_path, args.hf_output_tokenizer, "nemo")
+        verify_forward(args.hf_output_path, args.hf_output_tokenizer, "hf")
     else:
         logging.info("`hf_input_path` and/or `hf_output_path` not provided, not generating full HF model.")
         logging.info(f".bin file is saved to {args.output_path}")
