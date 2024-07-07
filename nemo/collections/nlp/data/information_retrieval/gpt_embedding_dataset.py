@@ -47,6 +47,7 @@ class GPTEmbeddingDataset(Dataset):
         truncation_method: str = 'right',
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
         data_type: str = 'train',  # train, query or doc
+        num_hard_negatives: int = 4,
     ):
         """
         file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format. 
@@ -73,6 +74,7 @@ class GPTEmbeddingDataset(Dataset):
         self.index_mapping_dir = index_mapping_dir
         self.virtual_tokens = virtual_tokens
         self.truncation_method = truncation_method
+        self.num_hard_negatives = num_hard_negatives
         if special_tokens is None:
             self.special_tokens = {
                 "system_turn_start": "<extra_id_0>",
@@ -157,15 +159,19 @@ class GPTEmbeddingDataset(Dataset):
         if self.data_type == 'train':
             q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
             d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
-            nd = self.tokenizer.text_to_ids("passage: " + example['neg_doc'].strip())
+            # nd = self.tokenizer.text_to_ids("passage: " + example['neg_doc'].strip())
+            nd = [
+                self.tokenizer.text_to_ids("passage: " + example['neg_doc'][i].strip())
+                for i in range(self.num_hard_negatives)
+            ]
         elif self.data_type == 'query':
             q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
             d, nd = None, None
-            assert "query_id" in example, "query_id is required for query dataset"
-            assert "doc_id" in example, "doc_id is required for query dataset"
+            # assert "query_id" in example, "query_id is required for query dataset"
+            # assert "doc_id" in example, "doc_id is required for query dataset"
         elif self.data_type == 'doc':
             d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
-            assert "doc_id" in example, "doc_id is required for doc dataset"
+            # assert "doc_id" in example, "doc_id is required for doc dataset"
             q, nd = None, None
         else:
             raise ValueError(f"Invalid data type: {self.data_type}")
@@ -179,22 +185,22 @@ class GPTEmbeddingDataset(Dataset):
             # these pad/eos tokens are placeholders for virtual tokens for ptuning (if used)
             q = [self.tokenizer.eos_id] * self.virtual_tokens + q  # type: ignore
             d = [self.tokenizer.eos_id] * self.virtual_tokens + d  # type: ignore
-            nd = [self.tokenizer.eos_id] * self.virtual_tokens + nd  # type: ignore
+            nd = [[self.tokenizer.eos_id] * self.virtual_tokens + n for n in nd]  # type: ignore
 
         if self.add_bos:
             q = [self.tokenizer.bos_id] + q  # type: ignore
             d = [self.tokenizer.bos_id] + d  # type: ignore
-            nd = [self.tokenizer.bos_id] + nd  # type: ignore
+            nd = [[self.tokenizer.bos_id] + n for n in nd]  # type: ignore
 
         # TODO: (@adithyare) should probably add a warning before truncation
         q = q[: self.max_seq_length - 1]
         d = d[: self.max_seq_length - 1]
-        nd = nd[: self.max_seq_length - 1]
+        nd = [n[: self.max_seq_length - 1] for n in nd]
 
         if self.add_eos:
             q = q + [self.tokenizer.eos_id]  # type: ignore
             d = d + [self.tokenizer.eos_id]  # type: ignore
-            nd = nd + [self.tokenizer.eos_id]  # type: ignore
+            nd = [n + [self.tokenizer.eos_id] for n in nd]  # type: ignore
 
         processed_example = {
             'query': q,
@@ -244,9 +250,15 @@ class GPTEmbeddingDataset(Dataset):
                 lengths.append(len(item['query']))
                 input_ids.append(item['pos_doc'])
                 lengths.append(len(item['pos_doc']))
-                input_ids.append(item['neg_doc'])
-                lengths.append(len(item['neg_doc']))
-                max_length = max(max_length, len(item['query']), len(item['pos_doc']), len(item['neg_doc']))
+                # input_ids.append(item['neg_doc'])
+                # lengths.append(len(item['neg_doc']))
+                # max_length = max(max_length, len(item['query']), len(item['pos_doc']), len(item['neg_doc']))
+                for nd in item['neg_doc']:
+                    input_ids.append(nd)
+                    lengths.append(len(nd))
+                max_length = max(
+                    max_length, len(item['query']), len(item['pos_doc']), *(len(nd) for nd in item['neg_doc'])
+                )
             elif self.data_type == 'query':
                 input_ids.append(item['query'])
                 lengths.append(len(item['query']))
@@ -258,7 +270,7 @@ class GPTEmbeddingDataset(Dataset):
             else:
                 raise ValueError(f"Invalid data type: {self.data_type}")
 
-        max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))
+        max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 256))
         assert max_length <= self.max_seq_length
 
         attention_mask = [self._create_attention_mask(max_length) for _ in input_ids]
