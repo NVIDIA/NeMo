@@ -12,6 +12,7 @@ from nemo.core.optim.lr_scheduler import (
     WarmupAnnealing,
     WarmupHoldPolicy,
     WarmupPolicy,
+    MegatronAnnealing,
 )
 from nemo.lightning.pytorch.optim.base import LRSchedulerModule
 
@@ -459,5 +460,66 @@ class CosineAnnealingScheduler(LRSchedulerModule):
                 "frequency": self.frequency,
             },
             # Metric to to monitor for schedulers like `ReduceLROnPlateau`
+            "monitor": self.monitor,
+        }
+
+
+class MegatronAnnealingScheduler(LRSchedulerModule):
+    def __init__(
+        self,
+        init_lr=0.0,
+        max_lr=0.00015,
+        min_lr=1e-05,
+        lr_warmup_steps=3200.0,
+        lr_decay_steps=320000,
+        lr_decay_style='cosine',
+        start_wd=0.01,
+        end_wd=0.01,
+        wd_incr_steps=20,
+        wd_incr_style='constant',
+        interval="epoch",
+        frequency=1,
+        monitor="val_loss",
+    ):
+        super().__init__()
+        self.init_lr = init_lr
+        self.max_lr = max_lr
+        self.min_lr = min_lr
+        self.lr_warmup_steps = lr_warmup_steps
+        self.lr_decay_steps = lr_decay_steps
+        self.lr_decay_style = lr_decay_style
+        self.start_wd = start_wd
+        self.end_wd = end_wd
+        self.wd_incr_steps = wd_incr_steps
+        self.wd_incr_style = wd_incr_style
+        self.interval = interval
+        self.frequency = frequency
+        self.monitor = monitor
+
+    def scheduler(self, model, optimizer):
+
+        lr_scheduler = MegatronAnnealing(
+            optimizer=optimizer,
+            init_lr=self.init_lr,
+            max_lr=self.max_lr,
+            min_lr=self.min_lr,
+            lr_warmup_steps=self.lr_warmup_steps,
+            lr_decay_steps=self.lr_decay_steps,
+            lr_decay_style=self.lr_decay_style,
+            start_wd=self.start_wd,
+            end_wd=self.end_wd,
+            wd_incr_steps=self.wd_incr_steps,
+            wd_incr_style=self.wd_incr_style,
+            use_checkpoint_opt_param_scheduler=False,
+            override_opt_param_scheduler=False
+        )
+
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": self.interval,
+                "frequency": self.frequency,
+            },
             "monitor": self.monitor,
         }

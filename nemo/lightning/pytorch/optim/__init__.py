@@ -12,6 +12,7 @@ from nemo.lightning.pytorch.optim.lr_scheduler import (
     WarmupAnnealingScheduler,
     WarmupHoldPolicyScheduler,
     WarmupPolicyScheduler,
+    MegatronAnnealingScheduler,
 )
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
@@ -31,4 +32,5 @@ __all__ = [
     "PolynomialDecayAnnealingScheduler",
     "PolynomialHoldDecayAnnealingScheduler",
     "CosineAnnealingScheduler",
+    "MegatronAnnealingScheduler",
 ]
