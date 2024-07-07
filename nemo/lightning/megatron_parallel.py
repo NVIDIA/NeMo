@@ -1,3 +1,4 @@
+import os
 import abc
 import collections.abc
 import functools
@@ -1075,3 +1076,65 @@ def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor, num_valid_t
     torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
 
     return loss
+
+
+class MegatronMaskedTokenLossReduction(MegatronLossReduction):
+    def __init__(self, validation_step: bool = False, val_drop_last: bool = True) -> None:
+        super().__init__()
+        self.validation_step = validation_step
+        self.val_drop_last = val_drop_last
+
+    def forward(
+        self, batch: Dict[str, torch.Tensor], forward_out: torch.Tensor
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        return megatron_loss_func(batch["loss_mask"], forward_out)
+
+    def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
+        return torch.tensor(0.0).cuda()
+
+
+def megatron_loss_func(loss_mask: torch.Tensor, output_tensor: torch.Tensor):
+    """Loss function.
+
+    Args:
+        loss_mask (torch.Tensor): Used to mask out some portions of the loss
+        output_tensor (torch.Tensor): The tensor with the losses
+
+    Returns:
+        the loss scalar for this micro-batch
+        the number of non-padded tokens in this microbatch
+        a dict containing reporting metrics on the loss and number of tokens across
+            the data parallel ranks
+    """
+    from megatron.core import parallel_state
+
+    # FIXME(ahmadki): args: context_parallel_size and check_for_nan_in_loss_and_grad should be parameterized
+    context_parallel_size = 1
+    check_for_nan_in_loss_and_grad = True
+
+    losses = output_tensor.float()
+    loss_mask = loss_mask.view(-1).float()
+    total_tokens = loss_mask.sum()
+    loss = torch.cat([torch.sum(losses.view(-1) * loss_mask).view(1), total_tokens.view(1)])
+
+    if context_parallel_size > 1:
+        torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
+
+    # Check individual rank losses are not NaN prior to DP all-reduce.
+    if check_for_nan_in_loss_and_grad:
+        global_rank = torch.distributed.get_rank()
+        assert not loss[0].isnan(), (
+            f'Rank {global_rank}: found NaN in local forward loss calculation. '
+            f'Device: {torch.cuda.current_device()}, node: {os.uname()[1]}'
+        )
+
+    # Reduce loss for logging.
+    reporting_loss = loss.clone().detach()
+    torch.distributed.all_reduce(reporting_loss, group=parallel_state.get_data_parallel_group())
+
+    local_num_tokens = loss[1].clone().detach().to(torch.int)
+    return (
+        loss[0] * context_parallel_size,
+        local_num_tokens,
+        {'lm loss': (reporting_loss[0], reporting_loss[1])},
+    )

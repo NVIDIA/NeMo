@@ -12,7 +12,7 @@ from torch import nn
 
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
-from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
+from nemo.lightning.megatron_parallel import MaskedTokenLossReduction, MegatronMaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 
 if TYPE_CHECKING:
@@ -185,10 +185,14 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self.forward_step(batch)
 
     def training_loss_reduction(self) -> MaskedTokenLossReduction:
-        return MaskedTokenLossReduction()
+        # return MaskedTokenLossReduction()
+        # FIXME(ahmadki): parametrize the loss function
+        return MegatronMaskedTokenLossReduction()
 
     def validation_loss_reduction(self) -> MaskedTokenLossReduction:
-        return MaskedTokenLossReduction(validation_step=True)
+        # return MaskedTokenLossReduction(validation_step=True)
+        # FIXME(ahmadki): parametrize the loss function
+        return MegatronMaskedTokenLossReduction(validation_step=True)
 
 
 def get_batch_on_this_context_parallel_rank(batch):
