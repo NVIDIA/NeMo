@@ -4,8 +4,8 @@ try:
 except ImportError:
     pass
 
-from nemo.collections.llm import tokenizer
-from nemo.collections.llm.api import export_ckpt, import_ckpt, pretrain, train, validate
+from nemo.collections.llm import peft, tokenizer
+from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
 from nemo.collections.llm.gpt.data import (
     DollyDataModule,
     FineTuningDataModule,
@@ -13,6 +13,7 @@ from nemo.collections.llm.gpt.data import (
     PreTrainingDataModule,
     SquadDataModule,
 )
+from nemo.collections.llm.gpt.data.api import dolly, mock, squad
 from nemo.collections.llm.gpt.model import (
     CodeGemmaConfig2B,
     CodeGemmaConfig7B,
@@ -40,6 +41,24 @@ from nemo.collections.llm.gpt.model import (
     MixtralModel,
     gpt_data_step,
     gpt_forward_step,
+)
+from nemo.collections.llm.gpt.model.api import (
+    code_gemma_2b,
+    code_gemma_7b,
+    code_llama_7b,
+    code_llama_13b,
+    code_llama_34b,
+    code_llama_70b,
+    gemma,
+    gemma_2b,
+    gemma_7b,
+    llama2_7b,
+    llama2_13b,
+    llama2_70b,
+    llama3_8b,
+    llama3_70b,
+    mistral,
+    mixtral,
 )
 
 __all__ = [
@@ -79,5 +98,26 @@ __all__ = [
     "export_ckpt",
     "pretrain",
     "validate",
+    "finetune",
     "tokenizer",
+    "mock",
+    "squad",
+    "dolly",
+    "mistral",
+    "mixtral",
+    "llama2_7b",
+    "llama3_8b",
+    "llama2_13b",
+    "llama2_70b",
+    "llama3_70b",
+    "code_llama_7b",
+    "code_llama_13b",
+    "code_llama_34b",
+    "code_llama_70b",
+    "gemma",
+    "gemma_2b",
+    "gemma_7b",
+    "code_gemma_2b",
+    "code_gemma_7b",
+    "peft",
 ]
