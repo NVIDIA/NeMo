@@ -114,7 +114,7 @@ class FNMixin:
         by setting `requires_grad` to False.
         """
         assert isinstance(self, nn.Module), "self is not a nn.Module"
-        
+
         params = list(self.parameters())
         if not params:
             logging.info(f"No parameters found in module {self.__class__.__name__}")
