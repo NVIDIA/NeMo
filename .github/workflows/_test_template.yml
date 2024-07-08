@@ -34,6 +34,13 @@ on:
         description: Last 2000 characters of the test step's log
         value: ${{ jobs.main.outputs.log }} 
 jobs:
+  runner-auto-clean:
+    runs-on: ${{ inputs.RUNNER }}
+    steps:
+        - name: Docker system cleanup
+          run: |
+            docker system prune -a --filter "until=48h" --force
+
   main:
     runs-on: ${{ inputs.RUNNER }} 
     outputs:
@@ -49,9 +56,6 @@ jobs:
         --env HYDRA_FULL_ERROR=1
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
-        - name: Docker cleanup
-          run: |
-            docker system prune -a --filter "until=48h" --force
         - name: Checkout repository
           uses: actions/checkout@v4
         - id: main
