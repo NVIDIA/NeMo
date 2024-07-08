@@ -23,5 +23,5 @@ When continuing training from an existing checkpoint with the same configuration
     * ``decay_steps`` will be recalculated as ``decay_steps -= completed_steps``.
 This ensures that the learning rate reaches the ``min_lr`` value by the end of training without changing the ``trainer.max_steps``:
 
-![plot](./images/reset_lr.png)
+(./images/reset_lr.png)
 
