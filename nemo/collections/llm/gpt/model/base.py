@@ -71,7 +71,7 @@ def transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
     )
 
 
-def local_layer_spect(config: "GPTConfig") -> ModuleSpec:
+def local_layer_spec(config: "GPTConfig") -> ModuleSpec:
     return gpt_layer_specs.get_gpt_layer_local_spec(
         num_experts=config.num_moe_experts, moe_grouped_gemm=config.moe_grouped_gemm, qk_layernorm=config.qk_layernorm
     )
@@ -243,4 +243,4 @@ def get_packed_seq_params(batch):
     )
 
 
-__all__ = ["GPTModel", "GPTConfig", "gpt_data_step", "gpt_forward_step"]
+__all__ = ["GPTModel", "GPTConfig", "gpt_data_step", "gpt_forward_step", "transformer_engine_layer_spec", "local_layer_spec"]
