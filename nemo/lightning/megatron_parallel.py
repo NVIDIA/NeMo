@@ -424,12 +424,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
     def init_model_parallel(self):
         from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
         from megatron.core import parallel_state
-
-        if self.convert_module_fn:
-            self.apply_convert_module_fn()
-
-        self.init_ddp()
-
+        
         for model_module in self:
             if not self._cpu:
                 model_module.cuda(torch.cuda.current_device())
@@ -460,10 +455,13 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 logging.info(msg)
 
                 if num_params != num_trainable_params:
-                    logging.info(
-                        f" > number of trainable parameters: {num_trainable_params} ({num_trainable_params / num_params:.2%} of total)"
-                    )
-
+                    logging.info(f" > number of trainable parameters: {num_trainable_params} ({num_trainable_params / num_params:.2%} of total)")
+                    
+        if self.convert_module_fn:
+            self.apply_convert_module_fn()
+            
+        self.init_ddp()
+        
     def apply_convert_module_fn(self):
         for i in range(len(self)):
             self[i] = self.convert_module_fn(self[i])

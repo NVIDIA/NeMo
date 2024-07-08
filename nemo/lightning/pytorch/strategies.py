@@ -148,7 +148,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         self._ddp = ddp
         if ddp == "megatron":
-            self.ddp_config = DistributedDataParallelConfig()
+            self.ddp_config = DistributedDataParallelConfig(check_for_nan_in_grad=True)
         elif isinstance(ddp, DistributedDataParallelConfig):
             self.ddp_config = ddp
         elif ddp == "pytorch":
