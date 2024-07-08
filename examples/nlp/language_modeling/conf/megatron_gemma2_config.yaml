@@ -86,7 +86,7 @@ model:
   overlap_p2p_comm: False # Overlap p2p communication with computes. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   num_query_groups: 8 # Number of query groups for group query attention. If None, normal attention is used. | 9b: 8 | 27b: 16
-  sqrt_query_pre_attn_scalar: 14.9666 #  | 9b: sqrt(224) | 27b: sqrt(144)
+  query_pre_attn_scalar: 224 # Custom scale factor (normally sqrt dim) in SDPA  9b: 224 | 27b: 144
 
   tokenizer:
     library: 'sentencepiece'
