@@ -243,4 +243,11 @@ def get_packed_seq_params(batch):
     )
 
 
-__all__ = ["GPTModel", "GPTConfig", "gpt_data_step", "gpt_forward_step", "transformer_engine_layer_spec", "local_layer_spec"]
+__all__ = [
+    "GPTModel",
+    "GPTConfig",
+    "gpt_data_step",
+    "gpt_forward_step",
+    "transformer_engine_layer_spec",
+    "local_layer_spec",
+]
