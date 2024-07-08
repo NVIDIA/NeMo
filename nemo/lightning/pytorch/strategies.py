@@ -111,6 +111,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_parallel_load=False,
         ckpt_parallel_save_optim=True,
         setup_optimizers: bool = True,
+        init_model_parallel: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -134,6 +135,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.ckpt_include_optimizer = ckpt_include_optimizer
         self.pipeline_dtype = pipeline_dtype
         self._setup_optimizers = setup_optimizers
+        self._init_model_parallel = init_model_parallel
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
         self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
 
@@ -287,8 +289,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             cpu=isinstance(trainer.accelerator, CPUAccelerator),
             ddp_config=self.ddp_config,
             convert_module_fn=convert_module_fn,
-            freeze=getattr(self.lightning_module, "should_freeze", False),
         )
+        
+        if self._init_model_parallel:
+            self.init_model_parallel()
+        
         self.megatron_parallel.trainer = trainer
 
         # check signature-def of self.model.configure_optimizers to check if there's an optional arg: megatron_parallel
@@ -310,6 +315,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         datamodule = getattr(trainer, "datamodule", None)
         if datamodule:
             self.model.callbacks.add(datamodule)
+
+    def init_model_parallel(self):
+        self.megatron_parallel.init_model_parallel()
 
     @override
     def configure_ddp(self) -> None:

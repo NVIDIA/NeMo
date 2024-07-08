@@ -76,6 +76,7 @@ class PEFT(ABC, ModelTransform):
             nn.Module: The transformed model with PEFT applied.
         """
 
+        model.freeze()
         model.walk(self.transform)
 
         return model
@@ -83,27 +84,22 @@ class PEFT(ABC, ModelTransform):
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         super().setup(trainer, pl_module, stage=stage)
 
-        pl_module.freeze()
-        if hasattr(pl_module, "lazy_freeze"):
-            pl_module.lazy_freeze()
-
         self.wrapped_io = WrappedAdapterIO(trainer.strategy.checkpoint_io)
         trainer.strategy._checkpoint_io = self.wrapped_io
+        trainer.strategy._init_model_parallel = False
         trainer.strategy._setup_optimizers = False
 
-    def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        needs_to_call = self._needs_to_call
-        self._maybe_apply_transform(trainer)
+    def apply_transform(self, trainer):
+        super().apply_transform(trainer)
 
-        if needs_to_call:
-            if hasattr(trainer.model, "init_ddp"):
-                logging.info("Setting up DDP")
-                trainer.model.init_ddp()
-            logging.info("Setting up optimizers")
-            trainer.strategy.setup_optimizers(trainer)
+        if hasattr(trainer.strategy, "init_model_parallel"):
+            logging.info("Initializing model parallel")
+            trainer.strategy.init_model_parallel()
 
-        # Check if we need to load the adapters
-        if needs_to_call and self.wrapped_io.adapter_ckpt_path is not None:
+        logging.info("Setting up optimizers")
+        trainer.strategy.setup_optimizers(trainer)
+        
+        if self.wrapped_io.adapter_ckpt_path is not None:
             logging.info(f"Loading adapters from {self.wrapped_io.adapter_ckpt_path}")
             adapter_state = self.wrapped_io.load_checkpoint(self.wrapped_io.adapter_ckpt_path)
             trainer.strategy.load_model_state_dict(adapter_state, strict=False)
