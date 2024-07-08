@@ -277,14 +277,6 @@ class TensorRTLLM(ITritonDeployable):
                     model_type = "llama"
 
                 model, model_configs, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir)
-
-                if (model_configs["num_query_groups"] % tensor_parallelism_size) != 0:
-                    raise Exception(
-                        "Number of query groups of the models is {0}. Please select tensor parallelism size "
-                        "that can split the number of query groups to equal number of query matrices in the "
-                        "each GPU.".format(model_configs["num_query_groups"])
-                    )
-
                 weights_dicts, model_configs = model_to_trtllm_ckpt(
                     model=model,
                     nemo_model_config=model_configs,
