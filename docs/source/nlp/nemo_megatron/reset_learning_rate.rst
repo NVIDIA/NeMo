@@ -16,6 +16,7 @@ Use Cases
 
 1. ``reset_lr=True, reset_lr_steps=False``
 When pretraining an existing checkpoint "from scratch" on a different dataset. The learning rate will be reset to its initial value. This allows the model to start training on a new dataset with the same learning rate dynamics as if it were starting from scratch.
+
 2. ``reset_lr=True, reset_lr_steps=True``
 When continuing training from an existing checkpoint with the same configuration. The learning rate will be reset to its initial value, and the ``max_steps`` and ``decay_steps`` for learning rate schedule will be recalculated by subtracting the number of steps already completed at the checkpoint. Specifically:
     * ``max_steps`` will be recalculated as ``max_steps -= completed_steps``.
