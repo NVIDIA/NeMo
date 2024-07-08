@@ -91,10 +91,8 @@ class MegatronOptimizerModule(OptimizerModule):
                 model_sharded_state_dict,
                 optimizer_state_dict=None,
                 is_loading=False,
-                # dist_ckpt_parallel_save=False, ## TODO: fix!
+                sharding_type='fully_sharded_model_space',
             ):
-                # sharding_type = 'fully_sharded_model_space' if dist_ckpt_parallel_save else 'dp_zero_gather_scatter'
-                sharding_type = 'dp_zero_gather_scatter'
                 mcore_optimizer_sig = inspect.signature(self.mcore_optimizer.sharded_state_dict).parameters
                 distrib_optim_kwargs = {}
                 if "sharding_type" in mcore_optimizer_sig:
