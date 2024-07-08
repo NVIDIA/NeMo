@@ -1,6 +1,7 @@
-name: &name "TitaNet-S"
+name: "ECAPA_TDNN"
 
 model:
+
   sample_rate: 16000
 
   train_ds:
@@ -8,40 +9,34 @@ model:
     sample_rate: ${model.sample_rate}
     labels: null
     batch_size: 64
+    num_workers: 8
     shuffle: True
-    is_tarred: False
-    tarred_audio_filepaths: null
-    tarred_shard_strategy: "scatter"
     augmentor:
       noise:
-        manifest_path: null
+        manifest_path: ???
         prob: 0.5
         min_snr_db: 0
         max_snr_db: 15
 
       speed:
-        prob: 0.3
+        prob: 0.5
         sr: ${model.sample_rate}
         resample_type: 'kaiser_fast'
         min_speed_rate: 0.95
         max_speed_rate: 1.05
+
+      impulse:
+        prob: 0.5
+        manifest_path: ???
 
   validation_ds:
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
     labels: null
     batch_size: 128
+    num_workers: 8
     shuffle: False
 
-  model_defaults:
-    filters: 256
-    repeat: 3
-    dropout: 0.1
-    separable: true
-    se: true
-    se_context_size: -1
-    kernel_size_factor: 1.0
-    
   preprocessor:
     _target_: nemo.collections.asr.modules.ssl_modules.multi_layer_feat.ConformerMultiLayerFeaturePreprocessor
     layer_idx_list: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]
@@ -70,7 +65,7 @@ model:
       freq_masks: 3
       freq_width: 4
       time_masks: 5
-      time_width: 0.03
+      time_width: 0.05
     
     encoder:
       _target_: nemo.collections.asr.modules.ConformerEncoder
@@ -116,106 +111,48 @@ model:
       stochastic_depth_mode: linear  # linear or uniform
       stochastic_depth_start_layer: 1
 
-  spec_augment:
-    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-    freq_masks: 3
-    freq_width: 4
-    time_masks: 5
-    time_width: 0.03
-
   encoder:
-    _target_: nemo.collections.asr.modules.ConvASREncoder
-    feat_in: ${model.preprocessor.encoder.d_model}
-    activation: relu
-    conv_mask: true
-
-    jasper:
-      -   filters: ${model.model_defaults.filters}
-          repeat: 1
-          kernel: [3]
-          stride: [1]
-          dilation: [1]
-          dropout: 0.0
-          residual: false
-          separable: ${model.model_defaults.separable}
-          se: ${model.model_defaults.se}
-          se_context_size: ${model.model_defaults.se_context_size}
-
-      -   filters: ${model.model_defaults.filters}
-          repeat:  ${model.model_defaults.repeat}
-          kernel: [7]
-          stride: [1]
-          dilation: [1]
-          dropout: ${model.model_defaults.dropout}
-          residual: true
-          separable: ${model.model_defaults.separable}
-          se: ${model.model_defaults.se}
-          se_context_size: ${model.model_defaults.se_context_size}
-
-      -   filters: ${model.model_defaults.filters}
-          repeat: ${model.model_defaults.repeat}
-          kernel: [11]
-          stride: [1]
-          dilation: [1]
-          dropout: ${model.model_defaults.dropout}
-          residual: true
-          separable: ${model.model_defaults.separable}
-          se: ${model.model_defaults.se}
-          se_context_size: ${model.model_defaults.se_context_size}
-
-      -   filters: ${model.model_defaults.filters}
-          repeat: ${model.model_defaults.repeat}
-          kernel: [15]
-          stride: [1]
-          dilation: [1]
-          dropout: ${model.model_defaults.dropout}
-          residual: true
-          separable: ${model.model_defaults.separable}
-          se: ${model.model_defaults.se}
-          se_context_size: ${model.model_defaults.se_context_size}
-
-      -   filters: &enc_feat_out 3072
-          repeat: 1
-          kernel: [1]
-          stride: [1]
-          dilation: [1]
-          dropout: 0.0
-          residual: false
-          separable: ${model.model_defaults.separable}
-          se: ${model.model_defaults.se}
-          se_context_size: ${model.model_defaults.se_context_size}
+    _target_: nemo.collections.common.parts.MultiLayerPerceptron
+    hidden_size: 512
+    num_classes: 512
+    num_layers: 3
+    activation: 'relu'
+    log_softmax: false
+    channel_idx: 1
 
   decoder:
     _target_: nemo.collections.asr.modules.SpeakerDecoder
-    feat_in: *enc_feat_out
-    num_classes: 7205
-    pool_mode: 'attention'
+    feat_in: 512
+    num_classes: 1251
+    pool_mode: 'attention' #xvector,tap or attention
+    attention_channels: 128
     emb_sizes: 192
 
-  loss:
-    _target_: nemo.collections.asr.losses.angularloss.AngularSoftmaxLoss # you could also use cross-entrophy loss
-    scale: 30    
-    margin: 0.2  
+  # loss:
+  #   _target_: nemo.collections.asr.losses.angularloss.AngularSoftmaxLoss # you could also use cross-entrophy loss
+  #   scale: 30
+  #   margin: 0.2
 
   optim:
     name: adamw
-    lr: 0.005
+    lr: 0.001
     weight_decay: 0.0002
 
     # scheduler setup
     sched:
       name: CosineAnnealing
       warmup_ratio: 0.1
-      min_lr: 1e-6
+      min_lr: 0.00001
 
 trainer:
-  devices: -1 # number of gpus (original titanet-large was trained on 4 nodes with 8 gpus each)
+  devices: -1 # number of gpus (trained on four nodes - each node has 8 gpus)
   max_epochs: 250
   max_steps: -1 # computed at runtime if not set
   num_nodes: 1
   accelerator: gpu
   strategy: ddp
-  deterministic: True
+  accumulate_grad_batches: 1
+  deterministic: False
   enable_checkpointing: False
   logger: False
   log_every_n_steps: 1  # Interval of logging.
@@ -224,6 +161,21 @@ trainer:
 
 exp_manager:
   exp_dir: null
-  name: *name
+  name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+  checkpoint_callback_params:
+    # in case of multiple validation sets, first one is used
+    monitor: "val_loss"
+    mode: "min"
+    save_top_k: 1
+
+  # you need to set these two to True to continue the training
+  resume_if_exists: true
+  resume_ignore_no_checkpoint: true
+
+  # You may use this section to create a W&B logger
+  create_wandb_logger: false
+  wandb_logger_kwargs:
+    name: null
+    project: null

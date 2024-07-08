@@ -76,6 +76,35 @@ model:
     freq_width: 27
     time_width: 0.05
 
+  adapters:
+    # Tiny-Attention Adapter (https://arxiv.org/abs/2211.01979)
+    # NOTE: Only supported for Attention based encoders.
+    tiny_attn:
+      # Config of the adapter module itself
+      # Defaults to Relative Positional Encoding MHA
+      # _target_ can instead be <import_path>.MultiHeadAttentionAdapter if Conformer was originally using Absolute Positional Encoding.
+      _target_: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.RelPositionMultiHeadAttentionAdapter
+      n_feat: ${model.encoder.d_model}  # User must provide the output dimension of the layers of the model, which is the input dimension of this adapter.
+      n_head: 1  # Number of heads for attention.
+      proj_dim: -1  # Can be `null` - to avoid projection, > 0 for explicit dim, or -1 to default to `n_head`
+      dropout_rate: 0.0  # float, dropout for the adapter
+
+      # Adapter strategy config
+      adapter_strategy:
+        _target_: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.MHAResidualAddAdapterStrategy
+        stochastic_depth: 0.0  # float, setting to > 0 will enable stochastic depth for each adapter block.
+        l2_lambda: 0.0  # float, setting to > 0 will enable l2 norm auxiliary loss for each adapter's output.
+
+    # Optional global config available to all adapters at a global level.
+    # A global config is shared across every layer of the adapters, defining global properties rather
+    # than properties local to the adapter (as defined above).
+    # This can be useful in order to select *which type of adapter* is added, *what adapters to enable*,
+    # and further global operations that can decide dynamically how to support the requested adapter.
+    global_cfg:
+      check_encoder_adapter: True  # ASR adapter key, determines whether to check if encoder adapter modules is supported
+      check_decoder_adapter: False  # ASR adapter key, determines whether to check if decoder adapter modules is supported
+      check_joint_adapter: False  # ASR adapter key, determines whether to check if joint adapter modules is supported
+
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
     feat_in: ${model.preprocessor.features}
