@@ -38,9 +38,7 @@ def get_swa(seq_q, seq_kv, w):
 
 
 def logit_softcapping(logits: torch.Tensor, scale: Optional[float]):
-    # logits.div_(scale)
-    # logits = torch.tanh(logits)
-    # logits.mul_(scale)
+    """ Prevents logits from growing excessively by scaling them to a fixed range """
     if not scale:
         return logits
     return scale * torch.tanh(logits / scale)
