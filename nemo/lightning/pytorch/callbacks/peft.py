@@ -84,6 +84,7 @@ class PEFT(ABC, ModelTransform):
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         super().setup(trainer, pl_module, stage=stage)
 
+        trainer.strategy.trainer = trainer
         self.wrapped_io = WrappedAdapterIO(trainer.strategy.checkpoint_io)
         trainer.strategy._checkpoint_io = self.wrapped_io
         trainer.strategy._init_model_parallel = False
@@ -92,17 +93,17 @@ class PEFT(ABC, ModelTransform):
     def apply_transform(self, trainer):
         super().apply_transform(trainer)
 
+        if self.wrapped_io.adapter_ckpt_path is not None:
+            logging.info(f"Loading adapters from {self.wrapped_io.adapter_ckpt_path}")
+            adapter_state = self.wrapped_io.load_checkpoint(self.wrapped_io.adapter_ckpt_path)
+            trainer.strategy.load_model_state_dict(adapter_state, strict=False)
+            
         if hasattr(trainer.strategy, "init_model_parallel"):
             logging.info("Initializing model parallel")
             trainer.strategy.init_model_parallel()
 
         logging.info("Setting up optimizers")
         trainer.strategy.setup_optimizers(trainer)
-
-        if self.wrapped_io.adapter_ckpt_path is not None:
-            logging.info(f"Loading adapters from {self.wrapped_io.adapter_ckpt_path}")
-            adapter_state = self.wrapped_io.load_checkpoint(self.wrapped_io.adapter_ckpt_path)
-            trainer.strategy.load_model_state_dict(adapter_state, strict=False)
 
     def on_load_checkpoint(
         self, trainer: pl.Trainer, pl_module: pl.LightningModule, checkpoint: Dict[str, Any]
