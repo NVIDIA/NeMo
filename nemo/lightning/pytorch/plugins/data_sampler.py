@@ -62,10 +62,7 @@ class MegatronDataSampler(DataSampler):
         app_state = AppState()
 
         if self.rampup_batch_size is not None:
-            try:
-                from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-            except (ImportError, ModuleNotFoundError):
-                from nemo.lightning.apex_utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
             current_global_batch_size = getattr(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, "current_global_batch_size", 1)
             consumed_samples = self.prev_consumed_samples + self.if_first_step * current_global_batch_size
@@ -88,10 +85,7 @@ class MegatronDataSampler(DataSampler):
             trainer.should_stop = True
 
     def on_megatron_step_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
-        try:
-            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-        except ModuleNotFoundError:
-            from nemo.lightning.apex_utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
         if self.rampup_batch_size is None:
             return
@@ -137,19 +131,13 @@ class MegatronDataSampler(DataSampler):
 
     @property
     def num_microbatches(self) -> int:
-        try:
-            from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-        except ModuleNotFoundError:
-            from nemo.lightning.apex_utils import get_num_microbatches
+        from megatron.core.num_microbatches_calculator import get_num_microbatches
 
         return get_num_microbatches()
 
     @property
     def current_global_batch_size(self) -> int:
-        try:
-            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-        except ModuleNotFoundError:
-            from nemo.lightning.apex_utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
         num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR  # noqa: SLF001
         current_global_batch_size = num_microbatch_calculator.current_global_batch_size
