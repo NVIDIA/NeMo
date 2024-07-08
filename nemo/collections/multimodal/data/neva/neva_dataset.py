@@ -295,7 +295,9 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
 
 
 def process_image(processor, image, image_aspect_ratio="square"):
-    if isinstance(processor, CLIPImageProcessor) or isinstance(processor, SiglipImageProcessor):
+    from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import TiledSiglipImageProcessor
+    if isinstance(processor, CLIPImageProcessor) or isinstance(processor, SiglipImageProcessor) \
+        or isinstance(processor, TiledSiglipImageProcessor):
         # image processor from HF
         if image_aspect_ratio == 'keep':
             max_hw, min_hw = max(image.size), min(image.size)
@@ -325,7 +327,9 @@ def process_image(processor, image, image_aspect_ratio="square"):
         else:
             image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
     else:
-        assert image_aspect_ratio == 'square', 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
+        assert (
+                image_aspect_ratio == 'square'
+        ), 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
         image = processor(image)
     return image
 
@@ -914,6 +918,7 @@ class LazySupervisedDataset(Dataset):
                 list_data_dict = json.load(file)
         else:
             list_data_dict = []
+        #from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import TiledSiglipImageProcessor
 
         logging.warning("Formatting inputs...Skip in lazy mode")
         self.tokenizer = tokenizer
@@ -931,6 +936,7 @@ class LazySupervisedDataset(Dataset):
         return len(self.list_data_dict)
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import TiledSiglipImageProcessor
         sources = self.list_data_dict[i]
         if isinstance(i, int):
             sources = [sources]
@@ -954,7 +960,10 @@ class LazySupervisedDataset(Dataset):
                 height_num_patches = media_tensors[0].shape[1] // patch_dim
                 width_num_patches = media_tensors[0].shape[2] // patch_dim
 
-                if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+                if isinstance(self.processor, TiledSiglipImageProcessor):
+                    height_num_patches = height_num_patches // self.processor.grid_height
+                    width_num_patches = width_num_patches // self.processor.grid_width
+                elif self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
                     if height_num_patches % 2 != 0:
                         height_num_patches += 1
                     if width_num_patches % 2 != 0:
@@ -1096,7 +1105,10 @@ class LazySupervisedDataset(Dataset):
             if isinstance(self.processor, CLIPImageProcessor):
                 crop_size = [self.processor.crop_size['height'], self.processor.crop_size['width']]
             else:
-                crop_size = self.multimodal_cfg['crop_size']
+                crop_size = copy.deepcopy(self.multimodal_cfg['crop_size'])
+                if isinstance(self.processor, TiledSiglipImageProcessor):
+                    crop_size[0] *= self.processor.grid_height
+                    crop_size[1] *= self.processor.grid_width
 
             # Image does not exist in the data, but the model is multimodal
             # TODO, if there are different videos on T dimensions.

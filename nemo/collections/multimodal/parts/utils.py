@@ -29,6 +29,7 @@ from nemo.collections.multimodal.data.neva.neva_dataset import process_image
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
+from nemo.collections.multimodal.data.neva.neva_dataset import process_image
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import AppState, logging
 from nemo.utils.model_utils import inject_model_parallel_rank
@@ -515,6 +516,8 @@ def create_neva_model_and_processor(cfg):
 
 
 def create_image_processor(mm_cfg):
+    from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import TiledSiglipImageProcessor
+    
     if mm_cfg.vision_encoder.get("from_hf", False):
         if "clip" in mm_cfg.vision_encoder.from_pretrained:
             image_processor = CLIPImageProcessor.from_pretrained(
@@ -524,6 +527,11 @@ def create_image_processor(mm_cfg):
             image_processor = SiglipImageProcessor.from_pretrained(
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )
+            image_processor = TiledSiglipImageProcessor(image_processor,
+                                                        grid_width = mm_cfg.vision_encoder.get("grid_width", 1),
+                                                        grid_height = mm_cfg.vision_encoder.get("grid_height", 1),
+                                                        max_upscale = mm_cfg.vision_encoder.get("max_upscale", 2.0),
+                                                        )
         else:
             raise (ValueError("Currently only support CLIPImageProcessor and SiglipImageProcessor from Huggingface"))
 

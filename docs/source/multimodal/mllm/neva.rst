@@ -84,6 +84,8 @@ Vision Encoder Configuration within Multimodal
       hidden_size: 1024
       vision_select_layer: -2
       class_token_length: 1
+      grid_width: 1
+      grid_height: 1
       freeze: True
 
 - ``from_pretrained``: Path or name of the pretrained vision encoder.
@@ -92,6 +94,8 @@ Vision Encoder Configuration within Multimodal
 - ``hidden_size``: Dimensionality of the hidden layers.
 - ``vision_select_layer``: Specifies which layer to select from the vision model.
 - ``class_token_length``: Length of the classification token.
+- ``grid_width``: Number of horizontal visual model tiles.
+- ``grid_height``: Number of vertical visual model tiles.
 
 Main Language Model Configuration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
