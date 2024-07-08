@@ -25,6 +25,6 @@ This ensures that the learning rate reaches the ``min_lr`` value by the end of t
 
 .. image:: images/reset_lr.png
   :alt: 
-  :width: 720px
+  :width: 1080px
 
 
