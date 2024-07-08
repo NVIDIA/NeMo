@@ -166,6 +166,59 @@ def split_tensor_for_tp(params, key, dim, tensor):
 
     return tensor_sliced
 
+def combine_tp_tensors(params, key, dim, tensors):
+    tp_size = len(tensors)
+
+    if 'mixer.in_proj.weight' in key and params.mamba_version == 1:
+        xs = []; zs = []
+        for tensor in tensors:
+            x, z = torch.split(tensor, [params.mamba_d_inner//tp_size,
+                                        params.mamba_d_inner//tp_size], dim=dim)
+            xs.append(x); zs.append(z)
+        return torch.cat([torch.cat(xs, dim=dim), torch.cat(zs, dim=dim)], dim=dim)
+
+    elif 'mixer.in_proj.weight' in key and params.mamba_version == 2:
+        xs = []; zs = []; Bs = []; Cs = []; dts = []
+        for tensor in tensors:
+            x, z, B, C, dt = torch.split(tensor, [params.mamba_d_inner // tp_size,
+                                                  params.mamba_d_inner // tp_size,
+                                                  (params.mamba2_n_groups // tp_size) * params.mamba_d_state,
+                                                  (params.mamba2_n_groups // tp_size) * params.mamba_d_state,
+                                                  params.mamba2_n_heads // tp_size], dim=dim)
+            xs.append(x); zs.append(z); Bs.append(B); Cs.append(C); dts.append(dt)
+
+        for ii in range(len(Bs)):
+            Bs[ii] = torch.reshape(Bs[ii], (-1, params.mamba_d_state, Bs[ii].shape[-1]))
+            Cs[ii] = torch.reshape(Cs[ii], (-1, params.mamba_d_state, Cs[ii].shape[-1]))
+        B = torch.cat(Bs, dim=dim); C = torch.cat(Cs, dim=dim)
+        x = torch.cat(xs, dim=dim); z = torch.cat(zs, dim=dim); dt = torch.cat(dts, dim=dim)
+
+        return torch.cat([x, z, B.flatten(0, 1), C.flatten(0, 1), dt], dim=dim)
+
+    elif 'mixer.conv1d' in key and params.mamba_version == 2:
+        xs = []; Bs = []; Cs = []
+        for tensor in tensors:
+            x, B, C = torch.split(tensor, [params.mamba_d_inner//tp_size,
+                                           (params.mamba2_n_groups // tp_size) * params.mamba_d_state,
+                                           (params.mamba2_n_groups // tp_size) * params.mamba_d_state], dim=dim)
+            xs.append(x); Bs.append(B); Cs.append(C)
+
+        for ii in range(len(Bs)):
+            if 'weight' in key:
+                Bs[ii] = torch.reshape(Bs[ii], (-1, params.mamba_d_state, Bs[ii].shape[-2], Bs[ii].shape[-1]))
+                Cs[ii] = torch.reshape(Cs[ii], (-1, params.mamba_d_state, Cs[ii].shape[-2], Cs[ii].shape[-1]))
+            elif 'bias' in key:
+                Bs[ii] = torch.reshape(Bs[ii], (-1, params.mamba_d_state))
+                Cs[ii] = torch.reshape(Cs[ii], (-1, params.mamba_d_state))
+            else:
+                raise Exception("Unknown key")
+        B = torch.cat(Bs, dim=dim); C = torch.cat(Cs, dim=dim)
+        x = torch.cat(xs, dim=dim)
+
+        return torch.cat([x, B.flatten(0, 1), C.flatten(0, 1)], dim=dim)
+
+    else:
+        return torch.cat(tensors, dim=dim)
 
 #################
 ### Utilities ###
@@ -295,6 +348,57 @@ def split_tp_partition_only(args, model, original_model, tp_size, write_path=Non
         # Extract all contents to the specified path
         tar.extractall(path=os.path.dirname(write_path))
 
+def merge_partition(args, model, partitions, write_path: str = None):
+    # Extract the pp_rank and number of modules per tp rank in each pp rank
+
+    input_tp_rank = len(partitions)
+
+    # During merge - model is TP 1 PP 1 model with all parameters present in correct order.
+    # Merge the parameters of the various PP X TP Y models into the TP 1 PP 1 model.
+    from collections import OrderedDict
+    full_model = OrderedDict()
+    combined_tp_model = OrderedDict()
+    for ii, (key, original_tensor) in enumerate(partitions[0].items()):
+        if "_extra_state" in key:
+            combined_tp_model[key] = original_tensor
+            continue
+        
+        import copy
+        split_dim = get_split_dim(key)
+        original_shape = list(original_tensor.shape)
+        combined_shape = copy.deepcopy(original_shape)
+        combined_shape[split_dim] *= input_tp_rank
+        # print("{}, {}, {}".format(ii, key, split_dim))
+
+        if split_dim != -1:
+            # slice together model
+            # print("\tshape mismatch: original {}, combined {}".format(original_shape, combined_shape))
+            combined_tensor = combine_tp_tensors(args, key, split_dim,
+                                            [partitions[jj][key].cpu() for jj in range(input_tp_rank)])
+            combined_tp_model[key] = combined_tensor
+        else:
+            # copy model
+            combined_tp_model[key] = original_tensor
+
+        # print("Combined tp model: {}".format(combined_tp_model.keys()))
+
+        for ii, (key, original_tensor) in enumerate(combined_tp_model.items()):
+            try:
+                layer_num = int(re.findall(r'\d+', key)[0])
+                new_key = key.replace(str(layer_num), str(layer_num), 1)
+            except:
+                new_key = key
+            full_model[new_key] = original_tensor
+
+
+        # Update the model parameter with the merged tensor
+
+    model.load_state_dict(full_model, strict = True)
+
+    # Save the file iff the original file was PP 1 TP 1
+    if write_path is not None:
+        model.save_to(write_path)
+    return model
 
 def main():
     parser = ArgumentParser()
@@ -520,57 +624,209 @@ def main():
                             f"`--tokenizer_model_path`.\n\n"
                         )
 
-    # If input model has TP > 1 or PP > 1
-    # Reconstruct the model to have TP = 1 and PP = 1
-    # Note that this is a forward loop that will process PP [0..N] TP [0..M] in sequential order.
+    # If input model has TP > 1 
+    # Reconstruct the model to have TP = 1 
+    if tp_size > 1 or pp_size > 1:
+        partitions = [] 
+        model = None
 
-    # If input model has TP = 1 and PP = 1
-    app_state.model_parallel_size = 1
+        for pp_rank in range(pp_size):
+            app_state.pipeline_model_parallel_rank = pp_rank
 
-    save_restore_connector = NLPSaveRestoreConnector()
+            for tp_rank in range(tp_size):
+                app_state.tensor_model_parallel_rank = tp_rank
 
-    if args.model_extracted_dir is not None:
-        logging.info(f"Using extracted model directory: {args.model_extracted_dir}")
-        save_restore_connector.model_extracted_dir = args.model_extracted_dir
+                logging.info(f"Loading ------------ PP Rank: {pp_rank} TP Rank: {tp_rank}")
 
-    if args.model_file is not None:
-        model_filepath = args.model_file
+                # Override flag that forces Model to use AppState instead of Trainer
+                # to determine the world size, global and local rank
+                # Used for simulating load of a specific rank on a single gpu
+                os.environ[NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE] = "true"
+
+                # Compute the global rank to load the correct subset of parameters
+                global_rank = pp_rank * tp_size + tp_rank
+
+                # Update AppState
+                app_state.world_size = world_size
+                app_state.global_rank = global_rank
+                app_state.local_rank = global_rank % num_gpu_per_node
+                app_state.pipeline_model_parallel_size = pp_size
+                app_state.tensor_model_parallel_size = tp_size
+                app_state.pipeline_model_parallel_split_rank = pipeline_model_parallel_split_rank
+                app_state.model_parallel_size = (
+                    app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
+                )
+
+                save_restore_connector = NLPSaveRestoreConnector()
+
+                if args.model_extracted_dir is not None:
+                    logging.info(f"Using extracted model directory: {args.model_extracted_dir}")
+                    save_restore_connector.model_extracted_dir = args.model_extracted_dir
+
+                if args.model_file is not None:
+                    model_filepath = args.model_file
+                else:
+                    model_filepath = args.model_extracted_dir
+
+                # Get model config
+                tmp_cfg = MegatronMambaModel.restore_from(
+                    restore_path=model_filepath,
+                    trainer=trainer,
+                    map_location=torch.device("cpu"),
+                    save_restore_connector=save_restore_connector,
+                    return_config=True,
+                )
+
+                # Force model onto CPU
+                tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
+
+                # Restore model
+                model = MegatronMambaModel.restore_from(
+                    restore_path=model_filepath,
+                    trainer=trainer,
+                    map_location=torch.device("cpu"),
+                    save_restore_connector=save_restore_connector,
+                    override_config_path=tmp_cfg,
+                )
+                model.freeze()
+
+                # Restore model config
+                restore_model_config(model.cfg, restore_dict)
+
+
+                model.to(dtype=dtype)
+
+                # Reset env flag
+                os.environ.pop(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, None)
+
+                logging.info(
+                    f"<<<<<<<< LOADED MODEL TP={tp_rank + 1} | "
+                    f"GLOBAL RANK = {global_rank} >>>>>>>>>"
+                )
+
+                # Save the parameters
+
+                partitions.append(model.state_dict()) 
+
+                # app_state is being updated incorrectly during restore
+                app_state.data_parallel_rank = 0
+                app_state.pipeline_model_parallel_rank = pp_rank
+                app_state.tensor_model_parallel_rank = tp_rank
+                app_state.pipeline_model_parallel_size = pp_size
+                app_state.tensor_model_parallel_size = tp_size
+                app_state.model_parallel_size = (
+                    app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
+                )
+
+        # Build a unified model with PP 1 TP 1
+        with open_dict(model.cfg):
+            model.cfg.tensor_model_parallel_size = 1
+            model.cfg.pipeline_model_parallel_size = 1
+            model.cfg.virtual_pipeline_model_parallel_size = None
+
+        app_state.global_rank = 0
+        app_state.local_rank = 0
+        app_state.data_parallel_rank = 0
+        app_state.pipeline_model_parallel_rank = 0
+        app_state.tensor_model_parallel_rank = 0
+        app_state.pipeline_model_parallel_size = 1
+        app_state.tensor_model_parallel_size = 1
+        app_state.model_parallel_size = 1
+
+        trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
+
+        with open_dict(model.cfg):
+            if args.tokenizer_model_path is not None:
+                model.cfg.tokenizer.model = args.tokenizer_model_path
+            if args.tokenizer_vocab_file is not None:
+                model.cfg.tokenizer.vocab_file = args.tokenizer_vocab_file
+
+            model.cfg, restore_dict = force_cpu_model(model.cfg)
+
+            # Remove Virtual Parallelism
+            model.cfg.virtual_pipeline_model_parallel_size = None
+
+        logging.info(f"<<<<<<<< Building TP 1 PP 1 base model >>>>>>>>>")
+        from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
+        _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_global_batch_size = tp_size
+        _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_micro_batch_size = 1
+        model.cfg.global_batch_size = tp_size
+        model.cfg.micro_batch_size = 1
+
+        input_tp_rank = len(partitions)
+
+        print(f"input_tp_rank = {input_tp_rank}")
+        # print(f"keys = {partitions[0].keys()}")
+
+        model.cfg.tokenizer.model ='/home/ataghibakhsh/adlr_mamba2/mamba2-hybrid-8b-3t-4k/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model'
+        model.cfg.tokenizer.library = 'megatron'
+        model.cfg.tokenizer.type = 'GPTSentencePieceTokenizer'
+
+        model = MegatronMambaModel(model.cfg, trainer)  # type: nn.Module
+        model.freeze()
+        model = model.to('cpu')
+        model._save_restore_connector = NLPSaveRestoreConnector()
+
+        restore_model_config(model.cfg, restore_dict)
+
+        if tgt_tp_size > 1:
+            original_model = merge_partition(args, model, partitions)
+        else:
+            # Write out the PP 1 TP 1 model to disk
+            original_model = merge_partition(args, model, partitions, args.target_file)
+
+        # Empty cache memory of all parameters from all PP TP partitions
+        partitions.clear()
+
+    # If input model has TP = 1
     else:
-        model_filepath = args.model_extracted_dir
+        app_state.model_parallel_size = 1
 
-    tmp_cfg = MegatronMambaModel.restore_from(
-        restore_path=model_filepath,
-        trainer=trainer,
-        map_location=torch.device("cpu"),
-        save_restore_connector=save_restore_connector,
-        return_config=True,
-    )
+        save_restore_connector = NLPSaveRestoreConnector()
 
-    tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
+        if args.model_extracted_dir is not None:
+            logging.info(f"Using extracted model directory: {args.model_extracted_dir}")
+            save_restore_connector.model_extracted_dir = args.model_extracted_dir
 
-    model = MegatronMambaModel.restore_from(
-        restore_path=model_filepath,
-        trainer=trainer,
-        map_location=torch.device("cpu"),
-        save_restore_connector=save_restore_connector,
-        override_config_path=tmp_cfg,
-    )
+        if args.model_file is not None:
+            model_filepath = args.model_file
+        else:
+            model_filepath = args.model_extracted_dir
 
-    original_model = MegatronMambaModel.restore_from(
-        restore_path=model_filepath,
-        trainer=trainer,
-        map_location=torch.device("cpu"),
-        save_restore_connector=save_restore_connector,
-        override_config_path=tmp_cfg,
-    )
-    original_model = original_model.to('cpu')
-    original_model._save_restore_connector = NLPSaveRestoreConnector()
-    original_model.freeze()
-    original_model.to(dtype=dtype)
+        tmp_cfg = MegatronMambaModel.restore_from(
+            restore_path=model_filepath,
+            trainer=trainer,
+            map_location=torch.device("cpu"),
+            save_restore_connector=save_restore_connector,
+            return_config=True,
+        )
 
-    model.to(dtype=dtype)
+        tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
 
-    restore_model_config(model.cfg, restore_dict)
+        model = MegatronMambaModel.restore_from(
+            restore_path=model_filepath,
+            trainer=trainer,
+            map_location=torch.device("cpu"),
+            save_restore_connector=save_restore_connector,
+            override_config_path=tmp_cfg,
+        )
+
+        original_model = MegatronMambaModel.restore_from(
+            restore_path=model_filepath,
+            trainer=trainer,
+            map_location=torch.device("cpu"),
+            save_restore_connector=save_restore_connector,
+            override_config_path=tmp_cfg,
+        )
+        original_model = original_model.to('cpu')
+        original_model._save_restore_connector = NLPSaveRestoreConnector()
+        original_model.freeze()
+        original_model.to(dtype=dtype)
+
+        model.to(dtype=dtype)
+
+        restore_model_config(model.cfg, restore_dict)
 
     # If target model has TP > 1 or PP > 1
     if tgt_pp_size > 1 or tgt_tp_size > 1:
