@@ -29,8 +29,8 @@ from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
-from torch import Tensor, nn
 from pytorch_lightning.utilities import move_data_to_device
+from torch import Tensor, nn
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 
@@ -60,9 +60,10 @@ def default_data_step(dataloader_iter: Iterator[DataT]) -> DataT:
         DataT: The data moved to the device.
     """
     if parallel_state.get_context_parallel_world_size() > 1:
-        raise ValueError("Default data step is being used in a context parallel environment."
-                         "Please define your own data step that appropriately slices the data for context parallel."
-                         )
+        raise ValueError(
+            "Default data step is being used in a context parallel environment."
+            "Please define your own data step that appropriately slices the data for context parallel."
+        )
 
     match next(dataloader_iter):
         # If its wrapped in a tuple, unpack it.
@@ -72,7 +73,7 @@ def default_data_step(dataloader_iter: Iterator[DataT]) -> DataT:
         case batch:
             pass
 
-    return move_data_to_device(batch, torch.cuda.current_device())    
+    return move_data_to_device(batch, torch.cuda.current_device())
 
 
 def default_forward_step(model: nn.Module, batch, *args, **kwargs) -> torch.Tensor:
