@@ -41,7 +41,10 @@ class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
         _IS_INTERACTIVE = hasattr(sys, "ps1") or bool(sys.flags.interactive)
         if _IS_INTERACTIVE and self.cfg.trainer.devices == 1:
             logging.info("Detected interactive environment, using NLPDDPStrategyNotebook")
-            return NLPDDPStrategyNotebook(no_ddp_communication_hook=True, find_unused_parameters=False,)
+            return NLPDDPStrategyNotebook(
+                no_ddp_communication_hook=True,
+                find_unused_parameters=False,
+            )
 
         if self.cfg.model.get('fsdp', False):
             assert (

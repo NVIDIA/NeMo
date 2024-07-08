@@ -358,6 +358,7 @@ class AutoencoderKL(pl.LightningModule):
 
     def _state_key_mapping(self, state_dict: dict):
         import re
+
         res_dict = {}
         key_list = state_dict.keys()
         key_str = " ".join(key_list)
@@ -397,7 +398,7 @@ class AutoencoderKL(pl.LightningModule):
             res_dict[key_] = val_
         return res_dict
 
-    def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False, from_NeMo = False):
+    def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False, from_NeMo=False):
         if not from_NeMo:
             state_dict = self._state_key_mapping(state_dict)
         model_state_dict = self.state_dict()
@@ -408,7 +409,10 @@ class AutoencoderKL(pl.LightningModule):
         unexpected_keys = list(set(loaded_keys) - set(expected_keys))
 
         def _find_mismatched_keys(
-            state_dict, model_state_dict, loaded_keys, ignore_mismatched_sizes,
+            state_dict,
+            model_state_dict,
+            loaded_keys,
+            ignore_mismatched_sizes,
         ):
             mismatched_keys = []
             if ignore_mismatched_sizes:
@@ -443,7 +447,10 @@ class AutoencoderKL(pl.LightningModule):
         if state_dict is not None:
             # Whole checkpoint
             mismatched_keys = _find_mismatched_keys(
-                state_dict, model_state_dict, original_loaded_keys, ignore_mismatched_sizes,
+                state_dict,
+                model_state_dict,
+                original_loaded_keys,
+                ignore_mismatched_sizes,
             )
             error_msgs = self._load_state_dict_into_model(state_dict)
         return missing_keys, unexpected_keys, mismatched_keys, error_msgs
