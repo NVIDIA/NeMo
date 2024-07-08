@@ -55,11 +55,14 @@ class TestPEFT:
         peft.on_train_epoch_start(trainer, pl_module)
 
         # Check for all expected log messages
-        mock_logging.info.assert_has_calls([
-            call("Loading adapters from dummy_path"),
-            call("Initializing model parallel"),
-            call("Setting up optimizers")
-        ], any_order=True)
+        mock_logging.info.assert_has_calls(
+            [
+                call("Loading adapters from dummy_path"),
+                call("Initializing model parallel"),
+                call("Setting up optimizers"),
+            ],
+            any_order=True,
+        )
 
         # Verify the number of calls
         assert mock_logging.info.call_count == 3
