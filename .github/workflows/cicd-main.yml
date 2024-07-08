@@ -2370,11 +2370,11 @@ jobs:
       NVTE_BWD_LAYERNORM_SM_MARGIN: 8
       TORCH_NCCL_AVOID_RECORD_STREAMS: 1
       NCCL_MIN_NCHANNELS: 4
-      # TP overlap
-      NVTE_UB_SPLIT_RS: 0
-      NVTE_UB_ATOMIC_GEMM_RS: 1
-      NVTE_RS_STRIDED_ATOMIC: 1
-      NVTE_UB_FP8_RS: 1
+      # TP overlap is not supported in docker environment
+      #NVTE_UB_SPLIT_RS: 0
+      #NVTE_UB_ATOMIC_GEMM_RS: 1
+      #NVTE_RS_STRIDED_ATOMIC: 1
+      #NVTE_UB_FP8_RS: 1
       # Increase p2p chunksize to 2MB
       NCCL_P2P_NET_CHUNKSIZE: 2097152
       # Disable gc when switching to/from validation steps
@@ -2401,7 +2401,7 @@ jobs:
             ++model.reduce_amax=True \
             ++model.use_te_rng_tracker=True \
             ++model.name=megatron_gpt_full_te_layer_autocast \
-            model.ub_tp_comm_overlap=True \
+            model.ub_tp_comm_overlap=False \
             model.tensor_model_parallel_size=2 \
             model.optim.name=fused_adam \
             model.optim.lr=2e-4 \
@@ -2445,7 +2445,7 @@ jobs:
             ++model.reduce_amax=True \
             ++model.use_te_rng_tracker=True \
             ++model.name=megatron_gpt_full_te_layer_autocast \
-            model.ub_tp_comm_overlap=True \
+            model.ub_tp_comm_overlap=False \
             model.tensor_model_parallel_size=2 \
             model.optim.name=fused_adam \
             model.optim.lr=2e-4 \
