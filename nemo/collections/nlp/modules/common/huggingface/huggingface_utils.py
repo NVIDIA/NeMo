@@ -25,8 +25,6 @@ from transformers import (
     RobertaConfig,
 )
 
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
-
 try:
     from transformers import (
         ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
@@ -42,12 +40,12 @@ except (ImportError, ModuleNotFoundError):
     # Guard deprecated imports
     # Temporary solution
     # TODO(@dimapihtar): fix current file in respect to transformers >= 4.40
-    ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
-    BERT_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
-    CAMEMBERT_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
-    DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
-    GPT2_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
-    ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST = ApexGuardDefaults
+    ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST = None
+    BERT_PRETRAINED_MODEL_ARCHIVE_LIST = None
+    CAMEMBERT_PRETRAINED_MODEL_ARCHIVE_LIST = None
+    DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST = None
+    GPT2_PRETRAINED_MODEL_ARCHIVE_LIST = None
+    ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST = None
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
