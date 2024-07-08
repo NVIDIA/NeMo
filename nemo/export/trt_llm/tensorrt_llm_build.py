@@ -44,6 +44,9 @@ def build_and_save_engine(
     enable_multi_block_mode: bool = False,
     paged_kv_cache: bool = True,
     remove_input_padding: bool = True,
+    paged_context_fmha: bool = False,
+    custom_all_reduce: bool = True,
+    use_refit: bool = False,
     max_num_tokens: int = None,
     opt_num_tokens: int = None,
     max_beam_width: int = 1,
@@ -59,12 +62,14 @@ def build_and_save_engine(
     plugin_config = PluginConfig()
     plugin_config.set_gpt_attention_plugin(dtype=str_dtype)
     plugin_config.set_gemm_plugin(dtype=str_dtype)
+    plugin_config.use_custom_all_reduce = custom_all_reduce
     plugin_config.set_plugin("multi_block_mode", enable_multi_block_mode)
     if paged_kv_cache:
         plugin_config.enable_paged_kv_cache(tokens_per_block=tokens_per_block)
     else:
         plugin_config.paged_kv_cache = False
     plugin_config.remove_input_padding = remove_input_padding
+    plugin_config.use_paged_context_fmha = paged_context_fmha
 
     max_num_tokens, opt_num_tokens = check_max_num_tokens(
         max_num_tokens=max_num_tokens,
@@ -89,6 +94,7 @@ def build_and_save_engine(
         'gather_generation_logits': False,
         'strongly_typed': False,
         'builder_opt': None,
+        'use_refit': use_refit,
     }
     build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
 
