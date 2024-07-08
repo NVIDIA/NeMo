@@ -98,7 +98,7 @@ class PEFT(ABC, ModelTransform):
 
         logging.info("Setting up optimizers")
         trainer.strategy.setup_optimizers(trainer)
-        
+
         if self.wrapped_io.adapter_ckpt_path is not None:
             logging.info(f"Loading adapters from {self.wrapped_io.adapter_ckpt_path}")
             adapter_state = self.wrapped_io.load_checkpoint(self.wrapped_io.adapter_ckpt_path)

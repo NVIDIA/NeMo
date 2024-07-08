@@ -424,12 +424,12 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
     def init_model_parallel(self):
         from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
         from megatron.core import parallel_state
-        
+
         if self.convert_module_fn:
             self.apply_convert_module_fn()
-            
+
         self.init_ddp()
-        
+
         for model_module in self:
             if not self._cpu:
                 model_module.cuda(torch.cuda.current_device())
@@ -448,7 +448,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             # Print number of parameters.
             if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
                 from nemo.utils import logging
-                
+
                 num_params = _calc_number_of_params(list(self))
                 num_trainable_params = _calc_number_of_trainable_params(list(self))
 
@@ -458,14 +458,16 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                     f"{num_params}"
                 )
                 logging.info(msg)
-                
+
                 if num_params != num_trainable_params:
-                    logging.info(f" > number of trainable parameters: {num_trainable_params} ({num_trainable_params / num_params:.2%} of total)")
-    
+                    logging.info(
+                        f" > number of trainable parameters: {num_trainable_params} ({num_trainable_params / num_params:.2%} of total)"
+                    )
+
     def apply_convert_module_fn(self):
         for i in range(len(self)):
             self[i] = self.convert_module_fn(self[i])
-    
+
     def init_ddp(self):
         if not isinstance(self.ddp_config, DistributedDataParallelConfig):
             return
@@ -591,8 +593,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         except AttributeError:
             # If not found in superclass, check if we have any modules
             if len(self) == 0:
-                raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}' and contains no modules")
-            
+                raise AttributeError(
+                    f"'{self.__class__.__name__}' object has no attribute '{item}' and contains no modules"
+                )
+
             # Try to get it from the first module
             try:
                 return getattr(self._modules[self._get_abs_string_index(0)], item)
@@ -939,8 +943,7 @@ def _calc_number_of_params(model: List[nn.Module]) -> int:
 def _calc_number_of_trainable_params(model: List[nn.Module]) -> int:
     assert isinstance(model, list)
 
-    return sum([sum([p.numel() for p in model_module.parameters() if p.requires_grad]) 
-                for model_module in model])
+    return sum([sum([p.numel() for p in model_module.parameters() if p.requires_grad]) for model_module in model])
 
 
 def is_list_of_iterators(var) -> bool:

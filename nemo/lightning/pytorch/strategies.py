@@ -290,10 +290,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             ddp_config=self.ddp_config,
             convert_module_fn=convert_module_fn,
         )
-        
+
         if self._init_model_parallel:
             self.init_model_parallel()
-        
+
         self.megatron_parallel.trainer = trainer
 
         # check signature-def of self.model.configure_optimizers to check if there's an optional arg: megatron_parallel

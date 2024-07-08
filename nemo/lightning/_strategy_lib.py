@@ -517,5 +517,5 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
                 _state_dict[key[len(to_remove) :]] = value
             else:
                 _state_dict[key] = value
-            
+
         module.load_state_dict(_state_dict, strict=strict)
