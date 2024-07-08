@@ -447,7 +447,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
                 extend_instance(model.embedding, EmbeddingScalingMixin)
             if self.cfg.get("mcore_customization_config", {}).get("final_logit_softcapping", 0):
-                from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import Gemma2OutputLayer
+                from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import (
+                    Gemma2OutputLayer,
+                )
+
                 extend_instance(model.output_layer, Gemma2OutputLayer)
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
