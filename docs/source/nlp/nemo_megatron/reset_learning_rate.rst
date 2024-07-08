@@ -8,8 +8,8 @@ The reset learning rate feature provides the ability to reset the learning rate 
 Parameters
 ----------
 
-* reset_lr (boolean): Enables resetting the learning rate to the initial value. This feature is only supported with the distributed optimizer and megatron_amp_O2.
-* reset_lr_steps (boolean): Enables adjusting the learning rate's max_steps and decay_steps by subtracting the number of steps already completed at the checkpoint.
+* ``reset_lr`` (boolean): Enables resetting the learning rate to the initial value. This feature is only supported with the distributed optimizer and megatron_amp_O2.
+* ``reset_lr_steps`` (boolean): Enables adjusting the learning rate's max_steps and decay_steps by subtracting the number of steps already completed at the checkpoint.
 
 Use Cases
 ---------
