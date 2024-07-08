@@ -508,6 +508,27 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
             copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
         )  # HARDCODED FOR NOW
         data_dict = preprocess_llama_3(sources, tokenizer, multimodal_cfg)
+    elif multimodal_cfg["conv_template"] == "mistral":
+        record = {
+            'conversations': [
+                {
+                    'from': 'human',
+                    'value': prompt,
+                },
+                {
+                    'from': 'gpt',
+                    'value': '',
+                },
+            ],
+        }
+        for turn in record['conversations']:
+            if turn.get('value') is not None:
+                turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
+        list_data_dict.append(record)
+        sources = preprocess_multimodal(
+            copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
+        )  # HARDCODED FOR NOW
+        data_dict = preprocess_llama_2(sources, tokenizer, multimodal_cfg, is_mistral=True)
     elif multimodal_cfg["conv_template"] == "v1":
         record = {
             'conversations': [
@@ -988,6 +1009,7 @@ def model_inference_strategy_dispatcher(model, **args):
         MegatronGPTPromptLearningModel,
     )
     from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
+    from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
     from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
     from nemo.collections.nlp.models.language_modeling.megatron_retro_model import MegatronRetroModel
     from nemo.collections.nlp.modules.common.retro_inference_strategies import (
@@ -998,6 +1020,8 @@ def model_inference_strategy_dispatcher(model, **args):
 
     if isinstance(model, MegatronGriffinModel):
         return GriffinModelTextGenerationStrategy(model)
+    if isinstance(model, MegatronMambaModel):
+        return GPTModelTextGenerationStrategy(model)
     if isinstance(model, MegatronNevaModel):
         return NevaModelTextGenerationStrategy(model)
     if isinstance(model, MegatronGPTPromptLearningModel):
