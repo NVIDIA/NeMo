@@ -15,7 +15,6 @@
 import argparse
 import sys
 
-import numpy as np
 from nemo.deploy.nlp.query_llm import NemoQueryLLMPyTorch
 
 
