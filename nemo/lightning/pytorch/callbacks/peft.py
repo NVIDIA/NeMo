@@ -97,7 +97,7 @@ class PEFT(ABC, ModelTransform):
             logging.info(f"Loading adapters from {self.wrapped_io.adapter_ckpt_path}")
             adapter_state = self.wrapped_io.load_checkpoint(self.wrapped_io.adapter_ckpt_path)
             trainer.strategy.load_model_state_dict(adapter_state, strict=False)
-            
+
         if hasattr(trainer.strategy, "init_model_parallel"):
             logging.info("Initializing model parallel")
             trainer.strategy.init_model_parallel()
