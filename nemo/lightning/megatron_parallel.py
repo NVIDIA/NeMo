@@ -62,9 +62,10 @@ def default_data_step(dataloader_iter: Iterator[DataT]) -> DataT:
         DataT: The data moved to the device.
     """
     if parallel_state.get_context_parallel_world_size() > 1:
-        raise ValueError("Default data step is being used in a context parallel environment."
-                         "Please define your own data step that appropriately slices the data for context parallel."
-                         )
+        raise ValueError(
+            "Default data step is being used in a context parallel environment."
+            "Please define your own data step that appropriately slices the data for context parallel."
+        )
 
     match next(dataloader_iter):
         # If its wrapped in a tuple, unpack it.
@@ -76,9 +77,9 @@ def default_data_step(dataloader_iter: Iterator[DataT]) -> DataT:
         # If the dataloader_iter is empty, return None.
         case _:
             batch = None
-    
+
     if batch is not None:
-        return move_data_to_device(batch, torch.cuda.current_device())  
+        return move_data_to_device(batch, torch.cuda.current_device())
     else:
         raise ValueError("No valid batch found from dataloader_iter.")
 
