@@ -2855,13 +2855,6 @@ jobs:
   L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    env:
-      # This is to improve p2p overlap on H100
-      NVTE_FWD_LAYERNORM_SM_MARGIN: 8
-      NVTE_BWD_LAYERNORM_SM_MARGIN: 8
-      TORCH_NCCL_AVOID_RECORD_STREAMS: 1
-      NCCL_MIN_NCHANNELS: 4
-      NCCL_P2P_NET_CHUNKSIZE: 2097152
     with:
       RUNNER: self-hosted-azure-gpus-2-h100
       SCRIPT: |
