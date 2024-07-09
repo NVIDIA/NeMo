@@ -1,8 +1,8 @@
-name: nemo_video_neva
+name: nemo_video_lita_neva
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  devices: 8
+  devices: 1
   num_nodes: 1
   accelerator: gpu
   precision: bf16
@@ -24,7 +24,7 @@ trainer:
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: nemo_video_neva
+  name: nemo_video_neva_lita
   create_wandb_logger: True
   wandb_logger_kwargs:
     project: null
@@ -35,7 +35,7 @@ exp_manager:
   create_checkpoint_callback: True
   checkpoint_callback_params:
     monitor: val_loss
-    save_top_k: 10
+    save_top_k: 5
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     save_nemo_on_train_end: True # not recommended when training large models on clusters with short time limits
@@ -72,7 +72,7 @@ model:
       freeze: False
       model_type: llama_2 # `nvgpt` or `llama_2` supported
     vision_encoder:
-      from_pretrained: "openai/clip-vit-large-patch14" # path or name
+      from_pretrained: "Lin-Chen/ShareGPT4V-13B_Pretrained_vit-large336-l12" # huggingface path or name
       from_hf: True
       crop_size: [336, 336]
       patch_dim: 14
@@ -81,27 +81,42 @@ model:
       class_token_length: 1
       freeze: True
     lita:
-      lita_video_arch: 'temporal_spatial_pool' # ['temporal_spatial_pool', 'temporal_spatial', 'temporal_all_resolution']
-      visual_token_format: 'v1'  #  ["v1", "im_vid_start_end"]   v1 means do nothing, im_vid_start_end means add image and video start and end tokens around spatial and temporal tokens
-      sample_frames: 4
+      lita_video_arch: 'temporal_all_resolution' # ['temporal_spatial_pool', 'temporal_spatial', 'temporal_all_resolution'] 'temporal_spatial_pool' is used in lita1.0
+      visual_token_format: 'im_vid_start_end'  #  ["v1", "im_vid_start_end"]   v1 means do nothing, im_vid_start_end means add image and video start and end tokens around spatial and temporal tokens
+      sample_frames: 4  # for lita 1.5 sample_frames are used for spatial tokens, and spatial tokens will no longer do pooling and instead, it will use full tokens
     use_lita: True
     pretrain_mm_mlp_adapter: null # path to pretrained mm adapter
-    mm_mlp_adapter_type: linear  # ['linear', 'mlp2x_gelu']
+    mm_mlp_adapter_type: mlp2x_gelu  # ['linear', 'mlp2x_gelu', 'mlp_downsample']
     use_im_start_end: False
 
+  # ========LORA configs start=======
+  #peft:
+  #  peft_scheme: "lora"
+  #  restore_from_path: null
+  #  lora_tuning:
+  #    adapter_dim: 128
+  #    alpha: 256
+  #    target_modules: ['all']
+  #    adapter_dropout: 0.0
+  #    column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+  #    row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+  #    layer_selection:  null  # selects in which layers to add lora adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+  #    weight_tying: False
+  #    position_embedding_strategy: null # used only when weight_tying is True
+  # =======LORA configs end=======
 
   # LLM configs
   # use GPTModel from megatron.core
-  mcore_gpt: False
+  mcore_gpt: True
 
   # model architecture
   encoder_seq_length: 4096
   max_position_embeddings: ${.encoder_seq_length}
   position_embedding_type: rope
-  num_layers: 40
-  hidden_size: 5120
-  ffn_hidden_size: 13824 # Transformer FFN hidden size. Usually 4 * hidden_size.
-  num_attention_heads: 40
+  num_layers: 32
+  hidden_size: 4096
+  ffn_hidden_size: 11008 # Transformer FFN hidden size. Usually 4 * hidden_size.
+  num_attention_heads: 32
   init_method_std: 0.014 # Standard deviation of the zero mean normal distribution used for weight initialization.')
   use_scaled_init_method: True # use scaled residuals initialization
   hidden_dropout: 0.0 # Dropout probability for hidden state transformer.
@@ -110,9 +125,9 @@ model:
   kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
   normalization: 'rmsnorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
-  layernorm_epsilon: 1e-6
+  layernorm_epsilon: 1e-5
   do_layer_norm_weight_decay: False # True means weight decay on all params
-  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+  make_vocab_size_divisible_by: 16 # Pad the vocab size to be divisible by this value for computation efficiency.
   pre_process: True # add embedding
   post_process: True # add pooler
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
@@ -155,7 +170,7 @@ model:
   bias_activation_fusion: False
   megatron_legacy: False
 
-  transformer_engine: False
+  transformer_engine: True
   fp8: False # enables fp8 in TransformerLayer forward
   fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3
   fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
@@ -180,7 +195,7 @@ model:
   tokenizer:
     library: 'sentencepiece'
     type: null
-    model: null
+    model: /ws/converted_nemo_model/tokenizer_1_5.model
     vocab_file: null
     merge_file: null
     delimiter: null # only used for tabular tokenizer
@@ -196,14 +211,14 @@ model:
     is_multimodal: True
     media_type: video # currently supported: image or video
     splice_single_frame: null # 'first', 'middle', 'last' will represent video as first / middle / last frame only, all other frames discarded.
-    num_frames: 100 # selects the number of frames to use from the video
+    num_frames: 256 # selects the number of frames to use from the video
     sep_token_between_frames: False # TODO: allow usage of separator tokens between frames
     sep_image_conv_front: False
-    image_token_len: 256
+    image_token_len: 576    #lita 1.0 uses 256
     conv_template: v1 # check `nemo/collections/multimodal/data/neva/conversation.py`
     image_folder: null
     video_folder: null
-    image_aspect_ratio: 'square'
+    image_aspect_ratio: 'pad'   # lita 1.0 uses 'square'
 
   # Nsys profiling options
   nsys_profile:
@@ -215,7 +230,7 @@ model:
 
   optim:
     name: fused_adam
-    lr: 2e-3
+    lr: 2e-5
     weight_decay: 0.
     betas:
       - 0.9
@@ -224,4 +239,4 @@ model:
       name: CosineAnnealing
       warmup_steps: 140
       constant_steps: 0
-      min_lr: 2e-4
+      min_lr: 2e-7

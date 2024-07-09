@@ -183,8 +183,8 @@ model:
 
   tokenizer:
     library: 'huggingface'
-    type: /ws/converted_models/tokenizer
-    model: null
+    type: /ws/converted_models/tokenizer # set huggingface tokenizer here; And check `LITA Tutorial.ipynb` for how to add time tokens to tokenizer
+    model: null              # set sentencepiece model path here if tokenizer is sentencepiece
     vocab_file: null
     merge_file: null
     delimiter: null # only used for tabular tokenizer

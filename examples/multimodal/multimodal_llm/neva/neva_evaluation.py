@@ -181,7 +181,7 @@ def main(cfg) -> None:
         video_processor,
         cfg.get("add_media_sep", False),
     )
-    # num_workers = min(multiprocessing.cpu_count()-1, 4)
+
     num_workers = 2
     dataloader = DataLoader(
         dataset,
@@ -189,6 +189,7 @@ def main(cfg) -> None:
         shuffle=False,
         collate_fn=collate_function,
         num_workers=num_workers,
+        persistent_workers=True,
     )
     responses, final_prompts = do_inference(dataloader, model, length_params, sampling_params, cfg)
 

@@ -451,7 +451,6 @@ def create_neva_model_and_processor(cfg):
     def video_processor(maybe_video_path):
 
         if isinstance(maybe_video_path, str):
-            # decord.bridge.set_bridge("torch") # this line will break `first`, `middle`, `last`
             vr = decord.VideoReader(maybe_video_path)
             if neva_cfg.data.splice_single_frame == 'first':
                 frames = [Image.fromarray(vr[0].asnumpy()).convert('RGB')]
