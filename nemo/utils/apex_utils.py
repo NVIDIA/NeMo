@@ -1,5 +1,5 @@
 import warnings
-from typing import Optional
+from typing import List, Optional
 
 import torch
 from megatron.core.num_microbatches_calculator import (
