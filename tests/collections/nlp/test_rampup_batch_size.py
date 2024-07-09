@@ -19,19 +19,12 @@ import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
-
+from megatron.core.num_microbatches_calculator import (
+    _GLOBAL_NUM_MICROBATCHES_CALCULATOR,
+    get_num_microbatches,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
-
-try:
-    import apex.transformer.pipeline_parallel.utils
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
 
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
@@ -39,7 +32,7 @@ if torch.cuda.is_available():
 
 
 def reset_microbatch_calculator():
-    apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
+    _GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
 
 
 @pytest.fixture()
@@ -173,7 +166,7 @@ class TestRampupBatchSize:
     @pytest.mark.unit
     def test_rampup_bs_schedule(self, gpt_model, trainer_cfg, rampup_batch_size_schedule):
 
-        num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR
         micro_batch_size = gpt_model.cfg.micro_batch_size
         num_devices = trainer_cfg["devices"]
         num_nodes = trainer_cfg["num_nodes"]

@@ -68,17 +68,8 @@ from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 
 try:
-    import apex.transformer.pipeline_parallel.utils
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
     from megatron.core import InferenceParams, parallel_state
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.models.retro import RetroModel as MCoreRetroModel
     from megatron.core.models.retro.config import RetroConfig
     from megatron.core.models.retro.decoder_spec import get_retro_decoder_block_spec

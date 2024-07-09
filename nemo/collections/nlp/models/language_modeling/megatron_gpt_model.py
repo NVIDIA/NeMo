@@ -76,16 +76,6 @@ from nemo.utils import logging
 from nemo.utils.te_utils import is_float8tensor
 
 try:
-    import apex.transformer.pipeline_parallel.utils
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
@@ -94,6 +84,7 @@ try:
     from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
     from megatron.core.distributed import DistributedDataParallelConfig, finalize_model_grads
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
 
     # NeMo's implementation of the get_gpt_layer_ammo_spec function is temporarily used
     # from megatron.core.inference.gpt.model_specs import get_gpt_layer_ammo_spec
