@@ -106,19 +106,21 @@ class PEFT(ABC, ModelTransform):
         if trainer.state.fn == TrainerFn.FITTING:
             logging.info("Setting up optimizers")
             trainer.strategy.setup_optimizers(trainer)
-        
-    def on_save_checkpoint(self, trainer: pl.Trainer, pl_module: pl.LightningModule, checkpoint: Dict[str, Any]) -> None:
+
+    def on_save_checkpoint(
+        self, trainer: pl.Trainer, pl_module: pl.LightningModule, checkpoint: Dict[str, Any]
+    ) -> None:
         # Filter out non-trainable parameters
         trainable_params = set(name for name, param in pl_module.named_parameters() if param.requires_grad)
         filtered_state_dict = {}
         for name, value in checkpoint['state_dict'].items():
             if name in trainable_params:
-                filtered_state_dict[name] = value            
-            elif self.adapter_key_filter(name):     # Include all adapter-related parameters
                 filtered_state_dict[name] = value
-        
+            elif self.adapter_key_filter(name):  # Include all adapter-related parameters
+                filtered_state_dict[name] = value
+
         checkpoint['state_dict'] = filtered_state_dict
-        
+
     def adapter_key_filter(self, key: str) -> bool:
         return ".adapter." in key or key.endswith(".adapters")
 
