@@ -380,7 +380,9 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             save_strategy.use_cached_ckpt_structure = self.assume_constant_structure
 
         if self.parallel_save:
-            parallelization_group = get_data_parallel_group(with_context_parallel=True) if self.parallel_save_within_dp else None
+            parallelization_group = (
+                get_data_parallel_group(with_context_parallel=True) if self.parallel_save_within_dp else None
+            )
             save_strategy = FullyParallelSaveStrategyWrapper(
                 save_strategy, parallelization_group, self.assume_constant_structure
             )
