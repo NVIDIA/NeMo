@@ -23,8 +23,8 @@ try:
         MCoreGPTEmbeddingMixin,
         MCoreMLPMixin,
         MCoreSelfAttentionMixin,
-        MCoreTransformerBlockMixin,
         MCoreSequentialMLPMixin,
+        MCoreTransformerBlockMixin,
         MCoreTransformerLayerMixin,
     )
 except (ImportError, ModuleNotFoundError):

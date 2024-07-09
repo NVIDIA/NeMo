@@ -24,8 +24,8 @@ from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention
 from megatron.core.transformer.custom_layers.transformer_engine import SplitAlongDim
 from megatron.core.transformer.mlp import MLP
-from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.moe.experts import SequentialMLP
+from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
 from torch import Tensor
