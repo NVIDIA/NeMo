@@ -39,7 +39,7 @@ from omegaconf import OmegaConf
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.trainer.trainer import Trainer
 from safetensors import safe_open
-from transformers import AutoTokenizer, LlamaTokenizer
+from transformers import LlamaTokenizer
 
 from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
 from nemo.collections.nlp.parts.nlp_overrides import (

@@ -18,12 +18,10 @@ import json
 import os
 import random
 import subprocess
-import subprocess as sp
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Pool
 from pathlib import Path
 
-import decord
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from tqdm import tqdm
 from yt_dlp import YoutubeDL
