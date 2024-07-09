@@ -164,6 +164,14 @@ def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, 
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
     return name_spec_dict[spec_name]
 
+def mcore_model_customize(cfg, model):
+    if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
+        extend_instance(model.embedding, EmbeddingScalingMixin)
+    if cfg.get("mcore_customization_config", {}).get("final_logit_softcapping", 0):
+        from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import (
+            Gemma2OutputLayer,
+        )
+        extend_instance(model.output_layer, Gemma2OutputLayer)
 
 class EmbeddingScalingMixin(torch.nn.Module):
     """
@@ -444,11 +452,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
-            if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
-                extend_instance(model.embedding, EmbeddingScalingMixin)
-            if self.cfg.get("mcore_customization_config", {}).get("final_logit_softcapping", 0):
-                from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import Gemma2OutputLayer
-                extend_instance(model.output_layer, Gemma2OutputLayer)
+            mcore_model_customize(self.cfg, model)
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
                 'num_query_groups', None
