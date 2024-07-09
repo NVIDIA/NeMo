@@ -16,13 +16,10 @@ import os
 
 import pytest
 import torch
+from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR, get_num_microbatches
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
-from megatron.core.num_microbatches_calculator import (
-    _GLOBAL_NUM_MICROBATCHES_CALCULATOR,
-    get_num_microbatches,
-)
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 

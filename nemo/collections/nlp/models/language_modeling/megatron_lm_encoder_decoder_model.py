@@ -46,15 +46,11 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
-from nemo.utils.apex_utils import (
-    _reconfigure_microbatch_calculator,
-    get_micro_batch_size,
-)
+from nemo.utils.apex_utils import _reconfigure_microbatch_calculator, get_micro_batch_size
 
 try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
-    from megatron.core.num_microbatches_caculator import get_num_microbatches
     from megatron.core.models.T5 import T5Model as MCoreT5Model
     from megatron.core.models.T5.t5_spec import (
         get_t5_decoder_with_local_block_spec,
@@ -62,6 +58,7 @@ try:
         get_t5_encoder_with_local_block_spec,
         get_t5_encoder_with_transformer_engine_block_spec,
     )
+    from megatron.core.num_microbatches_caculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig

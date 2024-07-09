@@ -427,7 +427,10 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
         self.log('lr', lr, batch_size=1)
         self.log('global_step', self.trainer.global_step, prog_bar=True, batch_size=1)
         self.log(
-            'consumed_samples', self._compute_consumed_samples_after_training_step(), prog_bar=True, batch_size=1,
+            'consumed_samples',
+            self._compute_consumed_samples_after_training_step(),
+            prog_bar=True,
+            batch_size=1,
         )
         return loss_mean[0]
 
@@ -480,7 +483,12 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
         ]  # List of length "num_negatives", each tensor of shape (bs, embedding_dim)
 
         hard_negs_scores = (
-            torch.multiply(queries.unsqueeze(0).repeat(len(hard_negs), 1, 1), torch.stack(hard_negs),).sum(axis=-1).T
+            torch.multiply(
+                queries.unsqueeze(0).repeat(len(hard_negs), 1, 1),
+                torch.stack(hard_negs),
+            )
+            .sum(axis=-1)
+            .T
         )  # shape = (bs, num_negatives); Hard negatives are not shared between queries.
 
         scores = torch.cat([pos_inbatch_negs_scores, hard_negs_scores], axis=1)

@@ -60,8 +60,8 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
 
     HAVE_MEGATRON_CORE = True
 

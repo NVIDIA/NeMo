@@ -84,7 +84,6 @@ try:
     from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
     from megatron.core.distributed import DistributedDataParallelConfig, finalize_model_grads
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
 
     # NeMo's implementation of the get_gpt_layer_ammo_spec function is temporarily used
     # from megatron.core.inference.gpt.model_specs import get_gpt_layer_ammo_spec
@@ -93,6 +92,7 @@ try:
         get_gpt_layer_local_spec,
         get_gpt_layer_with_transformer_engine_spec,
     )
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -114,6 +114,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     import transformer_engine
     from transformer_engine.pytorch import module as te_module
+
     from nemo.collections.nlp.modules.common.hyena.hyena_spec import get_gpt_layer_with_te_and_hyena_spec
 
     HAVE_TE = True

@@ -185,7 +185,10 @@ class MegatronT0Model(MegatronT5SFTModel):
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
 
     def build_data_loader(
-        self, dataset, data_cfg, consumed_samples=0,
+        self,
+        dataset,
+        data_cfg,
+        consumed_samples=0,
     ):
         """Buld dataloader given an input dataset."""
         logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
@@ -215,13 +218,19 @@ class MegatronT0Model(MegatronT5SFTModel):
         if hasattr(self, '_train_ds'):
             consumed_samples = self.compute_consumed_samples(0)
             self._train_dl = self.build_data_loader(
-                dataset=self._train_ds, data_cfg=self.cfg.data.train_ds, consumed_samples=consumed_samples,
+                dataset=self._train_ds,
+                data_cfg=self.cfg.data.train_ds,
+                consumed_samples=consumed_samples,
             )
 
     def setup_eval_dataloader(self, datasets, data_cfg):
         dataloaders = []
         for dataset in datasets:
-            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
+            eval_dl = self.build_data_loader(
+                dataset=dataset,
+                data_cfg=data_cfg,
+                consumed_samples=0,
+            )
             dataloaders.append(eval_dl)
         return dataloaders
 
