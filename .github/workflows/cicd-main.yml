@@ -4430,7 +4430,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf examples/multimodal/text_to_image/sd_train_results
 
-  L2_NeMo_2.0_GPT_Pretraining_no_transformer_engine:
+  L2_NeMo_2_GPT_Pretraining_no_transformer_engine:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     timeout-minutes: 10
@@ -4569,7 +4569,7 @@ jobs:
       - L2_TTS_Fast_dev_runs_1_Hifigan
       - Speech_Checkpoints_tests
       - L2_Stable_Diffusion_Training
-      - L2_NeMo_2.0_GPT_Pretraining_no_transformer_engine
+      - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
     if: always()
     runs-on: ubuntu-latest
     steps:  
