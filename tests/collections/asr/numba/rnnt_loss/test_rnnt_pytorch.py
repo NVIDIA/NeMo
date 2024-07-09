@@ -545,7 +545,7 @@ class TestTDTLoss:
     @pytest.mark.parametrize('device', DEVICES)
     def test_case_randomized_act_label(self, device):
         if device == 'cuda':
-#            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
             B, T, U, V = 4, 8, 4, 8  # here V is number of non blank labels
             durations = [0, 1, 2, 3, 4, 5]
@@ -569,7 +569,7 @@ class TestTDTLoss:
     @pytest.mark.parametrize('device', DEVICES)
     def test_case_randomized_act_label_no_0_duration(self, device):
         if device == 'cuda':
-#            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
             B, T, U, V = 4, 8, 4, 8  # here V is number of non blank labels
             durations = [1, 2, 3, 4, 5]
@@ -593,7 +593,7 @@ class TestTDTLoss:
     @pytest.mark.parametrize('device', DEVICES)
     def test_case_fixed_case_act_label(self, device):
         if device == 'cuda':
-#            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
             B, T, U, V = 1, 3, 2, 3  # here V is number of non blank labels
             durations = [0, 1, 2]
