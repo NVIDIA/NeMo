@@ -484,7 +484,7 @@ class MegatronBaseModel(NLPModel):
         activation = self.cfg.get('activation', 'gelu')
         gated_linear_unit = activation.endswith('glu')
         # TODO: need to check which activation functions are supported in mcore
-        activation_func = activation_to_func(activation)
+        activation_func = activation_to_func(activation, openai_gelu=self.cfg.get("openai_gelu", False))
 
         normalization = self.cfg.get('normalization', 'LayerNorm')
 
@@ -1271,6 +1271,8 @@ class MegatronBaseModel(NLPModel):
             # TODO: Currently the main parameter data type is kept in fp32 (when O2=False). This needs to be
             # extended to support lower precision main parameters.
             frozen_submodule_names, frozen_submodules = find_frozen_submodules(self.model)
+            for submodule in frozen_submodule_names:
+                logging.debug(f"Ignoring state {submodule} in FSDP.")
             self.trainer.strategy.kwargs['ignored_states'] = frozen_submodules
             # FSDP requires uniform status of require_grads
             # Diffusion models like SD has frozen parts and needs to be added to 'ignored_states' from sharding for FSDP to work
