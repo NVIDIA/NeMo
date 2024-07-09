@@ -194,7 +194,7 @@ jobs:
           --mm-vision-tower /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/vision_tower \
           --tokenizer-model /home/TestData/multimodal/video_neva/vita-tokenizer/ \
           --config-file vita_config.yaml \
-          --output_path=/home/TestData/multimodal/video_neva/llama3-ci-hf/llama3_ci.nemo \
+          --out-file=/home/TestData/multimodal/video_neva/llama3-ci-hf/llama3_ci.nemo \
           --model-type VITA \
           --conv-template llama_3
       AFTER_SCRIPT: |
