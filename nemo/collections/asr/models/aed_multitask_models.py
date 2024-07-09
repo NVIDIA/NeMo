@@ -434,7 +434,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         prompt_cls = PromptFormatter.resolve(self.prompt_format)
         self.prompt = prompt_cls(
             tokenizer=self.tokenizer,
-            defaults=OmegaConf.to_container(pd) if (pd := self.cfg.prompt_defaults) is not None else None,
+            defaults=OmegaConf.to_container(pd) if (pd := self.cfg.get('prompt_defaults')) is not None else None,
         )
 
         # Update config
