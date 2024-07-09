@@ -47,6 +47,20 @@ Latest News
     <summary><b>Large Language Models and Multimodal</b></summary>
       <details>
         <summary>
+          <a href="https://huggingface.co/models?sort=trending&search=nvidia%2Fnemotron-4-340B">
+            NVIDIA releases 340B base, instruct, and reward models pretrained on a total of 9T tokens.
+          </a> (2024-06-18)
+        </summary>
+        See documentation and tutorials for SFT, PEFT, and PTQ with 
+        <a href="https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/nemotron/index.html">
+          Nemotron 340B 
+        </a>
+        in the NeMo Framework User Guide.
+        <br><br>
+      </details>
+
+      <details>
+        <summary>
           <a href="https://developer.nvidia.com/blog/nvidia-sets-new-generative-ai-performance-and-scale-records-in-mlperf-training-v4-0/">
             NVIDIA sets new generative AI performance and scale records in MLPerf Training v4.0
           </a> (2024/06/12)
@@ -417,7 +431,7 @@ The most recent working versions of these dependencies are here:
 
   export apex_commit=810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c
   export te_commit=bfe21c3d68b0a9951e5716fb520045db53419c5e
-  export mcore_commit=fbb375d4b5e88ce52f5f7125053068caff47f93f
+  export mcore_commit=02871b4df8c69fac687ab6676c4246e936ce92d0
   export nv_pytorch_tag=24.02-py3
 
 When using a released version of NeMo, please refer to the `Software Component Versions <https://docs.nvidia.com/nemo-framework/user-guide/latest/softwarecomponentversions.html>`_ for the correct versions.

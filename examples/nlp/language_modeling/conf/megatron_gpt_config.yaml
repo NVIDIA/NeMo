@@ -3,7 +3,6 @@ defaults:
   - optional tp_overlap@model.ub_tp_comm_overlap_cfg:
 
 name: megatron_gpt
-restore_from_path: null # used when starting from a .nemo file
 
 trainer:
   devices: 1
@@ -66,6 +65,10 @@ exp_manager:
     async_save: False # Set to True to enable async checkpoint save. Currently works only with distributed checkpoints
 
 model:
+  # The following two settings are used for continual training:
+  restore_from_path: null # Set this to a .nemo file path to restore only the model weights
+  restore_from_ckpt: null # Set this to a training ckpt path to restore both model weights and optimizer states
+
   # use GPTModel from megatron.core
   mcore_gpt: True
 
@@ -114,6 +117,14 @@ model:
   batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE ex: https://arxiv.org/abs/2306.15595.
   num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used.
+
+  ## Reset learning rate schedule.
+  # 1. reset_lr=True, reset_lr_steps=False. When pre-training an existing checkpoint "from scratch" on a different dataset.
+  # 2. reset_lr=True, reset_lr_steps=True. When continuing training from an existing checkpoint with the same configuration.
+  #    Learning rate's max_steps and decay_steps will be recalculated as follows: max_steps -= completed_steps, decay_steps -= completed_steps where completed_steps is the number of steps already completed at the checkpoint.
+  #    This will help to reach the min_lr value by the end of training without changing trainer.max_steps.
+  reset_lr: False # Set to True to reset learning rate to initial learning rate. Only supported with distributed optmizer and megatron_amp_O2.
+  reset_lr_steps: False # Set to True to adjust learning rate's max_steps and decay_steps by subtracting number of steps already completed at the checkpoint.
 
   tokenizer:
     library: 'megatron'
@@ -166,6 +177,10 @@ model:
   dist_ckpt_format: 'zarr' # Set to 'torch_dist' to use PyTorch distributed checkpoint format.
   dist_ckpt_load_on_device: True # whether to load checkpoint weights directly on GPU or to CPU
   dist_ckpt_parallel_save: False # if true, each worker will write its own part of the dist checkpoint
+  dist_ckpt_parallel_load: False # if true, each worker will load part of the dist checkpoint and exchange with NCCL. Might use some extra GPU memory
+  dist_ckpt_torch_dist_multiproc: 2 # number of extra processes per rank used during ckpt save with PyTorch distributed format
+  dist_ckpt_assume_constant_structure: False # set to True only if the state dict structure doesn't change within a single job. Allows caching some computation across checkpoint saves.
+  dist_ckpt_parallel_dist_opt: True # parallel save/load of a DistributedOptimizer. 'True' allows performant save and reshardable checkpoints. Set to 'False' only in order to minimize the number of checkpoint files.
 
   ## Activation Checkpointing
   # NeMo Megatron supports 'selective' activation checkpointing where only the memory intensive part of attention is checkpointed.
