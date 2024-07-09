@@ -18,24 +18,22 @@ import os
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.distributed import all_gather as all_gather_no_backprop
-from torch.distributed.nn.functional import all_gather as all_gather_with_backprop
-
+from megatron.core.models.mamba import MambaModel
+from megatron.core.models.mamba.mamba_layer_specs import get_mamba_layer_with_transformer_engine_spec
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
+from torch.distributed import all_gather as all_gather_no_backprop
+from torch.distributed.nn.functional import all_gather as all_gather_with_backprop
 
 from nemo.collections.nlp.data.information_retrieval.gpt_embedding_dataset import GPTEmbeddingDataset
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
-
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from megatron.core.models.mamba import MambaModel
-from megatron.core.models.mamba.mamba_layer_specs import get_mamba_layer_with_transformer_engine_spec
-
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+
 # from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.models.information_retrieval.megatron_gpt_embedding_model import MegatronGPTEmbeddingModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -78,7 +76,7 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         assert self.backprop_type in ["local", "global"], "Backprop type must be `local` or `global`"
 
         # Matryoshka Representation Learning
-        # if self.cfg.get("do_mrl", False): 
+        # if self.cfg.get("do_mrl", False):
         #     min_mrl = self.cfg.get("min_mrl_dim", int(np.log2(32))) - 1
         #     max_mrl = int(np.log2(self.cfg.hidden_size // 2))
         #     self.mrl_dims = [2**i for i in range(max_mrl, min_mrl, -1)]
@@ -90,21 +88,23 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         # ), "post_process must be False to get hidden states in the loss_func"
 
     def model_provider_func(self, pre_process, post_process):
-        self.hybrid_override_pattern="M" * self.transformer_config.num_layers #-MOM-MO*-MOM-MO"*4
-        mamba_stack_spec = get_mamba_layer_with_transformer_engine_spec(self.transformer_config.num_moe_experts, moe_grouped_gemm=False)
+        self.hybrid_override_pattern = "M" * self.transformer_config.num_layers  # -MOM-MO*-MOM-MO"*4
+        mamba_stack_spec = get_mamba_layer_with_transformer_engine_spec(
+            self.transformer_config.num_moe_experts, moe_grouped_gemm=False
+        )
         self.transformer_config.activation_func = F.silu
-        self.transformer_config.add_bias_linear=self.cfg.get('add_bias_linear', False)
+        self.transformer_config.add_bias_linear = self.cfg.get('add_bias_linear', False)
         self.transformer_config.autocast_dtype = torch.float32
-        
+
         model = MambaModel(
             config=self.transformer_config,
             max_sequence_length=self.cfg.get('encoder_seq_length', 2048),
             vocab_size=self.cfg.get('vocab_size', 65536),
-            mamba_stack_spec=mamba_stack_spec, 
+            mamba_stack_spec=mamba_stack_spec,
             hybrid_override_pattern=self.hybrid_override_pattern,
-            post_process=True
+            post_process=True,
         )
-        
+
         return model
 
     # def maybe_setup_test(self):
@@ -428,16 +428,17 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
     #     return loss, non_loss_tensors
 
     def constrastive_scores(self, pos_doc_hs, neg_doc_hs, query_hs, bs, temperature):
-        pos_cs = torch.mm(
-            query_hs, pos_doc_hs.transpose(0, 1)
-        )
+        pos_cs = torch.mm(query_hs, pos_doc_hs.transpose(0, 1))
         neg_cs = (
-            torch.multiply(query_hs.unsqueeze(0).repeat(len(neg_doc_hs), 1, 1), torch.stack(neg_doc_hs),).sum(axis=-1).T
+            torch.multiply(
+                query_hs.unsqueeze(0).repeat(len(neg_doc_hs), 1, 1),
+                torch.stack(neg_doc_hs),
+            )
+            .sum(axis=-1)
+            .T
         )
         cs = torch.cat([pos_cs, neg_cs], axis=1)
-        labels = torch.tensor(
-            range(len(cs)), dtype=torch.long, device=cs.device
-        )
+        labels = torch.tensor(range(len(cs)), dtype=torch.long, device=cs.device)
         pos_cs = pos_cs.diag().clone().detach().mean()
         neg_cs = neg_cs.clone().detach().mean()
         cs = cs.clamp(-1.0, 1.0)
@@ -461,7 +462,7 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
             )
             global_eos_tensors[parallel_state.get_data_parallel_rank()] = local_eos_tensor
             global_eos_tensors = torch.cat(global_eos_tensors, dim=0)
-        
+
         else:
             global_eos_tensors = all_gather_with_backprop(local_eos_tensor)
             global_eos_tensors = torch.cat(global_eos_tensors, dim=0)
@@ -481,29 +482,24 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
 
         if not self.trainer.training:
             return self.inference_loss_func(loss_mask, num_valid_tokens_in_ub, eos_tensors)
-        
+
         num_tensors_per_example = 2 + self.hard_negatives_to_train
         bs = eos_tensors.shape[0] // num_tensors_per_example
         chunks = eos_tensors.chunk(bs)
         query_hs = torch.stack([item[0] for item in chunks])
         pos_doc_hs = torch.stack([item[1] for item in chunks])
-        neg_doc_hs = [
-            torch.stack([item[i + 2] for item in chunks])
-            for i in range(self.hard_negatives_to_train)
-        ]
+        neg_doc_hs = [torch.stack([item[i + 2] for item in chunks]) for i in range(self.hard_negatives_to_train)]
 
         # query_hs = eos_tensors[::num_tensors_per_example, :]  # every third tensor is a query (bs x hidden_size)
         # pos_doc_hs = eos_tensors[1::num_tensors_per_example, :]  # every third tensor is a positive doc (bs x hidden_size)
-        # 
+        #
         # neg_doc_hs = eos_tensors[2::3, :]  # every third tensor is a negative doc (bs x hidden_size)
 
         query_hs = F.normalize(query_hs, dim=1)
         pos_doc_hs = F.normalize(pos_doc_hs, dim=1)
         neg_doc_hs = [F.normalize(nd, dim=1) for nd in neg_doc_hs]
 
-        cs, pos_cs, neg_cs, labels = self.constrastive_scores(
-            pos_doc_hs, neg_doc_hs, query_hs, bs, self.temperature
-        )
+        cs, pos_cs, neg_cs, labels = self.constrastive_scores(pos_doc_hs, neg_doc_hs, query_hs, bs, self.temperature)
         loss = self.cross_entropy_loss(cs, labels)
         # print("loss: ", loss)
 

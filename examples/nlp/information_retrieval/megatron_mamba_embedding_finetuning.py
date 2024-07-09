@@ -1,7 +1,9 @@
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.nlp.models.information_retrieval.megatron_mamba_embedding_model import MegatronMambaEmbeddingModel
+from nemo.collections.nlp.models.information_retrieval.megatron_mamba_embedding_model import (
+    MegatronMambaEmbeddingModel,
+)
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
@@ -10,6 +12,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 mp.set_start_method("spawn", force=True)
+
 
 @hydra_runner(config_path="conf", config_name="megatron_bert_embedding_config")
 def main(cfg) -> None:
@@ -29,6 +32,7 @@ def main(cfg) -> None:
     )
 
     trainer.fit(model)
-    
+
+
 if __name__ == '__main__':
     main()
