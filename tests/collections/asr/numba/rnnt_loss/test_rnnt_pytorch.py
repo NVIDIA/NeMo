@@ -545,7 +545,7 @@ class TestTDTLoss:
     @pytest.mark.parametrize('device', DEVICES)
     def test_case_randomized_act_label(self, device):
         if device == 'cuda':
-            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+#            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
             B, T, U, V = 4, 8, 4, 8  # here V is number of non blank labels
             durations = [0, 1, 2, 3, 4, 5]
@@ -567,9 +567,33 @@ class TestTDTLoss:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
+    def test_case_randomized_act_label_no_0_duration(self, device):
+        if device == 'cuda':
+#            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
+            B, T, U, V = 4, 8, 4, 8  # here V is number of non blank labels
+            durations = [1, 2, 3, 4, 5]
+            sigma = 0.05
+
+            acts = torch.rand([B, T, U, V + 1 + len(durations)])
+            labels = [[random.randrange(0, V) for i in range(U - 1)] for j in range(B)]
+
+            fn_pt = TDTLossNumba(blank=V, reduction='sum', durations=durations, sigma=sigma)
+            pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
+
+            fn_ag = TDTLossPytorch(
+                blank=V, reduction='sum', durations=durations, sigma=sigma
+            )  # ag for automatic gradient computation
+            ag_cost, ag_grads = wrap_and_call(fn_ag, acts, labels, device)
+
+            assert np.allclose(pt_cost, ag_cost, rtol=1e-6), "tdt costs mismatch."
+            assert np.allclose(pt_grads, ag_grads, rtol=1e-2), "td gradient mismatch."
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('device', DEVICES)
     def test_case_fixed_case_act_label(self, device):
         if device == 'cuda':
-            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+#            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
             B, T, U, V = 1, 3, 2, 3  # here V is number of non blank labels
             durations = [0, 1, 2]
