@@ -134,9 +134,12 @@ class MegatronMixedPrecision(Precision):
         if self.dtype_config.fp16 or self.dtype_config.bf16:
             # Patch config options
             config = get_model_config(module.module)
-            config.fp16 = self.dtype_config.fp16
-            config.bf16 = self.dtype_config.bf16
-            if hasattr(module, 'module'):
+            config.fp16 = self.precision == "16-mixed"
+            config.bf16 = self.precision == "bf16-mixed"
+            if isinstance(module.module, Float16Module):
+                new_float16_module = Float16Module(config, module.module.module)
+                module.module = new_float16_module
+            else:
                 module.module = Float16Module(config, module.module)
             else:
                 module = Float16Module(config, module)

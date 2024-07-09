@@ -171,7 +171,6 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             dump_io (bool): If True, the IO configuration will be saved to the output path.
         """
         trainer.strategy._setup_optimizers = False
-        trainer.strategy._init_model_parallel = False
         trainer.strategy.setup(trainer)
         trainer.save_checkpoint(output_path)
 

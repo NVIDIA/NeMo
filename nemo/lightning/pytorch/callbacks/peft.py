@@ -103,11 +103,10 @@ class PEFT(ABC, ModelTransform):
             logging.info("Initializing model parallel")
             trainer.strategy.init_model_parallel()
 
-        if trainer.state.fn == TrainerFn.FITTING:
-            logging.info("Setting up optimizers")
-            trainer.strategy.setup_optimizers(trainer)
+        logging.info("Setting up optimizers")
+        trainer.strategy.setup_optimizers(trainer)
 
-    def on_save_checkpoint(
+    def on_load_checkpoint(
         self, trainer: pl.Trainer, pl_module: pl.LightningModule, checkpoint: Dict[str, Any]
     ) -> None:
         # Filter out non-trainable parameters

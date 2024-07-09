@@ -72,3 +72,13 @@ class TestPEFT:
         trainer.strategy.load_model_state_dict.assert_called_once_with({"dummy_state": "dummy_value"}, strict=False)
         trainer.strategy.init_model_parallel.assert_called_once()
         trainer.strategy.setup_optimizers.assert_called_once_with(trainer)
+
+    def test_peft_on_load_checkpoint(self):
+        peft = self.DummyPEFT()
+        trainer = MagicMock()
+        pl_module = MagicMock()
+        checkpoint = {}
+
+        peft.on_load_checkpoint(trainer, pl_module, checkpoint)
+
+        assert pl_module.strict_loading == False
