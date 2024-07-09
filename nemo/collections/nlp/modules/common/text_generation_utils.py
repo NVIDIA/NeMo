@@ -122,31 +122,26 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
         compute_prob_response = get_computeprob_response(tokenizer, response, inputs)
         return compute_prob_response
 
-    if isinstance(inputs, (list, tuple)):
-        if isinstance(inputs[0], (str, torch.Tensor)):
-            output = generate(
-                model,
-                inputs=inputs,
-                tokens_to_generate=length_params['max_length'],
-                all_probs=sampling_params['all_probs'],
-                compute_logprob=sampling_params['compute_logprob'],
-                temperature=sampling_params['temperature'],
-                add_BOS=sampling_params['add_BOS'],
-                top_k=sampling_params['top_k'],
-                top_p=sampling_params['top_p'],
-                greedy=sampling_params['use_greedy'],
-                repetition_penalty=sampling_params['repetition_penalty'],
-                end_strings=sampling_params['end_strings'],
-                min_tokens_to_generate=length_params['min_length'],
-                **strategy_args,
-            )
-            return output
-        elif isinstance(inputs[0], dict):
-            raise NotImplementedError("json object not implemented")
-        else:
-            raise NotImplementedError("unknown type is not implemented")
-    else:
-        raise NotImplementedError("unknown type is not implemented")
+    if not isinstance(inputs, (list, tuple)):
+        raise NotImplementedError(f"unknown type {type(inputs)} is not implemented")
+
+    output = generate(
+        model,
+        inputs=inputs,
+        tokens_to_generate=length_params['max_length'],
+        all_probs=sampling_params['all_probs'],
+        compute_logprob=sampling_params['compute_logprob'],
+        temperature=sampling_params['temperature'],
+        add_BOS=sampling_params['add_BOS'],
+        top_k=sampling_params['top_k'],
+        top_p=sampling_params['top_p'],
+        greedy=sampling_params['use_greedy'],
+        repetition_penalty=sampling_params['repetition_penalty'],
+        end_strings=sampling_params['end_strings'],
+        min_tokens_to_generate=length_params['min_length'],
+        **strategy_args,
+    )
+    return output
 
 
 def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_params, inference_config, **strategy_args):
@@ -203,7 +198,8 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
                 clean_response = clean_response[last_match_end_position:]
             clean_response = clean_response.strip("<extra_id_1>")
         elif conv_template == 'nv_dpo':
-            clean_response = clean_response.split("<extra_id_1>")[-2][10:]  # [10:] for removing "Assistant\n"
+            clean_response = clean_response.split("<extra_id_1>Assistant\n")[-1]
+            clean_response = clean_response.strip("<extra_id_1>")
         elif conv_template == "llama_2":
             clean_response = clean_response.rsplit("[/INST] ", 1)[-1]
         elif conv_template == "llama_3":

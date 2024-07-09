@@ -103,7 +103,6 @@ def add_megatron_sampler(
         )
     elif dataloader_type == 'cyclic':
         batch_sampler = MegatronPretrainingRandomSampler(
-            dataloader.dataset,
             total_samples=len(dataloader.dataset),
             consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
@@ -184,9 +183,12 @@ class BaseMegatronSampler:
         num_available_samples: int = self.total_samples - self.consumed_samples
         if self.global_batch_size is not None:
             if self.drop_last:
-                return num_available_samples // self.global_batch_size
+                num_global_batches = num_available_samples // self.global_batch_size
             else:
-                return (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
+                num_global_batches = (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
+            # return len of dataloader in terms of micro batches to avoid discrepancy between len of dataloader and
+            # num of batches fetched (as training step fetches in terms of micro batches)
+            return num_global_batches * (self.global_batch_size // self.micro_batch_times_data_parallel_size)
         else:
             return (num_available_samples - 1) // self.micro_batch_times_data_parallel_size + 1
 
@@ -259,8 +261,9 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         assert current_epoch_samples % self.micro_batch_times_data_parallel_size == 0
 
         # data sharding and random sampling
+        data_parallel_size = self.micro_batch_times_data_parallel_size // self.micro_batch_size
         bucket_size = (self.total_samples // self.micro_batch_times_data_parallel_size) * self.micro_batch_size
-        bucket_offset = current_epoch_samples // self.data_parallel_size
+        bucket_offset = current_epoch_samples // data_parallel_size
         start_idx = self.data_parallel_rank * bucket_size
 
         g = torch.Generator()

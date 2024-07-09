@@ -118,6 +118,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             Defaults to None.
         conv_dual_mode (bool): specifies if convolution should be dual mode when dual_offline mode is being used. When enables, the left half of the convolution kernel would get masked in streaming cases.
             Defaults to False
+        use_bias (bool): Use bias in all Linear and Conv1d layers from each ConformerLayer to improve activation flow and stabilize training of huge models.
+            Defaults to True.
         dropout (float): the dropout rate used in all layers except the attention layers
             Defaults to 0.1.
         dropout_pre_encoder (float): the dropout rate used before the encoder
@@ -282,6 +284,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         conv_kernel_size=31,
         conv_norm_type='batch_norm',
         conv_context_size=None,
+        use_bias=True,
         dropout=0.1,
         dropout_pre_encoder=0.1,
         dropout_emb=0.1,
@@ -426,6 +429,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 pos_bias_u=pos_bias_u,
                 pos_bias_v=pos_bias_v,
                 att_context_size=self.att_context_size,
+                use_bias=use_bias,
             )
             self.layers.append(layer)
 
@@ -497,6 +501,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
     def forward(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
+        self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
         return self.forward_internal(
             audio_signal,
             length,
@@ -508,8 +513,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
     def forward_internal(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
-        self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
-
         if length is None:
             length = audio_signal.new_full(
                 (audio_signal.size(0),), audio_signal.size(-1), dtype=torch.int64, device=audio_signal.device
@@ -675,7 +678,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         """
         self.max_audio_length = max_audio_length
         device = next(self.parameters()).device
-        self.pos_enc.extend_pe(max_audio_length, device)
+        dtype = next(self.parameters()).dtype
+        self.pos_enc.extend_pe(max_audio_length, device, dtype)
 
     def _create_masks(self, att_context_size, padding_length, max_audio_length, offset, device):
         if self.self_attention_model != "rel_pos_local_attn":

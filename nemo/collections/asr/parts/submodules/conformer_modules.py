@@ -17,6 +17,7 @@ import torch
 from torch import nn as nn
 from torch.nn import LayerNorm
 
+from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import AttentionAdapterModuleMixin
 from nemo.collections.asr.parts.submodules.batchnorm import FusedBatchNorm1d
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
@@ -25,15 +26,13 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     RelPositionMultiHeadAttentionLongformer,
 )
 from nemo.collections.asr.parts.utils.activations import Swish
-from nemo.collections.common.parts import adapter_modules
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.core.classes.mixins import AccessMixin
-from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 
 __all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerLayer']
 
 
-class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
+class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
     """A single block of the Conformer encoder.
 
     Args:
@@ -56,6 +55,8 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         conv_kernel_size (int): kernel size for depthwise convolution in convolution module
         dropout (float): dropout probabilities for linear layers
         dropout_att (float): dropout probabilities for attention distributions
+        use_bias (bool): Apply bias to all Linear and Conv1d layers from each ConformerLayer to improve activation flow and stabilize training of huge models.
+            Defaults to True.
     """
 
     def __init__(
@@ -75,6 +76,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         pos_bias_u=None,
         pos_bias_v=None,
         att_context_size=[-1, -1],
+        use_bias=True,
     ):
         super(ConformerLayer, self).__init__()
 
@@ -84,7 +86,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
 
         # first feed forward module
         self.norm_feed_forward1 = LayerNorm(d_model)
-        self.feed_forward1 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
+        self.feed_forward1 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout, use_bias=use_bias)
 
         # convolution module
         self.norm_conv = LayerNorm(d_model)
@@ -93,6 +95,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             kernel_size=conv_kernel_size,
             norm_type=conv_norm_type,
             conv_context_size=conv_context_size,
+            use_bias=use_bias,
         )
 
         # multi-headed self-attention module
@@ -107,6 +110,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
                 pos_bias_u=pos_bias_u,
                 pos_bias_v=pos_bias_v,
                 max_cache_len=MHA_max_cache_len,
+                use_bias=use_bias,
             )
         elif self_attention_model == 'rel_pos_local_attn':
             self.self_attn = RelPositionMultiHeadAttentionLongformer(
@@ -120,10 +124,15 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
                 global_tokens=global_tokens,
                 global_tokens_spacing=global_tokens_spacing,
                 global_attn_separate=global_attn_separate,
+                use_bias=use_bias,
             )
         elif self_attention_model == 'abs_pos':
             self.self_attn = MultiHeadAttention(
-                n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, max_cache_len=MHA_max_cache_len
+                n_head=n_heads,
+                n_feat=d_model,
+                dropout_rate=dropout_att,
+                max_cache_len=MHA_max_cache_len,
+                use_bias=use_bias,
             )
         else:
             raise ValueError(
@@ -133,7 +142,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
 
         # second feed forward module
         self.norm_feed_forward2 = LayerNorm(d_model)
-        self.feed_forward2 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
+        self.feed_forward2 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout, use_bias=use_bias)
 
         self.dropout = nn.Dropout(dropout)
         self.norm_out = LayerNorm(d_model)
@@ -174,14 +183,14 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
 
         if self.is_adapter_available():
             # Call the MHA adapters
-            pack_ip = {
+            pack_input = {
                 'x': residual,
                 'loc': 'mha',
                 'att_mask': att_mask,
                 'pos_emb': pos_emb,
             }
-            pack_ip = self.forward_enabled_adapters(pack_ip)
-            residual = pack_ip['x']
+            pack_input = self.forward_enabled_adapters(pack_input)
+            residual = pack_input['x']
 
         x = self.norm_conv(residual)
         x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time)
@@ -197,12 +206,12 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
 
         if self.is_adapter_available():
             # Call the adapters
-            pack_ip = {
+            pack_input = {
                 'x': x,
                 'loc': 'post',
             }
-            pack_ip = self.forward_enabled_adapters(pack_ip)
-            x = pack_ip['x']
+            pack_input = self.forward_enabled_adapters(pack_input)
+            x = pack_input['x']
 
         if self.is_access_enabled(getattr(self, "model_guid", None)) and self.access_cfg.get(
             'save_encoder_tensors', False
@@ -213,64 +222,6 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         else:
             return x, cache_last_channel, cache_last_time
 
-    def forward_single_enabled_adapter_(
-        self,
-        input: dict,
-        adapter_module: torch.nn.Module,
-        *,
-        adapter_name: str,
-        adapter_strategy: 'nemo.core.classes.mixins.adapter_mixin_strategies.AbstractAdapterStrategy',
-    ):
-        """
-        Perform the forward step of a single adapter module on some input data.
-
-        **Note**: Subclasses can override this method to accommodate more complicate adapter forward steps.
-
-        Args:
-            input: Dictionary of packed tensors. The dict should contain at least
-                `x`: output tensor
-                `loc`: Semantic location in module where this adapter was called
-                `att_mask`: Optional, Attention mask
-                `pos_emb`: Optional, Positional Embedding for Relative Positional Encoding.
-                The output tensor of the calling module is the input to the first adapter, whose output
-                is then chained to the next adapter until all adapters are consumed.
-            adapter_module: The adapter module that is currently required to perform the forward pass.
-            adapter_name: The resolved name of the adapter that is undergoing the current forward pass.
-            adapter_strategy: A subclass of `AbstractAdapterStrategy`, that determines how the
-                output of the adapter should be merged with the input, or if it should be merged at all.
-
-        Returns:
-            The result tensor, after the current active adapter has finished its forward pass.
-        """
-        # (input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin')
-        x = input['x']
-        loc = input['loc']
-        att_mask = input.get('att_mask', None)
-        pos_emb = input.get('pos_emb', None)
-
-        if isinstance(adapter_module, adapter_modules.LinearAdapter) and loc == 'post':
-            output = adapter_strategy(x, adapter_module, module=self)
-
-        elif isinstance(adapter_module, MultiHeadAttention) and loc == 'mha':
-            if self.self_attention_model == 'rel_pos':
-                x = dict(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
-                output = adapter_strategy(x, adapter_module, module=self)
-
-            elif self.self_attention_model == 'abs_pos':
-                x = dict(query=x, key=x, value=x, mask=att_mask)
-                output = adapter_strategy(x, adapter_module, module=self)
-
-            else:
-                raise ValueError(f"Unsupported value of self_attention_model , provided {self.self_attention_model}!")
-
-        else:
-            # No adapter compatible, skip
-            output = x
-
-        input['x'] = output
-
-        return input
-
 
 class ConformerConvolution(nn.Module):
     """The convolution module for the Conformer model.
@@ -280,16 +231,25 @@ class ConformerConvolution(nn.Module):
         pointwise_activation (str): name of the activation function to be used for the pointwise conv.
             Note that Conformer uses a special key `glu_` which is treated as the original default from
             the paper.
+        use_bias (bool): Use bias in all Linear and Conv1d layers improve activation flow and stabilize training of huge models.
+            Defaults to True
     """
 
     def __init__(
-        self, d_model, kernel_size, norm_type='batch_norm', conv_context_size=None, pointwise_activation='glu_'
+        self,
+        d_model,
+        kernel_size,
+        norm_type='batch_norm',
+        conv_context_size=None,
+        pointwise_activation='glu_',
+        use_bias=True,
     ):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
         self.d_model = d_model
         self.kernel_size = kernel_size
         self.norm_type = norm_type
+        self.use_bias = use_bias
 
         if conv_context_size is None:
             conv_context_size = (kernel_size - 1) // 2
@@ -305,7 +265,12 @@ class ConformerConvolution(nn.Module):
             dw_conv_input_dim = d_model
 
         self.pointwise_conv1 = nn.Conv1d(
-            in_channels=d_model, out_channels=d_model * 2, kernel_size=1, stride=1, padding=0, bias=True
+            in_channels=d_model,
+            out_channels=d_model * 2,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+            bias=self.use_bias,
         )
 
         self.depthwise_conv = CausalConv1D(
@@ -315,7 +280,7 @@ class ConformerConvolution(nn.Module):
             stride=1,
             padding=conv_context_size,
             groups=dw_conv_input_dim,
-            bias=True,
+            bias=self.use_bias,
         )
 
         if norm_type == 'batch_norm':
@@ -334,7 +299,12 @@ class ConformerConvolution(nn.Module):
 
         self.activation = Swish()
         self.pointwise_conv2 = nn.Conv1d(
-            in_channels=dw_conv_input_dim, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
+            in_channels=dw_conv_input_dim,
+            out_channels=d_model,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+            bias=self.use_bias,
         )
 
     def forward(self, x, pad_mask=None, cache=None):
@@ -348,7 +318,7 @@ class ConformerConvolution(nn.Module):
             x = self.pointwise_activation(x)
 
         if pad_mask is not None:
-            x = x.float().masked_fill(pad_mask.unsqueeze(1), 0.0)
+            x = x.masked_fill(pad_mask.unsqueeze(1), 0.0)
 
         x = self.depthwise_conv(x, cache=cache)
         if cache is not None:
@@ -370,31 +340,34 @@ class ConformerConvolution(nn.Module):
             return x, cache
 
     def reset_parameters_conv(self):
-        pw1_max = pw2_max = self.d_model ** -0.5
-        dw_max = self.kernel_size ** -0.5
+        pw1_max = pw2_max = self.d_model**-0.5
+        dw_max = self.kernel_size**-0.5
 
         with torch.no_grad():
             nn.init.uniform_(self.pointwise_conv1.weight, -pw1_max, pw1_max)
-            nn.init.uniform_(self.pointwise_conv1.bias, -pw1_max, pw1_max)
             nn.init.uniform_(self.pointwise_conv2.weight, -pw2_max, pw2_max)
-            nn.init.uniform_(self.pointwise_conv2.bias, -pw2_max, pw2_max)
             nn.init.uniform_(self.depthwise_conv.weight, -dw_max, dw_max)
-            nn.init.uniform_(self.depthwise_conv.bias, -dw_max, dw_max)
+            if self.use_bias:
+                nn.init.uniform_(self.pointwise_conv1.bias, -pw1_max, pw1_max)
+                nn.init.uniform_(self.pointwise_conv2.bias, -pw2_max, pw2_max)
+                nn.init.uniform_(self.depthwise_conv.bias, -dw_max, dw_max)
 
 
 class ConformerFeedForward(nn.Module):
     """
     feed-forward module of Conformer model.
+    use_bias (bool): Apply bias to all Linear and Conv1d layers improve activation flow and stabilize training of huge models.
     """
 
-    def __init__(self, d_model, d_ff, dropout, activation=Swish()):
+    def __init__(self, d_model, d_ff, dropout, activation=Swish(), use_bias=True):
         super(ConformerFeedForward, self).__init__()
         self.d_model = d_model
         self.d_ff = d_ff
-        self.linear1 = nn.Linear(d_model, d_ff)
+        self.use_bias = use_bias
+        self.linear1 = nn.Linear(d_model, d_ff, bias=self.use_bias)
         self.activation = activation
         self.dropout = nn.Dropout(p=dropout)
-        self.linear2 = nn.Linear(d_ff, d_model)
+        self.linear2 = nn.Linear(d_ff, d_model, bias=self.use_bias)
 
     def forward(self, x):
         x = self.linear1(x)
@@ -404,10 +377,11 @@ class ConformerFeedForward(nn.Module):
         return x
 
     def reset_parameters_ff(self):
-        ffn1_max = self.d_model ** -0.5
-        ffn2_max = self.d_ff ** -0.5
+        ffn1_max = self.d_model**-0.5
+        ffn2_max = self.d_ff**-0.5
         with torch.no_grad():
             nn.init.uniform_(self.linear1.weight, -ffn1_max, ffn1_max)
-            nn.init.uniform_(self.linear1.bias, -ffn1_max, ffn1_max)
             nn.init.uniform_(self.linear2.weight, -ffn2_max, ffn2_max)
-            nn.init.uniform_(self.linear2.bias, -ffn2_max, ffn2_max)
+            if self.use_bias:
+                nn.init.uniform_(self.linear1.bias, -ffn1_max, ffn1_max)
+                nn.init.uniform_(self.linear2.bias, -ffn2_max, ffn2_max)
