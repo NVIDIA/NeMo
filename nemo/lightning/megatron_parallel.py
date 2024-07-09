@@ -48,7 +48,7 @@ def default_data_step(dataloader_iter: Iterator[DataT]) -> DataT:
     """
     Moves the data to a device.
 
-    In this case we utilize the match function to unpack the dataloader iterator. There may be a wrapper on the dataloader
+    In this case we unpack the dataloader iterator. There may be a wrapper on the dataloader
     iter from here: https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/fabric/strategies.py#L441.
 
     This will not subset the data for your with context parallel so please override this function if you
@@ -67,21 +67,13 @@ def default_data_step(dataloader_iter: Iterator[DataT]) -> DataT:
             "Please define your own data step that appropriately slices the data for context parallel."
         )
 
-    match next(dataloader_iter):
-        # If its wrapped in a tuple, unpack it.
-        case (batch, int(_), int(_)):
-            pass
-        # Canonical case.
-        case batch:
-            pass
-        # If the dataloader_iter is empty, return None.
-        case _:
-            batch = None
+    batch = next(dataloader_iter)
+    
+    # If its wrapped in a tuple, unpack it.
+    if isinstance(batch, tuple) and len(batch) == 3:
+        batch = batch[0]
 
-    if batch is not None:
-        return move_data_to_device(batch, torch.cuda.current_device())
-    else:
-        raise ValueError("No valid batch found from dataloader_iter.")
+    return move_data_to_device(batch, torch.cuda.current_device())
 
 
 def default_forward_step(model: nn.Module, batch, *args, **kwargs) -> torch.Tensor:
