@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
-import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
