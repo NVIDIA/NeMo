@@ -1247,9 +1247,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         cp_rank = parallel_state.get_context_parallel_rank()
                         for key in required_keys:
                             val = batch[key]
-                            if key not in {"cu_seqlens"}:
-                                index = tex.thd_get_partitioned_indices(cu_seqlens, val.size(1), cp_size, cp_rank)
-                                val = val.index_select(1, index)
+                            if key != "cu_seqlens":
+                                seq_dim = 1 if key != 'attention_mask' else 2
+                                index = tex.thd_get_partitioned_indices(cu_seqlens, val.size(seq_dim), cp_size, cp_rank)
+                                val = val.index_select(seq_dim, index)
                                 batch[key] = val
                         cu_seqlens = cu_seqlens // cp_size
                         forward_args = {

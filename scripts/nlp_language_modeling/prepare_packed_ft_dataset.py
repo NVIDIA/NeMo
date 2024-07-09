@@ -89,13 +89,7 @@ def tokenize_dataset(cfg: 'DictConfig'):
     # if context parallel is used, each individual data length in one packed dataset sample
     # needs to be a multiple of (cp_size * 2): https://github.com/NVIDIA/TransformerEngine/pull/641
     if cp_size > 1:
-      # Function to calculate the LCM of two numbers
-      def lcm(x, y):
-        larger = max(x, y)
-        for i in range(larger, x * y + 1):
-          if i % x == 0 and i % y == 0:
-              return i
-      pad_seq_length_to_mult = lcm(pad_seq_length_to_mult, cp_size * 2)
+        pad_seq_length_to_mult = max(pad_seq_length_to_mult, cp_size * 2)
 
     dataset = GPTSFTDataset(
         file_path=data_cfg.file_names[0],
@@ -128,20 +122,21 @@ def tokenize_dataset(cfg: 'DictConfig'):
     pad_seq_length_to_mult = dataset.pad_seq_length_to_mult
     dataset = np.array([dataset[i] for i in range(len(dataset))])
     if cp_size > 1:
-      def pre_pad_dataset(data, max_length, pad_id):
-        '''
-        pad each individual data point to the length of max_length
-        '''
-        for key,val in data.items():
-          if key in {'input_ids', 'context_ids'}:
-            val = val + [pad_id] * (max_length - len(val) + 1) # add 1 for cp
-            data[key]=val
-        return
-      ceil_to_nearest = lambda n, m : (n + m - 1) // m * m
-      for data in dataset:
-        max_length = min(max_seq_length, ceil_to_nearest(len(data['input_ids']), pad_seq_length_to_mult))
-        assert max_length <= max_seq_length
-        pre_pad_dataset(data, max_length, pad_id)
+        def pre_pad_dataset(data, max_length, pad_id):
+            '''
+            pad each individual data point to the length of max_length
+            '''
+            for key,val in data.items():
+                if key in {'input_ids', 'context_ids'}:
+                    # because input_ids is truncated by 1 for labels in the collate_fn of GPTSFTPackedDataset 
+                    # in gpt_sft_dataset.py, we add 1 extra padding here
+                    val = val + [pad_id] * (max_length - len(val) + 1)
+                    data[key]=val
+            return
+        ceil_to_nearest = lambda n, m : (n + m - 1) // m * m
+        for data in dataset:
+            max_length = min(max_seq_length, ceil_to_nearest(len(data['input_ids']), pad_seq_length_to_mult))
+            pre_pad_dataset(data, max_length, pad_id)
     return dataset
 
 
