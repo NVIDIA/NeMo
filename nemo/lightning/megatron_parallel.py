@@ -74,14 +74,14 @@ def default_data_step(dataloader_iter: Iterator[DataT]) -> DataT:
         # Canonical case.
         case batch:
             pass
-        # If the dataloader_iter is empty, return None.
+        # If the dataloader_iter is empty, return a ValueError.
         case _:
             batch = None
 
     if batch is not None:
         return move_data_to_device(batch, torch.cuda.current_device())
     else:
-        raise ValueError("No valid batch found from dataloader_iter.")
+        raise ValueError("None returned from dataloader.")
 
 
 def default_forward_step(model: nn.Module, batch, *args, **kwargs) -> torch.Tensor:
