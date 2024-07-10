@@ -3880,7 +3880,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        python NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=0 examples/nlp/language_modeling/megatron_t5_eval.py \
+        NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=0 python examples/nlp/language_modeling/megatron_t5_eval.py \
             --model_file /home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m.nemo \
             --prompt 'How do I fix my GPU memory issue? I am seeing <mask> out of memory.' \
             --tensor_model_parallel_size 1
