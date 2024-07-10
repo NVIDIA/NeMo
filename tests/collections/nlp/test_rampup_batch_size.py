@@ -16,7 +16,7 @@ import os
 
 import pytest
 import torch
-from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR, get_num_microbatches
+from megatron.core.num_microbatches_calculator import get_num_microbatches
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
@@ -29,6 +29,7 @@ if torch.cuda.is_available():
 
 
 def reset_microbatch_calculator():
+    from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
     _GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
 
 
@@ -163,6 +164,7 @@ class TestRampupBatchSize:
     @pytest.mark.unit
     def test_rampup_bs_schedule(self, gpt_model, trainer_cfg, rampup_batch_size_schedule):
 
+        from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
         num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR
         micro_batch_size = gpt_model.cfg.micro_batch_size
         num_devices = trainer_cfg["devices"]

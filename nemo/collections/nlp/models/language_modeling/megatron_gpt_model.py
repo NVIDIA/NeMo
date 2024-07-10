@@ -92,7 +92,7 @@ try:
         get_gpt_layer_local_spec,
         get_gpt_layer_with_transformer_engine_spec,
     )
-    from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR, get_num_microbatches
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -777,6 +777,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.if_init_step = False
 
         if self.rampup_batch_size:
+            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
             num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR
             current_global_batch_size = num_microbatch_calculator.current_global_batch_size
             # do validation and save the checkpoint when gbs is changed
@@ -1633,6 +1634,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.init_global_step = self.trainer.global_step
 
         if self.rampup_batch_size:
+            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
             num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR
             num_microbatch_calculator.update(self.init_consumed_samples, consistency_check=False)
             self.prev_consumed_samples = self.init_consumed_samples
