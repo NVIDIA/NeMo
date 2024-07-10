@@ -15,12 +15,12 @@
 import logging
 from enum import IntEnum, auto
 from pathlib import Path
+from typing import List
 
 import numpy as np
 import torch
 import wrapt
 from pytorch_lightning.trainer.trainer import Trainer
-from typing import List
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.text_generation_utils import (
@@ -131,9 +131,11 @@ class MegatronLLMDeployable(ITritonDeployable):
             )
             # transformer_engine should always be true according to EricH, but GPT-2B model will fail if it is enabled
             if not custom_config.transformer_engine:
-                LOGGER.warning("MegatronLLMDeployable expects model config transformer_engine=True, but this model has it =False. "
-                               "Overriding it to =True, but this may break certain checkpoints converted on older Nemo versions. "
-                               "If your model breaks, please try re-converting the checkpoint on the current Nemo version.")
+                LOGGER.warning(
+                    "MegatronLLMDeployable expects model config transformer_engine=True, but this model has it =False. "
+                    "Overriding it to =True, but this may break certain checkpoints converted on older Nemo versions. "
+                    "If your model breaks, please try re-converting the checkpoint on the current Nemo version."
+                )
             custom_config.transformer_engine = True
             # using multi-gpu for tensor parallelism directly for now, could do pipeline parallel instead or a combination
             custom_config.tensor_model_parallel_size = num_devices
@@ -248,9 +250,7 @@ class MegatronLLMDeployable(ITritonDeployable):
             signal_value = ServerSync.SIGNAL.to_long_tensor()
             torch.distributed.broadcast(signal_value, 0)
 
-        return self.model.generate(
-            inputs=inputs, length_params=length_params, sampling_params=sampling_params
-        )
+        return self.model.generate(inputs=inputs, length_params=length_params, sampling_params=sampling_params)
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
