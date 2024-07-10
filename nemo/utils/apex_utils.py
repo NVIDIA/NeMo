@@ -4,6 +4,7 @@ from typing import List, Optional
 import torch
 from megatron.core.num_microbatches_calculator import build_num_microbatches_calculator
 
+
 def _reconfigure_microbatch_calculator(
     rank: int,
     rampup_batch_size: Optional[List[int]],
