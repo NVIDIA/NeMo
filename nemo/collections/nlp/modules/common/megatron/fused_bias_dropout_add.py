@@ -47,12 +47,12 @@ def bias_dropout_add_fused_train_(
     # type: (Tensor, Tensor, Tensor, float) -> Tensor
     return bias_dropout_add(x, bias, residual, prob, True)
 
+
 @torch.jit.script
-def dropout_add_fused_train_(
-    x: torch.Tensor, bias: torch.Tensor, residual: torch.Tensor, prob: float
-) -> torch.Tensor:
+def dropout_add_fused_train_(x: torch.Tensor, bias: torch.Tensor, residual: torch.Tensor, prob: float) -> torch.Tensor:
     # type: (Tensor, None, Tensor, float) -> Tensor
     return dropout_add(x, bias, residual, prob, True)
+
 
 def bias_dropout_add_fused_train(x, bias, residual, prob):
     # re-enable torch grad to enable fused optimization.
