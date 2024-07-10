@@ -16,13 +16,13 @@ from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train a small GPT model using NeMo 2.0')
-    parser.add_argument('--devices', help="Number of devices to use for training")
-    parser.add_argument('--max-steps', help="Number of steps to train for")
-    parser.add_argument('--experiment-dir', help="directory to write results and checkpoints to")
-    parser.add_argument('--data-path', help="Path to data file")
-    parser.add_argument('--vocab-path', help="Path to vocab file")
-    parser.add_argument('--merges-path', help="Path to merges file")
-    parser.add_argument('--index-mapping-dir', help="directory to write index mappings to")
+    parser.add_argument('--devices', type=int, help="Number of devices to use for training")
+    parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
+    parser.add_argument('--experiment-dir', type=str, help="directory to write results and checkpoints to")
+    parser.add_argument('--data-path', type=str, help="Path to data file")
+    parser.add_argument('--vocab-path', type=str, help="Path to vocab file")
+    parser.add_argument('--merges-path', type=str, help="Path to merges file")
+    parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
 
     return parser.parse_args()
 
