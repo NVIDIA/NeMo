@@ -54,8 +54,9 @@ def build_and_save_engine(
     tokens_per_block: int = 128,
     multiple_profiles: bool = False,
 ):
+    architecture = "LLaMAForCausalLM" if model_config.architecture == "LlamaForCausalLM" else model_config.architecture
     try:
-        model_cls = getattr(tensorrt_llm.models, model_config.architecture)
+        model_cls = getattr(tensorrt_llm.models, architecture)
     except:
         raise AttributeError(f"Could not find TRTLLM model type: {model_type}!")
 
