@@ -20,6 +20,7 @@ def _reconfigure_microbatch_calculator(
         _GLOBAL_NUM_MICROBATCHES_CALCULATOR,
         build_num_microbatches_calculator,
     )
+
     global _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
     _GLOBAL_NUM_MICROBATCHES_CALCULATOR = build_num_microbatches_calculator(
@@ -28,5 +29,6 @@ def _reconfigure_microbatch_calculator(
 
 
 def get_micro_batch_size():
-    from megatron.core.num_microbatches_calculator import  GLOBAL_NUM_MICROBATCHES_CALCULATOR
+    from megatron.core.num_microbatches_calculator import GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
     return _GLOBAL_NUM_MICROBATCHES_CALCULATOR.micro_batch_size
