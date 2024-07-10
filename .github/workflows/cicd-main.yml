@@ -4103,8 +4103,7 @@ jobs:
         model.data.train_ds.num_workers=0 \
         model.data.validation_ds.num_workers=0 \
         model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.validation_ds.names=[quarel] \
-        ++cluster_type=BCP
+        model.data.validation_ds.names=[quarel]
 
         NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/tuning/megatron_t5_generate.py \
         model.restore_from_path=/home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m.nemo \
@@ -4122,8 +4121,7 @@ jobs:
         model.data.test_ds.output_file_path_prefix=/home/TestData/nlp/mcore_t5_lora_tuning_tp2/out \
         inference.greedy=True \
         inference.repetition_penalty=1.0 \
-        inference.outfile_path=/home/TestData/nlp/mcore_t5_lora_tuning_tp2/out.jsonl \
-        ++cluster_type=BCP
+        inference.outfile_path=/home/TestData/nlp/mcore_t5_lora_tuning_tp2/out.jsonl
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/mcore_t5_lora_tuning_tp2
 
