@@ -16,7 +16,7 @@ Framework <https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.htm
   Figure 1: Steps for LoRA customization using the NVIDIA NeMo Framework and deployment with NVIDIA NIM
 
 
-| NIM enables seamless deployment of multiple LoRA adapters (referred to as “multi-LoRA”) on the same base model. It dynamically loads the adapter weights based on incoming requests at runtime. This flexibility allows handling inputs from various tasks or use cases without deploying a unique model for each individual scenario. For further details, consult the `NIM documentation for LLMs<https://docs.nvidia.com/nim/large-language-models/latest/introduction.html>`__.
+| NIM enables seamless deployment of multiple LoRA adapters (referred to as “multi-LoRA”) on the same base model. It dynamically loads the adapter weights based on incoming requests at runtime. This flexibility allows handling inputs from various tasks or use cases without deploying a unique model for each individual scenario. For further details, consult the `NIM documentation for LLMs <https://docs.nvidia.com/nim/large-language-models/latest/introduction.html>`__.
 
 Requirements
 -------------
@@ -34,7 +34,7 @@ Requirements
 
 This notebook shows how to perform LoRA PEFT on **Llama 3 8B Instruct** using `PubMedQA <https://pubmedqa.github.io/>`__ with NeMo Framework. PubMedQA is a Question-Answering dataset for biomedical texts. You will use the NeMo Framework which is available as a `docker container <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo>`__.
 
-1. Download the `Llama 3 8B Instruct .nemo <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/llama-3-8b-instruct-nemo>`__ from NVIDIA NGC using the NGC CLI. The following command saves the .nemo format model in a folder named `llama-3-8b-instruct-nemo_v1.0` in the current directory. You can specify another path using the `-d` option in the CLI tool.
+1. Download the `Llama 3 8B Instruct .nemo <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/llama-3-8b-instruct-nemo>`__ from NVIDIA NGC using the NGC CLI. The following command saves the ``.nemo`` format model in a folder named ``llama-3-8b-instruct-nemo_v1.0`` in the current directory. You can specify another path using the ``-d`` option in the CLI tool.
 
 .. code:: bash
    
