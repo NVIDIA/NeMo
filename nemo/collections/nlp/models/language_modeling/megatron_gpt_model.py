@@ -778,6 +778,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.rampup_batch_size:
             from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
             num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR
             current_global_batch_size = num_microbatch_calculator.current_global_batch_size
             # do validation and save the checkpoint when gbs is changed
@@ -1635,6 +1636,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.rampup_batch_size:
             from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
             num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR
             num_microbatch_calculator.update(self.init_consumed_samples, consistency_check=False)
             self.prev_consumed_samples = self.init_consumed_samples
