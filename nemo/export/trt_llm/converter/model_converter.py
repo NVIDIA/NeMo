@@ -160,7 +160,9 @@ def model_to_trtllm_ckpt(
         'moe_normalization_mode': nemo_model_config.get(
             'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
         ),
-        'moe_tp_mode': nemo_model_config.get('moe_tp_mode', MoeConfig.ParallelismMode.TENSOR_PARALLEL),
+        'moe_tp_mode': nemo_model_config.get(
+            'moe_tp_mode', 2
+        ),  # change MoeConfig.ParallelismMode.TENSOR_PARALLEL to 2
         'logits_dtype': 'float32',
         'world_size': world_size,
         'tp_size': tensor_parallel_size,

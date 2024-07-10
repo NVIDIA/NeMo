@@ -60,10 +60,10 @@ def build_and_save_engine(
     logger.set_level("info")
     str_dtype = model_config.dtype
     plugin_config = PluginConfig()
-    plugin_config.set_gpt_attention_plugin(dtype=str_dtype)
-    plugin_config.set_gemm_plugin(dtype=str_dtype)
+    # plugin_config.set_gpt_attention_plugin(dtype=str_dtype)
+    # plugin_config.set_gemm_plugin(dtype=str_dtype)
     plugin_config.use_custom_all_reduce = custom_all_reduce
-    plugin_config.set_plugin("multi_block_mode", enable_multi_block_mode)
+    # plugin_config.set_plugin("multi_block_mode", enable_multi_block_mode)
     if paged_kv_cache:
         plugin_config.enable_paged_kv_cache(tokens_per_block=tokens_per_block)
     else:
