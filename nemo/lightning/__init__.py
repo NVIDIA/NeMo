@@ -10,8 +10,12 @@ except ImportError:
     pass
 
 from nemo.lightning.base import get_vocab_size, teardown
+from nemo.lightning.fabric.fabric import Fabric
+from nemo.lightning.fabric.plugins import FabricMegatronMixedPrecision
+from nemo.lightning.fabric.strategies import FabricMegatronStrategy
 from nemo.lightning.nemo_logger import NeMoLogger
-from nemo.lightning.pytorch.opt import LRSchedulerModule, MegatronOptimizerModule, OptimizerModule
+from nemo.lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
+from nemo.lightning.pytorch.optim import LRSchedulerModule, MegatronOptimizerModule, OptimizerModule, lr_scheduler
 from nemo.lightning.pytorch.plugins import MegatronDataSampler, MegatronMixedPrecision
 from nemo.lightning.pytorch.plugins import data_sampler as _data_sampler
 from nemo.lightning.pytorch.strategies import MegatronStrategy
@@ -33,12 +37,17 @@ _pl_plugins._PLUGIN_INPUT = Union[_pl_plugins._PLUGIN_INPUT, _data_sampler.DataS
 
 __all__ = [
     "AutoResume",
+    "Fabric",
+    "FabricMegatronMixedPrecision",
+    "FabricMegatronStrategy",
     "LRSchedulerModule",
     "MegatronStrategy",
     "MegatronDataSampler",
     "MegatronMixedPrecision",
     "MegatronOptimizerModule",
+    "lr_scheduler",
     "NeMoLogger",
+    "ModelCheckpoint",
     "OptimizerModule",
     "Trainer",
     "get_vocab_size",
