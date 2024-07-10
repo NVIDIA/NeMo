@@ -38,7 +38,7 @@ This notebook shows how to perform LoRA PEFT on **Llama 3 8B Instruct** using `P
 
 To get started
 ^^^^^^^^^^^^^^
-1. Download the **`Llama 3 8B Instruct .nemo <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/llama-3-8b-instruct-nemo>`__** from NVIDIA NGC using the NGC CLI. The following command saves the .nemo format model in a folder named `llama-3-8b-instruct-nemo_v1.0` in the current directory. You may choose to specify another path using the `-d` option in the CLI tool.
+1. Download the `Llama 3 8B Instruct .nemo <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/llama-3-8b-instruct-nemo>`__ from NVIDIA NGC using the NGC CLI. The following command saves the .nemo format model in a folder named `llama-3-8b-instruct-nemo_v1.0` in the current directory. You may choose to specify another path using the `-d` option in the CLI tool.
 
 .. code:: bash
    ngc registry model download-version "nvidia/nemo/llama-3-8b-instruct-nemo:1.0"
