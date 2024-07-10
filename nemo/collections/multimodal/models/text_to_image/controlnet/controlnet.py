@@ -600,8 +600,6 @@ class ControlNet(nn.Module):
                 )
                 print(f'There is {len(missing_keys)} total missing keys')
                 print("Missing:", missing_keys)
-                for key in sorted(missing_keys):
-                    print(key)
                 print("Unexpected:", unexpected_keys)
             else:
                 print("sd blocks loaded successfully")
