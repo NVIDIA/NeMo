@@ -1,12 +1,12 @@
-import pickle
 from pathlib import Path
 from typing import Any, Callable, Optional, Type, TypeVar
 
 import fiddle as fdl
 import pytorch_lightning as pl
+from fiddle._src.experimental import serialization
 
 from nemo.lightning.io.mixin import ConnectorMixin, ConnT, ModelConnector
-from nemo.lightning.io.pl import TrainerCheckpoint
+from nemo.lightning.io.pl import TrainerContext
 
 CkptType = TypeVar("CkptType")
 
@@ -34,39 +34,37 @@ def load(path: Path, output_type: Type[CkptType] = Any) -> CkptType:
 
     _path = Path(path)
     if hasattr(_path, 'is_dir') and _path.is_dir():
-        _path = Path(_path) / "io.pkl"
+        _path = Path(_path) / "io.json"
     elif hasattr(_path, 'isdir') and _path.isdir:
-        _path = Path(_path) / "io.pkl"
+        _path = Path(_path) / "io.json"
 
     if not _path.is_file():
         raise FileNotFoundError(f"No such file: '{_path}'")
 
     with open(_path, "rb") as f:
-        config = pickle.load(f)
+        config = serialization.load_json(f.read())
 
     return fdl.build(config)
 
 
-def load_ckpt(path: Path) -> TrainerCheckpoint:
+def load_context(path: Path) -> TrainerContext:
     """
-    Loads a TrainerCheckpoint from a pickle file or directory.
+    Loads a TrainerContext from a json-file or directory.
 
     Args:
-        path (Path): The path to the pickle file or directory containing 'io.pkl'.
+        path (Path): The path to the json-file or directory containing 'io.json'.
 
     Returns
     -------
-        TrainerCheckpoint: The loaded TrainerCheckpoint instance.
+        TrainerContext: The loaded TrainerContext instance.
 
     Example:
-        checkpoint: TrainerCheckpoint = load_ckpt("/path/to/checkpoint")
+        checkpoint: TrainerContext = load_ckpt("/path/to/checkpoint")
     """
-    return load(path, output_type=TrainerCheckpoint)
+    return load(path, output_type=TrainerContext)
 
 
-def model_importer(
-    target: Type[ConnectorMixin], ext: str, default_path: Optional[str] = None
-) -> Callable[[Type[ConnT]], Type[ConnT]]:
+def model_importer(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[ConnT]], Type[ConnT]]:
     """
     Registers an importer for a model with a specified file extension and an optional default path.
 
@@ -81,16 +79,14 @@ def model_importer(
         to the model class.
 
     Example:
-        @model_importer(MyModel, "hf", default_path="path/to/default")
+        @model_importer(MyModel, "hf")
         class MyModelHfImporter(io.ModelConnector):
             ...
     """
-    return target.register_importer(ext, default_path=default_path)
+    return target.register_importer(ext)
 
 
-def model_exporter(
-    target: Type[ConnectorMixin], ext: str, default_path: Optional[str] = None
-) -> Callable[[Type[ConnT]], Type[ConnT]]:
+def model_exporter(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[ConnT]], Type[ConnT]]:
     """
     Registers an exporter for a model with a specified file extension and an optional default path.
 
@@ -105,11 +101,11 @@ def model_exporter(
         to the model class.
 
     Example:
-        @model_exporter(MyModel, "hf", default_path="path/to/default")
+        @model_exporter(MyModel, "hf")
         class MyModelHFExporter(io.ModelConnector):
             ...
     """
-    return target.register_exporter(ext, default_path=default_path)
+    return target.register_exporter(ext)
 
 
 def import_ckpt(
@@ -161,7 +157,7 @@ def import_ckpt(
 
     Example:
         model = Mistral7BModel()
-        imported_path = import_ckpt(model, "hf")
+        imported_path = import_ckpt(model, "hf://mistralai/Mistral-7B-v0.1")
     """
     if not isinstance(model, ConnectorMixin):
         raise ValueError("Model must be an instance of ConnectorMixin")
@@ -171,7 +167,7 @@ def import_ckpt(
 
 
 def load_connector_from_trainer_ckpt(path: Path, target: str) -> ModelConnector:
-    model: pl.LightningModule = load_ckpt(path).model
+    model: pl.LightningModule = load_context(path).model
 
     if not isinstance(model, ConnectorMixin):
         raise ValueError("Model must be an instance of ConnectorMixin")
