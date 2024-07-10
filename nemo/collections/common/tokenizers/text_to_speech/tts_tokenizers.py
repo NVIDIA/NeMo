@@ -206,7 +206,7 @@ class EnglishCharsTokenizer(BaseCharsTokenizer):
 class VietnameseCharsTokenizer(BaseCharsTokenizer):
 
     
-    _punctuation = '-();:,.!?¡¿—…"«»“”% '
+    _punctuation = '-();:,.!?¡¿—…"«»“”%'
     _letters = '0123456789abcdefghijklmnopqrstuvwxyzđáàãảạăắằẵẳặâấầẫẩậóòõỏọôốồỗổộơớờỡởợéèẽẻẹêếềễểệúùũủụưứừữửựíìĩỉịýỳỹỷỵ'
     _CHARSET_STR = _letters    
     _PUNCT_LIST = _punctuation
