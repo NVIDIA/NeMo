@@ -247,7 +247,7 @@ class IPLMixin:
                     restore_pc=self._ipl_params['restore_pc'],
                     batch_size=self._ipl_params['batch_size'],
                 )
-            elif self.model_type == "ctc":
+            else:
                 hypotheses = self.generate_pseudo_labels_ctc(
                     temporary_manifest,
                     target_transcripts=transcriptions,
@@ -332,7 +332,7 @@ class IPLMixin:
                         restore_pc=self._ipl_params['restore_pc'],
                         batch_size=self._ipl_params['batch_size'],
                     )
-                elif self.model_type == "ctc":
+                else:
                     hypotheses = self.generate_pseudo_labels_ctc(
                         cache_manifest=temporary_manifest,
                         tarred_audio_filepaths=expanded_audio,
@@ -412,7 +412,7 @@ class IPLMixin:
                         restore_pc=self._ipl_params['restore_pc'],
                         batch_size=self._ipl_params['batch_size'],
                     )
-                elif self.model_type == "ctc":
+                else:
                     hypotheses = self.generate_pseudo_labels_ctc(
                         temporary_manifest,
                         tarred_audio_filepaths=expanded_audio,
