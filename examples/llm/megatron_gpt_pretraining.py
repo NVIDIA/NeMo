@@ -3,6 +3,7 @@
 
 import argparse
 
+from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo import lightning as nl
@@ -14,7 +15,6 @@ from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
-from megatron.core.optimizer import OptimizerConfig
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train a small GPT model using NeMo 2.0')
