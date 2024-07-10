@@ -110,6 +110,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_parallel_save=True,
         ckpt_parallel_load=False,
         ckpt_parallel_save_optim=True,
+        ckpt_load_directly_on_device=True,
+        setup_optimizers: bool = True,
+        init_model_parallel: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -141,6 +144,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.parallel_save = ckpt_parallel_save
         self.parallel_load = ckpt_parallel_load
         self.parallel_save_optim = ckpt_parallel_save_optim
+        self.load_directly_on_device = ckpt_load_directly_on_device
 
         self._ddp = ddp
         if ddp == "megatron":
@@ -567,6 +571,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 assume_constant_structure=self.assume_constant_structure,
                 parallel_save=self.parallel_save,
                 parallel_load=self.parallel_load,
+                load_directly_on_device=self.load_directly_on_device,
             )
             if async_save:
                 self._checkpoint_io = AsyncFinalizableCheckpointIO(self._checkpoint_io)
