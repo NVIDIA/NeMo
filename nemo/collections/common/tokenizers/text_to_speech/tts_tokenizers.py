@@ -221,16 +221,16 @@ class VietnameseCharsTokenizer(BaseCharsTokenizer):
         non_default_punct_list=_PUNCT_LIST,
         text_preprocessing_func=vietnamese_text_preprocessing,
     ):
-        """German grapheme-based tokenizer.
+        """Vietnamese grapheme tokenizer.
         Args:
             punct: Whether to reserve grapheme for basic punctuation or not.
             apostrophe: Whether to use apostrophe or not.
             add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
-             if None then no blank in labels.
+            if None then no blank in labels.
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
             non_default_punct_list: List of punctuation marks which will be used instead default.
             text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer. By default, it
-            would keep any word unchanged.
+            would keep any word lowercase.
         """
         super().__init__(
             chars=chars,
