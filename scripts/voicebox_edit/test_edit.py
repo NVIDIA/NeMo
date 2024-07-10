@@ -79,10 +79,13 @@ class DataProcessor:
 
         audio = batch["audio"].to(self.model.device)
         audio_lens = batch["audio_lens"].to(self.model.device)
+        mel_lens = batch["mel_lens"].to(self.model.device)
         audio_mask = get_mask_from_lengths(audio_lens)
-        tokens = batch["tokens"].to(self.model.device)
-        token_lens = batch["token_lens"].to(self.model.device)
-        durations = batch.get("durations", None).to(self.model.device)
+        # tokens = batch["tokens"].to(self.model.device)
+        # token_lens = batch["token_lens"].to(self.model.device)
+        # durations = batch.get("durations", None).to(self.model.device)
+        # scaled_durations = batch.get("scaled_durations", None).to(self.model.device)
+        tokens = batch.get("aligned_tokens", None).to(self.model.device)
         if from_tb:
             audios = []
             audio_lens = []
@@ -93,20 +96,22 @@ class DataProcessor:
             audio = pad_sequence(audios, batch_first=True, padding_value=0)
             audio_lens = torch.stack(audio_lens)
 
-        dp_inputs = self.model.duration_predictor.parse_dp_input(
-            x1=audio,
-            mask=audio_mask,
-            durations=durations,
-            phoneme_len=token_lens,
-            input_sampling_rate=None,
-        )
+        # dp_inputs = self.model.duration_predictor.parse_dp_input(
+        #     x1=audio,
+        #     audio_len=audio_lens,
+        #     mel_len=mel_lens,
+        #     durations=durations,
+        #     scaled_durations=scaled_durations,
+        #     phoneme_len=token_lens,
+        #     input_sampling_rate=None,
+        # )
 
-        tokens = self.model.duration_predictor.align_phoneme_ids_with_durations(tokens, dp_inputs.get("dp_cond"))
+        # tokens = self.model.duration_predictor.align_phoneme_ids_with_durations(tokens, dp_inputs.get("dp_cond"))
 
         vb_inputs = self.model.cfm_wrapper.parse_vb_input(
             x1=audio,
-            mask=audio_mask,
             cond=audio,
+            mel_len=mel_lens,
             input_sampling_rate=None
         )
         x1 = vb_inputs['x1']
@@ -267,104 +272,353 @@ class DataProcessor:
         batch["cond"] = cond
         return batch
 
-    def get_internal_demo_data(self, output_dir="nemo_experiments/internal_demo_gen"):
+    def get_span_edit_data(self, output_dir="nemo_experiments/span_edit"):
         os.makedirs(output_dir, exist_ok=True)
         datas = [
             {
-                "audio_path": "nemo_experiments/internal_demo/Oh, I love that song/Oh, I love that song.wav",
-                "text": "Oh, I love that song.",
-                "textgrid_path": "nemo_experiments/internal_demo_mfa/Oh, I love that song/Oh, I love that song.TextGrid",
-                "from": "love",
-                "to": "hate",
-                "out_ori_path": f"{output_dir}/Oh, I love that song_ori.wav",
-                "out_gen_path": f"{output_dir}/Oh, I hate that song_gen.wav",
-                "out_tts_path": f"{output_dir}/Oh, I hate that song_tts.wav",
+                "audio_path": "nemo_experiments/Test utterances/VB/1.wav",
+                "text": "will find himself completely at a loss on occasions of common and constant recurrence speculative ability is one thing and practical ability is another",
+                "from": "occasions of common and constant recurrence",
+                "to": "rare and unpredictable circumstances",
+                "out_ori_path": f"{output_dir}/VB_1_ori.wav",
+                "out_gen_path": f"{output_dir}/VB_1_gen.wav",
+                "out_tts_path": f"{output_dir}/VB_1_tts.wav",
             },
+            # {
+            #     "audio_path": "nemo_experiments/Test utterances/VB/2.wav",
+            #     "text": "in zero weather in mid-winter when the earth is frozen to a great depth below the surface when in driving over the unpaved country roads they give forth a hard metallic ring",
+            #     "from": "the earth is frozen to a great depth below the surface",
+            #     "to": "jack frost has cast his icy spell upon the land",
+            #     "out_ori_path": f"{output_dir}/VB_2_ori.wav",
+            #     "out_gen_path": f"{output_dir}/VB_2_gen.wav",
+            #     "out_tts_path": f"{output_dir}/VB_2_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/Test utterances/VB/3.wav",
+            #     "text": "and especially as i am not very much up in latin myself he said the suit was on an insurance policy that he was defending on the ground of misinterpretations",
+            #     "from": "an insurance policy",
+            #     "to": "a classified treasure map",
+            #     "out_ori_path": f"{output_dir}/VB_3_ori.wav",
+            #     "out_gen_path": f"{output_dir}/VB_3_gen.wav",
+            #     "out_tts_path": f"{output_dir}/VB_3_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/Test utterances/VB/4.wav",
+            #     "text": "yet these petty operations incessantly continued in time surmount the greatest difficulties mountains are elevated and oceans bounded by the slender force of human beings",
+            #     "from": "mountains are elevated and oceans bounded",
+            #     "to": "vast challenges emerge and unexplored frontiers beckon",
+            #     "out_ori_path": f"{output_dir}/VB_4_ori.wav",
+            #     "out_gen_path": f"{output_dir}/VB_4_gen.wav",
+            #     "out_tts_path": f"{output_dir}/VB_4_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/Test utterances/VB/5.wav",
+            #     "text": "and the carlsruhe professor had to devise an ingenious apparatus which enabled him to bring the preparation at the required temperature on to the very plate of the microscope",
+            #     "from": "the carlsruhe",
+            #     "to": "the inventive",
+            #     "out_ori_path": f"{output_dir}/VB_5_ori.wav",
+            #     "out_gen_path": f"{output_dir}/VB_5_gen.wav",
+            #     "out_tts_path": f"{output_dir}/VB_5_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/Test utterances/VB/6.wav",
+            #     "text": "this was george steers the son of a british naval captain and ship modeler who had become an american naval officer and was the first man to take charge of the washington navy yard",
+            #     "from": "the first man to take charge of the washington navy yard",
+            #     "to": "entrusted with the prestigious role of overseeing the operations at the renowned naval headquarters",
+            #     "out_ori_path": f"{output_dir}/VB_6_ori.wav",
+            #     "out_gen_path": f"{output_dir}/VB_6_gen.wav",
+            #     "out_tts_path": f"{output_dir}/VB_6_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/Test utterances/Noisy/p232_005.wav",
+            #     "text": "she can scoop these things into three red bags and we will go meet her wednesday at the train station",
+            #     "from": "train station",
+            #     "to": "bus stop",
+            #     "out_ori_path": f"{output_dir}/Noisy_p232_005_ori.wav",
+            #     "out_gen_path": f"{output_dir}/Noisy_p232_005_gen.wav",
+            #     "out_tts_path": f"{output_dir}/Noisy_p232_005_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/Test utterances/Noisy/p232_014.wav",
+            #     "text": "to the hebrews it was a token that there would be no more universal floods",
+            #     "from": "floods",
+            #     "to": "droughts",
+            #     "out_ori_path": f"{output_dir}/Noisy_p232_014_ori.wav",
+            #     "out_gen_path": f"{output_dir}/Noisy_p232_014_gen.wav",
+            #     "out_tts_path": f"{output_dir}/Noisy_p232_014_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/Test utterances/Noisy/p232_203.wav",
+            #     "text": "a deadline is still essential",
+            #     "from": "still",
+            #     "to": "never",
+            #     "out_ori_path": f"{output_dir}/Noisy_p232_203_ori.wav",
+            #     "out_gen_path": f"{output_dir}/Noisy_p232_203_gen.wav",
+            #     "out_tts_path": f"{output_dir}/Noisy_p232_203_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/Test utterances/Noisy/p257_271.wav",
+            #     "text": "for the moment that is the result of the x-ray",
+            #     "from": "x-ray",
+            #     "to": "experiment",
+            #     "out_ori_path": f"{output_dir}/Noisy_p257_271_ori.wav",
+            #     "out_gen_path": f"{output_dir}/Noisy_p257_271_gen.wav",
+            #     "out_tts_path": f"{output_dir}/Noisy_p257_271_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/Test utterances/Noisy/p257_359.wav",
+            #     "text": "it does not even have a staff shortage",
+            #     "from": "staff shortage",
+            #     "to": "surplus of resources",
+            #     "out_ori_path": f"{output_dir}/Noisy_p257_359_ori.wav",
+            #     "out_gen_path": f"{output_dir}/Noisy_p257_359_gen.wav",
+            #     "out_tts_path": f"{output_dir}/Noisy_p257_359_tts.wav",
+            # },
+        ]
+        return datas
+
+    def get_internal_demo_data(self, output_dir="nemo_experiments/internal_demo_gen"):
+        os.makedirs(output_dir, exist_ok=True)
+        datas = [
+            # {
+            #     "audio_path": "nemo_experiments/MOVIE/I'm Bat man.wav",
+            #     "text": "Im Bat man",
+            #     "from": "bat",
+            #     "to": "super",
+            #     "out_ori_path": f"{output_dir}/I'm Bat man_ori.wav",
+            #     "out_gen_path": f"{output_dir}/I'm Superman_gen.wav",
+            #     "out_tts_path": f"{output_dir}/I'm Superman_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/MOVIE/With Great Power Comes Great Responsibility.wav",
+            #     "text": "With Great Power Comes Great Responsibility",
+            #     "from": "great power",
+            #     "to": "more g p u",
+            #     "out_ori_path": f"{output_dir}/With Great Power Comes Great Responsibility_ori.wav",
+            #     "out_gen_path": f"{output_dir}/With more GPU Comes Great Responsibility_gen.wav",
+            #     "out_tts_path": f"{output_dir}/With more GPU Comes Great Responsibility_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/MOVIE/With Great Power Comes Great Responsibility.wav",
+            #     "text": "With Great Power Comes Great Responsibility",
+            #     "from": "great power",
+            #     "to": "more computational resources",
+            #     "out_ori_path": f"{output_dir}/With Great Power Comes Great Responsibility_ori.wav",
+            #     "out_gen_path": f"{output_dir}/With more computational resources Comes Great Responsibility_gen.wav",
+            #     "out_tts_path": f"{output_dir}/With more computational resources Comes Great Responsibility_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/MOVIE/You're Spider-Man and I love that, but I love Peter Parker more.wav",
+            #     "text": "You're spider man and I love that, but I love Peter Parker more.",
+            #     "from": "peter parker",
+            #     "to": "iron man",
+            #     "out_ori_path": f"{output_dir}/You're Spider-Man and I love that, but I love Peter Parker more_ori.wav",
+            #     "out_gen_path": f"{output_dir}/You're Spider-Man and I love that, but I love iron man more_gen.wav",
+            #     "out_tts_path": f"{output_dir}/You're Spider-Man and I love that, but I love iron man more_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/MOVIE/Dear Mr. Potter, we are pleased to inform you that you have been accepted at Hogwarts School of Witchcraft and Wizardry.wav",
+            #     "text": "Dear Mr. Potter, we are pleased to inform you that you have been accepted at Hogwarts School of Witchcraft and Wizardry",
+            #     "from": "accepted at",
+            #     "to": "expelled from",
+            #     "out_ori_path": f"{output_dir}/Dear Mr. Potter, we are pleased to inform you that you have been accepted at Hogwarts School of Witchcraft and Wizardry_ori.wav",
+            #     "out_gen_path": f"{output_dir}/Dear Mr. Potter, we are pleased to inform you that you have been expelled from Hogwarts School of Witchcraft and Wizardry_gen.wav",
+            #     "out_tts_path": f"{output_dir}/Dear Mr. Potter, we are pleased to inform you that you have been expelled from Hogwarts School of Witchcraft and Wizardry_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/MOVIE/Mr. Potter, our new celebrity_16k.wav",
+            #     "text": "Mr. Potter, our new celebrity",
+            #     "from": "mr potter",
+            #     "to": "ms hermione",
+            #     "out_ori_path": f"{output_dir}/Mr. Potter, our new celebrity_ori.wav",
+            #     "out_gen_path": f"{output_dir}/Ms. Hermione, our new celebrity_gen.wav",
+            #     "out_tts_path": f"{output_dir}/Ms. Hermione, our new celebrity_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/MOVIE/Mr. Potter, our new celebrity_16k 1.wav",
+            #     "text": "Mr. Potter, our new celebrity",
+            #     "from": "celebrity",
+            #     "to": "boss",
+            #     "out_ori_path": f"{output_dir}/Mr. Potter, our new celebrity_ori.wav",
+            #     "out_gen_path": f"{output_dir}/Mr. Potter, our new boss_gen.wav",
+            #     "out_tts_path": f"{output_dir}/Mr. Potter, our new boss_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/MOVIE/Mr. Potter, our new celebrity_16k 1.wav",
+            #     "text": "Mr. Potter, our new celebrity",
+            #     "from": "celebrity",
+            #     "to": "voldemort",
+            #     "out_ori_path": f"{output_dir}/Mr. Potter, our new celebrity_ori.wav",
+            #     "out_gen_path": f"{output_dir}/Mr. Potter, our new Voldemort_gen.wav",
+            #     "out_tts_path": f"{output_dir}/Mr. Potter, our new Voldemort_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.wav",
+            #     "textgrid_path": "nemo_experiments/internal_demo/doubling/MFA/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.TextGrid",
+            #     "text": "by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it",
+            #     "from": "you double the size of your brain",
+            #     "to": "jason may you two always be in love may happiness increase with age",
+            #     "edit_alignment": "nemo_experiments/jason_demo/MFA/ttsmaker-file-2024-7-2-22-48-42.TextGrid",
+            #     "out_ori_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it_ori.wav",
+            #     "out_gen_path": f"{output_dir}/by doubling every six months if you double the size of the model jason may you two always be in love may happiness increase with age you need twice as much information to go fill it_gen.wav",
+            #     "out_tts_path": f"{output_dir}/by doubling every six months if you double the size of the model jason may you two always be in love may happiness increase with age you need twice as much information to go fill it_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.wav",
+            #     "textgrid_path": "nemo_experiments/internal_demo/doubling/MFA/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.TextGrid",
+            #     "text": "by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it",
+            #     "from": "you double the size of your brain you need twice as much information to go fill it",
+            #     "to": "jason may you two always be in love may happiness increase with age",
+            #     "edit_alignment": "nemo_experiments/jason_demo/MFA/ttsmaker-file-2024-7-2-22-48-42.TextGrid",
+            #     "out_ori_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it_ori.wav",
+            #     "out_gen_path": f"{output_dir}/by doubling every six months if you double the size of the model jason may you two always be in love may happiness increase with age_gen.wav",
+            #     "out_tts_path": f"{output_dir}/by doubling every six months if you double the size of the model jason may you two always be in love may happiness increase with age_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.wav",
+            #     "textgrid_path": "nemo_experiments/internal_demo/doubling/MFA/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.TextGrid",
+            #     "text": "by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it",
+            #     "from": "you double the size of your brain you need twice as much information to go fill it",
+            #     "to": "although this is a generated speech i like this cool demo",
+            #     "out_ori_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it_ori.wav",
+            #     "out_gen_path": f"{output_dir}/by doubling every six months if you double the size of the model although this is a generated speech i like this cool demo_gen.wav",
+            #     "out_tts_path": f"{output_dir}/by doubling every six months if you double the size of the model although this is a generated speech i like this cool demo_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.wav",
+            #     "textgrid_path": "nemo_experiments/internal_demo/doubling/MFA/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.TextGrid",
+            #     "text": "by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it",
+            #     "from": "you double the size of your brain",
+            #     "to": "although this is a generated speech i like this cool demo",
+            #     "out_ori_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it_ori.wav",
+            #     "out_gen_path": f"{output_dir}/by doubling every six months if you double the size of the model although this is a generated speech i like this cool demo you need twice as much information to go fill it_gen.wav",
+            #     "out_tts_path": f"{output_dir}/by doubling every six months if you double the size of the model although this is a generated speech i like this cool demo you need twice as much information to go fill it_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/internal_demo/SEMamba_you know the lady gaga song at the end of Maverick_ori.wav",
+            #     "text": "you know the lady gaga song at the end of Maverick",
+            #     # "textgrid_path": "nemo_experiments/internal_demo_mfa/yoy know the lage gaga song at the end of Maverick/yoy know the lage gaga song at the end of Maverick.TextGrid",
+            #     "from": "maverick",
+            #     "to": "although this is a generated speech i like this cool demo",
+            #     "out_ori_path": f"{output_dir}/SE_you know the lady gaga song at the end of Maverick_ori.wav",
+            #     "out_gen_path": f"{output_dir}/SE_you know the lady gaga song at the end of although this is a generated speech i like this cool demo_gen.wav",
+            #     "out_tts_path": f"{output_dir}/SE_you know the lady gaga song at the end of although this is a generated speech i like this cool demo_tts.wav",
+            # },
             {
-                "audio_path": "nemo_experiments/internal_demo/SEMamba_you know the lady gaga song at the end of Maverick_ori.wav",
-                "text": "you know the lady gaga song at the end of Maverick",
-                # "textgrid_path": "nemo_experiments/internal_demo_mfa/yoy know the lage gaga song at the end of Maverick/yoy know the lage gaga song at the end of Maverick.TextGrid",
-                "from": "end",
-                "to": "beginning",
-                "out_ori_path": f"{output_dir}/SE_you know the lady gaga song at the end of Maverick_ori.wav",
-                "out_gen_path": f"{output_dir}/SE_you know the lady gaga song at the beginning of Maverick_gen.wav",
-                "out_tts_path": f"{output_dir}/SE_you know the lady gaga song at the beginning of Maverick_tts.wav",
+                "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.wav",
+                # "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_gen_SE.wav",
+                "text": "by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it",
+                "from": "six months if you double",
+                "to": "ten milliseconds when you triple",
+                "out_ori_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it_ori.wav",
+                "out_gen_path": f"{output_dir}/by doubling every ten milliseconds when you triple the size of the model you double the size of your brain you need twice as much information to go fill it_gen.wav",
+                "out_tts_path": f"{output_dir}/by doubling every ten milliseconds when you triple the size of the model you double the size of your brain you need twice as much information to go fill it_tts.wav",
             },
+            # {
+            #     "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.wav",
+            #     # "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_gen_SE.wav",
+            #     "text": "by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it",
+            #     "from": "six months",
+            #     "to": "ten milliseconds",
+            #     "out_ori_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it_ori.wav",
+            #     "out_gen_path": f"{output_dir}/by doubling every ten milliseconds if you double the size of the model you double the size of your brain you need twice as much information to go fill it_gen.wav",
+            #     "out_tts_path": f"{output_dir}/by doubling every ten milliseconds if you double the size of the model you double the size of your brain you need twice as much information to go fill it_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.wav",
+            #     # "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_gen_SE.wav",
+            #     "text": "by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it",
+            #     "from": "months",
+            #     "to": "milliseconds",
+            #     "out_ori_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it_ori.wav",
+            #     "out_gen_path": f"{output_dir}/by doubling every six milliseconds if you double the size of the model you double the size of your brain you need twice as much information to go fill it_gen.wav",
+            #     "out_tts_path": f"{output_dir}/by doubling every six milliseconds if you double the size of the model you double the size of your brain you need twice as much information to go fill it_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.wav",
+            #     # "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_gen_SE.wav",
+            #     "text": "by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it",
+            #     "from": "information",
+            #     "to": "money",
+            #     "out_ori_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it_ori.wav",
+            #     "out_gen_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_gen.wav",
+            #     "out_tts_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/internal_demo/Oh, I love that song/Oh, I love that song.wav",
+            #     "text": "Oh, I love that song.",
+            #     "textgrid_path": "nemo_experiments/internal_demo_mfa/Oh, I love that song/Oh, I love that song.TextGrid",
+            #     "from": "love",
+            #     "to": "hate",
+            #     "out_ori_path": f"{output_dir}/Oh, I love that song_ori.wav",
+            #     "out_gen_path": f"{output_dir}/Oh, I hate that song_gen.wav",
+            #     "out_tts_path": f"{output_dir}/Oh, I hate that song_tts.wav",
+            # },
             {
                 "audio_path": "nemo_experiments/internal_demo/yoy know the lage gaga song at the end of Maverick/yoy know the lage gaga song at the end of Maverick.wav",
-                "text": "you know the lady gaga song at the end of Maverick",
                 "textgrid_path": "nemo_experiments/internal_demo_mfa/yoy know the lage gaga song at the end of Maverick/yoy know the lage gaga song at the end of Maverick.TextGrid",
-                "from": "end",
-                "to": "beginning",
+                "text": "you know the lady gaga song at the end of Maverick",
+                "from": "maverick",
+                "to": "a star is born",
                 "out_ori_path": f"{output_dir}/you know the lady gaga song at the end of Maverick_ori.wav",
-                "out_gen_path": f"{output_dir}/you know the lady gaga song at the beginning of Maverick_gen.wav",
-                "out_tts_path": f"{output_dir}/you know the lady gaga song at the beginning of Maverick_tts.wav",
+                "out_gen_path": f"{output_dir}/you know the lady gaga song at the end of a star is born_gen.wav",
+                "out_tts_path": f"{output_dir}/you know the lady gaga song at the end of a star is born_tts.wav",
             },
-            {
-                "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.wav",
-                # "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_gen_SE.wav",
-                "text": "by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it",
-                "from": "information",
-                "to": "money",
-                "out_ori_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it_ori.wav",
-                "out_gen_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_gen.wav",
-                "out_tts_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_tts.wav",
-            },
-            {
-                "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.wav",
-                # "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_gen_SE.wav",
-                "text": "by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it",
-                "from": "months",
-                "to": "milliseconds",
-                "out_ori_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it_ori.wav",
-                "out_gen_path": f"{output_dir}/by doubling every six milliseconds if you double the size of the model you double the size of your brain you need twice as much information to go fill it_gen.wav",
-                "out_tts_path": f"{output_dir}/by doubling every six milliseconds if you double the size of the model you double the size of your brain you need twice as much information to go fill it_tts.wav",
-            },
-            {
-                "audio_path": "nemo_experiments/REAL/dev_real_medium-103-eldorado_krs_librivox_64kb_mp3-eldorado_37_orczy_64kb_11.wav",
-                "text": "here the noise and hubbub that went on constantly in the guardroom would effectually drown a whispered conversation",
-                "from": "noise",
-                "to": "silence",
-                "out_ori_path": f"{output_dir}/dev_real_medium-103-eldorado_krs_librivox_64kb_mp3-eldorado_37_orczy_64kb_11_ori.wav",
-                "out_gen_path": f"{output_dir}/dev_real_medium-103-eldorado_krs_librivox_64kb_mp3-eldorado_37_orczy_64kb_11_gen.wav",
-                "out_tts_path": f"{output_dir}/dev_real_medium-103-eldorado_krs_librivox_64kb_mp3-eldorado_37_orczy_64kb_11_tts.wav",
-            },
-            {
-                "audio_path": "nemo_experiments/REAL/dev_real_medium-107-boys_life_of_twain_jg_0810_librivox_64kb_mp3-twain_61_paine_64kb_16.wav",
-                "text": "following his birthday dinner mark twain had become once more the Belle of new york and in a larger way than ever before",
-                "from": "more",
-                "to": "again",
-                "out_ori_path": f"{output_dir}/dev_real_medium-107-boys_life_of_twain_jg_0810_librivox_64kb_mp3-twain_61_paine_64kb_16_ori.wav",
-                "out_gen_path": f"{output_dir}/dev_real_medium-107-boys_life_of_twain_jg_0810_librivox_64kb_mp3-twain_61_paine_64kb_16_gen.wav",
-                "out_tts_path": f"{output_dir}/dev_real_medium-107-boys_life_of_twain_jg_0810_librivox_64kb_mp3-twain_61_paine_64kb_16_tts.wav",
-            },
-            {
-                "audio_path": "nemo_experiments/REAL/dev_real_medium-803-stories_006_librivox_64kb_mp3-damned_thing_bierce_ge_64kb_31.wav",
-                "text": "the men removed their hats the witness was sworn what is your name the coroner asked",
-                "from": "name",
-                "to": "nickname",
-                "out_ori_path": f"{output_dir}/dev_real_medium-803-stories_006_librivox_64kb_mp3-damned_thing_bierce_ge_64kb_31_ori.wav",
-                "out_gen_path": f"{output_dir}/dev_real_medium-803-stories_006_librivox_64kb_mp3-damned_thing_bierce_ge_64kb_31_gen.wav",
-                "out_tts_path": f"{output_dir}/dev_real_medium-803-stories_006_librivox_64kb_mp3-damned_thing_bierce_ge_64kb_31_tts.wav",
-            },
-            {
-                "audio_path": "nemo_experiments/REAL/dev_real_medium-2691-expedition_donner_party_0907_librivox_64kb_mp3-expeditiondonner_17_houghton_64kb_26.wav",
-                "text": "on our way out a neighbor intercepted us and said that we should sleep at her house that night and see our sisters in the morning",
-                "from": "see",
-                "to": "seeing",
-                "out_ori_path": f"{output_dir}/dev_real_medium-2691-expedition_donner_party_0907_librivox_64kb_mp3-expeditiondonner_17_houghton_64kb_26_ori.wav",
-                "out_gen_path": f"{output_dir}/dev_real_medium-2691-expedition_donner_party_0907_librivox_64kb_mp3-expeditiondonner_17_houghton_64kb_26_gen.wav",
-                "out_tts_path": f"{output_dir}/dev_real_medium-2691-expedition_donner_party_0907_librivox_64kb_mp3-expeditiondonner_17_houghton_64kb_26_tts.wav",
-            },
-            {
-                "audio_path": "nemo_experiments/REAL/dev_real_medium-26-byways_around_san_francisco_bay_librivox_64kb_mp3-bywaysaroundsf_19_hutchinson_64kb_8.wav",
-                "text": "It has its moods both grave and gay and is as fickle as a schoolgirl",
-                "from": "schoolgirl",
-                "to": "teenager",
-                "out_ori_path": f"{output_dir}/dev_real_medium-26-byways_around_san_francisco_bay_librivox_64kb_mp3-bywaysaroundsf_19_hutchinson_64kb_8_ori.wav",
-                "out_gen_path": f"{output_dir}/dev_real_medium-26-byways_around_san_francisco_bay_librivox_64kb_mp3-bywaysaroundsf_19_hutchinson_64kb_8_gen.wav",
-                "out_tts_path": f"{output_dir}/dev_real_medium-26-byways_around_san_francisco_bay_librivox_64kb_mp3-bywaysaroundsf_19_hutchinson_64kb_8_tts.wav",
-            },
+            # {
+            #     "audio_path": "nemo_experiments/internal_demo/yoy know the lage gaga song at the end of Maverick/yoy know the lage gaga song at the end of Maverick.wav",
+            #     "text": "you know the lady gaga song at the end of Maverick",
+            #     "textgrid_path": "nemo_experiments/internal_demo_mfa/yoy know the lage gaga song at the end of Maverick/yoy know the lage gaga song at the end of Maverick.TextGrid",
+            #     "from": "end",
+            #     "to": "beginning",
+            #     "out_ori_path": f"{output_dir}/you know the lady gaga song at the end of Maverick_ori.wav",
+            #     "out_gen_path": f"{output_dir}/you know the lady gaga song at the beginning of Maverick_gen.wav",
+            #     "out_tts_path": f"{output_dir}/you know the lady gaga song at the beginning of Maverick_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/REAL/dev_real_medium-103-eldorado_krs_librivox_64kb_mp3-eldorado_37_orczy_64kb_11.wav",
+            #     "text": "here the noise and hubbub that went on constantly in the guardroom would effectually drown a whispered conversation",
+            #     "from": "noise",
+            #     "to": "silence",
+            #     "out_ori_path": f"{output_dir}/dev_real_medium-103-eldorado_krs_librivox_64kb_mp3-eldorado_37_orczy_64kb_11_ori.wav",
+            #     "out_gen_path": f"{output_dir}/dev_real_medium-103-eldorado_krs_librivox_64kb_mp3-eldorado_37_orczy_64kb_11_gen.wav",
+            #     "out_tts_path": f"{output_dir}/dev_real_medium-103-eldorado_krs_librivox_64kb_mp3-eldorado_37_orczy_64kb_11_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/REAL/dev_real_medium-107-boys_life_of_twain_jg_0810_librivox_64kb_mp3-twain_61_paine_64kb_16.wav",
+            #     "text": "following his birthday dinner mark twain had become once more the Belle of new york and in a larger way than ever before",
+            #     "from": "more",
+            #     "to": "again",
+            #     "out_ori_path": f"{output_dir}/dev_real_medium-107-boys_life_of_twain_jg_0810_librivox_64kb_mp3-twain_61_paine_64kb_16_ori.wav",
+            #     "out_gen_path": f"{output_dir}/dev_real_medium-107-boys_life_of_twain_jg_0810_librivox_64kb_mp3-twain_61_paine_64kb_16_gen.wav",
+            #     "out_tts_path": f"{output_dir}/dev_real_medium-107-boys_life_of_twain_jg_0810_librivox_64kb_mp3-twain_61_paine_64kb_16_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/REAL/dev_real_medium-803-stories_006_librivox_64kb_mp3-damned_thing_bierce_ge_64kb_31.wav",
+            #     "text": "the men removed their hats the witness was sworn what is your name the coroner asked",
+            #     "from": "name",
+            #     "to": "nickname",
+            #     "out_ori_path": f"{output_dir}/dev_real_medium-803-stories_006_librivox_64kb_mp3-damned_thing_bierce_ge_64kb_31_ori.wav",
+            #     "out_gen_path": f"{output_dir}/dev_real_medium-803-stories_006_librivox_64kb_mp3-damned_thing_bierce_ge_64kb_31_gen.wav",
+            #     "out_tts_path": f"{output_dir}/dev_real_medium-803-stories_006_librivox_64kb_mp3-damned_thing_bierce_ge_64kb_31_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/REAL/dev_real_medium-2691-expedition_donner_party_0907_librivox_64kb_mp3-expeditiondonner_17_houghton_64kb_26.wav",
+            #     "text": "on our way out a neighbor intercepted us and said that we should sleep at her house that night and see our sisters in the morning",
+            #     "from": "see",
+            #     "to": "seeing",
+            #     "out_ori_path": f"{output_dir}/dev_real_medium-2691-expedition_donner_party_0907_librivox_64kb_mp3-expeditiondonner_17_houghton_64kb_26_ori.wav",
+            #     "out_gen_path": f"{output_dir}/dev_real_medium-2691-expedition_donner_party_0907_librivox_64kb_mp3-expeditiondonner_17_houghton_64kb_26_gen.wav",
+            #     "out_tts_path": f"{output_dir}/dev_real_medium-2691-expedition_donner_party_0907_librivox_64kb_mp3-expeditiondonner_17_houghton_64kb_26_tts.wav",
+            # },
+            # {
+            #     "audio_path": "nemo_experiments/REAL/dev_real_medium-26-byways_around_san_francisco_bay_librivox_64kb_mp3-bywaysaroundsf_19_hutchinson_64kb_8.wav",
+            #     "text": "It has its moods both grave and gay and is as fickle as a schoolgirl",
+            #     "from": "schoolgirl",
+            #     "to": "teenager",
+            #     "out_ori_path": f"{output_dir}/dev_real_medium-26-byways_around_san_francisco_bay_librivox_64kb_mp3-bywaysaroundsf_19_hutchinson_64kb_8_ori.wav",
+            #     "out_gen_path": f"{output_dir}/dev_real_medium-26-byways_around_san_francisco_bay_librivox_64kb_mp3-bywaysaroundsf_19_hutchinson_64kb_8_gen.wav",
+            #     "out_tts_path": f"{output_dir}/dev_real_medium-26-byways_around_san_francisco_bay_librivox_64kb_mp3-bywaysaroundsf_19_hutchinson_64kb_8_tts.wav",
+            # },
         ]
         return datas
 
@@ -408,8 +662,9 @@ class DataProcessor:
         return datas
 
 class Inference:
-    def __init__(self, model: VoiceboxModel):
+    def __init__(self, model: VoiceboxModel, sample_std=0.9):
         self.model = model
+        self.sample_std = sample_std
 
     def test_batch(self, batch, out_dir, prefix=""):
         os.makedirs(out_dir, exist_ok=True)
@@ -494,21 +749,24 @@ class Inference:
                 edit_from=[data["edit_from"]],
                 edit_to=[data["edit_to"]],
                 steps=16,
+                sample_std=self.sample_std,
+                ztts=False
             )
             edit_audio = edit_pred["edit_audio"]
-            ztts_audio = edit_pred["ztts_audio"]
+            # ztts_audio = edit_pred["ztts_audio"]
             sf.write(f"{output_dir}/val_{audio_id}_ori.wav", audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
             sf.write(f"{output_dir}/val_{audio_id}_gen.wav", edit_audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
-            sf.write(f"{output_dir}/val_{audio_id}_tts.wav", ztts_audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+            # sf.write(f"{output_dir}/val_{audio_id}_tts.wav", ztts_audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
 
     def internal_demo(self, data):
         # shape: (1, L), (1,), scalar
         # audio, audio_len, orig_sr = get_audio_data(data["audio_path"], self.model.device)
         # _, orig_sr = librosa.load(data["audio_path"], sr=None)
         audio_data, _sr = librosa.load(data["audio_path"], sr=self.model.voicebox.audio_enc_dec.sampling_rate)
+        audio_data = Eval.preprocess_wav(audio_data, _sr)
         audio = torch.tensor(audio_data, dtype=torch.float, device=self.model.device).unsqueeze(0)
         audio_len = torch.tensor(audio.shape[1], device=self.model.device).unsqueeze(0)
-        # audio = audio / 2
+        # audio = audio * 2
         
         edit_pred = self.model.forward(
             audio=audio,
@@ -519,15 +777,17 @@ class Inference:
             edit_to=[data["to"],],
             steps=64,
             cond_scale=1.0,
-            sample_std=1.0,
+            sample_std=self.sample_std,
             dp_scale=1.2,
+            ztts=False,
+            edit_alignments=None if "edit_alignment" not in data else [data["edit_alignment"]],
         )
         edit_audio = edit_pred["edit_audio"][0].cpu().numpy()
-        ztts_audio = edit_pred["ztts_audio"][0].cpu().numpy()
+        # ztts_audio = edit_pred["ztts_audio"][0].cpu().numpy()
         # edit_audio = edit_audio / max(np.abs(edit_audio))
         sf.write(data["out_ori_path"], audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
         sf.write(data["out_gen_path"], edit_audio, samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
-        sf.write(data["out_tts_path"], ztts_audio, samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+        # sf.write(data["out_tts_path"], ztts_audio, samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
         return edit_pred["ori_mel"], edit_pred["edit_mel"]
 
 class DataGen:
@@ -1040,19 +1300,12 @@ class Eval:
     # ckpt_path = "nemo_experiments/local_1-loss_full/2024-01-05_14-50-46/checkpoints/local_1-loss_full--val_loss_total=3.5205-epoch=9.ckpt"
 
 class MainExc:
-    def __init__(self):
-        # Mel + LibriLight
-        # self.vb_ckpt_path = "nemo_experiments/vb=0.2669-epoch=15-last.ckpt"
-        self.vb_ckpt_path = "nemo_experiments/vb=0.2573-epoch=42-last.ckpt"
-        self.dp_ckpt_path = "nemo_experiments/1b_oci_voicebox--val_loss_total=3.2725-epoch=61.ckpt"
-
-        # DAC + GS
-        # self.vb_ckpt_path = "nemo_experiments/vb=0.7689-epoch=0-step=75932-last-001.ckpt"
-        self.vb_ckpt_path = "nemo_experiments/vb=0.7526-epoch=0-step=130000.ckpt"
-        # self.vb_ckpt_path = "nemo_experiments/vb=0.7406-epoch=0-step=163461-last.ckpt"
-        self.dp_ckpt_path = "nemo_experiments/dp_no_sil_spn=1.4410-epoch=8.ckpt"
+    def __init__(self, vb_ckpt_path=None, dp_ckpt_path=None, sample_std=0.9):
+        self.vb_ckpt_path = vb_ckpt_path
+        self.dp_ckpt_path = dp_ckpt_path
 
         self.gen_data_dir = "data/gen_dataset"
+        self.sample_std = sample_std
 
     def load_model(self,):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -1070,6 +1323,8 @@ class MainExc:
 
         # model = model.to(device)
         torch.cuda.empty_cache()
+
+        model.cap_vocode = True
         return model
 
     @property
@@ -1093,7 +1348,7 @@ class MainExc:
     @property
     def infer(self):
         if not hasattr(self, "_infer"):
-            self._infer = Inference(model=self.model)
+            self._infer = Inference(model=self.model, sample_std=self.sample_std)
         return self._infer
     
     @property
@@ -1147,6 +1402,11 @@ class MainExc:
             self.eval.plot_spectrogram(ori_mel)
             self.eval.plot_spectrogram(edit_mel)
 
+    def span_edit(self, output_dir="nemo_experiments/span_edit"):
+        datas = self.dataprocessor.get_span_edit_data(output_dir)
+        for data in datas:
+            ori_mel, edit_mel = self.infer.internal_demo(data)
+
     def calc_dac_stats(self, ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz", shuffle=False):
         self.dataprocessor.prepare_val_dl(ds_name=ds_name, corpus_dir=corpus_dir, manifest_filepath=manifest_filepath, old_prefix="/home/sungfengh/.cache/huggingface/datasets", shuffle=shuffle)
         self.datagen.get_dac_statistics()
@@ -1159,14 +1419,74 @@ corpus_dir = "/datasets/LibriLight_aligned/raw_data_cuts/demo"
 textgrid_dir = "/datasets/LibriLight_aligned/textgrids/demo"
 out_dir = "nemo_experiments/edit_demo"
 
-main_exc = MainExc()
 #%%
 if task == "gendata":
+    kwargs = {
+        "mel": {
+            "main_exc": {
+                # "vb_ckpt_path": "nemo_experiments/vb=0.2669-epoch=15-last.ckpt",
+                "vb_ckpt_path": "nemo_experiments/vb=0.2573-epoch=42-last.ckpt",
+                "dp_ckpt_path": "nemo_experiments/1b_oci_voicebox--val_loss_total=3.2725-epoch=61.ckpt",
+            },
+            "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen"},
+            "v4_gs_val_word_edit": {
+                "ds_name": "gigaspeech",
+                "corpus_dir": "data/download/GigaSpeech",
+                "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
+                "output_dir": "nemo_experiments/edit_gen/",
+            }
+        },
+        "gs": {
+            "main_exc": {
+                # "vb_ckpt_path": "nemo_experiments/vb=0.7689-epoch=0-step=75932-last-001.ckpt",
+                "vb_ckpt_path": "nemo_experiments/vb=0.7526-epoch=0-step=130000.ckpt",
+                "dp_ckpt_path": "nemo_experiments/dp_no_sil_spn=1.4410-epoch=8.ckpt",
+            },
+            "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen_gs"},
+            "v4_gs_val_word_edit": {
+                "ds_name": "gigaspeech",
+                "corpus_dir": "data/download/GigaSpeech",
+                "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
+                "output_dir": "nemo_experiments/edit_gen_gs/",
+            }
+        },
+        "gs_163k": {
+            "main_exc": {
+                "vb_ckpt_path": "nemo_experiments/vb=0.7406-epoch=0-step=163461-last.ckpt",
+                "dp_ckpt_path": "nemo_experiments/dp_no_sil_spn=1.4410-epoch=8.ckpt",
+            },
+            "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen_gs_163k"},
+            "v4_gs_val_word_edit": {
+                "ds_name": "gigaspeech",
+                "corpus_dir": "data/download/GigaSpeech",
+                "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
+                "output_dir": "nemo_experiments/edit_gen_gs_163k/",
+            }
+        },
+        "unet": {
+            "main_exc": {
+                # "vb_ckpt_path": "nemo_experiments/vb=0.3008-epoch=68-step=206000.ckpt",
+                "vb_ckpt_path": "nemo_experiments/checkpoints/a100-GS_XL-DAC-pymha-unet-warmup/checkpoints/vb-val_loss/vb=0.2955-epoch=112-step=336740-last.ckpt",
+                "dp_ckpt_path": "nemo_experiments/dp_no_sil_spn=1.4410-epoch=8.ckpt",
+            },
+            "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen_gs_unet"},
+            "v4_gs_val_word_edit": {
+                "ds_name": "gigaspeech",
+                "corpus_dir": "data/download/GigaSpeech",
+                "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
+                "output_dir": "nemo_experiments/edit_gen_gs_unet/",
+            },
+            "span_edit": {"output_dir": "nemo_experiments/span_edit_gs_unet"},
+        },
+    }
+    exp = "unet"
+    main_exc = MainExc(**(kwargs[exp]["main_exc"]), sample_std=0.95)
     # main_exc.gen_val_v1()
-    # main_exc._internal_demo(output_dir="nemo_experiments/internal_demo_gen_gs_163k")
-    # main_exc.v4_gs_val_word_edit(ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
-    #                                 output_dir="nemo_experiments/edit_gen_163k/")
-    main_exc.calc_dac_stats(ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_XL.speech.jsonl.gz", shuffle=True)
+    main_exc._internal_demo(**(kwargs[exp]["internal_demo"]))
+    # main_exc.v4_gs_val_word_edit(**(kwargs[exp]["v4_gs_val_word_edit"]))
+    # main_exc.span_edit(**(kwargs[exp]["span_edit"]))
+
+    # main_exc.calc_dac_stats(ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_XL.speech.jsonl.gz", shuffle=True)
     exit()
 #%%
     

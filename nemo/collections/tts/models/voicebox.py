@@ -179,6 +179,7 @@ class VoiceboxModel(TextToWaveform):
         self.ce_loss_lambda = 0.1
         self.additional_log_batches = cfg.get("additional_log_batches", 0)
         self.log_media = cfg.get("log_media", True)
+        self.silence_value = 0 # -4.5252 for mel
 
     def _download_libriheavy(self, target_dir, dataset_parts):
         """ Download LibriHeavy manifests. """
@@ -854,7 +855,7 @@ class VoiceboxModel(TextToWaveform):
         mel_lens = batch['mel_lens']
         mel_mask = get_mask_from_lengths(mel_lens) # (b, t)
 
-        pad_mel = torch.ones_like(mel) * -4.5252
+        pad_mel = torch.ones_like(mel) * self.silence_value
         new_mel = torch.cat([mel, pad_mel], dim=1)
         new_mask = get_mask_from_lengths(mel_lens * 2)
 
@@ -917,6 +918,8 @@ class VoiceboxModel(TextToWaveform):
         decode_to_audio = True,
         sample_std = 1.0,
         dp_scale = 1.0,
+        ztts = True,
+        edit_alignments = None,
     ):
         """
         Args:
@@ -955,15 +958,20 @@ class VoiceboxModel(TextToWaveform):
             else:
                 alignments = [parse_mfa_textgrid(tg, None) for tg in textgrids]
 
-        def parse_dp_input_from_ali(alignment, mel_len, ed_f, ed_t):
+        def parse_dp_input_from_ali(alignment, mel_len, ed_f, ed_t, edit_ali=None):
             alignment = fix_alignment(alignment=alignment)
 
             # group phone alignments by words
             ori_w2p_alis = map_word_phn_alignment(alignment=alignment)
             ori_w2p_alis = resample_ali(ori_w2p_alis, mel_len.unsqueeze(0))
 
+            if edit_ali is not None:
+                edit_ali = fix_alignment(alignment=edit_ali)
+                edit_ali = map_word_phn_alignment(alignment=edit_ali)
+                edit_ali = resample_ali(edit_ali, sec_to_frames=self.voicebox.audio_enc_dec.sampling_rate / self.voicebox.audio_enc_dec.downsample_factor)
+
             # edit w2p_alignment, also return new-to-origin mapping for later new_cond construction.
-            new_w2p_alis, n2o_mapping = edit_w2p_alignment(w2p_alis=ori_w2p_alis, edit_from=ed_f, edit_to=ed_t)
+            new_w2p_alis, n2o_mapping = edit_w2p_alignment(w2p_alis=ori_w2p_alis, edit_from=ed_f, edit_to=ed_t, edit_ali=edit_ali)
 
             # post processing phones, adding word postfix and ghost silence, also return phone-to-phone mapping for later new_cond construction.
             ori_phn_alis, ori_p2p_mapping = process_alignment(
@@ -997,7 +1005,11 @@ class VoiceboxModel(TextToWaveform):
                 "new_p2p_mapping": new_p2p_mapping,
             }
 
-        batch = [parse_dp_input_from_ali(alignment, mel_lens[i], edit_from[i], edit_to[i]) for i, alignment in enumerate(alignments)]
+        if edit_alignments is None:
+            edit_alignments = [None for _ in range(len(alignments))]
+        else:
+            edit_alignments = [parse_mfa_textgrid(tg, None) for tg in edit_alignments]
+        batch = [parse_dp_input_from_ali(alignment, mel_lens[i], edit_from[i], edit_to[i], edit_alignments[i]) for i, alignment in enumerate(alignments)]
 
         tokens = [dp_in["tokens"] for dp_in in batch]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long, device=self.device)
@@ -1062,7 +1074,7 @@ class VoiceboxModel(TextToWaveform):
             m_lens = self_attn_mask.sum(-1)
 
             # tail padding
-            new_cond_ = torch.cat([cond, torch.ones_like(cond) * -4.5252], dim=1)
+            new_cond_ = torch.cat([cond, torch.ones_like(cond) * self.silence_value], dim=1)
             self_attn_mask_ = torch.cat([self_attn_mask, torch.zeros_like(self_attn_mask)], dim=1).bool()
             new_cond_mask_ = torch.cat([cond_mask, torch.zeros_like(cond_mask)], dim=1).bool()
 
@@ -1082,7 +1094,15 @@ class VoiceboxModel(TextToWaveform):
                 "aligned_tokens": aligned_tokens,
             }
 
-        args = parse_zero_shot_TTS(new_cond, new_cond_mask, self_attn_mask, tokens, new_dur)
+        if ztts:    
+            args = parse_zero_shot_TTS(new_cond, new_cond_mask, self_attn_mask, tokens, new_dur)
+        else:
+            args = {
+                "cond": new_cond,
+                "cond_mask": new_cond_mask,
+                "self_attn_mask": self_attn_mask,
+                "aligned_tokens": self.duration_predictor.align_phoneme_ids_with_durations(tokens, new_dur),
+            }
 
         pred = self.cfm_wrapper.sample(
             cond=args["cond"],
@@ -1094,40 +1114,49 @@ class VoiceboxModel(TextToWaveform):
             decode_to_audio=False,
             sample_std=sample_std,
         )
+        if self.cap_vocode:
+            pred = torch.where(args["cond_mask"][:, :, None], pred, args["cond"])
 
-        edit_mel = torch.ones_like(new_cond) * -4.5252
-        ztts_mel = torch.ones_like(new_cond) * -4.5252
-        for i in range(len(batch)):
-            edit_mel[i, :new_mel_lens[i]] = pred[i, :new_mel_lens[i]]
-            ztts_mel[i, :new_mel_lens[i]] = pred[i, new_mel_lens[i]:new_mel_lens[i]*2]
-        edit_audio = self.voicebox.audio_enc_dec.decode(edit_mel)
-        ztts_audio = self.voicebox.audio_enc_dec.decode(ztts_mel)
+        if ztts:
+            edit_mel = torch.ones_like(new_cond) * self.silence_value
+            ztts_mel = torch.ones_like(new_cond) * self.silence_value
+            for i in range(len(batch)):
+                edit_mel[i, :new_mel_lens[i]] = pred[i, :new_mel_lens[i]]
+                ztts_mel[i, :new_mel_lens[i]] = pred[i, new_mel_lens[i]:new_mel_lens[i]*2]
+            edit_audio = self.voicebox.audio_enc_dec.decode(edit_mel)
+            ztts_audio = self.voicebox.audio_enc_dec.decode(ztts_mel)
+
+        else:
+            edit_mel = torch.ones_like(new_cond) * self.silence_value
+            for i in range(len(batch)):
+                edit_mel[i, :new_mel_lens[i]] = pred[i, :new_mel_lens[i]]
+            edit_audio = self.voicebox.audio_enc_dec.decode(edit_mel)
         resyn_audio = self.voicebox.audio_enc_dec.decode(mel)
         if resyn_audio.shape[-1] < audio.shape[-1]:
             resyn_audio = F.pad(resyn_audio, (0, audio.shape[-1]-resyn_audio.shape[-1]))
 
         hop_size = self.voicebox.audio_enc_dec.downsample_factor
-        # hop_size = ztts_audio.shape[-1] / new_cond_mask.shape[-1]
-        new_audio_lens = torch.clamp((new_mel_lens-1) * hop_size, max=ztts_audio.shape[-1]).long()
+        new_audio_lens = torch.clamp((new_mel_lens-1) * hop_size, max=edit_audio.shape[-1]).long()
 
         new_cond_st_idx = cond_st_idx * hop_size
-        new_cond_ed_idx = torch.clamp(cond_ed_idx * hop_size, max=ztts_audio.shape[-1])
+        new_cond_ed_idx = torch.clamp(cond_ed_idx * hop_size, max=edit_audio.shape[-1])
         ori_cond_st_idx = new_cond_st_idx
         ori_cond_ed_idx = audio_lens - (new_audio_lens - new_cond_ed_idx)
 
-        cap_audio = torch.zeros_like(ztts_audio)
-        for i in range(len(batch)):
-            cap_audio[i, :new_cond_st_idx[i]] = audio[i, :ori_cond_st_idx[i]]
-            cap_audio[i, new_cond_st_idx[i]:new_cond_ed_idx[i]] = ztts_audio[i, new_cond_st_idx[i]:new_cond_ed_idx[i]]
-            cap_audio[i, new_cond_ed_idx[i]:new_audio_lens[i]] = audio[i, ori_cond_ed_idx[i]:audio_lens[i]]
+        if ztts:
+            cap_audio = torch.zeros_like(edit_audio)
+            for i in range(len(batch)):
+                cap_audio[i, :new_cond_st_idx[i]] = audio[i, :ori_cond_st_idx[i]]
+                cap_audio[i, new_cond_st_idx[i]:new_cond_ed_idx[i]] = ztts_audio[i, new_cond_st_idx[i]:new_cond_ed_idx[i]]
+                cap_audio[i, new_cond_ed_idx[i]:new_audio_lens[i]] = audio[i, ori_cond_ed_idx[i]:audio_lens[i]]
 
         return {
             "edit_audio": edit_audio,
-            "ztts_audio": ztts_audio,
-            "cap_audio": cap_audio,
+            "ztts_audio": None if not ztts else ztts_audio,
+            "cap_audio": None if not ztts else cap_audio,
             "resyn_audio": resyn_audio,
             "edit_mel": edit_mel,
-            "ztts_mel": ztts_mel,
+            "ztts_mel": None if not ztts else ztts_mel,
             "ori_mel": mel,
             "ori_mel_lens": mel_lens,
             "ori_audio_lens": audio_lens,
@@ -1696,7 +1725,14 @@ def map_word_phn_alignment(alignment: Dict[str, List[AlignmentItem]]):
 
     return w2p_alis
 
-def edit_w2p_alignment(w2p_alis=None, edit_from="", edit_to=""):
+mfa_en_dict = {}
+with open("/root/Documents/MFA/pretrained_models/dictionary/english_us_arpa.dict", 'r') as f:
+    for line in tqdm(f):
+        wrd, _, _, _, _, phns = line.strip().split('\t')
+        if wrd not in mfa_en_dict:
+            mfa_en_dict[wrd] = phns
+
+def edit_w2p_alignment(w2p_alis=None, edit_from="", edit_to="", edit_ali=None):
     """edit a word from alignment
     Return:
         - new_w2p_alis
@@ -1704,47 +1740,98 @@ def edit_w2p_alignment(w2p_alis=None, edit_from="", edit_to=""):
     """
     import random
     words = [wrd for wrd, _ in w2p_alis]
-    if edit_from is None:
-        edit_from = random.choice([wrd for wrd in words if wrd not in ["<eps>", "<unk>"]])
-        edit_to = edit_from
-    edit_pos = [i for i, wrd in enumerate(words) if wrd == edit_from]
-    edit_pos = random.choice(edit_pos)
+
+    word_edit = ' ' not in edit_from
+
+    if word_edit:
+        if edit_from is None:
+            edit_from = random.choice([wrd for wrd in words if wrd not in ["<eps>", "<unk>"]])
+            edit_to = edit_from
+        edit_pos = [i for i, wrd in enumerate(words) if wrd == edit_from]
+        edit_pos = [random.choice(edit_pos)]
+    else:
+        words = [(i, wrd) for i, wrd in enumerate(words) if wrd not in ["<eps>", "<unk>", ""]]
+        edit_froms = edit_from.split(' ')
+        edit_tos = edit_to.split(' ')
+        edit_pos = []
+        for i , (j, wrd) in enumerate(words):
+            for k in range(len(edit_froms)):
+                if words[i+k][1] != edit_froms[k]:
+                    break
+            else:
+                edit_pos = list(range(words[i][0], words[i+k][0]+1))
+                break
+        assert len(edit_pos) > 0
 
     new_w2p_alis: List[Tuple[str, List[AlignmentItem]]] = []
     ori_phn_alis = []
     n2o_mapping: List[int] = []
+    edited = False
     for i, (wrd, phn_alis) in enumerate(w2p_alis):
         # store for calculate masked interval
         ori_phn_alis += phn_alis
 
-        if i == edit_pos:
-            assert wrd == edit_from
+        if i in edit_pos:
+            if word_edit:
+                assert wrd == edit_from
 
-            if isinstance(edit_to, str):
-                # MFA G2P
-                wrd = edit_to
-                phns = os.popen(f"conda run -n aligner bash -c \"echo '{edit_to}' | mfa g2p -n 1 - english_us_arpa - 2> /dev/null\"").read().split('\t')[1].strip().split(' ')
-            elif isinstance(edit_to, Tuple):
-                assert isinstance(edit_to[0], str) and isinstance(edit_to[1], List)
-                wrd, phns = edit_to
+                if isinstance(edit_to, str):
+                    # MFA G2P
+                    wrd = edit_to
+                    phns = os.popen(f"conda run -n aligner bash -c \"echo '{edit_to}' | mfa g2p -n 1 - english_us_arpa - 2> /dev/null\"").read().split('\t')[1].strip().split(' ')
+                elif isinstance(edit_to, Tuple):
+                    assert isinstance(edit_to[0], str) and isinstance(edit_to[1], List)
+                    wrd, phns = edit_to
 
-            # start=-1 to note masked
-            phn_alis = [AlignmentItem(symbol=phn, start=-1, duration=0) for phn in phns]
-            new_w2p_alis.append((wrd, phn_alis))
-            n2o_mapping += [-1] * len(phn_alis)
+                # start=-1 to note masked
+                phn_alis = [AlignmentItem(symbol=phn, start=-1, duration=0) for phn in phns]
+                new_w2p_alis.append((wrd, phn_alis))
+                n2o_mapping += [-1] * len(phn_alis)
+
+            elif edited:
+                continue
+
+            elif edit_ali:
+                if edit_ali[-1][0] == "<eps>":
+                    edit_ali = edit_ali[:-1]
+                # edit_ali = edit_ali[2:]
+                for wrd, phn_alis in edit_ali:
+                    new_w2p_alis.append((wrd, phn_alis))
+                    n2o_mapping += [-1] * len(phn_alis)
+                edited = True
+            else:
+                for wrd in edit_tos:
+                    if wrd in mfa_en_dict:
+                        phns = mfa_en_dict[wrd].split(' ')
+                    else:
+                        phns = os.popen(f"conda run -n aligner bash -c \"echo '{wrd}' | mfa g2p -n 1 - english_us_arpa - 2> /dev/null\"").read().split('\t')[1].strip().split(' ')
+                    # start=-1 to note masked
+                    phn_alis = [AlignmentItem(symbol=phn, start=-1, duration=0) for phn in phns]
+                    new_w2p_alis.append((wrd, phn_alis))
+                    n2o_mapping += [-1] * len(phn_alis)
+
+                edited = True
         else:
+            if edited:
+                edited = False
             new_w2p_alis.append((wrd, phn_alis))
             n2o_mapping += list(range(len(ori_phn_alis)-len(phn_alis), len(ori_phn_alis)))
 
     return new_w2p_alis, n2o_mapping
 
-def resample_ali(w2p_alis, mel_lens):
+def resample_ali(w2p_alis, mel_lens=None, sec_to_frames=None):
     """resample the time unit from second to number of frames"""
-    ori_durs = torch.tensor([[ali.duration for wrd, phn_alis in w2p_alis for ali in phn_alis]], device=mel_lens.device)
-    cum_dur = torch.cumsum(ori_durs, -1)
-    dur_ratio = mel_lens / cum_dur[:, -1]
-    cum_dur = cum_dur * rearrange(dur_ratio, 'b -> b 1')
-    cum_dur = torch.round(cum_dur)
+    if sec_to_frames is not None:
+        ori_durs = torch.tensor([[ali.duration for wrd, phn_alis in w2p_alis for ali in phn_alis]])
+        cum_dur = torch.cumsum(ori_durs, -1)
+        cum_dur = cum_dur * sec_to_frames
+        cum_dur = torch.round(cum_dur)
+    if mel_lens is not None:
+        ori_durs = torch.tensor([[ali.duration for wrd, phn_alis in w2p_alis for ali in phn_alis]], device=mel_lens.device)
+        cum_dur = torch.cumsum(ori_durs, -1)
+        dur_ratio = mel_lens / cum_dur[:, -1]
+        cum_dur = cum_dur * rearrange(dur_ratio, 'b -> b 1')
+        cum_dur = torch.round(cum_dur)
 
     rsmp_durs = torch.zeros_like(cum_dur)
     rsmp_durs[:, 0] = cum_dur[:, 0]
