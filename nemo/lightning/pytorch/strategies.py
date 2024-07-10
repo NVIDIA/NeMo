@@ -148,6 +148,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_torch_dist_multiproc=None,  ## TODO(ashors): put elsewhere?
         ckpt_assume_constant_structure=False,
         ckpt_parallel_save=True,
+        ckpt_parallel_save_within_dp=False,
         ckpt_parallel_load=False,
         ckpt_parallel_save_optim=True,
         setup_optimizers: bool = True,
