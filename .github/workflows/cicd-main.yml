@@ -3172,7 +3172,7 @@ jobs:
             trainer.val_check_interval=10 \
             model.restore_from_path='/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo' \
             model.peft.lora_tuning.adapter_dim=8 \
-            model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_ir/train.jsonl \
+            model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_ir/train.jsonl] \
             model.data.validation_ds.write_embeddings_to_file=True \
             model.data.validation_ds.output_file_path_prefix='/home/TestData/nlp/megatron_ir/working_dir/val_embs' \
             model.data.train_ds.file_names=[/home/TestData/nlp/megatron_ir/train.jsonl]
