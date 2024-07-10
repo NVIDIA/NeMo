@@ -48,9 +48,11 @@ def build_and_save_engine(
     custom_all_reduce: bool = True,
     use_refit: bool = False,
     max_num_tokens: int = None,
+    max_seq_len: int = None,
     opt_num_tokens: int = None,
     max_beam_width: int = 1,
     tokens_per_block: int = 128,
+    multiple_profiles: bool = False,
 ):
     try:
         model_cls = getattr(tensorrt_llm.models, model_config.architecture)
@@ -71,15 +73,20 @@ def build_and_save_engine(
     plugin_config.remove_input_padding = remove_input_padding
     plugin_config.use_paged_context_fmha = paged_context_fmha
 
+    if max_seq_len is None:
+        max_seq_len = max_input_len + max_output_len
+
     max_num_tokens, opt_num_tokens = check_max_num_tokens(
         max_num_tokens=max_num_tokens,
         opt_num_tokens=opt_num_tokens,
+        max_seq_len=max_seq_len,
         max_batch_size=max_batch_size,
         max_input_len=max_input_len,
         max_beam_width=max_beam_width,
         remove_input_padding=remove_input_padding,
         enable_context_fmha=plugin_config.context_fmha,
         tokens_per_block=tokens_per_block,
+        multiple_profiles=multiple_profiles,
     )
 
     build_dict = {
@@ -87,6 +94,7 @@ def build_and_save_engine(
         'max_output_len': max_output_len,
         'max_batch_size': max_batch_size,
         'max_beam_width': max_beam_width,
+        'max_seq_len': max_seq_len,
         'max_num_tokens': max_num_tokens,
         'opt_num_tokens': opt_num_tokens,
         'max_prompt_embedding_table_size': max_prompt_embedding_table_size,
@@ -95,6 +103,7 @@ def build_and_save_engine(
         'strongly_typed': False,
         'builder_opt': None,
         'use_refit': use_refit,
+        'multiple_profiles': multiple_profiles,
     }
     build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
 

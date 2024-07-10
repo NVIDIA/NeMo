@@ -840,6 +840,14 @@ class TensorRTLLM(ITritonDeployable):
 
         if Path(self.model_dir).exists():
             folders = os.listdir(self.model_dir)
+            self._load_config_file()
+            self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
+            self.model = load(
+                tokenizer=self.tokenizer,
+                engine_dir=self.model_dir,
+                lora_ckpt_list=self.lora_ckpt_list,
+                use_python_runtime=self.use_python_runtime,
+            )
             if len(folders) > 0:
                 try:
                     self._load_config_file()

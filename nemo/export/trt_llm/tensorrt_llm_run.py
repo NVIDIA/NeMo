@@ -156,7 +156,7 @@ def _load(
 
         max_batch_size = config["build_config"]["max_batch_size"]
         max_input_len = config["build_config"]["max_input_len"]
-        max_output_len = config["build_config"]["max_output_len"]
+        # max_output_len = config["build_config"]["max_output_len"]
         max_beam_width = config["build_config"]["max_beam_width"]
 
         runtime_rank = tensorrt_llm.mpi_rank()
@@ -177,7 +177,7 @@ def _load(
                 rank=runtime_rank,
                 max_batch_size=max_batch_size,
                 max_input_len=max_input_len,
-                max_output_len=max_output_len,
+                # max_output_len=max_output_len,
                 max_beam_width=max_beam_width,
                 debug_mode=False,
             )
