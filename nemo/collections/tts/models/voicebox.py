@@ -738,6 +738,7 @@ class VoiceboxModel(TextToWaveform):
                 ds_name= self.cfg.ds_name,
                 corpus_dir=self.cfg.corpus_dir,
                 old_prefix=self.cfg.old_prefix,
+                wav2mel_len_fn=self.voicebox.audio_enc_dec.wav2mel_len,
                 **ds_kwargs,
             ),
         )
@@ -1725,19 +1726,19 @@ def map_word_phn_alignment(alignment: Dict[str, List[AlignmentItem]]):
 
     return w2p_alis
 
-mfa_en_dict = {}
-with open("/root/Documents/MFA/pretrained_models/dictionary/english_us_arpa.dict", 'r') as f:
-    for line in tqdm(f):
-        wrd, _, _, _, _, phns = line.strip().split('\t')
-        if wrd not in mfa_en_dict:
-            mfa_en_dict[wrd] = phns
-
 def edit_w2p_alignment(w2p_alis=None, edit_from="", edit_to="", edit_ali=None):
     """edit a word from alignment
     Return:
         - new_w2p_alis
         - n2o_mapping: new word position in new_w2p_alis to original word position in w2p_alis. For edited words, no mapped word position, so fill in -1 instead.
     """
+    mfa_en_dict = {}
+    with open("/root/Documents/MFA/pretrained_models/dictionary/english_us_arpa.dict", 'r') as f:
+        for line in tqdm(f):
+            wrd, _, _, _, _, phns = line.strip().split('\t')
+            if wrd not in mfa_en_dict:
+                mfa_en_dict[wrd] = phns
+
     import random
     words = [wrd for wrd, _ in w2p_alis]
 

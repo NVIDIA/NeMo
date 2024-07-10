@@ -157,12 +157,16 @@ class MelVoco(_MelVoco, LightningModule):
 
         return self.vocos.decode(mel)
 
+    def wav2mel_len(self, wav_len):
+        return wav_len // self.downsample_factor + 1
 
 class EncodecVoco(_EncodecVoco, LightningModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.freeze()
 
+    def wav2mel_len(self, wav_len):
+        return torch.ceil(wav_len / self.downsample_factor).long()
 
 class DACVoco(AudioEncoderDecoder, LightningModule):
     def __init__(
@@ -173,6 +177,7 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
         bandwidth_id = None,
         factorized_latent = False,
         return_code = False,
+        preq = False,
         preq_ce = False,
         ce_weights = None,
         normalize = False,
@@ -202,6 +207,7 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
         self.register_buffer('return_code', torch.BoolTensor([return_code]))
 
         # pre-quantize feature + cross-entropy loss
+        self.register_buffer('preq', torch.BoolTensor([preq]))
         self.register_buffer('preq_ce', torch.BoolTensor([preq_ce]))
         self.ce_weights = None if ce_weights is None else torch.tensor(ce_weights[:self.bandwidth_id])
         if self.normalize:
@@ -243,7 +249,7 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
             codes[:, self.bandwidth_id:, :] = 0
             return rearrange(codes, 'b d n -> b n d')
 
-        elif self.preq_ce:
+        elif self.preq or self.preq_ce:
             z = self.model.encoder(audio)
             if self.normalize:
                 z = (z - self.global_mean) / self.global_std
@@ -253,6 +259,8 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
             z, codes, latents, _, _ = self.model.encode(
                 audio, self.bandwidth_id
             )
+            if self.normalize:
+                z = (z - self.global_mean) / self.global_std
             return rearrange(z, 'b d n -> b n d')
 
     def decode(self, latents):
@@ -264,13 +272,15 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
         elif self.return_code:
             codes = latents[:, :self.bandwidth_id, :]
             z_q, z_p, codes = self.model.quantizer.from_codes(codes)
-        elif self.preq_ce:
+        elif self.preq or self.preq_ce:
             z = latents
             if self.normalize:
                 z = (z * self.global_std) + self.global_mean
             z_q, codes, latents, _, _ = self.model.quantizer(z, self.bandwidth_id)
         else:
             z_q = latents
+            if self.normalize:
+                z_q = (z_q * self.global_std) + self.global_mean
 
         audio = self.model.decode(z_q)
         audio = rearrange(audio, 'b 1 t -> b t')
@@ -349,6 +359,8 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
 
         return ce_loss
 
+    def wav2mel_len(self, wav_len):
+        return torch.ceil(wav_len / self.downsample_factor).long()
 
 class Aligner(_Aligner):
 
@@ -1401,6 +1413,7 @@ class VoiceBox(LightningModule):
         cond_token_ids,
         self_attn_mask = None,
         cond_drop_prob = 0.1,
+        cond_id_drop_prob = -1,
         target = None,
         cond = None,
         cond_mask: BoolTensor | None = None
@@ -1473,6 +1486,15 @@ class VoiceBox(LightningModule):
                     self.null_cond,
                     cond
                 )
+
+                if self.training or cond_id_drop_prob == -1:
+                    # let cond_id_drop_prob == -1 means drop audio and text together
+                    # if training, drop audio and text together with the following additional spectrogram dropout
+                    pass
+                else:
+                    # only for inference
+                    # usually for cond_drop_prob == 1 & cond_id_drop_prob == 0
+                    cond_drop_mask = prob_mask_like(cond.shape[:1], cond_id_drop_prob, self.device)
 
                 cond_ids = torch.where(
                     rearrange(cond_drop_mask, '... -> ... 1'),
@@ -1896,7 +1918,9 @@ class ConditionalFlowMatcherWrapper(LightningModule):
                 assert exists(audio_len), 'audio_len must be given if mel_len is not given'
                 # audio_len = mask.sum(-1)
                 # mel_len = audio_len * x1.shape[1] // mask.shape[-1]
-                mel_len = torch.ceil(audio_len / self.voicebox.audio_enc_dec.downsample_factor)
+                # mel_len = torch.ceil(audio_len / self.voicebox.audio_enc_dec.downsample_factor)
+                # mel_len = audio_len // self.voicebox.audio_enc_dec.downsample_factor + 1
+                mel_len = self.voicebox.audio_enc_dec.wav2mel_len(audio_len)
             assert mel_len.max() == x1.shape[1], 'mel_len must be the same as the mel length of the audio encoder decoder'
             mask = get_mask_from_lengths(mel_len)
 

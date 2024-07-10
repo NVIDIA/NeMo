@@ -1291,13 +1291,6 @@ class Eval:
         _bin_edges = np.arange(.5, 1.01, .05)
         diff_hist = np.histogram(diff_sims, _bin_edges)
 
-#%%
-# if __name__ == "__main__":
-    # ckpt_path = "nemo_experiments/local-1/2023-12-14_03-54-42/checkpoints/local-1--val_loss_total=9.0312-epoch=20-last.ckpt"
-    # ckpt_path = "nemo_experiments/ngc/2023-12-15_16-41-45/checkpoints/ngc--val_loss_total=3.7990-epoch=20.ckpt"
-    # ckpt_path = "nemo_experiments/ngc/2023-12-15_16-41-45/checkpoints/ngc--val_loss_total=3.7464-epoch=26.ckpt"
-    # ckpt_path = "nemo_experiments/local_1-loss_full/2024-01-04_16-57-40/checkpoints/local_1-loss_full--val_loss_total=3.6258-epoch=7.ckpt"
-    # ckpt_path = "nemo_experiments/local_1-loss_full/2024-01-05_14-50-46/checkpoints/local_1-loss_full--val_loss_total=3.5205-epoch=9.ckpt"
 
 class MainExc:
     def __init__(self, vb_ckpt_path=None, dp_ckpt_path=None, sample_std=0.9):
@@ -1412,128 +1405,130 @@ class MainExc:
         self.datagen.get_dac_statistics()
 
 
-task = "edit"
-task = "gendata"
-
-corpus_dir = "/datasets/LibriLight_aligned/raw_data_cuts/demo"
-textgrid_dir = "/datasets/LibriLight_aligned/textgrids/demo"
-out_dir = "nemo_experiments/edit_demo"
-
 #%%
-if task == "gendata":
-    kwargs = {
-        "mel": {
-            "main_exc": {
-                # "vb_ckpt_path": "nemo_experiments/vb=0.2669-epoch=15-last.ckpt",
-                "vb_ckpt_path": "nemo_experiments/vb=0.2573-epoch=42-last.ckpt",
-                "dp_ckpt_path": "nemo_experiments/1b_oci_voicebox--val_loss_total=3.2725-epoch=61.ckpt",
+if __name__ == "__main__":
+    task = "edit"
+    task = "gendata"
+
+    corpus_dir = "/datasets/LibriLight_aligned/raw_data_cuts/demo"
+    textgrid_dir = "/datasets/LibriLight_aligned/textgrids/demo"
+    out_dir = "nemo_experiments/edit_demo"
+
+    #%%
+    if task == "gendata":
+        kwargs = {
+            "mel": {
+                "main_exc": {
+                    # "vb_ckpt_path": "nemo_experiments/vb=0.2669-epoch=15-last.ckpt",
+                    "vb_ckpt_path": "nemo_experiments/vb=0.2573-epoch=42-last.ckpt",
+                    "dp_ckpt_path": "nemo_experiments/1b_oci_voicebox--val_loss_total=3.2725-epoch=61.ckpt",
+                },
+                "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen"},
+                "v4_gs_val_word_edit": {
+                    "ds_name": "gigaspeech",
+                    "corpus_dir": "data/download/GigaSpeech",
+                    "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
+                    "output_dir": "nemo_experiments/edit_gen/",
+                }
             },
-            "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen"},
-            "v4_gs_val_word_edit": {
-                "ds_name": "gigaspeech",
-                "corpus_dir": "data/download/GigaSpeech",
-                "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
-                "output_dir": "nemo_experiments/edit_gen/",
-            }
-        },
-        "gs": {
-            "main_exc": {
-                # "vb_ckpt_path": "nemo_experiments/vb=0.7689-epoch=0-step=75932-last-001.ckpt",
-                "vb_ckpt_path": "nemo_experiments/vb=0.7526-epoch=0-step=130000.ckpt",
-                "dp_ckpt_path": "nemo_experiments/dp_no_sil_spn=1.4410-epoch=8.ckpt",
+            "gs": {
+                "main_exc": {
+                    # "vb_ckpt_path": "nemo_experiments/vb=0.7689-epoch=0-step=75932-last-001.ckpt",
+                    "vb_ckpt_path": "nemo_experiments/vb=0.7526-epoch=0-step=130000.ckpt",
+                    "dp_ckpt_path": "nemo_experiments/dp_no_sil_spn=1.4410-epoch=8.ckpt",
+                },
+                "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen_gs"},
+                "v4_gs_val_word_edit": {
+                    "ds_name": "gigaspeech",
+                    "corpus_dir": "data/download/GigaSpeech",
+                    "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
+                    "output_dir": "nemo_experiments/edit_gen_gs/",
+                }
             },
-            "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen_gs"},
-            "v4_gs_val_word_edit": {
-                "ds_name": "gigaspeech",
-                "corpus_dir": "data/download/GigaSpeech",
-                "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
-                "output_dir": "nemo_experiments/edit_gen_gs/",
-            }
-        },
-        "gs_163k": {
-            "main_exc": {
-                "vb_ckpt_path": "nemo_experiments/vb=0.7406-epoch=0-step=163461-last.ckpt",
-                "dp_ckpt_path": "nemo_experiments/dp_no_sil_spn=1.4410-epoch=8.ckpt",
+            "gs_163k": {
+                "main_exc": {
+                    "vb_ckpt_path": "nemo_experiments/vb=0.7406-epoch=0-step=163461-last.ckpt",
+                    "dp_ckpt_path": "nemo_experiments/dp_no_sil_spn=1.4410-epoch=8.ckpt",
+                },
+                "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen_gs_163k"},
+                "v4_gs_val_word_edit": {
+                    "ds_name": "gigaspeech",
+                    "corpus_dir": "data/download/GigaSpeech",
+                    "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
+                    "output_dir": "nemo_experiments/edit_gen_gs_163k/",
+                }
             },
-            "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen_gs_163k"},
-            "v4_gs_val_word_edit": {
-                "ds_name": "gigaspeech",
-                "corpus_dir": "data/download/GigaSpeech",
-                "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
-                "output_dir": "nemo_experiments/edit_gen_gs_163k/",
-            }
-        },
-        "unet": {
-            "main_exc": {
-                # "vb_ckpt_path": "nemo_experiments/vb=0.3008-epoch=68-step=206000.ckpt",
-                "vb_ckpt_path": "nemo_experiments/checkpoints/a100-GS_XL-DAC-pymha-unet-warmup/checkpoints/vb-val_loss/vb=0.2955-epoch=112-step=336740-last.ckpt",
-                "dp_ckpt_path": "nemo_experiments/dp_no_sil_spn=1.4410-epoch=8.ckpt",
+            "unet": {
+                "main_exc": {
+                    # "vb_ckpt_path": "nemo_experiments/vb=0.3008-epoch=68-step=206000.ckpt",
+                    "vb_ckpt_path": "nemo_experiments/checkpoints/a100-GS_XL-DAC-pymha-unet-warmup/checkpoints/vb-val_loss/vb=0.2955-epoch=112-step=336740-last.ckpt",
+                    "dp_ckpt_path": "nemo_experiments/dp_no_sil_spn=1.4410-epoch=8.ckpt",
+                },
+                "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen_gs_unet"},
+                "v4_gs_val_word_edit": {
+                    "ds_name": "gigaspeech",
+                    "corpus_dir": "data/download/GigaSpeech",
+                    "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
+                    "output_dir": "nemo_experiments/edit_gen_gs_unet/",
+                },
+                "span_edit": {"output_dir": "nemo_experiments/span_edit_gs_unet"},
             },
-            "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen_gs_unet"},
-            "v4_gs_val_word_edit": {
-                "ds_name": "gigaspeech",
-                "corpus_dir": "data/download/GigaSpeech",
-                "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
-                "output_dir": "nemo_experiments/edit_gen_gs_unet/",
-            },
-            "span_edit": {"output_dir": "nemo_experiments/span_edit_gs_unet"},
-        },
-    }
-    exp = "unet"
-    main_exc = MainExc(**(kwargs[exp]["main_exc"]), sample_std=0.95)
-    # main_exc.gen_val_v1()
-    main_exc._internal_demo(**(kwargs[exp]["internal_demo"]))
-    # main_exc.v4_gs_val_word_edit(**(kwargs[exp]["v4_gs_val_word_edit"]))
-    # main_exc.span_edit(**(kwargs[exp]["span_edit"]))
+        }
+        exp = "unet"
+        main_exc = MainExc(**(kwargs[exp]["main_exc"]), sample_std=0.95)
+        # main_exc.gen_val_v1()
+        main_exc._internal_demo(**(kwargs[exp]["internal_demo"]))
+        # main_exc.v4_gs_val_word_edit(**(kwargs[exp]["v4_gs_val_word_edit"]))
+        # main_exc.span_edit(**(kwargs[exp]["span_edit"]))
 
-    # main_exc.calc_dac_stats(ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_XL.speech.jsonl.gz", shuffle=True)
-    exit()
-#%%
-    
-elif task == "edit":
-
-    main_exc.dataprocessor.prepare_val_dl()
+        # main_exc.calc_dac_stats(ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_XL.speech.jsonl.gz", shuffle=True)
+        exit()
     #%%
-    # tb_val_batch = main_exc.dataprocessor.get_val_batch(from_tb=True)
-    val_batch = main_exc.dataprocessor.get_val_batch()
-    # mix_val_batch = main_exc.dataprocessor.get_val_batch(mix=True)
+        
+    elif task == "edit":
 
-    #%%
-    # tb_val_pred = main_exc.infer.test_batch(tb_val_batch, "nemo_experiments/edit_tb_val", "tb_val")
-    val_pred = main_exc.infer.test_batch(val_batch, "nemo_experiments/edit_val", "val")
+        main_exc.dataprocessor.prepare_val_dl()
+        #%%
+        # tb_val_batch = main_exc.dataprocessor.get_val_batch(from_tb=True)
+        val_batch = main_exc.dataprocessor.get_val_batch()
+        # mix_val_batch = main_exc.dataprocessor.get_val_batch(mix=True)
 
-    #%%
-    # _tb_val_batch = tb_val_batch
-    _val_batch = val_batch
-    # _tb_val_batch = mask_cond(_tb_val_batch)
-    _val_batch = main_exc.dataprocessor.mask_cond(_val_batch)
-    for i in range(4):
-        # Eval.create_plot(_tb_val_batch['cond'][i].T.cpu(), 'frame', 'freq')
-        # Eval.create_plot(tb_val_pred[i].T.cpu(), 'frame', 'freq')
-        main_exc.eval.create_plot(_val_batch['cond'][i].T.cpu(), 'frame', 'freq')
-        main_exc.eval.create_plot(val_pred[i].T.cpu(), 'frame', 'freq')
+        #%%
+        # tb_val_pred = main_exc.infer.test_batch(tb_val_batch, "nemo_experiments/edit_tb_val", "tb_val")
+        val_pred = main_exc.infer.test_batch(val_batch, "nemo_experiments/edit_val", "val")
 
-    #%%
-    demo_batch = main_exc.dataprocessor.get_demo_batch(corpus_dir, textgrid_dir)
-    ori_demo_batch = main_exc.dataprocessor.get_demo_batch(corpus_dir, textgrid_dir, ori=True)
+        #%%
+        # _tb_val_batch = tb_val_batch
+        _val_batch = val_batch
+        # _tb_val_batch = mask_cond(_tb_val_batch)
+        _val_batch = main_exc.dataprocessor.mask_cond(_val_batch)
+        for i in range(4):
+            # Eval.create_plot(_tb_val_batch['cond'][i].T.cpu(), 'frame', 'freq')
+            # Eval.create_plot(tb_val_pred[i].T.cpu(), 'frame', 'freq')
+            main_exc.eval.create_plot(_val_batch['cond'][i].T.cpu(), 'frame', 'freq')
+            main_exc.eval.create_plot(val_pred[i].T.cpu(), 'frame', 'freq')
 
-    #%%
-    demo_batch = main_exc.dataprocessor.fix_demo_audio(demo_batch, scale=.65)
-    ori_demo_batch = main_exc.dataprocessor.fix_demo_audio(ori_demo_batch, scale=.7)
+        #%%
+        demo_batch = main_exc.dataprocessor.get_demo_batch(corpus_dir, textgrid_dir)
+        ori_demo_batch = main_exc.dataprocessor.get_demo_batch(corpus_dir, textgrid_dir, ori=True)
 
-    #%%
-    demo_pred = main_exc.infer.test_batch(demo_batch, "nemo_experiments/edit_demo", "demo-65-")
-    ori_demo_pred = main_exc.infer.test_batch(ori_demo_batch, "nemo_experiments/edit_ori_demo", "ori_demo-7-")
+        #%%
+        demo_batch = main_exc.dataprocessor.fix_demo_audio(demo_batch, scale=.65)
+        ori_demo_batch = main_exc.dataprocessor.fix_demo_audio(ori_demo_batch, scale=.7)
 
-    #%%
-    main_exc.eval.create_plot(demo_batch['cond'][1].T.cpu(), 'frame', 'freq')
-    main_exc.eval.create_plot(ori_demo_batch['cond'][1].T.cpu(), 'frame', 'freq')
-    #%%
-    main_exc.eval.create_plot(demo_pred[1].T.cpu(), 'frame', 'freq')
-    main_exc.eval.create_plot(ori_demo_pred[1].T.cpu(), 'frame', 'freq')
+        #%%
+        demo_pred = main_exc.infer.test_batch(demo_batch, "nemo_experiments/edit_demo", "demo-65-")
+        ori_demo_pred = main_exc.infer.test_batch(ori_demo_batch, "nemo_experiments/edit_ori_demo", "ori_demo-7-")
 
-    print(main_exc.model.tokenizer.vocab)
-    # exit()
+        #%%
+        main_exc.eval.create_plot(demo_batch['cond'][1].T.cpu(), 'frame', 'freq')
+        main_exc.eval.create_plot(ori_demo_batch['cond'][1].T.cpu(), 'frame', 'freq')
+        #%%
+        main_exc.eval.create_plot(demo_pred[1].T.cpu(), 'frame', 'freq')
+        main_exc.eval.create_plot(ori_demo_pred[1].T.cpu(), 'frame', 'freq')
+
+        print(main_exc.model.tokenizer.vocab)
+        # exit()
 
 
 

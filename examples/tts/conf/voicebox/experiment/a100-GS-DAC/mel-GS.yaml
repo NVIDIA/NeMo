@@ -1,0 +1,39 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=a100/fix_time_emb
+
+defaults:
+  - /experiment@_global_:
+    - a100
+    - tricks/loss_masked
+  - /dataset:
+    - gigaspeech-XS
+
+model:
+  voicebox:
+    frac_lengths_mask: [0.1, 0.9]
+
+  duration_predictor:
+    audio_enc_dec: ${..voicebox.audio_enc_dec}
+
+  cap_vocode: True
+  additional_log_batches: 1
+
+  train_ds:
+    subset: XL
+    # manifest_filepath: ${..manifests_dir}/${..ds_name}_cuts_${.subset}_with_jensen.speech.jsonl.gz
+  
+  validation_ds:
+    subset: "DEV"
+    manifest_filepath: ${..manifests_dir}/${..ds_name}_cuts_${.subset}_with_jensen.speech.jsonl.gz
+
+  optim:
+    lr: 0.001
+
+exp_manager:
+  wandb_logger_kwargs:
+    project: VB-GS_XL-DAC
+
+# task name, determines output directory path
+task_name: "a100-GS_XL-mel"

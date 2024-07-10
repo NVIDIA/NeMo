@@ -4,3 +4,13 @@ defaults:
   - override /model/audio_enc_dec@model.duration_predictor.audio_enc_dec: dac_voco
   - override /model/audio_enc_dec@model.voicebox.audio_enc_dec: dac_voco
 
+
+model:
+  voicebox:
+    audio_enc_dec:
+      bandwidth_id: 12
+      preq_ce: True
+      normalize: True
+
+  duration_predictor:
+    audio_enc_dec: ${..voicebox.audio_enc_dec}

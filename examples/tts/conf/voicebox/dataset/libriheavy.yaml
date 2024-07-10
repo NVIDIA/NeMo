@@ -9,7 +9,7 @@ libriheavy_dir: data/download/LibriHeavy # downloaded manifests
 corpus_dir: ${.librilight_dir}
 manifests_dir: data/parsed/LibriHeavy  # parsed manifests (e.g. filtering, add alignments, etc.)
 textgrid_dir: data/aligned/LibriHeavy/textgrids
-old_predix: download/librilight
+old_prefix: download/librilight
 
 subsets:
   - small
