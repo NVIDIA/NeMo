@@ -181,9 +181,9 @@ class NLPAdapterModelMixin:
         name_key_to_mcore_mixins = peft_cfg.name_key_to_mcore_mixins if (self.use_mcore_gpt or self.use_mcore_t5) else None
 
         for adapter_name, adapter_cfg in peft_cfg.get_config_dict().items():
-            # self.mcore_gpt means is GPT and not T5
+            # mixin for mcore models
             if (
-                (hasattr(self, 'mcore_gpt') or hasattr(self, 'mcore_t5'))
+                (hasattr(self, 'mcore_gpt') or (hasattr(self, 'mcore_t5') and self.mcore_t5))
                 and not isinstance(adapter_cfg, PromptEncoderAdapterConfig)
                 and not isinstance(adapter_cfg, MLPHeadAdapterConfig)
             ):
