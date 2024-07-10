@@ -12,34 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Optional
 import math
+from typing import Callable, Optional
 
 import torch
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.fusions.fused_softmax import FusedScaleMaskSoftmax
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.tensor_parallel import ColumnParallelLinear
-from megatron.core.transformer import TransformerConfig, MegatronModule
-from megatron.core.transformer.custom_layers.transformer_engine import TERowParallelLinear, TENorm
+from megatron.core.transformer import MegatronModule, TransformerConfig
+from megatron.core.transformer.custom_layers.transformer_engine import TENorm, TERowParallelLinear
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.utils import attention_mask_func
 from megatron.core.utils import divide
 from torch import Tensor
 
+
 def get_swa(seq_q, seq_kv, w):
     """Create the equivalent attention mask fro SWA in [seq_q, seq_kv] shape"""
     m = torch.ones(seq_q, seq_kv, dtype=torch.bool, device="cuda")
-    mu = torch.triu(m, diagonal=seq_kv-seq_q-w[0])
-    ml = torch.tril(mu, diagonal=seq_kv-seq_q+w[1])
-    ml = ~ ml
+    mu = torch.triu(m, diagonal=seq_kv - seq_q - w[0])
+    ml = torch.tril(mu, diagonal=seq_kv - seq_q + w[1])
+    ml = ~ml
     return ml
 
+
 def logit_softcapping(logits: torch.Tensor, scale: Optional[float]):
-    """ Prevents logits from growing excessively by scaling them to a fixed range """
+    """Prevents logits from growing excessively by scaling them to a fixed range"""
     if not scale:
         return logits
-    return scale * torch.tanh(logits/scale)
+    return scale * torch.tanh(logits / scale)
+
 
 class Gemma2DotProductAttention(MegatronModule):
     """
@@ -93,7 +96,6 @@ class Gemma2DotProductAttention(MegatronModule):
         coeff = None
         self.norm_factor = math.sqrt(config.query_pre_attn_scalar)
 
-
         if self.config.apply_query_key_layer_scaling:
             coeff = self.layer_number
             self.norm_factor *= coeff
@@ -125,8 +127,7 @@ class Gemma2DotProductAttention(MegatronModule):
         packed_seq_params: PackedSeqParams = None,
     ):
         assert packed_seq_params is None, (
-            "Packed sequence is not supported by DotProductAttention."
-            "Please use TEDotProductAttention instead."
+            "Packed sequence is not supported by DotProductAttention." "Please use TEDotProductAttention instead."
         )
 
         # ===================================
@@ -165,7 +166,9 @@ class Gemma2DotProductAttention(MegatronModule):
 
         # preallocting input tensor: [b * np, sq, sk]
         matmul_input_buffer = parallel_state.get_global_memory_buffer().get_tensor(
-            (output_size[0] * output_size[1], output_size[2], output_size[3]), query.dtype, "mpu",
+            (output_size[0] * output_size[1], output_size[2], output_size[3]),
+            query.dtype,
+            "mpu",
         )
 
         # Raw attention scores. [b * np, sq, sk]
@@ -240,17 +243,17 @@ class Gemma2DotProductAttention(MegatronModule):
 
 class TERowParallelLinearLayerNorm(TERowParallelLinear):
     def __init__(
-            self,
-            input_size: int,
-            output_size: int,
-            *,
-            config: TransformerConfig,
-            init_method: Callable,
-            bias: bool,
-            input_is_parallel: bool,
-            skip_bias_add: bool,
-            is_expert: bool,
-            tp_comm_buffer_name: str = None,
+        self,
+        input_size: int,
+        output_size: int,
+        *,
+        config: TransformerConfig,
+        init_method: Callable,
+        bias: bool,
+        input_is_parallel: bool,
+        skip_bias_add: bool,
+        is_expert: bool,
+        tp_comm_buffer_name: str = None,
     ):
         super().__init__(
             input_size,
@@ -261,13 +264,14 @@ class TERowParallelLinearLayerNorm(TERowParallelLinear):
             input_is_parallel=input_is_parallel,
             skip_bias_add=skip_bias_add,
             is_expert=is_expert,
-            tp_comm_buffer_name=tp_comm_buffer_name)
+            tp_comm_buffer_name=tp_comm_buffer_name,
+        )
         self.post_layernorm = TENorm(config, output_size)
-
 
     def forward(self, x):
         output, bias = super().forward(x)
         return self.post_layernorm(output), bias
+
 
 class Gemma2OutputLayer(ColumnParallelLinear):
     def forward(self, input_: torch.Tensor, weight: Optional[torch.Tensor] = None):

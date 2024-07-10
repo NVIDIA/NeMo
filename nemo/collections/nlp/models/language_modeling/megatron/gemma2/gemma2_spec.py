@@ -17,10 +17,12 @@ from megatron.core.transformer import ModuleSpec, TransformerLayer, TransformerL
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
 from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
 from megatron.core.transformer.enums import AttnMaskType
-from megatron.core.transformer.mlp import MLPSubmodules, MLP
+from megatron.core.transformer.mlp import MLP, MLPSubmodules
 
-from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import TERowParallelLinearLayerNorm, \
-    Gemma2DotProductAttention
+from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import (
+    Gemma2DotProductAttention,
+    TERowParallelLinearLayerNorm,
+)
 
 
 def get_gemma2_layer_spec():
@@ -33,17 +35,17 @@ def get_gemma2_layer_spec():
                 submodules=SelfAttentionSubmodules(
                     linear_qkv=TELayerNormColumnParallelLinear,
                     core_attention=Gemma2DotProductAttention,  # use unfused SDPA for attn logit softcapping
-                    linear_proj=TERowParallelLinearLayerNorm, # post attn RMSNorm
+                    linear_proj=TERowParallelLinearLayerNorm,  # post attn RMSNorm
                 ),
             ),
             self_attn_bda=get_bias_dropout_add,
             mlp=ModuleSpec(
-            module=MLP,
-            submodules=MLPSubmodules(
-                linear_fc1=TELayerNormColumnParallelLinear,
-                linear_fc2=TERowParallelLinearLayerNorm, # post mlp RMSNorm
+                module=MLP,
+                submodules=MLPSubmodules(
+                    linear_fc1=TELayerNormColumnParallelLinear,
+                    linear_fc2=TERowParallelLinearLayerNorm,  # post mlp RMSNorm
+                ),
             ),
-        ),
             mlp_bda=get_bias_dropout_add,
         ),
     )
