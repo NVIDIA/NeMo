@@ -12,7 +12,9 @@ from nemo.collections.llm.gpt.data import PreTrainingDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
+from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
+from megatron.core.optimizer import OptimizerConfig
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train a small GPT model using NeMo 2.0')
@@ -71,6 +73,14 @@ if __name__ == '__main__':
     )
     loggers.append(tensorboard_logger)
 
+    opt_config = OptimizerConfig(
+        optimizer='adam',
+        lr=6e-4,
+        min_lr=6e-5,
+        use_distributed_optimizer=False,
+    )
+    opt = MegatronOptimizerModule(config=opt_config)
+
     trainer = nl.Trainer(
         devices=args.devices,
         max_steps=args.max_steps,
@@ -92,4 +102,5 @@ if __name__ == '__main__':
         trainer=trainer,
         log=nemo_logger,
         tokenizer='data',
+        optim=opt,
     )
