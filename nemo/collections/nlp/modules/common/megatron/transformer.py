@@ -453,7 +453,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         if transformer_block_type == 'normformer' and position_after == 'attention':
             bias_dropout_add_func = get_dropout_add(self.training)
         # Bias dropout add fused kernel
-        elif self.bias and self.bias_dropout_add_fusion:
+        elif self.bias_dropout_add_fusion:
             if self.training:
                 bias_dropout_add_func = bias_dropout_add_fused_train
             else:
