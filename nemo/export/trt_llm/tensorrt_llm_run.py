@@ -26,14 +26,25 @@ import numpy as np
 import tensorrt_llm
 import torch
 from mpi4py.futures import MPIPoolExecutor
-from tensorrt_llm.bindings import GptJsonConfig, GptSession, GptSessionConfig, KvCacheConfig, WorldConfig
 from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
 from tensorrt_llm.runtime import ModelConfig, ModelRunner, ModelRunnerCpp, SamplingConfig
-from tensorrt_llm.runtime.model_runner_cpp import ModelRunnerCppGptSession
+
 from transformers import PreTrainedTokenizer
 
 LOGGER = logging.getLogger("NeMo")
+
+use_trtllm_bindings = True
+try:
+    from tensorrt_llm.bindings import GptJsonConfig, GptSession, GptSessionConfig, KvCacheConfig, WorldConfig
+except Exception as e:
+    use_trtllm_bindings = False
+
+use_cpp_gpt_session = True
+try:
+    from tensorrt_llm.runtime.model_runner_cpp import ModelRunnerCppGptSession
+except Exception as e:
+    use_cpp_gpt_session = False
 
 
 @dataclass

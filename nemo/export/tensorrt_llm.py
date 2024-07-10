@@ -38,16 +38,24 @@ from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
     is_nemo_file,
     load_nemo_model,
 )
-from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
-from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
-from nemo.export.trt_llm.qnemo.utils import is_qnemo_checkpoint
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_distributed, refit
+
+LOGGER = logging.getLogger("NeMo")
+
+use_model_opt = True
+try:
+    from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
+    from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
+    from nemo.export.trt_llm.qnemo.utils import is_qnemo_checkpoint
+except Exception as e:
+    LOGGER.warning(f"Cannot import the Model Optimizer, it will not be available. {type(e).__name__}: {e}")
+    use_model_opt = False
 
 use_deploy = True
 try:
     from nemo.deploy.utils import cast_output, str_ndarray2list
-except Exception:
+except Exception as e:
     use_deploy = False
 
 
@@ -66,8 +74,6 @@ try:
     from pytriton.model_config import Tensor
 except Exception:
     use_pytriton = False
-
-LOGGER = logging.getLogger("NeMo")
 
 
 class TensorRTLLM(ITritonDeployable):
@@ -233,7 +239,12 @@ class TensorRTLLM(ITritonDeployable):
             tmp_dir = tempfile.TemporaryDirectory()
             nemo_export_dir = Path(tmp_dir.name)
 
-            if is_qnemo_checkpoint(nemo_checkpoint_path):
+            is_qnemo_ckpt = False
+            if use_model_opt:
+                if is_qnemo_checkpoint(nemo_checkpoint_path):
+                    is_qnemo_ckpt = True
+
+            if is_qnemo_ckpt:
                 if os.path.isdir(nemo_checkpoint_path):
                     nemo_export_dir = nemo_checkpoint_path
                 else:
