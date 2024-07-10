@@ -76,11 +76,11 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import InferenceParams, dist_checkpointing, parallel_state, tensor_parallel
+    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
+    from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
-    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
-    from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
 
     HAVE_MEGATRON_CORE = True
 
@@ -93,6 +93,7 @@ def skip_fp8_load(x):
     if isinstance(x, ShardedObject) and 'fused_attention' in x.key and '_extra_state' in x.key:
         x = LocalNonpersitentObject(x.data)  # use the FP8 state from initialization, not from ckpt
     return x
+
 
 class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
     """Frozen version of CLIPVisionTransformer"""
