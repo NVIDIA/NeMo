@@ -113,16 +113,16 @@ CPU Offloading
 Overview
 ^^^^^^^^
 
-CPU Offloading is a feature used in NeMo to offload all the activations and inactive weights to CPU storage to reduce the peak memory usage of the GPU. Currently NeMo supports offloading activations and weights at a transformer layer granularity where users can set the number of transfomer layers in their language model that needs CPU offloading. NeMo offloads the activation at the optimal time during the forward pass and reloads it back on a need basis during the backward pass.
+CPU Offloading in NeMo is a feature that reduces the peak memory usage of the GPU by offloading activations and inactive weights to CPU storage. NeMo supports offloading at the transformer layer level, allowing users to specify the number of transformer layers in their language model that require CPU offloading. During the forward pass, NeMo offloads activations at the optimal time and reloads them as needed during the backward pass.
 
 Features
 ^^^^^^^^
-> Support training of models with long sequence lengths as they are activation memory dominant
-> Supports high batch size per GPU as activation memory can be offloaded
-> Overlaps computation with Host2Device and Device2Host copies while offloading and reloading.
+> Supports training models with long sequence lengths by managing activation memory efficiently.
+> Enables high batch sizes per GPU by offloading activation memory.
+> Overlaps computation with data transfers (Host2Device and Device2Host) during offloading and reloading.
 
 Usage
 ^^^^^
-> Set `cpu_offloading` as True to enable CPU offloading
-> Set `cpu_offloading_num_layers` between [0,number of layers in model - 1]
-> Set `cpu_offloading_activations` and `cpu_offloading_weights` based on need whether to offload activations only/weight only/both
+> Set cpu_offloading to True to enable CPU offloading.
+> Set cpu_offloading_num_layers to a value between 0 and the total number of layers in the model minus one.
+> Set cpu_offloading_activations and cpu_offloading_weights based on your needs to offload activations only, weights only, or both.
