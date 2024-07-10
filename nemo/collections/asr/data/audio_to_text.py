@@ -552,7 +552,7 @@ class AudioToCharDataset(_AudioTextDataset):
         eos_id: Id of end of sequence symbol to append if not None
         return_sample_id (bool): whether to return the sample_id as a part of each sample
         channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
-        cache_audio: If True, will cache manifests and audio from object store   
+        cache_audio: If True, will cache manifests and audio from object store
     """
 
     @property
@@ -648,7 +648,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             tokens to beginning and ending of speech respectively.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
         channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
-        cache_audio: If True, will cache manifests and audio from object store   
+        cache_audio: If True, will cache manifests and audio from object store
     """
 
     @property

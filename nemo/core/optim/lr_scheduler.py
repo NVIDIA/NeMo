@@ -436,6 +436,7 @@ class DoubleCosineAnnealing(_LRScheduler):
     warmup_ratio2 (float, optional): Warm-up ratio for the second cosine schedule. Either this or warmup_steps2 must be None.
     last_epoch (int, optional): The index of the last epoch. Default is -1.
     """
+
     def __init__(
         self,
         optimizer,

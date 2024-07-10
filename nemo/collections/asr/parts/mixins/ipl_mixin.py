@@ -14,15 +14,18 @@
 
 import json
 import os
+import random
 import tempfile
 from typing import List, Union
+
 import editdistance
 import torch
+from omegaconf import ListConfig
 from tqdm.auto import tqdm
+
 from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
 from nemo.collections.asr.parts.utils.ipl_utils import *
-from omegaconf import ListConfig
-import random
+
 
 class IPLMixin:
     """
@@ -237,7 +240,7 @@ class IPLMixin:
                 for data_entry in update_data:
                     json.dump(data_entry, temp_manifest, ensure_ascii=False)
                     temp_manifest.write('\n')
-            if self.model_type=="hybrid":
+            if self.model_type == "hybrid":
                 hypotheses = self.generate_pseudo_labels_hybrid(
                     temporary_manifest,
                     target_transcripts=transcriptions,
@@ -250,7 +253,7 @@ class IPLMixin:
                     target_transcripts=transcriptions,
                     restore_pc=self._ipl_params['restore_pc'],
                     batch_size=self._ipl_params['batch_size'],
-                ) 
+                )
         torch.distributed.barrier()
         gathered_hypotheses = [None] * torch.distributed.get_world_size()
         gathered_data = [None] * torch.distributed.get_world_size()
@@ -321,7 +324,7 @@ class IPLMixin:
                     )
                 else:
                     expanded_audio = expanded_audio[0]
-                if self.model_type=="hybrid":
+                if self.model_type == "hybrid":
                     hypotheses = self.generate_pseudo_labels_hybrid(
                         cache_manifest=temporary_manifest,
                         tarred_audio_filepaths=expanded_audio,
@@ -336,7 +339,7 @@ class IPLMixin:
                         target_transcripts=transcriptions,
                         restore_pc=self._ipl_params['restore_pc'],
                         batch_size=self._ipl_params['batch_size'],
-                    ) 
+                    )
                 write_tarr_cache_manifest(
                     cache_manifest,
                     update_data=shard_manifest_data,
@@ -401,7 +404,7 @@ class IPLMixin:
                     )
                 else:
                     expanded_audio = expanded_audio[0]
-                if self.model_type=="hybrid":
+                if self.model_type == "hybrid":
                     hypotheses = self.generate_pseudo_labels_hybrid(
                         temporary_manifest,
                         tarred_audio_filepaths=expanded_audio,
@@ -416,7 +419,7 @@ class IPLMixin:
                         target_transcripts=transcriptions,
                         restore_pc=self._ipl_params['restore_pc'],
                         batch_size=self._ipl_params['batch_size'],
-                    ) 
+                    )
             write_tarr_cache_manifest(
                 manifest,
                 update_data=shard_manifest_data,
@@ -466,7 +469,7 @@ class IPLMixin:
         batch_size: int = 64,
     ):
         """
-        Generates pseudo labels for unlabeled data for Hybrid models. 
+        Generates pseudo labels for unlabeled data for Hybrid models.
         Args:
             cache_manifest: Temprorary cache file with sampled data.
             tarred_audio_filepaths: Path to tar audio files.
@@ -555,7 +558,6 @@ class IPLMixin:
 
         self.ctc_decoder.unfreeze()
         return hypotheses
-
 
     def generate_pseudo_labels_ctc(
         self,

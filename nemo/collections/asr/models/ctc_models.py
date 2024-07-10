@@ -24,10 +24,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.data.audio_to_text import (
-    _AudioTextDataset,
-    cache_datastore_manifests,
-)
+from nemo.collections.asr.data.audio_to_text import _AudioTextDataset, cache_datastore_manifests
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -702,7 +699,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         if self._test_dl is not None:
             return self._test_dl
 
-    def _setup_pseudo_label_dataloader(self,
+    def _setup_pseudo_label_dataloader(
+        self,
         manifest_filepaths: Union[List[List[str]], str],
         tarred_audio_filepaths: Union[List[List[str]], str] = None,
         batch_size: int = 64,

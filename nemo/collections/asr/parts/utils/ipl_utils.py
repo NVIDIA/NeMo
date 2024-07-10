@@ -23,8 +23,19 @@ import braceexpand
 import torch
 from omegaconf import ListConfig
 
-__all__ = ['expand_braces', 'formulate_cache_manifest_names', 'count_files_for_pseudo_labeling', 'create_final_cache_manifest', 'handle_multiple_tarr_filepaths','write_tarr_cache_manifest',
-           'write_cache_manifest', 'rm_punctuation', 'process_manifest', 'sample_data']
+__all__ = [
+    'expand_braces',
+    'formulate_cache_manifest_names',
+    'count_files_for_pseudo_labeling',
+    'create_final_cache_manifest',
+    'handle_multiple_tarr_filepaths',
+    'write_tarr_cache_manifest',
+    'write_cache_manifest',
+    'rm_punctuation',
+    'process_manifest',
+    'sample_data',
+]
+
 
 def expand_braces(filepaths):
     """
@@ -63,14 +74,14 @@ def formulate_cache_manifest_names(manifests: Union[str, ListConfig[str]], cache
     Formulates cache manifest names based on the provided manifests and cache prefix.
 
     Args:
-        manifests (Union[str, ListConfig[str]]): The original manifest file paths. If tarred, 
+        manifests (Union[str, ListConfig[str]]): The original manifest file paths. If tarred,
             this should be a list of lists of manifest file paths.
         cache_prefix (str): The prefix to use for the cache manifest names.
         is_tarred (bool): A flag indicating whether the dataset is tarred.
 
     Returns:
-        Union[str, List[List[str]]]: The cache manifest names. If the dataset is tarred, 
-            returns a list of lists of cache manifest names. Otherwise, returns a single cache 
+        Union[str, List[List[str]]]: The cache manifest names. If the dataset is tarred,
+            returns a list of lists of cache manifest names. Otherwise, returns a single cache
             manifest name as a string.
 
     """
@@ -96,10 +107,10 @@ def count_files_for_pseudo_labeling(
     Counts the number of files for pseudo-labeling based on the input manifest files.
 
     Args:
-        input_manifest_files (Union[str, ListConfig[str]]): The manifest files containing 
+        input_manifest_files (Union[str, ListConfig[str]]): The manifest files containing
             the dataset information. Can be a single file path or a list of file paths.
         is_tarred (bool): A flag indicating whether the dataset is tarred.
-        dataset_weights (Optional[Union[float, ListConfig[float]]]): Weights for the datasets. 
+        dataset_weights (Optional[Union[float, ListConfig[float]]]): Weights for the datasets.
             If not provided, defaults to 1 for each dataset. This option works only for non tarr datasets.
 
     Returns:
@@ -108,6 +119,7 @@ def count_files_for_pseudo_labeling(
             - The weighted number of files for pseudo-labeling based on the dataset weights.
 
     """
+
     def get_num_lines(file_path: str) -> int:
         if os.path.exists(file_path):
             with open(file_path, 'r') as file:
@@ -207,7 +219,7 @@ def write_tarr_cache_manifest(
         hypotheses (List): List of hypotheses to be added to the data entries.
         update_size (int, optional): Size of the update batch. Defaults to 0.
         indices (Optional[List], optional): Indices of the data entries to be updated. Defaults to None.
-        use_lhotse (bool, optional): Flag indicating whether we use Lhotse dataloaders. 
+        use_lhotse (bool, optional): Flag indicating whether we use Lhotse dataloaders.
             In that case tar manifest files should not be shuffled.
 
     """
@@ -247,7 +259,7 @@ def write_cache_manifest(
         cache_manifest (str): Path to the cache manifest file.
         hypotheses (List[str]): List of hypotheses to be added to the data entries.
         data (List[Dict]): Data entries to be updated.
-        update_whole_cache (bool, optional): Flag indicating whether we updated the whole cache. 
+        update_whole_cache (bool, optional): Flag indicating whether we updated the whole cache.
             If False, the cache is shuffled and only the specified entries are updated. Defaults to True.
 
     """
