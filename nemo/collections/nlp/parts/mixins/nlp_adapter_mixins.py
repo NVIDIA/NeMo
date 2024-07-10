@@ -134,7 +134,7 @@ class NLPAdapterModelMixin:
                     f'model.{mcore_target}',
                     f'model.module.{mcore_target}',
                     f'enc_dec_model.{mcore_target}',
-                    f'enc_dec_model.module.{mcore_target}',                    
+                    f'enc_dec_model.module.{mcore_target}',
                 ]:  # simple string match for now
                     if not isinstance(module, IdentityOp):
                         swap_mcore_mixin(module, mcore_mixin)
@@ -164,7 +164,7 @@ class NLPAdapterModelMixin:
             if self.cfg.megatron_amp_O2:
                 layers = model.module.encoder.layers + model.module.decoder.layers
             else:
-                layers = model.encoder.layers + model.decoder.layers            
+                layers = model.encoder.layers + model.decoder.layers
         else:
             if self.cfg.megatron_amp_O2:
                 layers = model.module.language_model.encoder.layers
@@ -178,7 +178,9 @@ class NLPAdapterModelMixin:
         assert not self.use_mcore_gpt or hasattr(
             peft_cfg, 'name_key_to_mcore_mixins'
         ), f"{peft_cfg.__class__.__name__} is not supported in megatron core mode yet."
-        name_key_to_mcore_mixins = peft_cfg.name_key_to_mcore_mixins if (self.use_mcore_gpt or self.use_mcore_t5) else None
+        name_key_to_mcore_mixins = (
+            peft_cfg.name_key_to_mcore_mixins if (self.use_mcore_gpt or self.use_mcore_t5) else None
+        )
 
         for adapter_name, adapter_cfg in peft_cfg.get_config_dict().items():
             # mixin for mcore models
@@ -469,7 +471,9 @@ class NLPAdapterModelMixin:
             if not self.ptuning_only_and_non_first_stage:
                 # same as super().on_load_checkpoint() but strict=False and only check unexpected keys
                 # mcore uses distributed checkpointing
-                use_mcore = (hasattr(self, 'mcore_gpt') and self.mcore_gpt) or (hasattr(self, 'mcore_t5') and self.mcore_t5)
+                use_mcore = (hasattr(self, 'mcore_gpt') and self.mcore_gpt) or (
+                    hasattr(self, 'mcore_t5') and self.mcore_t5
+                )
                 if use_mcore:
                     for index, module in enumerate(self.get_model_module_list()):
                         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:

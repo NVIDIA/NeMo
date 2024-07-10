@@ -802,7 +802,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # processing forward args for mcore T5
             if self.mcore_t5:
                 # when run encoding
-                if output_name=="hiddens":
+                if output_name == "hiddens":
                     (
                         encoder_input_ids,
                         encoder_attn_mask,
@@ -814,18 +814,18 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     )
 
                     output = model(
-                            encoder_input_ids=encoder_input_ids,
-                            decoder_input_ids=None,
-                            encoder_attn_mask=encoder_attn_mask_3d,
-                            decoder_attn_mask=None,
-                            encoder_decoder_attn_mask=None,
-                            lm_labels=None,
-                            encoder_hidden_states=None,
-                            output_encoder_hidden_only=True,
+                        encoder_input_ids=encoder_input_ids,
+                        decoder_input_ids=None,
+                        encoder_attn_mask=encoder_attn_mask_3d,
+                        decoder_attn_mask=None,
+                        encoder_decoder_attn_mask=None,
+                        lm_labels=None,
+                        encoder_hidden_states=None,
+                        output_encoder_hidden_only=True,
                     ).contiguous()
 
                 # when run decoding
-                elif output_name=="logits":
+                elif output_name == "logits":
                     (
                         encoder_hidden_states,
                         encoder_attn_mask,
@@ -843,23 +843,26 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     enc_dec_attn_mask_3d = build_attention_mask_3d(
                         decoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
                     )
-                    
+
                     # re-transpose encoder_hidden_states from [batch, seq_len, hidden] to [seq_len, batch, hidden]
                     encoder_hidden_states = encoder_hidden_states.transpose(1, 0)
 
                     output = model(
-                            encoder_input_ids=None,
-                            decoder_input_ids=decoder_input_ids,
-                            encoder_attn_mask=encoder_attn_mask_3d,
-                            decoder_attn_mask=decoder_attn_mask_3d,
-                            encoder_decoder_attn_mask=enc_dec_attn_mask_3d,
-                            lm_labels=None,
-                            encoder_hidden_states=encoder_hidden_states,
-                            output_encoder_hidden_only=False,
+                        encoder_input_ids=None,
+                        decoder_input_ids=decoder_input_ids,
+                        encoder_attn_mask=encoder_attn_mask_3d,
+                        decoder_attn_mask=decoder_attn_mask_3d,
+                        encoder_decoder_attn_mask=enc_dec_attn_mask_3d,
+                        lm_labels=None,
+                        encoder_hidden_states=encoder_hidden_states,
+                        output_encoder_hidden_only=False,
                     ).contiguous()
 
                 else:
-                    assert output_name in ["hiddens", "logits"], "output_name argument must be either 'hiddens' or 'logits'"
+                    assert output_name in [
+                        "hiddens",
+                        "logits",
+                    ], "output_name argument must be either 'hiddens' or 'logits'"
 
             else:
                 # map batch and shared args into forward args
@@ -1255,7 +1258,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # build input arguments description
         if tokens_enc is not None:
-            if self.mcore_t5 is True: 
+            if self.mcore_t5 is True:
                 batch_for_pipeline = [tokens_enc, enc_mask]
                 arg_names = []
             else:
@@ -1273,9 +1276,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             arg_names.append('enc_input')
 
         if self.mcore_t5:
-            forward_step_func = self._get_forward_output_only_func(
-                arg_names=arg_names, output_name="hiddens"
-            )
+            forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="hiddens")
         else:
             forward_step_func = self._get_forward_output_only_func(
                 arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True
