@@ -41,7 +41,7 @@ This notebook shows how to perform LoRA PEFT on **Llama 3 8B Instruct** using `P
    ngc registry model download-version "nvidia/nemo/llama-3-8b-instruct-nemo:1.0"
 
 
-Alternatively, you can download the model from `Hugging Face <https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct>`__ and convert it to the `.nemo` format using the Hugging Face to NeMo `Llama checkpoint conversion script <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/ckpt_converters/user_guide.html#community-model-converter-user-guide>`__.  If you'd like to skip this extra step, the .nemo model is available on NGC as mentioned above.
+Alternatively, you can download the model from `Hugging Face <https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct>`__ and convert it to the ``.nemo`` format using the Hugging Face to NeMo `Llama checkpoint conversion script <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/ckpt_converters/user_guide.html#community-model-converter-user-guide>`__.  If you'd like to skip this extra step, the ``.nemo`` model is available on NGC as mentioned above.
 
 2. Run the container using the following command. It is assumed that you have the notebook(s) and llama-3-8b-instruct model available in the current directory. If not, mount the appropriate folder to ``/workspace``.
 
@@ -106,7 +106,7 @@ The following steps assume that you have authenticated with NGC and downloaded t
 
 After training is complete, that LoRA model checkpoint will be created at ``./results/Meta-Llama-3-8B-Instruct/checkpoints/megatron_gpt_peft_lora_tuning.nemo``, assuming default paths in the first notebook weren’t modified.
 
-To ensure the model store is organized as expected, create a folder named ``llama3-8b-pubmed-qa``, and move your .nemo checkpoint there.
+To ensure the model store is organized as expected, create a folder named ``llama3-8b-pubmed-qa``, and move your ``.nemo`` checkpoint there.
 
 .. code:: bash
 
@@ -117,7 +117,7 @@ To ensure the model store is organized as expected, create a folder named ``llam
 
 
 
-Ensure that the LoRA model store directory follows this structure: the model name(s) should be sub-folder(s) containing the .nemo file(s).
+Ensure that the LoRA model store directory follows this structure: the model name(s) should be sub-folder(s) containing the ``.nemo`` file(s).
 
 ::
 
