@@ -28,9 +28,7 @@ In order to proceed, ensure that you have met the following requirements:
     * A Docker-enabled environment, with `NVIDIA Container Runtime <https://developer.nvidia.com/container-runtime>`_ installed, which will make the container GPU-aware.
     * `Additional NIM requirements <https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#prerequisites>`_.
 
-* Requested the necessary permission from Hugging Face and Meta to download `Meta-Llama-3-8B-Instruct <https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct>`_. Then, you can use your Hugging Face `access token <https://huggingface.co/docs/hub/en/security-tokens>`_ to download the model, which we will then convert and customize with NeMo Framework.
-
-* `Authenticate with NVIDIA NGC <https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#ngc-authentication>`_, and download `NGC CLI Tool <https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#ngc-cli-tool>`_.
+* `Authenticate with NVIDIA NGC <https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#ngc-authentication>`_, and download `NGC CLI Tool <https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#ngc-cli-tool>`_. We will use this tool to download the model, which we will then customize with NeMo Framework.
 
 
 `Create a LoRA Adapter with NeMo Framework <./llama3-lora-nemofw.ipynb>`__
@@ -40,8 +38,15 @@ This notebook shows how to perform LoRA PEFT on **Llama 3 8B Instruct** using `P
 
 To get started
 ^^^^^^^^^^^^^^
+1. Download the **`Llama 3 8B Instruct .nemo <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/llama-3-8b-instruct-nemo>`__** from NVIDIA NGC using the NGC CLI. The following command saves the .nemo format model in a folder named `llama-3-8b-instruct-nemo_v1.0` in the current directory. You may choose to specify another path using the `-d` option in the CLI tool.
 
-1. Run the container using the following command. It assumes that you have the notebook(s) available in the current working directory. If not, mount the appropriate folder to ``/workspace``.
+.. code:: bash
+   ngc registry model download-version "nvidia/nemo/llama-3-8b-instruct-nemo:1.0"
+
+
+``NOTE``: Alternatively, you may choose to download the model from `Hugging Face <https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct>`__, and convert it to the `.nemo` format using the Hugging Face to NeMo `Llama checkpoint conversion script <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/ckpt_converters/user_guide.html#community-model-converter-user-guide>`__.  To skip this extra step, the .nemo model has been made available at NGC as mentioned above.
+
+2. Run the container using the following command. It assumes that you have the notebook(s) and llama-3-8b-instruct model available in the current directory. If not, mount the appropriate folder to ``/workspace``.
 
 .. code:: bash
 
