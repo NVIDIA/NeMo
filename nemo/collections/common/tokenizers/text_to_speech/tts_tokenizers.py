@@ -205,10 +205,11 @@ class EnglishCharsTokenizer(BaseCharsTokenizer):
 
 class VietnameseCharsTokenizer(BaseCharsTokenizer):
 
-    
     _punctuation = '-();:,.!?¡¿—…"«»“”%'
-    _letters = '0123456789abcdefghijklmnopqrstuvwxyzđáàãảạăắằẵẳặâấầẫẩậóòõỏọôốồỗổộơớờỡởợéèẽẻẹêếềễểệúùũủụưứừữửựíìĩỉịýỳỹỷỵ'
-    _CHARSET_STR = _letters    
+    _letters = (
+        '0123456789abcdefghijklmnopqrstuvwxyzđáàãảạăắằẵẳặâấầẫẩậóòõỏọôốồỗổộơớờỡởợéèẽẻẹêếềễểệúùũủụưứừữửựíìĩỉịýỳỹỷỵ'
+    )
+    _CHARSET_STR = _letters
     _PUNCT_LIST = _punctuation
 
     def __init__(
@@ -241,7 +242,7 @@ class VietnameseCharsTokenizer(BaseCharsTokenizer):
             non_default_punct_list=non_default_punct_list,
             text_preprocessing_func=vietnamese_text_preprocessing,
         )
-        
+
 
 class GermanCharsTokenizer(BaseCharsTokenizer):
 
@@ -286,7 +287,12 @@ class SpanishCharsTokenizer(BaseCharsTokenizer):
     PUNCT_LIST = get_ipa_punctuation_list("es-ES")
 
     def __init__(
-        self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None,
+        self,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
     ):
         """Spanish grapheme tokenizer.
         Args:
@@ -315,7 +321,12 @@ class FrenchCharsTokenizer(BaseCharsTokenizer):
     PUNCT_LIST = get_ipa_punctuation_list("fr-FR")
 
     def __init__(
-        self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None,
+        self,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
     ):
         """French grapheme tokenizer.
         Args:
