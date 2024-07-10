@@ -1268,6 +1268,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         qkv_format='thd',
                     )
 
+            print(f'DEBUG {type(model) = }')
+            print(f'DEBUG {type(model.module) = }')
+            print(f'DEBUG {type(model.module.decoder) = }')
+            print(f'DEBUG {type(model.module.decoder.layers[0]) = }')
             output_tensor = model(**forward_args)
 
             def loss_func(output_tensor):
