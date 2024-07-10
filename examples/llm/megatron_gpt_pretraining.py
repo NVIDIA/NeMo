@@ -78,6 +78,7 @@ if __name__ == '__main__':
         lr=6e-4,
         min_lr=6e-5,
         use_distributed_optimizer=False,
+        bf16=True,
     )
     opt = MegatronOptimizerModule(config=opt_config)
 
