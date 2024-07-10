@@ -2,7 +2,7 @@ import warnings
 from typing import List, Optional
 
 import torch
-
+from megatron.core.num_microbatches_calculator import build_num_microbatches_calculator
 
 def _reconfigure_microbatch_calculator(
     rank: int,
@@ -15,11 +15,6 @@ def _reconfigure_microbatch_calculator(
         import warnings
 
         warnings.warn("This function is only for unittest")
-
-    from megatron.core.num_microbatches_calculator import (
-        _GLOBAL_NUM_MICROBATCHES_CALCULATOR,
-        build_num_microbatches_calculator,
-    )
 
     global _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
