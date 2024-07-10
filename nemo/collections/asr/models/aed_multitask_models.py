@@ -979,7 +979,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         """
         super()._transcribe_on_end(trcfg)
 
-        self.transf_decoder.unfreeze()
+        self.transf_decoder.unfreeze(partial=True)
 
     def _may_be_make_dict_and_fix_paths(self, json_items, manifest_path, trcfg: MultiTaskTranscriptionConfig):
         """

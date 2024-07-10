@@ -87,21 +87,21 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
         if partial and not hasattr(self, '_frozen_grad_map'):
                 raise ValueError("Cannot unfreeze partially without first freezing the module with `freeze()`")
 
-        for param in self.parameters():
+        for pname, param in self.named_parameters():
             if not partial:
                 # Unfreeze all parameters
                 param.requires_grad = True
             else:
                 # Unfreeze only parameters that were previously frozen
-                for pname, params in self.named_parameters():
-                    # Check if the parameter was frozen
-                    if pname in self._frozen_grad_map:
-                        param.requires_grad = self._frozen_grad_map[pname]
-                    else:
-                        # Log a warning if the parameter was not found in the frozen grad map
-                        logging.warning(f"Parameter {pname} not found in list of previously frozen parameters. "
+
+                # Check if the parameter was frozen
+                if pname in self._frozen_grad_map:
+                    param.requires_grad = self._frozen_grad_map[pname]
+                else:
+                    # Log a warning if the parameter was not found in the frozen grad map
+                    logging.warning(f"Parameter {pname} not found in list of previously frozen parameters. "
                                         f"Unfreezing this parameter.")
-                        param.requires_grad = True
+                    param.requires_grad = True
 
         # Clean up the frozen grad map
         if hasattr(self, '_frozen_grad_map'):
