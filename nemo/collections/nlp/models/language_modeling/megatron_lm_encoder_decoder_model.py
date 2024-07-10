@@ -70,7 +70,7 @@ try:
         get_t5_decoder_with_transformer_engine_block_spec,
         get_t5_encoder_with_local_block_spec,
         get_t5_encoder_with_transformer_engine_block_spec,
-    )    
+    )
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -268,7 +268,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder.arch == 'perceiver':
             raise ValueError(f"Perceivers with pipeline parallel > 1 is not supported yet.")
 
-
         if hasattr(self, 'mcore_t5') and self.mcore_t5:
             assert HAVE_MEGATRON_CORE, "Cannot use MCore T5 since Megatron Core is not found"
             assert self.cfg.get(
@@ -281,7 +280,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 )
             else:
                 enc_dec_spec_fns = (
-                    get_t5_encoder_with_local_block_spec, 
+                    get_t5_encoder_with_local_block_spec,
                     get_t5_decoder_with_local_block_spec,
                 )
 
@@ -1085,12 +1084,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             self.setup_transformer_engine_tp_groups()
 
     def setup_transformer_engine_tp_groups(self):
-        """ This should be called after model parallel groups have been initialized
-            and only needs to be called when using Transformer Engine.
+        """This should be called after model parallel groups have been initialized
+        and only needs to be called when using Transformer Engine.
         """
         for module in self.get_t5_module_list():
             """Set TP group
-               Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
+            Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
             """
             # Deep iterate but skip self to avoid infinite recursion.
             for index, child in enumerate(module.modules()):
@@ -1735,10 +1734,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def build_transformer_config(self) -> TransformerConfig:
-        """ Builds the megatron core gpt transformer config for the model.
-            For attributes in the nemo model config that are the same
-            as the megatron core TransformerConfig, we will use the value from the nemo model config.
-            For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
+        """Builds the megatron core gpt transformer config for the model.
+        For attributes in the nemo model config that are the same
+        as the megatron core TransformerConfig, we will use the value from the nemo model config.
+        For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
 
         # for T5 model, transformers hyperparameters are stored in self.cfg.encoder/self.cfg.decoder
@@ -1782,7 +1781,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return transformer_config
 
     def setup_mcore_distributed_parallel(self):
-        """Set up mcore distributed data parallel """
+        """Set up mcore distributed data parallel"""
         if self.with_distributed_adam and self.use_mcore_dist_optim:
             config = get_model_config(self.enc_dec_model[0])
             ddp_config = DistributedDataParallelConfig(
