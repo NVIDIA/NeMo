@@ -20,6 +20,7 @@ import torch
 
 from nemo.core.classes.module import NeuralModule
 
+
 class TempModule(NeuralModule):
 
     def __init__(self):
