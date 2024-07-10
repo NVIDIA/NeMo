@@ -22,6 +22,7 @@ import tensorrt_llm
 from tensorrt_llm._utils import pad_vocab_size
 from tensorrt_llm.functional import non_gated_version
 from tensorrt_llm.layers import MoeConfig
+from tensorrt_llm.models.gpt.config import GPTConfig
 from tensorrt_llm.models.llama.config import LLaMAConfig
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
 
@@ -35,8 +36,10 @@ LOGGER = logging.getLogger("NeMo")
 
 
 def get_config(decoder_type, config):
-    if decoder_type is "llama":
+    if decoder_type == "llama":
         return LLaMAConfig(**config)
+    elif decoder_type == "gpt" or decoder_type == "gptnext":
+        return GPTConfig(**config)
     else:
         return PretrainedConfig(**config)
 
