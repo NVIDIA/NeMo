@@ -148,6 +148,12 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         self.norm_out = LayerNorm(d_model)
 
     def set_dropout(self, dropout):
+        """
+        Sets the dropout rate for the model's components.
+
+        Args:
+            dropout (float): Dropout rate between 0 and 1.
+        """
         self.self_attn.set_dropout(dropout)
         self.feed_forward1.set_dropout(dropout)
         self.feed_forward2.set_dropout(dropout)
@@ -376,6 +382,12 @@ class ConformerFeedForward(nn.Module):
         self.linear2 = nn.Linear(d_ff, d_model, bias=self.use_bias)
 
     def set_dropout(self, dropout):
+        """
+        Sets the dropout rate.
+
+        Args:
+            dropout (float): Dropout rate between 0 and 1.
+        """
         self.dropout.p = dropout
 
     def forward(self, x):

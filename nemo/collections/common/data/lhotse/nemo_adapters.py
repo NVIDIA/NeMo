@@ -195,7 +195,6 @@ class LazyNeMoTarredIterator:
         lang_field: str = "lang",
         tarred_random_access: bool = False,
     ) -> None:
-
         self.tarred_random_access = tarred_random_access
         self.shard_id_to_manifest: dict[int, Iterable[dict]]
         self.paths = expand_sharded_filepaths(manifest_path)

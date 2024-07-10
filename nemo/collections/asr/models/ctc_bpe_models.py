@@ -93,7 +93,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             log_prediction=self._cfg.get("log_prediction", False),
         )
 
-    def _setup_dataloader_from_config(self, config: Optional[Dict], do_caching: bool = True):
+    def _setup_dataloader_from_config(self, config: Optional[Dict], cache_audio: bool = True):
         if config.get("use_lhotse"):
             return get_lhotse_dataloader_from_config(
                 config,
@@ -109,7 +109,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             world_size=self.world_size,
             tokenizer=self.tokenizer,
             preprocessor_cfg=self.cfg.get("preprocessor", None),
-            do_caching=do_caching,
+            cache_audio=cache_audio,
         )
 
         if dataset is None:
@@ -164,7 +164,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         batch_size: int = 64,
     ):
         """
-        Setup function for a data loader for unlabeled dataset
+        Setup function for a data loader for pseudo-labelled dataset
 
         Args:
             manifest_filepaths: Manifests containing information of unlabeled dataset. For tarred dataset manifests should be sharded
@@ -217,7 +217,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             }
 
         dataset = audio_to_text_dataset.get_bpe_dataset(
-            config=dl_config, tokenizer=self.tokenizer, augmentor=None, do_caching=False
+            config=dl_config, tokenizer=self.tokenizer, augmentor=None, cache_audio=False
         )
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn

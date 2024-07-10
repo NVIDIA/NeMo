@@ -12,13 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
-import json
 import os
-import tempfile
 from math import ceil
 from typing import Any, Dict, List, Optional, Union
 
-import editdistance
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -30,7 +27,6 @@ from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text import (
     _AudioTextDataset,
     cache_datastore_manifests,
-    expand_sharded_filepaths,
 )
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
@@ -129,6 +125,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         # Adapter modules setup (from ASRAdapterModelMixin)
         self.setup_adapters()
+        self.setup_ipl(model_type="ctc")
 
     def on_fit_start(self):
         """
@@ -142,9 +139,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
     def on_train_epoch_end(self):
         """
-        This function is mainly used for iterative pseudo labeling algorithm.
+        This function is mainly used for IPL algorithm.
         To make it work in config file 'ipl' parameters should be provided.
-
+        For details, see: SlimIPL:(https://arxiv.org/pdf/2010.11524).
         """
         self.maybe_do_ipl()
 
@@ -304,7 +301,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
 
-    def _setup_dataloader_from_config(self, config: Optional[Dict], do_caching: bool = True):
+    def _setup_dataloader_from_config(self, config: Optional[Dict], cache_audio: bool = True):
         # Automatically inject args from model config to dataloader config
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
@@ -331,7 +328,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             global_rank=self.global_rank,
             world_size=self.world_size,
             preprocessor_cfg=self._cfg.get("preprocessor", None),
-            do_caching=do_caching,
+            cache_audio=cache_audio,
         )
 
         if dataset is None:
@@ -382,7 +379,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
     def setup_training_data(
         self,
         train_data_config: Optional[Union[DictConfig, Dict]],
-        do_caching: bool = True,
+        cache_audio: bool = True,
         update_limit_train_batches: bool = False,
     ):
         """
@@ -405,7 +402,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         # preserve config
         self._update_dataset_config(dataset_name='train', config=train_data_config)
 
-        self._train_dl = self._setup_dataloader_from_config(config=train_data_config, do_caching=do_caching)
+        self._train_dl = self._setup_dataloader_from_config(config=train_data_config, cache_audio=cache_audio)
 
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
@@ -429,7 +426,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                     "training batches will be used. Please set the trainer and rebuild the dataset."
                 )
             elif update_limit_train_batches:
-                # after generation of pseud-labels for tarred datasets.
+                # after generation of pseudo-labels for tarred datasets.
 
                 self._trainer.limit_train_batches = int(
                     ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
@@ -705,13 +702,16 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         if self._test_dl is not None:
             return self._test_dl
 
-    def _setup_pseudo_label_dataloader(self, cache_manifest: str, audio_tar: str = None, batch_size: int = 64):
-
+    def _setup_pseudo_label_dataloader(self,
+        manifest_filepaths: Union[List[List[str]], str],
+        tarred_audio_filepaths: Union[List[List[str]], str] = None,
+        batch_size: int = 64,
+    ):
         if self.cfg.train_ds.get("is_tarred", False):
 
             dl_config = {
-                'manifest_filepath': cache_manifest,
-                'tarred_audio_filepaths': audio_tar,
+                'manifest_filepath': manifest_filepaths,
+                'tarred_audio_filepaths': tarred_audio_filepaths,
                 'sample_rate': self.preprocessor._sample_rate,
                 'labels': OmegaConf.to_container(self.decoder.vocabulary),
                 'is_tarred': True,
@@ -741,7 +741,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         else:
 
             dl_config = {
-                'manifest_filepath': cache_manifest,
+                'manifest_filepath': manifest_filepaths,
                 'sample_rate': self.preprocessor._sample_rate,
                 'labels': self.joint.vocabulary,
                 'batch_size': batch_size,
@@ -751,7 +751,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 'pin_memory': True,
             }
 
-        dataset = audio_to_text_dataset.get_char_dataset(config=dl_config, augmentor=None, do_caching=False)
+        dataset = audio_to_text_dataset.get_char_dataset(config=dl_config, augmentor=None, cache_audio=False)
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
         elif hasattr(dataset.datasets[0], 'collate_fn'):

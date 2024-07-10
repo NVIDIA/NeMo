@@ -23,8 +23,19 @@ import braceexpand
 import torch
 from omegaconf import ListConfig
 
+__all__ = ['expand_braces', 'formulate_cache_manifest_names', 'count_files_for_pseudo_labeling', 'create_final_cache_manifest', 'handle_multiple_tarr_filepaths','write_tarr_cache_manifest',
+           'write_cache_manifest', 'rm_punctuation', 'process_manifest', 'sample_data']
 
 def expand_braces(filepaths):
+    """
+    Expands brace expressions in file paths.
+
+    Args:
+        filepaths (str or ListConfig): The file path(s) to expand.
+
+    Returns:
+        list: A list of expanded file paths.
+    """
     if isinstance(filepaths, ListConfig):
         filepaths = filepaths[0]
 
@@ -48,6 +59,21 @@ def expand_braces(filepaths):
 
 
 def formulate_cache_manifest_names(manifests: Union[str, ListConfig[str]], cache_prefix, is_tarred: bool):
+    """
+    Formulates cache manifest names based on the provided manifests and cache prefix.
+
+    Args:
+        manifests (Union[str, ListConfig[str]]): The original manifest file paths. If tarred, 
+            this should be a list of lists of manifest file paths.
+        cache_prefix (str): The prefix to use for the cache manifest names.
+        is_tarred (bool): A flag indicating whether the dataset is tarred.
+
+    Returns:
+        Union[str, List[List[str]]]: The cache manifest names. If the dataset is tarred, 
+            returns a list of lists of cache manifest names. Otherwise, returns a single cache 
+            manifest name as a string.
+
+    """
     if is_tarred:
         cache_manifests = []
         if isinstance(manifests, str):
@@ -66,6 +92,22 @@ def count_files_for_pseudo_labeling(
     is_tarred: bool,
     dataset_weights: Optional[Union[float, ListConfig[float]]] = None,
 ) -> Tuple[List[int], List[int]]:
+    """
+    Counts the number of files for pseudo-labeling based on the input manifest files.
+
+    Args:
+        input_manifest_files (Union[str, ListConfig[str]]): The manifest files containing 
+            the dataset information. Can be a single file path or a list of file paths.
+        is_tarred (bool): A flag indicating whether the dataset is tarred.
+        dataset_weights (Optional[Union[float, ListConfig[float]]]): Weights for the datasets. 
+            If not provided, defaults to 1 for each dataset. This option works only for non tarr datasets.
+
+    Returns:
+        Tuple[List[int], List[int]]: A tuple containing two lists:
+            - The number of files in each manifest.
+            - The weighted number of files for pseudo-labeling based on the dataset weights.
+
+    """
     def get_num_lines(file_path: str) -> int:
         if os.path.exists(file_path):
             with open(file_path, 'r') as file:
@@ -101,6 +143,14 @@ def count_files_for_pseudo_labeling(
 
 
 def create_final_cache_manifest(final_cache_manifest: str, manifests: List[str]):
+    """
+    Creates a final cache manifest by combining multiple manifest files into one.
+
+    Args:
+        final_cache_manifest (str): The path to the final cache manifest file to be created.
+        manifests (List[str]): A list of manifest file paths to be combined into the final cache manifest.
+
+    """
     manifests = expand_braces(manifests)
     with open(final_cache_manifest, 'w', encoding='utf-8') as cache_f:
         for manifest in manifests:
@@ -111,8 +161,21 @@ def create_final_cache_manifest(final_cache_manifest: str, manifests: List[str])
                     cache_f.write('\n')
 
 
-def handle_multiple_tarr_filepaths(mmanifest_file: str, tmpdir: str, number_of_manifests: int, tarr_file: str):
-    base_manifest_name = mmanifest_file.rsplit('_', 1)[0]
+def handle_multiple_tarr_filepaths(manifest_file: str, tmpdir: str, number_of_manifests: int, tarr_file: str):
+    """
+    Handles multiple tarred file paths by generating temporary manifest and expanded audio paths.
+
+    Args:
+        manifest_file (str): The base manifest file name.
+        tmpdir (str): The directory for storing temporary files.
+        number_of_manifests (int): The number of manifest files to handle.
+        tarr_file (str): The base tarred file path.
+
+    Returns:
+        Tuple[str, str]: A tuple containing the temporary manifest path and the expanded audio path.
+
+    """
+    base_manifest_name = manifest_file.rsplit('_', 1)[0]
     rank = torch.distributed.get_rank()
 
     start_range = rank * number_of_manifests
@@ -135,6 +198,19 @@ def write_tarr_cache_manifest(
     indices: Optional[List] = None,
     use_lhotse: bool = False,
 ):
+    """
+    Writes the tarred cache manifest files with updated data entries.
+
+    Args:
+        cache_manifests (str): Paths to the cache manifest files.
+        update_data (List[Dict]): Data entries to be updated.
+        hypotheses (List): List of hypotheses to be added to the data entries.
+        update_size (int, optional): Size of the update batch. Defaults to 0.
+        indices (Optional[List], optional): Indices of the data entries to be updated. Defaults to None.
+        use_lhotse (bool, optional): Flag indicating whether we use Lhotse dataloaders. 
+            In that case tar manifest files should not be shuffled.
+
+    """
     if update_size == 0:
         for i, chache_file in enumerate(cache_manifests):
             with open(chache_file, 'w', encoding='utf-8') as cache_f:
@@ -164,6 +240,17 @@ def write_cache_manifest(
     data: List[Dict],
     update_whole_cache: bool = True,
 ):
+    """
+    Writes the cache manifest file with updated data entries.
+
+    Args:
+        cache_manifest (str): Path to the cache manifest file.
+        hypotheses (List[str]): List of hypotheses to be added to the data entries.
+        data (List[Dict]): Data entries to be updated.
+        update_whole_cache (bool, optional): Flag indicating whether we updated the whole cache. 
+            If False, the cache is shuffled and only the specified entries are updated. Defaults to True.
+
+    """
     if update_whole_cache:
         with open(cache_manifest, 'w', encoding='utf-8') as cache_file:
             for i, audio_data in enumerate(data):
@@ -192,12 +279,31 @@ def write_cache_manifest(
 
 
 def rm_punctuation(line: str, punctuation: str):
+    """
+    Removes specified punctuation from a line of text and replaces multiple spaces with a single space.
+
+    Args:
+        line (str): The input text line from which to remove punctuation.
+        punctuation (str): A string of punctuation characters to be removed.
+
+    Returns: The text line with punctuation removed and extra spaces replaced.
+
+    """
     regex_punctuation = re.compile(fr"([{''.join(punctuation)}])")
     regex_extra_space = re.compile('\s{2,}')
     return regex_extra_space.sub(' ', regex_punctuation.sub(' ', line)).strip()
 
 
 def process_manifest(manifest_path):
+    """
+    Reads and processes a manifest file, returning its data entries as a list.
+
+    Args:
+        manifest_path (str): The path to the manifest file.
+
+    Returns:
+        list: A list of data entries from the manifest file.
+    """
     manifest_data = []
     with open(manifest_path, 'r', encoding='utf_8') as manifest_file:
         for line in manifest_file:
@@ -207,6 +313,19 @@ def process_manifest(manifest_path):
 
 
 def sample_data(data, weight, update_whole_cache, p_cache):
+    """
+    Samples a subset of data based on the given weight and cache parameters.
+
+    Args:
+        data (list): The input data to sample from.
+        weight (float): The weight factor to determine the sample size.
+        update_whole_cache (bool): Flag indicating whether the whole cache is being updated.
+        p_cache (float): The cache percentage to be used if not updating the whole cache.
+
+    Returns:
+        list: A subset of the input data sampled based on the calculated sample size.
+
+    """
     weight_factor = weight * p_cache if not update_whole_cache else weight
     sample_size = int(len(data) * weight_factor / torch.distributed.get_world_size())
     return random.sample(data, sample_size)

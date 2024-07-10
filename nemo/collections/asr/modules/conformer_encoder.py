@@ -452,6 +452,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.interctc_capture_at_layers = None
 
     def set_dropout(self, dropout):
+        """
+        Set the dropout rate for all layers in the encoder.
+
+        Parameters:
+            dropout (float): Dropout rate between 0 and 1.
+        """
         for layer in self.layers:
             layer.set_dropout(dropout)
 

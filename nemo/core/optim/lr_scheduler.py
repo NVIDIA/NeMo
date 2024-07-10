@@ -418,6 +418,24 @@ class SquareRootAnnealing(WarmupPolicy):
 
 
 class DoubleCosineAnnealing(_LRScheduler):
+    """
+    Implements a learning rate scheduler with two cosine annealing phases separated by a milestone.
+    Optionally includes warm-up phases for both annealing schedules.
+
+    Parameters:
+    optimizer (Optimizer): Wrapped optimizer.
+    max_steps (int): Total number of training steps.
+    milestone (int): Step at which the learning rate switches from the first to the second cosine schedule.
+    max_lr1 (float, optional): Maximum learning rate for the first cosine schedule. Defaults to the max learning rate in the optimizer's param groups.
+    max_lr2 (float, optional): Maximum learning rate for the second cosine schedule. Defaults to max_lr1.
+    min_lr1 (float, optional): Minimum learning rate for the first cosine schedule. Default is 0.0.
+    min_lr2 (float, optional): Minimum learning rate for the second cosine schedule. Default is 0.0.
+    warmup_steps1 (int, optional): Number of warm-up steps for the first cosine schedule. Either this or warmup_ratio1 must be None.
+    warmup_steps2 (int, optional): Number of warm-up steps for the second cosine schedule. Either this or warmup_ratio2 must be None.
+    warmup_ratio1 (float, optional): Warm-up ratio for the first cosine schedule. Either this or warmup_steps1 must be None.
+    warmup_ratio2 (float, optional): Warm-up ratio for the second cosine schedule. Either this or warmup_steps2 must be None.
+    last_epoch (int, optional): The index of the last epoch. Default is -1.
+    """
     def __init__(
         self,
         optimizer,
@@ -480,6 +498,12 @@ class DoubleCosineAnnealing(_LRScheduler):
         super().__init__(optimizer, last_epoch)
 
     def get_lr(self):
+        """
+        Compute learning rates for the current step.
+
+        Returns:
+        list: A list of learning rates for each parameter group.
+        """
         if not self._get_lr_called_within_step:
             warnings.warn(
                 "To get the last learning rate computed by the scheduler, please use `get_last_lr()`.", UserWarning

@@ -13,19 +13,14 @@
 # limitations under the License.
 
 import copy
-import json
-import os
-import tempfile
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
-import editdistance
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
-
 from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_sharded_filepaths
+from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -100,7 +95,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, IPLM
 
         # setting up interCTC loss (from InterCTCMixin)
         self.setup_interctc(decoder_name='ctc_decoder', loss_name='ctc_loss', wer_name='ctc_wer')
-        self.setup_ipl()
+        self.setup_ipl(model_type="hybrid")
 
     def on_fit_start(self):
         """
@@ -114,9 +109,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, IPLM
 
     def on_train_epoch_end(self):
         """
-        This function is mainly used for iterative pseudo labeling algorithm.
+        This function is mainly used for IPL algorithm.
         To make it work in config file 'ipl' parameters should be provided.
-
+        For details, see: SlimIPL:(https://arxiv.org/pdf/2010.11524).
         """
         self.maybe_do_ipl()
 
@@ -182,7 +177,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, IPLM
                 'pin_memory': True,
             }
 
-        dataset = audio_to_text_dataset.get_char_dataset(config=dl_config, augmentor=None, do_caching=False)
+        dataset = audio_to_text_dataset.get_char_dataset(config=dl_config, augmentor=None, cache_audio=False)
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
         elif hasattr(dataset.datasets[0], 'collate_fn'):

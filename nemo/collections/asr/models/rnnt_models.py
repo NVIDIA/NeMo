@@ -429,7 +429,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
 
         logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
 
-    def _setup_dataloader_from_config(self, config: Optional[Dict], do_caching: bool = True):
+    def _setup_dataloader_from_config(self, config: Optional[Dict], cache_audio: bool = True):
         # Automatically inject args from model config to dataloader config
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
@@ -456,7 +456,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             global_rank=self.global_rank,
             world_size=self.world_size,
             preprocessor_cfg=self._cfg.get("preprocessor", None),
-            do_caching=do_caching,
+            cache_audio=cache_audio,
         )
 
         if dataset is None:
@@ -507,7 +507,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
     def setup_training_data(
         self,
         train_data_config: Optional[Union[DictConfig, Dict]],
-        do_caching: bool = True,
+        cache_audio: bool = True,
         update_limit_train_batches=False,
     ):
         """
@@ -530,7 +530,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         # preserve config
         self._update_dataset_config(dataset_name='train', config=train_data_config)
 
-        self._train_dl = self._setup_dataloader_from_config(config=train_data_config, do_caching=do_caching)
+        self._train_dl = self._setup_dataloader_from_config(config=train_data_config, cache_audio=cache_audio)
 
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.

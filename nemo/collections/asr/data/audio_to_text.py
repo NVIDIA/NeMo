@@ -426,6 +426,7 @@ class _AudioTextDataset(Dataset):
         pad_id: Id of pad symbol. Defaults to 0
         return_sample_id (bool): whether to return the sample_id as a part of each sample
         channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+        cache_audio: If True, will cache manifests and audio from object store
     """
 
     @property
@@ -455,13 +456,13 @@ class _AudioTextDataset(Dataset):
         pad_id: int = 0,
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
-        do_caching: bool = True,
+        cache_audio: bool = True,
     ):
         if type(manifest_filepath) == str:
             manifest_filepath = manifest_filepath.split(",")
 
         # If necessary, cache manifests and audio from object store
-        if do_caching:
+        if cache_audio:
             cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
@@ -551,6 +552,7 @@ class AudioToCharDataset(_AudioTextDataset):
         eos_id: Id of end of sequence symbol to append if not None
         return_sample_id (bool): whether to return the sample_id as a part of each sample
         channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+        cache_audio: If True, will cache manifests and audio from object store   
     """
 
     @property
@@ -584,7 +586,7 @@ class AudioToCharDataset(_AudioTextDataset):
         parser: Union[str, Callable] = 'en',
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
-        do_caching: bool = True,
+        cache_audio: bool = True,
     ):
         self.labels = labels
 
@@ -607,7 +609,7 @@ class AudioToCharDataset(_AudioTextDataset):
             pad_id=pad_id,
             return_sample_id=return_sample_id,
             channel_selector=channel_selector,
-            do_caching=do_caching,
+            cache_audio=cache_audio,
         )
 
 
@@ -646,6 +648,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             tokens to beginning and ending of speech respectively.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
         channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+        cache_audio: If True, will cache manifests and audio from object store   
     """
 
     @property
@@ -673,7 +676,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         use_start_end_token: bool = True,
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
-        do_caching: bool = True,
+        cache_audio: bool = True,
     ):
         if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
@@ -723,7 +726,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             trim=trim,
             return_sample_id=return_sample_id,
             channel_selector=channel_selector,
-            do_caching=do_caching,
+            cache_audio=cache_audio,
         )
 
 

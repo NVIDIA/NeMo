@@ -15,48 +15,56 @@
 import json
 import os
 import tempfile
-from typing import List
+from typing import List, Union
 import editdistance
 import torch
 from tqdm.auto import tqdm
-
 from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
 from nemo.collections.asr.parts.utils.ipl_utils import *
-
+from omegaconf import ListConfig
+import random
 
 class IPLMixin:
     """
     Adds ability to do iterative pseudo-labeling.
     To use ipl parameters should be given in the config as well as max_steps should be proovided in trainer.
+    For details, see: SlimIPL:(https://arxiv.org/pdf/2010.11524).
 
+    Parameters in config.
     ipl:
-        m_epochs: 0
-        restore_pc: false
-        manifest_filepath: /path/to/manifest
-        tarred_audio_filepaths:  /path/to/tarred/
-        is_tarred: false
-        dataset_weights: 1
-        limit_train_batches: 170
-        cache_manifest: /path/for/cache/manifest
-        dropout: 0.1
-        n_l_epochs: 0
-        p_cache: 0.2
-        cache_prefix: prefix_for_cache - (optional for non-tar datasets)
-        batch_size: 128
+        m_epochs (int): Number of epochs to train model before first PL generation.
+        restore_pc (bool): Whether tp restore PC by comparing with already existing transcriptions if there are any. Defaults to `False`.
+        manifest_filepath (str): Path to the dataset manifest file.
+        tarred_audio_filepaths (str): Path to the tarred audio files.
+        is_tarred (bool): Flag indicating whether the dataset is tarred.
+        dataset_weights (float or list): What part of the dataset to use (applicable with non-tar datasets). Defaults to 1.
+        limit_train_batches (int): Limit_train_batches after PLs are added to train set (for lhotse only).
+        cache_manifest (str): Path for cache the manifest file.
+        dropout (float): Dropout rate used during training after PL generation.
+        n_l_epochs (int): Number of epochs to train the model with changed dropout before adding PLs to train set.
+        p_cache (float): Probability with which cache will be updated
+        cache_prefix (str): Prefix for cache files (optional for non-tar datasets).
+        batch_size (int): Batch size with which PLs will be generated
 
     Call
 
-        * ``self.setup_ipl()``
+        * ``self.setup_ipl(model_type)``
           in the init method
         * ``self.maybe_do_ipl()``
           in the `on_train_epoch_end` method.
     """
 
-    def setup_ipl(self):
+    def setup_ipl(self, model_type: str):
+        """
+        Sets up IPL configuration for the model.
+
+        Args:
+            model_type (str): The type of model being used. Takes values "hybrid" or "ctc".
+        """
 
         ipl_config = self.cfg.get("ipl")
         self._ipl_params = {}
-
+        self.model_type = model_type
         if ipl_config is not None:
             if self.trainer and self.trainer.max_steps < 0:
                 raise ValueError(" For IPL to work max steps should be provided in the trainer.")
@@ -114,7 +122,7 @@ class IPLMixin:
 
     def maybe_do_ipl(self):
         """
-        Function implements the logic of iterative pseudo labeling algorithm.
+        Function implements the logic of IPL algorithm.
         """
         if not self.cfg.get("ipl"):
             return
@@ -143,9 +151,9 @@ class IPLMixin:
             torch.distributed.barrier()
 
             if self.cfg.train_ds.get("use_lhotse", False):
-                self.setup_training_data(self.cfg.train_ds, do_caching=False, update_limit_train_batches=False)
+                self.setup_training_data(self.cfg.train_ds, cache_audio=False, update_limit_train_batches=False)
             else:
-                self.setup_training_data(self.cfg.train_ds, do_caching=False, update_limit_train_batches=True)
+                self.setup_training_data(self.cfg.train_ds, cache_audio=False, update_limit_train_batches=True)
 
     def update_training_sets(self):
         """
@@ -229,13 +237,20 @@ class IPLMixin:
                 for data_entry in update_data:
                     json.dump(data_entry, temp_manifest, ensure_ascii=False)
                     temp_manifest.write('\n')
-
-            hypotheses = self.generate_pseudo_labels(
-                temporary_manifest,
-                target_transcripts=transcriptions,
-                restore_pc=self._ipl_params['restore_pc'],
-                batch_size=self._ipl_params['batch_size'],
-            )
+            if self.model_type=="hybrid":
+                hypotheses = self.generate_pseudo_labels_hybrid(
+                    temporary_manifest,
+                    target_transcripts=transcriptions,
+                    restore_pc=self._ipl_params['restore_pc'],
+                    batch_size=self._ipl_params['batch_size'],
+                )
+            elif self.model_type == "ctc":
+                hypotheses = self.generate_pseudo_labels_ctc(
+                    temporary_manifest,
+                    target_transcripts=transcriptions,
+                    restore_pc=self._ipl_params['restore_pc'],
+                    batch_size=self._ipl_params['batch_size'],
+                ) 
         torch.distributed.barrier()
         gathered_hypotheses = [None] * torch.distributed.get_world_size()
         gathered_data = [None] * torch.distributed.get_world_size()
@@ -294,7 +309,6 @@ class IPLMixin:
                     with open(temporary_manifest, 'w', encoding='utf-8') as temp_manifest:
 
                         for data_entry in manifest_data:
-
                             if not data_entry.get("text", None):
                                 data_entry['text'] = ""
                             transcriptions.append(data_entry.get('text', ""))
@@ -307,15 +321,22 @@ class IPLMixin:
                     )
                 else:
                     expanded_audio = expanded_audio[0]
-
-                hypotheses = self.generate_pseudo_labels(
-                    cache_manifest=temporary_manifest,
-                    tarred_audio_filepaths=expanded_audio,
-                    target_transcripts=None,
-                    restore_pc=self._ipl_params['restore_pc'],
-                    batch_size=self._ipl_params['batch_size'],
-                )
-
+                if self.model_type=="hybrid":
+                    hypotheses = self.generate_pseudo_labels_hybrid(
+                        cache_manifest=temporary_manifest,
+                        tarred_audio_filepaths=expanded_audio,
+                        target_transcripts=None,
+                        restore_pc=self._ipl_params['restore_pc'],
+                        batch_size=self._ipl_params['batch_size'],
+                    )
+                elif self.model_type == "ctc":
+                    hypotheses = self.generate_pseudo_labels_ctc(
+                        cache_manifest=temporary_manifest,
+                        tarred_audio_filepaths=expanded_audio,
+                        target_transcripts=transcriptions,
+                        restore_pc=self._ipl_params['restore_pc'],
+                        batch_size=self._ipl_params['batch_size'],
+                    ) 
                 write_tarr_cache_manifest(
                     cache_manifest,
                     update_data=shard_manifest_data,
@@ -380,15 +401,22 @@ class IPLMixin:
                     )
                 else:
                     expanded_audio = expanded_audio[0]
-
-                hypotheses = self.generate_pseudo_labels(
-                    temporary_manifest,
-                    tarred_audio_filepaths=expanded_audio,
-                    target_transcripts=transcriptions,
-                    restore_pc=self._ipl_params['restore_pc'],
-                    batch_size=self._ipl_params['batch_size'],
-                )
-
+                if self.model_type=="hybrid":
+                    hypotheses = self.generate_pseudo_labels_hybrid(
+                        temporary_manifest,
+                        tarred_audio_filepaths=expanded_audio,
+                        target_transcripts=transcriptions,
+                        restore_pc=self._ipl_params['restore_pc'],
+                        batch_size=self._ipl_params['batch_size'],
+                    )
+                elif self.model_type == "ctc":
+                    hypotheses = self.generate_pseudo_labels_ctc(
+                        temporary_manifest,
+                        tarred_audio_filepaths=expanded_audio,
+                        target_transcripts=transcriptions,
+                        restore_pc=self._ipl_params['restore_pc'],
+                        batch_size=self._ipl_params['batch_size'],
+                    ) 
             write_tarr_cache_manifest(
                 manifest,
                 update_data=shard_manifest_data,
@@ -429,7 +457,7 @@ class IPLMixin:
 
         return final_cache_manifests
 
-    def generate_pseudo_labels(
+    def generate_pseudo_labels_hybrid(
         self,
         cache_manifest: Union[List[List[str]], str],
         tarred_audio_filepaths: Union[List[List[str]], str] = None,
@@ -438,7 +466,7 @@ class IPLMixin:
         batch_size: int = 64,
     ):
         """
-        Generates pseudo labels for unlabeled data.
+        Generates pseudo labels for unlabeled data for Hybrid models. 
         Args:
             cache_manifest: Temprorary cache file with sampled data.
             tarred_audio_filepaths: Path to tar audio files.
@@ -526,4 +554,94 @@ class IPLMixin:
         self.joint.unfreeze()
 
         self.ctc_decoder.unfreeze()
+        return hypotheses
+
+
+    def generate_pseudo_labels_ctc(
+        self,
+        cache_manifest: Union[List[List[str]], str],
+        tarred_audio_filepaths: Union[List[List[str]], str] = None,
+        restore_pc: bool = True,
+        target_transcripts: List[str] = None,
+        batch_size: int = 64,
+    ):
+        """
+        Generates pseudo labels for unlabeled data for CTC only models.
+        Args:
+            cache_manifest: Temprorary cache file with sampled data.
+            tarred_audio_filepaths: Path to tar audio files.
+            restore_pc: Whether to restore PC for transcriptions that do not have any.
+            target_transcripts: Already existing transcriptions that can be used for restoring PC.c
+            batch_size: Batch size used for during inference.
+        Returns:
+            hypotheses: List of generated labels.
+        """
+        device = next(self.parameters()).device
+        dither_value = self.preprocessor.featurizer.dither
+        pad_to_value = self.preprocessor.featurizer.pad_to
+
+        self.eval()
+        self.encoder.freeze()
+        self.decoder.freeze()
+        hypotheses = []
+
+        dataloader = self._setup_pseudo_label_dataloader(cache_manifest, tarred_audio_filepaths, batch_size)
+
+        self.preprocessor.featurizer.dither = 0.0
+        self.preprocessor.featurizer.pad_to = 0
+        sample_idx = 0
+
+        for test_batch in tqdm(dataloader, desc="Transcribing"):
+            logits, logits_len, _ = self.forward(
+                input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+            )
+
+            logits = logits.cpu()
+            if self.cfg.decoding.strategy == "beam":
+                best_hyp, all_hyp = self.decoding.ctc_decoder_predictions_tensor(
+                    logits,
+                    logits_len,
+                    return_hypotheses=True,
+                )
+                if all_hyp:
+                    for beams_idx, beams in enumerate(all_hyp):
+                        target = target_transcripts[sample_idx + beams_idx]
+                        if target and restore_pc:
+                            target_split_w = target.split()
+                            wer_dist_min = 1000
+                            min_pred_text = ""
+                            for _, candidate in enumerate(beams):
+                                pred_text = candidate.text
+                                compare_text = pred_text
+                                compare_text = compare_text.lower()
+                                compare_text = rm_punctuation(compare_text, ",.?")
+                                pred_split_w = compare_text.split()
+                                wer_dist = editdistance.eval(target_split_w, pred_split_w)
+                                if wer_dist < wer_dist_min:
+                                    min_pred_text = pred_text
+                                    wer_dist_min = wer_dist
+                            hypotheses.append(min_pred_text)
+                        else:
+
+                            hypotheses.append(best_hyp[beams_idx].text)
+                    sample_idx += logits.shape[0]
+                else:
+                    hypotheses += [hyp.text for hyp in best_hyp]
+            else:
+                best_hyp, all_hyp = self.decoding.ctc_decoder_predictions_tensor(
+                    logits,
+                    logits_len,
+                    return_hypotheses=False,
+                )
+                hypotheses += best_hyp
+            del logits
+            del logits_len
+            del test_batch
+
+        self.train()
+        self.preprocessor.featurizer.dither = dither_value
+        self.preprocessor.featurizer.pad_to = pad_to_value
+
+        self.encoder.unfreeze()
+        self.decoder.unfreeze()
         return hypotheses
