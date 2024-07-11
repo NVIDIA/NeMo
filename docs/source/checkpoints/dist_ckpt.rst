@@ -1,24 +1,24 @@
-Distributed checkpoints
+Distributed Checkpoints
 =======================
 
-This guide provides details about the distributed checkpoints format from Megatron-Core.
+This guide provides details about the distributed checkpoints format from Megatron Core.
 
 
 Introduction
 ------------
 
 Model parallel training requires parallelism-aware checkpointing.
-Megatron-Core provides a checkpointing library capable of handling all types of parallelisms used in LLMs training.
-Although distributed checkpointing library is targeted at Megatron-Core model, it can be used with other models as well, provided an appropriate integration.
+Megatron Core provides a checkpointing library capable of handling all types of parallelisms used in LLM training.
+Although the distributed checkpointing library is targeted for the Megatron Core model, it can also be used with other models, as long as proper integration is implemented.
 
 The library provides two main entrypoints: `dist_checkpointing.save` and `dist_checkpointing.load` which are meant to replace the `torch.save` and `torch.load` in the regular checkpointing flow.
-Apart from that it provides mechanism to define different types of local tensors placement in the global checkpoint.
+Apart from that, it provides a mechanism to define the different types of local tensors placement in the global checkpoint.
 
 
-Basic sharding
+Basic Sharding
 --------------
 
-The main way to define relationship of a plain local PyTorch tensor to tensors on other ranks is by wrapping it in a `ShardedTensor` class.
+The main way to define the relationship of a plain, local PyTorch tensor to tensors on other ranks is by wrapping it in a `ShardedTensor` class.
 This allows to express the fact that a given local tensor is part of a larger *grid* of tensors of a given shape at a given offset.
 Instead of saving a simple state dict with `torch.Tensor`s, we save a *sharded* state dict with `dist_checkpointing.ShardedTensor`s.
 
@@ -60,8 +60,8 @@ Example: assume we have a 128 elements tensor divided equally across the whole w
     }
     dist_checkpointing.save(sharded_state_dict, dist_ckpt_root)
 
-During load the distributed checkpoint can be easily read even if the job size changes (contrary to native checkpoints that require the same number of ranks).
-The main difference wrt. `torch.load` is that the user has to provide the definition of the sharded state dict that needs to be loaded.
+During load, the distributed checkpoint can be easily read even if the job size changes (contrary to native checkpoints that require the same number of ranks).
+The main difference with wrt. `torch.load` is that the user has to provide the definition of the sharded state dict that needs to be loaded.
 
 .. code-block:: python
     from pathlib import Path
@@ -93,7 +93,7 @@ The main difference wrt. `torch.load` is that the user has to provide the defini
     # For some distributed checkpoint backends this is actually what happens underneath.
 
 
-Supported entities
+Supported Entities
 ==================
 The distributed checkpointing library supports saving and loading of different objects in different configurations.
 
@@ -109,8 +109,8 @@ A sharded state dict is a (possibly nested) Python dictionary or list with the f
 
 ShardedBase
 -----------
-Base class for expressing any kind of sharding.
-Each sharded entity must be uniquely identified by its `key`, carry some `data` to be saved or loaded and define `replica_id` which helps identify data redundancy.
+ShardedBase is the base class for expressing any kind of sharding.
+Each sharded entity must be uniquely identified by its `key`, carry some `data` to be saved or loaded, and define `replica_id` which helps identify data redundancy.
 
 Note that the `key` doesn't have to (and usually doesn't) correspond to the key in the state dict.
 The key in the state dict is ephemeral, while the `ShardedTensor.key` is used to identify the tensor in the checkpoint.
@@ -146,9 +146,9 @@ Example:
 
 ShardedTensor
 -------------
-It's the primary use case of distributed checkpointing - tensors sharding.
-Allows to define how PyTorch tensors are sharded across the workload.
-See `Tensors transformations`_ section for more details on ShardedTensors.
+ShardedTensor is the primary use case for distributed checkpointing - tensor sharding.
+It defines how PyTorch tensors are distributed across the workload.
+See the `Tensors transformations`_ section for more details on ShardedTensors.
 
 ShardedObject
 -------------
@@ -157,78 +157,78 @@ ShardedObject allows to structure those objects into arrays of objects with a fi
 
 ShardedTensorFactory
 --------------------
-This class allows to defer tensors transformations until the actual saving.
+The ShardedTensorFactory class defers tensors transformations until they are actually saved.
 A factory can expand a tensor into an arbitrary sub state dict (including all supported entities listed above).
 The need for such deferral will be explained in the `Tensors transformations`_ section.
 
-LocalNonpersitentObject
+LocalNonpersistentObject
 -----------------------
-This is a simple wrapper that allows to express the fact that the object wrapped with this class should end up in the final loaded state dict during loading.
+LocalNonpersistentObject is a simple wrapper indicating that the object wrapped with this class should end up in the final loaded state dict during loading.
 During saving such objects are ignored.
 
-Arbitrary object
+Arbitrary Object
 ----------------
-All objects different than dicts, lists and the instances of the classes listed above are treated as "common" objects.
+All objects different than dicts, lists, and the instances of the classes listed above are treated as "common" objects.
 
-During saving, all such objects in the sharded state dict passed to `dist_checkpointing.save` are assumed to be duplicated across ranks and therefore saved only by a single coordinator rank (rank 0).
+During saving, all such objects in the sharded state dict passed to `dist_checkpointing.save` are assumed to be duplicated across ranks. Therefore, they are saved only by a single coordinator rank (rank 0).
 
 During loading, all such objects in the sharded state dict passed to `dist_checkpointing.load` are simply ignored - the loaded state dict contains only "common" objects that are were actually saved in the checkpoint.
 
 
 
 
-Entrypoints
+Entry Points
 ===========
-There are several useful user entrypoints for checkpoint saving and loading.
+There are several useful user entry points for checkpoint saving and loading.
 
 dist_checkpointing.save
 -----------------------
-The only entrypoint for checkpoint saving.
-Requires providing a sharded state dict to save and saving strategies for handling different entities (see `Save and load strategies`_ for detailed explanation).
+The `dist_checkpointing.save` function is the only entry point for checkpoint saving.
+It requires providing a sharded state dict to save and saving strategies for handling different entities (see `Save and load strategies`_ for detailed explanation).
 The sharded state dict is processed in the following way:
 
-1. The ShardedTensorFactories are applied
-2. LocalNonPersistentObject are extracted from the sharded state dict and ignored
-3. ShardedBase objects are extracted
-4. All other objects are treated as "common" and saved according to a sharded strategy (see `Save and load strategies`_)
-5. All ShardedObjects are extracted from point (3) objects and saved with a common strategy (see `Save and load strategies`_)
+1. The ShardedTensorFactories are applied.
+2. The LocalNonPersistentObjects are extracted from the sharded state dict and ignored.
+3. The ShardedBase objects are extracted.
+4. All other objects are treated as "common" and saved according to a sharded strategy (see `Save and load strategies`_).
+5. All ShardedObjects are extracted from point (3) objects and saved with a common strategy (see `Save and load strategies`_).
 6. All ShardedTensors are saved.
-7. `metadata.json` file with backend and version metadata is saved to the checkpoint directory.
+7. The `metadata.json` file with backend and version metadata is saved to the checkpoint directory.
 
 dist_checkpointing.load
 -----------------------
-The main entrypoint for checkpoint loading.
-Requires providing a sharded state dict (in order to implicitly define mappings between local tensors and checkpoint tensors) and loading strategies.
+The `dist_checkpointing.load` function is the main entry point for checkpoint loading.
+It requires providing a sharded state dict (in order to implicitly define mappings between local tensors and checkpoint tensors) and loading strategies.
 In practice, the same sharded state dict can be usually used for both saving and loading (the sharded state dict for loading will just contain tensors with uninitialized data).
 
-The sharded state dict provided as an input is processed in the following way:
+When the sharded state dict is provided as input, it is processed in the following way:
 
-1. "common" state dict is loaded from the checkpoint. This forms the base of the resulting state dict
-2. The ShardedTensorFactories from the input sharded state dict are applied
-3. LocalNonPersistentObject are extracted from the input sharded state dict, unwrapped and added to the resulting state dict
-4. ShardedObjects are extracted and loaded from the checkpoint into the resulting state dict
-5. ShardedTensors are extracted and loaded from the checkpoint into the resulting state dict
-6. Factory merges are applied (see `Optimizers`_ for explanation)
+1. The "common" state dict is loaded from the checkpoint. This forms the base of the resulting state dict.
+2. The ShardedTensorFactories from the input sharded state dict are applied.
+3. The LocalNonPersistentObjects are extracted from the input sharded state dict, unwrapped and added to the resulting state dict.
+4. The ShardedObjects are extracted and loaded from the checkpoint into the resulting state dict.
+5. The ShardedTensors are extracted and loaded from the checkpoint into the resulting state dict.
+6. Factory merges are applied (see `Optimizers`_ for explanation).
 
 This results in a *regular* state dict with plain tensors that can be further processed by the application (which usually means running `model.load_state_dict(state_dict)`.
 
 
 dist_checkpointing.load_common_state_dict
 -----------------------------------------
-An entrypoint allowing loading ony the "common" part of the checkpoints.
+The `dist_checkpointing.load_common_state_dict` function is an entry point that allows loading only the “common” part of the checkpoints.
 Most of the checkpoint config and metadata can be loaded with this method, which allows skipping data loading in order to take decisions regarding checkpoint config, version, etc.
 
 dist_checkpointing.load_tensors_metadata
 ----------------------------------------
-This entrypoint allows to read all ShardedTensors metadata from the checkpoint without loading any data.
+The `dist_checkpointing.load_tensors_metadata` function is an entry point that allows reading all ShardedTensors metadata from the checkpoint without loading any data.
 The result is a sharded state dict with trivial sharding (every tensor is sharded into one big shard).
 
 dist_checkpointing.load_plain_tensors
 -------------------------------------
-This entrypoint allows to read sharded tensors stored in the checkpoint without any sharding (as plain tensors).
+The `dist_checkpointing.load_plain_tensors` function is an entry point that allows reading sharded tensors stored in the checkpoint without any sharding (as plain tensors).
 This function is simply a composition of `load_tensors_metadata` and `save`.
 
-Save and load strategies
+Save and Load Strategies
 ========================
 There are multiple ways to save a sharded state dict into a serialized checkpoint. They can be provided by the user as saving and loading strategies.
 
@@ -245,7 +245,7 @@ Each loading strategy can be associated with multiple `backend`s and `version`s 
 For a given backend and version, the composition of every saving and loading strategy **must be functionally equivalent**.
 Strategies are the main way to introduce optimizations to the saving and loading algorithm without altering the checkpoint format.
 
-Example: the following two functions are functionally equivalent
+In the following example, the two functions are equivalent:
 
 .. code-block:: python
     from megatron.core import dist_checkpointing
@@ -273,39 +273,39 @@ The `dist_checkpointing` package provides default strategies for some sharded ba
 Backends and versions are stored in a `metadata.json` file inside the checkpoint so that the loading strategy can be determined automatically (provided that there exists a default loading strategy for a given backend and version).
 
 For "sharded" strategies, currently the backends supported by default are based on `torch.distributed.checkpoint` format (`torch_dist` backend) and Zarr format (`zarr` backend).
-Additionally, as shown in the example above, some wrappers are provided that allow to parallelize the save and load across the whole workload (assuming some data duplication).
+Additionally, as shown in the example above, some wrappers are provided that enable it to parallelize the save and load across the whole workload (assuming some data duplication).
 
 For "common" strategies, currently the only supported one is `torch` which saves "common" data into a `common.pt` file.
 
 Optimizers
 ==========
-This module gives helper tools to the user to simplify constructing ShardedTensors for optimizer states.
-The ShardedTensors that define local to sharded tensors mapping for model parameters should be reused for optimizer states to avoid code duplication.
+The Optimizers module provides helper tools to the user to simplify constructing ShardedTensors for optimizer states.
+The ShardedTensors that define local-to-sharded tensors mapping for model parameters should be reused for optimizer states to avoid code duplication.
 
 To this end, the `dist_checkpointing.optimizers.get_param_id_to_sharded_param_map` function can build a mapping between optimizer params ids and model ShardedTensors.
 This mapping can be used by the `dist_checkpointing.optimizers.optim_state_to_sharding_state` function or application code (for non-standard use cases) to construct optimizer sharded state dict with ShardedTensors.
 This should support most optimizer cases, but some of them might require custom sharded state dict creation.
 A good example is a Distributed Optimizer which flattens the parameters - see `Tensors transformations`_ section for more details.
 
-Note: in order to reuse model SharderTensors to create optimizer ShardedTensors, the model **SharderTensors must wrap model parameters**, not just tensors
+Note: In order to reuse model SharderTensors to create optimizer ShardedTensors, the model **SharderTensors must wrap model parameters**, not just tensors
 (obtaining a state dict with model parameters can be achieved by passing `keep_vars=True` to the model `state_dict` function).
 Otherwise the correspondence between model ShardedTensors and optimizer states is impossible to recreate.
 This is the reason for introducing ShardedTensorFactories - we have to register the original model parameter as `ShardedTensorFactories.data` and apply any subsequent transformations as a factory function in order to make sure that the same transformation can be applied to the optimizer states.
 
 
-Tensors transformations
+Tensors Transformations
 =======================
-ShardedTensor API allows declaring some basic transformations that should be performed on the tensors during saving and loading.
+The ShardedTensor API enables the declaration of basic transformations that should be performed during saving and loading.
 
-Shape mismatch
+Shape Mismatch
 --------------
-The `allow_shape_mismatch` flag allows to relax the requirement of matching global tensor shapes during loading.
+The `allow_shape_mismatch` flag relaxes the requirement of matching global tensor shapes during loading.
 Extra padding is filled with zeros or stripped depending on the mismatch kind.
 This comes handy for layers like embedding which might be padded according to parallelism for performance reasons.
 
 Flattening
 ----------
-The `flattened_range` attribute allows to declare the fact that `ShardedTensor.data` is actually a slice of a flattened model parameter.
+The `flattened_range` attribute declares that `ShardedTensor.data` represents a slice of a flattened model parameter.
 This corresponds to a transformation used in Distributed Optimizers which flattens the data and shards it along the data-parallel domain.
 
 Extra flattening comes with an efficiency challenge during checkpoint resharding.
@@ -325,7 +325,7 @@ Example: For a global tensor [[0, 1, 2, 3, 4, 5], [6, 7, 8, 9, 10, 11]] with sha
    * - 1
      - [[3, 4, 5], [9, 10, 11]]
 
-After flattening and sharding by e.g. DP=3:
+After flattening and sharding by DP=3, the resulting local shards are as follows:
 
 .. list-table::
    :widths: 50 50
@@ -346,7 +346,7 @@ After flattening and sharding by e.g. DP=3:
    * - 5
      - [10, 11]
 
-The same tensor after sharding by TP=6, flattening and sharding by DP=1:
+After sharding by TP=6 and flattening and sharding by DP=1, the resulting local shards are as follows:
 
 
 .. list-table::
@@ -369,24 +369,24 @@ The same tensor after sharding by TP=6, flattening and sharding by DP=1:
      - [5, 11]
 
 
-Arbitrary transformations
+Arbitrary Transformations
 -------------------------
-The way to apply arbitrary transformations to the tensors during saving and loading is with ShardedTensorFactory, which allows to define such transformations as a function that can be reapplied to any ShardedTensor (in particular, a ShardedTensor representing optimizer states).
+The way to apply arbitrary transformations to the tensors during saving and loading is with ShardedTensorFactory.
+It defines such transformations as a function that can be reapplied to any ShardedTensor (in particular, a ShardedTensor representing optimizer states).
 Such "build" function is also tied to a "merge" function that can apply an inverse transformation during loading.
 
 If handling an optimizer state is not required, such transformation could be also applied directly during sharded state dict creation.
 In order to apply such transformation both to model and optimizer parameters in a consistent manner, it's necessary to encode them as factory functions (with original model parameter as the `data` input so that the optimizer params can be properly mapped to model ShardedTensors).
 
 Note that implementing some transformations might be challenging or impossible while supporting flattening for a Distributed Optimizer case.
-For example, if the model weights are supposed to be transposed in the checkpoint, it's almost impossible to implement a performant factory function that is capable of transposing a flattened and sliced tensor, because the flattening and slicing should happen in the transposed dimension.
+For example, if the model weights are supposed to be transposed in the checkpoint, it's almost impossible to implement a performant factory function that is capable of transposing a flattened and sliced tensor. This is because the flattening and slicing should happen in the transposed dimension.
 
-
-Application integration
+Application Integration
 =======================
 The `dist_checkpointing` package provides all general mechanisms for saving arbitrary distributed checkpoints.
 The only thing required from the application side is preparing a sharded state dict with ShardedTensors, ShardedObjects, etc. (representing the sharding of the data employed by the application)
 and using the `dist_checkpointing.save` and `dist_checkpointing.load` entrypoints as replacements for `torch.save` and `torch.load`.
 
-In Megatron-Core the sharded state dict preparation is already implemented in a `sharded_state_dict` method added to all Megatron-Core models and modules, which allows to create sharded state dicts in a composable way.
+In Megatron Core, the sharded state dictionary preparation is already implemented in a `sharded_state_dict` method which creates the sharded state dicts in a composable way.
 For other applications (e.g. with simpler types of supported parallelisms) it might be possible to apply a straightforward conversion from a regular model state dict into a sharded state dict.
 
