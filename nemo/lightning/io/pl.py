@@ -14,7 +14,6 @@ from megatron.core.dist_checkpointing.serialization import (
 )
 
 # from nemo.utils.callbacks.torch_dist_async import TorchDistAsyncSaveShardedStrategy
-from megatron.core.dist_checkpointing.strategies import tensorstore
 from megatron.core.dist_checkpointing.strategies.async_utils import AsyncCallsQueue, AsyncRequest
 from megatron.core.dist_checkpointing.strategies.base import SaveShardedStrategy
 from megatron.core.dist_checkpointing.strategies.fully_parallel import (
@@ -163,7 +162,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
 
         if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
-            sharded_strategy = tensorstore.TensorStoreLoadShardedStrategy(load_directly_on_device=True)
+            from megatron.core.dist_checkpointing.strategies.tensorstore import TensorStoreLoadShardedStrategy
+            sharded_strategy = TensorStoreLoadShardedStrategy(load_directly_on_device=True)
         else:
             sharded_strategy = None
 
