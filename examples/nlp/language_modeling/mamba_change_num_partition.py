@@ -161,42 +161,71 @@ def split_tensor_for_tp(params, key, dim, tensor):
 
     return tensor_sliced
 
+
 def combine_tp_tensors(params, key, dim, tensors):
     tp_size = len(tensors)
 
     if 'mixer.in_proj.weight' in key and params.mamba_version == 1:
-        xs = []; zs = []
+        xs = []
+        zs = []
         for tensor in tensors:
-            x, z = torch.split(tensor, [params.mamba_d_inner//tp_size,
-                                        params.mamba_d_inner//tp_size], dim=dim)
-            xs.append(x); zs.append(z)
+            x, z = torch.split(tensor, [params.mamba_d_inner // tp_size, params.mamba_d_inner // tp_size], dim=dim)
+            xs.append(x)
+            zs.append(z)
         return torch.cat([torch.cat(xs, dim=dim), torch.cat(zs, dim=dim)], dim=dim)
 
     elif 'mixer.in_proj.weight' in key and params.mamba_version == 2:
-        xs = []; zs = []; Bs = []; Cs = []; dts = []
+        xs = []
+        zs = []
+        Bs = []
+        Cs = []
+        dts = []
         for tensor in tensors:
-            x, z, B, C, dt = torch.split(tensor, [params.mamba_d_inner // tp_size,
-                                                  params.mamba_d_inner // tp_size,
-                                                  (params.mamba2_n_groups // tp_size) * params.mamba_d_state,
-                                                  (params.mamba2_n_groups // tp_size) * params.mamba_d_state,
-                                                  params.mamba2_n_heads // tp_size], dim=dim)
-            xs.append(x); zs.append(z); Bs.append(B); Cs.append(C); dts.append(dt)
+            x, z, B, C, dt = torch.split(
+                tensor,
+                [
+                    params.mamba_d_inner // tp_size,
+                    params.mamba_d_inner // tp_size,
+                    (params.mamba2_n_groups // tp_size) * params.mamba_d_state,
+                    (params.mamba2_n_groups // tp_size) * params.mamba_d_state,
+                    params.mamba2_n_heads // tp_size,
+                ],
+                dim=dim,
+            )
+            xs.append(x)
+            zs.append(z)
+            Bs.append(B)
+            Cs.append(C)
+            dts.append(dt)
 
         for ii in range(len(Bs)):
             Bs[ii] = torch.reshape(Bs[ii], (-1, params.mamba_d_state, Bs[ii].shape[-1]))
             Cs[ii] = torch.reshape(Cs[ii], (-1, params.mamba_d_state, Cs[ii].shape[-1]))
-        B = torch.cat(Bs, dim=dim); C = torch.cat(Cs, dim=dim)
-        x = torch.cat(xs, dim=dim); z = torch.cat(zs, dim=dim); dt = torch.cat(dts, dim=dim)
+        B = torch.cat(Bs, dim=dim)
+        C = torch.cat(Cs, dim=dim)
+        x = torch.cat(xs, dim=dim)
+        z = torch.cat(zs, dim=dim)
+        dt = torch.cat(dts, dim=dim)
 
         return torch.cat([x, z, B.flatten(0, 1), C.flatten(0, 1), dt], dim=dim)
 
     elif 'mixer.conv1d' in key and params.mamba_version == 2:
-        xs = []; Bs = []; Cs = []
+        xs = []
+        Bs = []
+        Cs = []
         for tensor in tensors:
-            x, B, C = torch.split(tensor, [params.mamba_d_inner//tp_size,
-                                           (params.mamba2_n_groups // tp_size) * params.mamba_d_state,
-                                           (params.mamba2_n_groups // tp_size) * params.mamba_d_state], dim=dim)
-            xs.append(x); Bs.append(B); Cs.append(C)
+            x, B, C = torch.split(
+                tensor,
+                [
+                    params.mamba_d_inner // tp_size,
+                    (params.mamba2_n_groups // tp_size) * params.mamba_d_state,
+                    (params.mamba2_n_groups // tp_size) * params.mamba_d_state,
+                ],
+                dim=dim,
+            )
+            xs.append(x)
+            Bs.append(B)
+            Cs.append(C)
 
         for ii in range(len(Bs)):
             if 'weight' in key:
@@ -207,13 +236,15 @@ def combine_tp_tensors(params, key, dim, tensors):
                 Cs[ii] = torch.reshape(Cs[ii], (-1, params.mamba_d_state))
             else:
                 raise Exception("Unknown key")
-        B = torch.cat(Bs, dim=dim); C = torch.cat(Cs, dim=dim)
+        B = torch.cat(Bs, dim=dim)
+        C = torch.cat(Cs, dim=dim)
         x = torch.cat(xs, dim=dim)
 
         return torch.cat([x, B.flatten(0, 1), C.flatten(0, 1)], dim=dim)
 
     else:
         return torch.cat(tensors, dim=dim)
+
 
 #################
 ### Utilities ###
@@ -343,6 +374,7 @@ def split_tp_partition_only(args, model, original_model, tp_size, write_path=Non
         # Extract all contents to the specified path
         tar.extractall(path=os.path.dirname(write_path))
 
+
 def merge_partition(args, model, partitions, write_path: str = None):
     # Extract the pp_rank and number of modules per tp rank in each pp rank
 
@@ -351,14 +383,16 @@ def merge_partition(args, model, partitions, write_path: str = None):
     # During merge - model is TP 1 PP 1 model with all parameters present in correct order.
     # Merge the parameters of the various PP X TP Y models into the TP 1 PP 1 model.
     from collections import OrderedDict
+
     full_model = OrderedDict()
     combined_tp_model = OrderedDict()
     for ii, (key, original_tensor) in enumerate(partitions[0].items()):
         if "_extra_state" in key:
             combined_tp_model[key] = original_tensor
             continue
-        
+
         import copy
+
         split_dim = get_split_dim(key)
         original_shape = list(original_tensor.shape)
         combined_shape = copy.deepcopy(original_shape)
@@ -368,8 +402,9 @@ def merge_partition(args, model, partitions, write_path: str = None):
         if split_dim != -1:
             # slice together model
             # print("\tshape mismatch: original {}, combined {}".format(original_shape, combined_shape))
-            combined_tensor = combine_tp_tensors(args, key, split_dim,
-                                            [partitions[jj][key].cpu() for jj in range(input_tp_rank)])
+            combined_tensor = combine_tp_tensors(
+                args, key, split_dim, [partitions[jj][key].cpu() for jj in range(input_tp_rank)]
+            )
             combined_tp_model[key] = combined_tensor
         else:
             # copy model
@@ -385,15 +420,15 @@ def merge_partition(args, model, partitions, write_path: str = None):
                 new_key = key
             full_model[new_key] = original_tensor
 
-
         # Update the model parameter with the merged tensor
 
-    model.load_state_dict(full_model, strict = True)
+    model.load_state_dict(full_model, strict=True)
 
     # Save the file iff the original file was PP 1 TP 1
     if write_path is not None:
         model.save_to(write_path)
     return model
+
 
 def main():
     parser = ArgumentParser()
@@ -595,10 +630,10 @@ def main():
                             f"`--tokenizer_model_path`.\n\n"
                         )
 
-    # If input model has TP > 1 
-    # Reconstruct the model to have TP = 1 
+    # If input model has TP > 1
+    # Reconstruct the model to have TP = 1
     if tp_size > 1 or pp_size > 1:
-        partitions = [] 
+        partitions = []
         model = None
 
         for pp_rank in range(pp_size):
@@ -664,20 +699,16 @@ def main():
                 # Restore model config
                 restore_model_config(model.cfg, restore_dict)
 
-
                 model.to(dtype=dtype)
 
                 # Reset env flag
                 os.environ.pop(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, None)
 
-                logging.info(
-                    f"<<<<<<<< LOADED MODEL TP={tp_rank + 1} | "
-                    f"GLOBAL RANK = {global_rank} >>>>>>>>>"
-                )
+                logging.info(f"<<<<<<<< LOADED MODEL TP={tp_rank + 1} | " f"GLOBAL RANK = {global_rank} >>>>>>>>>")
 
                 # Save the parameters
 
-                partitions.append(model.state_dict()) 
+                partitions.append(model.state_dict())
 
                 # app_state is being updated incorrectly during restore
                 app_state.data_parallel_rank = 0
@@ -730,7 +761,7 @@ def main():
         print(f"input_tp_rank = {input_tp_rank}")
         # print(f"keys = {partitions[0].keys()}")
 
-        model.cfg.tokenizer.model ='/home/ataghibakhsh/adlr_mamba2/mamba2-hybrid-8b-3t-4k/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model'
+        model.cfg.tokenizer.model = '/home/ataghibakhsh/adlr_mamba2/mamba2-hybrid-8b-3t-4k/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model'
         model.cfg.tokenizer.library = 'megatron'
         model.cfg.tokenizer.type = 'GPTSentencePieceTokenizer'
 
