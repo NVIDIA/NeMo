@@ -49,12 +49,13 @@ python /opt/NeMo/examples/nlp/language_modeling/mamba_change_num_partition.py \
     --d-model=4096 \
     --mamba-version=2 \
     --mamba2-n-groups=8 \
-    --mamba2-head-dim=64
+    --mamba2-head-dim=64 \
+    --tokenizer_path=<path to tokenizer.model>
 """
 
 tp_split_dim = {
     'word_embeddings.weight': 0,
-    'norm.weight': -1,
+    'in_proj.layer_norm_weight': -1,
     'final_norm.weight': -1,
     'output_layer.weight': 0,
     # mamba1/2
@@ -81,12 +82,6 @@ tp_split_dim = {
 
 
 def get_split_dim(tensor_name):
-    # norm.weight will match tensor_name of mixer.norm.weight and norm.weight, need to distinguish
-    if 'norm.weight' in tensor_name:
-        if 'mixer.norm.weight' in tensor_name:
-            return tp_split_dim['mixer.norm.weight']
-        else:
-            return tp_split_dim['norm.weight']
 
     for key in tp_split_dim.keys():
         if key in tensor_name:
@@ -455,7 +450,7 @@ def main():
         '--tp_conversion_only', default=True, action='store_true', help='Only convert TP model to TP model'
     )
     parser.add_argument('--model_extracted_dir', type=str, default=None, help='Path to pre-extracted model directory')
-
+    parser.add_argument('--tokenizer_path', type=str, default=None, required=True)
     parser.add_argument('--d-model', type=int, default=4096)
     parser.add_argument('--mamba-version', type=int, default=2)
     parser.add_argument('--mamba-d-state', type=int, default=128)
@@ -498,25 +493,6 @@ def main():
     pp_size = args.pipeline_model_parallel_size
     tgt_pp_size = args.target_pipeline_model_parallel_size
     pipeline_model_parallel_split_rank = args.target_pipeline_model_parallel_split_rank
-    vp_size = args.virtual_pipeline_model_parallel_size
-    if vp_size is None:
-        vp_size = 1
-
-    convert_vp = vp_size > 1
-    if convert_vp:
-        from megatron.core import parallel_state
-
-        parallel_state.set_virtual_pipeline_model_parallel_world_size(vp_size)
-
-        hparams_filepath = args.hparams_file
-        if hparams_filepath is None:
-            logging.warning(
-                '\n\n\n!!!!!!!!!\n'
-                'You are converting a model with virtual pipeline parallelism enabled, \n'
-                'but have not passed `hparams_file` argument. \n'
-                'This will cause each ckpt file to be temporarily laoded onto GPU memory!\n\n'
-                'It is highly recommended to pass `hparams_file` argument to avoid this.\n'
-            )
 
     # Import the class of the model
 
@@ -582,16 +558,11 @@ def main():
         tgt_pp_size = 1
         pipeline_model_parallel_split_rank = 0
 
-    if vp_size is None or vp_size < 0:
-        vp_size = 1
-
     app_state = AppState()
     app_state.data_parallel_rank = 0
     app_state.pipeline_model_parallel_size = pp_size
     app_state.tensor_model_parallel_size = tp_size
 
-    if vp_size > 1:
-        app_state.virtual_pipeline_model_parallel_size = vp_size
     app_state.model_parallel_size = app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
 
     world_size = pp_size * tp_size  # pseudo world size for simulating load of a specific rank on a single gpu
@@ -747,12 +718,12 @@ def main():
             model.cfg.virtual_pipeline_model_parallel_size = None
 
         logging.info(f"<<<<<<<< Building TP 1 PP 1 base model >>>>>>>>>")
-        from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
-        _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_global_batch_size = tp_size
-        _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_micro_batch_size = 1
-        model.cfg.global_batch_size = tp_size
-        model.cfg.micro_batch_size = 1
+        gbs = model.cfg.global_batch_size
+        mbs = model.cfg.micro_batch_size
+
+        model.cfg.global_batch_size = None
+        model.cfg.micro_batch_size = None
 
         input_tp_rank = len(partitions)
 
@@ -778,6 +749,9 @@ def main():
 
         # Empty cache memory of all parameters from all PP TP partitions
         partitions.clear()
+
+        model.cfg.global_batch_size = gbs
+        model.cfg.micro_batch_size = mbs
 
     # If input model has TP = 1
     else:
@@ -909,12 +883,8 @@ def main():
 
             model.cfg, restore_dict = force_cpu_model(model.cfg)
 
-            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-
-            _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_global_batch_size = 1
-            _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_micro_batch_size = 1
-            model.cfg.global_batch_size = 1
-            model.cfg.micro_batch_size = 1
+            model.cfg.global_batch_size = None
+            model.cfg.micro_batch_size = None
 
             model = MegatronMambaModel(model.cfg, trainer)
             model = model.to('cpu')
