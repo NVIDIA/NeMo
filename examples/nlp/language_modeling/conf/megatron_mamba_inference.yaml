@@ -20,15 +20,15 @@ trainer:
   use_distributed_sampler: False
   
 
-tensor_model_parallel_size: -1
-pipeline_model_parallel_size: -1
-pipeline_model_parallel_split_rank: -1 # used for encoder and decoder model (0 for others)
+tensor_model_parallel_size: 1
+pipeline_model_parallel_size: 1
+pipeline_model_parallel_split_rank: 0 # used for encoder and decoder model (0 for others)
 megatron_amp_O2: False  # Enable O2-level automatic mixed precision to save memory
-gpt_model_file: null  # GPT nemo file path
-checkpoint_dir: null # checkpoint file dir. This is used to load the PTL checkpoint generated during the GPT training
+mamba_model_file: null  # Mamba nemo file path
+checkpoint_dir: null # checkpoint file dir. This is used to load the PTL checkpoint generated during the Mamba training
 checkpoint_name: null # PTL checkpoint file name, only used for PTL checkpoint loading
 hparams_file: null # model configuration file, only used for PTL checkpoint loading
-prompts: # prompts for GPT inference
+prompts: # prompts for Mamba inference
   - "Q: How are you?"
   - "Q: How big is the universe?"
 prompts_jsonl: null
