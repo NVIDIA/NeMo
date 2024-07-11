@@ -1390,7 +1390,6 @@ class TestSaveRestore:
                 os.utime(path, None)
         
         def filter_even_children(path: str):
-            print(f"{path=}")
             if not path[-1].isdigit():
                 return False
             return int(path[-1]) % 2 == 0
