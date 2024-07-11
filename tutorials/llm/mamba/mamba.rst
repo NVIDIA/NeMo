@@ -217,3 +217,23 @@ Evaluating the Fine-Tuned Model
             && cat ${SAVE_DIR}/shorteval_test_squad_inputs_preds_labels.score
 
 
+Inference
+^^^^^^^^^
+
+For running inference on a Mamba model, one should use ``megatron_mamba_eval.py`` script. For example:
+
+.. code:: bash
+
+    #!/bin/bash
+
+    CUDA_VISIBLE_DEVICES="0" torchrun --nproc_per_node=1 /opt/NeMo/examples/nlp/language_modeling/megatron_mamba_eval.py \
+            mamba_model_file=<path to .nemo checkpoint> \
+            inference.greedy=True \
+            inference.add_BOS=True \
+            trainer.devices=1 \
+            trainer.num_nodes=1 \
+            tensor_model_parallel_size=1 \
+            pipeline_model_parallel_size=1 \
+            inference.min_tokens_to_generate=64 \
+            inference.tokens_to_generate=128 \
+            prompts=["Why must not we look directly at the sun during a solar eclipse?"]
