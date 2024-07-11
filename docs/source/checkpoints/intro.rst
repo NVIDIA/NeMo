@@ -21,6 +21,12 @@ With sharded model weights, you can save and load the state of your training scr
 NeMo supports the distributed (sharded) checkpoint format from Megatron Core. In Megatron Core, it supports two backends: PyTorch-based (recommended) and Zarr-based (deprecated).
 For a detailed explanation check the :doc:`dist_ckpt` guide.
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Distributed Checkpoints
+
+   dist_ckpt
+
 Quantized Checkpoints
 ---------------------
 
@@ -57,7 +63,7 @@ Access the user and developer guides directly through the links below:
 
 .. toctree::
    :maxdepth: 1
-   :caption: Conversion Guides
+   :caption: Conversion Guide
 
    user_guide
    dev_guide
