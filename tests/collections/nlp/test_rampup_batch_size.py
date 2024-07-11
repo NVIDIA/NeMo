@@ -34,7 +34,6 @@ def reset_microbatch_calculator():
     mb._GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
 
 
-
 @pytest.fixture()
 def model_cfg(test_data_dir):
 
