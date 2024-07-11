@@ -55,6 +55,9 @@ Example: assume we have a 128 elements tensor divided equally across the whole w
     torch.save(state_dict, native_ckpt_root / f'ckpt_{rank}.pt')
 
     # Distributed checkpoint save
+    # `(0, rank, world_size)` describes that `weight` ShardedTensor is sharded into `world_size` pieces
+    # along the 0th dimension and `local_ten` is the shard at position `rank`.
+    # Together, all shards implicitly form a "global" `torch.arange(128)` tensor.
     sharded_state_dict = {
         'weight': dist_checkpointing.ShardedTensor.from_rank_offsets('weight', local_ten, (0, rank, world_size))
     }
@@ -186,7 +189,7 @@ dist_checkpointing.save
 -----------------------
 The `dist_checkpointing.save` function is the only entry point for checkpoint saving.
 It requires providing a sharded state dict to save and saving strategies for handling different entities (see `Save and load strategies`_ for detailed explanation).
-The sharded state dict is processed in the following way:
+The sharded state dict is processed in the following way (see also `save` function `documentation <https://docs.nvidia.com/megatron-core/developer-guide/latest/api-guide/dist_checkpointing.html#module-core.dist_checkpointing.serialization>`_):
 
 1. The ShardedTensorFactories are applied.
 2. The LocalNonPersistentObjects are extracted from the sharded state dict and ignored.
@@ -202,7 +205,7 @@ The `dist_checkpointing.load` function is the main entry point for checkpoint lo
 It requires providing a sharded state dict (in order to implicitly define mappings between local tensors and checkpoint tensors) and loading strategies.
 In practice, the same sharded state dict can be usually used for both saving and loading (the sharded state dict for loading will just contain tensors with uninitialized data).
 
-When the sharded state dict is provided as input, it is processed in the following way:
+When the sharded state dict is provided as input, it is processed in the following way (see also `load` function `documentation <https://docs.nvidia.com/megatron-core/developer-guide/latest/api-guide/dist_checkpointing.html#module-core.dist_checkpointing.serialization>`_):
 
 1. The "common" state dict is loaded from the checkpoint. This forms the base of the resulting state dict.
 2. The ShardedTensorFactories from the input sharded state dict are applied.
@@ -246,13 +249,15 @@ Each loading strategy can be associated with multiple `backend`s and `version`s 
 For a given backend and version, the composition of every saving and loading strategy **must be functionally equivalent**.
 Strategies are the main way to introduce optimizations to the saving and loading algorithm without altering the checkpoint format.
 
-In the following example, the two functions are equivalent:
+In the following example, the "fully parallel" wrappers modify the saving and loading *algorithm*, but the underlying checkpoint *format* (and `backend` in consequence) stays the same.
+It makes the `basic_save_load` and `fully_parallel_save_load` functions equivalent:
 
 .. code-block:: python
     from megatron.core import dist_checkpointing
     from megatron.core.dist_checkpointing.strategies.torch import TorchDistLoadShardedStrategy, TorchDistSaveShardedStrategy
     from megatron.core.dist_checkpointing.strategies.fully_parallel import FullyParallelLoadStrategyWrapper, FullyParallelSaveStrategyWrapper
 
+    # Base save and load strategies defining a regular (non-parallel) save
     base_save_strategy = TorchDistSaveShardedStrategy('torch_dist', 1)
     base_load_strategy = TorchDistLoadShardedStrategy()
 
@@ -265,6 +270,8 @@ In the following example, the two functions are equivalent:
     def fully_parallel_save_load(sharded_state_dict):
         """ Save and load using basic strategies wrapped with parallelization strategies. """
         fully_parallel_save_strategy = FullyParallelSaveStrategyWrapper(base_save_strategy)
+        # "fully parallel" wrapper modifies the saving strategy, but not the underlying format
+        assert fully_parallel_save_strategy.backend == base_save_strategy.backend == 'torch_dist'
         fully_parallel_load_strategy = FullyParallelLoadStrategyWrapper(base_load_strategy)
         dist_checkpointing.save(sharded_state_dict, ckpt_dir, fully_parallel_save_strategy)
         return dist_checkpointing.load(sharded_state_dict, ckpt_dir, fully_parallel_load_strategy)
@@ -292,6 +299,8 @@ Note: In order to reuse model SharderTensors to create optimizer ShardedTensors,
 (obtaining a state dict with model parameters can be achieved by passing `keep_vars=True` to the model `state_dict` function).
 Otherwise the correspondence between model ShardedTensors and optimizer states is impossible to recreate.
 This is the reason for introducing ShardedTensorFactories - we have to register the original model parameter as `ShardedTensorFactories.data` and apply any subsequent transformations as a factory function in order to make sure that the same transformation can be applied to the optimizer states.
+Even if the model parameters transformations are complex, in most cases the optimizer state dict is easy to recreate based on the model ShardedTensors and ShardedTensorFactories,
+e.g. `FP32Optimizer.sharded_state_dict <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/optimizer/optimizer.py#L793>`_ is just a matter of two generic `get_param_id_to_sharded_param_map` and `optim_state_to_sharding_state` function calls regardless of the model parameters complexity.
 
 
 Tensors Transformations
@@ -311,7 +320,7 @@ This corresponds to a transformation used in Distributed Optimizers which flatte
 
 Extra flattening comes with an efficiency challenge during checkpoint resharding.
 Since flattening is applied after the global tensors is sharded into the grid of local chunks, loading after resharding requires accessing incontiguous data fragments.
-An example solution for that is implemented in the `dist_checkpointing/strategies/resharding.py` module and involves saving the flattened tensor with a different global shape than the original one.
+An example solution for that is implemented in the `resharding <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/dist_checkpointing/strategies/resharding.py>`_ module and involves saving the flattened tensor with a different global shape than the original one.
 
 Example: For a global tensor [[0, 1, 2, 3, 4, 5], [6, 7, 8, 9, 10, 11]] with sharding by TP (tensor-parallel) over the second axis, here are the local shards if TP=2:
 
@@ -326,7 +335,7 @@ Example: For a global tensor [[0, 1, 2, 3, 4, 5], [6, 7, 8, 9, 10, 11]] with sha
    * - 1
      - [[3, 4, 5], [9, 10, 11]]
 
-After flattening and sharding by DP=3, the resulting local shards are as follows:
+After flattening and sharding by DP=3 (which would happen in the Megatron Core Distributed Optimizer), the resulting local shards are as follows:
 
 .. list-table::
    :widths: 50 50
