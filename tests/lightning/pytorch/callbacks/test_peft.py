@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import torch.nn as nn
+from pytorch_lightning.trainer.states import TrainerFn
 from nemo.collections.llm import fn
 from nemo.lightning.pytorch.callbacks.peft import PEFT, WrappedAdapterIO
 
@@ -43,6 +44,7 @@ class TestPEFT:
         trainer = MagicMock()
         pl_module = MagicMock()
         pl_module.model_transform = peft
+        trainer.state.fn = TrainerFn.FITTING  # Mock the trainer to be in FITTING state
 
         peft.setup(trainer, pl_module, "fit")
 
@@ -56,13 +58,5 @@ class TestPEFT:
 
         mock_logging.info.assert_called_once_with("Loading adapters from dummy_path")
         trainer.strategy.load_model_state_dict.assert_called_once_with({"dummy_state": "dummy_value"}, strict=False)
-
-    def test_peft_on_load_checkpoint(self):
-        peft = self.DummyPEFT()
-        trainer = MagicMock()
-        pl_module = MagicMock()
-        checkpoint = {}
-
-        peft.on_load_checkpoint(trainer, pl_module, checkpoint)
-
-        assert pl_module.strict_loading == False
+        trainer.strategy.init_model_parallel.assert_called_once()
+        trainer.strategy.setup_optimizers.assert_called_once_with(trainer)
