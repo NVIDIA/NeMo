@@ -268,7 +268,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder.arch == 'perceiver':
             raise ValueError(f"Perceivers with pipeline parallel > 1 is not supported yet.")
 
-        if hasattr(self, 'mcore_t5') and self.mcore_t5:
+        if getattr(self, 'mcore_t5', False):
             assert HAVE_MEGATRON_CORE, "Cannot use MCore T5 since Megatron Core is not found"
             assert self.cfg.get(
                 'share_token_embeddings', True
