@@ -31,7 +31,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from megatron.core.models.mamba import MambaModel
-from megatron.core.models.mamba.mamba_layer_specs import get_mamba_layer_with_transformer_engine_spec
+from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
 
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 # from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
@@ -39,28 +39,16 @@ from nemo.collections.nlp.models.information_retrieval.megatron_gpt_embedding_mo
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
-try:
-    from megatron.core import parallel_state
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
-try:
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+from megatron.core import parallel_state
 
 
-def listify(tensor):
-    l_tensor = []
-    for t in tensor:
-        for rid in range(t.shape[0]):
-            r = t[rid, :].unsqueeze(0).cpu()
-            l_tensor.append(r)
-    return l_tensor
+# def listify(tensor):
+#     l_tensor = []
+#     for t in tensor:
+#         for rid in range(t.shape[0]):
+#             r = t[rid, :].unsqueeze(0).cpu()
+#             l_tensor.append(r)
+#     return l_tensor
 
 
 class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
@@ -85,26 +73,46 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         # else:
         #     self.mrl_dims = []
 
-        # assert (
-        #     self.cfg.get("post_process", False) is False
-        # ), "post_process must be False to get hidden states in the loss_func"
+        assert (
+            self.cfg.get("post_process", False) is False
+        ), "post_process must be False to get hidden states in the loss_func"
 
     def model_provider_func(self, pre_process, post_process):
-        self.hybrid_override_pattern="M" * self.transformer_config.num_layers #-MOM-MO*-MOM-MO"*4
-        mamba_stack_spec = get_mamba_layer_with_transformer_engine_spec(self.transformer_config.num_moe_experts, moe_grouped_gemm=False)
-        self.transformer_config.activation_func = F.silu
-        self.transformer_config.add_bias_linear=self.cfg.get('add_bias_linear', False)
-        self.transformer_config.autocast_dtype = torch.float32
+        # self.hybrid_override_pattern="M" * self.transformer_config.num_layers #-MOM-MO*-MOM-MO"*4
+        # mamba_stack_spec = get_mamba_layer_with_transformer_engine_spec(self.transformer_config.num_moe_experts, moe_grouped_gemm=False)
+        # self.transformer_config.activation_func = F.silu
+        # self.transformer_config.add_bias_linear=self.cfg.get('add_bias_linear', False)
+        # self.transformer_config.autocast_dtype = torch.float32
         
+        # model = MambaModel(
+        #     config=self.transformer_config,
+        #     max_sequence_length=self.cfg.get('encoder_seq_length', 2048),
+        #     vocab_size=self.cfg.get('vocab_size', 65536),
+        #     mamba_stack_spec=mamba_stack_spec, 
+        #     hybrid_override_pattern=self.hybrid_override_pattern,
+        #     post_process=post_process
+        # )
+        
+        # return model
+
+        self.hybrid_override_pattern = self.cfg.get(
+            'hybrid_override_pattern', "M" * self.transformer_config.num_layers
+        )
+        self.transformer_config.add_bias_linear = self.cfg.get('add_bias_linear', False)
+        self.transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', False)
+        self.transformer_config.layernorm_epsilon = self.cfg.get('layernorm_epsilon', 1e-5)
+
         model = MambaModel(
             config=self.transformer_config,
-            max_sequence_length=self.cfg.get('encoder_seq_length', 2048),
+            max_sequence_length=self.cfg.get('encoder_seq_length', 4096),
             vocab_size=self.cfg.get('vocab_size', 65536),
-            mamba_stack_spec=mamba_stack_spec, 
+            mamba_ssm_ngroups=self.cfg.get('mamba_ssm_ngroups', 8),
+            mamba_stack_spec=mamba_stack_spec,
             hybrid_override_pattern=self.hybrid_override_pattern,
-            post_process=True
+            pre_process=pre_process,
+            post_process=False,
         )
-        
+
         return model
 
     # def maybe_setup_test(self):
