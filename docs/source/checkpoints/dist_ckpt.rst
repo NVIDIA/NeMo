@@ -280,10 +280,24 @@ It makes the `basic_save_load` and `fully_parallel_save_load` functions equivale
 The `dist_checkpointing` package provides default strategies for some sharded backends, so it's enough to specify a tuple `(backend, version)` as a saving strategy.
 Backends and versions are stored in a `metadata.json` file inside the checkpoint so that the loading strategy can be determined automatically (provided that there exists a default loading strategy for a given backend and version).
 
-For "sharded" strategies, currently the backends supported by default are based on `torch.distributed.checkpoint` format (`torch_dist` backend) and Zarr format (`zarr` backend).
+For "sharded" strategies, currently the backends supported by default are based on `PyTorch Distributed`_ format (`torch_dist` backend) and `Zarr`_ format (`zarr` backend).
 Additionally, as shown in the example above, some wrappers are provided that enable it to parallelize the save and load across the whole workload (assuming some data duplication).
 
 For "common" strategies, currently the only supported one is `torch` which saves "common" data into a `common.pt` file.
+
+PyTorch Distributed
+-------------------
+The PyTorch Distributed based checkpoint format uses the `torch.distributed.checkpoint` package in order to serialize the checkpoints to storage.
+The Megatron Core sharded state dicts are translated into `torch.distributed.SharedTensor` and then `torch.distributed.checkpoint` primitives are used to serialize such state dicts.
+Even though Megatron Core provides several saving optimizations, the underlying checkpoint can still be read with native `PyTorch loading methods <https://pytorch.org/docs/stable/distributed.checkpoint.html#torch.distributed.checkpoint.state_dict_loader.load>`_.
+Note that the checkpoint still follows the `dist_checkpointing` package format by providing additional `common.pt` and `metadata.json` files described above.
+
+PyTorch Distributed is a recommended checkpoint format.
+
+Zarr
+----
+The Zarr based checkpoint format uses the `Zarr <https://zarr.readthedocs.io/en/stable/>`_ library in order to serialize the checkpoints to storage.
+This format is deprecated and it's recommended to transition to the `torch_dist` format (using this `converter script <https://github.com/NVIDIA/NeMo/blob/main/scripts/checkpoint_converters/convert_zarr_to_torch_dist.py>`_).
 
 Optimizers
 ==========
