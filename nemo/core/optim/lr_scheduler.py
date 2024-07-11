@@ -814,24 +814,17 @@ class MegatronAnnealing(_LRScheduler):
 
         return min_lr + coeff * delta_lr
 
-
-    # FIXME(ahmadki): we shouldn't set a default increment value, is not set at a higher levels ?
-    def step(self, increment=1):
-        # FIXME(ahmadki): skewed compared to megatron because the default increment is 1
+    def step(self, increment=1) -> None:
         """Set lr for all parameters groups."""
-        print(f"##### OptimizerParamScheduler, step, {increment=}") # FIXME(ahmadki): debug
         self.num_steps += increment
-        print(f"##### OptimizerParamScheduler, step, {self.num_steps=}") # FIXME(ahmadki): debug
         new_wd = self.get_wd()
-        print(f"##### OptimizerParamScheduler, step, {new_wd=}") # FIXME(ahmadki): debug
         for param_group in self.optimizer.param_groups:
             new_lr = self.get_lr(param_group)
             param_group['lr'] = new_lr * param_group.get('lr_mult', 1.0)
             param_group['weight_decay'] = new_wd * param_group.get('wd_mult', 1.0)
 
 
-    # FIXME(ahmadki): is this needed ?
-    def state_dict(self):
+    def state_dict(self) -> Dict:
         state_dict = {
             'max_lr': self.max_lr,
             'lr_warmup_steps': self.lr_warmup_steps,
@@ -845,82 +838,6 @@ class MegatronAnnealing(_LRScheduler):
             'wd_incr_steps': self.wd_incr_steps
         }
         return state_dict
-
-
-    # FIXME(ahmadki): is this needed ?
-    def _check_and_set(self, cls_value, sd_value, name):
-        """Auxiliary function for checking the values in the checkpoint and
-        setting them."""
-        if self.override_opt_param_scheduler:
-            return cls_value
-
-        if not self.use_checkpoint_opt_param_scheduler:
-            assert cls_value == sd_value, \
-                f'OptimizerParamScheduler: class input value {cls_value} and checkpoint' \
-                f'value {sd_value} for {name} do not match'
-        return sd_value
-
-
-    # FIXME(ahmadki): is this needed ?
-    def load_state_dict(self, sd):
-
-        if 'start_lr' in sd:
-            max_lr_ = sd['start_lr']
-        else:
-            max_lr_ = sd['max_lr']
-        self.max_lr = self._check_and_set(self.max_lr, max_lr_,
-                                          'learning rate')
-
-        self.min_lr = self._check_and_set(self.min_lr, sd['min_lr'],
-                                          'minimum learning rate')
-
-        if 'warmup_iter' in sd:
-            lr_warmup_steps_ = sd['warmup_iter']
-        elif 'warmup_steps' in sd:
-            lr_warmup_steps_ = sd['warmup_steps']
-        else:
-            lr_warmup_steps_ = sd['lr_warmup_steps']
-        self.lr_warmup_steps = self._check_and_set(self.lr_warmup_steps,
-                                                lr_warmup_steps_,
-                                                'warmup iterations')
-
-        if 'end_iter' in sd:
-            lr_decay_steps_ = sd['end_iter']
-        elif 'decay_steps' in sd:
-            lr_decay_steps_  = sd['decay_steps']
-        else:
-            lr_decay_steps_ = sd['lr_decay_steps']
-        self.lr_decay_steps = self._check_and_set(self.lr_decay_steps, lr_decay_steps_,
-                                               'total number of iterations')
-
-        if 'decay_style' in sd:
-            lr_decay_style_ = sd['decay_style']
-        else:
-            lr_decay_style_ = sd['lr_decay_style']
-        self.lr_decay_style = self._check_and_set(self.lr_decay_style,
-                                               lr_decay_style_,
-                                               'learning rate decay style')
-
-        if 'num_iters' in sd:
-            num_steps = sd['num_iters']
-        else:
-            num_steps = sd['num_steps']
-        self.step(increment=num_steps)
-
-
-        if 'start_wd' in sd:
-            self.start_wd = self._check_and_set(self.start_wd,
-                                                sd['start_wd'],
-                                                "start weight decay")
-            self.end_wd = self._check_and_set(self.end_wd,
-                                                sd['end_wd'],
-                                                "end weight decay")
-            self.wd_incr_steps = self._check_and_set(self.wd_incr_steps,
-                                                sd['wd_incr_steps'],
-                                                "total number of weight decay iterations")
-            self.wd_incr_style = self._check_and_set(self.wd_incr_style,
-                                                sd['wd_incr_style'],
-                                                "weight decay incr style")
 
 
 def register_scheduler(name: str, scheduler: _LRScheduler, scheduler_params: SchedulerParams):
