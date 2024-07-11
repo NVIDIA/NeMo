@@ -16,7 +16,7 @@ import argparse
 import logging
 import sys
 
-from nemo.export import TensorRTLLM
+from nemo.export.tensorrt_llm import TensorRTLLM
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -40,13 +40,13 @@ def get_args(argv):
         "-mr", "--model_repository", required=True, default=None, type=str, help="Folder for the trt-llm model files"
     )
     parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
-    parser.add_argument("-tps", "--tensor_parallelism_size", type=int, help="Tensor parallelism size")
-    parser.add_argument("-pps", "--pipeline_parallelism_size", type=int, help="Pipeline parallelism size")
+    parser.add_argument("-tps", "--tensor_parallelism_size", default=1, type=int, help="Tensor parallelism size")
+    parser.add_argument("-pps", "--pipeline_parallelism_size", default=1, type=int, help="Pipeline parallelism size")
     parser.add_argument(
         "-dt",
         "--dtype",
-        choices=["bf16", "fp16", "fp8", "int8"],
-        default="bf16",
+        choices=["bfloat16", "float16", "fp8", "int8"],
+        default="bfloat16",
         type=str,
         help="dtype of the model on TensorRT-LLM",
     )
@@ -59,7 +59,7 @@ def get_args(argv):
         "-mpet", "--max_prompt_embedding_table_size", default=None, type=int, help="Max prompt embedding table size"
     )
     parser.add_argument(
-        "-upkc", "--use_paged_kv_cache", default=False, action='store_true', help="Enable paged kv cache."
+        "-npkc", "--no_paged_kv_cache", default=False, action='store_true', help="Enable paged kv cache."
     )
     parser.add_argument(
         "-drip",
@@ -123,7 +123,7 @@ def nemo_export_trt_llm(argv):
     LOGGER.info("Logging level set to {}".format(loglevel))
     LOGGER.info(args)
 
-    if args.dtype != "bf16":
+    if args.dtype != "bfloat16":
         LOGGER.error(
             "Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
             "Support for the other precisions will be added in the coming releases."
@@ -131,29 +131,28 @@ def nemo_export_trt_llm(argv):
         return
 
     try:
-        trt_llm_exporter = TensorRTLLM(model_dir=args.model_repository)
+        trt_llm_exporter = TensorRTLLM(model_dir=args.model_repository, load_model=False)
 
         LOGGER.info("Export to TensorRT-LLM function is called.")
         trt_llm_exporter.export(
             nemo_checkpoint_path=args.nemo_checkpoint,
             model_type=args.model_type,
             n_gpus=args.num_gpus,
-            tensor_parallel_size=args.tensor_parallelism_size,
-            pipeline_parallel_size=args.pipeline_parallelism_size,
-            max_input_token=args.max_input_len,
-            max_output_token=args.max_output_len,
+            tensor_parallelism_size=args.tensor_parallelism_size,
+            pipeline_parallelism_size=args.pipeline_parallelism_size,
+            max_input_len=args.max_input_len,
+            max_output_len=args.max_output_len,
             max_batch_size=args.max_batch_size,
             max_num_tokens=args.max_num_tokens,
             opt_num_tokens=args.opt_num_tokens,
             max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
-            paged_kv_cache=args.use_paged_kv_cache,
+            paged_kv_cache=(not args.no_paged_kv_cache),
             remove_input_padding=(not args.disable_remove_input_padding),
             dtype=args.dtype,
             enable_multi_block_mode=args.multi_block_mode,
             use_lora_plugin=args.use_lora_plugin,
             lora_target_modules=args.lora_target_modules,
             max_lora_rank=args.max_lora_rank,
-            save_nemo_model_config=True,
         )
 
         LOGGER.info("Export is successful.")

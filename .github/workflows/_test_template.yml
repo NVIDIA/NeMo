@@ -1,0 +1,82 @@
+name: ~test template
+
+on:
+  workflow_call:
+    inputs:
+      RUNNER:
+        type: string
+        description: Runner to use for test
+        required: true
+      TIMEOUT:
+        type: number
+        description: Max runtime of test in minutes
+        required: false
+        default: 10
+      SCRIPT:
+        type: string
+        description: Test script to execute
+        required: true
+      AFTER_SCRIPT:
+        type: string
+        description: Script to run after main test
+        required: false
+        default: ":"
+      IS_OPTIONAL:
+        type: boolean
+        description: Failure will cancel all other tests if set to true
+        required: false
+        default: false
+    outputs:
+      conclusion:
+        description: Conclusion of main test step
+        value: ${{ jobs.main.outputs.conclusion }}
+      log:
+        description: Last 2000 characters of the test step's log
+        value: ${{ jobs.main.outputs.log }} 
+jobs:
+  runner-auto-clean:
+    runs-on: ${{ inputs.RUNNER }}
+    steps:
+        - name: Docker system cleanup
+          run: |
+            docker system prune -a --filter "until=48h" --force
+
+  main:
+    runs-on: ${{ inputs.RUNNER }} 
+    outputs:
+      conclusion: ${{ steps.main.conclusion }}
+      log: ${{ steps.main.outputs.log }}
+    container:
+      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+      options: 
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /mnt/datadrive/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+        - id: main
+          name: Run main script
+          timeout-minutes: ${{ inputs.TIMEOUT }}
+          run: |
+            set +e 
+            (  
+              set -e
+
+              ${{ inputs.SCRIPT }}
+            ) 2> >(tee err.log)
+
+            EXIT_CODE=$?
+            
+            echo "log=$(tail -c 2000 err.log |  base64 -w 0)" >> "$GITHUB_OUTPUT"
+            
+            exit $EXIT_CODE
+            
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+          if: failure() && inputs.IS_OPTIONAL == false
+        - name: after_script
+          if: always() && inputs.AFTER_SCRIPT != ':'
+          run: ${{ inputs.AFTER_SCRIPT }}

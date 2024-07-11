@@ -122,7 +122,11 @@ class FeedForward(nn.Module):
         if use_te:
             activation = 'gelu' if not glu else 'geglu'
             # TODO: more parameters to be confirmed, dropout, seq_length
-            self.net = LayerNormMLP(hidden_size=dim, ffn_hidden_size=inner_dim, activation=activation,)
+            self.net = LayerNormMLP(
+                hidden_size=dim,
+                ffn_hidden_size=inner_dim,
+                activation=activation,
+            )
         else:
             norm = nn.LayerNorm(dim)
             project_in = nn.Sequential(LinearWrapper(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
@@ -223,6 +227,10 @@ class LinearWrapper(nn.Linear, adapter_mixins.AdapterModuleMixin):
     def forward(self, x):
         mixed_x = super().forward(x)
         if self.is_adapter_available():
+            # return this output if lora is not enabled
+            cfg = self.get_adapter_cfg(AdapterName.PARALLEL_LINEAR_ADAPTER)
+            if not cfg['enabled']:
+                return mixed_x
             lora_linear_adapter = self.get_adapter_module(AdapterName.PARALLEL_LINEAR_ADAPTER)
             lora_mixed_x = lora_linear_adapter(x)
             # This value has the same meaning as the `--network_alpha` option in the kohya-ss trainer script.
@@ -264,7 +272,7 @@ class CrossAttention(nn.Module):
         self.query_dim = query_dim
         self.dim_head = dim_head
 
-        self.scale = dim_head ** -0.5
+        self.scale = dim_head**-0.5
         self.heads = heads
 
         self.to_k = LinearWrapper(context_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
