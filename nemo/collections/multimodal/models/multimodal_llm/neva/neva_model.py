@@ -260,22 +260,32 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         # flatten patches
         media_features = media_features.view(batch_size, -1, hidden_size)
 
-        # create an indices matrix used in torch.scatter
-        padded_media_indices = torch.ones(
-            (batch_size, num_images_per_sample), dtype=torch.long, device=input_ids.device
+        # create an indices matrix used in torch.scatter {
+        sorted_media_end_positions_mask, media_end_positions_mask_sort_idx = (
+            # NOTE: to(torch.long) is needed because PyTorch does not have sort for boolean tensors on CUDA
+            (input_ids == self.media_end_id).to(torch.long).sort(dim=-1, descending=True, stable=True)
         )
-        padded_media_indices *= sequence_length
-        for idx, input_id in enumerate(input_ids):
-            media_end_positions = torch.where(input_id == self.media_end_id)[0]
-            if self.use_im_start_end:
-                # locate the first media token positions
-                padded_media_indices[idx, : len(media_end_positions)] = media_end_positions - num_patches
-                assert (
-                    input_id[padded_media_indices[idx, : len(media_end_positions)] - 1] == self.media_start_id
-                ).all()
-            else:
-                padded_media_indices[idx, : len(media_end_positions)] = media_end_positions - num_patches + 1
-                assert (input_id[padded_media_indices[idx, : len(media_end_positions)]] == self.media_start_id).all()
+        # TODO: unless `media_end_positions_mask_sort_idx` is required to be sorted,
+        # we can replace sort with topk(..., k=num_images_per_sample)
+        sorted_media_end_positions_mask = sorted_media_end_positions_mask[:, :num_images_per_sample]
+        media_end_positions_mask_sort_idx = media_end_positions_mask_sort_idx[:, :num_images_per_sample]
+
+        # NOTE: to(bool) is needed for torch.where
+        if self.use_im_start_end:
+            padded_media_indices = torch.where(
+                sorted_media_end_positions_mask.to(torch.bool),
+                media_end_positions_mask_sort_idx - num_patches,
+                sequence_length
+            )
+        else:
+            padded_media_indices = torch.where(
+                sorted_media_end_positions_mask.to(torch.bool),
+                media_end_positions_mask_sort_idx - num_patches + 1,
+                sequence_length
+            )
+
+        # TODO: add asserts that were here below
+        # }
 
         # use indices to create a span
         padded_media_indices = padded_media_indices.unsqueeze(-1) + torch.arange(
