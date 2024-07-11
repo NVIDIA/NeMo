@@ -33,9 +33,7 @@ SUPPORTED_MODELS = [
 ]
 
 
-def search_config(
-    cfg: omegaconf.dictconfig.DictConfig, hydra_args: Optional[str] = None
-):
+def search_config(cfg: omegaconf.dictconfig.DictConfig, hydra_args: Optional[str] = None):
     """
     Main function that implements the entire pipeline to search the optimal
     model config and launch the grid searches for both training and inference
@@ -46,9 +44,7 @@ def search_config(
     """
     model_type = cfg.get("search_config_value")
     model_name, model_size = model_type.split("/")
-    assert (
-        model_name in SUPPORTED_MODELS
-    ), f"search_config must be set to one of {SUPPORTED_MODELS}/<model_size>"
+    assert model_name in SUPPORTED_MODELS, f"search_config must be set to one of {SUPPORTED_MODELS}/<model_size>"
 
     # Read config
     hp_cfg = cfg.get("search_config")
@@ -66,9 +62,7 @@ def search_config(
     custom_cfg = train_cfg.get("custom_config")
 
     gpu_count = nodes * gpus_per_node
-    assert (
-        isinstance(gpu_count, int) and gpu_count > 0
-    ), "nodes * gpus_per_node must be an int larger than zero."
+    assert isinstance(gpu_count, int) and gpu_count > 0, "nodes * gpus_per_node must be an int larger than zero."
     assert isinstance(gpu_memory_gb, int) and gpu_memory_gb in (
         40,
         80,
@@ -118,5 +112,6 @@ def search_config(
     # Launch grid search for inference constraints
     if cfg.get("run_inference_hp_search"):
         search_inference_config(
-            base_cfg=base_cfg, cfg=cfg,
+            base_cfg=base_cfg,
+            cfg=cfg,
         )

@@ -179,9 +179,7 @@ class TestBaseConfigs:
               - ${data_dir}/my-gpt3_00_text_document
         """
         expected = OmegaConf.create(s)
-        assert (
-            expected == conf
-        ), f"base_configs/gpt3.yaml must be set to {expected} but it currently is {conf}."
+        assert expected == conf, f"base_configs/gpt3.yaml must be set to {expected} but it currently is {conf}."
 
     def test_llama_base_config(self):
         conf = OmegaConf.load("base_configs/llama3_8b.yaml")
@@ -442,9 +440,7 @@ class TestBaseConfigs:
             - ${data_dir}/kenlm_perp_middle_gopher_linefilter_decompressed/bin_idx/nemo/middle_25_text_document
         """
         expected = OmegaConf.create(s)
-        assert (
-            expected == conf
-        ), f"base_configs/llama3_8b.yaml must be set to {expected} but it currently is {conf}."
+        assert expected == conf, f"base_configs/llama3_8b.yaml must be set to {expected} but it currently is {conf}."
 
     def test_mixtral_base_config(self):
         conf = OmegaConf.load("base_configs/mixtral_3b.yaml")
@@ -684,9 +680,7 @@ class TestBaseConfigs:
             - ${data_dir}/my-mixtral_29_text_document
         """
         expected = OmegaConf.create(s)
-        assert (
-            expected == conf
-        ), f"base_configs/mixtral_3b.yaml must be set to {expected} but it currently is {conf}."
+        assert expected == conf, f"base_configs/mixtral_3b.yaml must be set to {expected} but it currently is {conf}."
 
     def test_t5_base_config(self):
         conf = OmegaConf.load("base_configs/t5.yaml")
@@ -907,9 +901,7 @@ class TestBaseConfigs:
               - ${data_dir}/my-t5_00_text_document
         """
         expected = OmegaConf.create(s)
-        assert (
-            expected == conf
-        ), f"base_configs/t5.yaml must be set to {expected} but it currently is {conf}."
+        assert expected == conf, f"base_configs/t5.yaml must be set to {expected} but it currently is {conf}."
 
     def test_mt5_base_config(self):
         conf = OmegaConf.load("base_configs/mt5.yaml")
@@ -1130,9 +1122,7 @@ class TestBaseConfigs:
             data_prefix: null # Should be weight path weight path... for a blended dataset. If null will automatically blend all language files in mC4_dir.
         """
         expected = OmegaConf.create(s)
-        assert (
-            expected == conf
-        ), f"base_configs/mt5.yaml must be set to {expected} but it currently is {conf}."
+        assert expected == conf, f"base_configs/mt5.yaml must be set to {expected} but it currently is {conf}."
 
     def test_bert_base_config(self):
         conf = OmegaConf.load("base_configs/bert.yaml")
@@ -1278,6 +1268,4 @@ class TestBaseConfigs:
               min_lr: 2e-5
         """
         expected = OmegaConf.create(s)
-        assert (
-            expected == conf
-        ), f"base_configs/bert.yaml must be set to {expected} but it currently is {conf}."
+        assert expected == conf, f"base_configs/bert.yaml must be set to {expected} but it currently is {conf}."

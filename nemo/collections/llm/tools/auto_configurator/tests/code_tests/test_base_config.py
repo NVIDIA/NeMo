@@ -30,9 +30,7 @@ class TestEstimateModelSize:
             # mT5 tests
         ],
     )
-    def test_estimate_model_size(
-        self, training_days, gpus, tflops, tokens, model_name, expected
-    ):
+    def test_estimate_model_size(self, training_days, gpus, tflops, tokens, model_name, expected):
         params = {
             "max_training_days": training_days,
             "gpu_count": gpus,
@@ -94,9 +92,7 @@ class TestEstimateTrainingTime:
             (20, 64 * 8, 140, 300, "bert", 7.75),
         ],
     )
-    def test_estimate_training_time(
-        self, model_size, gpus, tflops, tokens, model_name, expected
-    ):
+    def test_estimate_training_time(self, model_size, gpus, tflops, tokens, model_name, expected):
         params = {
             "model_size_in_b": model_size,
             "gpu_count": gpus,
@@ -168,9 +164,7 @@ class TestCalculateGbsTpPp:
             "seq_length": seq_length,
         }
         output = bc._calculate_gbs_tp_pp(**params)
-        assert (
-            expected == output
-        ), f"Output of _calculate_gbs_tp_pp should be {expected} but it is {output}."
+        assert expected == output, f"Output of _calculate_gbs_tp_pp should be {expected} but it is {output}."
 
 
 class TestGenerateBaseconfig:
@@ -848,9 +842,7 @@ class TestGenerateBaseconfig:
         out_cfg = bc.generate_base_config(**params)
 
         # Run parameters
-        assert (
-            out_cfg["run"]["name"] == expected["name"]
-        ), "run.name doesn't match the expected value."
+        assert out_cfg["run"]["name"] == expected["name"], "run.name doesn't match the expected value."
         assert (
             out_cfg["run"]["results_dir"] == "${base_results_dir}/${.name}"
         ), "run.results_dir must be set to ${base_results_dir}/${.name}"
@@ -859,12 +851,8 @@ class TestGenerateBaseconfig:
         ), "run.time_limit doesn't match the expected value."
 
         # Trainer parameters
-        assert (
-            out_cfg["trainer"]["num_nodes"] == nodes
-        ), "trainer.num_nodes doesn't match the expected value."
-        assert (
-            out_cfg["trainer"]["precision"] == "bf16"
-        ), "trainer.precision doesn't match the expected value."
+        assert out_cfg["trainer"]["num_nodes"] == nodes, "trainer.num_nodes doesn't match the expected value."
+        assert out_cfg["trainer"]["precision"] == "bf16", "trainer.precision doesn't match the expected value."
         assert out_cfg["trainer"]["max_steps"] == pytest.approx(
             expected=expected["max_steps"], rel=self.margin
         ), f"trainer.max_steps is {out_cfg['trainer']['max_steps']} but it should be {expected['max_steps']}."
@@ -874,12 +862,9 @@ class TestGenerateBaseconfig:
 
         # Exp_manager parameters
         if cfg["wandb"]["enable"]:
-            assert out_cfg["exp_manager"][
-                "create_wandb_logger"
-            ], "exp_manager.create_wandb_logger should be True."
+            assert out_cfg["exp_manager"]["create_wandb_logger"], "exp_manager.create_wandb_logger should be True."
             assert (
-                out_cfg["exp_manager"]["wandb_logger_kwargs"]["project"]
-                == cfg["wandb"]["project"]
+                out_cfg["exp_manager"]["wandb_logger_kwargs"]["project"] == cfg["wandb"]["project"]
             ), "exp_manager.wandb_logger_kwargs.project doesn't match the expected value."
         else:
             assert not out_cfg["exp_manager"][
@@ -898,19 +883,14 @@ class TestGenerateBaseconfig:
         else:
             assert out_cfg["model"]["encoder"]["num_layers"] == expected["num_layers"]
             assert out_cfg["model"]["encoder"]["hidden_size"] == expected["hs"]
-            assert (
-                out_cfg["model"]["encoder"]["num_attention_heads"]
-                == expected["att_heads"]
-            )
+            assert out_cfg["model"]["encoder"]["num_attention_heads"] == expected["att_heads"]
             if out_cfg["model"]["encoder"]["ffn_hidden_size"] is not None:
                 assert out_cfg["model"]["encoder"]["ffn_hidden_size"] == expected["ffn"]
             if out_cfg["model"]["encoder"]["kv_channels"] is not None:
                 assert out_cfg["model"]["encoder"]["kv_channels"] == expected["kv"]
 
         assert out_cfg["model"]["global_batch_size"] == expected["gbs"]
-        assert out_cfg["model"]["init_method_std"] == pytest.approx(
-            expected=expected["init_std"], rel=self.margin
-        )
+        assert out_cfg["model"]["init_method_std"] == pytest.approx(expected=expected["init_std"], rel=self.margin)
         assert out_cfg["model"]["optim"]["lr"] == expected["lr"]
         assert out_cfg["model"]["optim"]["sched"]["min_lr"] == pytest.approx(
             expected=expected["min_lr"], rel=self.margin
@@ -920,9 +900,9 @@ class TestGenerateBaseconfig:
                 expected=expected["warmup_steps"], rel=self.margin
             )
         if out_cfg["model"]["optim"]["sched"].get("constant_steps") is not None:
-            assert out_cfg["model"]["optim"]["sched"][
-                "constant_steps"
-            ] == pytest.approx(expected=expected["constant_steps"], rel=self.margin)
+            assert out_cfg["model"]["optim"]["sched"]["constant_steps"] == pytest.approx(
+                expected=expected["constant_steps"], rel=self.margin
+            )
         if out_cfg["model"]["optim"]["sched"].get("warmup_ratio") is not None:
             assert out_cfg["model"]["optim"]["sched"]["warmup_ratio"] == pytest.approx(
                 expected=expected["warmup_ratio"], rel=self.margin

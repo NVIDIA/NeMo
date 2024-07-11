@@ -16,6 +16,4 @@ class TestClusterConfig:
           - "--no-container-mount-home"
         """
         expected = OmegaConf.create(s)
-        assert (
-            expected == conf
-        ), f"conf/cluster/bcm.yaml must be set to {expected} but it currently is {conf}."
+        assert expected == conf, f"conf/cluster/bcm.yaml must be set to {expected} but it currently is {conf}."

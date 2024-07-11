@@ -21,9 +21,7 @@ from autoconfig import utils
 from omegaconf import OmegaConf
 
 
-def run_training(
-    file_name: str, model_name: str, results_dir: str, cfg: OmegaConf
-) -> int:
+def run_training(file_name: str, model_name: str, results_dir: str, cfg: OmegaConf) -> int:
     """
     Launch a training job for the given model name and config file, using nemo_framework_launcher.
     :param str file_name: name of the file configuration to be selected for training with nemo_framework_launcher.
@@ -43,9 +41,7 @@ def run_training(
     # Generate string of hydra overrides for nemo_framework_launcher.
     overrides_str = generate_overrides_str(file_name, model_name, results_dir, cfg)
 
-    nemo_megatron_ci = (
-        f"NEMO_LAUNCHER_CI=1" if bool(os.getenv("NEMO_LAUNCHER_CI")) else ""
-    )
+    nemo_megatron_ci = f"NEMO_LAUNCHER_CI=1" if bool(os.getenv("NEMO_LAUNCHER_CI")) else ""
     main_path = os.path.join(launcher_scripts_path, "main.py")
     cmd = f"HYDRA_FULL_ERROR=1 {nemo_megatron_ci} python3 {main_path} {overrides_str} "
 
@@ -88,9 +84,7 @@ def convert_to_absolute_path(path: str) -> str:
     return "/".join(result)
 
 
-def generate_overrides_str(
-    file_name: str, model_name: str, results_dir: str, cfg: OmegaConf
-) -> str:
+def generate_overrides_str(file_name: str, model_name: str, results_dir: str, cfg: OmegaConf) -> str:
     """
     Generates string with hydra-like parameter overrides for nemo_framework_launcher.
     :param str file_name: name of the file configuration to be selected for training with nemo_framework_launcher.
@@ -115,9 +109,7 @@ def generate_overrides_str(
         api_key_file = "null"
 
     # Process container-mounts.
-    mounts_str = (
-        f"{auto_configurator_path}:{auto_configurator_path},{results_dir}:{results_dir}"
-    )
+    mounts_str = f"{auto_configurator_path}:{auto_configurator_path},{results_dir}:{results_dir}"
     mounts_str += utils.add_container_mounts(container_mounts)
 
     overrides_str = (

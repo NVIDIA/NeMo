@@ -37,6 +37,4 @@ class TestConfig:
         search_config_value: ${hydra:runtime.choices.search_config}
         """
         expected = OmegaConf.create(s)
-        assert (
-            expected == conf
-        ), f"conf/config.yaml must be set to {expected} but it currently is {conf}."
+        assert expected == conf, f"conf/config.yaml must be set to {expected} but it currently is {conf}."

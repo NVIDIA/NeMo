@@ -28,9 +28,7 @@ def scrap_latency(file_name):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Generate summary from inference benchmark"
-    )
+    parser = argparse.ArgumentParser(description="Generate summary from inference benchmark")
     parser.add_argument("--model-prefix", help="File prefix for logs", required=True)
     parser.add_argument(
         "--configs-csv",
@@ -47,17 +45,13 @@ def main():
     rows = []
 
     for tp, pp, bs in [l for l in config_lines[1:] if len(l) == 3]:
-        file_prefix = (
-            f"{args.workspace}/{args.model_prefix}_tp{tp}_pp{pp}_bs{bs}/log_job*.out"
-        )
+        file_prefix = f"{args.workspace}/{args.model_prefix}_tp{tp}_pp{pp}_bs{bs}/log_job*.out"
         files = [f for f in glob.glob(file_prefix) if os.path.isfile(f)]
         if len(files) != 1:
             latency = "MISSING_LOG"
         else:
             latency = scrap_latency(files[0])
-        gpu_norm_throughput = round(
-            int(bs) * 1000.0 / float(latency) / int(tp) / int(pp), 3
-        )
+        gpu_norm_throughput = round(int(bs) * 1000.0 / float(latency) / int(tp) / int(pp), 3)
         row = [tp, pp, bs, latency, gpu_norm_throughput]
         rows.append(row)
 

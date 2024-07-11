@@ -863,9 +863,7 @@ class TestCalculateTpPpMbsGrid:
             ),
         ],
     )
-    def test_calculate_tp_pp_mbs_grid(
-        self, model_size, layers, seq_length, model_name, train_cfg, expected
-    ):
+    def test_calculate_tp_pp_mbs_grid(self, model_size, layers, seq_length, model_name, train_cfg, expected):
         params = {
             "model_size_in_b": model_size,
             "num_layers": layers,
@@ -879,17 +877,11 @@ class TestCalculateTpPpMbsGrid:
         assert pp == expected["pp"], f"PP should be {expected['pp']} but it is {pp}."
 
         if "cp" in expected:
-            assert (
-                cp == expected["cp"]
-            ), f"PP should be {expected['cp']} but it is {cp}."
+            assert cp == expected["cp"], f"PP should be {expected['cp']} but it is {cp}."
         if "ep" in expected:
-            assert (
-                ep == expected["ep"]
-            ), f"PP should be {expected['ep']} but it is {ep}."
+            assert ep == expected["ep"], f"PP should be {expected['ep']} but it is {ep}."
 
-        assert (
-            mbs == expected["mbs"]
-        ), f"MBS should be {expected['mbs']} but it is {mbs}."
+        assert mbs == expected["mbs"], f"MBS should be {expected['mbs']} but it is {mbs}."
         assert (
             min_par == expected["min_par"]
         ), f"Minimum paralellism should be {expected['min_par']} but it is {min_par}."

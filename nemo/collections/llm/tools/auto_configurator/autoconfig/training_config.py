@@ -44,15 +44,11 @@ def search_training_config(
     :return: None
     """
     # Generate candidate configs.
-    base_dir, results_cfgs, num_nodes = generate_grid_search_configs(
-        base_cfg, model_size_in_b, model_name, cfg
-    )
+    base_dir, results_cfgs, num_nodes = generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg)
     # Launch candidate configs.
     job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
     # Measure and compare throughputs for each config.
-    launch_throughput_measure(
-        job_ids, model_name, model_size_in_b, num_nodes, hydra_args, cfg
-    )
+    launch_throughput_measure(job_ids, model_name, model_size_in_b, num_nodes, hydra_args, cfg)
 
 
 def generate_grid_search_configs(
@@ -80,18 +76,12 @@ def generate_grid_search_configs(
     act_layers = train_cfg.get("act_ckpt_layers")
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
-    multiplier = (
-        1
-        if model_name
-        in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"]
-        else 2
-    )
+    multiplier = 1 if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"] else 2
 
     seq_length = base_cfg["model"]["data"]["seq_length"]
     num_layers = (
         base_cfg["model"]["num_layers"]
-        if model_name
-        in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"]
+        if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"]
         else base_cfg["model"]["encoder"]["num_layers"]
     )
 
@@ -106,9 +96,7 @@ def generate_grid_search_configs(
     ]:
         act_method = base_cfg["model"].get("activations_checkpoint_method", "None")
     else:
-        act_method = base_cfg["model"]["encoder"].get(
-            "activations_checkpoint_method", "None"
-        )
+        act_method = base_cfg["model"]["encoder"].get("activations_checkpoint_method", "None")
 
     (
         tp_list,
@@ -138,10 +126,7 @@ def generate_grid_search_configs(
             for cp in cp_list:
                 for ep in ep_list:
                     for mbs in mbs_list:
-                        num_gpus = (
-                            base_cfg["trainer"]["num_nodes"]
-                            * base_cfg["trainer"]["devices"]
-                        )
+                        num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["devices"]
                         gbs = base_cfg["model"]["global_batch_size"]
                         if model_name in [
                             "gpt3",
@@ -155,13 +140,9 @@ def generate_grid_search_configs(
                             att_heads = base_cfg["model"]["num_attention_heads"]
                             num_layers = base_cfg["model"]["num_layers"]
                         else:
-                            att_heads = base_cfg["model"]["encoder"][
-                                "num_attention_heads"
-                            ]
+                            att_heads = base_cfg["model"]["encoder"]["num_attention_heads"]
                             num_layers = base_cfg["model"]["encoder"]["num_layers"]
-                        model_parallelism = (
-                            (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
-                        )
+                        model_parallelism = (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
                         mod_gbs = gbs % (mbs * num_gpus / model_parallelism)
                         mod_att_heads = att_heads % tp
                         mod_layers = (multiplier * num_layers) % pp
@@ -172,12 +153,8 @@ def generate_grid_search_configs(
                             and mod_att_heads == 0
                             and mod_layers == 0
                             and (tp, pp, cp, ep) not in valid_tp_pp_list
-                            and (
-                                mod_cp // mod_ep == mod_cp or mod_ep // mod_cp == mod_ep
-                            )
-                            and min_model_parallel
-                            <= model_parallelism
-                            <= max_model_parallel
+                            and (mod_cp // mod_ep == mod_cp or mod_ep // mod_cp == mod_ep)
+                            and min_model_parallel <= model_parallelism <= max_model_parallel
                         ):
                             valid_tp_pp_list.append((tp, pp, cp, ep))
 
@@ -269,13 +246,9 @@ def _set_activations_checkpoint_params(
     max_layers_per_pipe = num_layers
     interval_layers_per_pipe = act_multiple
     if (
-        model_name
-        in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"]
-        and pp > 2
+        model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"] and pp > 2
     ):  # Interleaved pipeline scheduling.
-        virtual_pipelines = (
-            num_layers // pp
-        )  # TODO: verify that this is the best value.
+        virtual_pipelines = num_layers // pp  # TODO: verify that this is the best value.
         act_multiple = 1
         max_micro_b = pp * (virtual_pipelines - 1) + (pp - 1) * 2 + 1
         interval_micro_b = virtual_pipelines * 8
@@ -291,9 +264,7 @@ def _set_activations_checkpoint_params(
         if virtual_pipelines is None:
             act_ckpt_layers = range(0, multiplier * num_layers // pp + 1, act_multiple)
         else:
-            act_ckpt_layers = range(
-                0, multiplier * num_layers // pp // virtual_pipelines + 1, act_multiple
-            )
+            act_ckpt_layers = range(0, multiplier * num_layers // pp // virtual_pipelines + 1, act_multiple)
 
         if pp > 1 and model_name in [
             "gpt3",
@@ -305,9 +276,7 @@ def _set_activations_checkpoint_params(
             "mixtral",
         ]:
             # Num micro batches with partial act ckpt
-            num_micro_batches_partial_act_ckpt = list(
-                range(min_micro_b, max_micro_b + 1, interval_micro_b)
-            )
+            num_micro_batches_partial_act_ckpt = list(range(min_micro_b, max_micro_b + 1, interval_micro_b))
             if num_micro_batches_partial_act_ckpt[0] == 0:
                 num_micro_batches_partial_act_ckpt[0] = 1
 
@@ -324,9 +293,7 @@ def _set_activations_checkpoint_params(
     )
 
 
-def _tp_pp_mbs_grid_gpt3_80gb(
-    model_size_in_b: float, valid_pp: List[int], seq_length: int
-) -> Tuple[int, int, int]:
+def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b: float, valid_pp: List[int], seq_length: int) -> Tuple[int, int, int]:
     """
     Selects grid search space for TP, PP, MBS parameters for GPT-3 and 80GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
@@ -518,9 +485,7 @@ def _tp_pp_mbs_grid_gpt3_80gb(
     return tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel
 
 
-def _tp_pp_mbs_grid_gpt3_40gb(
-    model_size_in_b: float, valid_pp: List[int]
-) -> Tuple[int, int, int]:
+def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
     """
     Selects grid search space for TP, PP, MBS parameters for GPT-3 and 40GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
@@ -607,9 +572,7 @@ def _tp_pp_mbs_grid_gpt3_40gb(
     return tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel
 
 
-def _tp_pp_mbs_grid_t5_80gb(
-    model_size_in_b: float, valid_pp: List[int]
-) -> Tuple[int, int, int]:
+def _tp_pp_mbs_grid_t5_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
     """
     Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 80GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
@@ -674,9 +637,7 @@ def _tp_pp_mbs_grid_t5_80gb(
     return tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel
 
 
-def _tp_pp_mbs_grid_t5_40gb(
-    model_size_in_b: float, valid_pp: List[int]
-) -> Tuple[int, int, int]:
+def _tp_pp_mbs_grid_t5_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
     """
     Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 40GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
@@ -744,9 +705,7 @@ def _tp_pp_mbs_grid_t5_40gb(
     return tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel
 
 
-def _tp_pp_mbs_grid_bert_80gb(
-    model_size_in_b: float, valid_pp: List[int]
-) -> Tuple[int, int, int]:
+def _tp_pp_mbs_grid_bert_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
     """
     Selects grid search space for TP, PP, MBS parameters for BERT and 80GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
@@ -809,9 +768,7 @@ def _tp_pp_mbs_grid_bert_80gb(
     return tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel
 
 
-def _tp_pp_mbs_grid_bert_40gb(
-    model_size_in_b: float, valid_pp: List[int]
-) -> Tuple[int, int, int]:
+def _tp_pp_mbs_grid_bert_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
     """
     Selects grid search space for TP, PP, MBS parameters for BERT and 40GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
@@ -908,17 +865,8 @@ def _calculate_tp_pp_mbs_grid(
     mbs_sizes = train_cfg.get("micro_batch_sizes")
     gpu_memory_gb = train_cfg.get("gpu_memory_gb")
 
-    multiplier = (
-        1
-        if model_name
-        in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"]
-        else 2
-    )
-    init_pp = (
-        []
-        if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"]
-        else [1]
-    )
+    multiplier = 1 if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"] else 2
+    init_pp = [] if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"] else [1]
     valid_pp = init_pp + [
         multiplier * x for x in range(1, num_layers + 1) if num_layers % x == 0
     ]  # Only divisors of num_layers are possible.
@@ -947,9 +895,7 @@ def _calculate_tp_pp_mbs_grid(
                 mbs,
                 min_model_parallel,
                 max_model_parallel,
-            ) = _tp_pp_mbs_grid_gpt3_40gb(
-                model_size_in_b=model_size_in_b, valid_pp=valid_pp
-            )
+            ) = _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp)
     elif model_name in ["t5", "mt5"]:
         if gpu_memory_gb == 80:
             (
@@ -960,9 +906,7 @@ def _calculate_tp_pp_mbs_grid(
                 mbs,
                 min_model_parallel,
                 max_model_parallel,
-            ) = _tp_pp_mbs_grid_t5_80gb(
-                model_size_in_b=model_size_in_b, valid_pp=valid_pp
-            )
+            ) = _tp_pp_mbs_grid_t5_80gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp)
         elif gpu_memory_gb == 40:
             (
                 tp,
@@ -972,9 +916,7 @@ def _calculate_tp_pp_mbs_grid(
                 mbs,
                 min_model_parallel,
                 max_model_parallel,
-            ) = _tp_pp_mbs_grid_t5_40gb(
-                model_size_in_b=model_size_in_b, valid_pp=valid_pp
-            )
+            ) = _tp_pp_mbs_grid_t5_40gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp)
     elif model_name == "bert":
         if gpu_memory_gb == 80:
             (
@@ -985,9 +927,7 @@ def _calculate_tp_pp_mbs_grid(
                 mbs,
                 min_model_parallel,
                 max_model_parallel,
-            ) = _tp_pp_mbs_grid_bert_80gb(
-                model_size_in_b=model_size_in_b, valid_pp=valid_pp
-            )
+            ) = _tp_pp_mbs_grid_bert_80gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp)
         elif gpu_memory_gb == 40:
             (
                 tp,
@@ -997,9 +937,7 @@ def _calculate_tp_pp_mbs_grid(
                 mbs,
                 min_model_parallel,
                 max_model_parallel,
-            ) = _tp_pp_mbs_grid_bert_40gb(
-                model_size_in_b=model_size_in_b, valid_pp=valid_pp
-            )
+            ) = _tp_pp_mbs_grid_bert_40gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp)
     else:
         raise NotImplementedError("Model name not implemented.")
 
@@ -1048,9 +986,7 @@ def launch_grid_search_configs(
     for cfg_list in results_cfgs:
         for file_name in cfg_list:
             src_file = os.path.join(base_dir, file_name)
-            dst_dir = os.path.join(
-                launcher_scripts_path, "conf/training", model_name, file_name
-            )
+            dst_dir = os.path.join(launcher_scripts_path, "conf/training", model_name, file_name)
             shutil.copyfile(src_file, dst_dir)
             job_id = train.run_training(file_name, model_name, results_dir, cfg)
             os.remove(dst_dir)
@@ -1116,11 +1052,7 @@ def launch_throughput_measure(
     mounts_str = f"{auto_configurator_path}:{auto_configurator_path},{base_results_dir}:{base_results_dir}"
     mounts_str += utils.add_container_mounts(container_mounts)
 
-    flags = (
-        f"--container-image {container} "
-        f"--container-mounts {mounts_str} "
-        f"--no-container-mount-home "
-    )
+    flags = f"--container-image {container} " f"--container-mounts {mounts_str} " f"--no-container-mount-home "
     if os.getenv("NEMO_LAUNCHER_CI"):  # Whether this job is running in CI or not.
         flags += f"-o {log_dir}/slurm_%j.log "
     else:
@@ -1130,12 +1062,8 @@ def launch_throughput_measure(
         )
 
     if cluster_type == "bcm":
-        new_script_path = os.path.join(
-            auto_configurator_path, "autoconfig/scripts/compare_throughput.sh"
-        )
-        code_path = os.path.join(
-            auto_configurator_path, "autoconfig/scripts/compare_throughput.py"
-        )
+        new_script_path = os.path.join(auto_configurator_path, "autoconfig/scripts/compare_throughput.sh")
+        code_path = os.path.join(auto_configurator_path, "autoconfig/scripts/compare_throughput.py")
         train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} auto_configurator_path={auto_configurator_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} base_results_dir={base_results_dir} {hydra_args} "
         utils.create_slurm_file(
             new_script_path=new_script_path,
@@ -1160,16 +1088,12 @@ def launch_throughput_measure(
                 shell=True,
             )
         else:
-            job_id = subprocess.check_output(
-                [f"sbatch --parsable {new_script_path}"], shell=True
-            )
+            job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
         dependency = job_id.decode("utf-8")
         print(f"Submitted job to select optimal throughput with job id: {dependency}")
         return dependency
     elif cluster_type == "bcp":
-        code_path = os.path.join(
-            auto_configurator_path, "autoconfig/scripts/compare_throughput.py"
-        )
+        code_path = os.path.join(auto_configurator_path, "autoconfig/scripts/compare_throughput.py")
         train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} auto_configurator_path={auto_configurator_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} base_results_dir={base_results_dir} {hydra_args} "
         job_id = subprocess.check_output([train_cmd], shell=True)
         dependency = job_id.decode("utf-8")

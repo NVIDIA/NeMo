@@ -23,9 +23,7 @@ from autoconfig.utils import convert_to_cli
 from omegaconf import OmegaConf
 
 OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
-OmegaConf.register_new_resolver(
-    "divide_ceil", lambda x, y: int(math.ceil(x / y)), replace=True
-)
+OmegaConf.register_new_resolver("divide_ceil", lambda x, y: int(math.ceil(x / y)), replace=True)
 OmegaConf.register_new_resolver("divide_floor", lambda x, y: int(x // y), replace=True)
 
 

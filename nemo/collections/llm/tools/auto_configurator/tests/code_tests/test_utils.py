@@ -41,9 +41,7 @@ class TestCalculateModelSize:
             (30522, 512, 9216, 96, 9216 * 4, None, 96, "bert", 100.0),
         ],
     )
-    def test_calculate_model_size(
-        self, vocab, seq_len, hs, layers, ffn, kv, att, model_name, expected
-    ):
+    def test_calculate_model_size(self, vocab, seq_len, hs, layers, ffn, kv, att, model_name, expected):
         params = {
             "vocab_size": vocab,
             "seq_length": seq_len,
@@ -405,9 +403,7 @@ class TestCalculatemodelSizeParams:
             ),
         ],
     )
-    def test_calculate_model_size_params(
-        self, model_size, vocab, seq_len, model_name, expected
-    ):
+    def test_calculate_model_size_params(self, model_size, vocab, seq_len, model_name, expected):
         params = {
             "model_size_in_b": model_size,
             "vocab_size": vocab,

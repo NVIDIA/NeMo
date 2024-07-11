@@ -49,12 +49,8 @@ def _calculate_model_size(
         model_size = (
             12
             * num_layers
-            * hidden_size ** 2
-            * (
-                1
-                + (13 / (12 * hidden_size))
-                + ((vocab_size + seq_length) / (12 * num_layers * hidden_size))
-            )
+            * hidden_size**2
+            * (1 + (13 / (12 * hidden_size)) + ((vocab_size + seq_length) / (12 * num_layers * hidden_size)))
             / 1e9
         )
     elif model_name in ["t5", "mt5"]:
@@ -64,21 +60,11 @@ def _calculate_model_size(
             2 * num_layers * 1.5 * ffn_size
             + 3 * num_layers * proj_size
             + hidden_size
-            * (
-                2
-                + 4 * num_layers * 1.5 * ffn_size
-                + num_layers * (21 + 12 * proj_size)
-                + seq_length
-                + vocab_size
-            )
+            * (2 + 4 * num_layers * 1.5 * ffn_size + num_layers * (21 + 12 * proj_size) + seq_length + vocab_size)
         ) / 1e9
     elif model_name == "bert":
         model_size = (
-            num_layers
-            * (
-                ffn_size
-                + hidden_size * (4 * hidden_size + 3 * att_heads + 2 * ffn_size + 6)
-            )
+            num_layers * (ffn_size + hidden_size * (4 * hidden_size + 3 * att_heads + 2 * ffn_size + 6))
             + hidden_size * (vocab_size + seq_length + hidden_size + 5)
         ) / 1e9
 
@@ -145,9 +131,7 @@ def calculate_model_size_params(
         elif model_size_in_b < 1105:
             hs, att_h, lr = 25600, 160, 0.3e-4
         else:
-            raise ValueError(
-                "Model_size for GPT-3 must be smaller than 1.1T parameters."
-            )
+            raise ValueError("Model_size for GPT-3 must be smaller than 1.1T parameters.")
     elif model_name == "t5":
         kv, lr = 64, 1e-4
         if model_size_in_b < 0.1:
@@ -233,7 +217,7 @@ def calculate_model_size_params(
     # Try powers of 2
     margin = 0.01
     for attempt in range(0, 10):
-        for layers in (2 ** p for p in range(1, 10)):
+        for layers in (2**p for p in range(1, 10)):
             out_size = _calculate_model_size(
                 vocab_size=vocab_size,
                 seq_length=seq_length,
@@ -244,11 +228,7 @@ def calculate_model_size_params(
                 att_heads=att_h,
                 model_name=model_name,
             )
-            if (
-                model_size_in_b * (1.0 - margin)
-                < out_size
-                < model_size_in_b * (1.0 + margin)
-            ):
+            if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
                 return layers, hs, att_h, ffn, kv, lr
         margin += 0.01  # Double margin of acceptable model sizes.
 
@@ -266,11 +246,7 @@ def calculate_model_size_params(
                 att_heads=att_h,
                 model_name=model_name,
             )
-            if (
-                model_size_in_b * (1.0 - margin)
-                < out_size
-                < model_size_in_b * (1.0 + margin)
-            ):
+            if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
                 return layers, hs, att_h, ffn, kv, lr
         margin += 0.01  # Double margin of acceptable model sizes.
 
@@ -288,11 +264,7 @@ def calculate_model_size_params(
                 att_heads=att_h,
                 model_name=model_name,
             )
-            if (
-                model_size_in_b * (1.0 - margin)
-                < out_size
-                < model_size_in_b * (1.0 + margin)
-            ):
+            if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
                 return layers, hs, att_h, ffn, kv, lr
         margin += 0.01  # Double margin of acceptable model sizes.
 
@@ -310,11 +282,7 @@ def calculate_model_size_params(
                 att_heads=att_h,
                 model_name=model_name,
             )
-            if (
-                model_size_in_b * (1.0 - margin)
-                < out_size
-                < model_size_in_b * (1.0 + margin)
-            ):
+            if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
                 return layers, hs, att_h, ffn, kv, lr
         margin += 0.01  # Double margin of acceptable model sizes.
 
@@ -332,19 +300,13 @@ def calculate_model_size_params(
                 att_heads=att_h,
                 model_name=model_name,
             )
-            if (
-                model_size_in_b * (1.0 - margin)
-                < out_size
-                < model_size_in_b * (1.0 + margin)
-            ):
+            if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
                 return layers, hs, att_h, ffn, kv, lr
         margin += 0.01  # Double margin of acceptable model sizes.
     raise Exception("Number of layers not found, config is not possible.")
 
 
-def generic_base_config(
-    cfg: omegaconf.dictconfig.DictConfig, custom_cfg, model_name: str = "gpt3"
-) -> dict:
+def generic_base_config(cfg: omegaconf.dictconfig.DictConfig, custom_cfg, model_name: str = "gpt3") -> dict:
     """
     Generates a base config dictionary from a base config yaml file.
     :param omegaconf.dictconfig.DictConfig cfg: hydra-like config object for the HP tool.
@@ -352,11 +314,7 @@ def generic_base_config(
     :returns: dictionary containing the base configuration for the model.
     :rtype: dict
     """
-    cfg_path = (
-        f"{cfg.auto_configurator_path}/base_configs/{model_name}.yaml"
-        if custom_cfg is None
-        else custom_cfg
-    )
+    cfg_path = f"{cfg.auto_configurator_path}/base_configs/{model_name}.yaml" if custom_cfg is None else custom_cfg
     with open(cfg_path) as f:
         base_cfg = yaml.safe_load(f)
     return base_cfg
@@ -422,9 +380,7 @@ def modify_cfg(
         "qwen2",
         "mixtral",
     ]:
-        new_cfg["model"][
-            "num_micro_batches_with_partial_activation_checkpoints"
-        ] = num_mbs_act
+        new_cfg["model"]["num_micro_batches_with_partial_activation_checkpoints"] = num_mbs_act
 
     if act_per_pipe is not None and model_name in [
         "gpt3",
@@ -482,9 +438,7 @@ def modify_cfg(
     mod_layers = num_layers % pp
     if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
         # Valid config
-        new_cfg["trainer"][
-            "num_nodes"
-        ] = num_nodes  # Necessary for short single-node test.
+        new_cfg["trainer"]["num_nodes"] = num_nodes  # Necessary for short single-node test.
         new_cfg["trainer"]["max_steps"] = max_steps
         new_cfg["trainer"]["val_check_interval"] = max_steps
         days = max_minutes // 3600
@@ -640,9 +594,7 @@ def add_container_mounts(container_mounts: Optional[List[str]]) -> str:
     if container_mounts[0] is None or container_mounts[0] == "None":
         return ""
     if container_mounts is not None:
-        assert isinstance(
-            container_mounts, omegaconf.listconfig.ListConfig
-        ), "container_mounts must be a list."
+        assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
         for mount in container_mounts:
             if mount is not None and isinstance(mount, str):
                 mounts_str += f",{mount}" if ":" in mount else f",{mount}:{mount}"
