@@ -30,10 +30,10 @@ from nemo.collections.nlp.modules.common.text_generation_server import MegatronS
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
-from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 
 try:
     from megatron.core import parallel_state
@@ -272,7 +272,9 @@ def load_model_from_config(trainer, cfg):
         if not os.path.isdir(checkpoint_path):
             # legacy checkpoint needs model parallel rank injection
             checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
-        model = MegatronMambaModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
+        model = MegatronMambaModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
+        )
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
