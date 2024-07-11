@@ -51,7 +51,7 @@ Usage:
     Assume the model has TP=1, PP=1 in the following use cases.
     a. run greedy inference from a nemo file:
         python megatron_gpt_eval.py \
-            gpt_model_file=PATH_TO_MODEL \
+            mamba_model_file=PATH_TO_MODEL \
             inference.greedy=True \
             inference.add_BOS=True \
             trainer.devices=1 \
@@ -75,7 +75,7 @@ Usage:
 
     c. run top_p inference from a nemo file:
         python megatron_gpt_eval.py \
-            gpt_model_file=PATH_TO_MODEL \
+            mamba_model_file=PATH_TO_MODEL \
             inference.greedy=False \
             inference.top_k=0 \
             inference.top_p=0.9 \
@@ -89,7 +89,7 @@ Usage:
 
     d. If you don't need to generate tokens and need model to compute logprobs:
          python megatron_gpt_eval.py \
-            gpt_model_file=PATH_TO_MODEL \
+            mamba_model_file=PATH_TO_MODEL \
             inference.compute_logprob=True \
             trainer.devices=1 \
             trainer.num_nodes=1 \
@@ -99,7 +99,7 @@ Usage:
 
     e. Launch the inference server
          python megatron_gpt_eval.py \
-            gpt_model_file=PATH_TO_MODEL \
+            mamba_model_file=PATH_TO_MODEL \
             trainer.devices=1 \
             trainer.num_nodes=1 \
             tensor_model_parallel_size=-1 \
@@ -169,17 +169,17 @@ def remove_padded_prompts(response, nb_paddings):
 
 
 def load_model_from_config(trainer, cfg):
-    if cfg.gpt_model_file is not None:
+    if cfg.mamba_model_file is not None:
         if (
             cfg.tensor_model_parallel_size < 0
             or cfg.pipeline_model_parallel_size < 0
             or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
         ):
             save_restore_connector = NLPSaveRestoreConnector()
-            if os.path.isdir(cfg.gpt_model_file):
-                save_restore_connector.model_extracted_dir = cfg.gpt_model_file
+            if os.path.isdir(cfg.mamba_model_file):
+                save_restore_connector.model_extracted_dir = cfg.mamba_model_file
             model_config = MegatronMambaModel.restore_from(
-                restore_path=cfg.gpt_model_file,
+                restore_path=cfg.mamba_model_file,
                 trainer=trainer,
                 return_config=True,
                 save_restore_connector=save_restore_connector,
@@ -199,13 +199,13 @@ def load_model_from_config(trainer, cfg):
         * max(1, cfg.get('expert_model_parallel_size', 1))
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
-    if cfg.gpt_model_file:
+    if cfg.mamba_model_file:
         save_restore_connector = NLPSaveRestoreConnector()
-        if os.path.isdir(cfg.gpt_model_file):
-            save_restore_connector.model_extracted_dir = cfg.gpt_model_file
+        if os.path.isdir(cfg.mamba_model_file):
+            save_restore_connector.model_extracted_dir = cfg.mamba_model_file
 
         pretrained_cfg = MegatronMambaModel.restore_from(
-            restore_path=cfg.gpt_model_file,
+            restore_path=cfg.mamba_model_file,
             trainer=trainer,
             return_config=True,
             save_restore_connector=save_restore_connector,
@@ -230,7 +230,7 @@ def load_model_from_config(trainer, cfg):
                 pretrained_cfg.megatron_amp_O2 = True
 
         model = MegatronMambaModel.restore_from(
-            restore_path=cfg.gpt_model_file,
+            restore_path=cfg.mamba_model_file,
             trainer=trainer,
             override_config_path=pretrained_cfg,
             save_restore_connector=save_restore_connector,
