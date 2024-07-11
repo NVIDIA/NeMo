@@ -20,7 +20,10 @@ import torch
 from omegaconf import open_dict
 
 from nemo.collections.asr.models import ASRModel
-from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
+from nemo.core.utils.cuda_python_utils import (
+    skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported,
+    cuda_python_conditional_node_cooperative_kernels_supported
+)
 
 
 @pytest.fixture(scope="module")
@@ -53,8 +56,9 @@ def stt_en_fastconformer_transducer_large():
             8,
             True,
             marks=pytest.mark.xfail(
-                reason="""Cannot instantiate the 
-body cuda graph of a conditional node with a persistent kernel (in this case, 
+                not cuda_python_conditional_node_cooperative_kernels_supported(),
+                reason="""Cannot instantiate the
+body cuda graph of a conditional node with a persistent kernel (in this case,
 a persistent LSTM), which is triggered in cudnn by using a batch size of 8."""
             ),
         ),

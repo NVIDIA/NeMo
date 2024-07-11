@@ -24,6 +24,7 @@ from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.utils.cuda_python_utils import (
+    checked_graph,
     check_cuda_python_cuda_graphs_conditional_nodes_supported,
     cu_call,
     run_nvrtc,
@@ -630,7 +631,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         with (
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),
-            torch.cuda.graph(
+            checked_graph(
                 self.separate_graphs.before_outer_loop, stream=stream_for_graph, capture_error_mode="thread_local"
             ),
         ):
@@ -639,7 +640,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         with (
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),
-            torch.cuda.graph(
+            checked_graph(
                 self.separate_graphs.before_inner_loop, stream=stream_for_graph, capture_error_mode="thread_local"
             ),
         ):
@@ -649,7 +650,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         with (
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),
-            torch.cuda.graph(
+            checked_graph(
                 self.separate_graphs.inner_loop_code, stream=stream_for_graph, capture_error_mode="thread_local"
             ),
         ):
@@ -658,7 +659,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         with (
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),
-            torch.cuda.graph(
+            checked_graph(
                 self.separate_graphs.after_inner_loop, stream=stream_for_graph, capture_error_mode="thread_local"
             ),
         ):
@@ -672,7 +673,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         with (
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),
-            torch.cuda.graph(self.full_graph, stream=stream_for_graph, capture_error_mode="thread_local"),
+            checked_graph(self.full_graph, stream=stream_for_graph, capture_error_mode="thread_local"),
         ):
             self._before_outer_loop()
 

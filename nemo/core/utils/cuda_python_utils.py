@@ -95,6 +95,27 @@ def cu_call(f_call_out):
         return tuple(others)
 
 
+def cuda_python_conditional_node_cooperative_kernels_supported():
+    """
+    Returns true if cuda-python is installed and CUDA driver 12.6 or newer is
+    installed. Before this CUDA driver version, cooperative nodes could not run
+    within cuda graph conditional nodes.
+    """
+    try:
+        check_cuda_python_cuda_graphs_conditional_nodes_supported()
+    except:
+        return False
+    else:
+        from cuda import cuda
+
+        error, driver_version = cuda.cuDriverGetVersion()
+        if error != cuda.CUresult.CUDA_SUCCESS:
+            raise ImportError(f"cuDriverGetVersion() returned {cuda.cuGetErrorString(error)}")
+        driver_version_major = driver_version // 1000
+        driver_version_minor = (driver_version % 1000) // 10
+        driver_version = (driver_version_major, driver_version_minor)
+        return driver_version >= (12,6)
+
 @contextlib.contextmanager
 def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditional_handle, device):
     """
@@ -219,3 +240,16 @@ def run_nvrtc(kernel_string: str, kernel_name: bytes, program_name: bytes):
     assert_drv(err)
 
     return kernel
+
+@contextlib.contextmanager
+def checked_graph(*args, **kwargs):
+    """
+    Wrapper around torch.cuda.graph that checks for common errors that are too vague for an end user to diagnose based on the error message.
+    """
+    try:
+        with torch.cuda.graph(*args, **kwargs):
+            yield
+    except RuntimeError as err:
+        if "CUDA error: invalid argument" in str(err):
+            raise RuntimeError("CUDA Graph capture failed. It is likely that you are calling a cooperative kernel in your RNN-T or TDT prediction network. Cooperative kernels are not allowed inside the bodies of CUDA Graph conditional nodes until CUDA 12.6. Please update to CUDA 12.6. File an issue if that still does not work.") from err
+        raise
