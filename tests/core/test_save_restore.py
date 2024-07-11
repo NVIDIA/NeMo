@@ -774,8 +774,9 @@ class TestSaveRestore:
             my_connector = MySaveRestoreConnector()
 
             with tempfile.TemporaryDirectory() as config_tmpdir:
+                config_members = my_connector._filtered_tar_info(true_save_path, filter_fn=lambda name: '.yaml' in name)
                 my_connector._unpack_nemo_file(
-                    true_save_path, out_folder=config_tmpdir, extract_fn=lambda name: '.yaml' in name
+                    true_save_path, out_folder=config_tmpdir, members=config_members
                 )
                 current_files = list(os.listdir(config_tmpdir))
 
