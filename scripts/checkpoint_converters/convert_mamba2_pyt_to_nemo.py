@@ -170,10 +170,7 @@ def convert(args):
 
     trainer = MegatronLMPPTrainerBuilder(nemo_config).create_trainer()
     nemo_model_from_pyt = MegatronMambaModel(nemo_config.model, trainer)
-    print(f"nemo_model_from_pyt = {nemo_model_from_pyt.state_dict().keys()}")
-    import sys
 
-    sys.exit()
     # Setting strict=False for the _extra_state
 
     nemo_model_from_pyt.load_state_dict(new_state_dict, strict=False)
