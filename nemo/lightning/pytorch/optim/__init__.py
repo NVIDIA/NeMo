@@ -2,6 +2,7 @@ from nemo.lightning.pytorch.optim.base import LRSchedulerModule, OptimizerModule
 from nemo.lightning.pytorch.optim.lr_scheduler import (
     CosineAnnealingScheduler,
     InverseSquareRootAnnealingScheduler,
+    MegatronAnnealingScheduler,
     NoamAnnealingScheduler,
     NoamHoldAnnealingScheduler,
     PolynomialDecayAnnealingScheduler,
@@ -12,7 +13,6 @@ from nemo.lightning.pytorch.optim.lr_scheduler import (
     WarmupAnnealingScheduler,
     WarmupHoldPolicyScheduler,
     WarmupPolicyScheduler,
-    MegatronAnnealingScheduler,
 )
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 

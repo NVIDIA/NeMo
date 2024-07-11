@@ -2,6 +2,7 @@ from typing import Optional
 
 from nemo.core.optim.lr_scheduler import (
     InverseSquareRootAnnealing,
+    MegatronAnnealing,
     NoamAnnealing,
     NoamHoldAnnealing,
     PolynomialDecayAnnealing,
@@ -12,7 +13,6 @@ from nemo.core.optim.lr_scheduler import (
     WarmupAnnealing,
     WarmupHoldPolicy,
     WarmupPolicy,
-    MegatronAnnealing,
 )
 from nemo.lightning.pytorch.optim.base import LRSchedulerModule
 
@@ -511,7 +511,7 @@ class MegatronAnnealingScheduler(LRSchedulerModule):
             wd_incr_steps=self.wd_incr_steps,
             wd_incr_style=self.wd_incr_style,
             use_checkpoint_opt_param_scheduler=False,
-            override_opt_param_scheduler=False
+            override_opt_param_scheduler=False,
         )
 
         return {

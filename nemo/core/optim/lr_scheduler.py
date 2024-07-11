@@ -667,22 +667,25 @@ class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
 
 class MegatronAnnealing(_LRScheduler):
     """Meagton learning rate and weight decay Anneals"""
-    def __init__(self,
-                 optimizer,
-                 *,
-                 init_lr,
-                 max_lr,
-                 min_lr,
-                 lr_warmup_steps,
-                 lr_decay_steps,
-                 lr_decay_style,
-                 start_wd,
-                 end_wd,
-                 wd_incr_steps,
-                 wd_incr_style,
-                 use_checkpoint_opt_param_scheduler=True,
-                 override_opt_param_scheduler=False,
-                 last_epoch=-1):
+
+    def __init__(
+        self,
+        optimizer,
+        *,
+        init_lr,
+        max_lr,
+        min_lr,
+        lr_warmup_steps,
+        lr_decay_steps,
+        lr_decay_style,
+        start_wd,
+        end_wd,
+        wd_incr_steps,
+        wd_incr_style,
+        use_checkpoint_opt_param_scheduler=True,
+        override_opt_param_scheduler=False,
+        last_epoch=-1,
+    ):
         """
         Implements the learning rate and weight decay annealing from Megatron-LM.
         Code is adapted from the Megatron-LM codebase:
@@ -732,15 +735,13 @@ class MegatronAnnealing(_LRScheduler):
         self.override_opt_param_scheduler = override_opt_param_scheduler
         self.use_checkpoint_opt_param_scheduler = use_checkpoint_opt_param_scheduler
         if self.override_opt_param_scheduler:
-            assert not self.use_checkpoint_opt_param_scheduler, 'both override and '\
-                'use-checkpoint are set.'
+            assert not self.use_checkpoint_opt_param_scheduler, 'both override and ' 'use-checkpoint are set.'
 
         # Set the learning rate
         self.step(0)
 
-
     def get_wd(self):
-        """ Weight decay incr functions"""
+        """Weight decay incr functions"""
         if self.num_steps > self.wd_incr_steps:
             return self.end_wd
 
@@ -758,29 +759,20 @@ class MegatronAnnealing(_LRScheduler):
         elif self.wd_incr_style == 'cosine':
             coeff = 0.5 * (math.cos(math.pi * (1 - incr_ratio)) + 1.0)
         else:
-            raise Exception('{} weight decay increment style is not supported.'.format(
-                self.wd_incr_style))
+            raise Exception('{} weight decay increment style is not supported.'.format(self.wd_incr_style))
 
         return self.start_wd + coeff * delta_wd
 
-
     def get_lr(self, param_group):
         """Learning rate decay functions from:
-              https://openreview.net/pdf?id=BJYwwY9ll pg. 4"""
+        https://openreview.net/pdf?id=BJYwwY9ll pg. 4"""
 
         max_lr = param_group.get('max_lr', self.max_lr)
         min_lr = param_group.get('min_lr', self.min_lr)
 
         # Use linear warmup for the initial part.
         if self.lr_warmup_steps > 0 and self.num_steps <= self.lr_warmup_steps:
-            return (
-                self.init_lr
-                + (
-                    (max_lr - self.init_lr)
-                    * float(self.num_steps)
-                    / float(self.lr_warmup_steps)
-                )
-            )
+            return self.init_lr + ((max_lr - self.init_lr) * float(self.num_steps) / float(self.lr_warmup_steps))
 
         # If the learning rate is constant, just return the initial value.
         if self.lr_decay_style == 'constant':
@@ -794,7 +786,7 @@ class MegatronAnnealing(_LRScheduler):
         if self.lr_decay_style == 'inverse-square-root':
             warmup_steps = max(self.lr_warmup_steps, 1)
             num_steps = max(self.num_steps, 1)
-            lr = max_lr * warmup_steps ** 0.5 / (num_steps ** 0.5)
+            lr = max_lr * warmup_steps**0.5 / (num_steps**0.5)
             return max(min_lr, lr)
 
         num_steps_ = self.num_steps - self.lr_warmup_steps
@@ -805,12 +797,11 @@ class MegatronAnnealing(_LRScheduler):
         delta_lr = max_lr - min_lr
 
         if self.lr_decay_style == 'linear':
-            coeff = (1.0 - decay_ratio)
+            coeff = 1.0 - decay_ratio
         elif self.lr_decay_style == 'cosine':
             coeff = 0.5 * (math.cos(math.pi * decay_ratio) + 1.0)
         else:
-            raise Exception('{} decay style is not supported.'.format(
-                self.lr_decay_style))
+            raise Exception('{} decay style is not supported.'.format(self.lr_decay_style))
 
         return min_lr + coeff * delta_lr
 
@@ -823,7 +814,6 @@ class MegatronAnnealing(_LRScheduler):
             param_group['lr'] = new_lr * param_group.get('lr_mult', 1.0)
             param_group['weight_decay'] = new_wd * param_group.get('wd_mult', 1.0)
 
-
     def state_dict(self) -> Dict:
         state_dict = {
             'max_lr': self.max_lr,
@@ -835,7 +825,7 @@ class MegatronAnnealing(_LRScheduler):
             'start_wd': self.start_wd,
             'end_wd': self.end_wd,
             'wd_incr_style': self.wd_incr_style,
-            'wd_incr_steps': self.wd_incr_steps
+            'wd_incr_steps': self.wd_incr_steps,
         }
         return state_dict
 
