@@ -1,11 +1,12 @@
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.nlp.models.information_retrieval.megatron_mamba_embedding_model import MegatronMambaEmbeddingModel
+from nemo.collections.nlp.models.information_retrieval.megatron_mamba_embedding_model import (
+    MegatronMambaEmbeddingModel,
+)
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-
 from nemo.core.config import hydra_runner
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
@@ -25,17 +26,14 @@ def main(cfg) -> None:
 
     model_cfg = MegatronMambaEmbeddingModel.merge_cfg_with(cfg.restore_from_path, cfg)
     assert (
-        model_cfg.micro_batch_size * cfg.trainer.devices * cfg.trainer.num_nodes  == model_cfg.global_batch_size
+        model_cfg.micro_batch_size * cfg.trainer.devices * cfg.trainer.num_nodes == model_cfg.global_batch_size
     ), f"Gradiant accumulation is not supported for contrastive learning yet."
 
     logging.info(f"Loading model from {cfg.restore_from_path}")
     model = MegatronMambaEmbeddingModel.restore_from(
-        restore_path=cfg.restore_from_path,
-        trainer=trainer,
-        override_config_path=model_cfg,
-        strict=True
+        restore_path=cfg.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=True
     )
-    model._save_restore_connector=SaveRestoreConnector()
+    model._save_restore_connector = SaveRestoreConnector()
 
     # model = MegatronMambaEmbeddingModel(
     #     cfg=model_cfg,
@@ -44,7 +42,7 @@ def main(cfg) -> None:
     # print("sd: ")
     # for k in model.state_dict().keys():
     #     print(k)
-    
+
     # breakpoint()
 
     trainer.fit(model)

@@ -22,7 +22,9 @@ import torch
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.nlp.models.information_retrieval.megatron_mamba_embedding_model import MegatronMambaEmbeddingModel
+from nemo.collections.nlp.models.information_retrieval.megatron_mamba_embedding_model import (
+    MegatronMambaEmbeddingModel,
+)
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
@@ -67,7 +69,9 @@ def use_inference_server(cfg, model, trainer):
                 web_ui = get_demo
             loop = asyncio.new_event_loop()
             thread = threading.Thread(
-                target=web_ui, daemon=True, args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
+                target=web_ui,
+                daemon=True,
+                args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
             )
             thread.start()
         server = MegatronServer(model.cuda())
