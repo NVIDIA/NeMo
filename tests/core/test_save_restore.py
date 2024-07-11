@@ -15,7 +15,7 @@ import filecmp
 import os
 import shutil
 import tempfile
-from typing import Dict, Optional, Set, Union
+from typing import Callable, Dict, Optional, Set, Union
 
 import pytest
 import torch
@@ -1375,3 +1375,51 @@ class TestSaveRestore:
         new_model_infos = ModelPT.search_huggingface_models(model_filter=filt)
         assert len(new_model_infos) <= 5
         assert len(new_model_infos) < len(model_infos)
+    
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "filter_method,tar_input",
+        [
+            (save_restore_connector.SaveRestoreConnector._filtered_recursive_walk, False),
+            (save_restore_connector.SaveRestoreConnector._filtered_tar_info, True)
+        ]
+    )
+    def test_filtering_methods(self, filter_method: Callable, tar_input: bool):
+        def touch(path):
+            with open(path, 'a'):
+                os.utime(path, None)
+        
+        def filter_even_children(path: str):
+            print(f"{path=}")
+            if not path[-1].isdigit():
+                return False
+            return int(path[-1]) % 2 == 0
+
+        with tempfile.TemporaryDirectory() as output_dir, tempfile.TemporaryDirectory() as nemo_base_dir:
+            os.chdir(output_dir)
+            os.makedirs('grand/parent', exist_ok=True)
+            os.makedirs('grand/aunt', exist_ok=True)
+            for i in range(3):
+                touch(f'grand/parent/child_{i}')
+                touch(f'grand/aunt/child_{i}')
+            
+            if tar_input:
+                path = f'{nemo_base_dir}/model.nemo'
+                save_restore_connector.SaveRestoreConnector._make_nemo_file_from_folder(filename=path, source_dir=output_dir)
+            else:
+                path = '.'
+        
+            expected_paths = set((
+                './grand/aunt/child_0',
+                './grand/aunt/child_2',
+                './grand/parent/child_0',
+                './grand/parent/child_2',
+            ))
+
+            observed_paths = filter_method(path, filter_fn=filter_even_children)
+            if tar_input:
+                observed_paths = set((p.name for p in observed_paths))
+            else:
+                observed_paths = set(observed_paths)
+
+            assert expected_paths == observed_paths

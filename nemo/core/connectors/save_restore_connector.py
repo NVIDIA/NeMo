@@ -631,7 +631,10 @@ class SaveRestoreConnector:
 
         filtered_rel_paths = []
         for root, _, files in os.walk(path):
-            filtered_rel_paths.extend(os.path.join(root, f) for f in files if filter_fn is None or filter_fn(f))
+            for f in files:
+                full_rel_path = os.path.join(root, f)
+                if filter_fn is None or filter_fn(full_rel_path):
+                    filtered_rel_paths.append(full_rel_path)
         return filtered_rel_paths
 
     @staticmethod
