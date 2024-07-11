@@ -1079,26 +1079,35 @@ def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor, num_valid_t
 
 
 class MegatronMaskedTokenLossReduction(MegatronLossReduction):
-    def __init__(self, validation_step: bool = False, val_drop_last: bool = True) -> None:
+    def __init__(self, validation_step: bool = False, val_drop_last: bool = True,
+                 context_parallel_size: int = 1, check_for_nan_in_loss_and_grad: bool = True) -> None:
         super().__init__()
         self.validation_step = validation_step
         self.val_drop_last = val_drop_last
+        self.context_parallel_size = context_parallel_size
+        self.check_for_nan_in_loss_and_grad = check_for_nan_in_loss_and_grad
 
     def forward(
         self, batch: Dict[str, torch.Tensor], forward_out: torch.Tensor
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
-        return megatron_loss_func(batch["loss_mask"], forward_out)
+        return megatron_loss_func(loss_mask=batch["loss_mask"],
+                                  output_tensor=forward_out,
+                                  context_parallel_size=self.context_parallel_size,
+                                  check_for_nan_in_loss_and_grad=self.check_for_nan_in_loss_and_grad)
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         return torch.tensor(0.0).cuda()
 
 
-def megatron_loss_func(loss_mask: torch.Tensor, output_tensor: torch.Tensor):
+def megatron_loss_func(loss_mask: torch.Tensor, output_tensor: torch.Tensor,
+                       context_parallel_size: int = 1, check_for_nan_in_loss_and_grad: bool = True):
     """Loss function.
 
     Args:
         loss_mask (torch.Tensor): Used to mask out some portions of the loss
         output_tensor (torch.Tensor): The tensor with the losses
+        context_parallel_size (int): The size of the context parallelism
+        check_for_nan_in_loss_and_grad (bool): Whether to check for NaN in the loss and grad
 
     Returns:
         the loss scalar for this micro-batch
@@ -1107,10 +1116,6 @@ def megatron_loss_func(loss_mask: torch.Tensor, output_tensor: torch.Tensor):
             the data parallel ranks
     """
     from megatron.core import parallel_state
-
-    # FIXME(ahmadki): args: context_parallel_size and check_for_nan_in_loss_and_grad should be parameterized
-    context_parallel_size = 1
-    check_for_nan_in_loss_and_grad = True
 
     losses = output_tensor.float()
     loss_mask = loss_mask.view(-1).float()
