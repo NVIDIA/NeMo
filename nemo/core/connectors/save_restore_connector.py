@@ -19,8 +19,8 @@ import shutil
 import tarfile
 import tempfile
 import uuid
-from typing import Callable, Generator, Optional, Set, Union
 from contextlib import contextmanager
+from typing import Callable, Generator, Optional, Set, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -146,9 +146,7 @@ class SaveRestoreConnector:
                     if return_config:
                         filter_fn = lambda name: '.yaml' in name
                     members = self._filtered_tar_info(restore_path, filter_fn=filter_fn)
-                    self._unpack_nemo_file(
-                        path2file=restore_path, out_folder=tmpdir, members=members
-                    )
+                    self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir, members=members)
 
                 # Change current working directory to
                 os.chdir(tmpdir)
@@ -490,6 +488,7 @@ class SaveRestoreConnector:
             # TODO: see cases when this can occur, and if we can fix them
             logging.warning("Model contains registered artifacts, but no restoration paths found")
         if len(tarfile_artifacts) > 0 and len(restoration_paths) > 0:
+
             def check_artifact_and_query_basename_match(query_path: str) -> bool:
                 for _, artiitem in tarfile_artifacts:
                     # Get basename and copy it to nemo_file_folder
@@ -497,17 +496,21 @@ class SaveRestoreConnector:
                         artifact_base_name = artiitem.path.split('nemo:')[1]
                     else:
                         artifact_base_name = os.path.basename(artiitem.path)
-                    
+
                     if artifact_base_name == os.path.basename(query_path):
                         return True
                 return False
-                    
+
             artifact_rel_paths = {}
             for path in restoration_paths:
                 if self.model_extracted_dir:
-                    artifact_rel_paths[path] = self._filtered_recursive_walk(path, filter_fn=check_artifact_and_query_basename_match)
+                    artifact_rel_paths[path] = self._filtered_recursive_walk(
+                        path, filter_fn=check_artifact_and_query_basename_match
+                    )
                 else:
-                    artifact_rel_paths[path] = self._filtered_tar_info(path, filter_fn=check_artifact_and_query_basename_match)
+                    artifact_rel_paths[path] = self._filtered_tar_info(
+                        path, filter_fn=check_artifact_and_query_basename_match
+                    )
             # Need to step into nemo archive to extract file
             # Get path where the command is executed - the artifacts will be "retrieved" there
             # (original .nemo behavior)
@@ -523,7 +526,9 @@ class SaveRestoreConnector:
                             for rel_path in artifact_rel_paths[path]:
                                 shutil.copy2(src=rel_path, dst=archive_dir)
                         else:
-                            self._unpack_nemo_file(path2file=path, out_folder=archive_dir, members=artifact_rel_paths[path])
+                            self._unpack_nemo_file(
+                                path2file=path, out_folder=archive_dir, members=artifact_rel_paths[path]
+                            )
                     os.chdir(archive_dir)
                     for conf_path, artiitem in tarfile_artifacts:
                         # Get basename and copy it to nemo_file_folder
@@ -618,9 +623,9 @@ class SaveRestoreConnector:
             members = tar.getmembers()
             if filter_fn is None:
                 return members
-            
+
             return [x for x in members if filter_fn(x.name)]
-        
+
     @staticmethod
     def _filtered_recursive_walk(path: str, filter_fn: Optional[Callable[[str], bool]] = None) -> list[str]:
         """
@@ -652,7 +657,7 @@ class SaveRestoreConnector:
         except tarfile.ReadError:
             # can be older checkpoint => try compressed tar
             tar_header = "r:gz"
-        
+
         tar = tarfile.open(path2file, tar_header)
         try:
             yield tar

@@ -774,10 +774,10 @@ class TestSaveRestore:
             my_connector = MySaveRestoreConnector()
 
             with tempfile.TemporaryDirectory() as config_tmpdir:
-                config_members = my_connector._filtered_tar_info(true_save_path, filter_fn=lambda name: '.yaml' in name)
-                my_connector._unpack_nemo_file(
-                    true_save_path, out_folder=config_tmpdir, members=config_members
+                config_members = my_connector._filtered_tar_info(
+                    true_save_path, filter_fn=lambda name: '.yaml' in name
                 )
+                my_connector._unpack_nemo_file(true_save_path, out_folder=config_tmpdir, members=config_members)
                 current_files = list(os.listdir(config_tmpdir))
 
                 assert len(current_files) == 1  # only config file should have been extracted, no pytorch params
@@ -1375,20 +1375,20 @@ class TestSaveRestore:
         new_model_infos = ModelPT.search_huggingface_models(model_filter=filt)
         assert len(new_model_infos) <= 5
         assert len(new_model_infos) < len(model_infos)
-    
+
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "filter_method,tar_input",
         [
             (save_restore_connector.SaveRestoreConnector._filtered_recursive_walk, False),
-            (save_restore_connector.SaveRestoreConnector._filtered_tar_info, True)
-        ]
+            (save_restore_connector.SaveRestoreConnector._filtered_tar_info, True),
+        ],
     )
     def test_filtering_methods(self, filter_method: Callable, tar_input: bool):
         def touch(path):
             with open(path, 'a'):
                 os.utime(path, None)
-        
+
         def filter_even_children(path: str):
             if not path[-1].isdigit():
                 return False
@@ -1401,19 +1401,23 @@ class TestSaveRestore:
             for i in range(3):
                 touch(f'grand/parent/child_{i}')
                 touch(f'grand/aunt/child_{i}')
-            
+
             if tar_input:
                 path = f'{nemo_base_dir}/model.nemo'
-                save_restore_connector.SaveRestoreConnector._make_nemo_file_from_folder(filename=path, source_dir=output_dir)
+                save_restore_connector.SaveRestoreConnector._make_nemo_file_from_folder(
+                    filename=path, source_dir=output_dir
+                )
             else:
                 path = '.'
-        
-            expected_paths = set((
-                './grand/aunt/child_0',
-                './grand/aunt/child_2',
-                './grand/parent/child_0',
-                './grand/parent/child_2',
-            ))
+
+            expected_paths = set(
+                (
+                    './grand/aunt/child_0',
+                    './grand/aunt/child_2',
+                    './grand/parent/child_0',
+                    './grand/parent/child_2',
+                )
+            )
 
             observed_paths = filter_method(path, filter_fn=filter_even_children)
             if tar_input:
