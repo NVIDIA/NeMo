@@ -409,7 +409,6 @@ def merge_partition(args, model, partitions, write_path: str = None):
             # copy model
             combined_tp_model[key] = original_tensor
 
-
         for _, (local_key, local_original_tensor) in enumerate(combined_tp_model.items()):
             try:
                 layer_num = int(re.findall(r'\d+', local_key)[0])
