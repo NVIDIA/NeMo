@@ -68,7 +68,7 @@ def default_data_step(dataloader_iter: Iterator[DataT]) -> DataT:
         )
 
     batch = next(dataloader_iter)
-    
+
     # If its wrapped in a tuple, unpack it.
     if isinstance(batch, tuple) and len(batch) == 3:
         batch = batch[0]
