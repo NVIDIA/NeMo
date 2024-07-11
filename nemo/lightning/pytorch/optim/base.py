@@ -1,15 +1,17 @@
 import types
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from typing import List, Optional
 
 import pytorch_lightning as L
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch.optim import Optimizer
 
+from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.megatron_parallel import CallbackMethods
 
 
-class LRSchedulerModule(L.Callback, CallbackMethods, ABC):
+class LRSchedulerModule(L.Callback, CallbackMethods, IOMixin, ABC):
     """A module to standardize the learning rate scheduler setup and configuration.
 
     This class decouples the learning rate scheduler from the model, similar to how the LightningDataModule
@@ -77,7 +79,7 @@ class LRSchedulerModule(L.Callback, CallbackMethods, ABC):
         return self._scheduler
 
 
-class OptimizerModule(L.Callback, CallbackMethods, ABC):
+class OptimizerModule(L.Callback, CallbackMethods, IOMixin, ABC):
     """A module to standardize the optimizer setup and configuration.
 
     This class decouples the optimizer from the model, similar to how the LightningDataModule
@@ -133,7 +135,7 @@ class OptimizerModule(L.Callback, CallbackMethods, ABC):
 
         if hasattr(self, "__io__") and hasattr(model, "__io__"):
             if hasattr(model.__io__, "optim"):
-                model.__io__.optim = self.__io__
+                model.__io__.optim = deepcopy(self.__io__)
 
     @abstractmethod
     def optimizers(self, model) -> List[Optimizer]:
