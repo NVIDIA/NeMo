@@ -203,7 +203,7 @@ class TestRETROModel:
         assert isinstance(retro_model, MegatronRetroModel)
 
         num_weights = retro_model.num_weights
-        ## due to recent change in M-LM RETRO model, the exact number of parameters of RETRO is not determined.  
+        ## due to recent change in M-LM RETRO model, the exact number of parameters of RETRO is not determined.
         ## temporary skip checking for number of parameters, will be added after M-LM RETRO side is concluded
         # assert num_weights == 306868224 # using "tokenizer/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model" tokenizer
         # assert num_weights == 113405952  # using "spm_tok_ende_4k/tokenizer.model" tokenizer
