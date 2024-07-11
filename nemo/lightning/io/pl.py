@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, Generic, Optional, TypeVar, Union
 
 import pytorch_lightning as pl
 import torch
+from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.types import _PATH
@@ -12,7 +13,6 @@ from megatron.core.dist_checkpointing.serialization import (
     get_default_load_sharded_strategy,
     get_default_save_sharded_strategy,
 )
-
 from megatron.core.dist_checkpointing.strategies.base import SaveShardedStrategy
 from megatron.core.dist_checkpointing.strategies.fully_parallel import (
     FullyParallelLoadStrategyWrapper,
@@ -22,7 +22,6 @@ from megatron.core.dist_checkpointing.strategies.torch import TorchDistSaveShard
 from megatron.core.parallel_state import get_data_parallel_group
 from torch import nn
 from typing_extensions import Self, override
-from lightning_fabric.plugins import CheckpointIO
 
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
@@ -167,6 +166,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
         if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
             from megatron.core.dist_checkpointing.strategies.tensorstore import TensorStoreLoadShardedStrategy
+
             sharded_strategy = TensorStoreLoadShardedStrategy(load_directly_on_device=True)
         else:
             sharded_strategy = None
