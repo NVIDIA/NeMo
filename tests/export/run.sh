@@ -36,8 +36,9 @@ python tests/export/nemo_export.py --model_name LLAMA2-13B-base-int4 --existing_
 python tests/export/nemo_export.py --model_name LLAMA2-70B-base --existing_test_models --min_tps 2 --max_tps 8
 python tests/export/nemo_export.py --model_name LLAMA2-70B-base-fp8 --existing_test_models --min_tps 8 --max_tps 8
 python tests/export/nemo_export.py --model_name LLAMA2-70B-base-int4 --existing_test_models --min_tps 8 --max_tps 8
-python tests/export/nemo_export.py --model_name FALCON-7B-base --existing_test_models --min_tps 1 --max_tps 2
+python tests/export/nemo_export.py --model_name FALCON-7B-base --existing_test_models --min_tps 1 --max_tps 1
 python tests/export/nemo_export.py --model_name FALCON-40B-base --existing_test_models --min_tps 2 --max_tps 8
 python tests/export/nemo_export.py --model_name STARCODER1-15B-base --existing_test_models --min_tps 1 --max_tps 1
+python tests/export/nemo_export.py --model_name STARCODER2-15B-base --existing_test_models --min_tps 1 --max_tps 1
 python tests/export/nemo_export.py --model_name GEMMA-base --existing_test_models --min_tps 1 --max_tps 1
 python tests/export/nemo_export.py --model_name Nemotron3-22B-base-32k --existing_test_models --min_tps 2

@@ -264,6 +264,17 @@ def get_infer_test_data():
     test_data["STARCODER1-15B-base"]["max_output_len"] = 128
     test_data["STARCODER1-15B-base"]["max_batch_size"] = 5
 
+    test_data["STARCODER2-15B-base"] = {}
+    test_data["STARCODER2-15B-base"]["model_type"] = "starcoder"
+    test_data["STARCODER2-15B-base"]["min_tps"] = 1
+    test_data["STARCODER2-15B-base"]["location"] = "Local"
+    test_data["STARCODER2-15B-base"]["model_dir"] = "/tmp/STARCODER2-15B-base/trt_llm_model-1/"
+    test_data["STARCODER2-15B-base"]["checkpoint"] = "/opt/checkpoints/starcoder-2_15b_4k_vfinal/4194b.nemo"
+    test_data["STARCODER2-15B-base"]["prompt_template"] = ["def fibonnaci(n"]
+    test_data["STARCODER2-15B-base"]["expected_keyword"] = ["fibonnaci"]
+    test_data["STARCODER2-15B-base"]["max_output_len"] = 128
+    test_data["STARCODER2-15B-base"]["max_batch_size"] = 5
+
     test_data["GEMMA-base"] = {}
     test_data["GEMMA-base"]["model_type"] = "gemma"
     test_data["GEMMA-base"]["min_tps"] = 1
