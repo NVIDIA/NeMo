@@ -395,7 +395,7 @@ class NLPDDPStrategy(DDPStrategy):
                 save_sharded_modelopt_state(
                     self.lightning_module.get_model_module_list(),
                     ckpt_to_dir(filepath),
-                    self.checkpoint_io.save_sharded_strategy,
+                    self.unwrapped_checkpoint_io.save_sharded_strategy,
                     prefix="model.",
                 )
         else:
@@ -595,10 +595,7 @@ class NLPDDPStrategy(DDPStrategy):
 
     @property
     def use_distributed_checkpointing(self):
-        checkpoint_io = self.checkpoint_io
-        while isinstance(checkpoint_io, _WrappingCheckpointIO):
-            checkpoint_io = checkpoint_io.checkpoint_io
-        has_dist_ckpt_io = HAVE_MEGATRON_CORE and isinstance(checkpoint_io, DistributedCheckpointIO)
+        has_dist_ckpt_io = HAVE_MEGATRON_CORE and isinstance(self.unwrapped_checkpoint_io, DistributedCheckpointIO)
         has_sharded_state_dict = (
             hasattr(self.lightning_module, 'sharded_state_dict')
             and self.lightning_module.sharded_state_dict() is not None
@@ -637,6 +634,14 @@ class NLPDDPStrategy(DDPStrategy):
         deserializing the checkpoint.
         """
         return True
+
+    @property
+    def unwrapped_checkpoint_io(self) -> CheckpointIO:
+        """Returns CheckpointIO unwrapped from any _WrappedCheckpointIO wrappers."""
+        checkpoint_io = self.checkpoint_io
+        while isinstance(checkpoint_io, _WrappingCheckpointIO):
+            checkpoint_io = checkpoint_io.checkpoint_io
+        return checkpoint_io
 
 
 class NLPDDPStrategyNotebook(NLPDDPStrategy):
@@ -696,6 +701,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         nccl_communicator_config_path: Optional[str] = None,
         sharp: bool = False,
         set_buffer_dtype: Optional[str] = None,
+        extra_fsdp_wrap_module: Optional[set] = None,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -725,6 +731,11 @@ class NLPFSDPStrategy(FSDPStrategy):
             ParallelTransformerLayer,
             BasicTransformerBlock,
         }
+
+        # if extra wrap modules are provided, use them
+        if extra_fsdp_wrap_module is not None:
+            self.fsdp_wrap_module.update(extra_fsdp_wrap_module)
+
         kwargs['auto_wrap_policy'] = functools.partial(
             transformer_auto_wrap_policy, transformer_layer_cls=self.fsdp_wrap_module
         )
@@ -1011,6 +1022,8 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_dir)
 
                 if HAVE_MODELOPT and hasattr(model, "get_model_module_list"):
+                    while isinstance(checkpoint_io, _WrappingCheckpointIO):
+                        checkpoint_io = checkpoint_io.checkpoint_io
                     save_sharded_modelopt_state(
                         model.get_model_module_list(),
                         dist_ckpt_dir,
