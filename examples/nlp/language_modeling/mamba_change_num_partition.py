@@ -410,13 +410,13 @@ def merge_partition(args, model, partitions, write_path: str = None):
             combined_tp_model[key] = original_tensor
 
 
-        for _, (local_key, original_tensor) in enumerate(combined_tp_model.items()):
+        for _, (local_key, local_original_tensor) in enumerate(combined_tp_model.items()):
             try:
                 layer_num = int(re.findall(r'\d+', local_key)[0])
                 new_key = local_key.replace(str(layer_num), str(layer_num), 1)
             except:
                 new_key = local_key
-            full_model[new_key] = original_tensor
+            full_model[new_key] = local_original_tensor
 
         # Update the model parameter with the merged tensor
 
@@ -754,12 +754,7 @@ def main():
         model.cfg.global_batch_size = None
         model.cfg.micro_batch_size = None
 
-        input_tp_rank = len(partitions)
-
-        print(f"input_tp_rank = {input_tp_rank}")
-        # print(f"keys = {partitions[0].keys()}")
-
-        model.cfg.tokenizer.model = '/home/ataghibakhsh/adlr_mamba2/mamba2-hybrid-8b-3t-4k/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model'
+        model.cfg.tokenizer.model = args.tokenizer_path
         model.cfg.tokenizer.library = 'megatron'
         model.cfg.tokenizer.type = 'GPTSentencePieceTokenizer'
 
@@ -912,6 +907,9 @@ def main():
 
             model.cfg, restore_dict = force_cpu_model(model.cfg)
 
+            gbs = model.cfg.global_batch_size
+            mbs = model.cfg.micro_batch_size
+
             model.cfg.global_batch_size = None
             model.cfg.micro_batch_size = None
 
@@ -920,6 +918,9 @@ def main():
             model._save_restore_connector = NLPSaveRestoreConnector()
             model.freeze()
             model.to(dtype=dtype)
+
+            model.cfg.global_batch_size = gbs
+            model.cfg.micro_batch_size = mbs
 
             restore_model_config(model.cfg, restore_dict)
 
