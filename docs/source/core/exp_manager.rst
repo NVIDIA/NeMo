@@ -346,10 +346,12 @@ subsequent jobs failed (SLURM job exit code is `!= 0`) or the training is comple
 
 All FT configuration items summary:
     * ``workload_check_interval`` (float, default=5.0) Periodic workload check interval [seconds] in the workload monitor.
-    * ``initial_rank_heartbeat_timeout`` (Optional[float], default=60.0 * 60.0) Timeout for the first heartbeat from a rank. 
-    * ``rank_heartbeat_timeout`` (Optional[float], default=45.0 * 60.0) Timeout for subsequent heartbeats from a rank. 
+    * ``initial_rank_heartbeat_timeout`` (Optional[float], default=60.0 * 60.0) Timeout [seconds] for the first heartbeat from a rank. 
+    * ``rank_heartbeat_timeout`` (Optional[float], default=45.0 * 60.0) Timeout [seconds] for subsequent heartbeats from a rank. 
     * ``calculate_timeouts`` (bool, default=True) Try to calculate ``rank_heartbeat_timeout`` and ``initial_rank_heartbeat_timeout`` 
       based on the observed heartbeat intervals.
+    * ``safety_factor``: (float, default=5.0) When calculating the timeouts, multiply the maximum observed heartbeat interval 
+      by this factor to obtain the timeout estimate. Can be made smaller for stable environments and larger for unstable ones.  
     * ``rank_termination_signal`` (signal.Signals, default=signal.SIGKILL) Signal used to terminate the rank when failure is detected.
     * ``log_level`` (str, default='INFO') Log level for the FT client and server(rank monitor).
     * ``max_rank_restarts`` (int, default=0) Used by FT launcher. Max number of restarts for a rank. 

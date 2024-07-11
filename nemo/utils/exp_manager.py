@@ -165,6 +165,7 @@ class FaultToleranceParams:
     initial_rank_heartbeat_timeout: Optional[float] = 60.0 * 60.0
     rank_heartbeat_timeout: Optional[float] = 45.0 * 60.0
     calculate_timeouts: bool = True
+    safety_factor: float = 5.0
     rank_termination_signal: signal.Signals = signal.SIGKILL
     log_level: str = 'INFO'
     max_rank_restarts: int = 0
@@ -558,7 +559,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         if HAVE_STRAGGLER_DET:
             logging.info("Enabling straggler detection...")
             straggler_det_args_dict = dict(cfg.straggler_detection_params)
-            straggler_det_callback = StragglerDetectionCallback(**straggler_det_args_dict, logger=logging)
+            straggler_det_callback = StragglerDetectionCallback(**straggler_det_args_dict)
             trainer.callbacks.append(straggler_det_callback)
         else:
             raise ValueError(
