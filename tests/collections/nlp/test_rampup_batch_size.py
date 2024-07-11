@@ -29,9 +29,10 @@ if torch.cuda.is_available():
 
 
 def reset_microbatch_calculator():
-    from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+    import megatron.core.num_microbatches_calculator as mb
 
-    _GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
+    mb._GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
+
 
 
 @pytest.fixture()
