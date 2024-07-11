@@ -67,6 +67,7 @@ def build_and_save_engine(
     # plugin_config.set_gemm_plugin(dtype=str_dtype)
     plugin_config.use_custom_all_reduce = custom_all_reduce
     # plugin_config.set_plugin("multi_block_mode", enable_multi_block_mode)
+    plugin_config._multi_block_mode = enable_multi_block_mode
     if paged_kv_cache:
         plugin_config.enable_paged_kv_cache(tokens_per_block=tokens_per_block)
     else:
@@ -109,7 +110,8 @@ def build_and_save_engine(
     build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
 
     if use_lora_plugin is not None:
-        build_config.plugin_config.set_lora_plugin(use_lora_plugin)
+        # build_config.plugin_config.set_lora_plugin(use_lora_plugin)
+        # build_config.plugin_config._lora_plugin = use_lora_plugin
         lora_config = LoraConfig(
             lora_dir=lora_ckpt_list,
             lora_ckpt_source='nemo',
