@@ -115,7 +115,8 @@ Each sharded entity must be uniquely identified by its `key`, carry some `data` 
 Note that the `key` doesn't have to (and usually doesn't) correspond to the key in the state dict.
 The key in the state dict is ephemeral, while the `ShardedTensor.key` is used to identify the tensor in the checkpoint.
 
-Example:
+In the following example, the state dict to be loaded contains different keys than the saved one.
+What matters is that the `ShardedTensor.key` are equivalent (`tensor-A`):
 
 .. code-block:: python
     import torch
