@@ -615,7 +615,7 @@ class SaveRestoreConnector:
                 logging.warning(f"Skipping potentially unsafe member: {member.name}")
 
     @staticmethod
-    def _filtered_tar_info(tar_path: str, filter_fn: Optional[Callable[[str], bool]] = None) -> list[str]:
+    def _filtered_tar_info(tar_path: str, filter_fn: Optional[Callable[[str], bool]] = None) -> list[tarfile.TarInfo]:
         """
         Returns the members of the tarball filtered by a function
         """
