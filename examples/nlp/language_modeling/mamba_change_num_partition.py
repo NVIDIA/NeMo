@@ -386,7 +386,7 @@ def merge_partition(args, model, partitions, write_path: str = None):
 
     full_model = OrderedDict()
     combined_tp_model = OrderedDict()
-    for ii, (key, original_tensor) in enumerate(partitions[0].items()):
+    for _, (key, original_tensor) in enumerate(partitions[0].items()):
         if "_extra_state" in key:
             combined_tp_model[key] = original_tensor
             continue
@@ -397,11 +397,10 @@ def merge_partition(args, model, partitions, write_path: str = None):
         original_shape = list(original_tensor.shape)
         combined_shape = copy.deepcopy(original_shape)
         combined_shape[split_dim] *= input_tp_rank
-        # print("{}, {}, {}".format(ii, key, split_dim))
 
         if split_dim != -1:
             # slice together model
-            # print("\tshape mismatch: original {}, combined {}".format(original_shape, combined_shape))
+
             combined_tensor = combine_tp_tensors(
                 args, key, split_dim, [partitions[jj][key].cpu() for jj in range(input_tp_rank)]
             )
@@ -410,14 +409,13 @@ def merge_partition(args, model, partitions, write_path: str = None):
             # copy model
             combined_tp_model[key] = original_tensor
 
-        # print("Combined tp model: {}".format(combined_tp_model.keys()))
 
-        for ii, (key, original_tensor) in enumerate(combined_tp_model.items()):
+        for _, (local_key, original_tensor) in enumerate(combined_tp_model.items()):
             try:
-                layer_num = int(re.findall(r'\d+', key)[0])
-                new_key = key.replace(str(layer_num), str(layer_num), 1)
+                layer_num = int(re.findall(r'\d+', local_key)[0])
+                new_key = local_key.replace(str(layer_num), str(layer_num), 1)
             except:
-                new_key = key
+                new_key = local_key
             full_model[new_key] = original_tensor
 
         # Update the model parameter with the merged tensor
