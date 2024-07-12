@@ -67,6 +67,7 @@ class PreTrainRecipe:
     data: Config
     optim: Config
     log: Config
+    resume: Optional[Config] = None
 
     @property
     def partial(self) -> Partial:
