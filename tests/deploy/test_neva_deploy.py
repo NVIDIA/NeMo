@@ -1,8 +1,6 @@
 import argparse
-from io import BytesIO
 
 import numpy as np
-from PIL import Image
 from pytriton.client import ModelClient
 
 from nemo.deploy.deploy_pytriton import DeployPyTriton

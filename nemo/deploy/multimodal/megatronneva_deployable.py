@@ -15,14 +15,12 @@
 import logging
 from enum import IntEnum, auto
 from io import BytesIO
-from pathlib import Path
 
 import numpy as np
 import torch
 import wrapt
 from omegaconf import OmegaConf
 from PIL import Image
-from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
 from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
@@ -32,7 +30,6 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_sampling_params,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list
 
@@ -277,7 +274,6 @@ class MegatronNevaDeployable(ITritonDeployable):
         for index, prompt_string in enumerate(input_strings):
             media = input_media[index][0]
             if media_type == MediaType.IMAGE:
-                size = len(media)
                 image_bytes = BytesIO(media)
                 image_bytes.seek(0)
                 media = self.image_processor(Image.open(image_bytes).convert('RGB'))
