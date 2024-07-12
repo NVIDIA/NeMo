@@ -1,12 +1,39 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 from einops import rearrange, reduce
 
-from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MCoreNevaModel, NevaWordEmbeddingMixin
+from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import NevaWordEmbeddingMixin
 
 
 class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
+    def init(self, mm_cfg):
+        lita_conf = mm_cfg.get('lita', {})
+        lita_video_arch=lita_conf.get('lita_video_arch', 'temporal_spatial_pool'),
+        visual_token_format=lita_conf.get('visual_token_format', 'v1'),
+        use_media_start_end=mm_cfg.get('use_im_start_end', False),  # we need to make this clear
+        sample_frames=lita_conf.get('sample_frames', 4),
+        self.init_lita(
+            lita_video_arch=lita_video_arch,
+            visual_token_format=visual_token_format,
+            use_media_start_end=use_media_start_end,
+            sample_frames=sample_frames
+        )
+    
     def init_lita(
         self,
         lita_video_arch: str,
@@ -145,25 +172,3 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
             else:
                 raise ValueError(f"Unsupported visual_token_format {self.visual_token_format}")
         return inputs_embeds
-
-
-# if not mm_cfg.get("use_lita", False):
-
-class MCoreLitaModel(MCoreNevaModel):
-    def __init__(self,
-        mm_cfg,
-        media_start_id,
-        media_end_id,
-        mcore_gpt,
-        **kwargs):
-        # use LitaWordEmbeddingMixin to initialize the model
-        super().__init__(mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs)
-        
-        # init lita
-        lita_conf = mm_cfg.get('lita', {})
-        self.embedding.word_embeddings.init_lita(
-                    lita_video_arch=lita_conf.get('lita_video_arch', 'temporal_spatial_pool'),
-                    visual_token_format=lita_conf.get('visual_token_format', 'v1'),
-                    use_media_start_end=mm_cfg.get('use_im_start_end', False),  # we need to make this clear
-                    sample_frames=lita_conf.get('sample_frames', 4),
-                )

@@ -131,6 +131,9 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
     by integrating a vision encoder. It allows the language model to process media inputs
     alongside text inputs.
     """
+    
+    def init(self, mm_cfg):
+        pass
 
     def init_vision(
         self,
@@ -315,6 +318,7 @@ class NevaBaseModel:
         # Monkey patch embedding
         if kwargs.get("pre_process", True):
             extend_instance(self.embedding.word_embeddings, media_word_embedding_mixin)
+            self.embedding.word_embeddings.init(mm_cfg)
             self.embedding.word_embeddings.init_vision(
                 vision_encoder,
                 media_start_id,
@@ -581,61 +585,41 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 if self.trainer.strategy.launcher is not None:
                     self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
                 self.trainer.strategy.setup_environment()
-            if not self.cfg.mm_cfg.get("use_lita", False):
-                model = MCoreNevaModel(
-                    mm_cfg=self.cfg.mm_cfg,
-                    media_start_id=media_start_id,
-                    media_end_id=media_end_id,
-                    mcore_gpt=self.mcore_gpt,
-                    media_word_embedding_mixin=NevaWordEmbeddingMixin,
-                    config=self.transformer_config,
-                    transformer_layer_spec=get_specs(
-                        self.spec_name,
-                        self.transformer_config.num_moe_experts,
-                        self.transformer_config.moe_grouped_gemm,
-                        self.transformer_engine,
-                    ),
-                    vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
-                    max_sequence_length=self.cfg.get('encoder_seq_length', 512),
-                    pre_process=pre_process,
-                    post_process=post_process,
-                    parallel_output=True,
-                    share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
-                    position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
-                    rotary_percent=self.cfg.get('rotary_percentage', 1.0),
-                    seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
-                    rotary_base=self.cfg.get('rotary_base', 10000),
-                )
-            else:
-                from nemo.collections.multimodal.models.multimodal_llm.neva.lita_model import (
+            
+            media_word_embedding_mixin = NevaWordEmbeddingMixin
+            if self.cfg.mm_cfg.get("use_lita", False):
+                from nemo.collections.multimodal.models.multimodal_llm.neva.neva_word_embedding_mixins import (
                     LitaWordEmbeddingMixin,
-                    MCoreLitaModel,
                 )
-                model = MCoreLitaModel(
-                    mm_cfg=self.cfg.mm_cfg,
-                    media_start_id=media_start_id,
-                    media_end_id=media_end_id,
-                    mcore_gpt=self.mcore_gpt,
-                    media_word_embedding_mixin=LitaWordEmbeddingMixin,
-                    config=self.transformer_config,
-                    transformer_layer_spec=get_specs(
-                        self.spec_name,
-                        self.transformer_config.num_moe_experts,
-                        self.transformer_config.moe_grouped_gemm,
-                        self.transformer_engine,
-                    ),
-                    vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
-                    max_sequence_length=self.cfg.get('encoder_seq_length', 512),
-                    pre_process=pre_process,
-                    post_process=post_process,
-                    parallel_output=True,
-                    share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
-                    position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
-                    rotary_percent=self.cfg.get('rotary_percentage', 1.0),
-                    seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
-                    rotary_base=self.cfg.get('rotary_base', 10000)
-                )
+                media_word_embedding_mixin = LitaWordEmbeddingMixin
+            
+            model = MCoreNevaModel(
+                mm_cfg=self.cfg.mm_cfg,
+                media_start_id=media_start_id,
+                media_end_id=media_end_id,
+                mcore_gpt=self.mcore_gpt,
+                media_word_embedding_mixin=media_word_embedding_mixin,
+                config=self.transformer_config,
+                transformer_layer_spec=get_specs(
+                    self.spec_name,
+                    self.transformer_config.num_moe_experts,
+                    self.transformer_config.moe_grouped_gemm,
+                    self.transformer_engine,
+                ),
+                vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
+                max_sequence_length=self.cfg.get('encoder_seq_length', 512),
+                pre_process=pre_process,
+                post_process=post_process,
+                parallel_output=True,
+                share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
+                position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
+                rotary_percent=self.cfg.get('rotary_percentage', 1.0),
+                seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
+                rotary_base=self.cfg.get('rotary_base', 10000)
+            )
         else:
+            if self.cfg.mm_cfg.get("use_lita", False):
+                raise NotImplementedError("Lita is not supported when mcore_gpt is False.")
             model = NevaModel(
                 mm_cfg=self.cfg.mm_cfg,
                 media_start_id=media_start_id,
