@@ -61,8 +61,7 @@ Microservices](https://developer.nvidia.com/nemo-microservices-early-access).
 ## Speech AI
 
 NeMo ASR and TTS models can be optimized for inference and deployed for
-production use cases with [NVIDIA
-Riva](https://developer.nvidia.com/riva).
+production use cases with [NVIDIA Riva](https://developer.nvidia.com/riva).
 
 ## NeMo Framework Launcher
 
@@ -74,8 +73,7 @@ Slurm clusters.
 
 The NeMo Framework Launcher includes extensive recipes, scripts,
 utilities, and documentation for training NeMo LLMs. It also includes
-the NeMo Framework
-[Autoconfigurator](https://github.com/NVIDIA/NeMo-Megatron-Launcher#53-using-autoconfigurator-to-find-the-optimal-configuration),
+the NeMo Framework [Autoconfigurator](https://github.com/NVIDIA/NeMo-Megatron-Launcher#53-using-autoconfigurator-to-find-the-optimal-configuration),
 which is designed to find the optimal model parallel configuration for
 training on a specific cluster.
 
@@ -112,17 +110,17 @@ multi-GPU/multi-node training.
 
 ## Key Features
 
--   [Large Language Models](nemo/collections/nlp/README.md)
--   [Multimodal](nemo/collections/multimodal/README.md)
--   [Automatic Speech Recognition](nemo/collections/asr/README.md)
--   [Text to Speech](nemo/collections/tts/README.md)
--   [Computer Vision](nemo/collections/vision/README.md)
+- [Large Language Models](nemo/collections/nlp/README.md)
+- [Multimodal](nemo/collections/multimodal/README.md)
+- [Automatic Speech Recognition](nemo/collections/asr/README.md)
+- [Text to Speech](nemo/collections/tts/README.md)
+- [Computer Vision](nemo/collections/vision/README.md)
 
 ## Requirements
 
--   Python 3.10 or above
--   Pytorch 1.13.1 or above
--   NVIDIA GPU (if you intend to do model training)
+- Python 3.10 or above
+- Pytorch 1.13.1 or above
+- NVIDIA GPU (if you intend to do model training)
 
 ## Developer Documentation
 
@@ -137,16 +135,16 @@ The NeMo Framework can be installed in a variety of ways, depending on
 your needs. Depending on the domain, you may find one of the following
 installation methods more suitable.
 
--   Conda / Pip - Refer to [Conda](#conda) and [Pip](#pip) for
-    installation instructions.
-    -   This is the recommended method for ASR and TTS domains.
-    -   When using a Nvidia PyTorch container as the base, this is the
-        recommended method for all domains.
--   Docker Containers - Refer to [Docker containers](#docker-containers)
-    for installation instructions.
-    -   NeMo Framework container -
-        [nvcr.io/nvidia/nemo:24.05]{.title-ref}
--   LLMs and MMs Dependencies - Refer to [LLMs and MMs
+- Conda / Pip - Refer to [Conda](#conda) and [Pip](#pip) for
+  installation instructions.
+  - This is the recommended method for ASR and TTS domains.
+  - When using a Nvidia PyTorch container as the base, this is the
+      recommended method for all domains.
+- Docker Containers - Refer to [Docker containers](#docker-containers)
+  for installation instructions.
+  - NeMo Framework container -
+      [nvcr.io/nvidia/nemo:24.05]{.title-ref}
+- LLMs and MMs Dependencies - Refer to [LLMs and MMs
     Dependencies](#install-llms-and-mms-dependencies) for installation
     instructions.
 
@@ -396,8 +394,7 @@ you may need to update it to a newer version.
 
 The Transformer Engine facilitates training with FP8 precision on NVIDIA
 Hopper GPUs and introduces many enhancements for the training of
-Transformer-based models. Refer to [Transformer
-Enginer](https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/installation.html)
+Transformer-based models. Refer to [Transformer Engine](https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/installation.html)
 for information.
 
 To install Transformer Engine, run the following code:
@@ -496,9 +493,9 @@ branch](https://github.com/NVIDIA/NeMo/tree/gh-pages-src#readme).
 
 ## Licenses
 
--   [NeMo GitHub Apache 2.0
-    license](https://github.com/NVIDIA/NeMo?tab=Apache-2.0-1-ov-file#readme)
--   NeMo is licensed under the [NVIDIA AI PRODUCT
-    AGREEMENT](https://www.nvidia.com/en-us/data-center/products/nvidia-ai-enterprise/eula/).
-    By pulling and using the container, you accept the terms and
-    conditions of this license.
+- [NeMo GitHub Apache 2.0
+  license](https://github.com/NVIDIA/NeMo?tab=Apache-2.0-1-ov-file#readme)
+- NeMo is licensed under the [NVIDIA AI PRODUCT
+  AGREEMENT](https://www.nvidia.com/en-us/data-center/products/nvidia-ai-enterprise/eula/).
+  By pulling and using the container, you accept the terms and
+  conditions of this license.
