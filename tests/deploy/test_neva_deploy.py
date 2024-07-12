@@ -1,13 +1,15 @@
 import argparse
+from io import BytesIO
 
 import numpy as np
 from PIL import Image
 from pytriton.client import ModelClient
-from io import BytesIO
 
 from nemo.deploy.deploy_pytriton import DeployPyTriton
-from nemo.deploy.multimodal.megatronneva_deployable import MegatronNevaDeployable, MediaType
-#from nemo.deploy.nlp.query_llm import NemoTritonQueryLLMPyTorch
+from nemo.deploy.multimodal.megatronneva_deployable import MediaType, MegatronNevaDeployable
+
+# from nemo.deploy.nlp.query_llm import NemoTritonQueryLLMPyTorch
+
 
 def test_triton_deployable(args):
     megatron_deployable = MegatronNevaDeployable(args.nemo_checkpoint, args.num_gpus)
@@ -70,7 +72,7 @@ def test_triton_deployable(args):
             top_p=top_p,
             temperature=temperature,
             media_type=media_type,
-            media_list=media
+            media_list=media,
         )
         print("ModelClient result:")
         print(result_dict)

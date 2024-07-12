@@ -114,6 +114,7 @@ class NemoQueryMultimodal:
             else:
                 return result_dict["outputs"]
 
+
 class NemoQueryMultimodalPyTorch:
     """
     Sends a query to Triton for Multimodal inference with in-framework models

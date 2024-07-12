@@ -14,17 +14,18 @@
 
 import logging
 from enum import IntEnum, auto
+from io import BytesIO
 from pathlib import Path
 
 import numpy as np
 import torch
 import wrapt
-from pytorch_lightning.trainer.trainer import Trainer
 from omegaconf import OmegaConf
 from PIL import Image
-from io import BytesIO
+from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
+from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     OutputType,
     get_default_length_params,
@@ -34,9 +35,9 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list
-from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
 
 # import hashlib
+
 
 @wrapt.decorator
 def noop_decorator(func):
@@ -92,10 +93,13 @@ class ServerSync(IntEnum):
     def to_long_tensor(self):
         return torch.tensor([self], dtype=torch.long, device='cuda')
 
+
 class MediaType(IntEnum):
     """Enum for selecting media type input into the multimodal model"""
+
     IMAGE = auto()
     VIDEO = auto()
+
 
 class MegatronNevaDeployable(ITritonDeployable):
     """Triton inference server compatible deploy class for a .nemo model file"""
@@ -106,8 +110,8 @@ class MegatronNevaDeployable(ITritonDeployable):
         num_devices: int = 1,
         num_nodes: int = 1,
         existing_model: MegatronNevaModel = None,
-        existing_image_processor = None,
-        existing_video_processor = None,
+        existing_image_processor=None,
+        existing_video_processor=None,
     ):
         if nemo_checkpoint_filepath is None and existing_model is None:
             raise ValueError(
@@ -126,18 +130,20 @@ class MegatronNevaDeployable(ITritonDeployable):
         else:
             # create_neva_model_and_processor takes an OmegaConf object as input, so need to construct one here
             # required fields: neva_model_file, trainer, tensor_model_parallel_size, pipeline_model_parallel_size
-            config = OmegaConf.create({
-                "neva_model_file" : nemo_checkpoint_filepath,
-                "trainer" : {
-                    "devices": num_devices, 
-                    "num_nodes": num_nodes, 
-                    "accelerator" : "gpu",
-                    "logger" : False,
-                    "precision" : "bf16"
+            config = OmegaConf.create(
+                {
+                    "neva_model_file": nemo_checkpoint_filepath,
+                    "trainer": {
+                        "devices": num_devices,
+                        "num_nodes": num_nodes,
+                        "accelerator": "gpu",
+                        "logger": False,
+                        "precision": "bf16",
                     },
-                "tensor_model_parallel_size": num_devices,
-                "pipeline_model_parallel_size": 1
-                })
+                    "tensor_model_parallel_size": num_devices,
+                    "pipeline_model_parallel_size": 1,
+                }
+            )
             model, image_processor, video_processor = create_neva_model_and_processor(config)
             self.model = model
             self.image_processor = image_processor
@@ -159,7 +165,7 @@ class MegatronNevaDeployable(ITritonDeployable):
     _INPUT_PARAMETER_FIELDS = {
         "prompts": (-1, bytes, False),
         "media_type": (1, np.int_, True),
-        "media_list": (-1, bytes, False)
+        "media_list": (-1, bytes, False),
     }
 
     '''
@@ -261,7 +267,7 @@ class MegatronNevaDeployable(ITritonDeployable):
         length_params = self._length_params_from_triton_inputs(**inputs)
 
         media_type = MediaType(inputs.pop("media_type")[0]) if "media_type" in inputs else MediaType.IMAGE
-        inference_config_dict = {"inference" : {"media_type" : media_type.name.lower()}}
+        inference_config_dict = {"inference": {"media_type": media_type.name.lower()}}
         inference_config = OmegaConf.create(inference_config_dict)
 
         prompt_dict_list = []
@@ -270,19 +276,22 @@ class MegatronNevaDeployable(ITritonDeployable):
 
         for index, prompt_string in enumerate(input_strings):
             media = input_media[index][0]
-            if media_type==MediaType.IMAGE:
+            if media_type == MediaType.IMAGE:
                 size = len(media)
                 image_bytes = BytesIO(media)
                 image_bytes.seek(0)
                 media = self.image_processor(Image.open(image_bytes).convert('RGB'))
-            elif media_type==MediaType.VIDEO:
+            elif media_type == MediaType.VIDEO:
                 media = self.video_processor(media)
             else:
                 raise ValueError(f"Expected media_type of 'IMAGE' or 'VIDEO', but got '{media_type.name}'")
             prompt_dict_list.append({"prompt": prompt_string, media_type.name.lower(): media})
 
         model_output = self.model.generate(
-            input_prompts=prompt_dict_list, length_params=length_params, sampling_params=sampling_params, inference_config=inference_config
+            input_prompts=prompt_dict_list,
+            length_params=length_params,
+            sampling_params=sampling_params,
+            inference_config=inference_config,
         )
         '''
             model_output will be a list of dicts, each with the result for a single prompt
@@ -308,7 +317,9 @@ class MegatronNevaDeployable(ITritonDeployable):
         model_output_organized = {}
         for model_output_field in model_output[0].keys():
             if model_output[0][model_output_field] is not None:
-                model_output_organized[model_output_field] = [model_output[i][model_output_field] for i in range(num_outputs)]
+                model_output_organized[model_output_field] = [
+                    model_output[i][model_output_field] for i in range(num_outputs)
+                ]
 
         for model_output_field, value in model_output_organized.items():
             if model_output_field not in ['sentences', 'clean_text', 'clean_response'] and value is not None:
@@ -316,13 +327,17 @@ class MegatronNevaDeployable(ITritonDeployable):
                 field_longest_output_item = 0
                 for item in value:
                     # for llava models, everything is wrapped in an extra list (or tensor) of length 1, so need to index down one level to get the actual list
-                    if (type(item[0]) is list and len(item) == 1) or (isinstance(item, torch.Tensor) and item.dim() > 1 and item.shape[0] == 1):
+                    if (type(item[0]) is list and len(item) == 1) or (
+                        isinstance(item, torch.Tensor) and item.dim() > 1 and item.shape[0] == 1
+                    ):
                         item = item[0]
                     field_longest_output_item = max(field_longest_output_item, len(item))
                 # then pad shorter items to match this length
                 for index, item in enumerate(value):
                     # same "one level down" check as above
-                    has_extra_list_wrapper = (type(item[0]) is list and len(item) == 1) or (isinstance(item, torch.Tensor) and item.dim() > 1 and item.shape[0] == 1)
+                    has_extra_list_wrapper = (type(item[0]) is list and len(item) == 1) or (
+                        isinstance(item, torch.Tensor) and item.dim() > 1 and item.shape[0] == 1
+                    )
                     if has_extra_list_wrapper:
                         item = item[0]
 
