@@ -607,7 +607,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     rotary_base=self.cfg.get('rotary_base', 10000),
                 )
             else:
-                from nemo.collections.multimodal.models.multimodal_llm.neva.lita_model import MCoreLitaModel, LitaWordEmbeddingMixin
+                from nemo.collections.multimodal.models.multimodal_llm.neva.lita_model import (
+                    LitaWordEmbeddingMixin,
+                    MCoreLitaModel,
+                )
                 model = MCoreLitaModel(
                     mm_cfg=self.cfg.mm_cfg,
                     media_start_id=media_start_id,
@@ -630,6 +633,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
                     rotary_percent=self.cfg.get('rotary_percentage', 1.0),
                     seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
+                    rotary_base=self.cfg.get('rotary_base', 10000)
                 )
         else:
             model = NevaModel(

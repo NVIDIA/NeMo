@@ -1,8 +1,10 @@
-import torch.nn.functional as F
-from einops import rearrange, reduce
 import numpy as np
 import torch
-from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import NevaWordEmbeddingMixin, MCoreNevaModel
+import torch.nn.functional as F
+from einops import rearrange, reduce
+
+from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MCoreNevaModel, NevaWordEmbeddingMixin
+
 
 class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
     def init_lita(
