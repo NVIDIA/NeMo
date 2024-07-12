@@ -140,6 +140,9 @@ def update_tokenizer_paths(tokenizer_config: Dict, unpacked_checkpoints_dir):
 
 
 def copy_tokenizer_files(config, out_dir):
+    # workaround for temp dir
+    out_dir = Path(out_dir)
+    
     basenames = {
         "model": "tokenizer",
         "vocab_file": "vocab",
@@ -232,6 +235,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
             model = load_sharded_metadata(dist_ckpt_folder)
             nemo_model_config = unpacked_checkpoint_dir.model_config
 
+            
             if nemo_model_config["tokenizer"].get("library", None) == "huggingface":
                 tokenizer = AutoTokenizer.from_pretrained(
                     nemo_model_config["tokenizer"]["type"],

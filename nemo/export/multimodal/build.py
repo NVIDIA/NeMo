@@ -37,7 +37,7 @@ def build_trtllm_engine(
     llm_checkpoint_path: str = None,
     model_type: str = "neva",
     llm_model_type: str = "llama",
-    tensor_parallel_size: int = 1,
+    tensor_parallelism_size: int = 1,
     max_input_len: int = 256,
     max_output_len: int = 256,
     max_batch_size: int = 1,
@@ -45,10 +45,11 @@ def build_trtllm_engine(
     dtype: str = "bfloat16",
 ):
     trt_llm_exporter = TensorRTLLM(model_dir=model_dir, load_model=False)
+    visual_checkpoint_model = ['neva', 'lita', 'vila']
     trt_llm_exporter.export(
-        nemo_checkpoint_path=visual_checkpoint_path if model_type == "neva" else llm_checkpoint_path,
+        nemo_checkpoint_path=visual_checkpoint_path if model_type in visual_checkpoint_model else llm_checkpoint_path,
         model_type=llm_model_type,
-        tensor_parallel_size=tensor_parallel_size,
+        tensor_parallelism_size=tensor_parallelism_size,
         max_input_len=max_input_len,
         max_output_len=max_output_len,
         max_batch_size=max_batch_size,
@@ -75,7 +76,7 @@ def export_visual_wrapper_onnx(
 
 
 def build_trt_engine(
-    model_type, input_sizes, output_dir, max_batch_size, dtype=torch.bfloat16, image_size=None, num_frames=None
+    model_type, input_sizes, output_dir, vision_max_batch_size, dtype=torch.bfloat16, image_size=None, num_frames=None
 ):
     part_name = 'visual_encoder'
     onnx_file = '%s/onnx/%s.onnx' % (output_dir, part_name)
@@ -110,8 +111,8 @@ def build_trt_engine(
 
     nBS = -1
     nMinBS = 1
-    nOptBS = max(nMinBS, int(max_batch_size / 2))
-    nMaxBS = max_batch_size
+    nOptBS = max(nMinBS, int(vision_max_batch_size / 2))
+    nMaxBS = vision_max_batch_size
 
     inputT = network.get_input(0)
 
@@ -145,9 +146,10 @@ def build_trt_engine(
 
 
 def build_neva_engine(
+    model_type: str,
     model_dir: str,
     visual_checkpoint_path: str,
-    max_batch_size: int = 1,
+    vision_max_batch_size: int = 1,
 ):
     device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
     # extract NeMo checkpoint
@@ -155,6 +157,28 @@ def build_neva_engine(
         mp0_weights, nemo_config, _ = load_nemo_model(visual_checkpoint_path, temp)
 
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
+    
+    class DownSampleBlock(torch.nn.Module):
+        def forward(self, x):
+            vit_embeds = x
+            h = w = int(vit_embeds.shape[1] ** 0.5)
+            vit_embeds = vit_embeds.reshape(vit_embeds.shape[0], h, w, -1)
+            vit_embeds = self.flat_square(vit_embeds)
+            vit_embeds = vit_embeds.reshape(vit_embeds.shape[0], -1, vit_embeds.shape[-1])
+            return vit_embeds
+        
+        def flat_square(self, x):
+            n, w, h, c = x.size()
+            if w % 2 == 1:
+                x = torch.cat([x, torch.zeros((n, 1, h, c), dtype=x.dtype).to(x.device)], dim=1).contiguous()
+                n, w, h, c = x.size()
+            if h % 2 == 1:
+                x = torch.cat([x, torch.zeros((n, w, 1, c), dtype=x.dtype).to(x.device)], dim=2).contiguous()
+                n, w, h, c = x.size()
+            x = x.view(n, w, int(h / 2), int(c * 2))
+            x = x.permute(0, 2, 1, 3).contiguous()
+            x = x.view(n, int(h / 2), int(w / 2), int(c * 4))
+            return x
 
     class VisionEncoderWrapper(torch.nn.Module):
 
@@ -178,44 +202,83 @@ def build_neva_engine(
     dtype = hf_config.torch_dtype
 
     # connector
-    assert nemo_config["mm_cfg"]["mm_mlp_adapter_type"] == "mlp2x_gelu"
-    vision_connector = torch.nn.Sequential(
-        torch.nn.Linear(vision_config["hidden_size"], nemo_config["hidden_size"], bias=True),
-        torch.nn.GELU(),
-        torch.nn.Linear(nemo_config["hidden_size"], nemo_config["hidden_size"], bias=True),
-    ).to(dtype=dtype)
+    #assert nemo_config["mm_cfg"]["mm_mlp_adapter_type"] == "mlp2x_gelu"
+    
+    if nemo_config["mm_cfg"]["mm_mlp_adapter_type"] == "mlp2x_gelu":
+        vision_connector = torch.nn.Sequential(
+            torch.nn.Linear(vision_config["hidden_size"], nemo_config["hidden_size"], bias=True),
+            torch.nn.GELU(),
+            torch.nn.Linear(nemo_config["hidden_size"], nemo_config["hidden_size"], bias=True),
+        ).to(dtype=dtype)
 
-    key_prefix = "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector"
-    for layer in range(0, 3, 2):
-        vision_connector[layer].load_state_dict(
+        key_prefix = "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector"
+        for layer in range(0, 3, 2):
+            vision_connector[layer].load_state_dict(
+                {
+                    'weight': mp0_weights[f"{key_prefix}.{layer}.weight"].to(dtype),
+                    'bias': mp0_weights[f"{key_prefix}.{layer}.bias"].to(dtype),
+                }
+            )
+    elif nemo_config["mm_cfg"]["mm_mlp_adapter_type"] == "linear":
+        vision_connector = torch.nn.Linear(vision_config["hidden_size"], nemo_config["hidden_size"], bias=True)
+        key_prefix = "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector"
+        vision_connector.load_state_dict(
             {
-                'weight': mp0_weights[f"{key_prefix}.{layer}.weight"].to(dtype),
-                'bias': mp0_weights[f"{key_prefix}.{layer}.bias"].to(dtype),
+                'weight': mp0_weights[f"{key_prefix}.weight"].to(dtype),
+                'bias': mp0_weights[f"{key_prefix}.bias"].to(dtype),
             }
         )
-
+    elif nemo_config["mm_cfg"]["mm_mlp_adapter_type"] == "mlp_downsample":
+        vision_connector = torch.nn.Sequential(
+            DownSampleBlock(),
+            torch.nn.LayerNorm(vision_config["hidden_size"] * 4),
+            torch.nn.Linear(vision_config["hidden_size"], nemo_config["hidden_size"], bias=True),
+            torch.nn.GELU(),
+            torch.nn.Linear(nemo_config["hidden_size"], nemo_config["hidden_size"], bias=True),
+        ).to(dtype=dtype)
+        key_prefix = "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector"
+        for layer in [1, 2, 4]:
+            vision_connector[layer].load_state_dict(
+                {
+                    'weight': mp0_weights[f"{key_prefix}.{layer}.weight"].to(dtype),
+                    'bias': mp0_weights[f"{key_prefix}.{layer}.bias"].to(dtype),
+                }
+            )
+        
+    else:
+        raise ValueError(f"Unknown projector type: {nemo_config['mm_cfg']['mm_mlp_adapter_type']}")
+    
     # export the whole wrapper
     wrapper = VisionEncoderWrapper(vision_encoder, vision_connector).to(device, dtype)
-    image_size = hf_config.vision_config.image_size
+    if model_type == "lita":
+        lita_num_frames = nemo_config['mm_cfg']['lita']['sample_frames']
+        
+    print(hf_config)
+    
+    if model_type == 'lita':
+        image_size = hf_config.image_size
+    else:
+        image_size = hf_config.vision_config.image_size
     dummy_image = torch.empty(
         1, 3, image_size, image_size, dtype=dtype, device=device
     )  # dummy image shape [B, C, H, W]
 
     export_visual_wrapper_onnx(wrapper, dummy_image, model_dir)
     build_trt_engine(
-        "neva",
+        model_type,
         [3, image_size, image_size],
         model_dir,
-        max_batch_size,
+        vision_max_batch_size,
         dtype,
         image_size=image_size,
+        num_frames=lita_num_frames if model_type == "lita" else None,
     )
 
 
 def build_video_neva_engine(
     model_dir: str,
     visual_checkpoint_path: str,
-    max_batch_size: int = 1,
+    vision_max_batch_size: int = 1,
 ):
     device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
     # extract NeMo checkpoint
@@ -279,7 +342,7 @@ def build_video_neva_engine(
         "video-neva",
         [num_frames, 3, image_size, image_size],  # [num_frames, 3, H, W]
         model_dir,
-        max_batch_size,
+        vision_max_batch_size,
         dtype,
         image_size=image_size,
         num_frames=num_frames,
@@ -290,11 +353,12 @@ def build_visual_engine(
     model_dir: str,
     visual_checkpoint_path: str,
     model_type: str = "neva",
-    max_batch_size: int = 1,
-):
-    if model_type == "neva":
-        build_neva_engine(model_dir, visual_checkpoint_path, max_batch_size)
+    vision_max_batch_size: int = 1,
+):  
+    model_list = ['neva', 'lita', 'vila']
+    if model_type in model_list:
+        build_neva_engine(model_type, model_dir, visual_checkpoint_path, vision_max_batch_size)
     elif model_type == "video-neva":
-        build_video_neva_engine(model_dir, visual_checkpoint_path, max_batch_size)
+        build_video_neva_engine(model_dir, visual_checkpoint_path, vision_max_batch_size)
     else:
         raise RuntimeError(f"Invalid model type {model_type}")

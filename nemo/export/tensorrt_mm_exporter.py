@@ -91,6 +91,7 @@ class TensorRTMMExporter(ITritonDeployable):
         max_input_len: int = 4096,
         max_output_len: int = 256,
         max_batch_size: int = 1,
+        vision_max_batch_size: int = 1,
         max_multimodal_len: int = 3072,
         dtype: str = "bfloat16",
         delete_existing_files: bool = True,
@@ -119,7 +120,7 @@ class TensorRTMMExporter(ITritonDeployable):
             llm_checkpoint_path=llm_checkpoint_path,
             model_type=model_type,
             llm_model_type=llm_model_type,
-            tensor_parallel_size=tensor_parallel_size,
+            tensor_parallelism_size=tensor_parallel_size,
             max_input_len=max_input_len,
             max_output_len=max_output_len,
             max_batch_size=max_batch_size,
@@ -128,7 +129,7 @@ class TensorRTMMExporter(ITritonDeployable):
         )
 
         visual_dir = os.path.join(self.model_dir, "visual_engine")
-        build_visual_engine(visual_dir, visual_checkpoint_path, model_type, max_batch_size)
+        build_visual_engine(visual_dir, visual_checkpoint_path, model_type, vision_max_batch_size)
 
         if load_model:
             self._load()
