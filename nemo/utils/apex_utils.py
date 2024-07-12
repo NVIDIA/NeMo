@@ -11,10 +11,6 @@ def _reconfigure_microbatch_calculator(
     micro_batch_size: int,
     data_parallel_size: int,
 ) -> None:
-    if torch.distributed.get_rank() == 0:
-        import warnings
-
-        warnings.warn("This function is only for unittest")
 
     import megatron.core.num_microbatches_calculator as mb_calculator
 
