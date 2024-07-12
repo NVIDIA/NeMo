@@ -12,4 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
+
+from nemo.deploy.multimodal.query_multimodal import NemoQueryMultimodal

@@ -14,6 +14,7 @@
 
 import glob
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -50,6 +51,21 @@ from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
+
+try:
+    # `ptl_resiliency` is included in `gwe_resiliency_pkg` package
+    from ptl_resiliency import StragglerDetectionCallback
+
+    HAVE_STRAGGLER_DET = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_STRAGGLER_DET = False
+
+try:
+    from ptl_resiliency import FaultToleranceCallback
+
+    HAVE_FT = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_FT = False
 
 
 class NotFoundError(NeMoBaseException):
@@ -130,6 +146,34 @@ class EMAParams:
 
 
 @dataclass
+class StragglerDetectionParams:
+    report_time_interval: float = 300
+    calc_relative_gpu_perf: bool = True
+    calc_individual_gpu_perf: bool = True
+    num_gpu_perf_scores_to_log: int = 5
+    gpu_relative_perf_threshold: float = 0.7
+    gpu_individual_perf_threshold: float = 0.7
+    stop_if_detected: bool = False
+
+
+@dataclass
+class FaultToleranceParams:
+    # NOTE: This config section is also read by the launcher.
+    # NOTE: Default values should match fault_tolerance.FaultToleranceConfig.
+
+    workload_check_interval: float = 5.0
+    initial_rank_heartbeat_timeout: Optional[float] = 60.0 * 60.0
+    rank_heartbeat_timeout: Optional[float] = 45.0 * 60.0
+    calculate_timeouts: bool = True
+    rank_termination_signal: signal.Signals = signal.SIGKILL
+    log_level: str = 'INFO'
+    max_rank_restarts: int = 0
+    max_subsequent_job_failures: int = 0
+    additional_ft_launcher_args: str = ''
+    simulated_fault: Optional[Any] = None
+
+
+@dataclass
 class ExpManagerConfig:
     """Experiment Manager config for validation of passed arguments."""
 
@@ -179,6 +223,12 @@ class ExpManagerConfig:
     max_time_per_run: Optional[str] = None
     # time to sleep non 0 ranks during initialization
     seconds_to_sleep: float = 5
+    # Straggler detection
+    create_straggler_detection_callback: Optional[bool] = False
+    straggler_detection_params: Optional[StragglerDetectionParams] = field(default_factory=StragglerDetectionParams)
+    # Fault tolrance
+    create_fault_tolerance_callback: Optional[bool] = False
+    fault_tolerance: Optional[FaultToleranceParams] = field(default_factory=FaultToleranceParams)
 
 
 class TimingCallback(Callback):
@@ -309,6 +359,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 See EarlyStoppingParams dataclass above.
             - create_preemption_callback (bool): Flag to decide whether to enable preemption callback to save checkpoints and exit training
                 immediately upon preemption. Default is True.
+            - create_straggler_detection_callback (bool): Use straggler detection callback. Default is False.
+            - create_fault_tolerance_callback (bool): Use fault tolerance callback. Default is False.
             - files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which
                 copies no files.
             - log_local_rank_0_only (bool): Whether to only create log files for local rank 0. Defaults to False.
@@ -501,6 +553,35 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         if not found_ptl_timer:
             trainer.max_time = cfg.max_time_per_run
             trainer.callbacks.append(StatelessTimer(cfg.max_time_per_run))
+
+    if cfg.create_straggler_detection_callback:
+        if HAVE_STRAGGLER_DET:
+            logging.info("Enabling straggler detection...")
+            straggler_det_args_dict = dict(cfg.straggler_detection_params)
+            straggler_det_callback = StragglerDetectionCallback(**straggler_det_args_dict, logger=logging)
+            trainer.callbacks.append(straggler_det_callback)
+        else:
+            raise ValueError(
+                "`create_straggler_detection_callback` is True, but there is no Straggler Det. package installed."
+            )
+
+    if cfg.create_fault_tolerance_callback:
+        if HAVE_FT:
+            logging.info("Enabling fault tolerance...")
+            ft_params = cfg.fault_tolerance
+            # job failures are handled by the ft_launcher,
+            # here we only need to know if the autoresume is enabled.
+            ft_use_autoresume = ft_params.max_subsequent_job_failures > 0
+            fault_tol_callback = FaultToleranceCallback(
+                autoresume=ft_use_autoresume,
+                calculate_timeouts=ft_params.calculate_timeouts,
+                simulated_fault_params=ft_params.simulated_fault,
+            )
+            trainer.callbacks.append(fault_tol_callback)
+        else:
+            raise ValueError(
+                'FaultToleranceCallback was enabled with create_fault_tolerance_callback, but fault_tolerance package is not installed.'
+            )
 
     if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
