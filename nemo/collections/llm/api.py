@@ -5,10 +5,14 @@ from typing import Any, Callable, Optional, Union
 import pytorch_lightning as pl
 from typing_extensions import Annotated
 
-from nemo.collections.llm.utils import Config, FineTuneRecipy, PreTrainRecipy, recipy_aware_parse_partial, task
+from nemo.collections.llm.utils import Config, task, PreTrainRecipe, FineTuneRecipe, recipe_aware_parse_partial
 from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
+
+
+
+
 
 TokenizerType = Any
 
@@ -71,7 +75,8 @@ def train(
     return app_state.exp_dir
 
 
-@task(namespace="llm", parse_partial=recipy_aware_parse_partial(PreTrainRecipy))
+
+@task(namespace="llm", parse_partial=recipe_aware_parse_partial(PreTrainRecipe))
 def pretrain(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
@@ -79,7 +84,7 @@ def pretrain(
     log: Annotated[Optional[NeMoLogger], Config[NeMoLogger]] = None,
     resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
-    recipy: Optional[PreTrainRecipy] = None,
+    recipe: Optional[PreTrainRecipe] = None,
 ) -> Path:
     """
     Pretrains a model using the specified data and trainer, with optional logging, resuming, and optimization.
@@ -109,8 +114,8 @@ def pretrain(
         >>> llm.pretrain(model, data, trainer)
         PosixPath('/path/to/log_dir')
     """
-    del recipy
-
+    del recipe
+    
     return train(
         model=model,
         data=data,
@@ -122,7 +127,7 @@ def pretrain(
     )
 
 
-@task(namespace="llm", parse_partial=recipy_aware_parse_partial(FineTuneRecipy))
+@task(namespace="llm", parse_partial=recipe_aware_parse_partial(FineTuneRecipe))
 def finetune(
     model: pl.LightningModule,
     data: pl.LightningDataModule,
@@ -131,7 +136,7 @@ def finetune(
     resume: Annotated[Optional[AutoResume], Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
     peft: Optional[Union[PEFT, ModelTransform, Callable]] = None,
-    recipy: Optional[FineTuneRecipy] = None,
+    recipe: Optional[FineTuneRecipe] = None,
 ) -> Path:
     """
     Finetunes a model using the specified data and trainer, with optional logging, resuming, and PEFT.
@@ -161,7 +166,7 @@ def finetune(
         >>> finetune(model, data, trainer, peft=llm.peft.LoRA()])
         PosixPath('/path/to/log_dir')
     """
-    del recipy
+    del recipe
 
     return train(
         model=model,

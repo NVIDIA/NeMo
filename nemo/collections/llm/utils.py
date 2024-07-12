@@ -61,7 +61,7 @@ def factory(*args: Any, **kwargs: Any) -> Union[Callable[[T], T], T]:
 
 
 @dataclass
-class PreTrainRecipy:
+class PreTrainRecipe:
     model: Config
     trainer: Config
     data: Config
@@ -80,7 +80,7 @@ class PreTrainRecipy:
 
 
 @dataclass
-class FineTuneRecipy:
+class FineTuneRecipe:
     model: Config
     trainer: Config
     data: Config
@@ -100,7 +100,7 @@ class FineTuneRecipy:
         return Partial(finetune, **recipy_kwargs)
 
 
-def recipy_aware_parse_partial(recipy_type):
+def recipe_aware_parse_partial(recipe_type):
     def _parser(fn, args):
         import nemo_sdk as sdk
         from nemo_sdk.config import Partial, set_value
@@ -108,14 +108,14 @@ def recipy_aware_parse_partial(recipy_type):
 
         parsed_kwargs, parsed_overrides = parse_args(args)
 
-        if "recipy" in parsed_kwargs:
-            recipy = sdk.resolve(recipy_type, parsed_kwargs["recipy"])
+        if "recipe" in parsed_kwargs:
+            recipe = sdk.resolve(recipe_type, parsed_kwargs["recipe"])
 
-            recipy_kwargs = {}
-            for attr in dir(recipy):
-                recipy_kwargs[attr] = getattr(recipy, attr).as_factory()
+            recipe_kwargs = {}
+            for attr in dir(recipe):
+                recipe_kwargs[attr] = getattr(recipe, attr).as_factory()
 
-            config = Partial(fn, **recipy_kwargs)
+            config = Partial(fn, **recipe_kwargs)
             for key, value in parsed_kwargs.items():
                 set_value(config, key, value)
             for key, value in parsed_overrides.items():

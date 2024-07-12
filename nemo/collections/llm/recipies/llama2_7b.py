@@ -6,7 +6,7 @@ from nemo.collections.llm.gpt.model.llama import Llama2Config7B, LlamaModel
 from nemo.collections.llm.peft.api import gpt_lora
 from nemo.collections.llm.recipies.log.default import default_log
 from nemo.collections.llm.recipies.optim.adam import adam_with_cosine_annealing
-from nemo.collections.llm.utils import FineTuneRecipy, PreTrainRecipy, factory
+from nemo.collections.llm.utils import FineTuneRecipe, PreTrainRecipe, factory
 
 NAME = "llama2_7b"
 
@@ -40,8 +40,8 @@ def hf_resume() -> nl.AutoResume:
 
 
 @factory(name=NAME)
-def pretrain_recipy() -> PreTrainRecipy:
-    return PreTrainRecipy(
+def pretrain_recipy() -> PreTrainRecipe:
+    return PreTrainRecipe(
         model=model,
         trainer=trainer,
         data=squad,
@@ -51,8 +51,8 @@ def pretrain_recipy() -> PreTrainRecipy:
 
 
 @factory(name=NAME)
-def finetune_recipy() -> FineTuneRecipy:
-    return FineTuneRecipy(
+def finetune_recipy() -> FineTuneRecipe:
+    return FineTuneRecipe(
         model=model,
         trainer=trainer,
         data=squad,
