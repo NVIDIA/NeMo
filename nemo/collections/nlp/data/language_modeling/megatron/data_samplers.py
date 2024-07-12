@@ -106,6 +106,32 @@ class MegatronPretrainingSampler(BaseMegatronSampler):
         indices = range(self.consumed_samples, self.total_samples)
         if (not self.drop_last) and self.pad_samples_to_global_batch_size:
             pad_samples_num = -len(indices) % self.global_batch_size
+            pad_indices = range(-1, -pad_samples_num - 1, -1)
+            indices = chain(indices, pad_indices)
+
+        for idx in indices:
+            batch.append(idx)
+            if len(batch) == self.micro_batch_times_data_parallel_size:
+                start_idx, end_idx = self.get_start_end_idx()
+                yield batch[start_idx:end_idx]
+                batch = []
+
+        # Check the last partial batch and see drop_last is set
+        if len(batch) > 0 and not self.drop_last:
+            assert (
+                not self.pad_samples_to_global_batch_size
+            ), 'with pad_samples_to_global_batch_size all batches should be complete'
+            start_idx, end_idx = self.get_start_end_idx()
+            yield batch[start_idx:end_idx]
+
+
+class MegatronCorePretrainingSampler(MegatronPretrainingSampler):
+    def __iter__(self):
+        batch = []
+        # Last batch will be dropped if drop_last is not set False
+        indices = range(self.consumed_samples, self.total_samples)
+        if (not self.drop_last) and self.pad_samples_to_global_batch_size:
+            pad_samples_num = -len(indices) % self.global_batch_size
             pad_indices = [None] * pad_samples_num
             indices = chain(indices, pad_indices)
 
