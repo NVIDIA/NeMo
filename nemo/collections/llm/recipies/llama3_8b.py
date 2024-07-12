@@ -53,5 +53,11 @@ def pretrain_recipy() -> PreTrainRecipy:
 @factory(name=NAME)
 def finetune_recipy() -> FineTuneRecipy:
     return FineTuneRecipy(
-        model=model, trainer=trainer, data=squad, log=default_log, optim=adam_with_cosine_annealing, peft=gpt_lora
+        model=model,
+        trainer=trainer,
+        data=squad,
+        log=default_log,
+        optim=adam_with_cosine_annealing,
+        peft=gpt_lora,
+        resume=hf_resume,
     )

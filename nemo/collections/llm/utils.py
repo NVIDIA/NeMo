@@ -87,6 +87,7 @@ class FineTuneRecipy:
     optim: Config
     log: Config
     peft: Optional[Config] = None
+    resume: Optional[Config] = None
 
     @property
     def partial(self) -> Partial:
