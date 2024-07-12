@@ -29,8 +29,9 @@ Example
 CUDA_VISIBLE_DEVICES="0" python /NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
                                 --input_name_or_path <path to the source pytorch model> \
                                 --output_path <path to target .nemo model> \
-                                --ngroups_mamba 8 \
-                                --precision bf16
+                                --mamba_ssm_ngroups 8 \
+                                --precision bf16 \
+                                --tokenizer_model_dir <path to tokenizer.model, only set for 8b models, otherwise defaults to None>
 '''
 
 
@@ -49,9 +50,12 @@ def get_args():
         type=str,
         required=True,
     )
-    parser.add_argument("--ngroups_mamba", type=int, default=8, help="ngroups for Mamba model")
+    parser.add_argument("--mamba_ssm_ngroups", type=int, default=8, help="ngroups for Mamba model")
     parser.add_argument(
         "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
+    )
+    parser.add_argument(
+        "--tokenizer_model_dir", type=str, default=None, help="Path to the tokenizer.model, required for 8b models"
     )
     args = parser.parse_args()
     return args
@@ -59,7 +63,7 @@ def get_args():
 
 def convert(args):
 
-    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')['model']
+    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')
     new_state_dict = {}
 
     if 'backbone' in list(checkpoint_weights.keys())[0]:
@@ -91,9 +95,18 @@ def convert(args):
 
         for i in range(num_layers):
             for attr in layer_attributes:
-                new_key = f'model.decoder.layers.{i}.{attr}'
-                old_key = f'backbone.layers.{i}.{attr}'
+                if attr == 'norm.weight':
+                    new_key = f'model.decoder.layers.{i}.mixer.in_proj.layer_norm_weight'
+                    old_key = f'backbone.layers.{i}.norm.weight'
+                else:
+                    new_key = f'model.decoder.layers.{i}.{attr}'
+                    old_key = f'backbone.layers.{i}.{attr}'
                 new_state_dict[new_key] = checkpoint_weights[old_key]
+
+        # Tokenizer settings
+        tokenizer_library = 'huggingface'
+        tokenizer_type = 'EleutherAI/gpt-neox-20b'
+        tokenizer_model = None
 
     else:
 
@@ -101,7 +114,20 @@ def convert(args):
         layer_numbers = set(int(re.search(r'decoder\.layers\.(\d+)\.', key).group(1)) for key in layer_keys)
         num_layers = max(layer_numbers) + 1
 
-        new_state_dict = {"model." + key: value for key, value in checkpoint_weights.items()}
+        for key, value in checkpoint_weights.items():
+            if '.norm.weight' in key and 'mixer' not in key:
+                key = key[:-11] + 'mixer.in_proj.layer_norm_weight'
+            new_state_dict["model." + key] = value
+
+        # Tokenizer settings
+        tokenizer_library = 'megatron'
+        tokenizer_type = 'GPTSentencePieceTokenizer'
+        tokenizer_model = args.tokenizer_model_dir
+
+        # Tokenizer settings
+        tokenizer_library = 'megatron'
+        tokenizer_type = 'GPTSentencePieceTokenizer'
+        tokenizer_model = args.tokenizer_model_dir
 
     layers = defaultdict(list)
 
@@ -131,7 +157,10 @@ def convert(args):
     ].shape
     nemo_config.model.num_layers = num_layers
     nemo_config.model.hybrid_override_pattern = layer_pattern
-    nemo_config.model.ngroups_mamba = args.ngroups_mamba
+    nemo_config.model.mamba_ssm_ngroups = args.mamba_ssm_ngroups
+    nemo_config.model.tokenizer.library = tokenizer_library
+    nemo_config.model.tokenizer.type = tokenizer_type
+    nemo_config.model.tokenizer.model = tokenizer_model
 
     if "-" in layer_pattern:
         nemo_config.model.ffn_hidden_size = new_state_dict[
@@ -147,7 +176,9 @@ def convert(args):
     trainer = MegatronLMPPTrainerBuilder(nemo_config).create_trainer()
     nemo_model_from_pyt = MegatronMambaModel(nemo_config.model, trainer)
 
-    nemo_model_from_pyt.load_state_dict(new_state_dict, strict=True)
+    # Setting strict=False for the _extra_state
+
+    nemo_model_from_pyt.load_state_dict(new_state_dict, strict=False)
     dtype = torch_dtype_from_precision(args.precision)
     nemo_model_from_pyt = nemo_model_from_pyt.to(dtype=dtype)
     nemo_model_from_pyt.save_to(args.output_path)

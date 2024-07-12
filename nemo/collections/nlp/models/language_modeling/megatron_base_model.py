@@ -290,7 +290,11 @@ class MegatronBaseModel(NLPModel):
         Returns:
             The wrapped model. Returns a list of wrapped modules or a single wrapped module.
         """
-        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
+        is_mcore_model = (
+            self.__dict__.get('mcore_gpt', False)
+            or self.__dict__.get('mcore_bert', False)
+            or self.__dict__.get('mcore_t5', False)
+        )
 
         Float16Wrapper = MCoreFloat16Module if is_mcore_model else Float16Module
 
@@ -299,21 +303,30 @@ class MegatronBaseModel(NLPModel):
         if type(self).__name__ == 'MegatronGPTModel':
             nemo_args['share_token_embeddings'] = self.cfg.get('share_embeddings_and_output_weights', True)
 
-        mcore_args = {
-            'config': self.transformer_config,
-        }
+        if is_mcore_model:
+            mcore_args = {
+                'config': self.transformer_config,
+            }
+        else:
+            mcore_args = None
 
         args = mcore_args if is_mcore_model else nemo_args
         # Model wrapper to convert both model and inputs to half precision
-        if isinstance(self.model, list):
+        if isinstance((self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model), list):
             converted_model = []
-            for module in self.model:
+            for module in self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model:
                 args['module'] = module
                 converted_model.append(Float16Wrapper(**args))
-            self.model = converted_model
+            if hasattr(self, "enc_dec_model"):
+                self.enc_dec_model = converted_model
+            else:
+                self.model = converted_model
         else:
-            args['module'] = self.model
-            self.model = Float16Wrapper(**args)
+            args['module'] = self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model
+            if hasattr(self, "enc_dec_model"):
+                self.enc_dec_model = Float16Wrapper(**args)
+            else:
+                self.model = Float16Wrapper(**args)
         args.pop('module')
 
     def get_model_module_list(self):
@@ -323,10 +336,10 @@ class MegatronBaseModel(NLPModel):
             else:
                 return model
 
-        if isinstance(self.model, list):
-            return list(map(extract_module, self.model))
+        if isinstance((self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model), list):
+            return list(map(extract_module, (self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model)))
         else:
-            return [extract_module(self.model)]
+            return [extract_module(self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model)]
 
     def _reconfigure_limit_batches(self, limit_batches, dataloader, mode):
         """
@@ -474,7 +487,7 @@ class MegatronBaseModel(NLPModel):
         activation = self.cfg.get('activation', 'gelu')
         gated_linear_unit = activation.endswith('glu')
         # TODO: need to check which activation functions are supported in mcore
-        activation_func = activation_to_func(activation)
+        activation_func = activation_to_func(activation, openai_gelu=self.cfg.get("openai_gelu", False))
 
         normalization = self.cfg.get('normalization', 'LayerNorm')
 
@@ -1022,7 +1035,11 @@ class MegatronBaseModel(NLPModel):
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self):
         """Returns the total number of parameters across all model parallel groups."""
-        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
+        is_mcore_model = (
+            self.__dict__.get('mcore_gpt', False)
+            or self.__dict__.get('mcore_bert', False)
+            or self.__dict__.get('mcore_t5', False)
+        )
         # log number of parameters
         model = self.get_model_module_list()
         if isinstance(model, list):
@@ -1257,6 +1274,8 @@ class MegatronBaseModel(NLPModel):
             # TODO: Currently the main parameter data type is kept in fp32 (when O2=False). This needs to be
             # extended to support lower precision main parameters.
             frozen_submodule_names, frozen_submodules = find_frozen_submodules(self.model)
+            for submodule in frozen_submodule_names:
+                logging.debug(f"Ignoring state {submodule} in FSDP.")
             self.trainer.strategy.kwargs['ignored_states'] = frozen_submodules
             # FSDP requires uniform status of require_grads
             # Diffusion models like SD has frozen parts and needs to be added to 'ignored_states' from sharding for FSDP to work

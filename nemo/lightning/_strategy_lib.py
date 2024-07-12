@@ -136,6 +136,7 @@ def set_model_parallel_attributes(model, parallelism):
         config.expert_model_parallel_size = parallelism.expert_model_parallel_size
         config.moe_extended_tp = parallelism.moe_extended_tp
         config.sequence_parallel = parallelism.sequence_parallel
+        config.pipeline_dtype = parallelism.pipeline_dtype
 
         return config
 
@@ -399,7 +400,10 @@ def enable_nvidia_optimizations() -> None:
 
 
 def optimizer_sharded_state_dict(
-    model: SharedStateDictProtocol, optimizer: "Optimizable", is_loading=False
+    model: SharedStateDictProtocol,
+    optimizer: "Optimizable",
+    is_loading=False,
+    sharding_type='fully_sharded_model_space',
 ) -> Dict[str, torch.Tensor]:
     """
     Sharded state dictionary for an MainParamsOptimizerWrapper.
@@ -428,7 +432,9 @@ def optimizer_sharded_state_dict(
     }
 
     if hasattr(optimizer, "sharded_state_dict"):
-        return optimizer.sharded_state_dict(model_sharded_state_dict, is_loading=is_loading)
+        return optimizer.sharded_state_dict(
+            model_sharded_state_dict, is_loading=is_loading, sharding_type=sharding_type
+        )
 
     if not isinstance(optimizer, MainParamsOptimizerWrapper):
         # Regular optimizer, e.g. Adam or FusedAdam
