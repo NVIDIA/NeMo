@@ -31,9 +31,9 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
             lita_video_arch=lita_video_arch,
             visual_token_format=visual_token_format,
             use_media_start_end=use_media_start_end,
-            sample_frames=sample_frames
+            sample_frames=sample_frames,
         )
-    
+
     def init_lita(
         self,
         lita_video_arch: str,

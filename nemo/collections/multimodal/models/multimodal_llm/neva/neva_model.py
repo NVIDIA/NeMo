@@ -131,7 +131,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
     by integrating a vision encoder. It allows the language model to process media inputs
     alongside text inputs.
     """
-    
+
     def init(self, mm_cfg):
         pass
 
@@ -475,7 +475,9 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
         **kwargs,
     ):
         MCoreGPTModel.__init__(self, **kwargs)
-        NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_end_id, mcore_gpt, media_word_embedding_mixin, **kwargs)
+        NevaBaseModel.__init__(
+            self, mm_cfg, media_start_id, media_end_id, mcore_gpt, media_word_embedding_mixin, **kwargs
+        )
 
     def freeze_llm(self, mm_cfg):
         if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
@@ -585,14 +587,15 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 if self.trainer.strategy.launcher is not None:
                     self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
                 self.trainer.strategy.setup_environment()
-            
+
             media_word_embedding_mixin = NevaWordEmbeddingMixin
             if self.cfg.mm_cfg.get("use_lita", False):
                 from nemo.collections.multimodal.models.multimodal_llm.neva.neva_word_embedding_mixins import (
                     LitaWordEmbeddingMixin,
                 )
+
                 media_word_embedding_mixin = LitaWordEmbeddingMixin
-            
+
             model = MCoreNevaModel(
                 mm_cfg=self.cfg.mm_cfg,
                 media_start_id=media_start_id,
@@ -615,7 +618,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
-                rotary_base=self.cfg.get('rotary_base', 10000)
+                rotary_base=self.cfg.get('rotary_base', 10000),
             )
         else:
             if self.cfg.mm_cfg.get("use_lita", False):
