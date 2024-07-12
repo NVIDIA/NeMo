@@ -69,14 +69,14 @@ git clone https://github.com/state-spaces/mamba.git && \
   git checkout v2.0.3 && \
   python setup.py install && \
   cd .. && \
-  rm -rf mamba 
+  rm -rf mamba
 
 git clone https://github.com/Dao-AILab/causal-conv1d && \
   cd causal-conv1d && \
   git checkout v1.2.2.post1 && \
   python setup.py install && \
   cd .. && \
-  rm -rf causal-conv1d 
+  rm -rf causal-conv1d
 
 EOF
 
