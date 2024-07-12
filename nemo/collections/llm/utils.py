@@ -1,4 +1,6 @@
-from typing import Any, Callable, Generic, TypeVar, Union, overload
+from typing import Any, Callable, Generic, TypeVar, Union, overload, Optional
+from dataclasses import dataclass, asdict
+
 
 T = TypeVar('T', bound=Callable[..., Any])
 
@@ -57,3 +59,72 @@ def factory(*args: Any, **kwargs: Any) -> Union[Callable[[T], T], T]:
             return noop_decorator
         else:
             return noop_decorator
+
+
+@dataclass
+class PreTrainRecipy:
+    model: Config
+    trainer: Config
+    data: Config
+    optim: Config
+    log: Config
+    
+    @property
+    def partial(self) -> Partial:
+        from nemo.collections.llm.api import pretrain
+        
+        recipy_kwargs = {}
+        for attr, value in asdict(self).items():
+            recipy_kwargs[attr] = value.as_factory()
+        
+        return Partial(pretrain, **recipy_kwargs)
+
+
+@dataclass
+class FineTuneRecipy:
+    model: Config
+    trainer: Config
+    data: Config
+    optim: Config
+    log: Config
+    peft: Optional[Config] = None
+    
+    @property
+    def partial(self) -> Partial:
+        from nemo.collections.llm.api import finetune
+        
+        recipy_kwargs = {}
+        for attr, value in asdict(self).items():
+            recipy_kwargs[attr] = value.as_factory()
+        
+        return Partial(finetune, **recipy_kwargs)
+
+
+def recipy_aware_parse_partial(recipy_type):
+    def _parser(fn, args):
+        import nemo_sdk as sdk
+        from nemo_sdk.config import Partial, set_value
+        from nemo_sdk.core.lark_parser import parse_args
+
+        parsed_kwargs, parsed_overrides = parse_args(args)
+        
+        if "recipy" in parsed_kwargs:
+            recipy = sdk.resolve(recipy_type, parsed_kwargs["recipy"])
+            
+            recipy_kwargs = {}
+            for attr in dir(recipy):
+                recipy_kwargs[attr] = getattr(recipy, attr).as_factory()
+            
+            config = Partial(fn, **recipy_kwargs)
+            for key, value in parsed_kwargs.items():
+                set_value(config, key, value)
+            for key, value in parsed_overrides.items():
+                set_value(config, key, value)
+        else:
+            config = Partial(fn, **parsed_kwargs)
+            for key, value in parsed_overrides.items():
+                set_value(config, key, value)
+
+        return config
+    
+    return _parser
