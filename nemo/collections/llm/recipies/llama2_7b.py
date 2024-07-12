@@ -40,7 +40,7 @@ def hf_resume() -> nl.AutoResume:
 
 
 @factory(name=NAME)
-def pretrain_recipy() -> PreTrainRecipe:
+def pretrain_recipe() -> PreTrainRecipe:
     return PreTrainRecipe(
         model=model,
         trainer=trainer,
@@ -51,7 +51,7 @@ def pretrain_recipy() -> PreTrainRecipe:
 
 
 @factory(name=NAME)
-def finetune_recipy() -> FineTuneRecipe:
+def finetune_recipe() -> FineTuneRecipe:
     return FineTuneRecipe(
         model=model,
         trainer=trainer,
