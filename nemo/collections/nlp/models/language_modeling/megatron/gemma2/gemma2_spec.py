@@ -28,6 +28,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
+
 def get_gemma2_layer_spec():
     return ModuleSpec(
         module=TransformerLayer,
