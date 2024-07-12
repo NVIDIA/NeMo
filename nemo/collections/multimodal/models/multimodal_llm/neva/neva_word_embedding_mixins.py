@@ -23,10 +23,10 @@ from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import Ne
 class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
     def init(self, mm_cfg):
         lita_conf = mm_cfg.get('lita', {})
-        lita_video_arch=lita_conf.get('lita_video_arch', 'temporal_spatial_pool')
-        visual_token_format=lita_conf.get('visual_token_format', 'v1')
-        use_media_start_end=mm_cfg.get('use_im_start_end', False)  # we need to make this clear
-        sample_frames=lita_conf.get('sample_frames', 4)
+        lita_video_arch = lita_conf.get('lita_video_arch', 'temporal_spatial_pool')
+        visual_token_format = lita_conf.get('visual_token_format', 'v1')
+        use_media_start_end = mm_cfg.get('use_im_start_end', False)  # we need to make this clear
+        sample_frames = lita_conf.get('sample_frames', 4)
         self.init_lita(
             lita_video_arch=lita_video_arch,
             visual_token_format=visual_token_format,
