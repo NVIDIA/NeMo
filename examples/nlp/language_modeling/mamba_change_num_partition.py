@@ -801,7 +801,7 @@ def main():
 
         logging.info(f"TP 1 PP 1 Number of Parameters : {len(global_params[0])}")
 
-        world_size = (tgt_tp_size)  # pseudo world size for simulating load of a specific rank on a single gpu
+        world_size = tgt_tp_size  # pseudo world size for simulating load of a specific rank on a single gpu
         new_global_batch_size = model.cfg.micro_batch_size * world_size
         old_global_batch_size = model.cfg.get('global_batch_size', model.cfg.micro_batch_size)
 
@@ -819,7 +819,7 @@ def main():
         os.environ[NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE] = "true"
 
         # Compute the global rank
-        global_rank = (0)  # tp_rank = 0 needed just for modules, all TP will be merged to this PP rank
+        global_rank = 0  # tp_rank = 0 needed just for modules, all TP will be merged to this PP rank
 
         # Update AppState
         app_state.world_size = world_size
@@ -827,9 +827,7 @@ def main():
         app_state.local_rank = global_rank % num_gpu_per_node
         app_state.pipeline_model_parallel_size = 1
         app_state.tensor_model_parallel_size = tgt_tp_size
-        app_state.model_parallel_size = (
-            app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
-        )
+        app_state.model_parallel_size = app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
 
         trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
         if args.tokenizer_model_path is not None:
@@ -879,10 +877,8 @@ def main():
         logging.info(f"Remaining layer offset for parameters: {global_offset}")
         logging.info("\n")
 
-        #TP conversion only mode
-        split_tp_partition_only(
-            args, model, original_model, tgt_tp_size, args.target_file, args.megatron_legacy
-        )
+        # TP conversion only mode
+        split_tp_partition_only(args, model, original_model, tgt_tp_size, args.target_file, args.megatron_legacy)
 
 
 if __name__ == '__main__':
