@@ -1,6 +1,5 @@
-from typing import Any, Callable, Generic, TypeVar, Union, overload, Optional
-from dataclasses import dataclass, asdict
-
+from dataclasses import asdict, dataclass
+from typing import Any, Callable, Generic, Optional, TypeVar, Union, overload
 
 T = TypeVar('T', bound=Callable[..., Any])
 
@@ -68,15 +67,15 @@ class PreTrainRecipy:
     data: Config
     optim: Config
     log: Config
-    
+
     @property
     def partial(self) -> Partial:
         from nemo.collections.llm.api import pretrain
-        
+
         recipy_kwargs = {}
         for attr, value in asdict(self).items():
             recipy_kwargs[attr] = value.as_factory()
-        
+
         return Partial(pretrain, **recipy_kwargs)
 
 
@@ -88,15 +87,15 @@ class FineTuneRecipy:
     optim: Config
     log: Config
     peft: Optional[Config] = None
-    
+
     @property
     def partial(self) -> Partial:
         from nemo.collections.llm.api import finetune
-        
+
         recipy_kwargs = {}
         for attr, value in asdict(self).items():
             recipy_kwargs[attr] = value.as_factory()
-        
+
         return Partial(finetune, **recipy_kwargs)
 
 
@@ -107,14 +106,14 @@ def recipy_aware_parse_partial(recipy_type):
         from nemo_sdk.core.lark_parser import parse_args
 
         parsed_kwargs, parsed_overrides = parse_args(args)
-        
+
         if "recipy" in parsed_kwargs:
             recipy = sdk.resolve(recipy_type, parsed_kwargs["recipy"])
-            
+
             recipy_kwargs = {}
             for attr in dir(recipy):
                 recipy_kwargs[attr] = getattr(recipy, attr).as_factory()
-            
+
             config = Partial(fn, **recipy_kwargs)
             for key, value in parsed_kwargs.items():
                 set_value(config, key, value)
@@ -126,5 +125,5 @@ def recipy_aware_parse_partial(recipy_type):
                 set_value(config, key, value)
 
         return config
-    
+
     return _parser

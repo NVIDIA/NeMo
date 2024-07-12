@@ -1,13 +1,12 @@
 import pytorch_lightning as pl
 
 from nemo import lightning as nl
-from nemo.collections.llm.utils import factory, PreTrainRecipy, FineTuneRecipy
-from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
 from nemo.collections.llm.gpt.data.api import squad
-from nemo.collections.llm.recipies.optim.adam import adam_with_cosine_annealing
-from nemo.collections.llm.recipies.log.default import default_log
+from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
 from nemo.collections.llm.peft.api import gpt_lora
-
+from nemo.collections.llm.recipies.log.default import default_log
+from nemo.collections.llm.recipies.optim.adam import adam_with_cosine_annealing
+from nemo.collections.llm.utils import FineTuneRecipy, PreTrainRecipy, factory
 
 NAME = "llama3_8b"
 
@@ -25,7 +24,7 @@ def strategy() -> nl.MegatronStrategy:
 @factory(name=NAME)
 def trainer(devices=8) -> nl.Trainer:
     strategy = nl.MegatronStrategy(tensor_model_parallel_size=2)
-    
+
     return nl.Trainer(
         devices=devices,
         max_steps=100,
@@ -54,10 +53,5 @@ def pretrain_recipy() -> PreTrainRecipy:
 @factory(name=NAME)
 def finetune_recipy() -> FineTuneRecipy:
     return FineTuneRecipy(
-        model=model,
-        trainer=trainer,
-        data=squad,
-        log=default_log,
-        optim=adam_with_cosine_annealing,
-        peft=gpt_lora
+        model=model, trainer=trainer, data=squad, log=default_log, optim=adam_with_cosine_annealing, peft=gpt_lora
     )

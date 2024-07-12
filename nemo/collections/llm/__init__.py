@@ -42,8 +42,8 @@ from nemo.collections.llm.gpt.model import (
     gpt_data_step,
     gpt_forward_step,
 )
-from nemo.collections.llm.recipies import *     # noqa
-from nemo.collections.llm.utils import PreTrainRecipy, FineTuneRecipy
+from nemo.collections.llm.recipies import *  # noqa
+from nemo.collections.llm.utils import FineTuneRecipy, PreTrainRecipy
 
 __all__ = [
     "MockDataModule",

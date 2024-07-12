@@ -1,16 +1,13 @@
+from megatron.core.optimizer import OptimizerConfig
+
 from nemo import lightning as nl
 from nemo.collections.llm.utils import factory
-from megatron.core.optimizer import OptimizerConfig
 
 
 @factory
 def adam_with_cosine_annealing() -> nl.OptimizerModule:
     return nl.MegatronOptimizerModule(
-        config=OptimizerConfig(
-            optimizer="adam",
-            lr=0.001,
-            use_distributed_optimizer=True
-        ),
+        config=OptimizerConfig(optimizer="adam", lr=0.001, use_distributed_optimizer=True),
         lr_scheduler=nl.lr_scheduler.CosineAnnealingScheduler(),
     )
 

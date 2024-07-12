@@ -5,14 +5,10 @@ from typing import Any, Callable, Optional, Union
 import pytorch_lightning as pl
 from typing_extensions import Annotated
 
-from nemo.collections.llm.utils import Config, task, PreTrainRecipy, FineTuneRecipy, recipy_aware_parse_partial
+from nemo.collections.llm.utils import Config, FineTuneRecipy, PreTrainRecipy, recipy_aware_parse_partial, task
 from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
-
-
-
-
 
 TokenizerType = Any
 
@@ -75,7 +71,6 @@ def train(
     return app_state.exp_dir
 
 
-
 @task(namespace="llm", parse_partial=recipy_aware_parse_partial(PreTrainRecipy))
 def pretrain(
     model: pl.LightningModule,
@@ -115,7 +110,7 @@ def pretrain(
         PosixPath('/path/to/log_dir')
     """
     del recipy
-    
+
     return train(
         model=model,
         data=data,

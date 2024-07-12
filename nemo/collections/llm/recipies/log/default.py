@@ -11,5 +11,5 @@ def default_log() -> nl.NeMoLogger:
         save_top_k=2,
         save_on_train_epoch_end=True,
     )
-    
+
     return nl.NeMoLogger(ckpt=ckpt)
