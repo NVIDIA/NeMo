@@ -112,8 +112,8 @@ def enable():
     def _modified_serialize(self, value, current_path, all_paths=None):
         if isinstance(value, types.BuiltinFunctionType):
             return self._pyref(value, current_path)
-        if isinstance(value, partial) and not value.args:
-            value = fdl.Partial(value.func, **value.keywords)
+        if isinstance(value, partial):
+            value = fdl.Partial(value.func, *value.args, **value.keywords)
         return self._original_serialize(value, current_path, all_paths)
 
     serialization.Serialization._original_serialize = serialization.Serialization._serialize
