@@ -1,18 +1,19 @@
 import os
 
+from megatron.core.optimizer import OptimizerConfig
+
 from nemo.collections import llm
 from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
 
-from megatron.core.optimizer import OptimizerConfig
-
 from .basic import Basic
+
 
 class Llama(Basic):
     def __init__(
-        self, 
-        name: str = "Llama", 
-        version: int = 2, 
-        size: int = 7, 
+        self,
+        name: str = "Llama",
+        version: int = 2,
+        size: int = 7,
         cfg: dict = {},
     ):
         super().__init__(name=name, version=version, size=size, cfg=cfg)
@@ -23,7 +24,7 @@ class Llama(Basic):
         model_config.global_batch_size = self.global_batch_size
 
         return model_config
-    
+
     def optim_config(self):
         opt_config = OptimizerConfig(
             optimizer='adam',
@@ -44,7 +45,7 @@ class Llama(Basic):
             "library": "sentencepiece",
             "tokenizer_model": os.path.join(self.data_dir, "tokenizer/tokenizer.model"),
             "legacy": False,
-            "chat_template" :None,
+            "chat_template": None,
         }
 
         return config
@@ -65,7 +66,7 @@ class Llama(Basic):
         }
 
         return trainer_config
-    
+
     def data_config(self):
         data_config = {
             "paths": self.data_paths,

@@ -1,4 +1,4 @@
-class Basic():
+class Basic:
     def __init__(
         self,
         name: str = None,
@@ -17,7 +17,7 @@ class Basic():
 
     def model_config(self):
         None
-    
+
     def optim_config(self):
         None
 
@@ -26,6 +26,6 @@ class Basic():
 
     def trainer_config(self):
         None
-    
+
     def data_config(self):
         None
