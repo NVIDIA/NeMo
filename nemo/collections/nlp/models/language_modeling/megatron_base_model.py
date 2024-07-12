@@ -303,9 +303,12 @@ class MegatronBaseModel(NLPModel):
         if type(self).__name__ == 'MegatronGPTModel':
             nemo_args['share_token_embeddings'] = self.cfg.get('share_embeddings_and_output_weights', True)
 
-        mcore_args = {
-            'config': self.transformer_config,
-        }
+        if is_mcore_model:
+            mcore_args = {
+                'config': self.transformer_config,
+            }
+        else:
+            mcore_args = None
 
         args = mcore_args if is_mcore_model else nemo_args
         # Model wrapper to convert both model and inputs to half precision
@@ -1271,6 +1274,8 @@ class MegatronBaseModel(NLPModel):
             # TODO: Currently the main parameter data type is kept in fp32 (when O2=False). This needs to be
             # extended to support lower precision main parameters.
             frozen_submodule_names, frozen_submodules = find_frozen_submodules(self.model)
+            for submodule in frozen_submodule_names:
+                logging.debug(f"Ignoring state {submodule} in FSDP.")
             self.trainer.strategy.kwargs['ignored_states'] = frozen_submodules
             # FSDP requires uniform status of require_grads
             # Diffusion models like SD has frozen parts and needs to be added to 'ignored_states' from sharding for FSDP to work
