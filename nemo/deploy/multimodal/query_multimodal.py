@@ -113,3 +113,69 @@ class NemoQueryMultimodal:
                 return sentences
             else:
                 return result_dict["outputs"]
+
+class NemoQueryMultimodalPyTorch:
+    """
+    Sends a query to Triton for Multimodal inference with in-framework models
+
+    Example:
+        from nemo.deploy.multimodal import NemoQueryMultimodalPyTorch, MediaType
+
+        nq = NemoQueryMultimodalPyTorch(url="localhost", model_name="neva")
+
+        input_text = "Hi! What is in this image?"
+        output = nq.query(
+            prompts=[input_text],
+            media_filepaths_list=["/path/to/image.jpg"],
+            media_type=MediaType.IMAGE,
+            max_output_len=30,
+            top_k=1,
+            top_p=0.0,
+            temperature=1.0,
+        )
+        print("output: ", output)
+    """
+
+    def __init__(self, url, model_name):
+        self.url = url
+        self.model_name = model_name
+
+    def query(
+        self,
+        prompts_list,
+        media_filepaths_list,
+        media_type,
+        max_output_len=30,
+        top_k=1,
+        top_p=0.0,
+        temperature=1.0,
+        init_timeout=60.0,
+    ):
+
+        prompts_list = str_list2numpy(prompts_list)
+        inputs = {"prompts": prompts_list}
+
+        media_bytes = []
+        for file in media_filepaths_list:
+            with open(file, "rb") as f:
+                media_bytes.append(f.read())
+
+        inputs["media_list"] = np.array(media_bytes, dtype=bytes)[..., np.newaxis]
+
+        inputs["media_type"] = np.full(prompts_list.shape, media_type, dtype=np.int_)
+
+        if max_output_len is not None:
+            inputs["max_length"] = np.full(prompts_list.shape, max_output_len, dtype=np.int_)
+
+        if top_k is not None:
+            inputs["top_k"] = np.full(prompts_list.shape, top_k, dtype=np.int_)
+
+        if top_p is not None:
+            inputs["top_p"] = np.full(prompts_list.shape, top_p, dtype=np.single)
+
+        if temperature is not None:
+            inputs["temperature"] = np.full(prompts_list.shape, temperature, dtype=np.single)
+
+        with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
+            result_dict = client.infer_batch(**inputs)
+            return result_dict
