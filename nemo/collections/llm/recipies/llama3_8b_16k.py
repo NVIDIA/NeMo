@@ -8,12 +8,15 @@ from nemo.collections.llm.recipies.optim.adam import adam_with_cosine_annealing
 from nemo.collections.llm.recipies.log.default import default_log
 
 
-@factory(name="llama3_8b_16k.model")
+NAME = "llama3_8b_16k"
+
+
+@factory(name=NAME)
 def model() -> pl.LightningModule:
     return LlamaModel(Llama3Config8B(seq_length=16384))
 
 
-@factory(name="llama3_8b_16k.strategy")
+@factory(name=NAME)
 def strategy() -> nl.MegatronStrategy:
     return nl.MegatronStrategy(
         tensor_model_parallel_size=4,
@@ -23,7 +26,7 @@ def strategy() -> nl.MegatronStrategy:
     )
 
 
-@factory(name="llama3_8b_16k.trainer")
+@factory(name=NAME)
 def trainer(devices=8) -> nl.Trainer:
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=4,
@@ -41,7 +44,7 @@ def trainer(devices=8) -> nl.Trainer:
     )
     
 
-@factory(name="llama3_8b_16k")
+@factory(name=NAME)
 def pretrain_recipy() -> PreTrainRecipy:
     return PreTrainRecipy(
         model=model,
