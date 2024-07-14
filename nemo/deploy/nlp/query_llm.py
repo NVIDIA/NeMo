@@ -16,6 +16,7 @@ import time
 from abc import ABC, abstractmethod
 
 import numpy as np
+import time
 
 from nemo.deploy.utils import str_list2numpy
 

@@ -75,6 +75,21 @@ class CompletionRequest(BaseModel):
     stop: str | None = None
     frequency_penalty: float = 1.0
 
+@app.get("/triton_health")
+async def check_triton_health():
+    """
+    This method exposes endpoint "/triton_health" which can be used to verify if Triton server is accessible while running the REST or FastAPI application.
+    Verify by running: curl http://service_http_address:service_port/triton_health and the returned status should inform if the server is accessible.
+    """
+    triton_url = f"triton_settings.triton_service_ip:str(triton_settings.triton_service_port)/v2/health/ready"
+    try:
+        response = requests.get(triton_url, timeout=5)
+        if response.status_code == 200:
+            return {"status": "Triton server is reachable and ready"}
+        else:
+            raise HTTPException(status_code=503, detail="Triton server is not ready")
+    except requests.RequestException as e:
+        raise HTTPException(status_code=503, detail=f"Cannot reach Triton server: {str(e)}")
 
 @app.get("/triton_health")
 async def check_triton_health():
