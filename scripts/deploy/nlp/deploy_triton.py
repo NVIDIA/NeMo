@@ -241,6 +241,9 @@ def get_trtllm_deployable(args):
         if args.service_port == args.triton_port:
             logging.error("REST service port and Triton server port cannot use the same port.")
             return
+        logging.warning("When using REST service to expose endpoints, the REST application uses Triton IP, Triton Port and other endpoint specific" \
+                     " parameter values from nemo/deploy/service/config.json to call NeMoQueryLLM. Please make sure args.triton_http_address and" \
+                     " args.triton_port match the values in config.json.")
 
     trt_llm_exporter = TensorRTLLM(
         model_dir=trt_llm_path,
