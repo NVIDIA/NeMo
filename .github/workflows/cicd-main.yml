@@ -179,7 +179,28 @@ jobs:
           rm -f /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_gpt/falcon-ci-hf/model_weights
-        
+  
+  # L2: Community llava multimodal Checkpoints tests
+  L2_Community_vita_Checkpoints_tests_Llama3:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        export PYTHONPATH=/home/TestData/multimodal/video_neva/LLaVA:$PYTHONPATH
+        CUDA_VISIBLE_DEVICES=0 python examples/multimodal/multimodal_llm/neva/convert_llava_to_neva.py \
+          --in-file /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/llm \
+          --mm-projector-ckpt-dir /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/mm_projector \
+          --mm-vision-tower /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/vision_tower \
+          --tokenizer-model /home/TestData/multimodal/video_neva/vita-tokenizer/ \
+          --config-file vita_config.yaml \
+          --out-file=/home/TestData/multimodal/video_neva/llama3-ci-hf/llama3_ci.nemo \
+          --model-type VITA \
+          --conv-template llama_3
+      AFTER_SCRIPT: |
+        rm -f /home/TestData/multimodal/video_neva/llama3-ci-hf/llama3_ci.nemo
+        rm -rf /home/TestData/multimodal/video_neva/llama3-ci-hf/model_weights
+
   # this test is using a 7B model which is too large for GitHub CI
   # replace the model in this test with a toy model or move the test
   # to the nightly CI
@@ -4430,6 +4451,48 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf examples/multimodal/text_to_image/sd_train_results
 
+  L2_NeMo_2_GPT_Pretraining_no_transformer_engine:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    timeout-minutes: 10
+    container:
+      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+      options:
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g
+        --env TRANSFORMERS_OFFLINE=0
+        --volume /mnt/datadrive/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+        - run: |
+            pip uninstall -y apex ## TODO: remove when apex is no longer a dependency
+            pip uninstall -y transformer_engine
+
+            python examples/llm/megatron_gpt_pretraining.py \
+            --devices=2 \
+            --max-steps=3 \
+            --experiment-dir=examples/llm/gpt_pretrain_results \
+            --vocab-path=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+            --merges-path=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+            --data-path=/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
+            --index-mapping-dir=examples/llm/gpt_index_mappings
+
+            python examples/llm/megatron_gpt_pretraining.py \
+            --devices=2 \
+            --max-steps=6 \
+            --experiment-dir=examples/llm/gpt_pretrain_results \
+            --vocab-path=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+            --merges-path=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+            --data-path=/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
+            --index-mapping-dir=examples/llm/gpt_index_mappings
+
+            rm -rf examples/llm/gpt_pretrain_results
+            rm -rf examples/llm/gpt_index_mappings
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+          if: "failure()"
+
   Nemo_CICD_Test:
     needs: 
       - L0_Unit_Tests_GPU
@@ -4437,6 +4500,7 @@ jobs:
       - L2_Community_LLM_Checkpoints_tests_Llama
       - L2_Community_LLM_Checkpoints_tests_StarCoder
       - L2_Community_LLM_Checkpoints_tests_Falcon
+      - L2_Community_vita_Checkpoints_tests_Llama3
       #- OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2
       - ASR_dev_run_Speech_to_Text
       - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
@@ -4527,6 +4591,7 @@ jobs:
       - L2_TTS_Fast_dev_runs_1_Hifigan
       - Speech_Checkpoints_tests
       - L2_Stable_Diffusion_Training
+      - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
     if: always()
     runs-on: ubuntu-latest
     steps:  

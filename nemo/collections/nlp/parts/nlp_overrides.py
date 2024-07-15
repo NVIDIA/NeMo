@@ -74,7 +74,6 @@ from nemo.utils import AppState, logging
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
 try:
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
     from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
@@ -105,6 +104,7 @@ try:
         optim_state_to_sharding_state,
     )
     from megatron.core.dist_checkpointing.strategies import tensorstore
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
@@ -701,6 +701,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         nccl_communicator_config_path: Optional[str] = None,
         sharp: bool = False,
         set_buffer_dtype: Optional[str] = None,
+        extra_fsdp_wrap_module: Optional[set] = None,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -730,6 +731,11 @@ class NLPFSDPStrategy(FSDPStrategy):
             ParallelTransformerLayer,
             BasicTransformerBlock,
         }
+
+        # if extra wrap modules are provided, use them
+        if extra_fsdp_wrap_module is not None:
+            self.fsdp_wrap_module.update(extra_fsdp_wrap_module)
+
         kwargs['auto_wrap_policy'] = functools.partial(
             transformer_auto_wrap_policy, transformer_layer_cls=self.fsdp_wrap_module
         )
