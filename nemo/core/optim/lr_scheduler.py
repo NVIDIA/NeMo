@@ -565,6 +565,7 @@ class NoamHoldAnnealing(WarmupHoldPolicy):
             of 0.5 corresponds to Noam decay.
         min_lr: Minimum learning rate.
     """
+
     def __init__(self, optimizer, *, max_steps, decay_rate=0.5, min_lr=0.0, last_epoch=-1, **kwargs):
         self.decay_rate = decay_rate
         super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
@@ -686,6 +687,7 @@ class MegatronAnnealing(_LRScheduler):
         use_checkpoint_opt_param_scheduler: If True, the scheduler will be used from the checkpoint.
         override_opt_param_scheduler: If True, the scheduler will override the optimizer's scheduler.
     """
+
     def __init__(
         self,
         optimizer,
