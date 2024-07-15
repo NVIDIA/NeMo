@@ -29,6 +29,7 @@ __all__ = [
     "english_word_tokenize",
     "LATIN_CHARS_ALL",
     "normalize_unicode_text",
+    "japanese_text_preprocessing",
 ]
 
 # Derived from LJSpeech
@@ -201,3 +202,7 @@ def chinese_text_preprocessing(text: str) -> str:
 
 def french_text_preprocessing(text: str) -> str:
     return text.lower()
+
+def japanese_text_preprocessing(text: str) -> str:
+    return text.lower()
+
