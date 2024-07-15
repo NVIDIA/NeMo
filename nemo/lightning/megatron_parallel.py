@@ -129,7 +129,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         cpu: bool = False,
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
-        from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
         from megatron.core import parallel_state
         from megatron.core.tensor_parallel import set_defaults_if_not_set_tensor_model_parallel_attributes
 
