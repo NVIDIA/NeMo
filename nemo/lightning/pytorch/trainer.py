@@ -6,10 +6,10 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback
 from typing_extensions import Self
 
-from nemo.lightning.pytorch.callbacks import MegatronSetup
 from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.fabric.fabric import Fabric
 from nemo.lightning.io.mixin import IOMixin, serialization, track_io
+from nemo.lightning.pytorch.callbacks import MegatronSetup
 
 
 class Trainer(pl.Trainer, IOMixin):

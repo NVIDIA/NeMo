@@ -1,9 +1,9 @@
-from typing import cast, List
+from typing import List, cast
 
-import torch
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import Callback, TQDMProgressBar
+import torch
 from lightning_fabric.plugins import ClusterEnvironment
+from pytorch_lightning.callbacks import Callback, TQDMProgressBar
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar
@@ -33,6 +33,7 @@ class MegatronSetup(Callback):
 
     def _setup_mcore(self, pl_module: pl.LightningModule):
         from megatron.core import parallel_state
+
         from nemo.utils import AppState
 
         if not parallel_state.model_parallel_is_initialized():
