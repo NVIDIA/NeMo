@@ -589,6 +589,7 @@ class NLPAdapterModelMixin:
             if cfg.get("trainer", None) and cfg.trainer.get("precision"):
                 peft_cfg.precision = cfg.trainer.precision
             peft_cfg.data.test_ds = cfg.model.data.test_ds
+            peft_cfg.data.chat = cfg.model.data.get("chat", False)
 
         with open_dict(cfg):
             cfg.inference.add_BOS = peft_cfg.data.test_ds.add_bos

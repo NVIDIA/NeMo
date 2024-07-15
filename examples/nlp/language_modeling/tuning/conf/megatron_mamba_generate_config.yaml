@@ -76,6 +76,9 @@ model:
   peft:
     peft_scheme: null  # can be either adapter,ia3, lora, or ptuning
     restore_from_path: null
+    restore_from_ckpt:
+      checkpoint_dir: null
+      checkpoint_name: null
 
     # Used for adapter peft training
     adapter_tuning:

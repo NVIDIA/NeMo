@@ -14,17 +14,66 @@
 
 
 import os
+import asyncio
+import threading
+import torch
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
+from functools import partial
+
+from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
+from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.models.language_modeling.megatron_mamba_sft_model import MegatronMambaSFTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.model_utils import inject_model_parallel_rank
+try:
+    from megatron.core import parallel_state
 
+    HAVE_MEGATRON_CORE = True
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 mp.set_start_method("spawn", force=True)
+
+def use_inference_server(cfg, model, trainer):
+    if not HAVE_MEGATRON_CORE:
+        raise ValueError('Megatron-core needs to be installed to use this feature!')
+
+    from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
+
+    if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
+        if cfg.web_server:
+            if cfg.chat:
+                defaults = {
+                    'user': cfg.chatbot_config.user,
+                    'assistant': cfg.chatbot_config.assistant,
+                    'system': cfg.chatbot_config.system,
+                }
+                web_ui = partial(
+                    get_chatbot_demo,
+                    defaults=defaults,
+                    value=cfg.chatbot_config.value,
+                    attributes=cfg.chatbot_config.attributes,
+                )
+            else:
+                web_ui = get_demo
+            loop = asyncio.new_event_loop()
+            thread = threading.Thread(
+                target=web_ui, daemon=True, args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
+            )
+            thread.start()
+        server = MegatronServer(model.cuda())
+        server.run("0.0.0.0", port=cfg.port)
+
+    while True:
+        choice = torch.cuda.LongTensor(1)
+        torch.distributed.broadcast(choice, 0)
+        if choice[0].item() == 0:
+            generate(model.cuda())
 
 
 @hydra_runner(config_path="conf", config_name="megatron_mamba_generate_config")
@@ -62,7 +111,15 @@ def main(cfg) -> None:
     model.freeze()
     logging.info(f"Freezing parameters for PEFT eval:\n{model.summarize()}")
 
-    trainer.test(model)
+    if not cfg.model.get('use_flash_attention', False):
+        cfg.inference.compute_attention_mask = True
+    config = OmegaConf.to_container(cfg.inference, resolve=True)
+    model.set_inference_config(config)
+
+    if not cfg.server:
+        trainer.test(model)
+    else:
+        use_inference_server(cfg, model, trainer)
 
 
 if __name__ == "__main__":
