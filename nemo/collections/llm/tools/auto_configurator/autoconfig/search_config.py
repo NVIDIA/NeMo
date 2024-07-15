@@ -42,7 +42,7 @@ def search_config(cfg: dict):
     :param Optional[str] hydra_args: hydra override arguments in string format.
     :return: None
     """
-    
+
     # Read config
     nodes = cfg.get("num_nodes")
     gpus_per_node = cfg.get("gpus_per_node")
@@ -57,7 +57,7 @@ def search_config(cfg: dict):
     seq_length = cfg.get("seq_length")
     log_dir = cfg.get("log_dir")
     custom_cfg = None
-    
+
     print(cfg)
     print(model_name)
     assert model_name in SUPPORTED_MODELS, f"model must be set to one of {SUPPORTED_MODELS}/<model_size>"
