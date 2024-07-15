@@ -465,6 +465,7 @@ class CosineAnnealingScheduler(LRSchedulerModule):
 
 
 class MegatronAnnealingScheduler(LRSchedulerModule):
+    """Megatron Annealing Learning Rate Scheduler."""
     def __init__(
         self,
         init_lr=0.0,
