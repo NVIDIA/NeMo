@@ -19,17 +19,14 @@ import shutil
 import subprocess
 from typing import List, Tuple
 
-import omegaconf
-import yaml
 from autoconfig import train, utils
 
 
 def search_training_config(
     base_cfg: dict,
+    train_cfg: dict,
     model_size_in_b: float,
     model_name: str,
-    hydra_args: str,
-    cfg: omegaconf.dictconfig.DictConfig,
 ) -> None:
     """
     Entry point for the training HP search. This function calls other functions to perform three
@@ -44,18 +41,20 @@ def search_training_config(
     :return: None
     """
     # Generate candidate configs.
-    base_dir, results_cfgs, num_nodes = generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg)
+    configs = generate_grid_search_configs(base_cfg, train_cfg, model_size_in_b, model_name)
     # Launch candidate configs.
-    job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
+    #job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
     # Measure and compare throughputs for each config.
-    launch_throughput_measure(job_ids, model_name, model_size_in_b, num_nodes, hydra_args, cfg)
+    #launch_throughput_measure(job_ids, model_name, model_size_in_b, num_nodes, hydra_args, cfg)
+
+    return configs
 
 
 def generate_grid_search_configs(
     base_cfg: dict,
+    train_cfg: dict,
     model_size_in_b: float,
     model_name: str,
-    cfg: omegaconf.dictconfig.DictConfig,
 ) -> Tuple[str, List[int], int]:
     """
     Generates the grid of all possible configurations for the given model, and stores
@@ -70,19 +69,15 @@ def generate_grid_search_configs(
         List[int] results_cfgs is a list of all the config names that were generated.
         int num_nodes is the number of nodes used to run each config.
     """
-    search_cfg = cfg.get("search_config")
-    train_cfg = search_cfg.get("train_settings")
-    num_nodes = train_cfg.get("num_nodes")
-    act_layers = train_cfg.get("act_ckpt_layers")
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = 1 if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"] else 2
 
-    seq_length = base_cfg["model"]["data"]["seq_length"]
+    seq_length = base_cfg["model"].seq_length
     num_layers = (
-        base_cfg["model"]["num_layers"]
+        base_cfg["model"].num_layers
         if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"]
-        else base_cfg["model"]["encoder"]["num_layers"]
+        else base_cfg["model"].encoder.num_layers
     )
 
     if model_name in [
@@ -94,9 +89,9 @@ def generate_grid_search_configs(
         "qwen2",
         "mixtral",
     ]:
-        act_method = base_cfg["model"].get("activations_checkpoint_method", "None")
+        act_method = base_cfg["model"].activations_checkpoint_method
     else:
-        act_method = base_cfg["model"]["encoder"].get("activations_checkpoint_method", "None")
+        act_method = base_cfg["model"].encoder.activations_checkpoint_method
 
     (
         tp_list,
@@ -114,11 +109,12 @@ def generate_grid_search_configs(
         train_cfg=train_cfg,
     )
 
-    base_dir = f"{cfg.search_config.train_settings.logs}/candidate_configs"
+    base_dir = os.path.join(train_cfg['log_dir'], "candidate_configs")
     os.makedirs(base_dir, exist_ok=True)
 
     max_minutes = train_cfg.get("max_minutes_per_run")
     max_steps = train_cfg.get("max_steps_per_run")
+    num_nodes = train_cfg.get("num_nodes")
 
     valid_tp_pp_list = []
     for tp in tp_list:
@@ -127,7 +123,7 @@ def generate_grid_search_configs(
                 for ep in ep_list:
                     for mbs in mbs_list:
                         num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["devices"]
-                        gbs = base_cfg["model"]["global_batch_size"]
+                        gbs = base_cfg["model"].global_batch_size
                         if model_name in [
                             "gpt3",
                             "bert",
@@ -137,11 +133,11 @@ def generate_grid_search_configs(
                             "qwen2",
                             "mixtral",
                         ]:
-                            att_heads = base_cfg["model"]["num_attention_heads"]
-                            num_layers = base_cfg["model"]["num_layers"]
+                            att_heads = base_cfg["model"].num_attention_heads
+                            num_layers = base_cfg["model"].num_layers
                         else:
-                            att_heads = base_cfg["model"]["encoder"]["num_attention_heads"]
-                            num_layers = base_cfg["model"]["encoder"]["num_layers"]
+                            att_heads = base_cfg["model"].encoder.num_attention_heads
+                            num_layers = base_cfg["model"].encoder.num_layers
                         model_parallelism = (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
                         mod_gbs = gbs % (mbs * num_gpus / model_parallelism)
                         mod_att_heads = att_heads % tp
@@ -159,7 +155,7 @@ def generate_grid_search_configs(
                             valid_tp_pp_list.append((tp, pp, cp, ep))
 
     # Generate grid search configs.
-    results_cfgs = [[] for _ in range(multiplier * num_layers + 1)]
+    configs = {}
     for tp, pp, cp, ep in valid_tp_pp_list:
         (
             virtual_pipelines,
@@ -205,20 +201,14 @@ def generate_grid_search_configs(
                             kwargs["act_per_pipe"] = act_per_pipe
                             new_cfg = utils.modify_cfg(**kwargs)
                             if new_cfg:  # Save candidate cfg.
-                                file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_act_ckpt_{act}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}.yaml"
-                                results_cfgs[act].append(file_name)
-                                with open(f"{base_dir}/{file_name}", "w") as f:
-                                    yaml.dump(new_cfg, f)
+                                configs[new_cfg["run"]["name"]] = new_cfg
             else:
                 new_cfg = utils.modify_cfg(**kwargs)
                 if new_cfg:  # Save candidate cfg.
-                    file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_act_ckpt_{kwargs['act']}_num_mbs_act_{kwargs['num_mbs_act']}_act_per_pipe_{kwargs['act_per_pipe']}.yaml"
-                    results_cfgs[mbs].append(file_name)
-                    with open(f"{base_dir}/{file_name}", "w") as f:
-                        yaml.dump(new_cfg, f)
+                    configs[new_cfg["run"]["name"]] = new_cfg
 
     print("\nAll candidate configurations created correctly.\n")
-    return base_dir, results_cfgs, num_nodes
+    return configs
 
 
 def _set_activations_checkpoint_params(
@@ -837,7 +827,7 @@ def _calculate_tp_pp_mbs_grid(
     num_layers: int,
     model_name: str,
     seq_length: int,
-    train_cfg: omegaconf.dictconfig.DictConfig,
+    train_cfg: dict,
 ) -> Tuple[int, int, int]:
     """
     Selects grid search space for TP, PP, MBS parameters for any model, and calls the necessary
@@ -963,7 +953,7 @@ def launch_grid_search_configs(
     base_dir: str,
     results_cfgs: List[int],
     model_name: str,
-    cfg: omegaconf.dictconfig.DictConfig,
+    cfg: dict,
 ) -> List[int]:
     """
     Launches training jobs for the grid search in parallel. The limit of how many
@@ -1003,8 +993,7 @@ def launch_throughput_measure(
     model_name: str,
     model_size_in_b: float,
     num_nodes: int,
-    hydra_args: str,
-    cfg: omegaconf.dictconfig.DictConfig,
+    cfg: dict,
 ) -> str:
     """
     Launch job that measures the throughput of each run in the grid search. This

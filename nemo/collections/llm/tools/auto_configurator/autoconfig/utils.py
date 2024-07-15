@@ -16,9 +16,11 @@
 import copy
 from typing import List, Optional, Tuple
 
-import omegaconf
-import yaml
+from nemo.collections.llm.tools.auto_configurator import base_configs
 
+MODULES = {
+    "llama": "Llama"
+}
 
 def _calculate_model_size(
     vocab_size: int = None,
@@ -306,7 +308,7 @@ def calculate_model_size_params(
     raise Exception("Number of layers not found, config is not possible.")
 
 
-def generic_base_config(cfg: omegaconf.dictconfig.DictConfig, custom_cfg, model_name: str = "gpt3") -> dict:
+def generic_base_config(model_name: str = "llama", model_version: int = 2, model_size_in_b: int = 7, cfg: dict = {}) -> dict:
     """
     Generates a base config dictionary from a base config yaml file.
     :param omegaconf.dictconfig.DictConfig cfg: hydra-like config object for the HP tool.
@@ -314,9 +316,19 @@ def generic_base_config(cfg: omegaconf.dictconfig.DictConfig, custom_cfg, model_
     :returns: dictionary containing the base configuration for the model.
     :rtype: dict
     """
-    cfg_path = f"{cfg.auto_configurator_path}/base_configs/{model_name}.yaml" if custom_cfg is None else custom_cfg
-    with open(cfg_path) as f:
-        base_cfg = yaml.safe_load(f)
+
+    model_cls = getattr(base_configs, MODULES[model_name])
+    model = model_cls(version=model_version, size=model_size_in_b, cfg=cfg)
+
+    base_cfg = {
+        "model": model.get_model_config(),
+        "optim": model.get_optim_config(),
+        "tokenizer": model.get_tokenizer_config(),
+        "trainer": model.get_trainer_config(),
+        "data": model.get_data_config(),
+        "run": model.get_run_config(),
+    }
+
     return base_cfg
 
 
@@ -366,10 +378,10 @@ def modify_cfg(
             "qwen2",
             "mixtral",
         ]:
-            new_cfg["model"]["activations_checkpoint_num_layers"] = act
+            new_cfg["model"].activations_checkpoint_num_layers = act
         else:
-            new_cfg["model"]["encoder"]["activations_checkpoint_num_layers"] = act // 2
-            new_cfg["model"]["decoder"]["activations_checkpoint_num_layers"] = act // 2
+            new_cfg["model"].encoder.activations_checkpoint_num_layers = act // 2
+            new_cfg["model"].decoder.activations_checkpoint_num_layers = act // 2
 
     if num_mbs_act is not None and model_name in [
         "gpt3",
@@ -380,7 +392,7 @@ def modify_cfg(
         "qwen2",
         "mixtral",
     ]:
-        new_cfg["model"]["num_micro_batches_with_partial_activation_checkpoints"] = num_mbs_act
+        new_cfg["model"].num_micro_batches_with_partial_activation_checkpoints = num_mbs_act
 
     if act_per_pipe is not None and model_name in [
         "gpt3",
@@ -391,7 +403,7 @@ def modify_cfg(
         "qwen2",
         "mixtral",
     ]:
-        new_cfg["model"]["activations_checkpoint_layers_per_pipeline"] = act_per_pipe
+        new_cfg["model"].activations_checkpoint_layers_per_pipeline = act_per_pipe
 
     if virtual_pipelines is not None and model_name in [
         "gpt3",
@@ -402,17 +414,17 @@ def modify_cfg(
         "qwen2",
         "mixtral",
     ]:
-        new_cfg["model"]["virtual_pipeline_model_parallel_size"] = virtual_pipelines
+        new_cfg["model"].virtual_pipeline_model_parallel_size = virtual_pipelines
 
-    new_cfg["model"]["tensor_model_parallel_size"] = tp
-    new_cfg["model"]["pipeline_model_parallel_size"] = pp
-    new_cfg["model"]["micro_batch_size"] = mbs
+    new_cfg["model"].tensor_model_parallel_size = tp
+    new_cfg["model"].pipeline_model_parallel_size = pp
+    new_cfg["model"].micro_batch_size = mbs
 
     if cp is not None:
-        new_cfg["model"]["context_parallel_size"] = cp
+        new_cfg["model"].context_parallel_size = cp
 
     if ep is not None:
-        new_cfg["model"]["expert_model_parallel_size"] = ep
+        new_cfg["model"].expert_model_parallel_size = ep
 
     if model_name in [
         "gpt3",
@@ -423,15 +435,15 @@ def modify_cfg(
         "qwen2",
         "mixtral",
     ]:
-        att_heads = new_cfg["model"]["num_attention_heads"]
-        num_layers = new_cfg["model"]["num_layers"]
+        att_heads = new_cfg["model"].num_attention_heads
+        num_layers = new_cfg["model"].num_layers
     else:
-        att_heads = new_cfg["model"]["encoder"]["num_attention_heads"]
-        num_layers = new_cfg["model"]["encoder"]["num_layers"]
+        att_heads = new_cfg["model"].encoder.num_attention_heads
+        num_layers = new_cfg["model"].encoder.num_layers
 
     # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
     num_gpus = new_cfg["trainer"]["num_nodes"] * new_cfg["trainer"]["devices"]
-    gbs = new_cfg["model"]["global_batch_size"]
+    gbs = new_cfg["model"].global_batch_size
 
     mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
     mod_att_heads = att_heads % tp
@@ -538,7 +550,7 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-def convert_to_cli(cfg: omegaconf.dictconfig.DictConfig, root: bool = True) -> str:
+def convert_to_cli(cfg: dict, root: bool = True) -> str:
     """
     Converts hydra-like OmegaConf config dictionary object to a sring that can be used to override
     hydra parameters using the CLI.

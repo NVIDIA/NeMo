@@ -14,29 +14,42 @@
 
 """Entry point, main file to run to launch jobs with the HP tool."""
 
-import math
+import argparse
 
-import hydra
-import omegaconf
 from autoconfig.search_config import search_config
-from autoconfig.utils import convert_to_cli
-from omegaconf import OmegaConf
-
-OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
-OmegaConf.register_new_resolver("divide_ceil", lambda x, y: int(math.ceil(x / y)), replace=True)
-OmegaConf.register_new_resolver("divide_floor", lambda x, y: int(x // y), replace=True)
 
 
-@hydra.main(config_path="conf", config_name="config")
-def main(cfg: omegaconf.dictconfig.DictConfig) -> None:
+def get_args():
+    parser = argparse.ArgumentParser(description='Train a small GPT model using NeMo 2.0')
+    parser.add_argument('--num_nodes', required=True, type=int, help="Number of nodes to use for training")
+    parser.add_argument('--gpus_per_node', required=False, default=8, type=int, help="Number of GPUs per node")
+    parser.add_argument('--gpu_memory_gb', required=False, default=80, type=int, help="GPU memory size")
+    parser.add_argument('--max_training_days', required=False, default=2, type=int, help="Path to data file")
+    parser.add_argument(
+        '--max_minutes_per_run', required=False, default=30, type=int, help="Max minutes per job on cluster"
+    )
+    parser.add_argument('--model_type', required=True, type=str, help="Model size in billions")
+    parser.add_argument('--model_version', required=True, type=int, help="Model version")
+    parser.add_argument('--model_size_in_b', required=True, type=int, help="Model size in billions")
+    parser.add_argument('--vocab_size', required=False, default=32000, type=int, help="Size of tokenizer vocab")
+    parser.add_argument('--tflops_per_gpu', required=False, default=140, type=int, help="Estimated tflops per GPU")
+    parser.add_argument(
+        '--num_tokens_in_b', required=False, default=300, type=int, help="Number of tokens in dataset in billions"
+    )
+    parser.add_argument('--seq_length', required=False, default=2048, type=int, help="Model sequence length")
+    parser.add_argument('--log_dir', required=True, type=str, help="Path to results directory")
+
+    return parser.parse_args()
+
+
+def main():
     """
     Main function in the entire pipeline, it reads the config using hydra and calls search_config.
     :param omegaconf.dictconfig.DictConfig cfg: OmegaConf object, read using the @hydra.main decorator.
     :return: None
     """
-    hydra_args = convert_to_cli(cfg)
-    search_config(cfg=cfg, hydra_args=hydra_args)
-
+    args = get_args()
+    configs = search_config(cfg=vars(args))
 
 if __name__ == "__main__":
     main()

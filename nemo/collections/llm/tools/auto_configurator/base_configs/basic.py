@@ -9,7 +9,7 @@ class Basic:
         self.name = name
         self.version = version
         self.size = size
-        self.num_nodes = cfg.get("num_nodes", 1)
+        self.num_nodes = cfg.get("num_nodes", 8)
         self.num_gpus = cfg.get("num_gpus", 8)
         self.max_steps = cfg.get("max_steps", 50)
         self.seq_length = cfg.get("seg_length", 2048)

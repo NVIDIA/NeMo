@@ -15,9 +15,7 @@
 import os
 from typing import Optional
 
-import omegaconf
 from autoconfig.base_config import calculate_model_size, generate_base_config
-from autoconfig.inference_sweep import search_inference_config
 from autoconfig.training_config import search_training_config
 
 SUPPORTED_MODELS = [
@@ -44,26 +42,25 @@ def search_config(cfg: dict):
     """
 
     # Read config
-    nodes = cfg.get("num_nodes")
-    gpus_per_node = cfg.get("gpus_per_node")
-    gpu_memory_gb = cfg.get("gpu_memory_gb")
-    max_training_days = cfg.get("max_training_days")
-    max_minutes_per_run = cfg.get("max_minutes_per_run")
+    num_nodes = cfg.get("num_nodes")
+    gpus_per_node = cfg.get("gpus_per_node", 8)
+    gpu_memory_gb = cfg.get("gpu_memory_gb", 80)
+    max_training_days = cfg.get("max_training_days", 2)
+    max_minutes_per_run = cfg.get("max_minutes_per_run", 30)
     model_name = cfg.get("model_type")
+    model_version = cfg.get("model_version")
     model_size_in_b = cfg.get("model_size_in_b")
-    vocab_size = cfg.get("vocab_size")
-    tflops_per_gpu = cfg.get("tflops_per_gpu")
-    num_tokens_in_b = cfg.get("num_tokens_in_b")
-    seq_length = cfg.get("seq_length")
+    vocab_size = cfg.get("vocab_size", 32000)
+    tflops_per_gpu = cfg.get("tflops_per_gpu", 140)
+    num_tokens_in_b = cfg.get("num_tokens_in_b", 300)
+    seq_length = cfg.get("seq_length", 2048)
     log_dir = cfg.get("log_dir")
     custom_cfg = None
 
-    print(cfg)
-    print(model_name)
     assert model_name in SUPPORTED_MODELS, f"model must be set to one of {SUPPORTED_MODELS}/<model_size>"
 
-    gpu_count = nodes * gpus_per_node
-    assert isinstance(gpu_count, int) and gpu_count > 0, "nodes * gpus_per_node must be an int larger than zero."
+    gpu_count = num_nodes * gpus_per_node
+    assert isinstance(gpu_count, int) and gpu_count > 0, "num_nodes * gpus_per_node must be an int larger than zero."
     assert isinstance(gpu_memory_gb, int) and gpu_memory_gb in (
         40,
         80,
@@ -71,11 +68,6 @@ def search_config(cfg: dict):
     assert (
         isinstance(max_minutes_per_run, int) and max_minutes_per_run >= 10
     ), "max_minutes_per_run must be an int and be at least 10 minutes."
-
-    os.makedirs(log_dir, exist_ok=True)
-    os.makedirs(os.path.join(log_dir, "candidate_configs"), exist_ok=True)
-    os.makedirs(os.path.join(log_dir, "training_logs"), exist_ok=True)
-    os.makedirs(os.path.join(log_dir, "final_result"), exist_ok=True)
 
     # Calculate model size
     model_size_in_b = calculate_model_size(
@@ -90,26 +82,13 @@ def search_config(cfg: dict):
 
     # Generate base config for the given model size
     base_cfg = generate_base_config(
-        model_size_in_b=model_size_in_b,
-        nodes=nodes,
-        gpus_per_node=gpus_per_node,
-        gpu_memory_gb=gpu_memory_gb,
-        max_training_days=max_training_days,
-        num_tokens_in_b=num_tokens_in_b,
-        vocab_size=vocab_size,
-        seq_length=seq_length,
-        custom_cfg=custom_cfg,
-        cfg=cfg,
         model_name=model_name,
+        model_version=model_version,
+        model_size_in_b=model_size_in_b,
+        cfg=cfg,
     )
 
     # Launch grid search for training constraints
-    if cfg.get("run_training_hp_search"):
-        search_training_config(base_cfg, model_size_in_b, model_name, hydra_args, cfg)
+    configs = search_training_config(base_cfg, cfg, model_size_in_b, model_name)
 
-    # Launch grid search for inference constraints
-    if cfg.get("run_inference_hp_search"):
-        search_inference_config(
-            base_cfg=base_cfg,
-            cfg=cfg,
-        )
+    return configs

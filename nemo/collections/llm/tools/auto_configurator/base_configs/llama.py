@@ -19,14 +19,16 @@ class Llama(Basic):
         super().__init__(name=name, version=version, size=size, cfg=cfg)
         self.config_name = f"{self.name}{self.version}Config{self.size}B"
 
-    def model_config(self):
+    def get_model_config(self):
         model_config = getattr(llm, self.config_name)
         model_config.global_batch_size = self.global_batch_size
+        model_config.activations_checkpoint_method = None
+        model_config.seq_length = self.seq_length
 
         return model_config
 
-    def optim_config(self):
-        opt_config = OptimizerConfig(
+    def get_optim_config(self):
+        optim_config = OptimizerConfig(
             optimizer='adam',
             lr=1e-4,
             min_lr=1e-5,
@@ -40,17 +42,17 @@ class Llama(Basic):
 
         return optim_config
 
-    def tokenizer_config(self):
+    def get_tokenizer_config(self):
         tokenizer_config = {
             "library": "sentencepiece",
-            "tokenizer_model": os.path.join(self.data_dir, "tokenizer/tokenizer.model"),
+            "tokenizer_model": None,
             "legacy": False,
             "chat_template": None,
         }
 
-        return config
+        return tokenizer_config
 
-    def trainer_config(self):
+    def get_trainer_config(self):
         trainer_config = {
             "accelerator": "gpu",
             "precision": "bf16",
@@ -63,16 +65,31 @@ class Llama(Basic):
             "limit_test_batches": 1,
             "accumulate_grad_batches": 1,
             "gradient_clip_val": 1.0,
+            "num_nodes": self.num_nodes,
+            "devices": self.num_gpus,
+            "max_steps": self.max_steps,
         }
 
         return trainer_config
 
-    def data_config(self):
+    def get_data_config(self):
         data_config = {
-            "paths": self.data_paths,
-            "weights": self.data_weights,
+            "paths": None,
+            "weights": None,
             "seq_length": self.seq_length,
             "global_batch_size": self.global_batch_size,
             "num_workers": 2,
             "split": "99990,8,2",
         }
+
+        return data_config
+
+    def get_run_config(self):
+        run_config = {
+            "name": f"llama{self.version}_{self.size}b",
+            "results_dir": None,
+            "time_limit": "0-00:30:00",
+            "dependency": "singleton",
+        }
+
+        return run_config
