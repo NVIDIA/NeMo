@@ -851,7 +851,6 @@ def main():
         model.cfg.global_batch_size = None
         model.cfg.micro_batch_size = None
 
-
         model = MegatronMambaModel(model.cfg, trainer)
         model = model.to('cpu')
         model._save_restore_connector = NLPSaveRestoreConnector()
