@@ -653,7 +653,7 @@ def main():
 
             model.cfg, restore_dict = force_cpu_model(model.cfg)
 
-            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
             _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_global_batch_size = 1
             _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_micro_batch_size = 1
