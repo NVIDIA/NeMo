@@ -179,7 +179,9 @@ class NLPAdapterModelMixin:
 
         for adapter_name, adapter_cfg in peft_cfg.get_config_dict().items():
             # mixin for mcore models
-            if (hasattr(self, 'mcore_gpt') or getattr(self, 'mcore_t5', False)) and not isinstance(adapter_cfg, PromptEncoderAdapterConfig):
+            if (hasattr(self, 'mcore_gpt') or getattr(self, 'mcore_t5', False)) and not isinstance(
+                adapter_cfg, PromptEncoderAdapterConfig
+            ):
                 if layer_selection is not None:
                     logging.info(
                         f"Layer selection {layer_selection} is enabled for the current model ("
@@ -461,7 +463,7 @@ class NLPAdapterModelMixin:
                 # same as super().on_load_checkpoint() but strict=False and only check unexpected keys
                 # mcore uses distributed checkpointing
                 use_mcore = (getattr(self, 'mcore_gpt', False)) or (getattr(self, 'mcore_t5', False))
-                if use_mcore:                    
+                if use_mcore:
                     for index, module in enumerate(self.get_model_module_list()):
                         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                             checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
