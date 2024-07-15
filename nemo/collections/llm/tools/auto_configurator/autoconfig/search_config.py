@@ -33,7 +33,7 @@ SUPPORTED_MODELS = [
 ]
 
 
-def search_config(cfg: omegaconf.dictconfig.DictConfig, hydra_args: Optional[str] = None):
+def search_config(cfg: dict):
     """
     Main function that implements the entire pipeline to search the optimal
     model config and launch the grid searches for both training and inference
@@ -42,24 +42,25 @@ def search_config(cfg: omegaconf.dictconfig.DictConfig, hydra_args: Optional[str
     :param Optional[str] hydra_args: hydra override arguments in string format.
     :return: None
     """
-    model_type = cfg.get("search_config_value")
-    model_name, model_size = model_type.split("/")
-    assert model_name in SUPPORTED_MODELS, f"search_config must be set to one of {SUPPORTED_MODELS}/<model_size>"
-
+    
     # Read config
-    hp_cfg = cfg.get("search_config")
-    train_cfg = hp_cfg.get("train_settings")
-    nodes = train_cfg.get("num_nodes")
-    gpus_per_node = train_cfg.get("gpus_per_node")
-    gpu_memory_gb = train_cfg.get("gpu_memory_gb")
-    max_training_days = train_cfg.get("max_training_days")
-    max_minutes_per_run = train_cfg.get("max_minutes_per_run")
-    model_size_in_b = train_cfg.get("model_size_in_b")
-    vocab_size = train_cfg.get("vocab_size")
-    tflops_per_gpu = train_cfg.get("tflops_per_gpu")
-    num_tokens_in_b = train_cfg.get("num_tokens_in_b")
-    seq_length = train_cfg.get("seq_length")
-    custom_cfg = train_cfg.get("custom_config")
+    nodes = cfg.get("num_nodes")
+    gpus_per_node = cfg.get("gpus_per_node")
+    gpu_memory_gb = cfg.get("gpu_memory_gb")
+    max_training_days = cfg.get("max_training_days")
+    max_minutes_per_run = cfg.get("max_minutes_per_run")
+    model_name = cfg.get("model_type")
+    model_size_in_b = cfg.get("model_size_in_b")
+    vocab_size = cfg.get("vocab_size")
+    tflops_per_gpu = cfg.get("tflops_per_gpu")
+    num_tokens_in_b = cfg.get("num_tokens_in_b")
+    seq_length = cfg.get("seq_length")
+    log_dir = cfg.get("log_dir")
+    custom_cfg = None
+    
+    print(cfg)
+    print(model_name)
+    assert model_name in SUPPORTED_MODELS, f"model must be set to one of {SUPPORTED_MODELS}/<model_size>"
 
     gpu_count = nodes * gpus_per_node
     assert isinstance(gpu_count, int) and gpu_count > 0, "nodes * gpus_per_node must be an int larger than zero."
@@ -70,9 +71,6 @@ def search_config(cfg: omegaconf.dictconfig.DictConfig, hydra_args: Optional[str
     assert (
         isinstance(max_minutes_per_run, int) and max_minutes_per_run >= 10
     ), "max_minutes_per_run must be an int and be at least 10 minutes."
-
-    # Logging config
-    log_dir = train_cfg.get("logs")
 
     os.makedirs(log_dir, exist_ok=True)
     os.makedirs(os.path.join(log_dir, "candidate_configs"), exist_ok=True)
@@ -88,7 +86,7 @@ def search_config(cfg: omegaconf.dictconfig.DictConfig, hydra_args: Optional[str
         num_tokens_in_b=num_tokens_in_b,
         model_name=model_name,
     )
-    cfg.search_config.train_settings.model_size_in_b = model_size_in_b
+    cfg["model_size_in_b"] = model_size_in_b
 
     # Generate base config for the given model size
     base_cfg = generate_base_config(
