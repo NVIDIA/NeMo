@@ -17,6 +17,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     any_locale_word_tokenize,
     english_word_tokenize,
     french_text_preprocessing,
+    japanese_text_preprocessing,
 )
 
 
