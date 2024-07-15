@@ -27,7 +27,7 @@ from tests.infer_data_path import get_infer_test_data
 run_export_tests = True
 try:
     from nemo.deploy import DeployPyTriton
-    from nemo.deploy.nlp import NemoQueryLLM
+    from nemo.deploy.nlp import NemoQueryLLM, NemoQueryLLMPyTorch
     from nemo.export import TensorRTLLM
 except Exception as e:
     run_export_tests = False
@@ -140,7 +140,7 @@ def run_in_framework_inference(
     )
     nm.deploy()
     nm.run()
-    nq = NemoQueryLLM(url="localhost:8000", model_name=model_name)
+    nq = NemoQueryLLMPyTorch(url="localhost:8000", model_name=model_name)
 
     output_deployed = nq.query_llm(
         prompts=prompt,
@@ -252,7 +252,6 @@ def run_trt_llm_inference(
             max_num_tokens=int(max_input_len * max_batch_size * 0.2),
             opt_num_tokens=60,
             use_embedding_sharing=use_embedding_sharing,
-            save_nemo_model_config=True,
         )
 
         if ptuning:
