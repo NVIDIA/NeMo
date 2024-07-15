@@ -23,6 +23,8 @@ def test_init_parallel_ranks(mock_initialize_model_parallel) -> None:
 
     app_state.tensor_model_parallel_size = 2
     app_state.pipeline_model_parallel_size = 3
+    app_state.context_parallel_size = 2
+    app_state.expert_model_parallel_size = 2
     app_state.global_rank = 1
     app_state.local_rank = 0
 
@@ -30,11 +32,18 @@ def test_init_parallel_ranks(mock_initialize_model_parallel) -> None:
     mock_parallel_config.tensor_model_parallel_size = 2
     mock_parallel_config.pipeline_model_parallel_size = 3
     mock_parallel_config.virtual_pipeline_model_parallel_size = 4
-    mock_parallel_config.ub_tp_comm_overlap = False
+    mock_parallel_config.context_parallel_size = 2
+    mock_parallel_config.expert_model_parallel_size = 2
+    mock_parallel_config.tp_comm_overlap = False
     mock_parallel_config.pipeline_model_parallel_split_rank = None
 
     _strategy_lib.init_parallel_ranks(
-        world_size=2, global_rank=1, local_rank=0, parallel_config=mock_parallel_config, seed=1234, fp8=False,
+        world_size=2,
+        global_rank=1,
+        local_rank=0,
+        parallel_config=mock_parallel_config,
+        seed=1234,
+        fp8=False,
     )
     mock_initialize_model_parallel.assert_called_once_with(
         world_size=2,
@@ -43,6 +52,8 @@ def test_init_parallel_ranks(mock_initialize_model_parallel) -> None:
         tensor_model_parallel_size=2,
         pipeline_model_parallel_size=3,
         virtual_pipeline_model_parallel_size=4,
+        context_parallel_size=2,
+        expert_model_parallel_size=2,
         seed=1234,
         pipeline_model_parallel_split_rank=None,
         use_fp8=False,
@@ -60,6 +71,8 @@ def test_init_model_parallel(mock_mpu, *args):
     app_state.tensor_model_parallel_size = 2
     app_state.pipeline_model_parallel_size = 1
     app_state.pipeline_model_parallel_split_rank = None
+    app_state.context_parallel_size = 2
+    app_state.expert_model_parallel_size = 2
     app_state.init_mpi_proc_group = False
     app_state.tensor_model_parallel_rank = 2
     app_state.pipeline_model_parallel_rank = 0
@@ -72,6 +85,8 @@ def test_init_model_parallel(mock_mpu, *args):
         pipeline_model_parallel_size=1,
         virtual_pipeline_model_parallel_size=None,
         pipeline_model_parallel_split_rank=None,
+        context_parallel_size=2,
+        expert_model_parallel_size=2,
     )
 
 
