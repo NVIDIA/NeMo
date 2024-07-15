@@ -1394,35 +1394,41 @@ class TestSaveRestore:
                 return False
             return int(path[-1]) % 2 == 0
 
-        with tempfile.TemporaryDirectory() as output_dir, tempfile.TemporaryDirectory() as nemo_base_dir:
-            os.chdir(output_dir)
-            os.makedirs('grand/parent', exist_ok=True)
-            os.makedirs('grand/aunt', exist_ok=True)
-            for i in range(3):
-                touch(f'grand/parent/child_{i}')
-                touch(f'grand/aunt/child_{i}')
+        cwd = os.getcwd()
+        # Since we os.chdir to a temp directory. Tests can fail if we don't jump back to the CWD.
+        # This try:finally block ensures we don't get left in an ephemeral directory
+        try:
+            with tempfile.TemporaryDirectory() as output_dir, tempfile.TemporaryDirectory() as nemo_base_dir:
+                os.chdir(output_dir)
+                os.makedirs('grand/parent', exist_ok=True)
+                os.makedirs('grand/aunt', exist_ok=True)
+                for i in range(3):
+                    touch(f'grand/parent/child_{i}')
+                    touch(f'grand/aunt/child_{i}')
 
-            if tar_input:
-                path = f'{nemo_base_dir}/model.nemo'
-                save_restore_connector.SaveRestoreConnector._make_nemo_file_from_folder(
-                    filename=path, source_dir=output_dir
+                if tar_input:
+                    path = f'{nemo_base_dir}/model.nemo'
+                    save_restore_connector.SaveRestoreConnector._make_nemo_file_from_folder(
+                        filename=path, source_dir=output_dir
+                    )
+                else:
+                    path = '.'
+
+                expected_paths = set(
+                    (
+                        './grand/aunt/child_0',
+                        './grand/aunt/child_2',
+                        './grand/parent/child_0',
+                        './grand/parent/child_2',
+                    )
                 )
-            else:
-                path = '.'
 
-            expected_paths = set(
-                (
-                    './grand/aunt/child_0',
-                    './grand/aunt/child_2',
-                    './grand/parent/child_0',
-                    './grand/parent/child_2',
-                )
-            )
+                observed_paths = filter_method(path, filter_fn=filter_even_children)
+                if tar_input:
+                    observed_paths = set((p.name for p in observed_paths))
+                else:
+                    observed_paths = set(observed_paths)
 
-            observed_paths = filter_method(path, filter_fn=filter_even_children)
-            if tar_input:
-                observed_paths = set((p.name for p in observed_paths))
-            else:
-                observed_paths = set(observed_paths)
-
-            assert expected_paths == observed_paths
+                assert expected_paths == observed_paths
+        finally:
+            os.chdir(cwd)
