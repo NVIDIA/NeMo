@@ -9,6 +9,119 @@
 
 # **NVIDIA NeMo Framework**
 
+## Latest News
+<!-- markdownlint-disable -->
+<details open>
+  <summary><b>Large Language Models and Multimodal</b></summary>
+    <details>
+      <summary>
+        <a href="https://huggingface.co/models?sort=trending&search=nvidia%2Fnemotron-4-340B">
+          NVIDIA releases 340B base, instruct, and reward models pretrained on a total of 9T tokens.
+        </a> (2024-06-18)
+      </summary>
+      See documentation and tutorials for SFT, PEFT, and PTQ with 
+      <a href="https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/nemotron/index.html">
+        Nemotron 340B 
+      </a>
+      in the NeMo Framework User Guide.
+      <br><br>
+    </details>
+    <details>
+      <summary>
+        <a href="https://developer.nvidia.com/blog/nvidia-sets-new-generative-ai-performance-and-scale-records-in-mlperf-training-v4-0/">
+          NVIDIA sets new generative AI performance and scale records in MLPerf Training v4.0
+        </a> (2024/06/12)
+      </summary>
+      Using NVIDIA NeMo Framework and NVIDIA Hopper GPUs NVIDIA was able to scale to 11,616 H100 GPUs and achieve near-linear performance scaling on LLM pretraining. 
+      NVIDIA also achieved the highest LLM fine-tuning performance and raised the bar for text-to-image training.
+      <br><br>
+    </details>
+    <details>
+        <summary>
+          <a href="https://cloud.google.com/blog/products/compute/gke-and-nvidia-nemo-framework-to-train-generative-ai-models">
+            Accelerate your generative AI journey with NVIDIA NeMo Framework on GKE
+          </a> (2024/03/16)
+        </summary>
+        An end-to-end walkthrough to train generative AI models on the Google Kubernetes Engine (GKE) using the NVIDIA NeMo Framework is available at https://github.com/GoogleCloudPlatform/nvidia-nemo-on-gke. 
+        The walkthrough includes detailed instructions on how to set up a Google Cloud Project and pre-train a GPT model using the NeMo Framework.
+        <br><br>
+      </details>
+    <details>
+      <summary>
+        <a href="https://blogs.nvidia.com/blog/bria-builds-responsible-generative-ai-using-nemo-picasso/">
+          Bria Builds Responsible Generative AI for Enterprises Using NVIDIA NeMo, Picasso
+        </a> (2024/03/06)
+      </summary>
+      Bria, a Tel Aviv startup at the forefront of visual generative AI for enterprises now leverages the NVIDIA NeMo Framework. 
+      The Bria.ai platform uses reference implementations from the NeMo Multimodal collection, trained on NVIDIA Tensor Core GPUs, to enable high-throughput and low-latency image generation. 
+      Bria has also adopted NVIDIA Picasso, a foundry for visual generative AI models, to run inference.
+      <br><br>
+    </details>
+    <details>
+      <summary>
+        <a href="https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility/">
+          New NVIDIA NeMo Framework Features and NVIDIA H200
+        </a> (2023/12/06)
+      </summary>
+      NVIDIA NeMo Framework now includes several optimizations and enhancements, 
+      including: 
+      1) Fully Sharded Data Parallelism (FSDP) to improve the efficiency of training large-scale AI models, 
+      2) Mix of Experts (MoE)-based LLM architectures with expert parallelism for efficient LLM training at scale, 
+      3) Reinforcement Learning from Human Feedback (RLHF) with TensorRT-LLM for inference stage acceleration, and 
+      4) up to 4.2x speedups for Llama 2 pre-training on NVIDIA H200 Tensor Core GPUs.
+      <br><br>
+      <a href="https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility">
+      <img src="https://github.com/sbhavani/TransformerEngine/blob/main/docs/examples/H200-NeMo-performance.png" alt="H200-NeMo-performance" style="width: 600px;"></a>
+      <br><br>
+    </details>
+    <details>
+      <summary>
+        <a href="https://blogs.nvidia.com/blog/nemo-amazon-titan/">
+          NVIDIA now powers training for Amazon Titan Foundation models
+        </a> (2023/11/28)
+      </summary>
+      NVIDIA NeMo Framework now empowers the Amazon Titan foundation models (FM) with efficient training of large language models (LLMs). 
+      The Titan FMs form the basis of Amazon’s generative AI service, Amazon Bedrock. 
+      The NeMo Framework provides a versatile framework for building, customizing, and running LLMs.
+      <br><br>
+    </details>
+</details>
+
+<details open>
+  <summary><b>Speech Recognition</b></summary>
+    <details>
+      <summary>
+        <a href="https://developer.nvidia.com/blog/new-standard-for-speech-recognition-and-translation-from-the-nvidia-nemo-canary-model/">
+          New Standard for Speech Recognition and Translation from the NVIDIA NeMo Canary Model
+        </a> (2024/04/18)
+      </summary>
+      The NeMo team just released Canary, a multilingual model that transcribes speech in English, Spanish, German, and French with punctuation and capitalization. 
+      Canary also provides bi-directional translation, between English and the three other supported languages.
+      <br><br>
+    </details>
+    <details>
+      <summary>
+        <a href="https://developer.nvidia.com/blog/pushing-the-boundaries-of-speech-recognition-with-nemo-parakeet-asr-models/">
+          Pushing the Boundaries of Speech Recognition with NVIDIA NeMo Parakeet ASR Models
+        </a> (2024/04/18)
+      </summary>
+      NVIDIA NeMo, an end-to-end platform for the development of multimodal generative AI models at scale anywhere—on any cloud and on-premises—released the Parakeet family of automatic speech recognition (ASR) models. 
+      These state-of-the-art ASR models, developed in collaboration with Suno.ai, transcribe spoken English with exceptional accuracy.
+      <br><br>
+    </details>
+  <details>
+    <summary>
+      <a href="https://developer.nvidia.com/blog/turbocharge-asr-accuracy-and-speed-with-nvidia-nemo-parakeet-tdt/">
+        Turbocharge ASR Accuracy and Speed with NVIDIA NeMo Parakeet-TDT
+      </a> (2024/04/18)
+    </summary>
+    NVIDIA NeMo, an end-to-end platform for developing multimodal generative AI models at scale anywhere—on any cloud and on-premises—recently released Parakeet-TDT. 
+    This new addition to the  NeMo ASR Parakeet model family boasts better accuracy and 64% greater speed over the previously best model, Parakeet-RNNT-1.1B.
+    <br><br>
+  </details>
+</details>
+<!-- markdownlint-enable -->
+
 ## Introduction
 
 NVIDIA NeMo Framework is a scalable and cloud-native generative AI
@@ -155,7 +268,7 @@ PyTorch container: nvcr.io/nvidia/pytorch:24.02-py3.**
 
 Install NeMo in a fresh Conda environment:
 
-``` bash
+```bash
 conda create --name nemo python==3.10.12
 conda activate nemo
 ```
@@ -163,7 +276,7 @@ conda activate nemo
 Install PyTorch using their
 [configurator](https://pytorch.org/get-started/locally/):
 
-``` bash
+```bash
 conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 ```
 
@@ -177,7 +290,7 @@ conda-forge or any other Conda channel.
 
 To install the nemo_toolkit, use the following installation method:
 
-``` bash
+```bash
 apt-get update && apt-get install -y libsndfile1 ffmpeg
 pip install Cython packaging
 pip install nemo_toolkit['all']
@@ -192,7 +305,7 @@ To install a specific domain of NeMo, you must first install the
 nemo_toolkit using the instructions listed above. Then, you run the
 following domain-specific commands:
 
-``` bash
+```bash
 pip install nemo_toolkit['asr']
 pip install nemo_toolkit['nlp']
 pip install nemo_toolkit['tts']
@@ -205,7 +318,7 @@ pip install nemo_toolkit['multimodal']
 If you want to work with a specific version of NeMo from a particular
 GitHub branch (e.g main), use the following installation method:
 
-``` bash
+```bash
 apt-get update && apt-get install -y libsndfile1 ffmpeg
 pip install Cython packaging
 python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[all]
@@ -216,7 +329,7 @@ python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_t
 If you want to clone the NeMo GitHub repository and contribute to NeMo
 open-source development work, use the following installation method:
 
-``` bash
+```bash
 apt-get update && apt-get install -y libsndfile1 ffmpeg
 git clone https://github.com/NVIDIA/NeMo
 cd NeMo
@@ -237,7 +350,7 @@ then install the nemo_toolkit.
 
 Run the following code:
 
-``` shell
+```shell
 # [optional] install mecab using Homebrew, to use sacrebleu for NLP collection
 # you can install Homebrew here: https://brew.sh
 brew install mecab
@@ -261,7 +374,7 @@ pip install 'nemo_toolkit[all]'
 To install the Windows Subsystem for Linux (WSL), run the following code
 in PowerShell:
 
-``` shell
+```shell
 wsl --install
 # [note] If you run wsl --install and see the WSL help text, it means WSL is already installed.
 ```
@@ -283,7 +396,7 @@ installed.
 Next, follow the instructions for Linux systems, as provided above. For
 example:
 
-``` bash
+```bash
 apt-get update && apt-get install -y libsndfile1 ffmpeg
 git clone https://github.com/NVIDIA/NeMo
 cd NeMo
@@ -297,7 +410,7 @@ install the Numba package from Conda.
 
 Run the following code:
 
-``` bash
+```bash
 conda remove numba
 pip uninstall numba
 conda install -c conda-forge numba
@@ -312,7 +425,7 @@ dependencies may require a recent commit.
 
 The most recent working versions of these dependencies are here:
 
-``` bash
+```bash
 export apex_commit=810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c
 export te_commit=bfe21c3d68b0a9951e5716fb520045db53419c5e
 export mcore_commit=02871b4df8c69fac687ab6676c4246e936ce92d0
@@ -332,7 +445,7 @@ nvcr.io/nvidia/pytorch:24.02-py3.
 If starting with a base NVIDIA PyTorch container, you must first launch
 the container:
 
-``` bash
+```bash
 docker run \
   --gpus all \
   -it \
@@ -353,7 +466,7 @@ to a newer version.
 
 To install Apex, run the following code:
 
-``` bash
+```bash
 git clone https://github.com/NVIDIA/apex.git
 cd apex
 git checkout $apex_commit
@@ -372,13 +485,13 @@ version that you are using.
 
 To install cuda-nvprof, run the following code:
 
-``` bash
+```bash
 conda install -c nvidia cuda-nvprof=11.8
 ```
 
 Finally, install the packaging:
 
-``` bash
+```bash
 pip install packaging
 ```
 
@@ -399,7 +512,7 @@ for information.
 
 To install Transformer Engine, run the following code:
 
-``` bash
+```bash
 git clone https://github.com/NVIDIA/TransformerEngine.git && \
 cd TransformerEngine && \
 git checkout $te_commit && \
@@ -418,7 +531,7 @@ and optimized PyTorch datasets.
 
 To install Megatron Core, run the following code:
 
-``` bash
+```bash
 git clone https://github.com/NVIDIA/Megatron-LM.git && \
 cd Megatron-LM && \
 git checkout $mcore_commit && \
@@ -443,21 +556,21 @@ page](https://github.com/NVIDIA/NeMo/releases).
 
 To use a pre-built container, run the following code:
 
-``` bash
+```bash
 docker pull nvcr.io/nvidia/nemo:24.05
 ```
 
 To build a nemo container with Dockerfile from a branch, run the
 following code:
 
-``` bash
+```bash
 DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest
 ```
 
 If you choose to work with the main branch, we recommend using NVIDIA\'s
 PyTorch container version 23.10-py3 and then installing from GitHub.
 
-``` bash
+```bash
 docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
 -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
 stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.10-py3
