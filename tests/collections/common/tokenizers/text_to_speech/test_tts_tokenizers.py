@@ -20,8 +20,8 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     GermanCharsTokenizer,
     IPATokenizer,
     ItalianCharsTokenizer,
-    JapanesePhonemeTokenizer,
     SpanishCharsTokenizer,
+    JapanesePhonemeTokenizer,
 )
 from nemo.collections.tts.g2p.models.i18n_ipa import IpaG2p
 
