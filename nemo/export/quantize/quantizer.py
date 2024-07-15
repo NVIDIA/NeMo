@@ -31,6 +31,7 @@ from nemo.utils.model_utils import save_artifacts, unwrap_model
 try:
     import modelopt.torch.quantization as mtq
     from modelopt.torch.export import export_tensorrt_llm_checkpoint
+    from modelopt.torch.quantization.utils import is_quantized
     from modelopt.torch.utils.distributed import set_data_parallel_group, set_tensor_parallel_group
 
     HAVE_MODELOPT = True
@@ -199,6 +200,10 @@ class Quantizer:
         assert self.quant_cfg is not None, "Quantization algorithm is not set"
 
         logging.info(f"Quantizing model to {self.quantization_config.algorithm}...")
+        if is_quantized(model):
+            logging.warning("Model is already quantized. Skipping quantization step.")
+            return model
+
         self._setup(model)
 
         model = mtq.quantize(model, self.quant_cfg, forward_loop)
