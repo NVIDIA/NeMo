@@ -30,8 +30,8 @@ from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     english_text_preprocessing,
     french_text_preprocessing,
     italian_text_preprocessing,
-    japanese_text_preprocesing,
     spanish_text_preprocessing,
+    japanese_text_preprocesing,
 )
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
