@@ -1,8 +1,10 @@
-from typing import List
-from nemo.utils import logging
 import glob
 import os
+from typing import List
+
 from tensorboard.backend.event_processing import event_accumulator
+
+from nemo.utils import logging
 
 # From GPU datasheets (numbers with Tensor Core and dense computation)
 # H200: https://nvdam.widen.net/s/nb5zzzsjdf/hpc-datasheet-sc23-h200-datasheet-3002446

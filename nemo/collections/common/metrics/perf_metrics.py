@@ -1,11 +1,12 @@
-from typing import Any, Dict, Optional, List
-from nemo.utils import logging
+from typing import Any, Dict, List, Optional
+
 import numpy as np
-from pytorch_lightning.callbacks import Callback
 import pynvml
 from pynvml.smi import nvidia_smi
+from pytorch_lightning.callbacks import Callback
 
 from nemo.collections.common.parts.perf_metrics_utils import GPU_HW_FLOPS_MAP, LLM_VOCAB_SIZE_MAP, read_tb_log
+from nemo.utils import logging
 
 __all__ = ["FLOPsMeasurementCallback"]
 
@@ -14,24 +15,21 @@ class FLOPsMeasurementCallback(Callback):
     Calculate FLOPs per second after last train step for a given job run.
 
     Args:
-        model_config (Dict[str, Any]): 
-            params for running the experiment/job. 
-            Expects a nested dictionary with parent keys
-            1. run- for assessing model name (Eg. 'gpt3', ''llama2;, etc.) from 
-                sub-key 'name'. 'name' usually has value like- train_gpt3_5b_*, which is 
-                matched to model name 'gpt3'.
-            2. exp_manager- for accessing 'explicit_log_dir'. tensorboard log file is 
-                stored here, used for accessing step time needed for calculating 
-                TFLOPs per sec per GPU 
+        model_config (Dict[str, Any]): params for running the experiment/job. 
+        Expects a nested dictionary with parent keys
+            1. run- for assessing model name (Eg. 'gpt3', 'llama2', etc.) from sub-key 'name'. 
+                'name' usually has value like- train_gpt3_5b_*, which is matched to model name 'gpt3'.
+            2. exp_manager- for accessing 'explicit_log_dir'. tensorboard log file is stored here, 
+                used for accessing step time needed for calculating TFLOPs per sec per GPU 
             3. trainer- for accessing 'num_nodes' and 'devices' needed for calculating 
-                TFLOPs per sec per GPU 
+                TFLOPs per sec per GPU
             4. model- Hyperparams for the model. Specifically- global batch size, sequence length,
                 hidden size,  ffn hidden size, num_layers, num_attention_heads, num_query_groups, 
                 moe_router_topk. (list might increase with new models as required)
         log_dir (Optional[str]): Directory with tenbsorboard log file. If present, will overrride 
             'explicit_log_dir' in model_config. Defaults to None. 
         model_name (Optional[str]): If present, will override 'name' under 'run' in model_config.
-            Defaults to None
+            Defaults to None.
     """
 
     higher_is_better = True
@@ -122,11 +120,11 @@ class FLOPsMeasurementCallback(Callback):
             "mixtral": self._mixtral,
             "bert": self._bert,
         }
+        logging.info(f"FLOPs measurement supported for {list(model_flops_map.keys())}")
         if self.model is not None:
             model_matches = [model for model in model_flops_map if model in self.model]
             self.model = model_matches[0] if len(model_matches) > 0 else None
         if self.model not in model_flops_map:
-            logging.info(f"FLOPs measurement supported for {list(model_flops_map.keys())}")
             raise KeyError(f"Failed to extract model name from {self.model} or missing \
                             FLOPs calculation for {self.model=}")
 
@@ -192,8 +190,13 @@ class FLOPsMeasurementCallback(Callback):
 
     def _llama3(self):
         """Model FLOPs for llama3 family"""
+        vocab_size = LLM_VOCAB_SIZE_MAP["llama3"]
 
-        return self._llama2()
+        return (self.gbs * self.enc_seq_len * self.layers * self.hs * self.hs * 
+                (12 + (12 * self.query_groups/self.attention_heads) + 
+                 (18 * self.ffn_hs / self.hs) + 
+                 (12 * self.enc_seq_len / self.hs) +
+                 (6 * vocab_size / (self.layers * self.hs))))
 
     def _nemotron(self):
         """Model FLOPs for nemotron family"""
