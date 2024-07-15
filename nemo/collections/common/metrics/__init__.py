@@ -20,3 +20,4 @@ from nemo.collections.common.metrics.metric_string_to_torchmetric import (
     TextMetricsSet,
 )
 from nemo.collections.common.metrics.perplexity import Perplexity
+from nemo.collections.common.metrics.perf_metrics import FLOPsMeasurementCallback

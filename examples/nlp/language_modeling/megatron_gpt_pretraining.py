@@ -20,6 +20,7 @@ import torch._dynamo
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
+from nemo.collections.common.metrics.perf_metrics import FLOPsMeasurementCallback
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
@@ -37,7 +38,11 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    trainer = MegatronTrainerBuilder(cfg).create_trainer()
+    callbacks = []
+    if cfg.exp_manager.get("log_mfu", True):
+        callbacks.append(FLOPsMeasurementCallback(cfg))
+
+    trainer = MegatronTrainerBuilder(cfg).create_trainer(callbacks=callbacks)
     exp_manager(trainer, cfg.exp_manager)
 
     # Continual training
@@ -61,7 +66,6 @@ def main(cfg) -> None:
         model = MegatronGPTModel(cfg.model, trainer)
 
     trainer.fit(model)
-
 
 if __name__ == '__main__':
     main()

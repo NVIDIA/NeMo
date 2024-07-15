@@ -229,6 +229,8 @@ class ExpManagerConfig:
     # Fault tolrance
     create_fault_tolerance_callback: Optional[bool] = False
     fault_tolerance: Optional[FaultToleranceParams] = field(default_factory=FaultToleranceParams)
+    # logs TFLOPs per sec per gpu and MFU
+    log_mfu: Optional[bool] = True
 
 
 class TimingCallback(Callback):
