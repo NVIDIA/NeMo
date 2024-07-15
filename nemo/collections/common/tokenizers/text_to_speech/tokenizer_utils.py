@@ -199,7 +199,6 @@ def italian_text_preprocessing(text: str) -> str:
 def chinese_text_preprocessing(text: str) -> str:
     return text
 
-
 def french_text_preprocessing(text: str) -> str:
     return text.lower()
 
