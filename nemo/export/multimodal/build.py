@@ -45,7 +45,7 @@ def build_trtllm_engine(
     dtype: str = "bfloat16",
 ):
     trt_llm_exporter = TensorRTLLM(model_dir=model_dir, load_model=False)
-    visual_checkpoint_model = ['neva', 'lita', 'vila']
+    visual_checkpoint_model = ['neva', 'lita', 'vila', 'vita']
     trt_llm_exporter.export(
         nemo_checkpoint_path=visual_checkpoint_path if model_type in visual_checkpoint_model else llm_checkpoint_path,
         model_type=llm_model_type,
@@ -76,12 +76,18 @@ def export_visual_wrapper_onnx(
 
 
 def build_trt_engine(
-    model_type, input_sizes, output_dir, vision_max_batch_size, dtype=torch.bfloat16, image_size=None, num_frames=None
+    model_type, input_sizes, output_dir, vision_max_batch_size, dtype=torch.bfloat16, image_size=None, num_frames=None, nemo_config=None
 ):
     part_name = 'visual_encoder'
     onnx_file = '%s/onnx/%s.onnx' % (output_dir, part_name)
     engine_file = '%s/%s.engine' % (output_dir, part_name)
     config_file = '%s/%s' % (output_dir, "config.json")
+    nemo_config_file = '%s/%s' % (output_dir, "nemo_config.yaml")
+    
+    # save the nemo config to the output directory/visual_engine
+    with open(nemo_config_file, 'w') as f:
+        yaml.dump(nemo_config, f)
+    
     logger.log(trt.Logger.INFO, "Building TRT engine for %s" % part_name)
 
     builder = trt.Builder(logger)
@@ -155,7 +161,10 @@ def build_neva_engine(
     # extract NeMo checkpoint
     with tempfile.TemporaryDirectory() as temp:
         mp0_weights, nemo_config, _ = load_nemo_model(visual_checkpoint_path, temp)
-
+    
+    # save the nemo config to the output directory/visual_engine
+    
+    
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
     
     class DownSampleBlock(torch.nn.Module):
@@ -189,8 +198,7 @@ def build_neva_engine(
 
         def forward(self, images):
             vision_x = self.encoder(pixel_values=images, output_hidden_states=True)
-            vision_x = vision_x.hidden_states[-2]
-            vision_x = vision_x[:, 1:]
+            vision_x = vision_x.hidden_states[-2] 
             vision_x = self.connector(vision_x)
             return vision_x
 
@@ -232,7 +240,7 @@ def build_neva_engine(
         vision_connector = torch.nn.Sequential(
             DownSampleBlock(),
             torch.nn.LayerNorm(vision_config["hidden_size"] * 4),
-            torch.nn.Linear(vision_config["hidden_size"], nemo_config["hidden_size"], bias=True),
+            torch.nn.Linear(vision_config["hidden_size"] * 4, nemo_config["hidden_size"], bias=True),
             torch.nn.GELU(),
             torch.nn.Linear(nemo_config["hidden_size"], nemo_config["hidden_size"], bias=True),
         ).to(dtype=dtype)
@@ -250,15 +258,14 @@ def build_neva_engine(
     
     # export the whole wrapper
     wrapper = VisionEncoderWrapper(vision_encoder, vision_connector).to(device, dtype)
-    if model_type == "lita":
-        lita_num_frames = nemo_config['mm_cfg']['lita']['sample_frames']
-        
-    print(hf_config)
-    
-    if model_type == 'lita':
+    if model_type == "lita" or model_type == "vila":
         image_size = hf_config.image_size
+        if model_type == "lita":
+            lita_num_frames = nemo_config['mm_cfg']['lita']['sample_frames']
     else:
         image_size = hf_config.vision_config.image_size
+        if model_type == "vita":
+            lita_num_frames = nemo_config['mm_cfg']['lita']['sample_frames']
     dummy_image = torch.empty(
         1, 3, image_size, image_size, dtype=dtype, device=device
     )  # dummy image shape [B, C, H, W]
@@ -271,7 +278,8 @@ def build_neva_engine(
         vision_max_batch_size,
         dtype,
         image_size=image_size,
-        num_frames=lita_num_frames if model_type == "lita" else None,
+        num_frames=lita_num_frames if model_type == "lita" or model_type == 'vita' else None,
+        nemo_config=nemo_config,
     )
 
 
@@ -355,7 +363,7 @@ def build_visual_engine(
     model_type: str = "neva",
     vision_max_batch_size: int = 1,
 ):  
-    model_list = ['neva', 'lita', 'vila']
+    model_list = ['neva', 'lita', 'vila', 'vita']
     if model_type in model_list:
         build_neva_engine(model_type, model_dir, visual_checkpoint_path, vision_max_batch_size)
     elif model_type == "video-neva":
