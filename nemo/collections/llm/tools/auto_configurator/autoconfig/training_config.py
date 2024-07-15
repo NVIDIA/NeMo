@@ -43,9 +43,9 @@ def search_training_config(
     # Generate candidate configs.
     configs = generate_grid_search_configs(base_cfg, train_cfg, model_size_in_b, model_name)
     # Launch candidate configs.
-    #job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
+    # job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
     # Measure and compare throughputs for each config.
-    #launch_throughput_measure(job_ids, model_name, model_size_in_b, num_nodes, hydra_args, cfg)
+    # launch_throughput_measure(job_ids, model_name, model_size_in_b, num_nodes, hydra_args, cfg)
 
     return configs
 

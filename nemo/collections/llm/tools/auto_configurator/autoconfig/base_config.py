@@ -526,7 +526,8 @@ def generate_base_config(
     :return: base config object for the given model.
     :rtype: dict
     """
-    base_cfg = utils.generic_base_config(model_name=model_name, model_version=model_version, model_size_in_b=model_size_in_b, cfg=cfg)
-
+    base_cfg = utils.generic_base_config(
+        model_name=model_name, model_version=model_version, model_size_in_b=model_size_in_b, cfg=cfg
+    )
 
     return base_cfg

@@ -18,9 +18,8 @@ from typing import List, Optional, Tuple
 
 from nemo.collections.llm.tools.auto_configurator import base_configs
 
-MODULES = {
-    "llama": "Llama"
-}
+MODULES = {"llama": "Llama"}
+
 
 def _calculate_model_size(
     vocab_size: int = None,
@@ -308,7 +307,9 @@ def calculate_model_size_params(
     raise Exception("Number of layers not found, config is not possible.")
 
 
-def generic_base_config(model_name: str = "llama", model_version: int = 2, model_size_in_b: int = 7, cfg: dict = {}) -> dict:
+def generic_base_config(
+    model_name: str = "llama", model_version: int = 2, model_size_in_b: int = 7, cfg: dict = {}
+) -> dict:
     """
     Generates a base config dictionary from a base config yaml file.
     :param omegaconf.dictconfig.DictConfig cfg: hydra-like config object for the HP tool.
