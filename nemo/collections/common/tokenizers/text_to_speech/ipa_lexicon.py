@@ -168,7 +168,7 @@ def get_ipa_punctuation_list(locale):
     punct_set = set(DEFAULT_PUNCTUATION)
     # TODO @xueyang: verify potential mismatches with locale-specific punctuation sets used
     #  in nemo_text_processing.text_normalization.en.taggers.punctuation.py
-    if locale in ["de-DE", "es-ES", "it-IT", "fr-FR"]:
+    if locale in ["de-DE", "es-ES", "it-IT", "fr-FR", "ja-JP"]:
         # ref: https://en.wikipedia.org/wiki/Guillemet#Uses
         punct_set.update(['«', '»', '‹', '›'])
     if locale == "de-DE":
@@ -229,6 +229,47 @@ def get_ipa_punctuation_list(locale):
                 '̧',  # combining cedilla, U+0327, decimal 807
             ]
         )
-
+    elif locale == "ja-JP":
+        punct_set.update(
+            [
+                '【',
+                '】',
+                '…',
+                '‥',
+                '「',
+                '」',
+                '『',
+                '』',
+                '〜',
+                '。',
+                '、',
+                'ー',
+                '・・・',
+                '〃',
+                '〔',
+                '〕',
+                '｟',
+                '｠',
+                '〈',
+                '〉',
+                '《',
+                '》',
+                '〖',
+                '〗',
+                '〘',
+                '〙',
+                '〚',
+                '〛',
+                '•',
+                '◦',
+                '﹅',
+                '﹆',
+                '※',
+                '＊',
+                '〽',
+                '〓',
+                '〒',
+            ]
+        )
     punct_list = sorted(list(punct_set))
     return punct_list
