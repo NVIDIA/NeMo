@@ -45,100 +45,21 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 """
-This is the script to run GPT text generation.
+This is the script to run Mamba text generation.
 
 Usage:
     Assume the model has TP=1, PP=1 in the following use cases.
-    a. run greedy inference from a nemo file:
-        python megatron_gpt_eval.py \
+    run greedy inference from a nemo file:
+        python megatron_mamba_eval.py \
             mamba_model_file=PATH_TO_MODEL \
             inference.greedy=True \
             inference.add_BOS=True \
             trainer.devices=1 \
             trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
+            tensor_model_parallel_size=1 \
+            pipeline_model_parallel_size=1 \
             prompts=[prompt1,prompt2]
 
-    b. run greedy inference from a PTL checkpoint file:
-        python megatron_gpt_eval.py \
-            checkpoint_dir=PATH_TO_CHECKPOINT_FILE \
-            checkpoint_name=CHECKPOINT_FILE_NAME \
-            hparams_file=HPARAMS_FILE \
-            inference.greedy=True \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
-            prompts=[prompt1,prompt2]
-
-    c. run top_p inference from a nemo file:
-        python megatron_gpt_eval.py \
-            mamba_model_file=PATH_TO_MODEL \
-            inference.greedy=False \
-            inference.top_k=0 \
-            inference.top_p=0.9 \
-            inference.repetition_penalty=1.2 \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
-            prompts=[prompt1,prompt2]
-
-    d. If you don't need to generate tokens and need model to compute logprobs:
-         python megatron_gpt_eval.py \
-            mamba_model_file=PATH_TO_MODEL \
-            inference.compute_logprob=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
-            prompts=[text to get logprob]
-
-    e. Launch the inference server
-         python megatron_gpt_eval.py \
-            mamba_model_file=PATH_TO_MODEL \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
-            server=True
-        
-        To send a request to the server, here is one example code:
-        ```python
-        import json
-        import requests
-
-        batch_size = 8
-        port_num = 5555
-        headers = {"Content-Type": "application/json"}
-
-
-        def request_data(data):
-            resp = requests.put('http://localhost:{}/generate'.format(port_num),
-                                data=json.dumps(data),
-                                headers=headers)
-            sentences = resp.json()['sentences']
-            return sentences
-
-
-        data = {
-            "sentences": [""] * batch_size,
-            "tokens_to_generate": 300,
-            "temperature": 1.0,
-            "add_BOS": True,
-            "top_k": 0,
-            "top_p": 0.9,
-            "greedy": False,
-            "all_probs": False,
-            "repetition_penalty": 1.2,
-            "min_tokens_to_generate": 2,
-        }
-
-        sentences = request_data(data)
-        ```
 """
 
 if not torch.cuda.is_available():
@@ -369,42 +290,6 @@ def main(cfg) -> None:
     print("***************************")
     print(response)
     print("***************************")
-
-    # Third method of running text generation, use inference server
-    if cfg.server:
-        from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
-
-        if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
-            if cfg.web_server:
-                if cfg.chat:
-                    defaults = {
-                        'user': cfg.chatbot_config.user,
-                        'assistant': cfg.chatbot_config.assistant,
-                        'system': cfg.chatbot_config.system,
-                    }
-                    web_ui = partial(
-                        get_chatbot_demo,
-                        defaults=defaults,
-                        value=cfg.chatbot_config.value,
-                        attributes=cfg.chatbot_config.attributes,
-                    )
-                else:
-                    web_ui = get_demo
-                loop = asyncio.new_event_loop()
-                thread = threading.Thread(
-                    target=web_ui,
-                    daemon=True,
-                    args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
-                )
-                thread.start()
-            server = MegatronServer(model.cuda())
-            server.run("0.0.0.0", port=cfg.port)
-
-        while True:
-            choice = torch.cuda.LongTensor(1)
-            torch.distributed.broadcast(choice, 0)
-            if choice[0].item() == 0:
-                generate(model.cuda())
 
 
 if __name__ == '__main__':

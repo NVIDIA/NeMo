@@ -29,8 +29,6 @@ In order to proceed, ensure that you have met the following requirements:
 * A Docker-enabled environment, with `NVIDIA Container Runtime <https://developer.nvidia.com/container-runtime>`_ installed, which will make the container GPU-aware.
 
 
-* `Authenticate with NVIDIA NGC <https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#ngc-authentication>`_, generate API KEY from `NGC <https://org.ngc.nvidia.com/setup >`__, add the key to your credentials following instructions in `this guide <https://docs.nvidia.com/launchpad/ai/base-command-coe/latest/bc-coe-docker-basics-step-02.html>`__, and get into NVIDIA NeMo dev container ``nvcr.io/nvidia/nemo:dev``.
-
 Step-by-step Guide for Fine-Tuning 
 ----------------------------------
 
@@ -116,7 +114,7 @@ Run Fine-Tuning
     TP=4 # According to the saved checkpoint
     SP=True # True only if TP>1 otherwise False
     SEQ_LEN=2048
-    NUM_DEVICES=8
+    NUM_DEVICES=2
     PATH_TO_NEMO_MODEL=<path to .nemo file>
     TRAIN_DATASET_PATH=<path to training dataset file>
     VAL_DATASET_PATH=<path to validation dataset file>
@@ -163,6 +161,8 @@ Run Fine-Tuning
             model.optim.lr=5e-6 \
             model.optim.sched.min_lr=1e-7
 
+* Note: The tokenizer for 8b models (Mamba2 8b and MAmba2-Hybrid 8b) can be found in the `HuggingFace repository <https://huggingface.co/collections/nvidia/ssms-666a362c5c3bb7e4a6bcfb9c>`__. Download it a set its path to ``TOKENIZER_MODEL`` (the tokenizer model file is under the name of ```mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model```). For other models, set ``TOKENIZER_MODEL=null`` since it will be downloaded from HuggingFace at the time of run.
+
 
 Evaluating the Fine-Tuned Model
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -176,7 +176,7 @@ Evaluating the Fine-Tuned Model
     TP=4 # According to the fine-tuned checkpoint
     SP=True # True only if TP>1 otherwise False
     SEQ_LEN=2048
-    NUM_DEVICES=8
+    NUM_DEVICES=2
     PATH_TO_NEMO_MODEL=<path to .nemo file>
     TEST_DATASET="[<path to test datasets (list)>]"
     CONFIG_PATH="/opt/NeMo/examples/nlp/language_modeling/tuning/conf/"
@@ -234,7 +234,7 @@ Evaluating the Fine-Tuned Model
 Inference
 ^^^^^^^^^
 
-For running inference on a Mamba model, one should use ``megatron_mamba_eval.py`` script. This evaluation script currently requires tensor/model parallel (TP1) of size one. If your checkpoint has TP>1, use the TP conversion step from above and set ``target_tensor_model_parallel_size=1``. The following is an example for using evaluation script:
+For running inference on a Mamba model, one should use ``megatron_mamba_eval.py`` script. For example:
 
 .. code:: bash
 
