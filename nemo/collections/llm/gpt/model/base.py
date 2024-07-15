@@ -15,6 +15,12 @@ from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 
+HAVE_TE = True
+try:
+    import transformer_engine
+except (ImportError, ModuleNotFoundError):
+    HAVE_TE = False
+
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
@@ -77,6 +83,13 @@ def local_layer_spec(config: "GPTConfig") -> ModuleSpec:
     )
 
 
+def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
+    if HAVE_TE:
+        return transformer_engine_layer_spec(config)
+    else:
+        return local_layer_spec(config)
+
+
 @dataclass
 class GPTConfig(TransformerConfig, io.IOMixin):
     # From megatron.core.models.gpt.gpt_model.GPTModel
@@ -93,7 +106,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
 
-    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = transformer_engine_layer_spec
+    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
 
