@@ -139,9 +139,8 @@ class JapaneseG2p(BaseG2p):
         """
         This forward pass function translates Japanese characters into IPA phoneme sequences.
 
-        For example, The text "我今天去了Apple Store, 买了一个iPhone。" would be converted as a list,
-        `['wo3', 'jin1', 'tian1', 'qu4', 'le5', 'A', 'p', 'p', 'l', 'e', ' ', 'S', 't', 'o', 'r', 'e', ',', ' ', 'mai3',
-         'le5', 'yi2', 'ge4', 'i', 'P', 'h', 'o', 'n', 'e', '。']`
+        For example, The text "こんにちは" would be converted as a list,
+        `['konnitʃiha']`
         """
         text = set_grapheme_case(text, case=self.ascii_letter_case)
 
