@@ -23,6 +23,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
 
+import torch.distributed
+
 import pytorch_lightning as pl
 import torch
 from lightning_fabric.plugins import TorchCheckpointIO
@@ -378,26 +380,50 @@ class NLPDDPStrategy(DDPStrategy):
         """
         # check if using distributed checkpointing
         if self.use_distributed_checkpointing:
-            assert (
-                len(checkpoint['optimizer_states']) == 1
-            ), "Currently only support checkpointing 1 distributed optimizer per time!"
-            # converts the optimizer states to their sharded equivalents
-            sharded_optim_state = self.optimizer_sharded_state_dict(
-                unsharded_optim_state=checkpoint['optimizer_states'][0]
-            )
-            checkpoint['optimizer_states'] = [sharded_optim_state]
-            # remove device state_dict
-            checkpoint['state_dict'] = OrderedDict([])
+            from nemo_aligner.utils.utils import is_save_top_k
 
-            self.checkpoint_io.save_checkpoint(checkpoint, ckpt_to_dir(filepath), storage_options=storage_options)
+            if is_save_top_k():
+                assert (
+                    len(checkpoint['optimizer_states']) == 1
+                ), "Currently only support checkpointing 1 distributed optimizer per time!"
+                # remove device state_dict
+                checkpoint['state_dict'] = OrderedDict([])
 
-            if HAVE_MODELOPT and hasattr(self.lightning_module, "get_model_module_list"):
-                save_sharded_modelopt_state(
-                    self.lightning_module.get_model_module_list(),
-                    ckpt_to_dir(filepath),
-                    self.unwrapped_checkpoint_io.save_sharded_strategy,
-                    prefix="model.",
+                base_dir = ckpt_to_dir(filepath)
+
+                weights_dir = os.path.join(base_dir, "model_weights")
+                self.checkpoint_io.save_checkpoint(checkpoint, weights_dir, storage_options=storage_options)
+
+                if torch.distributed.get_rank() == 0:
+                    yaml_file = os.path.join(base_dir, "model_config.yaml")
+                    self.lightning_module.to_config_file(yaml_file)
+                    model = self.lightning_module
+                    if hasattr(model, 'artifacts') and model.artifacts is not None:
+                        model._save_restore_connector._handle_artifacts(model, nemo_file_folder=base_dir)
+                        model._save_restore_connector._update_artifact_paths(model, path2yaml_file=yaml_file)
+
+            else:
+                assert (
+                    len(checkpoint['optimizer_states']) == 1
+                ), "Currently only support checkpointing 1 distributed optimizer per time!"
+                # converts the optimizer states to their sharded equivalents
+                sharded_optim_state = self.optimizer_sharded_state_dict(
+                    unsharded_optim_state=checkpoint['optimizer_states'][0]
                 )
+                checkpoint['optimizer_states'] = [sharded_optim_state]
+                # remove device state_dict
+                checkpoint['state_dict'] = OrderedDict([])
+
+
+                self.checkpoint_io.save_checkpoint(checkpoint, ckpt_to_dir(filepath), storage_options=storage_options)
+
+                if HAVE_MODELOPT and hasattr(self.lightning_module, "get_model_module_list"):
+                    save_sharded_modelopt_state(
+                        self.lightning_module.get_model_module_list(),
+                        ckpt_to_dir(filepath),
+                        self.unwrapped_checkpoint_io.save_sharded_strategy,
+                        prefix="model.",
+                    )
         else:
             # PTL override to accomodate model parallel checkpoints
             filepath = inject_model_parallel_rank(filepath)
