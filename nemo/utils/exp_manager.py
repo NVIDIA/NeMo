@@ -584,6 +584,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             raise ValueError(
                 'FaultToleranceCallback was enabled with create_fault_tolerance_callback, but fault_tolerance package is not installed.'
             )
+    
+    if cfg.log_mfu:
+        logging.warning("Ensure 'FLOPsMeasurementCallback' is explicitly appended to PyTorch Lightning Trainer callbacks.\n \
+                        Cannot append implicitly from exp_manager as it requires model hyperparams and trainer params.")
 
     if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
