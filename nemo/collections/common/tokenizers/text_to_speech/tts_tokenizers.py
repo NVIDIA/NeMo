@@ -30,8 +30,8 @@ from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     english_text_preprocessing,
     french_text_preprocessing,
     italian_text_preprocessing,
-    spanish_text_preprocessing,
     japanese_text_preprocesing,
+    spanish_text_preprocessing,
 )
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
@@ -246,7 +246,12 @@ class SpanishCharsTokenizer(BaseCharsTokenizer):
     PUNCT_LIST = get_ipa_punctuation_list("es-ES")
 
     def __init__(
-        self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None,
+        self,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
     ):
         """Spanish grapheme tokenizer.
         Args:
@@ -275,7 +280,12 @@ class FrenchCharsTokenizer(BaseCharsTokenizer):
     PUNCT_LIST = get_ipa_punctuation_list("fr-FR")
 
     def __init__(
-        self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None,
+        self,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
     ):
         """French grapheme tokenizer.
         Args:
@@ -918,7 +928,7 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
 
         return [self._token2id[p] for p in ps]
 
-        
+
 class JapanesePhonemeTokenizer(BaseTokenizer):
 
     PUNCT_LIST = get_ipa_punctuation_list("ja-JP")
