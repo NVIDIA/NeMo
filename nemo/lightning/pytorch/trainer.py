@@ -1,15 +1,28 @@
 from copy import deepcopy
+from typing import List, Optional, Union
 
 import fiddle as fdl
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks import Callback
 from typing_extensions import Self
 
+from nemo.lightning.pytorch.callbacks import MegatronSetup
 from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.fabric.fabric import Fabric
 from nemo.lightning.io.mixin import IOMixin, serialization, track_io
 
 
 class Trainer(pl.Trainer, IOMixin):
+    def __init__(self, callbacks: Optional[Union[List[Callback], Callback]] = None, **kwargs):
+        if callbacks is None:
+            callbacks = [MegatronSetup()]
+        elif isinstance(callbacks, Callback):
+            callbacks = [callbacks, MegatronSetup()]
+        else:
+            callbacks.append(MegatronSetup())
+
+        super().__init__(callbacks=callbacks, **kwargs)
+
     def io_init(self, **kwargs) -> fdl.Config[Self]:
         # Each argument of the trainer can be stateful so we copy them
         cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items()}
