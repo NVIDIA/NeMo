@@ -1,13 +1,14 @@
 # Regularly updates the CI container
 name: Containabot
 on:
+  push: 
   schedule:
     - cron: '0 13 * * 1'
 
 jobs:
   main:
     runs-on: ubuntu-latest
-    environment: main
+    # environment: main
     steps:
       - name: Checkout NVIDIA/Megatron-LM
         uses: actions/checkout@v4
@@ -28,7 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: ${{ github.run_id }}
-          token: ${{ secrets.PAT }}
+          # token: ${{ secrets.PAT }}
 
       - name: Bump MCORE_TAG
         run: |
