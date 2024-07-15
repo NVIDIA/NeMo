@@ -202,6 +202,5 @@ def chinese_text_preprocessing(text: str) -> str:
 def french_text_preprocessing(text: str) -> str:
     return text.lower()
 
-
 def japanese_text_preprocessing(text: str) -> str:
     return text.lower()
