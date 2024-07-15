@@ -445,7 +445,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         raise ValueError("Cannot infer `num_microbatches` from data, please specify it manually")
 
     def init_model_parallel(self):
-        from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
+        from megatron.core.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
         from megatron.core import parallel_state
 
         for model_module in self:
