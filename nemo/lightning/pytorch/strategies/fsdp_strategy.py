@@ -12,7 +12,7 @@ class FSDPStrategy(PLFSDPStrategy):
 
     Args:
         **kwargs: check out arguments in
-            https://lightning.ai/docs/pytorch/LTS/api/lightning_fabric.strategies.FSDPStrategy.html
+            https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.strategies.FSDPStrategy.html
     """
 
     @override
