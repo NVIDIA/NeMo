@@ -1,7 +1,6 @@
 from pytorch_lightning.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
-
-from typing_extensions import override
 from torch.utils.data import DataLoader
+from typing_extensions import override
 
 
 class FSDPStrategy(PLFSDPStrategy):
@@ -19,5 +18,5 @@ class FSDPStrategy(PLFSDPStrategy):
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
         if self.data_sampler:
             return self.data_sampler.transform_dataloader(dataloader)
-        
+
         return dataloader
