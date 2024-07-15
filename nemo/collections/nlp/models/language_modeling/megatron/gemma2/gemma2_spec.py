@@ -15,14 +15,18 @@
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.transformer import ModuleSpec, TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 
-from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import (
-    Gemma2DotProductAttention,
-    TERowParallelLinearLayerNorm,
-)
+try:
+    HAVE_TE = True
+    from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
+    from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import (
+        Gemma2DotProductAttention,
+        TERowParallelLinearLayerNorm,
+    )
+except (ImportError, ModuleNotFoundError):
+    HAVE_TE = False
 
 
 def get_gemma2_layer_spec():

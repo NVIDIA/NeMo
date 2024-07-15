@@ -15,9 +15,16 @@
 import logging
 import os
 
-import numpy as np
+try:
+    from megatron.core import parallel_state
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
 
-
+    HAVE_MEGATRON_CORE = True
+except (ImportError, ModuleNotFoundError):
+    TransformerConfig = ApexGuardDefaults
+    HAVE_MEGATRON_CORE = False
 import torch
 from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
 from omegaconf import DictConfig, OmegaConf, open_dict

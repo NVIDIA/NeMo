@@ -81,13 +81,26 @@ def setup_microbatch_calculator(
     if MCORE_MB_CALCULATOR:
         from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
-        if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
-            init_num_microbatches_calculator(
-                rank=init_global_rank,
-                global_batch_size=global_batch_size,
-                micro_batch_size=micro_batch_size,
-                data_parallel_size=app_state.data_parallel_size,
-                rampup_batch_size=rampup_batch_size,
+    from megatron.core.num_microbatches_calculator import (
+        _GLOBAL_NUM_MICROBATCHES_CALCULATOR,
+        ConstantNumMicroBatchesCalculator,
+        init_num_microbatches_calculator,
+    )
+
+    if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
+        init_num_microbatches_calculator(
+            rank=init_global_rank,
+            global_batch_size=global_batch_size,
+            micro_batch_size=micro_batch_size,
+            data_parallel_size=app_state.data_parallel_size,
+            rampup_batch_size=rampup_batch_size,
+        )
+    else:
+        if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
+            assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_global_batch_size == global_batch_size
+            assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.micro_batch_size == micro_batch_size
+            assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.num_micro_batches == global_batch_size // (
+                micro_batch_size * app_state.data_parallel_size
             )
         else:
             if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):

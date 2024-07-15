@@ -906,8 +906,7 @@ def main():
 
             model.cfg, restore_dict = force_cpu_model(model.cfg)
 
-            gbs = model.cfg.global_batch_size
-            mbs = model.cfg.micro_batch_size
+            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
             model.cfg.global_batch_size = None
             model.cfg.micro_batch_size = None

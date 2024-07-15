@@ -32,16 +32,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_model import Mega
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
+from nemo.utils.apex_utils import _reconfigure_microbatch_calculator
 from nemo.utils.decorators import deprecated_warning
-
-try:
-    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
-
-except (ImportError, ModuleNotFoundError):
-    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-    from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
-    )
 
 __all__ = ['DialogueS2SGenerationModel']
 

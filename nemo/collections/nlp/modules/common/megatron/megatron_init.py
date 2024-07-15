@@ -16,6 +16,10 @@ import random
 
 import numpy as np
 import torch
+from megatron.core.num_microbatches_calculator import (
+    ConstantNumMicroBatchesCalculator,
+    init_num_microbatches_calculator,
+)
 
 from nemo.utils import AppState, logging
 
@@ -163,16 +167,22 @@ def initialize_model_parallel_for_nemo(
 
     if global_batch_size and micro_batch_size is not None:
         # TODO: add rampup_batch_size here when we have it implemented
-        if MCORE_MB_CALCULATOR:
-            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
-            if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
-                init_num_microbatches_calculator(
-                    rank=global_rank,
-                    global_batch_size=global_batch_size,
-                    micro_batch_size=micro_batch_size,
-                    data_parallel_size=app_state.data_parallel_size,
-                    rampup_batch_size=rampup_batch_size,
+        if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
+            init_num_microbatches_calculator(
+                rank=global_rank,
+                global_batch_size=global_batch_size,
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=app_state.data_parallel_size,
+                rampup_batch_size=rampup_batch_size,
+            )
+        else:
+            if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
+                assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_global_batch_size == global_batch_size
+                assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.micro_batch_size == micro_batch_size
+                assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.num_micro_batches == global_batch_size // (
+                    micro_batch_size * app_state.data_parallel_size
                 )
             else:
                 if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):

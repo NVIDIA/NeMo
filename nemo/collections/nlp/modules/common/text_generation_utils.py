@@ -37,7 +37,8 @@ from nemo.collections.multimodal.data.neva.conversation import (
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
-from nemo.utils import AppState, logging
+from nemo.utils import AppState
+from nemo.utils.apex_utils import _reconfigure_microbatch_calculator
 
 try:
     from megatron.core import parallel_state, tensor_parallel

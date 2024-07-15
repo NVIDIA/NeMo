@@ -27,7 +27,8 @@ from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation
     model_inference_strategy_dispatcher,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import OutputType
-from nemo.utils import AppState, logging
+from nemo.utils import AppState
+from nemo.utils.apex_utils import _reconfigure_microbatch_calculator
 
 try:
     from megatron.core import parallel_state, tensor_parallel
