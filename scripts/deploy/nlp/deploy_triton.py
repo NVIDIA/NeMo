@@ -18,8 +18,8 @@ import logging
 import os
 import sys
 from pathlib import Path
-
 import uvicorn
+import json
 
 from nemo.deploy import DeployPyTriton
 
@@ -198,6 +198,19 @@ def get_args(argv):
     args = parser.parse_args(argv)
     return args
 
+def store_args_to_json(args):
+    """
+    Stores user defined arg values relevant for REST API in config.json
+    Gets called only when args.start_rest_service is True.
+    """
+    args_dict = {
+        "triton_service_ip": args.triton_http_address,
+        "triton_service_port": args.triton_port,
+        "triton_request_timeout": args.triton_request_timeout,
+        "openai_format_response": args.openai_format_response
+    }
+    with open("nemo/deploy/service/config.json", "w") as f:
+        json.dump(args_dict, f)
 
 def store_args_to_json(args):
     """
