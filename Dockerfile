@@ -153,8 +153,14 @@ RUN /usr/bin/test -n "$NEMO_VERSION" && \
   /bin/echo "export NEMO_VERSION=${NEMO_VERSION}" >> /root/.bashrc && \
   /bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
 
+RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
+RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
+
 # Install NeMo
 RUN --mount=from=nemo-src,target=/tmp/nemo,rw cd /tmp/nemo && pip install ".[all]"
+
+RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
+RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
 # Check install
 RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
