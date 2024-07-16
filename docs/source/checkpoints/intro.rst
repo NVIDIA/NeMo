@@ -21,11 +21,6 @@ With sharded model weights, you can save and load the state of your training scr
 NeMo supports the distributed (sharded) checkpoint format from Megatron Core. In Megatron Core, it supports two backends: PyTorch-based (recommended) and Zarr-based (deprecated).
 For a detailed explanation check the :doc:`dist_ckpt` guide.
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Distributed Checkpoints
-
-   dist_ckpt
 
 Quantized Checkpoints
 ---------------------
@@ -34,7 +29,7 @@ NeMo provides a :doc:`Post-Training Quantization <../nlp/quantization>` workflow
 
 A ``.qnemo`` checkpoint, similar to ``.nemo`` checkpoints, is a tar file that bundles the model configuration specified in the ``config.json`` file along with the ``rank{i}.safetensors`` files. These ``.safetensors`` files store the model weights for each rank individually. In addition, a ``tokenizer_config.yaml`` file is saved, containing only the tokenizer section from the original NeMo ``model_config.yaml`` file. This configuration file defines the tokenizer used by the given model.
 
-When working with large quantized LLMs, it is recommended that you use a directory rather than a tar file. You can control this behavior by setting the ``compress`` flag when exporting quantized models in `PTQ configuration file <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_quantization.yaml>`_.
+When working with large quantized LLMs, it is recommended that you use a directory rather than a tar file. You can control this behavior by setting the ``compress`` flag when exporting quantized models in `PTQ configuration file <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_ptq.yaml>`_.
 
 The following example shows the contents of a quantized model intended to be served using two GPUs (ranks):
 
@@ -49,7 +44,7 @@ The following example shows the contents of a quantized model intended to be ser
 
 Community Checkpoint Converter
 -----------------------------
-We provide easy-to-use tools that enable users to convert community checkpoints into the NeMo format. These tools facilitate various operations, including resuming training, Sparse Fine-Tuning (SFT), Parameter-Efficient Fine-Tuning (PEFT), and deployment. For detailed instructions and guidelines, please refer to our documentation.
+We provide easy-to-use tools that enable users to convert community checkpoints into the NeMo format. These tools facilitate various operations, including resuming training, Supervised Fine-Tuning (SFT), Parameter-Efficient Fine-Tuning (PEFT), and deployment. For detailed instructions and guidelines, please refer to our documentation.
 
 We offer comprehensive guides to assist both end users and developers:
 
@@ -59,12 +54,11 @@ We offer comprehensive guides to assist both end users and developers:
 
 - **Megatron-LM Checkpoint Conversion**: NVIDIA NeMo and NVIDIA Megatron-LM share several foundational technologies. You can convert your GPT-style model checkpoints trained with Megatron-LM into the NeMo Framework using our scripts, see our :doc:`convert_mlm`.
 
-Access the user and developer guides directly through the links below:
-
 .. toctree::
    :maxdepth: 1
-   :caption: Conversion Guide
+   :caption: NeMo Checkpoints
 
+   dist_ckpt
    user_guide
    dev_guide
    convert_mlm
