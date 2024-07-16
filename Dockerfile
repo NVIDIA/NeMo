@@ -63,8 +63,9 @@ RUN apt-get update && \
 
 WORKDIR /workspace/
 
-ARG TE_TAG=bfe21c3d68b0a9951e5716fb520045db53419c5e
-ARG MCORE_TAG=02871b4df8c69fac687ab6676c4246e936ce92d0
+ARG TE_TAG=7d576ed25266a17a7b651f2c12e8498f67e0baea
+# ARG MODELOPT_VERSION=0.13.0
+ARG MCORE_TAG=c7a1f82d761577e6ca0338d3521eac82f2aa0904
 ARG APEX_TAG=810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c
 # Install megatron core, this can be removed once 0.3 pip package is released
 # We leave it here in case we need to work off of a specific commit in main
