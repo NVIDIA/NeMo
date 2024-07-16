@@ -13,6 +13,9 @@
 # limitations under the License.
 
 
+from collections.abc import Callable
+
+from nemo.constants import NEMO_ENV_VARNAME_TESTING
 from nemo.utils.app_state import AppState
 from nemo.utils.cast_utils import (
     CastToFloat,
@@ -24,6 +27,7 @@ from nemo.utils.cast_utils import (
     monkeypatched,
 )
 from nemo.utils.dtype import str_to_dtype
+from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.nemo_logging import Logger as _Logger
 from nemo.utils.nemo_logging import LogMode as logging_mode
 
@@ -34,3 +38,12 @@ try:
     add_memory_handlers_to_pl_logger()
 except ModuleNotFoundError:
     pass
+
+
+def run_if_testing(f: Callable):
+    """Helper function that invokes the input callable `f`
+    if the environment variable `NEMO_TESTING` is set.
+    """
+
+    if get_envbool(NEMO_ENV_VARNAME_TESTING, False):
+        f()
