@@ -21,6 +21,7 @@ from typing import List, Tuple
 
 from autoconfig import train, utils
 
+
 def search_training_config(
     base_cfg: dict,
     train_cfg: dict,
@@ -71,7 +72,7 @@ def generate_grid_search_configs(
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = 1 if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"] else 2
-    
+
     seq_length = base_cfg["model"].seq_length
     num_layers = (
         base_cfg["model"].num_layers
