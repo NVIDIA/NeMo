@@ -20,6 +20,7 @@ from typing import List, Union
 
 import editdistance
 import torch
+import logging
 from omegaconf import ListConfig, open_dict
 from tqdm.auto import tqdm
 
@@ -61,7 +62,7 @@ class IPLMixin:
 
     Call
 
-        * ``self.setup_ipl(model_type)``
+        * ``self.setup_ipl(_ipl_model_type)``
           in the init method
         * ``self.maybe_do_ipl()``
           in the `on_train_epoch_end` method.
@@ -72,16 +73,16 @@ class IPLMixin:
         Sets up IPL configuration for the model.
 
         Args:
-            model_type (str): The type of model being used. Takes values "hybrid" or "ctc".
+            _ipl_model_type (str): The type of model being used. Takes values "hybrid" or "ctc".
         """
 
         ipl_config = self.cfg.get("ipl")
         self._ipl_params = {}
-        self.model_type = model_type
+        self._ipl_model_type = model_type
         if ipl_config is not None:
             if self.trainer and self.trainer.max_steps < 0:
                 raise ValueError(" For IPL to work max steps should be provided in the trainer.")
-            self._process_ipl_config_values(ipl_config)
+            self._set_ipl_params(ipl_config)
             if self.cfg.train_ds.get("is_tarred", False):
                 self._ipl_params['cache_manifest'] = []
                 self._ipl_params['all_cache_manifests'] = formulate_cache_manifest_names(
@@ -93,13 +94,23 @@ class IPLMixin:
                         self._ipl_params['manifest_filepath'], self._ipl_params['cache_prefix'], is_tarred=False
                     )
 
-    def set_ipl_param(self, param_name, param_value):
+    def _set_ipl_params(self, ipl_config):
         """
-        Setting the parameter to the ``self._ipl_params`` dictionary.
+        Processes and sets IPL parameters from the configuration.
 
-        Raises an error if trying to set parameters thar are not supported by IPL
+        Args:
+            ipl_config (DictConfig): The configuration dictionary for IPL parameters.
         """
-        if param_name not in [
+        required_params = {
+            'm_epochs',
+            'manifest_filepath',
+            'is_tarred',
+            'dropout',
+            'n_l_epochs',
+            'p_cache'
+        }
+
+        supported_params = {
             'm_epochs',
             'restore_pc',
             'manifest_filepath',
@@ -113,25 +124,23 @@ class IPLMixin:
             'p_cache',
             'cache_prefix',
             'batch_size',
-        ]:
-            raise ValueError(f"Cannot set {param_name} as ipl parameter.")
-        self._ipl_params[param_name] = param_value
+        }
 
-    def _process_ipl_config_values(self, ipl_config):
+        for param_name, param_value in ipl_config.items():
+            if param_name in supported_params:
+                self._ipl_params[param_name] = param_value
+            else:
+                logging.warning(f"Unsupported IPL parameter: {param_name}. This parameter will be ignored.")
 
-        self.set_ipl_param('m_epochs', ipl_config.get('m_epochs'))
-        self.set_ipl_param('restore_pc', ipl_config.get('restore_pc'))
-        self.set_ipl_param('manifest_filepath', ipl_config.get('manifest_filepath'))
-        self.set_ipl_param('tarred_audio_filepaths', ipl_config.get('tarred_audio_filepaths'))
-        self.set_ipl_param('is_tarred', ipl_config.get('is_tarred'))
-        self.set_ipl_param('dataset_weights', ipl_config.get('dataset_weights'))
-        self.set_ipl_param('dropout', ipl_config.get('dropout'))
-        self.set_ipl_param('limit_train_batches', ipl_config.get('limit_train_batches'))
-        self.set_ipl_param('cache_manifest', ipl_config.get('cache_manifest'))
-        self.set_ipl_param('n_l_epochs', ipl_config.get('n_l_epochs'))
-        self.set_ipl_param('p_cache', ipl_config.get('p_cache'))
-        self.set_ipl_param('cache_prefix', ipl_config.get('cache_prefix'))
-        self.set_ipl_param('batch_size', ipl_config.get('batch_size'))
+        # Check for missing required parameters
+        missing_params = required_params - self._ipl_params.keys()
+        if missing_params:
+            raise ValueError(f"Missing required IPL parameters: {missing_params}")
+
+        # Log a warning for any extra parameters in the configuration
+        extra_params = set(ipl_config.keys()) - supported_params
+        if extra_params:
+            logging.warning(f"Extra IPL parameters found in configuration and will be ignored: {extra_params}")
 
     def maybe_do_ipl(self):
         """
@@ -189,11 +198,11 @@ class IPLMixin:
                     self.cfg.train_ds.tarred_audio_filepaths.append([self._ipl_params['tarred_audio_filepaths']])
             else:
                 if isinstance(self.cfg.train_ds.tarred_audio_filepaths, str):
-                    self.cfg.train_ds.tarred_audio_filepaths = [[self.cfg.train_ds.tarred_audio_filepaths]]
+                    self.cfg.train_ds.tarred_audio_filepaths = ListConfig([[self.cfg.train_ds.tarred_audio_filepaths]])
                 self.cfg.train_ds.tarred_audio_filepaths += self._ipl_params['tarred_audio_filepaths']
 
             if isinstance(self.cfg.train_ds.manifest_filepath, str):
-                self.cfg.train_ds.manifest_filepath = [[self.cfg.train_ds.manifest_filepath]]
+                self.cfg.train_ds.manifest_filepath = ListConfig([[self.cfg.train_ds.manifest_filepath]])
 
             self.cfg.train_ds.manifest_filepath += final_cache_manifests
             if self._ipl_params.get("limit_train_batches", None):
@@ -201,7 +210,7 @@ class IPLMixin:
 
         else:
             if isinstance(self.cfg.train_ds.manifest_filepath, str):
-                self.cfg.train_ds.manifest_filepath = [self.cfg.train_ds.manifest_filepath]
+                self.cfg.train_ds.manifest_filepath = ListConfig([self.cfg.train_ds.manifest_filepath])
                 self.cfg.train_ds.manifest_filepath.append(self._ipl_params['cache_manifest'])
             else:
                 self.cfg.train_ds.manifest_filepath.append(self._ipl_params['cache_manifest'])
@@ -254,7 +263,7 @@ class IPLMixin:
                 for data_entry in update_data:
                     json.dump(data_entry, temp_manifest, ensure_ascii=False)
                     temp_manifest.write('\n')
-            if self.model_type == "hybrid":
+            if self._ipl_model_type == "hybrid":
                 hypotheses = self.generate_pseudo_labels_hybrid(
                     temporary_manifest,
                     target_transcripts=transcriptions,
@@ -347,7 +356,7 @@ class IPLMixin:
                     )
                 else:
                     expanded_audio = expanded_audio[0]
-                if self.model_type == "hybrid":
+                if self._ipl_model_type == "hybrid":
                     hypotheses = self.generate_pseudo_labels_hybrid(
                         cache_manifest=temporary_manifest,
                         tarred_audio_filepaths=expanded_audio,
@@ -428,7 +437,7 @@ class IPLMixin:
                     )
                 else:
                     expanded_audio = expanded_audio[0]
-                if self.model_type == "hybrid":
+                if self._ipl_model_type == "hybrid":
                     hypotheses = self.generate_pseudo_labels_hybrid(
                         temporary_manifest,
                         tarred_audio_filepaths=expanded_audio,
