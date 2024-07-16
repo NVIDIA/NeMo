@@ -350,8 +350,6 @@ def get_args():
 
 def convert(args):
     logging.info(f"Loading checkpoint from HF: `{args.input_name_or_path}`")
-    # hf_tokenizer = AutoTokenizer.from_pretrained(args.input_name_or_path)
-    # hf_model = AutoModelForCausalLM.from_pretrained(args.input_name_or_path)
     hf_model = AutoModel.from_pretrained(args.input_name_or_path)
     hf_processor = AutoProcessor.from_pretrained(args.input_name_or_path)
     logging.info("HF Model loading done.")
