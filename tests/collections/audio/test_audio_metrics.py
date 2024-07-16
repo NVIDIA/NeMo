@@ -11,11 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib
 import pytest
 import torch
 from torchmetrics.audio.snr import SignalNoiseRatio
 
 from nemo.collections.audio.metrics.audio import AudioMetricWrapper
+from nemo.collections.audio.metrics.squim import SquimMOSMetric, SquimObjectiveMetric
+from nemo.collections.audio.parts.utils.squim import calculate_squim_mos, calculate_squim_objective
+
+try:
+    importlib.import_module('torchaudio')
+
+    HAVE_TORCHAUDIO = True
+except ModuleNotFoundError:
+    HAVE_TORCHAUDIO = False
 
 
 class TestAudioMetricWrapper:
@@ -140,3 +150,75 @@ class TestAudioMetricWrapper:
 
             ref_metric.reset()
             wrapped_metric.reset()
+
+
+class TestSquimMetrics:
+    @pytest.mark.unit
+    @pytest.mark.parametrize('fs', [16000, 24000])
+    def test_squim_mos(self, fs: int):
+        """Test Squim MOS metric"""
+        if HAVE_TORCHAUDIO:
+            # Setup
+            num_batches = 4
+            batch_size = 4
+            atol = 1e-6
+
+            squim_mos_metric = SquimMOSMetric(fs=fs)
+
+            mos_sum = torch.tensor(0.0)
+
+            for n in range(num_batches):
+                preds = torch.randn(batch_size, fs)
+                target = torch.randn(batch_size, fs)
+
+                # UUT forward
+                squim_mos_metric.update(preds=preds, target=target)
+
+                # Golden
+                mos_golden = calculate_squim_mos(preds=preds, target=target, fs=fs)
+                # Accumulate
+                mos_sum += mos_golden.sum()
+
+            # Check the final value of the metric
+            mos_golden_final = mos_sum / (num_batches * batch_size)
+            assert torch.allclose(squim_mos_metric.compute(), mos_golden_final, atol=atol), f'Comparison failed'
+
+        else:
+            with pytest.raises(ModuleNotFoundError):
+                SquimMOSMetric(fs=fs)
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('metric', ['stoi', 'pesq', 'si_sdr'])
+    @pytest.mark.parametrize('fs', [16000, 24000])
+    def test_squim_objective(self, metric: str, fs: int):
+        """Test Squim objective metric"""
+        if HAVE_TORCHAUDIO:
+            # Setup
+            num_batches = 4
+            batch_size = 4
+            atol = 1e-6
+
+            squim_objective_metric = SquimObjectiveMetric(fs=fs, metric=metric)
+
+            metric_sum = torch.tensor(0.0)
+
+            for n in range(num_batches):
+                preds = torch.randn(batch_size, fs)
+
+                # UUT forward
+                squim_objective_metric.update(preds=preds, target=None)
+
+                # Golden
+                metric_golden = calculate_squim_objective(preds=preds, fs=fs, metric=metric)
+                # Accumulate
+                metric_sum += metric_golden.sum()
+
+            # Check the final value of the metric
+            metric_golden_final = metric_sum / (num_batches * batch_size)
+            assert torch.allclose(
+                squim_objective_metric.compute(), metric_golden_final, atol=atol
+            ), f'Comparison failed'
+
+        else:
+            with pytest.raises(ModuleNotFoundError):
+                SquimObjectiveMetric(fs=fs, metric=metric)

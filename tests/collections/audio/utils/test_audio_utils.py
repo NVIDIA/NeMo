@@ -35,6 +35,14 @@ from nemo.collections.audio.parts.utils.audio import (
     theoretical_coherence,
     toeplitz,
 )
+from nemo.collections.audio.parts.utils.squim import calculate_squim_mos, calculate_squim_objective
+
+try:
+    import torchaudio
+
+    HAVE_TORCHAUDIO = True
+except ModuleNotFoundError:
+    HAVE_TORCHAUDIO = False
 
 
 class TestGenerateApproximateNoiseField:
@@ -358,3 +366,87 @@ class TestAudioUtilsElements:
                     assert np.allclose(
                         Tx[b, m, ...].cpu().numpy(), T_ref, atol=atol
                     ), f'Example {n}: not matching the reference for (b={b}, m={m}), .'
+
+
+class TestAudioUtilsSquim:
+    @pytest.mark.unit
+    @pytest.mark.skipif(not HAVE_TORCHAUDIO, reason='Modules in this test require torchaudio')
+    @pytest.mark.parametrize('fs', [16000, 24000])
+    def test_calculate_squim_mos(self, fs: int):
+        """Test Squim MOS calculation"""
+        # Setup
+        num_batches = 4
+        batch_size = 4
+        atol = 1e-6
+
+        # MOS model
+        squim_mos_model = torchaudio.pipelines.SQUIM_SUBJECTIVE.get_model()
+
+        # resample with kaiser_best
+        resampler = torchaudio.transforms.Resample(
+            orig_freq=fs,
+            new_freq=16000,
+            lowpass_filter_width=64,
+            rolloff=0.9475937167399596,
+            resampling_method='sinc_interp_kaiser',
+            beta=14.769656459379492,
+        )
+
+        for n in range(num_batches):
+            preds = torch.randn(batch_size, fs)
+            target = torch.randn(batch_size, fs)
+
+            # UUT
+            mos_batch = calculate_squim_mos(preds=preds, target=target, fs=fs)
+
+            # Calculate MOS here
+            preds = resampler(preds)
+            target = resampler(target)
+            mos_golden = squim_mos_model(preds, target)
+
+            assert torch.allclose(mos_batch, mos_golden, atol=atol), f'Example {n}: comparison failed for MOS'
+
+    @pytest.mark.unit
+    @pytest.mark.skipif(not HAVE_TORCHAUDIO, reason='Modules in this test require torchaudio')
+    @pytest.mark.parametrize('metric', ['stoi', 'pesq', 'si_sdr'])
+    @pytest.mark.parametrize('fs', [16000, 24000])
+    def test_calculate_squim_objective(self, metric: str, fs: int):
+        """Test Squim objective calculation"""
+        # Setup
+        num_batches = 4
+        batch_size = 4
+        atol = 1e-6
+
+        # MOS model
+        squim_objective_model = torchaudio.pipelines.SQUIM_OBJECTIVE.get_model()
+
+        # resample with kaiser_best
+        resampler = torchaudio.transforms.Resample(
+            orig_freq=fs,
+            new_freq=16000,
+            lowpass_filter_width=64,
+            rolloff=0.9475937167399596,
+            resampling_method='sinc_interp_kaiser',
+            beta=14.769656459379492,
+        )
+
+        for n in range(num_batches):
+            preds = torch.randn(batch_size, fs)
+
+            # UUT
+            metric_batch = calculate_squim_objective(preds=preds, fs=fs, metric=metric)
+
+            # Calculate metric here
+            preds = resampler(preds)
+            stoi_golden, pesq_golden, si_sdr_golden = squim_objective_model(preds)
+
+            if metric == 'stoi':
+                metric_golden = stoi_golden
+            elif metric == 'pesq':
+                metric_golden = pesq_golden
+            elif metric == 'si_sdr':
+                metric_golden = si_sdr_golden
+            else:
+                raise ValueError(f'Unknown metric {metric}')
+
+            assert torch.allclose(metric_batch, metric_golden, atol=atol), f'Example {n}: comparison failed for MOS'
