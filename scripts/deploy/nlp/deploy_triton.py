@@ -17,8 +17,8 @@ import logging
 import os
 import sys
 from pathlib import Path
-
 import uvicorn
+import json
 
 from nemo.deploy import DeployPyTriton
 
@@ -72,6 +72,9 @@ def get_args(argv):
     )
     parser.add_argument(
         "-tha", "--triton_http_address", default="0.0.0.0", type=str, help="HTTP address for the Triton server"
+    )
+    parser.add_argument(
+        "-trt", "--triton_request_timeout", default=60, type=int, help="Timeout in seconds for Triton server"
     )
     parser.add_argument(
         "-tmr", "--triton_model_repository", default=None, type=str, help="Folder for the trt-llm conversion"
@@ -183,10 +186,24 @@ def get_args(argv):
         "-sha", "--service_http_address", default="0.0.0.0", type=str, help="HTTP address for the REST Service"
     )
     parser.add_argument("-sp", "--service_port", default=8080, type=int, help="Port for the REST Service")
+    parser.add_argument("-ofr", "--openai_format_response", default=False, type=bool, help="Return the response from PyTriton server in OpenAI compatible format")
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
     args = parser.parse_args(argv)
     return args
 
+def store_args_to_json(args):
+    """
+    Stores user defined arg values relevant for REST API in config.json
+    Gets called only when args.start_rest_service is True.
+    """
+    args_dict = {
+        "triton_service_ip": args.triton_http_address,
+        "triton_service_port": args.triton_port,
+        "triton_request_timeout": args.triton_request_timeout,
+        "openai_format_response": args.openai_format_response
+    }
+    with open("nemo/deploy/service/config.json", "w") as f:
+        json.dump(args_dict, f)
 
 def get_trtllm_deployable(args):
     if args.triton_model_repository is None:
@@ -236,14 +253,6 @@ def get_trtllm_deployable(args):
                     "Number of task ids and prompt embedding tables have to match. "
                     "There are {0} tables and {1} task ids.".format(len(ptuning_tables_files), len(args.task_ids))
                 )
-
-    if args.start_rest_service:
-        if args.service_port == args.triton_port:
-            logging.error("REST service port and Triton server port cannot use the same port.")
-            return
-        logging.warning("When using REST service to expose endpoints, the REST application uses Triton IP, Triton Port and other endpoint specific" \
-                     " parameter values from nemo/deploy/service/config.json to call NeMoQueryLLM. Please make sure args.triton_http_address and" \
-                     " args.triton_port match the values in config.json.")
 
     trt_llm_exporter = TensorRTLLM(
         model_dir=trt_llm_path,
@@ -320,6 +329,13 @@ def nemo_deploy(argv):
     LOGGER.setLevel(loglevel)
     LOGGER.info("Logging level set to {}".format(loglevel))
     LOGGER.info(args)
+
+    if args.start_rest_service:
+        if args.service_port == args.triton_port:
+            logging.error("REST service port and Triton server port cannot use the same port.")
+            return
+        # Store triton ip, port and other args relevant for REST API in config.json to be accessible by rest_model_api.py
+        store_args_to_json(args)
 
     backend = args.backend.lower()
     if backend == 'tensorrt-llm':
