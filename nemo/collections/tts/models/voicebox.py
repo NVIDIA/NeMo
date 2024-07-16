@@ -181,6 +181,7 @@ class VoiceboxModel(TextToWaveform):
         self.log_media = cfg.get("log_media", True)
         self.silence_value = 0 # -4.5252 for mel
 
+
     def _download_libriheavy(self, target_dir, dataset_parts):
         """ Download LibriHeavy manifests. """
         from lhotse.recipes.utils import manifests_exist
@@ -921,6 +922,7 @@ class VoiceboxModel(TextToWaveform):
         dp_scale = 1.0,
         ztts = True,
         edit_alignments = None,
+        mfa_en_dict = None,
     ):
         """
         Args:
@@ -972,7 +974,7 @@ class VoiceboxModel(TextToWaveform):
                 edit_ali = resample_ali(edit_ali, sec_to_frames=self.voicebox.audio_enc_dec.sampling_rate / self.voicebox.audio_enc_dec.downsample_factor)
 
             # edit w2p_alignment, also return new-to-origin mapping for later new_cond construction.
-            new_w2p_alis, n2o_mapping = edit_w2p_alignment(w2p_alis=ori_w2p_alis, edit_from=ed_f, edit_to=ed_t, edit_ali=edit_ali)
+            new_w2p_alis, n2o_mapping = edit_w2p_alignment(w2p_alis=ori_w2p_alis, edit_from=ed_f, edit_to=ed_t, edit_ali=edit_ali, mfa_en_dict=mfa_en_dict)
 
             # post processing phones, adding word postfix and ghost silence, also return phone-to-phone mapping for later new_cond construction.
             ori_phn_alis, ori_p2p_mapping = process_alignment(
@@ -1150,9 +1152,15 @@ class VoiceboxModel(TextToWaveform):
                 cap_audio[i, :new_cond_st_idx[i]] = audio[i, :ori_cond_st_idx[i]]
                 cap_audio[i, new_cond_st_idx[i]:new_cond_ed_idx[i]] = ztts_audio[i, new_cond_st_idx[i]:new_cond_ed_idx[i]]
                 cap_audio[i, new_cond_ed_idx[i]:new_audio_lens[i]] = audio[i, ori_cond_ed_idx[i]:audio_lens[i]]
+        redit_audio = torch.zeros_like(edit_audio)
+        for i in range(len(batch)):
+            redit_audio[i, :new_cond_st_idx[i]] = audio[i, :ori_cond_st_idx[i]]
+            redit_audio[i, new_cond_st_idx[i]:new_cond_ed_idx[i]] = edit_audio[i, new_cond_st_idx[i]:new_cond_ed_idx[i]]
+            redit_audio[i, new_cond_ed_idx[i]:new_audio_lens[i]] = audio[i, ori_cond_ed_idx[i]:audio_lens[i]]
 
         return {
             "edit_audio": edit_audio,
+            "redit_audio": redit_audio,
             "ztts_audio": None if not ztts else ztts_audio,
             "cap_audio": None if not ztts else cap_audio,
             "resyn_audio": resyn_audio,
@@ -1726,18 +1734,18 @@ def map_word_phn_alignment(alignment: Dict[str, List[AlignmentItem]]):
 
     return w2p_alis
 
-def edit_w2p_alignment(w2p_alis=None, edit_from="", edit_to="", edit_ali=None):
+def edit_w2p_alignment(w2p_alis=None, edit_from="", edit_to="", edit_ali=None, mfa_en_dict=None):
     """edit a word from alignment
     Return:
         - new_w2p_alis
         - n2o_mapping: new word position in new_w2p_alis to original word position in w2p_alis. For edited words, no mapped word position, so fill in -1 instead.
     """
-    mfa_en_dict = {}
-    with open("/root/Documents/MFA/pretrained_models/dictionary/english_us_arpa.dict", 'r') as f:
-        for line in tqdm(f):
-            wrd, _, _, _, _, phns = line.strip().split('\t')
-            if wrd not in mfa_en_dict:
-                mfa_en_dict[wrd] = phns
+    # mfa_en_dict = {}
+    # with open("/root/Documents/MFA/pretrained_models/dictionary/english_us_arpa.dict", 'r') as f:
+    #     for line in tqdm(f):
+    #         wrd, _, _, _, _, phns = line.strip().split('\t')
+    #         if wrd not in mfa_en_dict:
+    #             mfa_en_dict[wrd] = phns
 
     import random
     words = [wrd for wrd, _ in w2p_alis]
@@ -1802,7 +1810,7 @@ def edit_w2p_alignment(w2p_alis=None, edit_from="", edit_to="", edit_ali=None):
                 edited = True
             else:
                 for wrd in edit_tos:
-                    if wrd in mfa_en_dict:
+                    if mfa_en_dict is not None and wrd in mfa_en_dict:
                         phns = mfa_en_dict[wrd].split(' ')
                     else:
                         phns = os.popen(f"conda run -n aligner bash -c \"echo '{wrd}' | mfa g2p -n 1 - english_us_arpa - 2> /dev/null\"").read().split('\t')[1].strip().split(' ')
