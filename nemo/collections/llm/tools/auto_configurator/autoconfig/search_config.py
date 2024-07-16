@@ -89,6 +89,6 @@ def search_config(cfg: dict):
     )
 
     # Launch grid search for training constraints
-    configs = search_training_config(base_cfg, cfg, model_size_in_b, model_name)
+    configs = search_training_config(base_cfg, cfg)
 
     return configs

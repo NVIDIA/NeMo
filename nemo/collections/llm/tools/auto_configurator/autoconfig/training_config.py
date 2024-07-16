@@ -21,12 +21,9 @@ from typing import List, Tuple
 
 from autoconfig import train, utils
 
-
 def search_training_config(
     base_cfg: dict,
     train_cfg: dict,
-    model_size_in_b: float,
-    model_name: str,
 ) -> None:
     """
     Entry point for the training HP search. This function calls other functions to perform three
@@ -41,7 +38,7 @@ def search_training_config(
     :return: None
     """
     # Generate candidate configs.
-    configs = generate_grid_search_configs(base_cfg, train_cfg, model_size_in_b, model_name)
+    configs = generate_grid_search_configs(base_cfg, train_cfg)
     # Launch candidate configs.
     # job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
     # Measure and compare throughputs for each config.
@@ -53,8 +50,6 @@ def search_training_config(
 def generate_grid_search_configs(
     base_cfg: dict,
     train_cfg: dict,
-    model_size_in_b: float,
-    model_name: str,
 ) -> Tuple[str, List[int], int]:
     """
     Generates the grid of all possible configurations for the given model, and stores
@@ -70,9 +65,13 @@ def generate_grid_search_configs(
         int num_nodes is the number of nodes used to run each config.
     """
 
+    model_name = train_cfg["model_type"]
+    model_version = train_cfg["model_version"]
+    model_size_in_b = train_cfg["model_size_in_b"]
+
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = 1 if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"] else 2
-
+    
     seq_length = base_cfg["model"].seq_length
     num_layers = (
         base_cfg["model"].num_layers
@@ -155,7 +154,7 @@ def generate_grid_search_configs(
                             valid_tp_pp_list.append((tp, pp, cp, ep))
 
     # Generate grid search configs.
-    configs = {}
+    configs, base_cfg["auto_config"] = {}, {}
     for tp, pp, cp, ep in valid_tp_pp_list:
         (
             virtual_pipelines,
@@ -947,145 +946,3 @@ def _calculate_tp_pp_mbs_grid(
     if max_model_parallel_size is not None and max_model_parallel_size != "auto":
         max_model_parallel = max_model_parallel_size
     return tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel
-
-
-def launch_grid_search_configs(
-    base_dir: str,
-    results_cfgs: List[int],
-    model_name: str,
-    cfg: dict,
-) -> List[int]:
-    """
-    Launches training jobs for the grid search in parallel. The limit of how many
-    jobs to launch is specified by limit_search_runs.
-    :param str base_dir: location where the configs are stored.
-    :param list results_cfgs: list of config names.
-    :param str model_name: name of the model to be run.
-    :param omegaconf.dictconfig.DictConfig cfg: the general config object.
-    :return: job_ids, list of job ids for all the training jobs.
-    :rtype: list[int]
-    """
-    launcher_scripts_path = cfg.get("launcher_scripts_path")
-
-    search_cfg = cfg.get("search_config")
-    train_cfg = search_cfg.get("train_settings")
-    limit = train_cfg.get("limit_search_runs")
-    results_dir = os.path.join(train_cfg.get("logs"), "training_logs")
-
-    job_ids = []
-    for cfg_list in results_cfgs:
-        for file_name in cfg_list:
-            src_file = os.path.join(base_dir, file_name)
-            dst_dir = os.path.join(launcher_scripts_path, "conf/training", model_name, file_name)
-            shutil.copyfile(src_file, dst_dir)
-            job_id = train.run_training(file_name, model_name, results_dir, cfg)
-            os.remove(dst_dir)
-
-            if job_id is not None:
-                job_ids.append(job_id[:-1])
-            if len(job_ids) == limit:
-                return job_ids
-    return job_ids
-
-
-def launch_throughput_measure(
-    dependency_list: List[str],
-    model_name: str,
-    model_size_in_b: float,
-    num_nodes: int,
-    cfg: dict,
-) -> str:
-    """
-    Launch job that measures the throughput of each run in the grid search. This
-    job will get scheduled with dependencies on all the job ids in dependency_list,
-    so it will only start running once all the jobs are finished.
-    :param list dependency_list: list of all the job_ids this job will depend on.
-    :param str model_name: name of the model, i.e. gpt3, t5, mt5.
-    :param float model_size_in_b: model size in billions of parameters.
-    :param str hydra_args: hydra override arguments in string format.
-    :param omegaconf.dictconfig.DictConfig cfg: general config object for the HP tool.
-    :return: job_id of the current job.
-    :rtype: str
-    """
-    # Read config
-    auto_configurator_path = cfg.get("auto_configurator_path")
-    cluster_type = cfg.get("cluster_type")
-    container_mounts = cfg.get("container_mounts")
-    container = cfg.get("training_container")
-    hp_cfg = cfg.get("search_config")
-    base_results_dir = cfg.get("base_results_dir")
-
-    # CLUSTER parameters
-    cluster_cfg = cfg.get("cluster")
-    partition = cluster_cfg.get("partition")
-    account = cluster_cfg.get("account")
-    time_limit = "10:00"
-    exclusive = cluster_cfg.get("exclusive")
-    mem = cluster_cfg.get("mem")
-    overcommit = cluster_cfg.get("overcommit")
-    ntasks_per_node = 1
-    gpus_per_task = None
-    gpus_per_node = None
-    dependency = None
-    if dependency_list is not None and len(dependency_list) > 0:
-        dependency = ":".join(dependency_list)
-    job_name = f"{cluster_cfg.get('job_name_prefix')}latency_measure"
-
-    # Settings parameters
-    train_settings = hp_cfg.get("train_settings")
-    log_dir = train_settings.get("logs")
-    final_log_dir = os.path.join(log_dir, "final_result")
-    os.makedirs(final_log_dir, exist_ok=True)
-
-    # Process container-mounts.
-    mounts_str = f"{auto_configurator_path}:{auto_configurator_path},{base_results_dir}:{base_results_dir}"
-    mounts_str += utils.add_container_mounts(container_mounts)
-
-    flags = f"--container-image {container} " f"--container-mounts {mounts_str} " f"--no-container-mount-home "
-    if os.getenv("NEMO_LAUNCHER_CI"):  # Whether this job is running in CI or not.
-        flags += f"-o {log_dir}/slurm_%j.log "
-    else:
-        flags += (
-            f"-o {final_log_dir}/compare_throughput_{model_size_in_b}b_{num_nodes}nodes-%j.log "
-            f"-e {final_log_dir}/compare_throughput_{model_size_in_b}b_{num_nodes}nodes-%j.error "
-        )
-
-    if cluster_type == "bcm":
-        new_script_path = os.path.join(auto_configurator_path, "autoconfig/scripts/compare_throughput.sh")
-        code_path = os.path.join(auto_configurator_path, "autoconfig/scripts/compare_throughput.py")
-        train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} auto_configurator_path={auto_configurator_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} base_results_dir={base_results_dir} {hydra_args} "
-        utils.create_slurm_file(
-            new_script_path=new_script_path,
-            cmds=[train_cmd],
-            job_name=job_name,
-            flags=flags,
-            dependency=dependency,
-            exclusive=exclusive,
-            mem=mem,
-            overcommit=overcommit,
-            time=time_limit,
-            nodes=1,
-            ntasks_per_node=ntasks_per_node,
-            gpus_per_task=gpus_per_task,
-            gpus_per_node=gpus_per_node,
-            partition=partition,
-            account=account,
-        )
-        if os.getenv("NEMO_LAUNCHER_CI"):
-            job_id = subprocess.check_output(
-                [f'sbatch {new_script_path} | tee "{log_dir}/launcher.log" '],
-                shell=True,
-            )
-        else:
-            job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
-        dependency = job_id.decode("utf-8")
-        print(f"Submitted job to select optimal throughput with job id: {dependency}")
-        return dependency
-    elif cluster_type == "bcp":
-        code_path = os.path.join(auto_configurator_path, "autoconfig/scripts/compare_throughput.py")
-        train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} auto_configurator_path={auto_configurator_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} base_results_dir={base_results_dir} {hydra_args} "
-        job_id = subprocess.check_output([train_cmd], shell=True)
-        dependency = job_id.decode("utf-8")
-        print(f"Submitted job to select optimal throughput with job id: {dependency}")
-        return dependency
-    return None

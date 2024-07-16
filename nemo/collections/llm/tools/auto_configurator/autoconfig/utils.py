@@ -379,10 +379,10 @@ def modify_cfg(
             "qwen2",
             "mixtral",
         ]:
-            new_cfg["model"].activations_checkpoint_num_layers = act
+            new_cfg["auto_config"]["activations_checkpoint_num_layers"] = act
         else:
-            new_cfg["model"].encoder.activations_checkpoint_num_layers = act // 2
-            new_cfg["model"].decoder.activations_checkpoint_num_layers = act // 2
+            new_cfg["auto_config"]["encoder"]["activations_checkpoint_num_layers"] = act // 2
+            new_cfg["auto_config"]["decoder"]["activations_checkpoint_num_layers"] = act // 2
 
     if num_mbs_act is not None and model_name in [
         "gpt3",
@@ -393,7 +393,7 @@ def modify_cfg(
         "qwen2",
         "mixtral",
     ]:
-        new_cfg["model"].num_micro_batches_with_partial_activation_checkpoints = num_mbs_act
+        new_cfg["auto_config"]["num_micro_batches_with_partial_activation_checkpoints"] = num_mbs_act
 
     if act_per_pipe is not None and model_name in [
         "gpt3",
@@ -404,7 +404,7 @@ def modify_cfg(
         "qwen2",
         "mixtral",
     ]:
-        new_cfg["model"].activations_checkpoint_layers_per_pipeline = act_per_pipe
+        new_cfg["auto_config"]["activations_checkpoint_layers_per_pipeline"] = act_per_pipe
 
     if virtual_pipelines is not None and model_name in [
         "gpt3",
@@ -415,17 +415,17 @@ def modify_cfg(
         "qwen2",
         "mixtral",
     ]:
-        new_cfg["model"].virtual_pipeline_model_parallel_size = virtual_pipelines
+        new_cfg["auto_config"]["virtual_pipeline_model_parallel_size"] = virtual_pipelines
 
-    new_cfg["model"].tensor_model_parallel_size = tp
-    new_cfg["model"].pipeline_model_parallel_size = pp
-    new_cfg["model"].micro_batch_size = mbs
+    new_cfg["auto_config"]["tensor_model_parallel_size"] = tp
+    new_cfg["auto_config"]["pipeline_model_parallel_size"] = pp
+    new_cfg["auto_config"]["micro_batch_size"] = mbs
 
     if cp is not None:
-        new_cfg["model"].context_parallel_size = cp
+        new_cfg["auto_config"]["context_parallel_size"] = cp
 
     if ep is not None:
-        new_cfg["model"].expert_model_parallel_size = ep
+        new_cfg["auto_config"]["expert_model_parallel_size"] = ep
 
     if model_name in [
         "gpt3",
@@ -445,6 +445,7 @@ def modify_cfg(
     # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
     num_gpus = new_cfg["trainer"]["num_nodes"] * new_cfg["trainer"]["devices"]
     gbs = new_cfg["model"].global_batch_size
+    seq_len = new_cfg["model"].encoder_seq_length
 
     mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
     mod_att_heads = att_heads % tp
@@ -462,7 +463,7 @@ def modify_cfg(
             "name"
         ] = f"{new_cfg['run']['name']}_{num_nodes}nodes_tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_act_ckpt_{act}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}"
         print(
-            f"Valid config: GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, CP={cp}, EP={ep}, act_ckpt_layers={act}, num_mbs_act={num_mbs_act}, act_per_pipe={act_per_pipe}. Adding to directory."
+            f"Valid config: SeqLen={seq_len}, GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, CP={cp}, EP={ep}, act_ckpt_layers={act}, num_mbs_act={num_mbs_act}, act_per_pipe={act_per_pipe}. Adding to directory."
         )
         return new_cfg
     return None

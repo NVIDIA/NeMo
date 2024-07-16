@@ -27,7 +27,7 @@ class Basic:
         self.num_nodes = cfg.get("num_nodes", 8)
         self.num_gpus = cfg.get("num_gpus", 8)
         self.max_steps = cfg.get("max_steps", 50)
-        self.seq_length = cfg.get("seg_length", 2048)
+        self.seq_length = cfg.get("seq_length", 2048)
         self.global_batch_size = cfg.get("global_batch_size", 2048)
 
     def model_config(self):
