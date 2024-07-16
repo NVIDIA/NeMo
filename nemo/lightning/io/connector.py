@@ -139,7 +139,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         from nemo.lightning import MegatronStrategy, Trainer
 
         _trainer = trainer or Trainer(
-            devices=1, accelerator="cpu", strategy=MegatronStrategy(store_optimizer_states=False, ddp="pytorch")
+            devices=1, accelerator="cpu", strategy=MegatronStrategy(store_optimizer_states=False)
         )
 
         _trainer.strategy.connect(model)
@@ -160,12 +160,9 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             output_path (Path): The path where the model checkpoint will be saved.
             trainer (pl.Trainer): The trainer with the strategy to save the model.
         """
-        _setup_kwargs = {}
-        setup_signature = inspect.signature(trainer.strategy.setup)
-        if 'setup_optimizers' in setup_signature.parameters:
-            _setup_kwargs["setup_optimizers"] = False
-
-        trainer.strategy.setup(trainer, **_setup_kwargs)
+        trainer.strategy._setup_optimizers = False
+        trainer.strategy._init_model_parallel = False
+        trainer.strategy.setup(trainer)
         trainer.save_checkpoint(output_path)
 
     def nemo_load(

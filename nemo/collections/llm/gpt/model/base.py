@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 import pytorch_lightning as L
 import torch
 import torch.distributed
-from megatron.core.models.gpt import gpt_layer_specs
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -14,6 +13,12 @@ from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+
+HAVE_TE = True
+try:
+    import transformer_engine
+except (ImportError, ModuleNotFoundError):
+    HAVE_TE = False
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
@@ -66,15 +71,26 @@ def gpt_forward_step(model, batch) -> torch.Tensor:
 
 
 def transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
+    from megatron.core.models.gpt import gpt_layer_specs
+
     return gpt_layer_specs.get_gpt_layer_with_transformer_engine_spec(
         num_experts=config.num_moe_experts, moe_grouped_gemm=config.moe_grouped_gemm, qk_layernorm=config.qk_layernorm
     )
 
 
 def local_layer_spec(config: "GPTConfig") -> ModuleSpec:
+    from megatron.core.models.gpt import gpt_layer_specs
+
     return gpt_layer_specs.get_gpt_layer_local_spec(
         num_experts=config.num_moe_experts, moe_grouped_gemm=config.moe_grouped_gemm, qk_layernorm=config.qk_layernorm
     )
+
+
+def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
+    if HAVE_TE:
+        return transformer_engine_layer_spec(config)
+    else:
+        return local_layer_spec(config)
 
 
 @dataclass
@@ -93,7 +109,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
 
-    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = transformer_engine_layer_spec
+    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
 
