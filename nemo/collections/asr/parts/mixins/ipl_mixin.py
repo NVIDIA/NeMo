@@ -248,7 +248,9 @@ class IPLMixin:
             update_data.extend(sample_data(manifest_data, weight, update_whole_cache, self._ipl_params['p_cache']))
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            temporary_manifest = os.path.join(tmpdir, f'manifest_{torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}.json')
+            temporary_manifest = os.path.join(
+                tmpdir, f'manifest_{torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}.json'
+            )
             with open(temporary_manifest, 'w', encoding='utf-8') as temp_manifest:
                 transcriptions = [data_entry.get('text', "") for data_entry in update_data]
                 for data_entry in update_data:
@@ -281,9 +283,7 @@ class IPLMixin:
                 )
             torch.distributed.barrier()
         else:
-            write_cache_manifest(
-                self._ipl_params['cache_manifest'], [hypotheses], [update_data], update_whole_cache
-            )        
+            write_cache_manifest(self._ipl_params['cache_manifest'], [hypotheses], [update_data], update_whole_cache)
 
     def create_tar_cache_hypotheses(
         self, manifests: Union[List[List[str]], str], tarred_audio_filepaths: Union[List[List[str]], str]
@@ -303,7 +303,7 @@ class IPLMixin:
         self._ipl_params['cache_manifest'] = []
         for manifest, tarred_audio_filepath in zip(manifests, tarred_audio_filepaths):
             with tempfile.TemporaryDirectory() as tmpdir:
-                
+
                 if torch.distributed.is_initialized():
                     torch.distributed.barrier()
 
@@ -476,7 +476,7 @@ class IPLMixin:
                         torch.distributed.barrier()
                     else:
                         create_final_cache_manifest(final_cache, manifests[0])
-                    final_cache_manifests.append([final_cache])     
+                    final_cache_manifests.append([final_cache])
             else:
                 for i_dataset in self._ipl_params['all_cache_manifests']:
                     i_dataset = expand_braces(i_dataset)
