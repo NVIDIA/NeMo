@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 from abc import ABC, abstractmethod
 
 import numpy as np
-import time
 
 from nemo.deploy.utils import str_list2numpy
 
@@ -173,7 +173,7 @@ class NemoQueryLLM(NemoQueryLLMBase):
         compute_logprob: bool = None,
         end_strings=None,
         init_timeout=60.0,
-        openai_format_response: bool = False
+        openai_format_response: bool = False,
     ):
         """
         Query the Triton server synchronously and return a list of responses.
@@ -267,10 +267,7 @@ class NemoQueryLLM(NemoQueryLLMBase):
                         "object": "text_completion",
                         "created": int(time.time()),
                         "model": self.model_name,
-                        "choices": [{
-                            "text": str(sentences)
-                        }
-                        ]
+                        "choices": [{"text": str(sentences)}],
                     }
                     return openai_response
                 else:

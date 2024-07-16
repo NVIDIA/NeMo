@@ -59,6 +59,7 @@ class TritonSettings(BaseSettings):
         """
         return self._openai_format_response
 
+
 app = FastAPI()
 triton_settings = TritonSettings()
 
@@ -73,6 +74,7 @@ class CompletionRequest(BaseModel):
     stream: bool = False
     stop: str | None = None
     frequency_penalty: float = 1.0
+
 
 @app.get("/triton_health")
 async def check_triton_health():
@@ -90,6 +92,7 @@ async def check_triton_health():
     except requests.RequestException as e:
         raise HTTPException(status_code=503, detail=f"Cannot reach Triton server: {str(e)}")
 
+
 @app.post("/v1/completions/")
 def completions_v1(request: CompletionRequest):
     try:
@@ -102,7 +105,7 @@ def completions_v1(request: CompletionRequest):
             top_p=request.top_p,
             temperature=request.temperature,
             init_timeout=triton_settings.triton_request_timeout,
-            openai_format_response=triton_settings.openai_format_response
+            openai_format_response=triton_settings.openai_format_response,
         )
         if triton_settings.openai_format_response:
             return output

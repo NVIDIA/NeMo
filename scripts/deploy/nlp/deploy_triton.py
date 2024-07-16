@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import argparse
+import json
 import logging
 import os
 import sys
 from pathlib import Path
+
 import uvicorn
-import json
 
 from nemo.deploy import DeployPyTriton
 
@@ -186,10 +187,17 @@ def get_args(argv):
         "-sha", "--service_http_address", default="0.0.0.0", type=str, help="HTTP address for the REST Service"
     )
     parser.add_argument("-sp", "--service_port", default=8080, type=int, help="Port for the REST Service")
-    parser.add_argument("-ofr", "--openai_format_response", default=False, type=bool, help="Return the response from PyTriton server in OpenAI compatible format")
+    parser.add_argument(
+        "-ofr",
+        "--openai_format_response",
+        default=False,
+        type=bool,
+        help="Return the response from PyTriton server in OpenAI compatible format",
+    )
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
     args = parser.parse_args(argv)
     return args
+
 
 def store_args_to_json(args):
     """
@@ -200,10 +208,11 @@ def store_args_to_json(args):
         "triton_service_ip": args.triton_http_address,
         "triton_service_port": args.triton_port,
         "triton_request_timeout": args.triton_request_timeout,
-        "openai_format_response": args.openai_format_response
+        "openai_format_response": args.openai_format_response,
     }
     with open("nemo/deploy/service/config.json", "w") as f:
         json.dump(args_dict, f)
+
 
 def get_trtllm_deployable(args):
     if args.triton_model_repository is None:
