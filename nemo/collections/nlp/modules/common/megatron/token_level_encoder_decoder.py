@@ -399,6 +399,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
             hiddens_module=hiddens_module,
         )
         self._enc_dec_model_key = "enc_dec_model"
+        self.hiddens_module = hiddens_module
 
         if self.share_token_embeddings:
             # This is only relevant for PP > 1.

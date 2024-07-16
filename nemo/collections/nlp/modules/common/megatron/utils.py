@@ -309,7 +309,7 @@ def make_inference_attention_mask_3d(source_block, target_block, pad_id):
 
 
 def make_inference_history_mask_3d(block):
-    batch, length = block.shape
+    batch, length = block.shape[:2]
     arange = torch.arange(length, device=block.device)
     history_mask = (arange[None,] <= arange[:, None])[None,]
     history_mask = history_mask.expand(batch, length, length)

@@ -25,12 +25,12 @@ trainer:
   max_epochs: 9999
   max_steps: 1000000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   limit_train_batches : 1000
-  log_every_n_steps: 10 # frequency with which training steps are logged 
+  log_every_n_steps: 10 # frequency with which training steps are logged
   val_check_interval: 1.0 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
   gradient_clip_val: 1.0
   accumulate_grad_batches: 1
 
-model_target: nemo.collections.multimodal.speech_llm.models.modular_t5_models.ModularizedAudioT5Model
+model_target: nemo.collections.multimodal.speech_llm.models.modular_t5_models.MultiProjModularizedAudioT5Model
 exp_manager:
   # explicit_log_dir: null
   exp_dir: null
@@ -62,13 +62,13 @@ exp_manager:
 
 
 model:
+  t5_target: nemo.collections.multimodal.speech_llm.modules.multi_proj_modules.MegatronNMTMultiProjModel
   virtual_prompt_style: 'no-prompts'  # make cls happy
   seed: 1234
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
-  
+
   pretrained_audio_model: stt_en_fastconformer_transducer_large
-  freeze_llm: True
   freeze_audio_encoder: False
   freeze_modality_adapter: False
   load_audio_encoder: True
@@ -77,7 +77,7 @@ model:
   micro_batch_size: 4
   language_model_path: ??? # Path to an existing .nemo model you wish to add new tasks to or run inference with
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
-  save_nemo_on_validation_end: False # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
+  save_nemo_on_validation_end: False # Saves an inference ready .nemo file every time a checkpoint is saved during training.
   sync_batch_comm: False
   megatron_amp_O2: False
 
@@ -86,8 +86,8 @@ model:
   # See Reducing Activation Recomputation in Large Transformer Models: https://arxiv.org/abs/2205.05198 for more details.
   sequence_parallel: False
 
-  ## Activation Checkpoint 
-  activations_checkpoint_granularity: null # 'selective' or 'full' 
+  ## Activation Checkpoint
+  activations_checkpoint_granularity: null # 'selective' or 'full'
   activations_checkpoint_method: null # 'uniform', 'block', not used with 'selective'
   # 'uniform' divides the total number of transformer layers and checkpoints the input activation
   # of each chunk at the specified granularity
@@ -102,7 +102,12 @@ model:
   ffn_dropout: 0.0
 
   # use_am_tokenizer: True
-  # override_vocab_size: 1024
+  override_vocab_size: 72192 # This should be equal to the sum of proj_head_dims
+
+  # for MegatronNMTMultiProjModel
+  n_proj_heads: 9
+  proj_head_dims: [64000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024]
+  proj_head_loss_weights: [1,0,0,0,0,0,0,0,0]
 
   lora_tuning:
     kqv_adapter_dim: 128
@@ -115,7 +120,7 @@ model:
   peft:
     peft_scheme: "adapter"  # can be either adapter,ia3, or ptuning
     restore_from_path: null
-    
+
     # Used for adapter peft training
     adapter_tuning:
       type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
@@ -125,7 +130,7 @@ model:
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
-        
+
     # Used for p-tuning peft training
     p_tuning:
       virtual_tokens: 10  # The number of virtual tokens the prompt encoder should add at the start of the sequence
@@ -137,7 +142,7 @@ model:
     target: nemo.collections.multimodal.speech_llm.modules.perception_modules.AudioPerceptionModule
     use_multi_layer_feat: false
 
-    modality_adapter: 
+    modality_adapter:
       _target_: nemo.collections.asr.modules.ConformerEncoder
       feat_in: 1024
       feat_out: -1 # you may set it if you need different output size other than the default d_model
@@ -211,19 +216,19 @@ model:
       # {'audio_filepath': 'audio1.wav', 'offset': 0.0, 'duration': 12.3, 'question': 'transcribe this audio', 'answer': 'I have a dream...'}
       # the 'answer' field can also be 'text', and a default 'question' field is added if missing in manigests, so as to work with ASR manifests
       input_cfg:
-      - type: nemo_tarred
-        manifest_filepath: /workspace/data/ASR/Suno/yt10k_en/sharded_manifests/bucket1/manifest__OP_0..511_CL__punctuation_removed.json
-        tarred_audio_filepaths: /workspace/data/ASR/Suno/yt10k_en/bucket1/audio__OP_0..511_CL_.tar
+      # - type: nemo_tarred
+      #   manifest_filepath: /workspace/data/ASR/Suno/yt10k_en/sharded_manifests/bucket1/manifest__OP_0..511_CL__punctuation_removed.json
+      #   tarred_audio_filepaths: /workspace/data/ASR/Suno/yt10k_en/bucket1/audio__OP_0..511_CL_.tar
+      #   weight: 0.5
+      #   tags:
+      #     lang: en
+      #     pnc: no
+      - type: lhotse_shar
+        shar_path: /workspace/data/shars/5k_LRHM_highsim
         weight: 1.0
         tags:
           lang: en
-          pnc: no
-      # - type: lhotse_shar
-      #   shar_path: /home/jasoli/data_prime/shars/5k_LRHM_highsim
-      #    weight: 0.5
-      #   tags:
-      #     lang: en
-      #     tts: True
+          tts: True
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
@@ -247,13 +252,15 @@ model:
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: "Q: {context}\nA: {answer}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
+      vocab_sizes: [64000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024] # This should match proj_head_dims
+      speech_pad_id: 1001
       # ASR configs
       sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
       max_duration: 24 # it is set for LibriSpeech, you may need to update it for your dataset
       min_duration: 0.1
       # tarred datasets
       is_tarred: false
-      tarred_audio_filepaths: null
+      # tarred_audio_filepaths: null
       shuffle_n: 2048
       # bucketing params
       bucketing_strategy: "fully_randomized"
@@ -271,6 +278,20 @@ model:
       # sample_alpha: 0.1
 
     validation_ds:
+      names: 5k_LRHM_highsim
+      input_cfg:
+        - type: group
+          weight: 1.0
+          tags:
+            lang: en
+            tts: True
+          input_cfg:
+            - type: lhotse_shar
+              shar_path: /workspace/data/shars/5k_LRHM_highsim
+              weight: 1.0
+              tags:
+                lang: en
+                tts: True
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False
@@ -291,6 +312,8 @@ model:
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       tokens_to_generate: 128
+      vocab_sizes: [64000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024] # This should match proj_head_dims
+      speech_pad_id: 1001
       # ASR configs
       sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
 
@@ -335,8 +358,8 @@ model:
   optim:
     name: fused_adam
     lr: 1e-4
-    weight_decay: 0.01 
-    betas: 
+    weight_decay: 0.01
+    betas:
     - 0.9
     - 0.98
     sched:

@@ -37,6 +37,7 @@ from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
     AudioPerceptionModule,
     MultiAudioPerceptionModule,
 )
+from  nemo.collections.multimodal.speech_llm.modules.multi_proj_modules import MegatronNMTMultiProjModel, MegatronTokenLevelEncoderDecoderMultiProjModule, SumMultiEmbedding
 from nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model import MegatronT5LoraModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
@@ -44,6 +45,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     build_position_ids,
     get_iterator_k_split,
+    init_method_normal,
 )
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -334,10 +336,9 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         input_signal = audio_batch['audio_signal']
         input_signal_length = audio_batch['audio_signal_length']
 
-        input_ids, input_length, labels, loss_mask = (
+        input_ids, input_length, loss_mask = (
             audio_batch['contexts'],
             audio_batch['context_lengths'],
-            audio_batch['labels'],
             audio_batch['loss_mask'],
         )
 
@@ -1165,7 +1166,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         batch = next(dataloader_iter)
         # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
         batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
-        _, seq_length = batch['tokens'].shape
+        seq_length = batch['tokens'].shape[1]
         # handle the case where the batch size from dynamic bucketting is not divisible in lhotse
         data_iter = get_iterator_k_split(batch, get_num_microbatches(), enforce_divisible_batch=False)
 
@@ -1360,6 +1361,393 @@ class DecoderTextPromptModularizedAudioT5Model(ModularizedAudioT5Model):
             'preds_text': preds_text,
             'labels_text': labels_text,
         }
+
+    def _build_dataset(self, data_cfg, is_train=True):
+        # this is crucial so as to tell the decoder when to start generate answer after context and paddings
+        assert data_cfg.add_sep == True
+        return super()._build_dataset(data_cfg, is_train)
+
+
+class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
+    """Modularized speech GPT model."""
+
+    def load_frozen_model(self, cfg, trainer):
+        self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
+        t5_cfg_base = MegatronT5Model.restore_from(cfg.get('language_model_path'), trainer=trainer, return_config=True)
+        # use the incoming cfg updated by _modify_config
+        t5_cfg = copy.deepcopy(cfg)
+        t5_cfg.target = cfg.t5_target if 't5_target' in cfg else t5_cfg_base.target
+        if 'n_proj_heads' in cfg:
+            t5_cfg.n_proj_heads = cfg.n_proj_heads
+        if 'proj_head_dims' in cfg:
+            t5_cfg.proj_head_dims = cfg.proj_head_dims
+        if 'proj_head_loss_weights' in cfg:
+            t5_cfg.proj_head_loss_weights = cfg.proj_head_loss_weights
+        self.frozen_model = MegatronT5Model.restore_from(
+            cfg.get('language_model_path'),
+            trainer=trainer,
+            override_config_path=t5_cfg,
+            save_restore_connector=NLPSaveRestoreConnector(),
+            strict=False,
+        )
+        logging.info(f"self.frozen_model.cfg: {self.frozen_model.cfg}")
+    
+    def init_model(self, cfg: DictConfig, trainer: Trainer):
+        self.cfg = cfg
+
+        self.load_frozen_model(cfg, trainer)
+        self.prompt_encoder = None
+        if self.frozen_model.tokenizer is not None:
+            self.tokenizer = self.frozen_model.tokenizer
+
+        if hasattr(self.frozen_model.cfg, "encoder") and hasattr(self.frozen_model.cfg, "decoder"):
+            self.hidden_size = (
+                self.frozen_model.cfg.encoder.hidden_size
+            )  # Encoder and decoder need to have the same hidden size and we check for this in the frozen enc-dec model.
+        else:
+            self.hidden_size = self.frozen_model.cfg.hidden_size
+
+        # Extend word embedding table if self.padded_vocab_size is larger than the size of the pre-trained word embedding
+        pretrained_emb = self.frozen_model.enc_dec_model.decoder_embedding.word_embeddings
+        self.frozen_model.enc_dec_model.decoder_embedding = SumMultiEmbedding(
+            config=self.frozen_model.enc_dec_model.config,
+            hidden_size=self.hidden_size,
+            vocab_size=self.padded_vocab_size,
+            max_sequence_length=self.frozen_model.cfg.max_position_embeddings,
+            init_method=init_method_normal(0.2),
+            num_tokentypes=0,
+            embedding_dropout_prob=self.frozen_model.cfg.embedding_dropout,
+            position_embedding_type=self.frozen_model.cfg.encoder.get('position_embedding_type', 'learned_absolute'),
+        )
+        self.frozen_model.enc_dec_model.decoder_embedding.word_embeddings.weight.data[:pretrained_emb.weight.shape[0]] = pretrained_emb.weight.data
+
+        # Handle this when moving GPT prompt learning to the base class.
+        self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
+
+        self._reduced_loss_buffer = []
+        self._inference_config = None
+
+        self.tokenizer.legacy = cfg.get('legacy_tokenizer', False)
+        self.bos_id = self.tokenizer.bos_id
+        self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
+
+        # make sure the default pytorch lightning gradient clipping in the basemodel
+        self.grad_clip_pl_default = False  # make distributed_fused_adam happy
+        self.lowest_val_loss = None
+        self.prompt_encoder = None
+
+        self.enable_autocast = (
+            True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+        )
+    
+    @classmethod
+    def _modify_config(cls, gpt_cfg, cfg, audio_cfg, add_cfg_to_tree=False):
+        """
+        This function modifies the original gpt pre-training config (gpt_cfg) with attributes from the finetuning config (cfg).
+        The `add_cfg_to_tree` arg adds `cfg` to the top of the yaml tree which is needed for all `hparams.yaml` files when passed as an arg to `load_from_checkpoint()`.
+        """
+        gpt_cfg = super()._modify_config(gpt_cfg, cfg, audio_cfg, add_cfg_to_tree)
+        OmegaConf.set_struct(gpt_cfg, True)
+        OmegaConf.resolve(cfg)
+        with open_dict(gpt_cfg):
+            t5_target = cfg.model.get('t5_target', None)
+            if t5_target is not None:
+                gpt_cfg.t5_target = t5_target
+            n_proj_heads = cfg.model.get('n_proj_heads', None)
+            if n_proj_heads is not None:
+                gpt_cfg.n_proj_heads = n_proj_heads
+            proj_head_dims = cfg.model.get('proj_head_dims', None)
+            if proj_head_dims is not None:
+                gpt_cfg.proj_head_dims = proj_head_dims
+            proj_head_loss_weights = cfg.model.get('proj_head_loss_weights', None)
+            if proj_head_loss_weights is not None:
+                gpt_cfg.proj_head_loss_weights = proj_head_loss_weights
+            # This is needed when modifying a hparam file directly to load `.ckpt` files.
+            # This is not needed to modify the cfg in `.nemo` files.
+            if add_cfg_to_tree:
+                OmegaConf.resolve(gpt_cfg)
+                gpt_cfg.cfg = gpt_cfg
+
+        return gpt_cfg
+
+    def prepare_llm_input(self, audio_batch):
+        if 'audio_signal' not in audio_batch:
+            device = audio_batch['tokens'].device
+            bs = audio_batch['tokens'].shape[0]
+            encoder_input = torch.zeros((bs, 10, 1024), dtype=torch.float32)
+            attention_mask = torch.ones((bs, 1, 10, 10), dtype=torch.bool)
+            enc_mask = torch.ones((bs, 10), dtype=torch.bool)
+            return encoder_input.to(device), attention_mask.to(device), enc_mask.to(device)
+
+        input_signal = audio_batch['audio_signal']
+        input_signal_length = audio_batch['audio_signal_length']
+
+        # [b, t, c]
+        encoded, encoded_len = self.perception(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=None,
+            processed_signal_length=None,
+        )
+        encoder_input, attention_mask, encoder_length = encoded, None, encoded_len
+        # generate encoder_mask from encoder_length
+        enc_mask = torch.arange(encoder_input.shape[1], device=encoder_input.device)[None, :] < encoder_length[:, None]
+        return encoder_input, attention_mask, enc_mask
+
+    def forward(
+        self,
+        audio_batch,
+        checkpoint_activations_all_layers,
+    ):
+        """Forward pass of the model.
+
+        We prepend audio embeddings to the instruction and label text tokens
+        as the LLM input.
+        """
+        if 'audio_ratio' in audio_batch:
+            self.log(
+                'local_batch_size',
+                audio_batch['audio_ratio'].shape[0],
+                prog_bar=True,
+                batch_size=1,
+                rank_zero_only=False,
+            )
+
+        encoder_input, _, enc_mask = self.prepare_llm_input(audio_batch)
+        # enc_input = speech prompt
+        # dec_input and label = text prompt and text output label
+        dec_input = audio_batch['tokens']
+        labels = audio_batch['tokens']
+        dec_mask = (dec_input != self.tokenizer.eos_id) * (dec_input != self.tokenizer.pad_id).long().contiguous()
+        assert len(dec_mask.shape) <= 3
+        if len(dec_mask.shape) == 3:
+            dec_mask = torch.any(dec_mask, 2)
+        output = self.frozen_model.enc_dec_model(
+            enc_input_ids=None,
+            enc_attn_mask=enc_mask,
+            dec_input_ids=dec_input,
+            dec_attn_mask=dec_mask,
+            token_type_ids=None,
+            labels=labels,
+            output_enc_hidden_only=False,
+            enc_input=encoder_input,
+        )
+        loss_mask = audio_batch['loss_mask']
+        return output, loss_mask
+
+    def inference_step(self, dataloader_iter, mode, dataloader_idx=0):
+        batch, batch_idx, dataloader_idx = next(dataloader_iter)
+        data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
+        self._reconfigure_and_process_inference_batch(batch, data_cfg)
+        # Meta data from dataset
+        metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+        loss = self._validation_step_internal(itertools.chain([batch]), batch_idx, dataloader_idx, result_mode=mode)
+
+        # We need _inference_config to get generation params
+        # add_BOS and tokens_to_generate are set in dataset
+        if self.get_inference_config() is None:
+            logging.warning(f'inference_config is not set. Use default: {default_inference_config}')
+            self.set_inference_config(inference_config=default_inference_config)
+        self._inference_config['add_BOS'] = data_cfg.add_bos
+        self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
+
+        output = self.predict_step(batch, batch_idx, dataloader_idx)
+
+        inputs_text = output['input_text']
+        labels = output['labels']
+        preds = output['preds']
+        if data_cfg.get("log_every_n_steps", None) is not None:
+            if batch_idx % data_cfg.log_every_n_steps == 0:
+                logging.info(f"Input: `{inputs_text[0]}`")
+                logging.info(f"Label: `{labels[0]}`")
+                logging.info(f"Pred: `{preds[0]}`")
+
+        outputs = {
+            'loss': loss,
+            'preds': preds,  # 2d array
+            'labels': labels,  # 2d array
+            'inputs': inputs_text,  # [str]
+            'metadata': metadata,  # [dict]
+        }
+
+        if mode == 'validation':
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
+                self.validation_step_outputs[dataloader_idx][-1] = outputs
+            else:
+                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
+                self.validation_step_outputs[-1] = outputs
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx][-1] = outputs
+            else:
+                self.test_step_outputs[-1] = outputs
+        return outputs
+
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
+        batch = move_to_device(batch, device=self.device)
+        encoder_input, _, enc_mask = self.prepare_llm_input(batch)
+        # enc_input = speech prompt
+        # dec_input and label = text prompt and text output label
+
+        predicted_token_ids, log_probs = self.frozen_model.decode(
+            tokens_enc=None,
+            enc_mask=enc_mask,
+            num_tokens_to_generate=self._inference_config['tokens_to_generate'],
+            encoder_input=encoder_input,
+            tokenizer=self.tokenizer,
+            bos_id=self.bos_id,
+            predicted_tokens_dec=torch.cat(
+                [
+                    batch['contexts'],
+                    batch['speaker_contexts'],
+                ],
+                dim=1,
+            ),
+        )
+        predicted_token_ids = predicted_token_ids[:, batch['contexts'].shape[1] + batch['speaker_contexts'].shape[1] :, :]
+
+        # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
+        input_text = batch['contexts'][:, :, 0]
+        input_text = MegatronT5SFTModel.ids_to_text(input_text, self.tokenizer)
+        labels = batch['answers']
+
+        return {
+            'input_text': input_text,
+            'preds': predicted_token_ids,
+            'labels': labels,
+        }
+
+    def inference_epoch_end(self, outputs, mode, data_cfg):
+        # Parent class will handle logging of the loss.
+        if not outputs:
+            # Handle case where no metrics. This can break checkpoint save/load.
+            app_state = AppState()
+            monitor_mode = app_state.checkpoint_callback_params.mode
+            assert monitor_mode in ['min', 'max']
+            averaged_metric = 0.0 if monitor_mode == 'max' else 1e2
+            logging.warning(f"No outputs to log for {mode} epoch")
+            return torch.Tensor([1e2]), torch.Tensor([averaged_metric])
+
+        if isinstance(outputs[0], dict):
+            outputs = [outputs]
+        
+        averaged_loss = []
+        # Log metrics for each provided validation/test dataset.
+        for dataloader_idx, output in enumerate(outputs):
+            if len(output) == 0:
+                logging.warning(f"Empty output for dataloader_idx: {dataloader_idx}")
+                continue
+            # Expand on_validation_epoch_end from parent class MegatronGPTModel as on_validation_epoch_end doesnt take outputs arg
+            loss_vals = [x['loss'] for x in output]
+            if parallel_state.is_pipeline_last_stage():
+                # only the last pipeline parallel stages return loss with their batch size
+                if self.cfg.data.get('validation_drop_last', True):
+                    loss = torch.stack(loss_vals).mean()
+                else:
+                    # Compute the avg loss by total_loss across all samples / total number of samples
+                    total_loss_and_total_samples = torch.vstack(loss_vals).sum(axis=0)
+                    avg_loss = total_loss_and_total_samples[0] / total_loss_and_total_samples[1]
+                    loss = avg_loss.type(torch.float32).cuda()
+            else:
+                loss = torch.tensor(0.0, dtype=torch.float32).cuda()
+
+            # we can only log on one rank if it is rank zero so we broadcast from last rank
+            torch.distributed.broadcast(loss, get_last_rank())
+
+            self.log('val_loss', loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=True)
+
+            # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
+            loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
+            self.log(loss_log_key, loss, batch_size=1)
+            averaged_loss.append(loss)
+
+            # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
+            gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+            torch.distributed.all_gather_object(
+                gathered_outputs,
+                [
+                    {'preds': x['preds'], 'labels': x['labels'], 'inputs': x['inputs'], 'metadata': x['metadata']}
+                    for x in output
+                ],
+                group=parallel_state.get_data_parallel_group(),
+            )
+
+            # Remove duplicate examples due to distributed sampler.
+            inp_label_set = set()
+            deduplicated_outputs = {
+                'preds': [],
+                'labels': [],
+                'inputs': [],
+                'metadata': [],
+            }
+            total_size = 0
+            for rank in range(0, parallel_state.get_data_parallel_world_size()):
+                for batch in gathered_outputs[rank]:
+                    for pred, label, input, metadata in zip(
+                        batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
+                    ):
+                        key = input
+                        total_size += 1
+                        dedup = data_cfg.get('deduplicate', True)
+                        if (not dedup) or key not in inp_label_set:
+                            inp_label_set.add(key)
+                            deduplicated_outputs['preds'].append(pred)
+                            deduplicated_outputs['labels'].append(label)
+                            deduplicated_outputs['inputs'].append(input)
+                            deduplicated_outputs['metadata'].append(metadata)
+
+            # Write predictions to file
+            if self.global_rank == 0 and data_cfg.get("write_predictions_to_file", False):
+                logging.info(
+                    f"Total deduplicated inference data size: {total_size} to {len(deduplicated_outputs['inputs'])}"
+                )
+
+                # Check if the user provided a prefix path to the file(s) they want to write.
+                if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
+                    raise ValueError(
+                        f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
+                    )
+                filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
+                output_dir = data_cfg.get("output_dir", "./")
+                self.write_predictions_to_file(
+                    deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}", output_dir
+                )
+
+            torch.distributed.barrier(group=parallel_state.get_data_parallel_group())
+            outputs[dataloader_idx].clear()  # free memory
+
+        # Logging of the averaged metrics:
+        averaged_loss = sum(averaged_loss) / len(averaged_loss)
+
+        if mode == 'validation':
+            self.log("validation_loss", averaged_loss, batch_size=1, sync_dist=True)
+        elif mode == 'test':
+            self.log("test_loss", averaged_loss, batch_size=1, sync_dist=True)
+
+        # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
+        app_state = AppState()
+        # TODO(zhehuai): add _restore_sequence_parallelism_args after sync to HEAD
+        if hasattr(self, "_train_ds"):
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self.cfg.data.train_ds.global_batch_size,
+                micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+        # When running `trainer.validate()`, the training dataset is not available.
+        else:
+            logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=data_cfg.global_batch_size,
+                micro_batch_size=data_cfg.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
+        return averaged_loss, averaged_loss
 
     def _build_dataset(self, data_cfg, is_train=True):
         # this is crucial so as to tell the decoder when to start generate answer after context and paddings

@@ -243,17 +243,22 @@ class TextProcessing:
         self.sample_alpha = sample_alpha
         self.audio_locator = audio_locator
 
-        if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
+        if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id >= 0:
             self.bos_id = tokenizer.bos_id
         else:
             self.bos_id = None
 
-        if add_eos and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
+        if add_eos and hasattr(tokenizer, "eos_id") and tokenizer.eos_id >= 0:
             self.eos_id = tokenizer.eos_id
         else:
             self.eos_id = None
 
-        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
+        if hasattr(tokenizer, "unk_id") and tokenizer.unk_id >= 0:
+            self.unk_id = tokenizer.unk_id
+        else:
+            self.unk_id = None
+
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id >= 0:
             self.pad_id = tokenizer.pad_id
         else:
             self.pad_id = self.eos_id if self.eos_id is not None else 0
