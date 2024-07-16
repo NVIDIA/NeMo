@@ -25,6 +25,7 @@ Instead of saving a simple state dict with ``torch.Tensor``s, we save a *sharded
 Example: assume we have a 128 elements tensor divided equally across the whole workload which we want to save and load with different number of ranks.
 
 .. code-block:: python
+
     from pathlib import Path
 
     import torch
