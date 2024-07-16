@@ -9,7 +9,7 @@ Understanding Checkpoint Formats
 
 A ``.nemo`` checkpoint is fundamentally a tar file that bundles the model configurations (given as a YAML file), model weights, and other artifacts like tokenizer models or vocabulary files. This consolidated design streamlines sharing, loading, tuning, evaluating, and inference.
 
-Contrarily, the ``.ckpt`` file, created during PyTorch Lightning training, encompasses both the model weights and the optimizer states, usually employed to pick up training from a pause.
+In contrast, the ``.ckpt`` file, created during PyTorch Lightning training, contains both the model weights and the optimizer states, and is usually used to resume training.
 
 Sharded Model Weights
 ---------------------
