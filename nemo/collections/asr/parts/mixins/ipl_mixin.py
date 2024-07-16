@@ -20,9 +20,8 @@ from typing import List, Union
 
 import editdistance
 import torch
-from omegaconf import ListConfig
+from omegaconf import ListConfig, open_dict
 from tqdm.auto import tqdm
-from omegaconf import open_dict
 
 from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
 from nemo.collections.asr.parts.utils.ipl_utils import (
@@ -156,14 +155,14 @@ class IPLMixin:
         else:
             if needs_update:
                 self.build_cache(update_whole_cache=False)
- 
+
             if self._ipl_params['n_l_epochs'] == 0:
                 self.update_training_sets()
                 self._ipl_params['n_l_epochs'] = -1
                 self.trainer.reload_dataloaders_every_n_epochs = 1
 
             torch.distributed.barrier()
-            
+
             with open_dict(self.cfg.train_ds):
                 self.cfg.train_ds.cache_audio = False
             if self.cfg.train_ds.get("use_lhotse", False):
