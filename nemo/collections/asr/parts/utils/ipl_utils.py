@@ -23,6 +23,7 @@ import braceexpand
 import torch
 from omegaconf import ListConfig
 
+
 def expand_braces(filepaths):
     """
     Expands brace expressions in file paths.
