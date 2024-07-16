@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import logging
 import os
 import random
 import tempfile
@@ -20,7 +21,6 @@ from typing import List, Union
 
 import editdistance
 import torch
-import logging
 from omegaconf import ListConfig, open_dict
 from tqdm.auto import tqdm
 
@@ -101,14 +101,7 @@ class IPLMixin:
         Args:
             ipl_config (DictConfig): The configuration dictionary for IPL parameters.
         """
-        required_params = {
-            'm_epochs',
-            'manifest_filepath',
-            'is_tarred',
-            'dropout',
-            'n_l_epochs',
-            'p_cache'
-        }
+        required_params = {'m_epochs', 'manifest_filepath', 'is_tarred', 'dropout', 'n_l_epochs', 'p_cache'}
 
         supported_params = {
             'm_epochs',
