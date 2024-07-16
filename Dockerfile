@@ -90,6 +90,10 @@ RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
 
 WORKDIR /tmp/
 
+RUN echo "Test After NVIDIA Libraries"
+RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
+RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
+
 # uninstall stuff from base container
 RUN pip3 uninstall -y sacrebleu torchtext
 
@@ -127,6 +131,10 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/installers/install_k2.sh); INSTALL
   else echo "Skipping failed k2 installation"; fi \
   else echo "k2 installed successfully"; fi
 
+RUN echo "Test After torchaudio/k2 Libraries"
+RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
+RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
+
 # install nemo dependencies
 WORKDIR /tmp/nemo
 ENV LHOTSE_REQUIRE_TORCHAUDIO=0
@@ -138,6 +146,10 @@ RUN for f in $(ls requirements*.txt | grep -v 'requirements_vllm.txt'); do pip3 
 RUN pip install flash-attn
 # install numba for latest containers
 RUN pip install numba>=0.57.1
+
+RUN echo "Test After requirements"
+RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
+RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
@@ -153,12 +165,14 @@ RUN /usr/bin/test -n "$NEMO_VERSION" && \
   /bin/echo "export NEMO_VERSION=${NEMO_VERSION}" >> /root/.bashrc && \
   /bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
 
+RUN echo "Test Before NeMo"
 RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
 RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
 # Install NeMo
 RUN --mount=from=nemo-src,target=/tmp/nemo,rw cd /tmp/nemo && pip install ".[all]"
 
+RUN echo "Test After NeMo Installation"
 RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
 RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
