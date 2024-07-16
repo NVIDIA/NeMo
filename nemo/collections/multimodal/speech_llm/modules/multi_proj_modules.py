@@ -87,17 +87,17 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
             embedding_dropout = self.cfg.embedding_dropout
         
         if not hasattr(self.cfg, 'n_proj_heads'):
-            n_proj_heads = 1
+            self.n_proj_heads = 1
         else:
-            n_proj_heads = self.cfg.n_proj_heads
+            self.n_proj_heads = self.cfg.n_proj_heads
         if not hasattr(self.cfg, 'proj_head_dims'):
-            proj_head_dims = [self.padded_vocab_size]
+            self.proj_head_dims = [self.padded_vocab_size]
         else:
-            proj_head_dims = self.cfg.proj_head_dims
+            self.proj_head_dims = self.cfg.proj_head_dims
         if not hasattr(self.cfg, 'proj_head_loss_weights'):
-            proj_head_loss_weights = [self.padded_vocab_size]
+            self.proj_head_loss_weights = [self.padded_vocab_size]
         else:
-            proj_head_loss_weights = self.cfg.proj_head_loss_weights
+            self.proj_head_loss_weights = self.cfg.proj_head_loss_weights
 
         model = MegatronTokenLevelEncoderDecoderMultiProjModule(
             config=self.model_parallel_config,
@@ -120,9 +120,9 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
             share_decoder_tokens_head_embeddings=False,
             tokens_head_bias=self.cfg.get('tokens_head_bias', True),
             hiddens_cfg=self.cfg.get('hiddens', None),
-            n_proj_heads=n_proj_heads,
-            proj_head_dims=proj_head_dims,
-            proj_head_loss_weights=proj_head_loss_weights,
+            n_proj_heads=self.n_proj_heads,
+            proj_head_dims=self.proj_head_dims,
+            proj_head_loss_weights=self.proj_head_loss_weights,
         )
         return model
 
@@ -214,7 +214,7 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
         if predicted_tokens_dec is None:
             predicted_tokens_dec = torch.LongTensor([bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
         # collect log probs that were used in the sampling
-        predicted_log_probs = torch.zeros((global_batch_per_gpu, 0, 9), dtype=self.autocast_dtype).to(device)
+        predicted_log_probs = torch.zeros((global_batch_per_gpu, 0, self.n_proj_heads), dtype=self.autocast_dtype).to(device)
 
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.encoder.hidden_size]
         assert predicted_tokens_dec.size(0) == global_batch_per_gpu
@@ -437,8 +437,9 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
         )
 
         self.n_proj_heads = n_proj_heads
+        self.proj_head_dims = proj_head_dims
         self.proj_head_loss_weights = torch.nn.Parameter(torch.FloatTensor(proj_head_loss_weights))
-        self.text_vocab_size = vocab_size
+        assert self.proj_head_dims[0] == vocab_size
 
         # Shared token and head embeddings are not valid for multi-proj heads
         share_decoder_tokens_head_embeddings = False
@@ -606,11 +607,11 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
                     if self.fp16_cross_entropy:
                         assert token_logits.dtype == torch.half
                         tokens_loss = torch.stack([
-                            vocab_parallel_cross_entropy(token_logits[i], labels[:, :, i]-self.text_vocab_size-1024*i, label_smoothing) for i in range(self.n_proj_heads)
+                            vocab_parallel_cross_entropy(token_logits[i], labels[:, :, i]-sum(self.proj_head_dims[:i]), label_smoothing) for i in range(self.n_proj_heads)
                         ], axis=2)
                     else:
                         tokens_loss = torch.stack([
-                            vocab_parallel_cross_entropy(token_logits[i].float(), labels[:, :, i]-self.text_vocab_size-1024*i, label_smoothing) for i in range(self.n_proj_heads)
+                            vocab_parallel_cross_entropy(token_logits[i].float(), labels[:, :, i]-sum(self.proj_head_dims[:i]), label_smoothing) for i in range(self.n_proj_heads)
                         ], axis=2)
 
                     # [s, b] -> [b, s]
@@ -622,13 +623,12 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
                 else:
                     # else return token logits (and hiddens if needed)
                     token_logits_blank = torch.full(
-                        (*token_logits[0].shape[:2], self.text_vocab_size+1024*(len(token_logits)-1), len(token_logits)),
+                        (*token_logits[0].shape[:2], sum(self.proj_head_dims), len(token_logits)),
                         -float('Inf'), 
                         device=token_logits[0].device
                     )
-                    token_logits_blank[:, :, :self.text_vocab_size, 0] = token_logits[0]
-                    for i in range(len(token_logits)-1):
-                        token_logits_blank[:, :, self.text_vocab_size+1024*i:self.text_vocab_size+1024*(i+1), i+1] = token_logits[i+1]
+                    for i in range(len(token_logits)):
+                        token_logits_blank[:, :, sum(self.proj_head_dims[:i]):sum(self.proj_head_dims[:i+1]), i] = token_logits[i]
                     # [s, b, h, heads] -> [b, s, h, heads]
                     token_logits = token_logits_blank.transpose(0, 1).contiguous()
                     return token_logits

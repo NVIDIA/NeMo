@@ -239,13 +239,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 leading_mask_len = context_lengths[i]+speaker_context.shape[1]+1
                 loss_mask[i, leading_mask_len:leading_mask_len+features_lens[i]] = 1
             
-            speech_token_offset = self.text_processor.tokenizer.vocab_size
-            # speech_token_offset = 64000 in this case
             for i in range(self.n_speech_codebooks):
                 tokens[:,:,i+1] += sum(self.vocab_sizes[:i+1])
                 contexts[:,:,i+1] += sum(self.vocab_sizes[:i+1])
                 answers[:,:,i+1] += sum(self.vocab_sizes[:i+1])
-
         # Merge batch
         return_batch = {
             "tokens": tokens,
