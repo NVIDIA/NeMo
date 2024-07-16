@@ -31,7 +31,13 @@ def get_args():
     parser.add_argument('--model_type', required=True, type=str, help="Model size in billions")
     parser.add_argument('--model_version', required=True, type=int, help="Model version")
     parser.add_argument('--model_size', required=True, type=int, help="Model size")
-    parser.add_argument('--model_measure', required=False, default="B", type=str, help="'M' if model size in millions, 'B' if in billions")
+    parser.add_argument(
+        '--model_measure',
+        required=False,
+        default="B",
+        type=str,
+        help="'M' if model size in millions, 'B' if in billions",
+    )
     parser.add_argument('--vocab_size', required=False, default=32000, type=int, help="Size of tokenizer vocab")
     parser.add_argument('--tflops_per_gpu', required=False, default=140, type=int, help="Estimated tflops per GPU")
     parser.add_argument(

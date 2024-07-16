@@ -313,7 +313,11 @@ def calculate_model_size_params(
 
 
 def generic_base_config(
-    model_name: str = "llama", model_version: int = 2, model_size_in_b: int = 7, model_measure: str = "B", cfg: dict = {}
+    model_name: str = "llama",
+    model_version: int = 2,
+    model_size_in_b: int = 7,
+    model_measure: str = "B",
+    cfg: dict = {},
 ) -> dict:
     """
     Generates a base config dictionary from a base config yaml file.
