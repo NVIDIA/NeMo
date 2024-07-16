@@ -19,7 +19,7 @@ import shutil
 import subprocess
 from typing import List, Tuple
 
-from autoconfig import train, utils
+from autoconfig import utils
 
 
 def search_training_config(
@@ -40,10 +40,6 @@ def search_training_config(
     """
     # Generate candidate configs.
     configs = generate_grid_search_configs(base_cfg, train_cfg)
-    # Launch candidate configs.
-    # job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
-    # Measure and compare throughputs for each config.
-    # launch_throughput_measure(job_ids, model_name, model_size_in_b, num_nodes, hydra_args, cfg)
 
     return configs
 
@@ -108,9 +104,6 @@ def generate_grid_search_configs(
         seq_length=seq_length,
         train_cfg=train_cfg,
     )
-
-    base_dir = os.path.join(train_cfg['log_dir'], "candidate_configs")
-    os.makedirs(base_dir, exist_ok=True)
 
     max_minutes = train_cfg.get("max_minutes_per_run")
     max_steps = train_cfg.get("max_steps_per_run")
