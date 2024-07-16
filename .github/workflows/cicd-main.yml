@@ -179,7 +179,28 @@ jobs:
           rm -f /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_gpt/falcon-ci-hf/model_weights
-        
+  
+  # L2: Community llava multimodal Checkpoints tests
+  L2_Community_vita_Checkpoints_tests_Llama3:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        export PYTHONPATH=/home/TestData/multimodal/video_neva/LLaVA:$PYTHONPATH
+        CUDA_VISIBLE_DEVICES=0 python examples/multimodal/multimodal_llm/neva/convert_llava_to_neva.py \
+          --in-file /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/llm \
+          --mm-projector-ckpt-dir /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/mm_projector \
+          --mm-vision-tower /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/vision_tower \
+          --tokenizer-model /home/TestData/multimodal/video_neva/vita-tokenizer/ \
+          --config-file vita_config.yaml \
+          --out-file=/home/TestData/multimodal/video_neva/llama3-ci-hf/llama3_ci.nemo \
+          --model-type VITA \
+          --conv-template llama_3
+      AFTER_SCRIPT: |
+        rm -f /home/TestData/multimodal/video_neva/llama3-ci-hf/llama3_ci.nemo
+        rm -rf /home/TestData/multimodal/video_neva/llama3-ci-hf/model_weights
+
   # this test is using a 7B model which is too large for GitHub CI
   # replace the model in this test with a toy model or move the test
   # to the nightly CI
@@ -244,6 +265,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     with:
       RUNNER: self-hosted-azure
+      TIMEOUT: 15
       SCRIPT: |
         python examples/nlp/language_modeling/megatron_gpt_ptq.py \
         model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
@@ -2391,7 +2413,7 @@ jobs:
 
   L2_Megatron_GPT_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure-gpus-2-h100
+    runs-on: self-hosted-azure
     timeout-minutes: 10
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
@@ -2403,21 +2425,6 @@ jobs:
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /mnt/datadrive/TestData:/home/TestData
-    env:
-      # This is to improve p2p overlap on H100
-      NVTE_FWD_LAYERNORM_SM_MARGIN: 8
-      NVTE_BWD_LAYERNORM_SM_MARGIN: 8
-      TORCH_NCCL_AVOID_RECORD_STREAMS: 1
-      NCCL_MIN_NCHANNELS: 4
-      # TP overlap is not supported in docker environment
-      #NVTE_UB_SPLIT_RS: 0
-      #NVTE_UB_ATOMIC_GEMM_RS: 1
-      #NVTE_RS_STRIDED_ATOMIC: 1
-      #NVTE_UB_FP8_RS: 1
-      # Increase p2p chunksize to 2MB
-      NCCL_P2P_NET_CHUNKSIZE: 2097152
-      # Disable gc when switching to/from validation steps
-      NEMO_MANUAL_GC_IN_VALIDATION: 0
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
@@ -2432,17 +2439,8 @@ jobs:
             trainer.max_steps=3 \
             trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-            ++model.transformer_engine=True \
-            ++model.fp8=True \
-            ++model.fp8_hybrid=True \
-            ++model.fp8_amax_history_len=1024 \
-            ++model.fp8_amax_compute_algo=max \
-            ++model.reduce_amax=True \
-            ++model.use_te_rng_tracker=True \
-            ++model.name=megatron_gpt_full_te_layer_autocast \
-            model.ub_tp_comm_overlap=False \
             model.tensor_model_parallel_size=2 \
-            model.optim.name=distributed_fused_adam \
+            model.optim.name=fused_adam \
             model.optim.lr=2e-4 \
             model.optim.sched.warmup_steps=1 \
             model.optim.sched.constant_steps=1 \
@@ -2476,17 +2474,8 @@ jobs:
             trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
             exp_manager.resume_if_exists=True \
-            ++model.transformer_engine=True \
-            ++model.fp8=True \
-            ++model.fp8_hybrid=True \
-            ++model.fp8_amax_history_len=1024 \
-            ++model.fp8_amax_compute_algo=max \
-            ++model.reduce_amax=True \
-            ++model.use_te_rng_tracker=True \
-            ++model.name=megatron_gpt_full_te_layer_autocast \
-            model.ub_tp_comm_overlap=False \
             model.tensor_model_parallel_size=2 \
-            model.optim.name=distributed_fused_adam \
+            model.optim.name=fused_adam \
             model.optim.lr=2e-4 \
             model.optim.sched.warmup_steps=2 \
             model.optim.sched.constant_steps=2 \
@@ -2978,11 +2967,10 @@ jobs:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
     with:
-      RUNNER: self-hosted-azure-gpus-2-h100
+      RUNNER: self-hosted-azure
       SCRIPT: |
         python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
         trainer.devices=2 \
-        trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=2 \
         trainer.limit_val_batches=2 \
@@ -2991,15 +2979,6 @@ jobs:
         trainer.precision=bf16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        ++model.transformer_engine=True \
-        ++model.fp8=True \
-        ++model.fp8_hybrid=True \
-        ++model.fp8_amax_history_len=1024 \
-        ++model.fp8_amax_compute_algo=max \
-        ++model.reduce_amax=True \
-        ++model.use_te_rng_tracker=True \
-        ++model.name=megatron_gpt_full_te_layer_autocast \
-        model.ub_tp_comm_overlap=False \
         model.pipeline_model_parallel_size=2 \
         model.tensor_model_parallel_size=1 \
         model.mcore_gpt=True \
@@ -3024,15 +3003,12 @@ jobs:
         model.hidden_size=256 \
         model.num_attention_heads=8 \
         model.activations_checkpoint_method=block \
-        model.activations_checkpoint_granularity=full \
         model.activations_checkpoint_num_layers=1 \
-        model.data.validation_drop_last=False \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
 
         python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
         trainer.devices=2 \
-        trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=2 \
         trainer.limit_val_batches=2 \
@@ -3044,15 +3020,6 @@ jobs:
         model.megatron_amp_O2=True \
         exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
         exp_manager.resume_if_exists=True \
-        ++model.transformer_engine=True \
-        ++model.fp8=True \
-        ++model.fp8_hybrid=True \
-        ++model.fp8_amax_history_len=1024 \
-        ++model.fp8_amax_compute_algo=max \
-        ++model.reduce_amax=True \
-        ++model.use_te_rng_tracker=True \
-        ++model.name=megatron_gpt_full_te_layer_autocast \
-        model.ub_tp_comm_overlap=False \
         model.pipeline_model_parallel_size=2 \
         model.tensor_model_parallel_size=1 \
         model.optim.name=distributed_fused_adam \
@@ -3075,9 +3042,7 @@ jobs:
         model.hidden_size=256 \
         model.num_attention_heads=8 \
         model.activations_checkpoint_method=block \
-        model.activations_checkpoint_granularity=full \
         model.activations_checkpoint_num_layers=1 \
-        model.data.validation_drop_last=False \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
       AFTER_SCRIPT: |
@@ -3465,7 +3430,8 @@ jobs:
         trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=10 \
-        trainer.precision=16 \
+        trainer.precision=bf16 \
+        model.megatron_amp_O2=True \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
         model.tensor_model_parallel_size=2 \
@@ -3507,7 +3473,8 @@ jobs:
         trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=10 \
-        trainer.precision=16 \
+        trainer.precision=bf16 \
+        model.megatron_amp_O2=True \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
         exp_manager.resume_if_exists=True \
@@ -4005,6 +3972,17 @@ jobs:
             --prompt 'How do I fix my GPU memory issue? I am seeing <mask> out of memory.' \
             --tensor_model_parallel_size 1
 
+  L2_Megatron_Core_T5_Eval:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=0 python examples/nlp/language_modeling/megatron_t5_eval.py \
+            --model_file /home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m.nemo \
+            --prompt 'How do I fix my GPU memory issue? I am seeing <mask> out of memory.' \
+            --tensor_model_parallel_size 1
+
   L2_Megatron_BART_Pretraining_and_Resume_Training_TP2:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -4194,6 +4172,57 @@ jobs:
         inference.outfile_path=/home/TestData/nlp/t5_lora_tuning_tp2/out.jsonl
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/t5_lora_tuning_tp2
+
+  L2_Megatron_Core_T5_PEFT_Lora_TP2:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        rm -rf /home/TestData/nlp/mcore_t5_lora_tuning_tp2
+
+        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/tuning/megatron_t5_finetuning.py \
+        trainer.devices=2 \
+        trainer.log_every_n_steps=1 \
+        trainer.max_epochs=9999 \
+        trainer.max_steps=3 \
+        trainer.val_check_interval=3 \
+        ++trainer.limit_val_batches=2 \
+        trainer.precision=16 \
+        exp_manager.exp_dir=/home/TestData/nlp/mcore_t5_lora_tuning_tp2 \
+        model.pipeline_model_parallel_size=1 \
+        model.tensor_model_parallel_size=2 \
+        model.restore_from_path=/home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m.nemo \
+        model.peft.peft_scheme=lora \
+        model.answer_only_loss=True \
+        model.micro_batch_size=1 \
+        model.global_batch_size=1 \
+        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+        model.data.train_ds.concat_sampling_probabilities=[1.0] \
+        model.data.train_ds.num_workers=0 \
+        model.data.validation_ds.num_workers=0 \
+        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+        model.data.validation_ds.names=[quarel]
+
+        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/tuning/megatron_t5_generate.py \
+        model.restore_from_path=/home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m.nemo \
+        model.peft.restore_from_path=/home/TestData/nlp/mcore_t5_lora_tuning_tp2/megatron_t5_peft_lora_tuning/checkpoints/megatron_t5_peft_lora_tuning.nemo \
+        model.peft.restore_from_ckpt_name=null \
+        model.peft.restore_from_hparams_path=null \
+        model.tensor_model_parallel_size=2 \
+        trainer.devices=2 \
+        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
+        model.data.test_ds.names=[quarel4] \
+        model.global_batch_size=1 \
+        model.micro_batch_size=1 \
+        model.data.test_ds.tokens_to_generate=10 \
+        model.data.test_ds.write_predictions_to_file=True \
+        model.data.test_ds.output_file_path_prefix=/home/TestData/nlp/mcore_t5_lora_tuning_tp2/out \
+        inference.greedy=True \
+        inference.repetition_penalty=1.0 \
+        inference.outfile_path=/home/TestData/nlp/mcore_t5_lora_tuning_tp2/out.jsonl
+      AFTER_SCRIPT: |
+        rm -rf /home/TestData/nlp/mcore_t5_lora_tuning_tp2
 
   # L2: Megatron Mock Data Generation                
   L2_Megatron_Mock_Data_Generation_MockGPTDataset:
@@ -4487,6 +4516,48 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf examples/multimodal/text_to_image/sd_train_results
 
+  L2_NeMo_2_GPT_Pretraining_no_transformer_engine:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    timeout-minutes: 10
+    container:
+      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+      options:
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g
+        --env TRANSFORMERS_OFFLINE=0
+        --volume /mnt/datadrive/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+        - run: |
+            pip uninstall -y apex ## TODO: remove when apex is no longer a dependency
+            pip uninstall -y transformer_engine
+
+            python examples/llm/megatron_gpt_pretraining.py \
+            --devices=2 \
+            --max-steps=3 \
+            --experiment-dir=examples/llm/gpt_pretrain_results \
+            --vocab-path=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+            --merges-path=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+            --data-path=/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
+            --index-mapping-dir=examples/llm/gpt_index_mappings
+
+            python examples/llm/megatron_gpt_pretraining.py \
+            --devices=2 \
+            --max-steps=6 \
+            --experiment-dir=examples/llm/gpt_pretrain_results \
+            --vocab-path=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+            --merges-path=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+            --data-path=/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
+            --index-mapping-dir=examples/llm/gpt_index_mappings
+
+            rm -rf examples/llm/gpt_pretrain_results
+            rm -rf examples/llm/gpt_index_mappings
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+          if: "failure()"
+
   Nemo_CICD_Test:
     needs: 
       - L0_Unit_Tests_GPU
@@ -4494,6 +4565,7 @@ jobs:
       - L2_Community_LLM_Checkpoints_tests_Llama
       - L2_Community_LLM_Checkpoints_tests_StarCoder
       - L2_Community_LLM_Checkpoints_tests_Falcon
+      - L2_Community_vita_Checkpoints_tests_Llama3
       #- OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2
       - ASR_dev_run_Speech_to_Text
       - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
@@ -4571,9 +4643,11 @@ jobs:
       - L2_Megatron_T5_w_Mixture_of_Expert_Pretraining
       - L2_Megatron_UL2_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_T5_Eval
+      - L2_Megatron_Core_T5_Eval
       - L2_Megatron_BART_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_BART_Pretraining_and_Resume_Training_PP2
       - L2_Megatron_T5_PEFT_Lora_TP2
+      - L2_Megatron_Core_T5_PEFT_Lora_TP2
       - L2_Megatron_Mock_Data_Generation_MockGPTDataset
       - L2_Megatron_Mock_Data_Generation_MockT5Dataset
       - L2_TTS_Fast_dev_runs_1_Tacotron_2
@@ -4584,6 +4658,7 @@ jobs:
       - L2_TTS_Fast_dev_runs_1_Hifigan
       - Speech_Checkpoints_tests
       - L2_Stable_Diffusion_Training
+      - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
     if: always()
     runs-on: ubuntu-latest
     steps:  
