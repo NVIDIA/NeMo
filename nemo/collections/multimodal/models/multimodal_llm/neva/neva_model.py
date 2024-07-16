@@ -16,7 +16,6 @@ import os
 from functools import partial
 from itertools import chain
 from typing import Any, Optional
-from collections.abc import Callable
 
 import numpy as np
 import packaging
@@ -68,9 +67,7 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomSampler
 from nemo.core import adapter_mixins
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.utils import logging
-from nemo.constants import NEMO_ENV_VARNAME_TESTING
-from nemo.utils.env_var_parsing import get_envbool
+from nemo.utils import logging, run_if_testing
 
 try:
     from megatron.energon import (
@@ -117,15 +114,6 @@ def skip_fp8_load(x):
     if isinstance(x, ShardedObject) and 'fused_attention' in x.key and '_extra_state' in x.key:
         x = LocalNonpersitentObject(x.data)  # use the FP8 state from initialization, not from ckpt
     return x
-
-
-def run_if_testing(f: Callable):
-    """Helper function that invokes the input callable `f`
-    if the environment variable `NEMO_TESTING` is set.
-    """
-
-    if get_envbool(NEMO_ENV_VARNAME_TESTING):
-        f()
 
 
 class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
@@ -275,7 +263,9 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         # create an indices matrix used in torch.scatter {
         sorted_media_end_positions_mask, media_end_positions_mask_sort_idx = (
             # NOTE: to(torch.long) is needed because PyTorch does not have sort for boolean tensors on CUDA
-            (input_ids == self.media_end_id).to(torch.long).sort(dim=-1, descending=True, stable=True)
+            (input_ids == self.media_end_id)
+            .to(torch.long)
+            .sort(dim=-1, descending=True, stable=True)
         )
         # TODO: unless `media_end_positions_mask_sort_idx` is required to be sorted,
         # we can replace sort with topk(..., k=num_images_per_sample)
@@ -287,14 +277,15 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
             padded_media_indices = torch.where(
                 sorted_media_end_positions_mask.to(torch.bool),
                 media_end_positions_mask_sort_idx - num_patches,
-                sequence_length
+                sequence_length,
             )
         else:
             padded_media_indices = torch.where(
                 sorted_media_end_positions_mask.to(torch.bool),
                 media_end_positions_mask_sort_idx - num_patches + 1,
-                sequence_length
+                sequence_length,
             )
+
         # Check whether `padded_media_indices` represents correct indices
         # This check is only run when the env var `NEMO_TESTING` is set
         def check_padded_media_indices():
