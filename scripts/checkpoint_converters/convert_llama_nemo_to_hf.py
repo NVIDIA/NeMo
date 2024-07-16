@@ -19,7 +19,13 @@ from collections import OrderedDict
 import torch
 from omegaconf import open_dict
 from pytorch_lightning import Trainer
-from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaTokenizer, LlamaTokenizerFast, convert_slow_tokenizer
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    LlamaTokenizer,
+    LlamaTokenizerFast,
+    convert_slow_tokenizer,
+)
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
@@ -53,7 +59,11 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, default=None, required=True, help="Path to .nemo file or extracted folder",
+        "--input_name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to .nemo file or extracted folder",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to HF .bin file")
     parser.add_argument(
@@ -226,14 +236,27 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
 
 
 def replace_hf_weights_and_tokenizer(
-    weights_file, dtype, input_hf_path, output_hf_path, tokenizer_path, output_hf_tokenizer,
+    weights_file,
+    dtype,
+    input_hf_path,
+    output_hf_path,
+    tokenizer_path,
+    output_hf_tokenizer,
 ):
-    model = AutoModelForCausalLM.from_pretrained(input_hf_path, local_files_only=True, torch_dtype=dtype,)
+    model = AutoModelForCausalLM.from_pretrained(
+        input_hf_path,
+        local_files_only=True,
+        torch_dtype=dtype,
+    )
     nemo_exported = torch.load(weights_file)
 
     if tokenizer_path:
         if os.path.exists(f'{tokenizer_path}/tokenizer.model'):
-            tokenizer = LlamaTokenizer.from_pretrained(tokenizer_path, local_files_only=True, legacy=False,)
+            tokenizer = LlamaTokenizer.from_pretrained(
+                tokenizer_path,
+                local_files_only=True,
+                legacy=False,
+            )
             tmp_tokenizer = convert_slow_tokenizer.convert_slow_tokenizer(tokenizer)
             fast_tokenizer = LlamaTokenizerFast(tokenizer_object=tmp_tokenizer)
             tokenizer_length = len(fast_tokenizer)
@@ -243,7 +266,10 @@ def replace_hf_weights_and_tokenizer(
             tokenizer.save_pretrained(output_hf_tokenizer)
             logging.info(f"Tokenizer saved to {output_hf_tokenizer}")
         else:
-            fast_tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, local_files_only=True,)
+            fast_tokenizer = AutoTokenizer.from_pretrained(
+                tokenizer_path,
+                local_files_only=True,
+            )
             tokenizer_length = len(fast_tokenizer)
             model.resize_token_embeddings(tokenizer_length)
 
