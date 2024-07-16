@@ -93,7 +93,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             log_prediction=self._cfg.get("log_prediction", False),
         )
 
-    def _setup_dataloader_from_config(self, config: Optional[Dict], cache_audio: bool = True):
+    def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if config.get("use_lhotse"):
             return get_lhotse_dataloader_from_config(
                 config,
