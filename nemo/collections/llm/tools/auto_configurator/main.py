@@ -36,7 +36,8 @@ def get_args():
     parser.add_argument(
         '--num_tokens_in_b', required=False, default=300, type=int, help="Number of tokens in dataset in billions"
     )
-    parser.add_argument('--seq_length', required=False, default=2048, type=int, help="Model sequence length")
+    parser.add_argument('--global_batch_size', required=False, default=2048, type=int, help="Model global batch size")
+    parser.add_argument('--seq_length', required=False, default=4096, type=int, help="Model sequence length")
     parser.add_argument(
         '--tensor_parallel_sizes', default=None, required=False, type=int, nargs='+', help="Path to results directory"
     )

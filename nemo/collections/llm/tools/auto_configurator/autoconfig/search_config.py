@@ -28,6 +28,7 @@ SUPPORTED_MODELS = [
     "chatglm",
     "qwen2",
     "mixtral",
+    "mistral",
 ]
 
 
@@ -54,7 +55,7 @@ def search_config(cfg: dict):
     tflops_per_gpu = cfg.get("tflops_per_gpu", 140)
     num_tokens_in_b = cfg.get("num_tokens_in_b", 300)
     seq_length = cfg.get("seq_length", 2048)
-    custom_cfg = None
+    global_batch_size = cfg.get("global_batch_size", 2048)
 
     assert model_name in SUPPORTED_MODELS, f"model must be set to one of {SUPPORTED_MODELS}/<model_size>"
 
