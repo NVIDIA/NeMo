@@ -84,7 +84,6 @@ def build_trt_engine(
     config_file = '%s/%s' % (output_dir, "config.json")
     nemo_config_file = '%s/%s' % (output_dir, "nemo_config.yaml")
     
-    # save the nemo config to the output directory/visual_engine
     with open(nemo_config_file, 'w') as f:
         yaml.dump(nemo_config, f)
     
@@ -160,10 +159,8 @@ def build_neva_engine(
     device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
     # extract NeMo checkpoint
     with tempfile.TemporaryDirectory() as temp:
-        mp0_weights, nemo_config, _ = load_nemo_model(visual_checkpoint_path, temp)
-    
-    # save the nemo config to the output directory/visual_engine
-    
+        temp_path = Path(temp)
+        mp0_weights, nemo_config, _ = load_nemo_model(visual_checkpoint_path, temp_path)
     
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
     
@@ -210,8 +207,6 @@ def build_neva_engine(
     dtype = hf_config.torch_dtype
 
     # connector
-    #assert nemo_config["mm_cfg"]["mm_mlp_adapter_type"] == "mlp2x_gelu"
-    
     if nemo_config["mm_cfg"]["mm_mlp_adapter_type"] == "mlp2x_gelu":
         vision_connector = torch.nn.Sequential(
             torch.nn.Linear(vision_config["hidden_size"], nemo_config["hidden_size"], bias=True),
