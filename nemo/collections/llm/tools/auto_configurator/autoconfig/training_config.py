@@ -65,6 +65,7 @@ def generate_grid_search_configs(
     model_name = train_cfg["model_type"]
     model_version = train_cfg["model_version"]
     model_size_in_b = train_cfg["model_size_in_b"]
+    model_measure = train_cfg["model_measure"]
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = (
@@ -170,6 +171,7 @@ def generate_grid_search_configs(
             multiplier,
             model_size_in_b,
             model_name,
+            model_measure,
         )
         for mbs in mbs_list:
             kwargs = {
@@ -210,9 +212,10 @@ def generate_grid_search_configs(
 
 
 def _set_activations_checkpoint_params(
-    tp, pp, cp, ep, num_layers, act_method, multiplier, model_size_in_b, model_name
+    tp, pp, cp, ep, num_layers, act_method, multiplier, model_size_in_b, model_name, model_measure
 ):
     act_multiple = 4 // pp
+    model_size_in_b = model_size_in_b / 1000 if model_measure == "M" else model_size_in_b
     if act_method == "block":
         if 1.0 <= model_size_in_b < 11.3:
             act_multiple = 8 // pp
