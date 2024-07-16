@@ -150,6 +150,7 @@ def _estimate_training_time(
         print(f"Training time estimation is only available for {valid_models}: {err}")
     return None
 
+
 def generate_base_config(
     model_name: str,
     model_version: int,
