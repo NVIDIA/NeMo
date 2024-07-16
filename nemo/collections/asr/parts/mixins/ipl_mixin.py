@@ -34,7 +34,7 @@ from nemo.collections.asr.parts.utils.ipl_utils import (
     rm_punctuation,
     sample_data,
     write_cache_manifest,
-    write_tarr_cache_manifest,
+    write_tar_cache_manifest,
 )
 
 
@@ -162,14 +162,17 @@ class IPLMixin:
                 self._ipl_params['n_l_epochs'] = -1
                 self.trainer.reload_dataloaders_every_n_epochs = 1
 
-            torch.distributed.barrier()
-            
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+
             with open_dict(self.cfg.train_ds):
                 self.cfg.train_ds.cache_audio = False
-            if self.cfg.train_ds.get("use_lhotse", False):
-                self.setup_training_data(self.cfg.train_ds, update_limit_train_batches=False)
-            else:
-                self.setup_training_data(self.cfg.train_ds, update_limit_train_batches=True)
+                if self.cfg.train_ds.get("use_lhotse", False):
+                    self.cfg.train_ds.update_limit_train_batches = False
+                    self.setup_training_data(self.cfg.train_ds)
+                else:
+                    self.cfg.train_ds.update_limit_train_batches = True
+                    self.setup_training_data(self.cfg.train_ds)
 
     def update_training_sets(self):
         """
@@ -247,7 +250,7 @@ class IPLMixin:
             update_data.extend(sample_data(manifest_data, weight, update_whole_cache, self._ipl_params['p_cache']))
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            temporary_manifest = os.path.join(tmpdir, f'manifest_{torch.distributed.get_rank()}.json')
+            temporary_manifest = os.path.join(tmpdir, f'manifest_{torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}.json')
             with open(temporary_manifest, 'w', encoding='utf-8') as temp_manifest:
                 transcriptions = [data_entry.get('text', "") for data_entry in update_data]
                 for data_entry in update_data:
@@ -267,16 +270,22 @@ class IPLMixin:
                     restore_pc=self._ipl_params['restore_pc'],
                     batch_size=self._ipl_params['batch_size'],
                 )
-        torch.distributed.barrier()
-        gathered_hypotheses = [None] * torch.distributed.get_world_size()
-        gathered_data = [None] * torch.distributed.get_world_size()
-        torch.distributed.all_gather_object(gathered_data, update_data)
-        torch.distributed.all_gather_object(gathered_hypotheses, hypotheses)
-        if torch.distributed.get_rank() == 0:
+
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+            gathered_hypotheses = [None] * torch.distributed.get_world_size()
+            gathered_data = [None] * torch.distributed.get_world_size()
+            torch.distributed.all_gather_object(gathered_data, update_data)
+            torch.distributed.all_gather_object(gathered_hypotheses, hypotheses)
+            if torch.distributed.get_rank() == 0:
+                write_cache_manifest(
+                    self._ipl_params['cache_manifest'], gathered_hypotheses, gathered_data, update_whole_cache
+                )
+            torch.distributed.barrier()
+        else:
             write_cache_manifest(
-                self._ipl_params['cache_manifest'], gathered_hypotheses, gathered_data, update_whole_cache
-            )
-        torch.distributed.barrier()
+                self._ipl_params['cache_manifest'], [hypotheses], [update_data], update_whole_cache
+            )        
 
     def create_tar_cache_hypotheses(
         self, manifests: Union[List[List[str]], str], tarred_audio_filepaths: Union[List[List[str]], str]
@@ -296,7 +305,10 @@ class IPLMixin:
         self._ipl_params['cache_manifest'] = []
         for manifest, tarred_audio_filepath in zip(manifests, tarred_audio_filepaths):
             with tempfile.TemporaryDirectory() as tmpdir:
-                torch.distributed.barrier()
+                
+                if torch.distributed.is_initialized():
+                    torch.distributed.barrier()
+
                 expanded_audio = expand_sharded_filepaths(
                     tarred_audio_filepath[0],
                     shard_strategy='scatter',
@@ -353,13 +365,14 @@ class IPLMixin:
                         restore_pc=self._ipl_params['restore_pc'],
                         batch_size=self._ipl_params['batch_size'],
                     )
-                write_tarr_cache_manifest(
+                write_tar_cache_manifest(
                     cache_manifest,
                     update_data=shard_manifest_data,
                     hypotheses=hypotheses,
                     use_lhotse=self.cfg.train_ds.get('use_lhotse', False),
                 )
-                torch.distributed.barrier()
+                if torch.distributed.is_initialized():
+                    torch.distributed.barrier()
                 self._ipl_params['cache_manifest'].append(cache_manifest)
 
     def update_tar_cache_hypotheses(
@@ -376,8 +389,8 @@ class IPLMixin:
 
         if isinstance(tarred_audio_filepaths, str):
             tarred_audio_filepaths = [[tarred_audio_filepaths]]
-
-        torch.distributed.barrier()
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
         for manifest, tarred_audio_filepath in zip(manifests, tarred_audio_filepaths):
             with tempfile.TemporaryDirectory() as tmpdir:
                 expanded_audio = expand_sharded_filepaths(
@@ -433,7 +446,7 @@ class IPLMixin:
                         restore_pc=self._ipl_params['restore_pc'],
                         batch_size=self._ipl_params['batch_size'],
                     )
-            write_tarr_cache_manifest(
+            write_tar_cache_manifest(
                 manifest,
                 update_data=shard_manifest_data,
                 hypotheses=hypotheses,
@@ -441,7 +454,8 @@ class IPLMixin:
                 update_size=update_size,
                 use_lhotse=self.cfg.train_ds.get('use_lhotse', False),
             )
-            torch.distributed.barrier()
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
 
     def combine_cache_hypotheses(self):
         """
@@ -458,10 +472,13 @@ class IPLMixin:
                     final_cache = os.path.join(
                         base_path, f'{self._ipl_params["cache_prefix"]}_cache_tarred_audio_manifest.json'
                     )
-                    if torch.distributed.get_rank() == 0:
+                    if torch.distributed.is_initialized():
+                        if torch.distributed.get_rank() == 0:
+                            create_final_cache_manifest(final_cache, manifests[0])
+                        torch.distributed.barrier()
+                    else:
                         create_final_cache_manifest(final_cache, manifests[0])
-                    torch.distributed.barrier()
-                    final_cache_manifests.append([final_cache])
+                    final_cache_manifests.append([final_cache])     
             else:
                 for i_dataset in self._ipl_params['all_cache_manifests']:
                     i_dataset = expand_braces(i_dataset)

@@ -175,7 +175,7 @@ def handle_multiple_tarr_filepaths(manifest_file: str, tmpdir: str, number_of_ma
 
     """
     base_manifest_name = manifest_file.rsplit('_', 1)[0]
-    rank = torch.distributed.get_rank()
+    rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
 
     start_range = rank * number_of_manifests
     end_range = start_range + number_of_manifests - 1
@@ -189,7 +189,7 @@ def handle_multiple_tarr_filepaths(manifest_file: str, tmpdir: str, number_of_ma
     return temporary_manifest, expanded_audio_path
 
 
-def write_tarr_cache_manifest(
+def write_tar_cache_manifest(
     cache_manifests: str,
     update_data: List[Dict],
     hypotheses: List,
@@ -326,5 +326,6 @@ def sample_data(data, weight, update_whole_cache, p_cache):
 
     """
     weight_factor = weight * p_cache if not update_whole_cache else weight
-    sample_size = int(len(data) * weight_factor / torch.distributed.get_world_size())
+    world_size = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
+    sample_size = int(len(data) * weight_factor / world_size)
     return random.sample(data, sample_size)

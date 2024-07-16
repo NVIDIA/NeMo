@@ -506,7 +506,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
     def setup_training_data(
         self,
         train_data_config: Optional[Union[DictConfig, Dict]],
-        update_limit_train_batches=False,
     ):
         """
         Sets up the training data loader via a Dict-like object.
@@ -552,7 +551,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
                     "Model Trainer was not set before constructing the dataset, incorrect number of "
                     "training batches will be used. Please set the trainer and rebuild the dataset."
                 )
-            elif update_limit_train_batches:
+            elif train_data_config.get('update_limit_train_batches', False):
                 # after generation of pseud-labels for tarred datasets.
 
                 self._trainer.limit_train_batches = int(
