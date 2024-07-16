@@ -282,7 +282,9 @@ def _set_activations_checkpoint_params(
     )
 
 
-def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b: float, valid_pp: List[int], seq_length: int, model_measure: str) -> Tuple[int, int, int]:
+def _tp_pp_mbs_grid_gpt3_80gb(
+    model_size_in_b: float, valid_pp: List[int], seq_length: int, model_measure: str
+) -> Tuple[int, int, int]:
     """
     Selects grid search space for TP, PP, MBS parameters for GPT-3 and 80GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
@@ -986,7 +988,9 @@ def _calculate_tp_pp_mbs_grid(
                 min_model_parallel,
                 max_model_parallel,
                 gbs,
-            ) = _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp, model_measure=model_measure)
+            ) = _tp_pp_mbs_grid_gpt3_40gb(
+                model_size_in_b=model_size_in_b, valid_pp=valid_pp, model_measure=model_measure
+            )
     elif model_name in ["t5", "mt5"]:
         if gpu_memory_gb == 80:
             (
@@ -998,7 +1002,9 @@ def _calculate_tp_pp_mbs_grid(
                 min_model_parallel,
                 max_model_parallel,
                 gbs,
-            ) = _tp_pp_mbs_grid_t5_80gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp, model_measure=model_measure)
+            ) = _tp_pp_mbs_grid_t5_80gb(
+                model_size_in_b=model_size_in_b, valid_pp=valid_pp, model_measure=model_measure
+            )
         elif gpu_memory_gb == 40:
             (
                 tp,
@@ -1009,7 +1015,9 @@ def _calculate_tp_pp_mbs_grid(
                 min_model_parallel,
                 max_model_parallel,
                 gbs,
-            ) = _tp_pp_mbs_grid_t5_40gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp, model_measure=model_measure)
+            ) = _tp_pp_mbs_grid_t5_40gb(
+                model_size_in_b=model_size_in_b, valid_pp=valid_pp, model_measure=model_measure
+            )
     elif model_name == "bert":
         if gpu_memory_gb == 80:
             (
@@ -1021,7 +1029,9 @@ def _calculate_tp_pp_mbs_grid(
                 min_model_parallel,
                 max_model_parallel,
                 gbs,
-            ) = _tp_pp_mbs_grid_bert_80gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp, model_measure=model_measure)
+            ) = _tp_pp_mbs_grid_bert_80gb(
+                model_size_in_b=model_size_in_b, valid_pp=valid_pp, model_measure=model_measure
+            )
         elif gpu_memory_gb == 40:
             (
                 tp,
@@ -1032,7 +1042,9 @@ def _calculate_tp_pp_mbs_grid(
                 min_model_parallel,
                 max_model_parallel,
                 gbs,
-            ) = _tp_pp_mbs_grid_bert_40gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp, model_measure=model_measure)
+            ) = _tp_pp_mbs_grid_bert_40gb(
+                model_size_in_b=model_size_in_b, valid_pp=valid_pp, model_measure=model_measure
+            )
     else:
         raise NotImplementedError("Model name not implemented.")
 
