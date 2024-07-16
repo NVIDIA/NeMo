@@ -67,7 +67,9 @@ def generate_grid_search_configs(
     model_size_in_b = train_cfg["model_size_in_b"]
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
-    multiplier = 1 if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"] else 2
+    multiplier = (
+        1 if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"] else 2
+    )
 
     seq_length = base_cfg["model"].seq_length
     num_layers = (
@@ -851,7 +853,9 @@ def _calculate_tp_pp_mbs_grid(
     mbs_sizes = train_cfg.get("micro_batch_sizes")
     gpu_memory_gb = train_cfg.get("gpu_memory_gb")
 
-    multiplier = 1 if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"] else 2
+    multiplier = (
+        1 if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"] else 2
+    )
     init_pp = [] if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"] else [1]
     valid_pp = init_pp + [
         multiplier * x for x in range(1, num_layers + 1) if num_layers % x == 0

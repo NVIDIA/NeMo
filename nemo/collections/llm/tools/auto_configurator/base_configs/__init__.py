@@ -13,5 +13,5 @@
 # limitations under the License.
 
 from nemo.collections.llm.tools.auto_configurator.base_configs.llama import Llama
-from nemo.collections.llm.tools.auto_configurator.base_configs.mixtral import Mixtral
 from nemo.collections.llm.tools.auto_configurator.base_configs.mistral import Mistral
+from nemo.collections.llm.tools.auto_configurator.base_configs.mixtral import Mixtral
