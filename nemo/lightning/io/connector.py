@@ -139,7 +139,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         from nemo.lightning import MegatronStrategy, Trainer
 
         _trainer = trainer or Trainer(
-            devices=1, accelerator="cpu", strategy=MegatronStrategy(store_optimizer_states=False, ddp="pytorch")
+            devices=1, accelerator="cpu", strategy=MegatronStrategy(store_optimizer_states=False)
         )
 
         _trainer.strategy.connect(model)
@@ -160,12 +160,9 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             output_path (Path): The path where the model checkpoint will be saved.
             trainer (pl.Trainer): The trainer with the strategy to save the model.
         """
-        _setup_kwargs = {}
-        setup_signature = inspect.signature(trainer.strategy.setup)
-        if 'setup_optimizers' in setup_signature.parameters:
-            _setup_kwargs["setup_optimizers"] = False
-
-        trainer.strategy.setup(trainer, **_setup_kwargs)
+        trainer.strategy._setup_optimizers = False
+        trainer.strategy._init_model_parallel = False
+        trainer.strategy.setup(trainer)
         trainer.save_checkpoint(output_path)
 
     def nemo_load(
@@ -184,9 +181,9 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             Tuple[pl.LightningModule, pl.Trainer]: The loaded model and the trainer configured with the model.
         """
         from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
-        from nemo.lightning.io.api import load_ckpt
+        from nemo.lightning.io.api import load_context
 
-        model = load_ckpt(path).model
+        model = load_context(path).model
         _trainer = trainer or Trainer(
             devices=1, accelerator="cpu" if cpu else "gpu", strategy=MegatronStrategy(ddp="pytorch")
         )
@@ -218,4 +215,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         return _base / str(self).replace("://", "/")
 
     def on_import_ckpt(self, model: pl.LightningModule):
-        model.tokenizer = self.tokenizer
+        if hasattr(self, "tokenizer"):
+            model.tokenizer = self.tokenizer
+            if hasattr(model, "__io__"):
+                model.__io__.tokenizer = self.tokenizer
