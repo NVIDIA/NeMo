@@ -743,7 +743,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 'shuffle': False,
                 'num_workers': self.cfg.train_ds.num_workers,
                 'pin_memory': True,
-                'cache_audio': False
+                'cache_audio': False,
             }
 
         dataset = audio_to_text_dataset.get_char_dataset(config=dl_config, augmentor=None)

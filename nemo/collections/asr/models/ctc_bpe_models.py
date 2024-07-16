@@ -216,9 +216,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                 'cache_audio': False,
             }
 
-        dataset = audio_to_text_dataset.get_bpe_dataset(
-            config=dl_config, tokenizer=self.tokenizer, augmentor=None
-        )
+        dataset = audio_to_text_dataset.get_bpe_dataset(config=dl_config, tokenizer=self.tokenizer, augmentor=None)
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
         elif hasattr(dataset.datasets[0], 'collate_fn'):

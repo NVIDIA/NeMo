@@ -127,7 +127,8 @@ def get_concat_char_dataset(
 
 
 def get_char_dataset(
-    config: dict, augmentor: Optional['AudioAugmentor'] = None,
+    config: dict,
+    augmentor: Optional['AudioAugmentor'] = None,
 ) -> audio_to_text.AudioToCharDataset:
     """
     Instantiates a Character Encoding based AudioToCharDataset.
@@ -213,7 +214,9 @@ def get_concat_bpe_dataset(
 
 
 def get_bpe_dataset(
-    config: dict, tokenizer: 'TokenizerSpec', augmentor: Optional['AudioAugmentor'] = None,
+    config: dict,
+    tokenizer: 'TokenizerSpec',
+    augmentor: Optional['AudioAugmentor'] = None,
 ) -> audio_to_text.AudioToBPEDataset:
     """
     Instantiates a Byte Pair Encoding / Word Piece Encoding based AudioToBPEDataset.
