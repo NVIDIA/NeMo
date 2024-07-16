@@ -68,6 +68,7 @@ During load, the distributed checkpoint can be easily read even if the job size 
 The main difference with wrt. ``torch.load`` is that the user has to provide the definition of the sharded state dict that needs to be loaded.
 
 .. code-block:: python
+
     from pathlib import Path
 
     import torch
@@ -123,6 +124,7 @@ In the following example, the state dict to be loaded contains different keys th
 What matters is that the ``ShardedTensor.key`` are equivalent (``tensor-A``):
 
 .. code-block:: python
+
     import torch
 
     from megatron.core import dist_checkpointing
@@ -255,6 +257,7 @@ In the following example, the "fully parallel" wrappers modify the saving and lo
 It makes the ``basic_save_load`` and ``fully_parallel_save_load`` functions equivalent:
 
 .. code-block:: python
+
     from megatron.core import dist_checkpointing
     from megatron.core.dist_checkpointing.strategies.torch import TorchDistLoadShardedStrategy, TorchDistSaveShardedStrategy
     from megatron.core.dist_checkpointing.strategies.fully_parallel import FullyParallelLoadStrategyWrapper, FullyParallelSaveStrategyWrapper
