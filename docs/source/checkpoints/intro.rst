@@ -7,7 +7,7 @@ In this section, we present key functionalities of NVIDIA NeMo related to checkp
 Understanding Checkpoint Formats
 --------------------------------
 
-A ``.nemo`` checkpoint is fundamentally a tar file that bundles the model configurations (given as a YAML file), model weights, and other artifacts like tokenizer models or vocabulary files. This consolidated design streamlines sharing, loading, tuning, evaluating, and inference.
+A ``.nemo`` checkpoint is fundamentally a tar file that bundles the model configurations (specified inside a YAML file), model weights (inside a ``.ckpt`` file), and other artifacts like tokenizer models or vocabulary files. This consolidated design streamlines sharing, loading, tuning, evaluating, and inference.
 
 In contrast, the ``.ckpt`` file, created during PyTorch Lightning training, contains both the model weights and the optimizer states, and is usually used to resume training.
 
@@ -18,7 +18,7 @@ Within ``.nemo`` or ``.ckpt`` checkpoints, the model weights could be saved in e
 
 With sharded model weights, you can save and load the state of your training script with multiple GPUs or nodes more efficiently and avoid the need to change model partitions when you resume tuning with a different model parallelism setup.
 
-NeMo supports the distributed (sharded) checkpoint format from Megatron Core. In Megatron Core, it supports two backends: PyTorch-based (recommended) and Zarr-based (deprecated).
+NeMo supports the distributed (sharded) checkpoint format from Megatron Core. Megatron Core supports two checkpoint backends: PyTorch-based (recommended) and Zarr-based (deprecated).
 For a detailed explanation check the :doc:`dist_ckpt` guide.
 
 
@@ -29,7 +29,7 @@ NeMo provides a :doc:`Post-Training Quantization <../nlp/quantization>` workflow
 
 A ``.qnemo`` checkpoint, similar to ``.nemo`` checkpoints, is a tar file that bundles the model configuration specified in the ``config.json`` file along with the ``rank{i}.safetensors`` files. These ``.safetensors`` files store the model weights for each rank individually. In addition, a ``tokenizer_config.yaml`` file is saved, containing only the tokenizer section from the original NeMo ``model_config.yaml`` file. This configuration file defines the tokenizer used by the given model.
 
-When working with large quantized LLMs, it is recommended that you use a directory rather than a tar file. You can control this behavior by setting the ``compress`` flag when exporting quantized models in `PTQ configuration file <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_ptq.yaml>`_.
+When working with large quantized LLMs, it is recommended that you leave the checkpoint uncompressed as a directory rather than a tar file. You can control this behavior by setting the ``compress`` flag when exporting quantized models in `PTQ configuration file <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_ptq.yaml>`_.
 
 The following example shows the contents of a quantized model intended to be served using two GPUs (ranks):
 

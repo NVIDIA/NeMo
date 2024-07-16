@@ -9,7 +9,7 @@ Introduction
 
 Model parallel training requires parallelism-aware checkpointing.
 Megatron Core provides a checkpointing library capable of handling all types of parallelisms used in LLM training.
-Although the distributed checkpointing library is targeted for the Megatron Core model, it can also be used with other models, as long as proper integration is implemented.
+Although the distributed checkpointing library is targeted at the Megatron Core model, it can also be used with other models, as long as proper integration is implemented.
 
 The library provides two main entrypoints: ``dist_checkpointing.save`` and ``dist_checkpointing.load`` which are meant to replace the ``torch.save`` and ``torch.load`` in the regular checkpointing flow.
 Apart from that, it provides a mechanism to define the different types of local tensors placement in the global checkpoint.
@@ -301,7 +301,7 @@ PyTorch Distributed is a recommended checkpoint format.
 
 Zarr
 ^^^^
-The Zarr based checkpoint format uses the `Zarr <https://zarr.readthedocs.io/en/stable/>`_ library in order to serialize the checkpoints to storage.
+The Zarr based checkpoint format uses the `Zarr <https://zarr.readthedocs.io/en/stable/>`__ library in order to serialize the checkpoints to storage.
 This format is deprecated and it's recommended to transition to the ``torch_dist`` format (using this `converter script <https://github.com/NVIDIA/NeMo/blob/main/scripts/checkpoint_converters/convert_zarr_to_torch_dist.py>`_).
 
 Optimizers
@@ -330,7 +330,7 @@ Shape Mismatch
 ^^^^^^^^^^^^^^
 The ``allow_shape_mismatch`` flag relaxes the requirement of matching global tensor shapes during loading.
 Extra padding is filled with zeros or stripped depending on the mismatch kind.
-This comes handy for layers like embedding which might be padded according to parallelism for performance reasons.
+This is useful for layers like embedding which might be padded according to parallelism for performance reasons.
 
 Flattening
 ^^^^^^^^^^
@@ -341,7 +341,7 @@ Extra flattening comes with an efficiency challenge during checkpoint resharding
 Since flattening is applied after the global tensors is sharded into the grid of local chunks, loading after resharding requires accessing incontiguous data fragments.
 An example solution for that is implemented in the `resharding <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/dist_checkpointing/strategies/resharding.py>`_ module and involves saving the flattened tensor with a different global shape than the original one.
 
-Example: For a global tensor [[0, 1, 2, 3, 4, 5], [6, 7, 8, 9, 10, 11]] with sharding by TP (tensor-parallel) over the second axis, here are the local shards if TP=2:
+Example: For a global tensor ``[[0, 1, 2, 3, 4, 5], [6, 7, 8, 9, 10, 11]]`` with sharding by TP (tensor-parallel) over the second axis, here are the local shards if TP=2:
 
 .. list-table::
    :widths: 50 50
@@ -350,9 +350,9 @@ Example: For a global tensor [[0, 1, 2, 3, 4, 5], [6, 7, 8, 9, 10, 11]] with sha
    * - Rank
      - Local shards
    * - 0
-     - [[0, 1, 2], [6, 7, 8]]
+     - ``[[0, 1, 2], [6, 7, 8]]``
    * - 1
-     - [[3, 4, 5], [9, 10, 11]]
+     - ``[[3, 4, 5], [9, 10, 11]]``
 
 After flattening and sharding by DP=3 (which would happen in the Megatron Core Distributed Optimizer), the resulting local shards are as follows:
 
@@ -363,17 +363,17 @@ After flattening and sharding by DP=3 (which would happen in the Megatron Core D
    * - Rank
      - Local shards
    * - 0
-     - [0, 1]
+     - ``[0, 1]``
    * - 2
-     - [2, 6]
+     - ``[2, 6]``
    * - 4
-     - [7, 8]
+     - ``[7, 8]``
    * - 1
-     - [3, 4]
+     - ``[3, 4]``
    * - 3
-     - [5, 9]
+     - ``[5, 9]``
    * - 5
-     - [10, 11]
+     - ``[10, 11]``
 
 After sharding by TP=6 and flattening and sharding by DP=1, the resulting local shards are as follows:
 
@@ -385,26 +385,26 @@ After sharding by TP=6 and flattening and sharding by DP=1, the resulting local 
    * - Rank
      - Local shards
    * - 0
-     - [0, 6]
+     - ``[0, 6]``
    * - 1
-     - [1, 7]
+     - ``[1, 7]``
    * - 2
-     - [2, 8]
+     - ``[2, 8]``
    * - 3
-     - [3, 9]
+     - ``[3, 9]``
    * - 4
-     - [4, 10]
+     - ``[4, 10]``
    * - 5
-     - [5, 11]
+     - ``[5, 11]``
 
 
 Arbitrary Transformations
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 The way to apply arbitrary transformations to the tensors during saving and loading is with ShardedTensorFactory.
-It defines such transformations as a function that can be reapplied to any ShardedTensor (in particular, a ShardedTensor representing optimizer states).
+It defines such a transformation as a function that can be reapplied to any ShardedTensor (in particular, a ShardedTensor representing optimizer states).
 Such "build" function is also tied to a "merge" function that can apply an inverse transformation during loading.
 
-If handling an optimizer state is not required, such transformation could be also applied directly during sharded state dict creation.
+If handling an optimizer state is not required, such a transformation could be also applied directly during sharded state dict creation.
 In order to apply such transformation both to model and optimizer parameters in a consistent manner, it's necessary to encode them as factory functions (with original model parameter as the ``data`` input so that the optimizer params can be properly mapped to model ShardedTensors).
 
 Note that implementing some transformations might be challenging or impossible while supporting flattening for a Distributed Optimizer case.

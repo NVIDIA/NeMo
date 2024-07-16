@@ -58,7 +58,7 @@ For more information, browse the developer docs for your area of interest in the
 
 .. toctree::
    :maxdepth: 1
-   :caption: Training Checkpoints
+   :caption: Model Checkpoints
    :name: Checkpoints
 
    checkpoints/intro
