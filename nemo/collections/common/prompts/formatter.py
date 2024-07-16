@@ -53,6 +53,9 @@ class Modality:
     Text = Text
     TextLiteral = TextLiteral
 
+    # Audio("canary")
+    # Audio("titanet")
+
 
 class PromptFormatter(ABC):
     """
@@ -142,6 +145,8 @@ class PromptFormatter(ABC):
     # Internal reserved field.
     _REGISTERED_FORMATTERS = {}
 
+    def register_modality_encoder(self, modality: Modality, encoder: nn.Module): ...
+
     def __init__(self, tokenizer: TokenizerSpec, defaults: list[dict] | None = None) -> None:
         self.tokenizer = tokenizer
         self._defaults = defaults if defaults is not None else []
@@ -227,7 +232,12 @@ class PromptFormatter(ABC):
             # for passing slots around in user functions.
             value = slot_values.get(slot)
             assert value is not None, f"Missing required {slot=} in {slot_values=} for {prompt_template=}"
-            prompt = prompt.replace(_mangled(slot), value)
+            if is_text:
+                # prompt = prompt.replace(_mangled(slot), value)
+                output_tensor = self.registered_modality_encoders[example.modality](slot_value)
+            if is_audio:
+                # output_tensor is (1, T, C) 1-batch-size sequence of embeddings
+                output_tensor = self.registered_modality_encoders[example.modality](slot_value)
         return self._apply_tokenizer(prompt, lang=slot_values.get(self.PROMPT_LANGUAGE_SLOT))
 
     def encode_dialog(self, turns: list[dict]) -> dict[str, torch.Tensor]:

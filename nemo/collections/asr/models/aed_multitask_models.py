@@ -141,6 +141,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         self.preprocessor = EncDecMultiTaskModel.from_config_dict(self.cfg.preprocessor)
         # Setup audio encoder
         self.encoder = EncDecMultiTaskModel.from_config_dict(self.cfg.encoder)
+        self.prompt.register_modality_encoder(Modality.Audio, self.encoder)
+        self.prompt.register_modality_encoder(Modality.Text, self.decoder.embedding)
 
         # Add projection layer if encoder and decoder differ in hidden size
         asr_enc_hidden_size = self.cfg.model_defaults.asr_enc_hidden
