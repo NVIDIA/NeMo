@@ -74,11 +74,19 @@ RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   git checkout ${MCORE_TAG} && \
   pip install .
 
+RUN echo "Test After Megatron"
+RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
+RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
+
 # Performance optimizations for distributed optimizer: https://github.com/NVIDIA/apex/pull/1771
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
   git checkout ${APEX_TAG} && \
   pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
+
+RUN echo "Test After Apex"
+RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
+RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
 # Transformer Engine 1.2.0
 RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
@@ -87,6 +95,10 @@ RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
   git checkout FETCH_HEAD && \
   git submodule init && git submodule update && \
   NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
+
+RUN echo "Test After TE"
+RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
+RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
 WORKDIR /tmp/
 
