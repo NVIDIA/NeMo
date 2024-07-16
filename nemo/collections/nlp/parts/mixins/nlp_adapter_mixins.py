@@ -184,10 +184,8 @@ class NLPAdapterModelMixin:
 
         for adapter_name, adapter_cfg in peft_cfg.get_config_dict().items():
             # mixin for mcore models
-            if (
-                (hasattr(self, 'mcore_gpt') or getattr(self, 'mcore_t5', False))
-                and not isinstance(adapter_cfg, PromptEncoderAdapterConfig)
-                and not isinstance(adapter_cfg, MLPHeadAdapterConfig)
+            if (hasattr(self, 'mcore_gpt') or getattr(self, 'mcore_t5', False)) and not isinstance(
+                adapter_cfg, PromptEncoderAdapterConfig
             ):
                 if layer_selection is not None:
                     logging.info(
