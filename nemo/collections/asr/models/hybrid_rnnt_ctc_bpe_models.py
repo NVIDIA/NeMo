@@ -135,7 +135,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         # setting the RNNT decoder as the default one
         self.cur_decoder = "rnnt"
 
-    def _setup_dataloader_from_config(self, config: Optional[Dict], cache_audio: bool = True):
+    def _setup_dataloader_from_config(self, config: Optional[Dict]):
 
         if config.get("use_lhotse"):
             return get_lhotse_dataloader_from_config(
@@ -154,7 +154,6 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             world_size=self.world_size,
             tokenizer=self.tokenizer,
             preprocessor_cfg=self.cfg.get("preprocessor", None),
-            cache_audio=cache_audio,
         )
 
         if dataset is None:
@@ -260,10 +259,11 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 'shuffle': False,
                 'num_workers': self.cfg.train_ds.num_workers,
                 'pin_memory': True,
+                'cache_audio': False,
             }
 
             dataset = audio_to_text_dataset.get_bpe_dataset(
-                config=dl_config, tokenizer=self.tokenizer, augmentor=None, cache_audio=False
+                config=dl_config, tokenizer=self.tokenizer, augmentor=None
             )
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn

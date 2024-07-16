@@ -462,8 +462,7 @@ class _AudioTextDataset(Dataset):
             manifest_filepath = manifest_filepath.split(",")
 
         # If necessary, cache manifests and audio from object store
-        if cache_audio:
-            cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
+        cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=cache_audio)
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
             parser=parser,

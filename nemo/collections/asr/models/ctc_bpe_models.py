@@ -109,7 +109,6 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             world_size=self.world_size,
             tokenizer=self.tokenizer,
             preprocessor_cfg=self.cfg.get("preprocessor", None),
-            cache_audio=cache_audio,
         )
 
         if dataset is None:
@@ -214,10 +213,11 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                 'pin_memory': True,
                 'channel_selector': None,
                 'use_start_end_token': False,
+                'cache_audio': False,
             }
 
         dataset = audio_to_text_dataset.get_bpe_dataset(
-            config=dl_config, tokenizer=self.tokenizer, augmentor=None, cache_audio=False
+            config=dl_config, tokenizer=self.tokenizer, augmentor=None
         )
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn

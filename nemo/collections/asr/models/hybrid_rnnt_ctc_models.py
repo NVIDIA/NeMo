@@ -174,9 +174,10 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, IPLM
                 'shuffle': False,
                 'num_workers': self.cfg.train_ds.num_workers,
                 'pin_memory': True,
+                'cache_audio': False,
             }
 
-        dataset = audio_to_text_dataset.get_char_dataset(config=dl_config, augmentor=None, cache_audio=False)
+        dataset = audio_to_text_dataset.get_char_dataset(config=dl_config, augmentor=None)
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
         elif hasattr(dataset.datasets[0], 'collate_fn'):
