@@ -16,6 +16,7 @@ import os
 from functools import partial
 from itertools import chain
 from typing import Any, Optional
+from collections.abc import Callable
 
 import numpy as np
 import packaging
@@ -68,6 +69,8 @@ from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPr
 from nemo.core import adapter_mixins
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
+from nemo.constants import NEMO_ENV_VARNAME_TESTING
+from nemo.utils.env_var_parsing import get_envbool
 
 try:
     from megatron.energon import (
@@ -114,6 +117,15 @@ def skip_fp8_load(x):
     if isinstance(x, ShardedObject) and 'fused_attention' in x.key and '_extra_state' in x.key:
         x = LocalNonpersitentObject(x.data)  # use the FP8 state from initialization, not from ckpt
     return x
+
+
+def run_if_testing(f: Callable):
+    """Helper function that invokes the input callable `f`
+    if the environment variable `NEMO_TESTING` is set.
+    """
+
+    if get_envbool(NEMO_ENV_VARNAME_TESTING):
+        f()
 
 
 class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
@@ -283,8 +295,25 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
                 media_end_positions_mask_sort_idx - num_patches + 1,
                 sequence_length
             )
+        # Check whether `padded_media_indices` represents correct indices
+        # This check is only run when the env var `NEMO_TESTING` is set
+        def check_padded_media_indices():
+            if self.use_im_start_end:
+                idx_mask = sorted_media_end_positions_mask
+                idx = padded_media_indices - 1
+            else:
+                idx_mask = sorted_media_end_positions_mask
+                idx = padded_media_indices
 
-        # TODO: add asserts that were here below
+            # Gather over masked index
+            select_input_ids = input_ids.gather(1, idx_mask * idx)
+            # Set values outside of the mask with `self.media_start_id`
+            select_input_ids = torch.where(idx_mask.to(torch.bool), select_input_ids, self.media_start_id)
+
+            # Do the check
+            assert (select_input_ids == self.media_start_id).all()
+
+        run_if_testing(check_padded_media_indices)
         # }
 
         # use indices to create a span
