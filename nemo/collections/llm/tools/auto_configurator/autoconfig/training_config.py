@@ -62,10 +62,10 @@ def generate_grid_search_configs(
         int num_nodes is the number of nodes used to run each config.
     """
 
-    model_name = train_cfg["model_type"]
-    model_version = train_cfg["model_version"]
-    model_size_in_b = train_cfg["model_size_in_b"]
-    model_measure = train_cfg["model_measure"]
+    model_name = train_cfg.get("model_type")
+    model_version = train_cfg.get("model_version")
+    model_size_in_b = train_cfg.get("model_size_in_b")
+    model_measure = train_cfg.get("model_measure")
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = (
