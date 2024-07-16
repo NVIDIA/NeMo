@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.llm.tools.auto_configurator.base_configs.gpt import GPT
 from nemo.collections.llm.tools.auto_configurator.base_configs.llama import Llama
 from nemo.collections.llm.tools.auto_configurator.base_configs.mistral import Mistral
 from nemo.collections.llm.tools.auto_configurator.base_configs.mixtral import Mixtral

@@ -50,7 +50,8 @@ def search_config(cfg: dict):
     max_minutes_per_run = cfg.get("max_minutes_per_run", 30)
     model_name = cfg.get("model_type")
     model_version = cfg.get("model_version")
-    model_size_in_b = cfg.get("model_size_in_b")
+    model_size_in_b = cfg.get("model_size")
+    model_measure = cfg.get("model_measure", "B")
     vocab_size = cfg.get("vocab_size", 32000)
     tflops_per_gpu = cfg.get("tflops_per_gpu", 140)
     num_tokens_in_b = cfg.get("num_tokens_in_b", 300)
@@ -85,6 +86,7 @@ def search_config(cfg: dict):
         model_name=model_name,
         model_version=model_version,
         model_size_in_b=model_size_in_b,
+        model_measure=model_measure,
         cfg=cfg,
     )
 

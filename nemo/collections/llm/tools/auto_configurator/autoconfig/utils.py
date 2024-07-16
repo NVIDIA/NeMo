@@ -19,6 +19,7 @@ from typing import List, Optional, Tuple
 from nemo.collections.llm.tools.auto_configurator import base_configs
 
 MODULES = {
+    "gpt3": "GPT",
     "llama": "Llama",
     "mixtral": "Mixtral",
     "mistral": "Mistral",
@@ -312,7 +313,7 @@ def calculate_model_size_params(
 
 
 def generic_base_config(
-    model_name: str = "llama", model_version: int = 2, model_size_in_b: int = 7, cfg: dict = {}
+    model_name: str = "llama", model_version: int = 2, model_size_in_b: int = 7, model_measure: str = "B", cfg: dict = {}
 ) -> dict:
     """
     Generates a base config dictionary from a base config yaml file.
@@ -323,7 +324,7 @@ def generic_base_config(
     """
 
     model_cls = getattr(base_configs, MODULES[model_name])
-    model = model_cls(version=model_version, size=model_size_in_b, cfg=cfg)
+    model = model_cls(version=model_version, size=model_size_in_b, measure=model_measure, cfg=cfg)
 
     base_cfg = {
         "model": model.get_model_config(),

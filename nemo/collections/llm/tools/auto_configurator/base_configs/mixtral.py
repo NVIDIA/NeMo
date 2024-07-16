@@ -29,10 +29,11 @@ class Mixtral(Basic):
         name: str = "Mixtral",
         version: int = 8,
         size: int = 7,
+        measure: str = "B",
         cfg: dict = {},
     ):
-        super().__init__(name=name, version=version, size=size, cfg=cfg)
-        self.config_name = f"{self.name}Config{self.version}x{self.size}B"
+        super().__init__(name=name, version=version, size=size, measure=measure, cfg=cfg)
+        self.config_name = f"{self.name}Config{self.version}x{self.size}{self.measure}"
 
     def get_model_config(self):
         model_config = getattr(llm, self.config_name)
@@ -102,7 +103,7 @@ class Mixtral(Basic):
 
     def get_run_config(self):
         run_config = {
-            "name": f"llama{self.version}_{self.size}b",
+            "name": f"mixtral{self.version}x{self.size}{self.measure}",
             "results_dir": None,
             "time_limit": "0-00:30:00",
             "dependency": "singleton",

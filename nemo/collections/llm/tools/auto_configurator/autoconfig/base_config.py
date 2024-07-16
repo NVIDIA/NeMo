@@ -512,6 +512,7 @@ def generate_base_config(
     model_name: str,
     model_version: int,
     model_size_in_b: int,
+    model_measure: str,
     cfg: dict,
 ):
     """
@@ -527,7 +528,7 @@ def generate_base_config(
     :rtype: dict
     """
     base_cfg = utils.generic_base_config(
-        model_name=model_name, model_version=model_version, model_size_in_b=model_size_in_b, cfg=cfg
+        model_name=model_name, model_version=model_version, model_size_in_b=model_size_in_b, model_measure=model_measure, cfg=cfg
     )
 
     return base_cfg

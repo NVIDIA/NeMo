@@ -19,11 +19,13 @@ class Basic:
         name: str = None,
         version: int = None,
         size: int = None,
+        measure: str = "B",
         cfg: dict = {},
     ):
         self.name = name
         self.version = version
         self.size = size
+        self.measure = measure
         self.num_nodes = cfg.get("num_nodes", 8)
         self.num_gpus = cfg.get("num_gpus", 8)
         self.max_steps = cfg.get("max_steps", 50)

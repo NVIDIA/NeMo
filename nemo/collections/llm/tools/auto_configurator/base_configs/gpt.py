@@ -23,12 +23,12 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
 from .basic import Basic
 
 
-class Mistral(Basic):
+class GPT(Basic):
     def __init__(
         self,
-        name: str = "Mistral",
-        version: int = None,
-        size: int = 7,
+        name: str = "GPT",
+        version: int = 3,
+        size: int = 5,
         measure: str = "B",
         cfg: dict = {},
     ):
@@ -103,7 +103,7 @@ class Mistral(Basic):
 
     def get_run_config(self):
         run_config = {
-            "name": f"mistral{self.size}{self.measure}",
+            "name": f"gpt3_{self.size}{self.measure}",
             "results_dir": None,
             "time_limit": "0-00:30:00",
             "dependency": "singleton",
