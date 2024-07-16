@@ -26,17 +26,26 @@ import torch
 
 # Import infer_data_path from the parent folder assuming that the 'tests' package is not installed.
 sys.path.append(str(Path(__file__).parent.parent))
-from tests.infer_data_path import get_infer_test_data
+from infer_data_path import get_infer_test_data
 
 LOGGER = logging.getLogger("NeMo")
 
 triton_supported = True
 try:
     from nemo.deploy import DeployPyTriton
-    from nemo.deploy.nlp import MegatronLLMDeployable, NemoQueryLLM
+    from nemo.deploy.nlp import NemoQueryLLM
 except Exception as e:
     LOGGER.warning(f"Cannot import Triton, deployment will not be available. {type(e).__name__}: {e}")
     triton_supported = False
+
+in_framework_supported = True
+try:
+    from nemo.deploy.nlp import MegatronLLMDeployable, NemoQueryLLMPyTorch
+except Exception as e:
+    LOGGER.warning(
+        f"Cannot import MegatronLLMDeployable, in-framework inference will not be available. {type(e).__name__}: {e}"
+    )
+    in_framework_supported = False
 
 trt_llm_supported = True
 try:
@@ -92,52 +101,82 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
         for record in records:
             prompt = record["text_before_last_word"]
             expected_output = record["last_word"].strip().lower()
-            model_output = model.forward(
-                input_texts=[prompt],
-                max_output_len=1,
-                top_k=1,
-                top_p=0,
-                temperature=0.1,
-                task_ids=task_ids,
-                lora_uids=lora_uids,
-            )
-            model_output = model_output[0][0].strip().lower()
-
             all_expected_outputs.append(expected_output)
-            all_actual_outputs.append(model_output)
+            if model is not None:
+                if isinstance(model, MegatronLLMDeployable):
+                    model_output = model.generate(
+                        inputs=[prompt],
+                        length_params={"min_length": 1, "max_length": 1},
+                        sampling_params={
+                            "use_greedy": True,
+                            "temperature": 0.1,
+                            "top_k": 1,
+                            "top_p": 0,
+                            "repetition_penalty": 1.0,
+                            "add_BOS": True,
+                            "all_probs": False,
+                            "compute_logprob": False,
+                            "end_strings": ["<|endoftext|>", "<extra_id_1>"],
+                        },
+                    )
+                    # MegatronLLMDeployable returns prompt + generated output, so need to slice off prompt
+                    model_output = model_output["sentences"][0][len(prompt) :].strip().lower()
+                else:
+                    model_output = model.forward(
+                        input_texts=[prompt],
+                        max_output_len=1,
+                        top_k=1,
+                        top_p=0,
+                        temperature=0.1,
+                        task_ids=task_ids,
+                        lora_uids=lora_uids,
+                    )
+                    model_output = model_output[0][0].strip().lower()
+                all_actual_outputs.append(model_output)
 
-            if expected_output == model_output:
-                correct_answers += 1
+                if expected_output == model_output:
+                    correct_answers += 1
 
-            if (
-                expected_output == model_output
-                or model_output.startswith(expected_output)
-                or expected_output.startswith(model_output)
-            ):
-                if len(model_output) == 1 and len(expected_output) > 1:
-                    continue
-                correct_answers_relaxed += 1
+                if (
+                    expected_output == model_output
+                    or model_output.startswith(expected_output)
+                    or expected_output.startswith(model_output)
+                ):
+                    if len(model_output) == 1 and len(expected_output) > 1:
+                        continue
+                    correct_answers_relaxed += 1
 
             if nq is not None:
-                trtllm_deployed_output = nq.query_llm(
-                    prompts=[prompt],
-                    max_output_len=1,
-                    top_k=1,
-                    top_p=0,
-                    temperature=0.1,
-                    task_id=task_ids,
-                )
-                trtllm_deployed_output = trtllm_deployed_output[0][0].strip().lower()
+                if isinstance(nq, NemoQueryLLMPyTorch):
+                    deployed_output = nq.query_llm(
+                        prompts=[prompt],
+                        max_length=1,
+                        top_k=1,
+                        top_p=0,
+                        temperature=0.1,
+                    )
+                    # MegatronLLMDeployable returns prompt + generated output, so need to slice off prompt
+                    deployed_output = deployed_output["sentences"][0][0][len(prompt) :].decode().strip().lower()
+                else:
+                    deployed_output = nq.query_llm(
+                        prompts=[prompt],
+                        max_output_len=1,
+                        top_k=1,
+                        top_p=0,
+                        temperature=0.1,
+                        task_id=task_ids,
+                    )
+                    deployed_output = deployed_output[0][0].strip().lower()
 
-                if expected_output == trtllm_deployed_output:
+                if expected_output == deployed_output:
                     correct_answers_deployed += 1
 
                 if (
-                    expected_output == trtllm_deployed_output
-                    or trtllm_deployed_output.startswith(expected_output)
-                    or expected_output.startswith(trtllm_deployed_output)
+                    expected_output == deployed_output
+                    or deployed_output.startswith(expected_output)
+                    or expected_output.startswith(deployed_output)
                 ):
-                    if len(trtllm_deployed_output) == 1 and len(expected_output) > 1:
+                    if len(deployed_output) == 1 and len(expected_output) > 1:
                         continue
                     correct_answers_deployed_relaxed += 1
         eval_end = time.monotonic()
@@ -266,6 +305,7 @@ def run_inference(
                 tensor_parallel_size=tp_size,
                 pipeline_parallel_size=pp_size,
                 max_model_len=max_input_len + max_output_len,
+                gpu_memory_utilization=args.gpu_memory_utilization,
             )
         else:
             exporter = TensorRTLLM(model_dir, lora_ckpt_list, load_model=False)
@@ -310,10 +350,11 @@ def run_inference(
         functional_result = FunctionalResult()
 
         # Check non-deployed funcitonal correctness
-        functional_result.regular_pass = True
-        # if not check_model_outputs(streaming, output, expected_outputs):
-        #    LOGGER.warning("Model outputs don't match the expected result.")
-        #    functional_result.regular_pass = False
+        if args.functional_test:
+            functional_result.regular_pass = True
+            if not check_model_outputs(streaming, output, expected_outputs):
+                LOGGER.warning("Model outputs don't match the expected result.")
+                functional_result.regular_pass = False
 
         output_cpp = ""
         if test_cpp_runtime and not use_lora_plugin and not ptuning and not use_vllm:
@@ -358,10 +399,11 @@ def run_inference(
             output_deployed = list(output_deployed)
 
             # Check deployed funcitonal correctness
-            functional_result.deployed_pass = True
-            # if not check_model_outputs(streaming, output_deployed, expected_outputs):
-            #    LOGGER.warning("Deployed model outputs don't match the expected result.")
-            #    functional_result.deployed_pass = False
+            if args.functional_test:
+                functional_result.deployed_pass = True
+                if not check_model_outputs(streaming, output_deployed, expected_outputs):
+                    LOGGER.warning("Deployed model outputs don't match the expected result.")
+                    functional_result.deployed_pass = False
 
         if debug or functional_result.regular_pass == False or functional_result.deployed_pass == False:
             print("")
@@ -447,7 +489,7 @@ def run_existing_checkpoints(
     if in_framework:
         return run_in_framework_inference(
             model_name=model_name,
-            prompts=model_info["model_type"],
+            prompts=model_info["prompt_template"],
             checkpoint_path=model_info["checkpoint"],
             num_gpus=tp_size,
             max_output_len=model_info["max_output_len"],
@@ -522,14 +564,15 @@ def run_in_framework_inference(
         )
         nm.deploy()
         nm.run()
-        nq = NemoQueryLLM(url="localhost:8000", model_name=model_name)
+        nq = NemoQueryLLMPyTorch(url="localhost:8000", model_name=model_name)
 
         output_deployed = nq.query_llm(
-            prompts=[prompts],
-            top_k=top_k,
-            top_p=top_p,
-            temperature=temperature,
+            prompts=prompts, top_k=top_k, top_p=top_p, temperature=temperature, max_length=max_output_len
         )
+        output_deployed = output_deployed["sentences"]
+        # MegatronLLMDeployable will return the prompt + generated output, so cut off the prompt
+        for i, output in enumerate(output_deployed):
+            output = output[len(prompts[i]) :]
 
         # Unwrap the generator if needed
         output_deployed = list(output_deployed)
@@ -538,7 +581,8 @@ def run_in_framework_inference(
         accuracy_result = None
         if run_accuracy:
             print("Start model accuracy testing ...")
-            accuracy_result = get_accuracy_with_lambada(None, nq, None, None, test_data_path)
+            # This script is not written with torch.distributed support in mind, so running non-deployed in-framework models on multiple devices will not work
+            accuracy_result = get_accuracy_with_lambada(deployed_model, nq, None, None, test_data_path)
 
         nm.stop()
 
@@ -663,6 +707,11 @@ def get_args():
         default="False",
     )
     parser.add_argument(
+        "--functional_test",
+        type=str,
+        default="False",
+    )
+    parser.add_argument(
         "--debug",
         default=False,
         action='store_true',
@@ -687,6 +736,13 @@ def get_args():
         type=str,
         default="False",
     )
+    parser.add_argument(
+        "-gmu",
+        '--gpu_memory_utilization',
+        default=0.95,  # 0.95 is needed to run Mixtral-8x7B on 2x48GB GPUs
+        type=float,
+        help="GPU memory utilization percentage for vLLM.",
+    )
 
     args = parser.parse_args()
 
@@ -701,6 +757,7 @@ def get_args():
 
     args.test_cpp_runtime = str_to_bool("test_cpp_runtime", args.test_cpp_runtime)
     args.test_deployment = str_to_bool("test_deployment", args.test_deployment)
+    args.functional_test = str_to_bool("functional_test", args.functional_test)
     args.save_trt_engine = str_to_bool("save_trt_engin", args.save_trt_engine)
     args.run_accuracy = str_to_bool("run_accuracy", args.run_accuracy)
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
@@ -711,11 +768,14 @@ def get_args():
 
 
 def run_inference_tests(args):
-    if not args.use_vllm and not trt_llm_supported:
+    if not args.use_vllm and not args.in_framework and not trt_llm_supported:
         raise UsageError("TensorRT-LLM engine is not supported in this environment.")
 
     if args.use_vllm and not vllm_supported:
         raise UsageError("vLLM engine is not supported in this environment.")
+
+    if args.in_framework and not in_framework_supported:
+        raise UsageError("In-framework inference is not supported in this environment.")
 
     if args.use_vllm and (args.ptuning or args.lora):
         raise UsageError("The vLLM integration currently does not support P-tuning or LoRA.")
@@ -726,12 +786,19 @@ def run_inference_tests(args):
     if args.run_accuracy and args.test_data_path is None:
         raise UsageError("Accuracy testing requires the --test_data_path argument.")
 
+    if args.max_tps is None:
+        args.max_tps = args.min_tps
+
+    if args.use_vllm and args.min_tps != args.max_tps:
+        raise UsageError(
+            "vLLM doesn't support changing tensor parallel group size without relaunching the process. "
+            "Use the same value for --min_tps and --max_tps."
+        )
+
     result_dic: Dict[int, Tuple[FunctionalResult, Optional[AccuracyResult]]] = {}
 
     if args.existing_test_models:
         tps = args.min_tps
-        if args.max_tps is None:
-            args.max_tps = args.min_tps
 
         while tps <= args.max_tps:
             result_dic[tps] = run_existing_checkpoints(
@@ -753,14 +820,12 @@ def run_inference_tests(args):
 
             tps = tps * 2
     else:
-        if args.model_dir is None:
+        if not args.in_framework and args.model_dir is None:
             raise Exception("When using custom checkpoints, --model_dir is required.")
 
         prompts = ["The capital of France is", "Largest animal in the sea is"]
         expected_outputs = ["Paris", "blue whale"]
         tps = args.min_tps
-        if args.max_tps is None:
-            args.max_tps = args.min_tps
 
         while tps <= args.max_tps:
             if args.in_framework:
@@ -814,6 +879,8 @@ def run_inference_tests(args):
     accuracy_test_result = "PASS"
     print_separator = False
     print("============= Test Summary ============")
+    # in-framework tests will only return deployed model accuracy results for tps > 1
+    deployed_tests_only = args.in_framework and args.max_tps > 1
     for num_tps, results in result_dic.items():
         functional_result, accuracy_result = results
 
@@ -826,9 +893,9 @@ def run_inference_tests(args):
                 return "N/A"
             return "PASS" if b else "FAIL"
 
-        print(f"Number of tps:                  {num_tps}")
+        print(f"Tensor Parallelism:              {num_tps}")
 
-        if functional_result is not None:
+        if args.functional_test and functional_result is not None:
             print(f"Functional Test:                 {optional_bool_to_pass_fail(functional_result.regular_pass)}")
             print(f"Deployed Functional Test:        {optional_bool_to_pass_fail(functional_result.deployed_pass)}")
 
@@ -837,17 +904,20 @@ def run_inference_tests(args):
             if functional_result.deployed_pass == False:
                 functional_test_result = "FAIL"
 
-        if accuracy_result is not None:
+        if args.run_accuracy and accuracy_result is not None:
             print(f"Model Accuracy:                  {accuracy_result.accuracy:.4f}")
             print(f"Relaxed Model Accuracy:          {accuracy_result.accuracy_relaxed:.4f}")
             print(f"Deployed Model Accuracy:         {accuracy_result.deployed_accuracy:.4f}")
             print(f"Deployed Relaxed Model Accuracy: {accuracy_result.deployed_accuracy_relaxed:.4f}")
             print(f"Evaluation Time [s]:             {accuracy_result.evaluation_time:.2f}")
-            if accuracy_result.accuracy_relaxed < 0.5:
+            if (deployed_tests_only and accuracy_result.deployed_accuracy_relaxed < 0.5) or (
+                not deployed_tests_only and accuracy_result.accuracy_relaxed < 0.5
+            ):
                 accuracy_test_result = "FAIL"
 
     print("=======================================")
-    print(f"Functional: {functional_test_result}")
+    if args.functional_test:
+        print(f"Functional: {functional_test_result}")
     if args.run_accuracy:
         print(f"Acccuracy: {accuracy_test_result}")
 
