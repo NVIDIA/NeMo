@@ -19,7 +19,6 @@ import tarfile
 from io import BytesIO
 from pathlib import Path
 from typing import Generator, Iterable, List, Literal
-
 import soundfile
 from cytoolz import groupby
 from lhotse import AudioSource, Recording, SupervisionSegment
@@ -194,7 +193,9 @@ class LazyNeMoTarredIterator:
         shard_seed: int | Literal["trng", "randomized"] = "trng",
         text_field: str = "text",
         lang_field: str = "lang",
+        tarred_random_access: bool = False,
     ) -> None:
+        self.tarred_random_access = tarred_random_access
         self.shard_id_to_manifest: dict[int, Iterable[dict]]
         self.paths = expand_sharded_filepaths(manifest_path)
         if len(self.paths) == 1:
@@ -271,13 +272,24 @@ class LazyNeMoTarredIterator:
     def shard_ids(self) -> List[int]:
         return sorted(self.shard_id_to_manifest.keys())
 
-    def __iter__(self) -> Generator[Cut, None, None]:
-        shard_ids = self.shard_ids
+    def _iter_random_read(self, shard_ids) -> Generator[tuple[dict, bytes], None, None]:
+        for sid in shard_ids:
+            shard_manifest = self.shard_id_to_manifest[sid]
+            tar_path = self.shard_id_to_tar_path[sid]
+            with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r") as tar:
+                for data in shard_manifest:
+                    try:
+                        tar_info = tar.getmember(data["audio_filepath"])
+                        raw_audio = tar.extractfile(tar_info).read()
+                        yield data, raw_audio, tar_info
+                    except KeyError as e:
+                        manifest_path = self.paths[sid] if len(self.paths) > 1 else self.paths[0]
+                        raise RuntimeError(
+                            f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
+                            f"The following audio_filepath='{data['audio_filepath']}' was not found in the tar file."
+                        ) from e
 
-        if self.shuffle_shards:
-            seed = resolve_seed(self.shard_seed)
-            random.Random(seed).shuffle(shard_ids)
-
+    def _iter_sequential(self, shard_ids) -> Generator[tuple[dict, bytes], None, None]:
         for sid in shard_ids:
             manifest_path = self.paths[sid] if len(self.paths) > 1 else self.paths[0]
             shard_manifest = {data["audio_filepath"]: data for data in self.shard_id_to_manifest[sid]}
@@ -290,31 +302,39 @@ class LazyNeMoTarredIterator:
                     )
                     data = shard_manifest[tar_info.name]
                     raw_audio = tar.extractfile(tar_info).read()
-                    # Note: Lhotse has a Recording.from_bytes() utility that we won't use here because
-                    #       the profiling indicated significant overhead in torchaudio ffmpeg integration
-                    #       that parses full audio instead of just reading the header for WAV files.
-                    # recording = lhotse.Recording.from_bytes(raw_audio, recording_id=tar_info.path)
-                    meta = soundfile.info(BytesIO(raw_audio))
-                    recording = Recording(
-                        id=tar_info.path,
-                        sources=[AudioSource(type="memory", channels=list(range(meta.channels)), source=raw_audio)],
-                        sampling_rate=int(meta.samplerate),
-                        num_samples=meta.frames,
-                        duration=meta.duration,
-                    )
-                    cut = recording.to_cut()
-                    cut.supervisions.append(
-                        SupervisionSegment(
-                            id=cut.id,
-                            recording_id=cut.recording_id,
-                            start=0,
-                            duration=cut.duration,
-                            text=data.get(self.text_field),
-                            language=data.get(self.lang_field),
-                        )
-                    )
-                    cut.custom = _to_custom_attr_dict(data)
-                    yield cut
+                    yield data, raw_audio, tar_info
+
+    def __iter__(self) -> Generator[Cut, None, None]:
+        shard_ids = self.shard_ids
+
+        if self.shuffle_shards:
+            seed = resolve_seed(self.shard_seed)
+            random.Random(seed).shuffle(shard_ids)
+
+        iter_fn = self._iter_random_read if self.tarred_random_access else self._iter_sequential
+
+        for data, raw_audio, tar_info in iter_fn(shard_ids):
+            meta = soundfile.info(BytesIO(raw_audio))
+            recording = Recording(
+                id=tar_info.path,
+                sources=[AudioSource(type="memory", channels=list(range(meta.channels)), source=raw_audio)],
+                sampling_rate=int(meta.samplerate),
+                num_samples=meta.frames,
+                duration=meta.duration,
+            )
+            cut = recording.to_cut()
+            cut.supervisions.append(
+                SupervisionSegment(
+                    id=cut.id,
+                    recording_id=cut.recording_id,
+                    start=0,
+                    duration=cut.duration,
+                    text=data.get(self.text_field),
+                    language=data.get(self.lang_field),
+                )
+            )
+            cut.custom = _to_custom_attr_dict(data)
+            yield cut
 
     def __len__(self) -> int:
         return len(self.source)

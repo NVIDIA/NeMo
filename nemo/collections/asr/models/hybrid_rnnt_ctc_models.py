@@ -13,35 +13,37 @@
 # limitations under the License.
 
 import copy
-import json
-import os
-import tempfile
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
-
+from nemo.collections.asr.data import audio_to_text_dataset
+from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
+from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
-from nemo.collections.asr.parts.mixins import ASRBPEMixin, InterCTCMixin, TranscribeConfig
+from nemo.collections.asr.parts.mixins import ASRBPEMixin, InterCTCMixin, IPLMixin, TranscribeConfig
 from nemo.collections.asr.parts.mixins.transcription import TranscriptionReturnType
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
+from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils
 
 
-class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
+class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, IPLMixin):
     """Base class for hybrid RNNT/CTC models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         if 'aux_ctc' not in self.cfg:
@@ -92,6 +94,108 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
 
         # setting up interCTC loss (from InterCTCMixin)
         self.setup_interctc(decoder_name='ctc_decoder', loss_name='ctc_loss', wer_name='ctc_wer')
+        self.setup_ipl(model_type="hybrid")
+
+    def on_fit_start(self):
+        """
+        Cache datastore manifests for non tarred unlabeled data for pseudo labeling.
+        This function prevents caching audio files at the end of every epoch.
+        """
+        if self.cfg.get("ipl"):
+            if not self.cfg.ipl.get("is_tarred", False):
+                cache_datastore_manifests(self.cfg.ipl.get("manifest_filepath"), cache_audio=True)
+        super().on_fit_start()
+
+    def on_train_epoch_end(self):
+        """
+        This function is mainly used for IPL algorithm.
+        To make it work in config file 'ipl' parameters should be provided.
+        For details, see: SlimIPL:(https://arxiv.org/pdf/2010.11524).
+        """
+        self.maybe_do_ipl()
+
+    def _setup_pseudo_label_dataloader(
+        self,
+        manifest_filepaths: Union[List[List[str]], str],
+        tarred_audio_filepaths: Union[List[List[str]], str] = None,
+        batch_size: int = 64,
+    ):
+        """
+        Setup function for a data loader for unlabeled dataset
+
+        Args:
+            manifest_filepaths: Manifests containing information of unlabeled dataset. For tarred dataset manifests should be sharded
+            tarred_audio_filepaths: Tar audio files which should correspond to manifest files.
+            batch_size: batch size to use during inference.
+
+        Returns:
+            A DataLoader for the given audio file(s).
+        """
+
+        if self.cfg.train_ds.get("is_tarred", False):
+
+            dl_config = {
+                'manifest_filepath': manifest_filepaths,
+                'tarred_audio_filepaths': tarred_audio_filepaths,
+                'sample_rate': self.preprocessor._sample_rate,
+                'labels': self.joint.vocabulary,
+                'is_tarred': True,
+                'use_lhotse': True,
+                'shard_manifests': False,
+                'tarred_shard_strategy': 'replicate',
+                'batch_size': batch_size,
+                'drop_last': False,
+                'trim_silence': False,
+                'shuffle': False,
+                'shuffle_n': 0,
+                'num_workers': self.cfg.train_ds.num_workers,
+                'pin_memory': True,
+                'tarred_random_access': True,
+            }
+
+            dl_config = OmegaConf.create(dl_config)
+
+            return get_lhotse_dataloader_from_config(
+                dl_config,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+                dataset=LhotseSpeechToTextBpeDataset(
+                    tokenizer=make_parser(labels=self.joint.vocabulary, do_normalize=False)
+                ),
+            )
+        else:
+
+            dl_config = {
+                'manifest_filepath': manifest_filepaths,
+                'sample_rate': self.preprocessor._sample_rate,
+                'labels': self.joint.vocabulary,
+                'batch_size': batch_size,
+                'trim_silence': False,
+                'shuffle': False,
+                'num_workers': self.cfg.train_ds.num_workers,
+                'pin_memory': True,
+                'cache_audio': False,
+            }
+
+        dataset = audio_to_text_dataset.get_char_dataset(config=dl_config, augmentor=None)
+        if hasattr(dataset, 'collate_fn'):
+            collate_fn = dataset.collate_fn
+        elif hasattr(dataset.datasets[0], 'collate_fn'):
+            # support datasets that are lists of entries
+            collate_fn = dataset.datasets[0].collate_fn
+        else:
+            # support datasets that are lists of lists
+            collate_fn = dataset.datasets[0].datasets[0].collate_fn
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=dl_config['batch_size'],
+            collate_fn=collate_fn,
+            drop_last=False,
+            shuffle=False,
+            num_workers=dl_config['num_workers'],
+            pin_memory=True,
+        )
 
     @torch.no_grad()
     def transcribe(

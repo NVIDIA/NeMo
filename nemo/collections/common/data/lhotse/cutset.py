@@ -252,6 +252,7 @@ def parse_and_combine_datasets(
 
 
 def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
+
     if is_tarred:
         # Lhotse Shar is the equivalent of NeMo's native "tarred" dataset.
         # The combination of shuffle_shards, and repeat causes this to
@@ -394,14 +395,25 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
     metadata_only = config.metadata_only
     if isinstance(config.manifest_filepath, (str, Path)):
         logging.info(f"Initializing Lhotse CutSet from a single NeMo manifest (tarred): '{config.manifest_filepath}'")
+
         if is_tarred and not metadata_only:
-            cuts = CutSet(
-                LazyNeMoTarredIterator(
-                    config.manifest_filepath,
-                    tar_paths=config.tarred_audio_filepaths,
-                    **common_kwargs,
+            if config.tarred_random_access:
+                cuts = CutSet(
+                    LazyNeMoTarredIterator(
+                        config.manifest_filepath,
+                        tar_paths=config.tarred_audio_filepaths,
+                        tarred_random_access=config.tarred_random_access,
+                        **common_kwargs,
+                    )
                 )
-            ).repeat()
+            else:
+                cuts = CutSet(
+                    LazyNeMoTarredIterator(
+                        config.manifest_filepath,
+                        tar_paths=config.tarred_audio_filepaths,
+                        **common_kwargs,
+                    )
+                ).repeat()
         else:
             cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs))
     else:
@@ -430,6 +442,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
                 nemo_iter = LazyNeMoTarredIterator(
                     manifest_path=manifest_path,
                     tar_paths=tar_path,
+                    tarred_random_access=config.tarred_random_access,
                     **common_kwargs,
                 )
             else:

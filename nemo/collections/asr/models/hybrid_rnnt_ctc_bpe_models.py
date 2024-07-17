@@ -96,7 +96,10 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         self.cfg.decoding = self.set_decoding_type_according_to_loss(self.cfg.decoding)
         # Setup decoding object
         self.decoding = RNNTBPEDecoding(
-            decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
+            decoding_cfg=self.cfg.decoding,
+            decoder=self.decoder,
+            joint=self.joint,
+            tokenizer=self.tokenizer,
         )
 
         # Setup wer object
@@ -139,7 +142,9 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 config,
                 global_rank=self.global_rank,
                 world_size=self.world_size,
-                dataset=LhotseSpeechToTextBpeDataset(tokenizer=self.tokenizer,),
+                dataset=LhotseSpeechToTextBpeDataset(
+                    tokenizer=self.tokenizer,
+                ),
             )
 
         dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
@@ -194,6 +199,87 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
             pin_memory=config.get('pin_memory', False),
+        )
+
+    def _setup_pseudo_label_dataloader(
+        self,
+        manifest_filepaths: Union[List[List[str]], str],
+        tarred_audio_filepaths: Union[List[List[str]], str] = None,
+        batch_size: int = 64,
+    ):
+        """
+        Setup function for a data loader for unlabeled dataset
+
+        Args:
+            manifest_filepaths: Manifests containing information of unlabeled dataset. For tarred dataset manifests should be sharded
+            tarred_audio_filepaths: Tarr audio files which should correspond to manifest files.
+            batch_size: batch size to use during inference.
+
+        Returns:
+            A DataLoader for the given audio file(s).
+        """
+
+        if self.cfg.train_ds.get('is_tarred', False):
+            dl_config = {
+                'manifest_filepath': manifest_filepaths,
+                'tarred_audio_filepaths': tarred_audio_filepaths,
+                'sample_rate': self.preprocessor._sample_rate,
+                'labels': self.joint.vocabulary,
+                'is_tarred': True,
+                'use_lhotse': True,
+                'shard_manifests': False,
+                'tarred_shard_strategy': 'replicate',
+                'batch_size': batch_size,
+                'drop_last': False,
+                'trim_silence': False,
+                'shuffle': False,
+                'shuffle_n': 0,
+                'num_workers': self.cfg.train_ds.num_workers,
+                'pin_memory': True,
+                'tarred_random_access': True,
+            }
+
+            dl_config = OmegaConf.create(dl_config)
+            return get_lhotse_dataloader_from_config(
+                dl_config,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+                dataset=LhotseSpeechToTextBpeDataset(
+                    tokenizer=self.tokenizer,
+                ),
+            )
+        else:
+
+            dl_config = {
+                'manifest_filepath': manifest_filepaths,
+                'sample_rate': self.preprocessor._sample_rate,
+                'labels': self.joint.vocabulary,
+                'batch_size': batch_size,
+                'trim_silence': False,
+                'shuffle': False,
+                'num_workers': self.cfg.train_ds.num_workers,
+                'pin_memory': True,
+                'cache_audio': False,
+            }
+
+            dataset = audio_to_text_dataset.get_bpe_dataset(config=dl_config, tokenizer=self.tokenizer, augmentor=None)
+        if hasattr(dataset, 'collate_fn'):
+            collate_fn = dataset.collate_fn
+        elif hasattr(dataset.datasets[0], 'collate_fn'):
+            # support datasets that are lists of entries
+            collate_fn = dataset.datasets[0].collate_fn
+        else:
+            # support datasets that are lists of lists
+            collate_fn = dataset.datasets[0].datasets[0].collate_fn
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=dl_config['batch_size'],
+            collate_fn=collate_fn,
+            drop_last=False,
+            shuffle=False,
+            num_workers=dl_config['num_workers'],
+            pin_memory=True,
         )
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
@@ -322,7 +408,10 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         decoding_cfg = self.set_decoding_type_according_to_loss(decoding_cfg)
 
         self.decoding = RNNTBPEDecoding(
-            decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
+            decoding_cfg=decoding_cfg,
+            decoder=self.decoder,
+            joint=self.joint,
+            tokenizer=self.tokenizer,
         )
 
         self.wer = WER(
@@ -429,7 +518,10 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             decoding_cfg = self.set_decoding_type_according_to_loss(decoding_cfg)
 
             self.decoding = RNNTBPEDecoding(
-                decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
+                decoding_cfg=decoding_cfg,
+                decoder=self.decoder,
+                joint=self.joint,
+                tokenizer=self.tokenizer,
             )
 
             self.wer = WER(

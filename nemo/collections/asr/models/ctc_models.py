@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
-import json
 import os
-import tempfile
 from math import ceil
 from typing import Any, Dict, List, Optional, Union
 
@@ -26,13 +24,19 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
+from nemo.collections.asr.data.audio_to_text import _AudioTextDataset, cache_datastore_manifests
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import ASRModuleMixin, ASRTranscriptionMixin, InterCTCMixin, TranscribeConfig
+from nemo.collections.asr.parts.mixins import (
+    ASRModuleMixin,
+    ASRTranscriptionMixin,
+    InterCTCMixin,
+    IPLMixin,
+    TranscribeConfig,
+)
 from nemo.collections.asr.parts.mixins.transcription import GenericTranscriptionType, TranscriptionReturnType
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
@@ -47,7 +51,7 @@ from nemo.utils import logging
 __all__ = ['EncDecCTCModel']
 
 
-class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMixin, ASRTranscriptionMixin):
+class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMixin, ASRTranscriptionMixin, IPLMixin):
     """Base class for encoder decoder CTC-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -117,6 +121,25 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         # Adapter modules setup (from ASRAdapterModelMixin)
         self.setup_adapters()
+        self.setup_ipl(model_type="ctc")
+
+    def on_fit_start(self):
+        """
+        Cache datastore manifests for non tarred unlabeled data for pseudo labeling.
+        This function prevents caching audio files at the end of every epoch.
+        """
+        if self.cfg.get("ipl"):
+            if not self.cfg.ipl.get("is_tarred", False):
+                cache_datastore_manifests(self.cfg.ipl.get("manifest_filepath"), cache_audio=True)
+        super().on_fit_start()
+
+    def on_train_epoch_end(self):
+        """
+        This function is mainly used for IPL algorithm.
+        To make it work in config file 'ipl' parameters should be provided.
+        For details, see: SlimIPL:(https://arxiv.org/pdf/2010.11524).
+        """
+        self.maybe_do_ipl()
 
     def transcribe(
         self,
@@ -348,7 +371,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             pin_memory=config.get('pin_memory', False),
         )
 
-    def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
+    def setup_training_data(
+        self,
+        train_data_config: Optional[Union[DictConfig, Dict]],
+    ):
         """
         Sets up the training data loader via a Dict-like object.
 
@@ -391,6 +417,12 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 logging.warning(
                     "Model Trainer was not set before constructing the dataset, incorrect number of "
                     "training batches will be used. Please set the trainer and rebuild the dataset."
+                )
+            elif train_data_config.get('update_limit_train_batches', False):
+                # after generation of pseudo-labels for tarred datasets.
+
+                self._trainer.limit_train_batches = int(
+                    ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
                 )
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
@@ -662,6 +694,77 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
+
+    def _setup_pseudo_label_dataloader(
+        self,
+        manifest_filepaths: Union[List[List[str]], str],
+        tarred_audio_filepaths: Union[List[List[str]], str] = None,
+        batch_size: int = 64,
+    ):
+        if self.cfg.train_ds.get("is_tarred", False):
+
+            dl_config = {
+                'manifest_filepath': manifest_filepaths,
+                'tarred_audio_filepaths': tarred_audio_filepaths,
+                'sample_rate': self.preprocessor._sample_rate,
+                'labels': OmegaConf.to_container(self.decoder.vocabulary),
+                'is_tarred': True,
+                'use_lhotse': True,
+                'shard_manifests': False,
+                'tarred_shard_strategy': 'replicate',
+                'batch_size': batch_size,
+                'drop_last': False,
+                'trim_silence': False,
+                'shuffle': False,
+                'shuffle_n': 0,
+                'num_workers': self.cfg.train_ds.num_workers,
+                'pin_memory': True,
+                'tarred_random_access': True,
+            }
+
+            dl_config = OmegaConf.create(dl_config)
+
+            return get_lhotse_dataloader_from_config(
+                dl_config,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+                dataset=LhotseSpeechToTextBpeDataset(
+                    tokenizer=make_parser(labels=self.decoder.vocabulary, do_normalize=False)
+                ),
+            )
+        else:
+
+            dl_config = {
+                'manifest_filepath': manifest_filepaths,
+                'sample_rate': self.preprocessor._sample_rate,
+                'labels': self.joint.vocabulary,
+                'batch_size': batch_size,
+                'trim_silence': False,
+                'shuffle': False,
+                'num_workers': self.cfg.train_ds.num_workers,
+                'pin_memory': True,
+                'cache_audio': False,
+            }
+
+        dataset = audio_to_text_dataset.get_char_dataset(config=dl_config, augmentor=None)
+        if hasattr(dataset, 'collate_fn'):
+            collate_fn = dataset.collate_fn
+        elif hasattr(dataset.datasets[0], 'collate_fn'):
+            # support datasets that are lists of entries
+            collate_fn = dataset.datasets[0].collate_fn
+        else:
+            # support datasets that are lists of lists
+            collate_fn = dataset.datasets[0].datasets[0].collate_fn
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=batch_size,
+            collate_fn=collate_fn,
+            drop_last=False,
+            shuffle=False,
+            num_workers=self.cfg.train_ds.num_workers,
+            pin_memory=True,
+        )
 
     """ Transcription related methods """
 

@@ -76,6 +76,15 @@ class MultiHeadAttention(nn.Module):
 
         self._max_cache_len = max_cache_len
 
+    def set_dropout(self, dropout):
+        """
+        Sets the dropout rate.
+
+        Args:
+            dropout (float): Dropout rate between 0 and 1.
+        """
+        self.dropout.p = dropout
+
     def forward_qkv(self, query, key, value):
         """Transforms query, key and value.
         Args:
@@ -203,6 +212,15 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         x = x[:, :, 1:].view(b, h, qlen, pos_len)  # (b, h, t1, t2)
         return x
 
+    def set_dropout(self, dropout):
+        """
+        Sets the dropout rate.
+
+        Args:
+            dropout (float): Dropout rate between 0 and 1.
+        """
+        self.dropout.p = dropout
+
     def forward(self, query, key, value, mask, pos_emb, cache=None):
         """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
         Args:
@@ -312,6 +330,15 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             self.global_q = nn.Linear(n_feat, n_feat, bias=use_bias)
             self.global_k = nn.Linear(n_feat, n_feat, bias=use_bias)
             self.global_v = nn.Linear(n_feat, n_feat, bias=use_bias)
+
+    def set_dropout(self, dropout):
+        """
+        Sets the dropout rate.
+
+        Args:
+            dropout (float): Dropout rate between 0 and 1.
+        """
+        self.dropout.p = dropout
 
     def forward(self, query, key, value, pad_mask, pos_emb, cache=None):
         """Compute Scaled Dot Product Local Attention with rel. positional encoding. using overlapping chunks
