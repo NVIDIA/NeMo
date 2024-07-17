@@ -166,7 +166,7 @@ ShardedTensorFactory
 ^^^^^^^^^^^^^^^^^^^^
 The ShardedTensorFactory class defers tensors transformations until they are actually saved.
 A factory can expand a tensor into an arbitrary sub state dict (including all supported entities listed above).
-The need for such deferral will be explained in the ``Tensors transformations``_ section.
+The need for such deferral will be explained in the `Tensors transformations`_ section.
 
 LocalNonpersistentObject
 ^^^^^^^^^^^^^^^^^^^^^^^^
