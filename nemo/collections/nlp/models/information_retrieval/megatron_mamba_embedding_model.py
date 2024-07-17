@@ -18,6 +18,7 @@ import os
 import numpy as np
 import torch
 import torch.nn.functional as F
+from megatron.core import parallel_state
 from megatron.core.models.mamba import MambaModel
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
@@ -28,18 +29,10 @@ from nemo.collections.nlp.data.information_retrieval.gpt_embedding_dataset impor
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
-
-from megatron.core.models.mamba import MambaModel
-from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
-
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-
 from nemo.collections.nlp.models.information_retrieval.megatron_gpt_embedding_model import MegatronGPTEmbeddingModel
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
-
-from megatron.core import parallel_state
-
 
 # def listify(tensor):
 #     l_tensor = []
@@ -84,16 +77,16 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         # self.transformer_config.activation_func = F.silu
         # self.transformer_config.add_bias_linear=self.cfg.get('add_bias_linear', False)
         # self.transformer_config.autocast_dtype = torch.float32
-        
+
         # model = MambaModel(
         #     config=self.transformer_config,
         #     max_sequence_length=self.cfg.get('encoder_seq_length', 2048),
         #     vocab_size=self.cfg.get('vocab_size', 65536),
-        #     mamba_stack_spec=mamba_stack_spec, 
+        #     mamba_stack_spec=mamba_stack_spec,
         #     hybrid_override_pattern=self.hybrid_override_pattern,
         #     post_process=post_process
         # )
-        
+
         # return model
 
         self.hybrid_override_pattern = self.cfg.get(
@@ -102,7 +95,6 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         self.transformer_config.add_bias_linear = self.cfg.get('add_bias_linear', False)
         self.transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', False)
         self.transformer_config.layernorm_epsilon = self.cfg.get('layernorm_epsilon', 1e-5)
-
 
         model = MambaModel(
             config=self.transformer_config,
