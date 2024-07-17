@@ -117,7 +117,8 @@ You may evaluate an ASR model as the following:
     python eval_beamsearch_ngram_ctc.py model_path=<path to the .nemo file of the model> \
            dataset_manifest=<path to the evaluation JSON manifest file> \
            ctc_decoding.strategy=<Beam library such as beam, pyctcdecode or flashlight> \
-           ctc_decoding.beam.nemo_kenlm_path=<path to the binary KenLM model> \
+           ctc_decoding.beam.kenlm_path=<path to the binary KenLM model> \
+           ctc_decoding.beam.kenlm_type=<type of KenLM model> \
            ctc_decoding.beam.beam_size=[<list of the beam widths, separated with commas>] \
            ctc_decoding.beam.beam_alpha=[<list of the beam alphas, separated with commas>] \
            ctc_decoding.beam.beam_beta=[<list of the beam betas, separated with commas>] \
@@ -173,9 +174,9 @@ The following is the list of the important arguments for the evaluation script:
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | ctc_decoding.beam.beam_size          | float    | Required         | List of the width or list of the widths of the beam search decoding.    |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| ctc_decoding.beam.nemo_kenlm_path    | str      | Required         | The path to store the KenLM binary model file created by ``train_kenlm.py``.|
+| ctc_decoding.beam.kenlm_path         | str      | Required         | The path to store the KenLM binary model file created by ``train_kenlm.py`` or ``lmplz``.|
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| ctc_decoding.beam.word_kenlm_path    | str      | Required         | The path to store the word-level KenLM binary model file created by ``lmplz``.|
+| ctc_decoding.beam.kenlm_type         | str      | Required         | Type of KenLM binary model:  ``nemolm`` or ``lmplz``                    |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | ctc_decoding.beam.beam_alpha         | float    | Required         | List of the alpha parameter for the beam search decoding.               |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
@@ -210,25 +211,25 @@ decoding library.
 There is a table of supported values of ``ctc_decoding.strategy`` with different parameter combinations.
 V - means supported value and X - unsupported.
 
-+----------+-------------+--------+------------------------+-----------------------+-------------+
-| Decoding | LM type     | greedy | flashlight with lexicon | flashlight no lexicon | pyctcdecode |
-+==========+=============+========+========================+=======================+=============+
-| subword  | nemo_kenlm  | V      | V                      | X                     | X           |
-+----------+-------------+--------+------------------------+-----------------------+-------------+
-| subword  | word_kenlm  | V      | V                      | X                     | V           |
-+----------+-------------+--------+------------------------+-----------------------+-------------+
-| char     | nemo_kenlm  | V      | X                      | X                     | V           |
-+----------+-------------+--------+------------------------+-----------------------+-------------+
-| char     | word_kenlm  | V      | V                      | X                     | V           |
-+----------+-------------+--------+------------------------+-----------------------+-------------+
++----------+-------------+--------------+--------+------------------------+-----------------------+-------------+
+| Decoding | kenlm_type  | greedy_batch | greedy | flashlight with lexicon| flashlight no lexicon | pyctcdecode |
++==========+=============+==============+========+========================+=======================+=============+
+| subword  | nemolm      | V            | V      | V                      | X                     | X           |
++----------+-------------+--------------+--------+------------------------+-----------------------+-------------+
+| subword  | lmplz       | V            | V      | V                      | X                     | V           |
++----------+-------------+--------------+--------+------------------------+-----------------------+-------------+
+| char     | nemolm      | V            | V      | V                      | V                     | V           |
++----------+-------------+--------------+--------+------------------------+-----------------------+-------------+
+| char     | lmplz       | V            | V      | V                      | V                     | V           |
++----------+-------------+--------------+--------+------------------------+-----------------------+-------------+
 
 **Subword** decoding - applied with ASR model which predicts a sequence of subword units.
 
 **Char** decoding - applied with ASR model which predicts a sequence of characters.
 
-**word_kenlm** - created using pure ``lmplz`` from `KenLM Language Model Toolkit <https://kheafield.com/code/kenlm/>`_
+**lmplz** kenlm_type creates using pure ``lmplz`` from `KenLM Language Model Toolkit <https://kheafield.com/code/kenlm/>`_
 
-**nemo_kenlm** and **flashlight lexicon** created using `NeMo script train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/ngram_lm/train_kenlm.py>`_
+**nemolm** kenlm_type and **flashlight lexicon** creates using `NeMo script train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/ngram_lm/train_kenlm.py>`_
 
 
 Flashlight (``flashlight``)
@@ -240,8 +241,8 @@ char and subword models. It requires an ARPA KenLM file.
 It supports several advanced features such as lexicon based / lexicon free decoding, beam pruning threshold, and more.
 
 Subword based ASR model requires lexicon based decoding. 
-Lexicon for **nemo_kenlm** is created by using script `train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/train_kenlm.py>`_
-and for **word_kenlm** by using script `create_lexicon_from_arpa.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/ngram_lm/create_lexicon_from_arpa.py>`_.
+Lexicon for **nemolm** kenlm_type is created by using script `train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/train_kenlm.py>`_
+and for **lmplz** kenlm_type by using script `create_lexicon_from_arpa.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/ngram_lm/create_lexicon_from_arpa.py>`_.
 
 .. code-block:: python
 

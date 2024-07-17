@@ -524,51 +524,16 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
         elif self.decoding_type == 'char':
             if self.search_type == "flashlight":
-                if not self.kenlm_path:
-                    if self.flashlight_cfg.lexicon_path:
-                        raise NotImplementedError(
-                            self.search_type
-                            + " decoding with "
-                            + self.decoding_type
-                            + " acoustic model is not implemented with lexicon_path. "
-                        )
-                    else:
-                        return  # Beamsearch without Kenlm (ZeroLM) ??????????????
+                if not self.kenlm_path:  # Beamsearch without Kenlm (ZeroLM)
+                    return
                 else:  # Beamsearch with Kenlm
                     if self.flashlight_cfg.lexicon_path:
-                        if self.kenlm_type == "nemolm":
+                        if self.kenlm_type == "nemolm" or self.kenlm_type == "lmplz":
                             return
-                        elif self.kenlm_type == "lmplz":
-                            raise NotImplementedError(
-                                self.search_type
-                                + " decoding with "
-                                + self.decoding_type
-                                + " acoustic model is not implemented with kenlm_type "
-                                + self.kenlm_type
-                                + " and lexicon_path."
-                            )
                         else:
                             raise ValueError("Unknown kenlm_type: " + str(self.kenlm_type))
-
                     else:
-                        if self.kenlm_type == "nemolm":
-                            raise NotImplementedError(
-                                self.search_type
-                                + " decoding with "
-                                + self.decoding_type
-                                + " acoustic model is not implemented with kenlm_type "
-                                + self.kenlm_type
-                            )
-                        elif self.kenlm_type == "lmplz":
-                            raise NotImplementedError(
-                                self.search_type
-                                + " decoding with "
-                                + self.decoding_type
-                                + " acoustic model is not implemented with kenlm_type "
-                                + self.kenlm_type
-                            )
-                        else:
-                            raise ValueError("Unknown kenlm_type: " + str(self.kenlm_type))
+                        return
             elif self.search_type == "pyctcdecode":
                 if not self.kenlm_path:
                     raise NotImplementedError(
