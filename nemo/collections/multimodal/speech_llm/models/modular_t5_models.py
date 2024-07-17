@@ -1474,7 +1474,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         if 'audio_signal' not in audio_batch:
             device = audio_batch['tokens'].device
             bs = audio_batch['tokens'].shape[0]
-            encoder_input = torch.zeros((bs, 10, 1024), dtype=torch.float32)
+            encoder_input = torch.rand((bs, 10, 1024), dtype=torch.float32)
             attention_mask = torch.ones((bs, 1, 10, 10), dtype=torch.bool)
             enc_mask = torch.ones((bs, 10), dtype=torch.bool)
             return encoder_input.to(device), attention_mask.to(device), enc_mask.to(device)

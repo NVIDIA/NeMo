@@ -438,7 +438,7 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
 
         self.n_proj_heads = n_proj_heads
         self.proj_head_dims = proj_head_dims
-        self.proj_head_loss_weights = torch.nn.Parameter(torch.FloatTensor(proj_head_loss_weights))
+        self.proj_head_loss_weights = proj_head_loss_weights
         assert self.proj_head_dims[0] == vocab_size
 
         # Shared token and head embeddings are not valid for multi-proj heads
@@ -572,7 +572,7 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
                     )
                 else:
                     decoder_cross_attention_relative_position_bias = None
-
+            
             output = self.enc_dec_model(
                 enc_input=enc_input,
                 enc_attn_mask=enc_attn_mask,
@@ -616,8 +616,7 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
-                    tokens_loss = torch.matmul(tokens_loss, self.proj_head_loss_weights) / torch.sum(self.proj_head_loss_weights)
-
+                    tokens_loss = torch.matmul(tokens_loss, torch.FloatTensor(self.proj_head_loss_weights).to(tokens_loss.device)) / sum(self.proj_head_loss_weights)
                     # check if hiddens is used
                     return tokens_loss
                 else:
@@ -640,7 +639,6 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
                 encoder_output = output
                 return encoder_output
 
-    
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
 
