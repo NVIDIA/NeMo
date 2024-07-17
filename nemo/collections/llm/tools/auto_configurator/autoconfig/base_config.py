@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Generate base YAML configuration for any model type and size."""
+"""Generates base configuration for given model."""
 
 import math
 import os

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Prepares and launches the training HP search using nemo_framework_launcher."""
+"""Generates training configs."""
 
 import os
 import shutil
