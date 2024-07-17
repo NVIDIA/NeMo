@@ -74,23 +74,13 @@ RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   git checkout ${MCORE_TAG} && \
   pip install .
 
-RUN echo "Test After Megatron"
-RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
-RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
-
 # Performance optimizations for distributed optimizer: https://github.com/NVIDIA/apex/pull/1771
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
   git checkout ${APEX_TAG} && \
   pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
-RUN echo "Test After Apex"
-RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
-RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
-
-# Transformer Engine tries to import `libcuda.so.1` which is not in path, add it
+# Transformer Engine tries to import `libcuda.so.1` which is not in path (if no gpu available), add it at the end
 ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:"${CUDA_HOME}/compat/lib.real"
 
 # Transformer Engine 1.2.0
@@ -101,17 +91,7 @@ RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
   git submodule init && git submodule update && \
   NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
 
-RUN echo "Test After TE"
-RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
-RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
-
 WORKDIR /tmp/
-
-RUN echo "Test After NVIDIA Libraries"
-RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
-RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
 # uninstall stuff from base container
 RUN pip3 uninstall -y sacrebleu torchtext
@@ -150,11 +130,6 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/installers/install_k2.sh); INSTALL
   else echo "Skipping failed k2 installation"; fi \
   else echo "k2 installed successfully"; fi
 
-RUN echo "Test After torchaudio/k2 Libraries"
-RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
-RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
-
 # install nemo dependencies
 WORKDIR /tmp/nemo
 ENV LHOTSE_REQUIRE_TORCHAUDIO=0
@@ -166,11 +141,6 @@ RUN for f in $(ls requirements*.txt | grep -v 'requirements_vllm.txt'); do pip3 
 RUN pip install flash-attn
 # install numba for latest containers
 RUN pip install numba>=0.57.1
-
-RUN echo "Test After requirements"
-RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
-RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
@@ -186,18 +156,8 @@ RUN /usr/bin/test -n "$NEMO_VERSION" && \
   /bin/echo "export NEMO_VERSION=${NEMO_VERSION}" >> /root/.bashrc && \
   /bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
 
-RUN echo "Test Before NeMo"
-RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
-RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
-
 # Install NeMo
 RUN --mount=from=nemo-src,target=/tmp/nemo,rw cd /tmp/nemo && pip install ".[all]"
-
-RUN echo "Test After NeMo Installation"
-RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
-RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
 # Check install
 RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
