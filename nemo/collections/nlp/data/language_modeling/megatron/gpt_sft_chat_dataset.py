@@ -73,7 +73,7 @@ def get_prompt_template_example(special_tokens):
 
 
 def identify_start_index_of_subsequence(subsequence, sequence):
-    """ find the location of the small tensor in the large tensor.
+    """find the location of the small tensor in the large tensor.
         e.g.  small = [1,3], large = [2,3,1,3], returns 2
               small = [3,2], large = [2,3,1,3], returns -1
     Args:
@@ -100,7 +100,7 @@ def _mask_targets(
     label_start_ids,
     num_turn_start_tokens,
 ):
-    """ This function masks the tokens so the loss is computed only on the non-masked role's responses.
+    """This function masks the tokens so the loss is computed only on the non-masked role's responses.
     For 'TEXT_TO_VALUE' type, the loss is computed on the value attributes.
 
     Args:
