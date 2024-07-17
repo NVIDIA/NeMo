@@ -17,10 +17,12 @@
 #       these tests outside of the CI machines environment, where test data is
 #       stored
 
+from pathlib import Path
+
 import pytest
 from examples.asr.transcribe_speech import TranscriptionConfig
 from omegaconf import OmegaConf
-from pathlib import Path
+
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 from nemo.collections.asr.parts.utils.transcribe_utils import prepare_audio_data, setup_model
 
