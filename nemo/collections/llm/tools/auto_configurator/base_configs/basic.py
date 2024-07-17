@@ -26,6 +26,7 @@ class Basic:
         self.version = version
         self.size = size
         self.measure = measure
+        self.cfg = cfg
         self.num_nodes = cfg.get("num_nodes", 8)
         self.num_gpus = cfg.get("num_gpus", 8)
         self.max_steps = cfg.get("max_steps", 50)

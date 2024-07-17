@@ -18,7 +18,7 @@ import math
 import os
 from typing import Tuple
 
-from autoconfig import utils
+from nemo.collections.llm.tools.auto_configurator.autoconfig.utils import generic_base_config
 
 
 def calculate_model_size(
@@ -90,7 +90,7 @@ def _estimate_model_size(
     :raises NotImplementedError: if the model_name is not one of the supported models.
     """
     model_penalty = 0.87 if model_name == "mt5" else 1.0
-    valid_models = ["gpt3", "t5", "mt5", "bert"]
+    valid_models = ["gpt3", "t5", "mt5", "bert", "llama", "mixtral", "mistral"]
     try:
         if model_name in valid_models:
             return round(
@@ -171,7 +171,7 @@ def generate_base_config(
 
     # model_size_in_b =
 
-    base_cfg = utils.generic_base_config(
+    base_cfg = generic_base_config(
         model_name=model_name,
         model_version=model_version,
         model_size_in_b=model_size_in_b,
