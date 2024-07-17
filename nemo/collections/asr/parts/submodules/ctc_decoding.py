@@ -215,7 +215,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         possible_strategies = [
             'greedy',
-            'greedy_batched',
+            'greedy_batch',
             'beam',
             'pyctcdecode',
             'flashlight',
@@ -256,7 +256,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             if self.cfg.get('beam', None):
                 logging.warning('beam in not None, but greedy decoding is used')
             logging.warning(
-                "CTC decoding strategy 'greedy' is slower than 'greedy_batched', which implements the same exact interface. Consider changing your strategy to 'greedy_batched' for a free performance improvement.",
+                "CTC decoding strategy 'greedy' is slower than 'greedy_batch', which implements the same exact interface. Consider changing your strategy to 'greedy_batch' for a free performance improvement.",
                 mode=logging_mode.ONCE,
             )
 
@@ -288,8 +288,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 compute_timestamps=self.compute_timestamps,
                 beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
-                word_kenlm_path=self.cfg.beam.get('word_kenlm_path', None),
-                nemo_kenlm_path=self.cfg.beam.get('nemo_kenlm_path', None),
+                kenlm_path=self.cfg.beam.get('kenlm_path', None),
+                kenlm_type=self.cfg.beam.get('kenlm_type', None),
                 flashlight_cfg=self.cfg.beam.get('flashlight_cfg', None),
                 pyctcdecode_cfg=self.cfg.beam.get('pyctcdecode_cfg', None),
             )
@@ -1275,7 +1275,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
 
 @dataclass
 class CTCDecodingConfig:
-    strategy: str = "greedy_batched"  # greedy_batched, greedy, pyctcdecode, beam = pyctcdecode, flashlight
+    strategy: str = "greedy_batch"  # greedy_batch, greedy, pyctcdecode, beam = pyctcdecode, flashlight
 
     # preserve decoding alignments
     preserve_alignments: Optional[bool] = None

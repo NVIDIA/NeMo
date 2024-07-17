@@ -175,10 +175,9 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             # this information is used to build a vocabulary trie for decoding
             if lm_path:
                 self.lm = KenLM(lm_path, self.word_dict)
-            elif lm_path == "":
-                self.lm = ZeroLM()
             else:
-                raise ValueError(str(lm_path) + " value is not supported.")
+                self.lm = ZeroLM()
+
             self.trie = Trie(self.vocab_size, self.silence)
 
             start_state = self.lm.start(False)
@@ -237,10 +236,8 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             self.word_dict = create_word_dict(d)
             if lm_path:
                 self.lm = KenLM(lm_path, self.word_dict)
-            elif lm_path == "":
-                self.lm = ZeroLM()
             else:
-                raise ValueError(str(lm_path) + " value is not supported.")
+                self.lm = ZeroLM()
 
             self.decoder_opts = LexiconFreeDecoderOptions(
                 beam_size=beam_size,

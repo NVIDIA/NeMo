@@ -237,5 +237,5 @@ def save_flashlight_lexicon(tokenizer, kenlm_file):
         lexicon = create_lexicon(tokenizer)
         lexicon.pop("<unk>")
         for word in lexicon:
-            f.write("{w}\t{s}\n".format(w=word, s=lexicon[word][0][0]))
+            f.write(f"{word}\t{lexicon[word][0][0]}\n")
     return lex_file

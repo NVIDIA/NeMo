@@ -164,8 +164,8 @@ def beam_search_eval(
         beam = ctc_beam_decoding.BeamCTCInferConfig(beam_size=beam_size,
                                                     beam_alpha=beam_alpha,
                                                     beam_beta=beam_beta,
-                                                    word_kenlm_path=cfg.ctc_decoding.beam.word_kenlm_path,
-                                                    nemo_kenlm_path=cfg.ctc_decoding.beam.nemo_kenlm_path,
+                                                    kenlm_path=cfg.ctc_decoding.beam.kenlm_path,
+                                                    kenlm_type=cfg.ctc_decoding.beam.kenlm_type,
                                                     preserve_alignments=cfg.ctc_decoding.beam.preserve_alignments,
                                                     compute_timestamps=cfg.ctc_decoding.beam.compute_timestamps,
                                                     flashlight_cfg=cfg.ctc_decoding.beam.flashlight_cfg,
@@ -253,7 +253,7 @@ def beam_search_eval(
         out_file.close()
         logging.info(f"Stored the predictions of beam search decoding at '{preds_output_file}'.")
 
-    if cfg.ctc_decoding.beam.word_kenlm_path or cfg.ctc_decoding.beam.nemo_kenlm_path:
+    if cfg.ctc_decoding.beam.kenlm_path:
         logging.info(
             'WER/CER with beam search decoding and N-gram model = {:.2%}/{:.2%}'.format(
                 wer_dist_first / words_count, cer_dist_first / chars_count
