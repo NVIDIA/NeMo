@@ -27,7 +27,7 @@ def search_training_config(
     train_cfg: dict,
 ) -> None:
     """
-    Entry point for the Auto Configurator search. This function calls other functions 
+    Entry point for the Auto Configurator search. This function calls other functions
     to generate the grid of possible configurations.
     :param dict base_cfg: base configuration of the model to be trained.
     :param dict base_cfg: config of the model that will be launched.
