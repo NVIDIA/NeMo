@@ -45,7 +45,7 @@ def an4_val_manifest_corrected(tmp_path, test_data_dir):
 
 
 def get_rnnt_alignments(
-    strategy: str, manifest_path: Path, loop_labels: bool = True, use_cuda_graph_decoder=False, location="cpu"
+    strategy: str, manifest_path: Path, loop_labels: bool = True, use_cuda_graph_decoder=False, location="cuda"
 ):
     cfg = OmegaConf.structured(TranscriptionConfig(pretrained_name=PRETRAINED_MODEL_NAME))
     cfg.rnnt_decoding.confidence_cfg.preserve_frame_confidence = True
