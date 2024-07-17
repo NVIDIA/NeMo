@@ -313,6 +313,22 @@ To install the nemo_toolkit, use the following installation method:
 
 Depending on the shell used, you may need to use the ``"nemo_toolkit[all]"`` specifier instead in the above command.
 
+Additionally, the llm collection (the first collection to migrate over to NeMo 2.0) is pip installable from source. If you would like
+to use this collection, you can pip install using the following commands:
+
+.. code-block:: bash
+
+    git clone https://github.com/NVIDIA/Megatron-LM.git && git -C Megatron-LM checkout ${MEGATRON_BRANCH}
+    pip install Megatron-LM
+    git clone https://github.com/NVIDIA/NeMo.git && git -C NeMo checkout ${BRANCH}
+    pip install NeMo[core,common,nlp,audio]
+
+`core`, `common`, `nlp`, and `audio` are currently required dependencies of the llm collection. We are working on reducing
+the set of dependencies to make the installation process even simpler. Note that this installation method will not install
+Apex or Transformer Engine. While these dpendencies are not required for the LLM collection, we recommend installing them
+for optimal performance. Please refer to the `LLMs and MMs Dependencies <#install-llms-and-mms-dependencies>`_ for information
+about how to install these optional dependencies.
+
 Pip from a Specific Domain
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -423,7 +439,8 @@ Run the following code:
 Install LLMs and MMs Dependencies
 ---------------------------------
 
-If you work with the LLM and MM domains, three additional dependencies are required: NVIDIA Apex, NVIDIA Transformer Engine, and NVIDIA Megatron Core. When working with the `main` branch, these dependencies may require a recent commit.
+If you work with the NLP and MM domains, three additional dependencies are required: NVIDIA Apex, NVIDIA Transformer Engine, and NVIDIA Megatron Core. When working with the `main` branch, these dependencies may require a recent commit.
+If working with the LLM collection, Apex and Transformer Engine are not required but are recommended.
 
 The most recent working versions of these dependencies are here:
 
