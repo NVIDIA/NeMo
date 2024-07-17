@@ -90,6 +90,9 @@ RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
 RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
 RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
+# Transformer Engine tries to import `libcuda.so.1` which is not in path, add it
+ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:"${CUDA_HOME}/compat/lib.real"
+
 # Transformer Engine 1.2.0
 RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
   cd TransformerEngine && \
