@@ -12,7 +12,7 @@ Megatron Core provides a checkpointing library capable of handling all types of 
 Although the distributed checkpointing library is targeted at the Megatron Core model, it can also be used with other models, as long as proper integration is implemented.
 
 The library provides two main entrypoints: ``dist_checkpointing.save`` and ``dist_checkpointing.load`` which are meant to replace the ``torch.save`` and ``torch.load`` in the regular checkpointing flow.
-Apart from that, it provides a mechanism to define the different types of local tensors placement in the global checkpoint.
+Apart from that, it provides a mechanism to define how different types of local tensors should be combined and split in the global checkpoint.
 
 
 Basic Sharding
@@ -20,9 +20,9 @@ Basic Sharding
 
 The main way to define the relationship of a plain, local PyTorch tensor to tensors on other ranks is by wrapping it in a ``ShardedTensor`` class.
 This allows to express the fact that a given local tensor is part of a larger *grid* of tensors of a given shape at a given offset.
-Instead of saving a simple state dict with ``torch.Tensor``s, we save a *sharded* state dict with ``dist_checkpointing.ShardedTensor``s.
+Instead of saving a simple state dict with ``torch.Tensor``, we save a *sharded* state dict with ``dist_checkpointing.ShardedTensor``.
 
-Example: assume we have a 128 elements tensor divided equally across the whole workload which we want to save and load with different number of ranks.
+Example: assume we have a tensor (composed of 128 elements) divided equally across the whole workload which we want to save and load with different number of ranks.
 
 .. code-block:: python
 
@@ -153,7 +153,7 @@ What matters is that the ``ShardedTensor.key`` are equivalent (``tensor-A``):
 
 ShardedTensor
 ^^^^^^^^^^^^^
-ShardedTensor is the primary use case for distributed checkpointing - tensor sharding.
+``ShardedTensor`` is the primary use case for distributed checkpointing - tensor sharding.
 It defines how PyTorch tensors are distributed across the workload.
 See the `Tensors transformations`_ section for more details on ShardedTensors.
 
@@ -217,7 +217,7 @@ When the sharded state dict is provided as input, it is processed in the followi
 5. The ShardedTensors are extracted and loaded from the checkpoint into the resulting state dict.
 6. Factory merges are applied (see `Optimizers`_ for explanation).
 
-This results in a *regular* state dict with plain tensors that can be further processed by the application (which usually means running ``model.load_state_dict(state_dict)``.
+This results in a *regular* state dict with plain tensors that can be further processed by the application (which usually means running ``model.load_state_dict(state_dict)``).
 
 
 dist_checkpointing.load_common_state_dict
@@ -237,7 +237,7 @@ This function is simply a composition of ``load_tensors_metadata`` and ``save``.
 
 Save and Load Strategies
 ------------------------
-There are multiple ways to save a sharded state dict into a serialized checkpoint. They can be provided by the user as saving and loading strategies.
+There are multiple ways to save a sharded state dict into a serialized checkpoint. They can be provided by the user as saving and loading strategies (e.g. ``TorchDistLoadShardedStrategy`` and ``TorchDistSaveShardedStrategy`` as shown below).
 
 There are four types of strategies:
 
@@ -249,7 +249,7 @@ There are four types of strategies:
 Additionally, ShardedObjects are handled with either "sharded" or "common" strategy depending on its capabilities (``can_handle_sharded_objects`` property).
 
 Each saving strategy is associated with a ``backend`` and a ``version``.
-Each loading strategy can be associated with multiple ``backend``s and ``version``s it can load.
+Each loading strategy can be associated with multiple values of ``backend`` and ``version`` it can load.
 For a given backend and version, the composition of every saving and loading strategy **must be functionally equivalent**.
 Strategies are the main way to introduce optimizations to the saving and loading algorithm without altering the checkpoint format.
 
