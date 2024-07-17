@@ -1,4 +1,6 @@
 import pytorch_lightning as pl
+from nemo.collections.llm.api import pretrain, finetune
+import nemo_sdk as sdk
 
 from nemo import lightning as nl
 from nemo.collections.llm.gpt.data.api import squad
@@ -6,7 +8,7 @@ from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
 from nemo.collections.llm.peft.api import gpt_lora
 from nemo.collections.llm.recipies.log.default import default_log
 from nemo.collections.llm.recipies.optim.adam import adam_with_cosine_annealing
-from nemo.collections.llm.utils import FineTuneRecipe, PreTrainRecipe, factory
+from nemo.collections.llm.utils import factory
 
 NAME = "mistral"
 
@@ -14,11 +16,6 @@ NAME = "mistral"
 @factory(name=NAME)
 def model() -> pl.LightningModule:
     return MistralModel(MistralConfig7B())
-
-
-@factory(name=NAME)
-def strategy() -> nl.MegatronStrategy:
-    return nl.MegatronStrategy(tensor_model_parallel_size=2)
 
 
 @factory(name=NAME)
@@ -38,10 +35,10 @@ def trainer(devices=8) -> nl.Trainer:
 def hf_resume() -> nl.AutoResume:
     return nl.AutoResume(import_path="hf://mistralai/Mistral-7B-v0.3")
 
-
 @factory(name=NAME)
-def pretrain_recipe() -> PreTrainRecipe:
-    return PreTrainRecipe(
+def pretrain_recipe() -> sdk.Partial:
+    return sdk.Partial(
+        pretrain,
         model=model,
         trainer=trainer,
         data=squad,
@@ -51,8 +48,9 @@ def pretrain_recipe() -> PreTrainRecipe:
 
 
 @factory(name=NAME)
-def finetune_recipe() -> FineTuneRecipe:
-    return FineTuneRecipe(
+def finetune_recipe() -> sdk.Partial:
+    return sdk.Partial(
+        finetune,
         model=model,
         trainer=trainer,
         data=squad,
