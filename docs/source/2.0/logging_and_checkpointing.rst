@@ -3,10 +3,10 @@
 NeMo 2.0: Logging and Checkpointing
 ==================
 
-There are three main classes in NeMo 2.0 that are responsible for confiruring logging and checkpointing directories. They are:
-1. :class:`~nemo.lightning.pytorch.callbacks.modle_checkpoint.ModelCheckpoint`: Handles the logic that determines when to save a checkpoint.
-    In addition, this class provides the ability to perform asynchronous checkpointing
-2. :class:`~nemo.lightning.nemo_logger.NeMoLogger`: responsible for setting logging directories and (optionally) configuring loggers.
+There are three main classes in NeMo 2.0 that are responsible for configuring logging and checkpointing directories. They are:
+
+1. :class:`~nemo.lightning.pytorch.callbacks.modle_checkpoint.ModelCheckpoint`: Handles the logic that determines when to save a checkpoint. In addition, this class provides the ability to perform asynchronous checkpointing
+2. :class:`~nemo.lightning.nemo_logger.NeMoLogger`: Responsible for setting logging directories and (optionally) configuring loggers.
 3. :class:`~nemo.lightning.resume.AutoResume`: Sets the checkpointing directory and determines whether there is an existing checkpoint to resume from. 
 
 Each of these classes is described in detail below. 
@@ -31,11 +31,12 @@ asynchronous checkpointing. Below is an example of instantiating a ``ModelCheckp
         dirpath='my_model_directory',
     )
 
-Refer to NeMo lightning's and Pytorch Lightning's ``ModelCheckpoint`` documentation for the full list of arguments that are supported by the
+Refer to NeMo Lightning's and Pytorch Lightning's ``ModelCheckpoint`` documentation for the full list of arguments that are supported by the
 ``ModelCheckpoint`` class. Note that ``dirpath`` is optional. If not provided, it will be determined automatically by ``AutoResume``, described
-in detail below. 
+in detail in the subsequent sections.
 
 The ``ModelCheckpoint`` callback instance can be passed to the trainer in two ways:
+
 1. adding the callback to the set of callbacks, and passing the callbacks directly to the trainer:
 
     .. code-block:: python
@@ -71,7 +72,7 @@ but below is an example of creating a new ``NeMoLogger`` instance:
 
 By default, the directory to which logs are written is ``dir / name / version``. If an
 explicit version is not provided and ``use_datetime_version`` is False, the directory will instead become
-``dir / name ``. ``update_logger_directory`` controls whether to update the directory of the PTL loggers
+``dir / name``. The  ``update_logger_directory`` argument controls whether to update the directory of the PTL loggers
 to match the NeMo log dir. If set to ``True``, the PTL logger will also write to the same log directory.
 
 As mentioned above, you can optionally pass your ``ModelCheckpoint`` instance in here as well, and the logger
