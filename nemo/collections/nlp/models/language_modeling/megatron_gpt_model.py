@@ -38,13 +38,13 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import GPTFIMDataset, GPTFIMDatasetConfig
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
+from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_spec import get_gemma2_layer_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import (
     get_gpt_full_te_layer_autocast_spec,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common.hyena.hyena_spec import get_gpt_layer_with_te_and_hyena_spec
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -77,16 +77,6 @@ from nemo.utils import logging
 from nemo.utils.te_utils import is_float8tensor
 
 try:
-    import apex.transformer.pipeline_parallel.utils
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
@@ -103,6 +93,7 @@ try:
         get_gpt_layer_local_spec,
         get_gpt_layer_with_transformer_engine_spec,
     )
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -125,6 +116,8 @@ try:
     import transformer_engine
     from transformer_engine.pytorch import module as te_module
 
+    from nemo.collections.nlp.modules.common.hyena.hyena_spec import get_gpt_layer_with_te_and_hyena_spec
+
     HAVE_TE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -144,6 +137,7 @@ def mcore_supports_moe() -> bool:
         return False
 
 
+## TODO: This function will not work if TE is not installed
 def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, hyena_cfg: Dict = None):
     if num_experts is not None:
         assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
@@ -154,6 +148,7 @@ def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, 
         "": get_gpt_layer_local_spec(num_experts, moe_grouped_gemm),
         "te_gpt": get_gpt_layer_with_transformer_engine_spec(num_experts, moe_grouped_gemm),
         "megatron_falcon_gpt": get_falcon_layer_spec(),
+        "megatron_gemma2": get_gemma2_layer_spec(),
         "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(),
         "modelopt": get_gpt_layer_modelopt_spec(num_experts),
         "te_gpt_hyena": get_gpt_layer_with_te_and_hyena_spec(hyena_cfg),
@@ -161,6 +156,15 @@ def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, 
     if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
     return name_spec_dict[spec_name]
+
+
+def mcore_model_customize(cfg, model):
+    if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
+        extend_instance(model.embedding, EmbeddingScalingMixin)
+    if cfg.get("mcore_customization_config", {}).get("final_logit_softcapping", 0):
+        from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import Gemma2OutputLayer
+
+        extend_instance(model.output_layer, Gemma2OutputLayer)
 
 
 class EmbeddingScalingMixin(torch.nn.Module):
@@ -276,10 +280,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
         if not HAVE_MEGATRON_CORE:
             logging.warning(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
@@ -442,8 +442,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
-            if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
-                extend_instance(model.embedding, EmbeddingScalingMixin)
+            mcore_model_customize(self.cfg, model)
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
                 'num_query_groups', None
@@ -788,7 +787,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.if_init_step = False
 
         if self.rampup_batch_size:
-            num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
+            num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR
             current_global_batch_size = num_microbatch_calculator.current_global_batch_size
             # do validation and save the checkpoint when gbs is changed
             if self.prev_global_batch_size != current_global_batch_size and self.prev_global_batch_size:
@@ -1644,7 +1645,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.init_global_step = self.trainer.global_step
 
         if self.rampup_batch_size:
-            num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
+            num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR
             num_microbatch_calculator.update(self.init_consumed_samples, consistency_check=False)
             self.prev_consumed_samples = self.init_consumed_samples
 
@@ -2035,7 +2038,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
 
         normalization = self.cfg.get('normalization', 'layernorm').lower()
-        layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
+        layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p' or self.cfg.get(
+            "layernorm_zero_centered_gamma", False
+        )
         if normalization == 'layernorm':
             normalization = 'LayerNorm'
         elif normalization == 'rmsnorm':
