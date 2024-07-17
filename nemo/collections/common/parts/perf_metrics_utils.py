@@ -2,6 +2,8 @@ import glob
 import os
 from typing import List
 
+import pynvml
+from pynvml.smi import nvidia_smi
 from tensorboard.backend.event_processing import event_accumulator
 
 from nemo.utils import logging
@@ -46,7 +48,7 @@ LLM_VOCAB_SIZE_MAP = {
     "mixtral": 32000,
     }
 
-def read_tb_log(path, summary_name: str) -> List:
+def read_tb_log(path: str, summary_name: str) -> List:
     """
     Reads a TensorBoard Events file from the input path, and returns the
     summary specified.
@@ -64,12 +66,29 @@ def read_tb_log(path, summary_name: str) -> List:
         raise FileNotFoundError(f"Missing TensorBoard log file.")
 
     events_file = files[0]
-    ea = event_accumulator.EventAccumulator(events_file)
-    ea.Reload()
     try:
+        ea = event_accumulator.EventAccumulator(events_file)
+        ea.Reload()
         summary = ea.Scalars(summary_name)
         summary_list = [round(x.value, 2) for x in summary]
     except KeyError:
-        logging.error(f"{summary_name} not found in {events_file}")
+        raise KeyError(f"{summary_name} not found in {events_file}")
 
     return summary_list
+
+def get_gpu_name() -> str:
+    """
+    Assess GPU name using NVML
+    """
+    try:
+        pynvml.nvmlInit()
+        nvsmi = nvidia_smi.getInstance()
+        product_name=nvsmi.DeviceQuery('name')
+        # Example output: {'gpu': [{'product_name': 'NVIDIA A16', 'product_brand': 'NVIDIA'}]}
+        gpu_name = product_name['gpu'][0]['product_name'].split(" ")[1]
+        pynvml.nvmlShutdown()
+    except Exception as exc:
+        logging.error(f"Failed to assess GPU type.")
+        gpu_name = ""
+
+    return gpu_name
