@@ -501,7 +501,7 @@ class AudioFeatureIterator(IterableDataset):
             if not self.pad_to_frame_len:
                 frame = self._features[:, self._start : self._features_len[0]].cpu()
             else:
-                frame = np.zeros([self._features.shape[0], int(self._feature_frame_len)], dtype='float32')
+                frame = torch.zeros([self._features.shape[0], int(self._feature_frame_len)], dtype=torch.float32)
                 segment = self._features[:, self._start : self._features_len[0]].cpu()
                 frame[:, : segment.shape[1]] = segment
             self.output = False
