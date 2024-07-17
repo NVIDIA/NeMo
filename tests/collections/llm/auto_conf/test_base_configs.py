@@ -4,32 +4,32 @@ class TestBaseConfigs:
     def test_gpt3_base_config(self):
         model_cls = getattr(base_configs, "GPT")
         
-        #126M
+        #GPT3 126M
         model_126m = model_cls(size=126, measure="M")
         assert (model_126m.get_model_config().__name__ == "GPTConfig126M"), \
         "the name of the config class for the GPT3 126M model should be 'GPTConfig126M'"
     
-        #5B
+        #GPT3 5B
         model_5b = model_cls(size=5)
         assert (model_5b.get_model_config().__name__ == "GPTConfig5B"), \
         "the name of the config class for the GPT3 5B model should be 'GPTConfig5B'"
 
-        #7B
+        #GPT3 7B
         model_7b = model_cls(size=7)
         assert (model_7b.get_model_config().__name__ == "GPTConfig7B"), \
         "the name of the config class for the GPT3 7B model should be 'GPTConfig7B'"
 
-        #20B
+        #GPT3 20B
         model_20b = model_cls(size=20)
         assert (model_20b.get_model_config().__name__ == "GPTConfig20B"), \
         "the name of the config class for the GPT3 20B model should be 'GPTConfig20B'"
 
-        #40B
+        #GPT3 40B
         model_40b = model_cls(size=40)
         assert (model_40b.get_model_config().__name__ == "GPTConfig40B"), \
         "the name of the config class for the GPT3 40B model should be 'GPTConfig40B'"
 
-        #175B
+        #GPT3 175B
         model_175b = model_cls(size=175)
         assert (model_175b.get_model_config().__name__ == "GPTConfig175B"), \
         "the name of the config class for the GPT3 175B model should be 'GPTConfig175B'"
@@ -88,11 +88,12 @@ class TestBaseConfigs:
     def test_basic_base_config(self):
         model_cls = getattr(base_configs.basic, "Basic")
 
+        #Basic model class
         model = model_cls(measure="M")
 
         assert model.name == None
         assert model.version == None
         assert model.size == None
         assert model.measure == "M"
-        assert model.cfg = {}
+        assert model.cfg == {}
 

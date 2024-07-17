@@ -327,7 +327,7 @@ def generic_base_config(
     :rtype: dict
     """
     from nemo.collections.llm.tools.auto_configurator.autoconfig.base_config import calculate_model_size
-    
+
     default_model = False if model_size_in_b else True
     model_cls = getattr(base_configs, MODULES[model_name])
 
