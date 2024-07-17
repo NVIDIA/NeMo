@@ -49,7 +49,7 @@ def pretrain_recipe() -> sdk.Partial:
 
 
 @factory(name=NAME)
-def finetune_recipe() -> FineTuneRecipe:
+def finetune_recipe() -> sdk.Partial:
     return sdk.Partial(
         finetune,
         model=model,
