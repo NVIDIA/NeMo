@@ -635,6 +635,8 @@ def getattr_proxy(self, item: Any) -> Any:
     try:
         return super(self.__class__, self).__getattr__(item)
     except AttributeError:
+        if item == 'module': ## this is a hacky WAR and may cause misleading error messages
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}'")
         try:
             return getattr(self.module, item)
         except AttributeError:
