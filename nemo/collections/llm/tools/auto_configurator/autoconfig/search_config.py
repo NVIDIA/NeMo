@@ -20,13 +20,7 @@ from autoconfig.utils import generic_base_config
 
 SUPPORTED_MODELS = [
     "gpt3",
-    "t5",
-    "mt5",
-    "bert",
     "llama",
-    "baichuan2",
-    "chatglm",
-    "qwen2",
     "mixtral",
     "mistral",
 ]
