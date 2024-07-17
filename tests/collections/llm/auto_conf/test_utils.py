@@ -1,9 +1,13 @@
-from nemo.collections.llm.tools.auto_configurator.autoconfig.base_config import calculate_model_size, _estimate_training_time
+from nemo.collections.llm.tools.auto_configurator.autoconfig.base_config import (
+    _estimate_training_time,
+    calculate_model_size,
+)
 from nemo.collections.llm.tools.auto_configurator.autoconfig.utils import calculate_model_size_params
+
 
 class TestUtils:
     def test_calculate_model_size(self):
-        #GPT
+        # GPT
         model_size = calculate_model_size(
             8,
             7,
@@ -14,7 +18,7 @@ class TestUtils:
         )
         assert model_size == 0.28
 
-        #Llama
+        # Llama
         model_size = calculate_model_size(
             128,
             30,
@@ -25,7 +29,7 @@ class TestUtils:
         )
         assert model_size == 1.38
 
-        #Mixtral
+        # Mixtral
         model_size = calculate_model_size(
             256,
             20,
@@ -36,7 +40,7 @@ class TestUtils:
         )
         assert model_size == 12.9
 
-        #Mistral
+        # Mistral
         model_size = calculate_model_size(
             1028,
             30,
@@ -47,9 +51,8 @@ class TestUtils:
         )
         assert model_size == 799.37
 
-
     def test_calculate_train_time(self):
-        #GPT
+        # GPT
         train_time = _estimate_training_time(
             175,
             1024,
@@ -59,7 +62,7 @@ class TestUtils:
         )
         assert train_time == 33.91
 
-        #Llama
+        # Llama
         train_time = _estimate_training_time(
             35,
             512,
@@ -69,7 +72,7 @@ class TestUtils:
         )
         assert train_time == 316.48
 
-        #Mixtral
+        # Mixtral
         train_time = _estimate_training_time(
             0.8,
             128,
@@ -79,7 +82,7 @@ class TestUtils:
         )
         assert train_time == 4.13
 
-        #Mistral
+        # Mistral
         train_time = _estimate_training_time(
             11,
             24,
@@ -90,7 +93,7 @@ class TestUtils:
         assert train_time == 176.83
 
     def test_calculate_model_params(self):
-        #GPT
+        # GPT
         params = calculate_model_size_params(
             40,
             51200,
@@ -99,7 +102,7 @@ class TestUtils:
         )
         assert params == (48, 8192, 64, None, None, 8e-05)
 
-        #Llama
+        # Llama
         params = calculate_model_size_params(
             70,
             32000,
@@ -108,7 +111,7 @@ class TestUtils:
         )
         assert params == (56, 10240, 80, None, None, 7e-05)
 
-        #Mixtral
+        # Mixtral
         params = calculate_model_size_params(
             30,
             32000,
@@ -117,7 +120,7 @@ class TestUtils:
         )
         assert params == (36, 8192, 64, None, None, 8e-05)
 
-        #Mistral
+        # Mistral
         params = calculate_model_size_params(
             0.5,
             32000,
