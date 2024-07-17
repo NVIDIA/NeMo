@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
+TRAIN_LOSS_REDUCTION = MaskedTokenLossReduction()
+VALIDATION_LOSS_REDUCTION = MaskedTokenLossReduction(validation_step=True)
 
 def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
@@ -201,10 +203,10 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self.forward_step(batch)
 
     def training_loss_reduction(self) -> MaskedTokenLossReduction:
-        return MaskedTokenLossReduction()
+        return TRAIN_LOSS_REDUCTION
 
     def validation_loss_reduction(self) -> MaskedTokenLossReduction:
-        return MaskedTokenLossReduction(validation_step=True)
+        return VALIDATION_LOSS_REDUCTION
 
 
 def get_batch_on_this_context_parallel_rank(batch):
