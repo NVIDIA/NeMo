@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import logging
 import os
+
 import numpy as np
-import itertools
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -74,6 +75,7 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+
 def listify(tensor):
     l_tensor = []
     for t in tensor:
@@ -81,6 +83,7 @@ def listify(tensor):
         r = t[:].unsqueeze(0).cpu()
         l_tensor.append(r)
     return l_tensor
+
 
 class MegatronBertEmbeddingModel(MegatronBertModel):
     """
@@ -392,7 +395,7 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
                 f'Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}'
             )
             self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
-    
+
     def setup_eval_dataloader(self, datasets):
         dataloaders = []
         for dataset in datasets:
@@ -402,7 +405,7 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
             )
             dataloaders.append(eval_dl)
         return dataloaders
-    
+
     def setup_test_data(self, cfg):
         if self._test_ds:
             logging.info(
@@ -411,7 +414,7 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
             self._test_dl = self.setup_eval_dataloader(self._test_ds)
             # breakpoint()
             # self._test_dl = None
-            return 
+            return
 
     def training_step(self, dataloader_iter):
 
@@ -503,7 +506,10 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
         self.log('lr', lr, batch_size=1)
         self.log('global_step', self.trainer.global_step, prog_bar=True, batch_size=1)
         self.log(
-            'consumed_samples', self._compute_consumed_samples_after_training_step(), prog_bar=True, batch_size=1,
+            'consumed_samples',
+            self._compute_consumed_samples_after_training_step(),
+            prog_bar=True,
+            batch_size=1,
         )
         return loss_mean[0]
 
@@ -534,10 +540,16 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
                     lm_loss = loss_dict['lm loss']
                     loss = lm_loss
                     reduced_loss = average_losses_across_data_parallel_group([loss, lm_loss])
-                
+
                 if 'hs' in loss_dict:
                     # metadata = batches.get('metadata', [{}] * len(batches['input_ids']))
-                    return loss, {'loss': reduced_loss, 'd_hs': loss_dict['hs'], 'q_hs': loss_dict['hs'], 'metadata': metadata, 'dl_idx': dl_idx}
+                    return loss, {
+                        'loss': reduced_loss,
+                        'd_hs': loss_dict['hs'],
+                        'q_hs': loss_dict['hs'],
+                        'metadata': metadata,
+                        'dl_idx': dl_idx,
+                    }
                 else:
                     return loss, {'loss': reduced_loss}
 
@@ -679,17 +691,15 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
         return {
             'hs': eos_tensors,
             'lm loss': _blank,
-            }
-    
+        }
+
     def _gather_global_inbatch_representations(self, local_tensor):
         local_tensor = local_tensor.contiguous()
         if self.backprop_type == 'local':
             global_tensors = [
                 torch.zeros_like(local_tensor) for _ in range(parallel_state.get_data_parallel_world_size())
             ]
-            all_gather_no_backprop(
-                global_tensors, local_tensor, group=parallel_state.get_data_parallel_group()
-            )
+            all_gather_no_backprop(global_tensors, local_tensor, group=parallel_state.get_data_parallel_group())
             global_tensors[parallel_state.get_data_parallel_rank()] = local_tensor
             global_tensors = torch.cat(global_tensors, dim=0)
 
@@ -716,12 +726,16 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
         )  # shape (bs, bs); each positive is negative for other queries.
 
         hard_negs = [
-            torch.stack([item[i + 2] for item in chunks])
-            for i in range(self.hard_negatives_to_train)
+            torch.stack([item[i + 2] for item in chunks]) for i in range(self.hard_negatives_to_train)
         ]  # List of length "num_negatives", each tensor of shape (bs, embedding_dim)
 
         hard_negs_scores = (
-            torch.multiply(queries.unsqueeze(0).repeat(len(hard_negs), 1, 1), torch.stack(hard_negs),).sum(axis=-1).T
+            torch.multiply(
+                queries.unsqueeze(0).repeat(len(hard_negs), 1, 1),
+                torch.stack(hard_negs),
+            )
+            .sum(axis=-1)
+            .T
         )  # shape = (bs, num_negatives); Hard negatives are not shared between queries.
 
         scores = torch.cat([pos_inbatch_negs_scores, hard_negs_scores], axis=1)

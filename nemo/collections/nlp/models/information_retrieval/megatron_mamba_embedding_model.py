@@ -57,7 +57,11 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         self.backprop_type = self.cfg.get("backprop_type", "local")
         assert self.backprop_type in ["local", "global"], "Backprop type must be `local` or `global`"
         self.output_head_type = self.cfg.get("output_head_type", "eos_only")
-        assert self.output_head_type in ["eos_only", "avg_pool", "bidir_eos"], "Output head type must be `eos_only`, `avg_pool` or `bidir_eos`"
+        assert self.output_head_type in [
+            "eos_only",
+            "avg_pool",
+            "bidir_eos",
+        ], "Output head type must be `eos_only`, `avg_pool` or `bidir_eos`"
 
         # Matryoshka Representation Learning
         # if self.cfg.get("do_mrl", False):
@@ -471,8 +475,10 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
             output_tensor = output_tensor[loss_mask, idx, :]
         else:
             output_tensor = output_tensor.permute(1, 0, 2)
-            lengths = loss_mask+1
-            attention_mask = torch.arange(output_tensor.shape[1], device=output_tensor.device).expand(len(lengths), output_tensor.shape[1]) < lengths.unsqueeze(1)
+            lengths = loss_mask + 1
+            attention_mask = torch.arange(output_tensor.shape[1], device=output_tensor.device).expand(
+                len(lengths), output_tensor.shape[1]
+            ) < lengths.unsqueeze(1)
             input_mask_expanded = attention_mask.unsqueeze(-1).expand(output_tensor.size()).float()
             sum_embeddings = torch.sum(output_tensor * input_mask_expanded, 1)
 
