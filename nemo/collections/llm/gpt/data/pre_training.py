@@ -57,7 +57,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
         else:
             paths, weights = get_blend_from_list(paths)
             if len(paths) == 1:
-                weights = [None]
+                weights = None
             build_kwargs["blend"] = [paths, weights]
             build_kwargs["split"] = split
 
