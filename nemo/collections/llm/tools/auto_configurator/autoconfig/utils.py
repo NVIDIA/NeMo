@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utility functions for the HP tool."""
+"""Utility functions for the Auto Configurator tool."""
 import copy
 from typing import List, Optional, Tuple
 
@@ -320,8 +320,8 @@ def generic_base_config(
     cfg: dict = {},
 ) -> dict:
     """
-    Generates a base config dictionary from a base config yaml file.
-    :param omegaconf.dictconfig.DictConfig cfg: hydra-like config object for the HP tool.
+    Generates a base config dictionary from a base config python file.
+    :param dict cfg: dict config object for the Auto Configurator tool.
     :param str model_name: name of the model, i.e. gpt3, t5, mt5...
     :returns: dictionary containing the base configuration for the model.
     :rtype: dict
@@ -359,11 +359,11 @@ def modify_cfg(
     model_name: str,
 ) -> dict:
     """
-    Modify the base configuration for the model with the new parameters that are specific to the current model, which the HP tool heuristics selected.
+    Modify the base configuration for the model with the new parameters that are specific to the current model, which the Auto Configurator tool heuristics selected.
     :param dict base_cfg: base configuration for the current model, which will be modified in this function.
     :param int act: number of activation checkpointing layers to use for the model.
-    :param int num_mbs_act:
-    :param int act_per_pipe:
+    :param int num_mbs_act: sets the number of micro-batches where only a partial number of Transformer layers get checkpointed and recomputed within a window of micro-batches.
+    :param int act_per_pipe: sets the number of Transformer layers to skip checkpointing at later pipeline stages.
     :param int tp: Tensor Parallelism (TP) value to be set for the model.
     :param int pp: Pipeline Parallelism (PP) value to be set for the model.
     :param int cp: Context Parallelism (CP) value to be set for the model.

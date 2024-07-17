@@ -160,13 +160,11 @@ def generate_base_config(
 ):
     """
     Generates base config dictionary for a given model name and size.
-    :param float model_size_in_b: number of parameters in the model, if known.
-    :param int nodes: number of nodes to use for training.
-    :param int gpus_per_node: number of GPUs available in each node.
-    :param float max_training_days: number of days to train the model for.
-    :param int num_tokens_in_b: number of tokens to train the model for.
     :param str model_name: name of the model, such as gpt3, t5, mt5...
-    :param omegaconf.dictconfig.DictConfig cfg: full config object.
+    :param int model_version: version of model to be trained.
+    :param float model_size_in_b: number of parameters in the model, if known.
+    :param str model_measure: measure of model size (millions or billions).
+    :param dict cfg: full config object.
     :return: base config object for the given model.
     :rtype: dict
     """

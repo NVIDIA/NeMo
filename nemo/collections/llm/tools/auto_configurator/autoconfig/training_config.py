@@ -27,16 +27,11 @@ def search_training_config(
     train_cfg: dict,
 ) -> None:
     """
-    Entry point for the training HP search. This function calls other functions to perform three
-    actions: generates the grid of possible configurations; launches those configurations using
-    nemo_framework_launcher; and launches a final job to compare the results of all the training
-    jobs.
+    Entry point for the Auto Configurator search. This function calls other functions 
+    to generate the grid of possible configurations.
     :param dict base_cfg: base configuration of the model to be trained.
-    :param float model_size_in_b: number of parameters in the model, if known.
-    :param str model_name: name of the model to be trained: gpt3, t5, mt5...
-    :param str hydra_args: hydra override arguments in string format.
-    :param omegaconf.dictconfig.fDictConfig cfg: main hydra config object for the HP tool.
-    :return: None
+    :param dict base_cfg: config of the model that will be launched.
+    :return: dict with generated configs.
     """
     # Generate candidate configs.
     configs = generate_grid_search_configs(base_cfg, train_cfg)
@@ -52,14 +47,8 @@ def generate_grid_search_configs(
     Generates the grid of all possible configurations for the given model, and stores
     each different configuration in a yaml file.
     :param dict base_cfg: base configuration of the model to be trained.
-    :param float model_size_in_b: number of parameters in the model.
-    :param str model_name: name of the model to be trained: gpt3, t5, mt5...
-    :param omegaconf.dictconfig.DictConfig cfg: main hydra config object for the HP tool.
-    :returns: tuple (base_dir, results_cfgs, num_nodes)
-        WHERE
-        str base_dir is the path to the directory where the results will be stored.
-        List[int] results_cfgs is a list of all the config names that were generated.
-        int num_nodes is the number of nodes used to run each config.
+    :param dict base_cfg: train configuration of the model to be trained.
+    :return: dict with generated configs.
     """
 
     model_name = train_cfg.get("model_type")
@@ -292,13 +281,18 @@ def _tp_pp_mbs_grid_gpt3_80gb(
     Selects grid search space for TP, PP, MBS parameters for GPT-3 and 80GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
     :param List[int] valid_pp: list of valid Pipeline Parallelism (PP) values for this config.
-    :returns: tuple (tp, pp, cp, ep, mbs)
+    :param int seq length: sequence length to use for training.
+    :param str model_measure: measure of model size (millions or billions).
+    :returns: tuple (tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs)
         WHERE
         int tp is the Tensor Parallelism value to use for training.
         int pp is the Pipeline Parallelism value to use for training.
         int cp is the Context Parallelism value to use for training.
         int ep is the Expert Parallelism value to use for training.
         int mbs is the Micro Batch Size to use for training.
+        int min_model_parallel is min Model parallel size to use for training.
+        int max_model_parallel is max Model parallel size to use for training.
+        int gbs is the Global Batch Size to use for training.
     """
     tp = [1, 2, 4, 8]
     pp = [1]
@@ -521,13 +515,17 @@ def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b: float, valid_pp: List[int], model
     Selects grid search space for TP, PP, MBS parameters for GPT-3 and 40GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
     :param List[int] valid_pp: list of valid Pipeline Parallelism (PP) values for this config.
-    :returns: tuple (tp, pp, cp, ep, mbs)
+    :param str model_measure: measure of model size (millions or billions).
+    :returns: tuple (tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs)
         WHERE
         int tp is the Tensor Parallelism value to use for training.
         int pp is the Pipeline Parallelism value to use for training.
         int cp is the Context Parallelism value to use for training.
         int ep is the Expert Parallelism value to use for training.
         int mbs is the Micro Batch Size to use for training.
+        int min_model_parallel is min Model parallel size to use for training.
+        int max_model_parallel is max Model parallel size to use for training.
+        int gbs is the Global Batch Size to use for training.
     """
     tp = [1, 2, 4, 8]
     pp = [1]
@@ -622,13 +620,17 @@ def _tp_pp_mbs_grid_t5_80gb(model_size_in_b: float, valid_pp: List[int], model_m
     Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 80GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
     :param List[int] valid_pp: list of valid Pipeline Parallelism (PP) values for this config.
-    :returns: tuple (tp, pp, cp, ep, mbs)
+    :param str model_measure: measure of model size (millions or billions).
+    :returns: tuple (tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs)
         WHERE
         int tp is the Tensor Parallelism value to use for training.
         int pp is the Pipeline Parallelism value to use for training.
         int cp is the Context Parallelism value to use for training.
         int ep is the Expert Parallelism value to use for training.
         int mbs is the Micro Batch Size to use for training.
+        int min_model_parallel is min Model parallel size to use for training.
+        int max_model_parallel is max Model parallel size to use for training.
+        int gbs is the Global Batch Size to use for training.
     """
     tp = [1, 2, 4, 8]
     pp = [1]
@@ -698,13 +700,17 @@ def _tp_pp_mbs_grid_t5_40gb(model_size_in_b: float, valid_pp: List[int], model_m
     Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 40GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
     :param List[int] valid_pp: list of valid Pipeline Parallelism (PP) values for this config.
-    :returns: tuple (tp, pp, cp, ep, mbs)
+    :param str model_measure: measure of model size (millions or billions).
+    :returns: tuple (tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs)
         WHERE
         int tp is the Tensor Parallelism value to use for training.
         int pp is the Pipeline Parallelism value to use for training.
         int cp is the Context Parallelism value to use for training.
         int ep is the Expert Parallelism value to use for training.
         int mbs is the Micro Batch Size to use for training.
+        int min_model_parallel is min Model parallel size to use for training.
+        int max_model_parallel is max Model parallel size to use for training.
+        int gbs is the Global Batch Size to use for training.
     """
     tp = [1, 2, 4, 8]
     pp = [1]
@@ -777,13 +783,17 @@ def _tp_pp_mbs_grid_bert_80gb(model_size_in_b: float, valid_pp: List[int], model
     Selects grid search space for TP, PP, MBS parameters for BERT and 80GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
     :param List[int] valid_pp: list of valid Pipeline Parallelism (PP) values for this config.
-    :returns: tuple (tp, pp, cp, ep, mbs)
+    :param str model_measure: measure of model size (millions or billions).
+    :returns: tuple (tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs)
         WHERE
         int tp is the Tensor Parallelism value to use for training.
         int pp is the Pipeline Parallelism value to use for training.
         int cp is the Context Parallelism value to use for training.
         int ep is the Expert Parallelism value to use for training.
         int mbs is the Micro Batch Size to use for training.
+        int min_model_parallel is min Model parallel size to use for training.
+        int max_model_parallel is max Model parallel size to use for training.
+        int gbs is the Global Batch Size to use for training.
     """
     pp = [1]
     cp = [None]
@@ -851,13 +861,17 @@ def _tp_pp_mbs_grid_bert_40gb(model_size_in_b: float, valid_pp: List[int], model
     Selects grid search space for TP, PP, MBS parameters for BERT and 40GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
     :param List[int] valid_pp: list of valid Pipeline Parallelism (PP) values for this config.
-    :returns: tuple (tp, pp, cp, ep, mbs)
+    :param str model_measure: measure of model size (millions or billions).
+    :returns: tuple (tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs)
         WHERE
         int tp is the Tensor Parallelism value to use for training.
         int pp is the Pipeline Parallelism value to use for training.
         int cp is the Context Parallelism value to use for training.
         int ep is the Expert Parallelism value to use for training.
         int mbs is the Micro Batch Size to use for training.
+        int min_model_parallel is min Model parallel size to use for training.
+        int max_model_parallel is max Model parallel size to use for training.
+        int gbs is the Global Batch Size to use for training.
     """
     pp = [1]
     cp = [None]
@@ -934,15 +948,18 @@ def _calculate_tp_pp_mbs_grid(
     :param float model_size_in_b: number of parameters in the model.
     :param int num_layers: number of layers in the model config.
     :param str model_name: name of the model to be used, such as gpt3, t5, mt5...
-    :param omegaconf.dictconfig.DictConfig train_cfg: config of the model that will be launched.
-    :returns: tuple (tp, pp, cp, ep, mbs)
+    :param int seq_length: sequence length to use for training.
+    :param dict train_cfg: config of the model that will be launched.
+    :returns: tuple (tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs)
         WHERE
         int tp is the Tensor Parallelism value to use for training.
         int pp is the Pipeline Parallelism value to use for training.
         int cp is the Context Parallelism value to use for training.
         int ep is the Expert Parallelism value to use for training.
         int mbs is the Micro Batch Size to use for training.
-        int min_model_parallel is the minimum parallelism level needed.
+        int min_model_parallel is min Model parallel size to use for training.
+        int max_model_parallel is max Model parallel size to use for training.
+        int gbs is the Global Batch Size to use for training.
     :raises NotImplementedError: if the model_name is not one of the supported models.
     """
     tp_sizes = train_cfg.get("tensor_parallel_sizes")

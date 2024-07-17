@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Entry point, main file to run to launch jobs with the HP tool."""
+"""Entry point, main file to run to launch jobs with the Auto Configurator tool."""
 
 import argparse
 
@@ -43,7 +43,7 @@ def get_args():
     parser.add_argument(
         '--num_tokens_in_b', required=False, default=300, type=int, help="Number of tokens in dataset in billions"
     )
-    parser.add_argument('--global_batch_size', required=False, default=2048, type=int, help="Model global batch size")
+    parser.add_argument('--global_batch_size', required=False, default=None, type=int, help="Model global batch size")
     parser.add_argument('--seq_length', required=False, default=4096, type=int, help="Model sequence length")
     parser.add_argument(
         '--tensor_parallel_sizes', default=None, required=False, type=int, nargs='+', help="Path to results directory"
@@ -70,11 +70,6 @@ def get_args():
 
 
 def main():
-    """
-    Main function in the entire pipeline, it reads the config using hydra and calls search_config.
-    :param omegaconf.dictconfig.DictConfig cfg: OmegaConf object, read using the @hydra.main decorator.
-    :return: None
-    """
     args = get_args()
     configs = search_config(cfg=vars(args))
 
