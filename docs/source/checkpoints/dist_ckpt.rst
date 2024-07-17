@@ -259,8 +259,14 @@ It makes the ``basic_save_load`` and ``fully_parallel_save_load`` functions equi
 .. code-block:: python
 
     from megatron.core import dist_checkpointing
-    from megatron.core.dist_checkpointing.strategies.torch import TorchDistLoadShardedStrategy, TorchDistSaveShardedStrategy
-    from megatron.core.dist_checkpointing.strategies.fully_parallel import FullyParallelLoadStrategyWrapper, FullyParallelSaveStrategyWrapper
+    from megatron.core.dist_checkpointing.strategies.torch import (
+        TorchDistLoadShardedStrategy,
+        TorchDistSaveShardedStrategy
+    )
+    from megatron.core.dist_checkpointing.strategies.fully_parallel import (
+        FullyParallelLoadStrategyWrapper,
+        FullyParallelSaveStrategyWrapper
+    )
 
     # Base save and load strategies defining a regular (non-parallel) save
     base_save_strategy = TorchDistSaveShardedStrategy('torch_dist', 1)
