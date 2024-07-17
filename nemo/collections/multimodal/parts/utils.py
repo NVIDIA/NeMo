@@ -535,6 +535,7 @@ def create_neva_model_and_processor(cfg):
 def create_image_processor(mm_cfg):
     if mm_cfg.vision_encoder.get("from_hf", False):
         from transformers import AutoConfig
+
         config = AutoConfig.from_pretrained(mm_cfg.vision_encoder.from_pretrained)
         if config.architectures[0] == "CLIPVisionModel":
             image_processor = CLIPImageProcessor.from_pretrained(

@@ -84,7 +84,9 @@ def get_args(argv):
     parser.add_argument("-mol", "--max_output_len", default=256, type=int, help="Max output length of the model")
     parser.add_argument("-mbs", "--max_batch_size", default=1, type=int, help="Max batch size of the llm model")
     parser.add_argument("-mml", "--max_multimodal_len", default=3072, type=int, help="Max length of multimodal input")
-    parser.add_argument("-vmb", "--vision_max_batch_size", default=1, type=int, help="Max batch size of the vision model")
+    parser.add_argument(
+        "-vmb", "--vision_max_batch_size", default=1, type=int, help="Max batch size of the vision model"
+    )
     args = parser.parse_args(argv)
     return args
 

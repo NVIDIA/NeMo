@@ -471,6 +471,7 @@ class NevaBaseModel:
         # Initialize vision encoder and freeze it
         if mm_cfg.vision_encoder.get("from_hf", False):
             from transformers import AutoConfig
+
             config = AutoConfig.from_pretrained(mm_cfg.vision_encoder.from_pretrained)
             if config.architectures[0] == "CLIPVisionModel":
                 vision_encoder = CLIPVisionModel.from_pretrained(

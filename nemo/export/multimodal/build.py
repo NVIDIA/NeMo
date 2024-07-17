@@ -76,17 +76,24 @@ def export_visual_wrapper_onnx(
 
 
 def build_trt_engine(
-    model_type, input_sizes, output_dir, vision_max_batch_size, dtype=torch.bfloat16, image_size=None, num_frames=None, nemo_config=None
+    model_type,
+    input_sizes,
+    output_dir,
+    vision_max_batch_size,
+    dtype=torch.bfloat16,
+    image_size=None,
+    num_frames=None,
+    nemo_config=None,
 ):
     part_name = 'visual_encoder'
     onnx_file = '%s/onnx/%s.onnx' % (output_dir, part_name)
     engine_file = '%s/%s.engine' % (output_dir, part_name)
     config_file = '%s/%s' % (output_dir, "config.json")
     nemo_config_file = '%s/%s' % (output_dir, "nemo_config.yaml")
-    
+
     with open(nemo_config_file, 'w') as f:
         yaml.dump(nemo_config, f)
-    
+
     logger.log(trt.Logger.INFO, "Building TRT engine for %s" % part_name)
 
     builder = trt.Builder(logger)
@@ -161,9 +168,9 @@ def build_neva_engine(
     with tempfile.TemporaryDirectory() as temp:
         temp_path = Path(temp)
         mp0_weights, nemo_config, _ = load_nemo_model(visual_checkpoint_path, temp_path)
-    
+
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
-    
+
     class DownSampleBlock(torch.nn.Module):
         def forward(self, x):
             vit_embeds = x
@@ -172,7 +179,7 @@ def build_neva_engine(
             vit_embeds = self.flat_square(vit_embeds)
             vit_embeds = vit_embeds.reshape(vit_embeds.shape[0], -1, vit_embeds.shape[-1])
             return vit_embeds
-        
+
         def flat_square(self, x):
             n, w, h, c = x.size()
             if w % 2 == 1:
@@ -195,7 +202,7 @@ def build_neva_engine(
 
         def forward(self, images):
             vision_x = self.encoder(pixel_values=images, output_hidden_states=True)
-            vision_x = vision_x.hidden_states[-2] 
+            vision_x = vision_x.hidden_states[-2]
             vision_x = self.connector(vision_x)
             return vision_x
 
@@ -247,10 +254,10 @@ def build_neva_engine(
                     'bias': mp0_weights[f"{key_prefix}.{layer}.bias"].to(dtype),
                 }
             )
-        
+
     else:
         raise ValueError(f"Unknown projector type: {nemo_config['mm_cfg']['mm_mlp_adapter_type']}")
-    
+
     # export the whole wrapper
     wrapper = VisionEncoderWrapper(vision_encoder, vision_connector).to(device, dtype)
     if model_type == "lita" or model_type == "vila":
@@ -357,7 +364,7 @@ def build_visual_engine(
     visual_checkpoint_path: str,
     model_type: str = "neva",
     vision_max_batch_size: int = 1,
-):  
+):
     model_list = ['neva', 'lita', 'vila', 'vita']
     if model_type in model_list:
         build_neva_engine(model_type, model_dir, visual_checkpoint_path, vision_max_batch_size)
