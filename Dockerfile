@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.02-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.03-py3
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
@@ -75,6 +75,7 @@ RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   pip install .
 
 RUN echo "Test After Megatron"
+RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
 RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
 RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
@@ -85,6 +86,7 @@ RUN git clone https://github.com/NVIDIA/apex.git && \
   pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
 RUN echo "Test After Apex"
+RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
 RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
 RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
@@ -97,12 +99,14 @@ RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
   NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
 
 RUN echo "Test After TE"
+RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
 RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
 RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
 WORKDIR /tmp/
 
 RUN echo "Test After NVIDIA Libraries"
+RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
 RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
 RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
@@ -144,6 +148,7 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/installers/install_k2.sh); INSTALL
   else echo "k2 installed successfully"; fi
 
 RUN echo "Test After torchaudio/k2 Libraries"
+RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
 RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
 RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
@@ -160,6 +165,7 @@ RUN pip install flash-attn
 RUN pip install numba>=0.57.1
 
 RUN echo "Test After requirements"
+RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
 RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
 RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
@@ -178,6 +184,7 @@ RUN /usr/bin/test -n "$NEMO_VERSION" && \
   /bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
 
 RUN echo "Test Before NeMo"
+RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
 RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
 RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
@@ -185,6 +192,7 @@ RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_
 RUN --mount=from=nemo-src,target=/tmp/nemo,rw cd /tmp/nemo && pip install ".[all]"
 
 RUN echo "Test After NeMo Installation"
+RUN echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
 RUN echo $(python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())")
 RUN echo $(python3 -c "from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer; print('megatron ok')")
 
