@@ -17,18 +17,36 @@
 #       these tests outside of the CI machines environment, where test data is
 #       stored
 
-import os
 import pytest
 from examples.asr.transcribe_speech import TranscriptionConfig
 from omegaconf import OmegaConf
-
+from pathlib import Path
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 from nemo.collections.asr.parts.utils.transcribe_utils import prepare_audio_data, setup_model
 
-TEST_DATA_PATH = "/home/TestData/an4_dataset/an4_val.json"
 PRETRAINED_MODEL_NAME = "stt_en_conformer_transducer_small"
 
 
-def get_rnnt_alignments(strategy: str, loop_labels: bool = True, use_cuda_graph_decoder=False, location="cuda"):
+@pytest.fixture
+def an4_val_manifest_corrected(tmp_path, test_data_dir):
+    """
+    Correct an4_val manifest audio filepaths, e.g.,
+    "tests/data/asr/test/an4/wav/an440-mjgm-b.wav" -> test_data_dir / "test/an4/wav/an440-mjgm-b.wav"
+    """
+    an4_val_manifest_orig_path = Path(test_data_dir) / "asr/an4_val.json"
+    an4_val_manifest_corrected_path = tmp_path / "an4_val_corrected.json"
+    an4_val_records = read_manifest(an4_val_manifest_orig_path)
+    for record in an4_val_records:
+        record["audio_filepath"] = record["audio_filepath"].replace(
+            "tests/data/asr", str(an4_val_manifest_orig_path.resolve().parent)
+        )
+    write_manifest(an4_val_manifest_corrected_path, an4_val_records)
+    return an4_val_manifest_corrected_path
+
+
+def get_rnnt_alignments(
+    strategy: str, manifest_path: Path, loop_labels: bool = True, use_cuda_graph_decoder=False, location="cpu"
+):
     cfg = OmegaConf.structured(TranscriptionConfig(pretrained_name=PRETRAINED_MODEL_NAME))
     cfg.rnnt_decoding.confidence_cfg.preserve_frame_confidence = True
     cfg.rnnt_decoding.preserve_alignments = True
@@ -36,7 +54,7 @@ def get_rnnt_alignments(strategy: str, loop_labels: bool = True, use_cuda_graph_
     if cfg.rnnt_decoding.strategy == "greedy_batch":
         cfg.rnnt_decoding.greedy.loop_labels = loop_labels
         cfg.rnnt_decoding.greedy.use_cuda_graph_decoder = use_cuda_graph_decoder
-    cfg.dataset_manifest = TEST_DATA_PATH
+    cfg.dataset_manifest = str(manifest_path)
     filepaths = prepare_audio_data(cfg)[0][:10]  # selecting 10 files only
 
     model = setup_model(cfg, map_location=location)[0]
@@ -72,16 +90,19 @@ def cleanup_local_folder():
 
 
 # TODO: add the same tests for multi-blank RNNT decoding
-@pytest.mark.skipif(not os.path.exists('/home/TestData'), reason='Not a Jenkins machine')
 @pytest.mark.parametrize("loop_labels", [True, False])
 @pytest.mark.parametrize("use_cuda_graph_decoder", [True, False])
-def test_rnnt_alignments(loop_labels: bool, use_cuda_graph_decoder: bool):
+@pytest.mark.with_downloads
+def test_rnnt_alignments(loop_labels: bool, use_cuda_graph_decoder: bool, an4_val_manifest_corrected):
     if not loop_labels and use_cuda_graph_decoder:
         pytest.skip("Frame-Looping algorithm with CUDA graphs does not yet support alignments")
     # using greedy as baseline and comparing all other configurations to it
-    ref_transcriptions = get_rnnt_alignments("greedy")
+    ref_transcriptions = get_rnnt_alignments("greedy", manifest_path=an4_val_manifest_corrected)
     transcriptions = get_rnnt_alignments(
-        "greedy_batch", loop_labels=loop_labels, use_cuda_graph_decoder=use_cuda_graph_decoder
+        "greedy_batch",
+        loop_labels=loop_labels,
+        use_cuda_graph_decoder=use_cuda_graph_decoder,
+        manifest_path=an4_val_manifest_corrected,
     )
     # comparing that label sequence in alignments is exactly the same
     # we can't compare logits as well, because they are expected to be
