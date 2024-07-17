@@ -15,7 +15,7 @@
 import os
 from typing import Optional
 
-from autoconfig.base_config import calculate_model_size, generate_base_config
+from autoconfig.utils import generic_base_config
 from autoconfig.training_config import search_training_config
 
 SUPPORTED_MODELS = [
@@ -70,19 +70,11 @@ def search_config(cfg: dict):
         isinstance(max_minutes_per_run, int) and max_minutes_per_run >= 10
     ), "max_minutes_per_run must be an int and be at least 10 minutes."
 
-    # Calculate model size
-    model_size_in_b = calculate_model_size(
-        gpu_count=gpu_count,
-        max_training_days=max_training_days,
-        model_size_in_b=model_size_in_b,
-        tflops_per_gpu=tflops_per_gpu,
-        num_tokens_in_b=num_tokens_in_b,
-        model_name=model_name,
-    )
     cfg["model_size_in_b"] = model_size_in_b
+    cfg["gpu_count"] = gpu_count
 
     # Generate base config for the given model size
-    base_cfg = generate_base_config(
+    base_cfg, train_cfg = generic_base_config(
         model_name=model_name,
         model_version=model_version,
         model_size_in_b=model_size_in_b,
@@ -91,6 +83,6 @@ def search_config(cfg: dict):
     )
 
     # Launch grid search for training constraints
-    configs = search_training_config(base_cfg, cfg)
+    configs = search_training_config(base_cfg, train_cfg)
 
     return configs

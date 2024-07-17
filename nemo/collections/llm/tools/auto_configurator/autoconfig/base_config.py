@@ -168,6 +168,9 @@ def generate_base_config(
     :return: base config object for the given model.
     :rtype: dict
     """
+
+    #model_size_in_b = 
+
     base_cfg = utils.generic_base_config(
         model_name=model_name,
         model_version=model_version,

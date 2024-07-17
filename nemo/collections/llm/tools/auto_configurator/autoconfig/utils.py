@@ -16,6 +16,7 @@
 import copy
 from typing import List, Optional, Tuple
 
+from nemo.collections.llm.tools.auto_configurator.autoconfig.base_config import calculate_model_size
 from nemo.collections.llm.tools.auto_configurator import base_configs
 
 MODULES = {
@@ -326,9 +327,22 @@ def generic_base_config(
     :returns: dictionary containing the base configuration for the model.
     :rtype: dict
     """
-
+    default_model = False if model_size_in_b else True
     model_cls = getattr(base_configs, MODULES[model_name])
-    model = model_cls(version=model_version, size=model_size_in_b, measure=model_measure, cfg=cfg)
+
+    model_size_in_b = calculate_model_size(
+        cfg.get("gpu_count"),
+        cfg.get("max_training_days"),
+        model_size_in_b,
+        cfg.get("tflops_per_gpu"),
+        cfg.get("num_tokens_in_b"),
+        model_name,
+    )
+
+    if default_model:
+        model = model_cls(cfg=cfg)
+    else:
+        model = model_cls(version=model_version, size=model_size_in_b, measure=model_measure, cfg=cfg)
 
     base_cfg = {
         "model": model.get_model_config(),
@@ -339,7 +353,28 @@ def generic_base_config(
         "run": model.get_run_config(),
     }
 
-    return base_cfg
+    if default_model:
+        num_layers, hidden_size, num_attention_heads, ffn_hidden_size, kv_channels, _ = calculate_model_size_params(
+            model_size_in_b,
+            cfg.get("vocab_size"),
+            cfg.get("seq_length"),
+            model_name,
+        )
+
+        if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"]:
+            base_cfg["model"].num_layers = num_layers
+            base_cfg["model"].hidden_size = hidden_size
+            base_cfg["model"].num_attention_heads = num_attention_heads
+            base_cfg["model"].kv_channels = kv_channels if kv_channels else None
+            if not ffn_hidden_size:
+                base_cfg["model"].ffn_hidden_size = hidden_size * 4
+            else:
+                base_cfg["model"].ffn_hidden_size = ffn_hidden_size
+        
+
+    cfg["model_size_in_b"] = model_size_in_b
+
+    return base_cfg, cfg
 
 
 def modify_cfg(

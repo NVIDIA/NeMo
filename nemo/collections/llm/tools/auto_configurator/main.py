@@ -30,7 +30,7 @@ def get_args():
     )
     parser.add_argument('--model_type', required=True, type=str, help="Model size in billions")
     parser.add_argument('--model_version', required=True, type=int, help="Model version")
-    parser.add_argument('--model_size', required=True, type=int, help="Model size")
+    parser.add_argument('--model_size', required=False, default=None, type=int, help="Model size")
     parser.add_argument(
         '--model_measure',
         required=False,
