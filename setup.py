@@ -44,23 +44,9 @@ __repository_url__ = package_info.__repository_url__
 __version__ = package_info.__version__
 
 
-if os.path.exists('nemo/README.md'):
-    with open("nemo/README.md", "r", encoding='utf-8') as fh:
-        long_description = fh.read()
+with open("README.md", "r", encoding='utf-8') as fh:
+    long_description = fh.read()
     long_description_content_type = "text/markdown"
-
-elif os.path.exists('README.rst'):
-    # codec is used for consistent encoding
-    long_description = codecs.open(
-        os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.rst'),
-        'r',
-        encoding='utf-8',
-    ).read()
-    long_description_content_type = "text/x-rst"
-
-else:
-    long_description = 'See ' + __homepage__
-    long_description_content_type = "text/plain"
 
 
 ###############################################################################
@@ -90,6 +76,7 @@ extras_require = {
     'tts': req_file("requirements_tts.txt"),
     'slu': req_file("requirements_slu.txt"),
     'multimodal': req_file("requirements_multimodal.txt"),
+    'audio': req_file("requirements_audio.txt"),
 }
 
 
@@ -135,6 +122,7 @@ extras_require['multimodal'] = list(
         ]
     )
 )
+extras_require['audio'] = list(chain([extras_require['audio'], extras_require['core'], extras_require['common']]))
 
 # TTS has extra dependencies
 extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr']]))
@@ -284,4 +272,9 @@ setuptools.setup(
     keywords=__keywords__,
     # Custom commands.
     cmdclass={'style': StyleCommand},
+    entry_points={
+        "sdk.factories": [
+            "llm = nemo.collections.llm",
+        ],
+    },
 )
