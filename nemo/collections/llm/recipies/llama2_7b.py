@@ -1,8 +1,8 @@
-import pytorch_lightning as pl
-from nemo.collections.llm.api import pretrain, finetune
 import nemo_sdk as sdk
+import pytorch_lightning as pl
 
 from nemo import lightning as nl
+from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.api import squad
 from nemo.collections.llm.gpt.model.llama import Llama2Config7B, LlamaModel
 from nemo.collections.llm.peft.api import gpt_lora
@@ -35,6 +35,7 @@ def trainer(devices=8) -> nl.Trainer:
 def hf_resume() -> nl.AutoResume:
     return nl.AutoResume(import_path="hf://meta-llama/Llama-2-7b-hf")
 
+
 @factory(name=NAME)
 def pretrain_recipe() -> sdk.Partial:
     return sdk.Partial(
@@ -45,6 +46,7 @@ def pretrain_recipe() -> sdk.Partial:
         log=default_log,
         optim=adam_with_cosine_annealing,
     )
+
 
 @factory(name=NAME)
 def finetune_recipe() -> sdk.Partial:

@@ -1,8 +1,8 @@
-import pytorch_lightning as pl
-from nemo.collections.llm.api import pretrain, finetune
 import nemo_sdk as sdk
+import pytorch_lightning as pl
 
 from nemo import lightning as nl
+from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.api import squad
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
 from nemo.collections.llm.peft.api import gpt_lora
@@ -34,6 +34,7 @@ def trainer(devices=8) -> nl.Trainer:
 @factory(name=NAME + "_hf")
 def hf_resume() -> nl.AutoResume:
     return nl.AutoResume(import_path="hf://mistralai/Mistral-7B-v0.3")
+
 
 @factory(name=NAME)
 def pretrain_recipe() -> sdk.Partial:
