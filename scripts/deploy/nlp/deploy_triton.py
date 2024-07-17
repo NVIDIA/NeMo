@@ -94,7 +94,9 @@ def get_args(argv):
     parser.add_argument("-msl", "--max_seq_len", default=None, type=int, help="Maximum number of sequence length")
     parser.add_argument("-mp", "--multiple_profiles", default=False, action='store_true', help="Multiple profiles")
     parser.add_argument("-ont", "--opt_num_tokens", default=None, type=int, help="Optimum number of tokens")
-    parser.add_argument("-gap", "--gpt_attention_plugin", default="auto", type=str, help="dtype of gpt attention plugin")
+    parser.add_argument(
+        "-gap", "--gpt_attention_plugin", default="auto", type=str, help="dtype of gpt attention plugin"
+    )
     parser.add_argument("-gp", "--gemm_plugin", default="auto", type=str, help="dtype of gpt plugin")
     parser.add_argument(
         "-mpet", "--max_prompt_embedding_table_size", default=None, type=int, help="Max prompt embedding table size"
