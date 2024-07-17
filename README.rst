@@ -313,7 +313,7 @@ To install the nemo_toolkit, use the following installation method:
 
 Depending on the shell used, you may need to use the ``"nemo_toolkit[all]"`` specifier instead in the above command.
 
-Additionally, the llm collection (the first collection to migrate over to NeMo 2.0) is pip installable from source. If you would like
+Additionally, the LLM collection (the first collection to migrate over to NeMo 2.0) is pip installable from source. If you would like
 to use this collection, you can pip install using the following commands:
 
 .. code-block:: bash
@@ -323,9 +323,9 @@ to use this collection, you can pip install using the following commands:
     git clone https://github.com/NVIDIA/NeMo.git && git -C NeMo checkout ${BRANCH}
     pip install NeMo[core,common,nlp,audio]
 
-`core`, `common`, `nlp`, and `audio` are currently required dependencies of the llm collection. We are working on reducing
+``core``, ``common``, ``nlp``, and ``audio`` are currently required dependencies of the llm collection. We are working on reducing
 the set of dependencies to make the installation process even simpler. Note that this installation method will not install
-Apex or Transformer Engine. While these dpendencies are not required for the LLM collection, we recommend installing them
+Apex or Transformer Engine. While these dependencies are not required for the LLM collection, we recommend installing them
 for optimal performance. Please refer to the `LLMs and MMs Dependencies <#install-llms-and-mms-dependencies>`_ for information
 about how to install these optional dependencies.
 
