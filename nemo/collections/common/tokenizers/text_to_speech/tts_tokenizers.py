@@ -30,7 +30,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     english_text_preprocessing,
     french_text_preprocessing,
     italian_text_preprocessing,
-    japanese_text_preprocesing,
+    japanese_text_preprocessing,
     spanish_text_preprocessing,
 )
 from nemo.utils import logging
