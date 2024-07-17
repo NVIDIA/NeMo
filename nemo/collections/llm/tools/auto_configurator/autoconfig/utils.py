@@ -16,8 +16,8 @@
 import copy
 from typing import List, Optional, Tuple
 
-from nemo.collections.llm.tools.auto_configurator.autoconfig.base_config import calculate_model_size
 from nemo.collections.llm.tools.auto_configurator import base_configs
+from nemo.collections.llm.tools.auto_configurator.autoconfig.base_config import calculate_model_size
 
 MODULES = {
     "gpt3": "GPT",
@@ -370,7 +370,6 @@ def generic_base_config(
                 base_cfg["model"].ffn_hidden_size = hidden_size * 4
             else:
                 base_cfg["model"].ffn_hidden_size = ffn_hidden_size
-        
 
     cfg["model_size_in_b"] = model_size_in_b
 

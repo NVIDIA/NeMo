@@ -15,8 +15,8 @@
 import os
 from typing import Optional
 
-from autoconfig.utils import generic_base_config
 from autoconfig.training_config import search_training_config
+from autoconfig.utils import generic_base_config
 
 SUPPORTED_MODELS = [
     "gpt3",
