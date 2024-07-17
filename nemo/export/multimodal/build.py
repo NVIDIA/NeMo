@@ -259,6 +259,7 @@ def build_neva_engine(
         raise ValueError(f"Unknown projector type: {nemo_config['mm_cfg']['mm_mlp_adapter_type']}")
 
     # export the whole wrapper
+    lita_num_frames = None
     wrapper = VisionEncoderWrapper(vision_encoder, vision_connector).to(device, dtype)
     if model_type == "lita" or model_type == "vila":
         image_size = hf_config.image_size

@@ -30,7 +30,7 @@ from tensorrt_llm._utils import str_dtype_to_trt
 from tensorrt_llm.runtime import ModelRunner, Session, TensorInfo
 from torch.nn import functional as F
 from torchvision import transforms
-from transformers import AutoModel, AutoProcessor, CLIPImageProcessor
+from transformers import AutoProcessor, CLIPImageProcessor
 
 
 def trt_dtype_to_torch(dtype):
@@ -651,7 +651,6 @@ class MultimodalModelRunner:
         return image
 
     def process_image(self, image_file, image_processor, nemo_config, image_folder):
-        image_processor = image_processor
         if isinstance(image_file, str):
             if image_folder is not None:
                 image = Image.open(os.path.join(image_folder, image_file)).convert("RGB")
@@ -680,6 +679,7 @@ class MultimodalModelRunner:
 
     def setup_inputs(self, input_text, raw_image, batch_size):
         attention_mask = None
+        image = None
 
         if self.model_type == "neva":
             image_size = self.image_size
