@@ -1,12 +1,13 @@
 import pytest
 
+import nemo.lightning as nl
 from nemo.collections.llm.gpt.data.pre_training import PreTrainingDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-import nemo.lightning as nl
 
 DATA_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document"
-VOCAB_PATH  = "/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json"
+VOCAB_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json"
 MERGES_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt"
+
 
 @pytest.fixture
 def tokenizer():
@@ -17,6 +18,7 @@ def tokenizer():
         merges_file=MERGES_PATH,
     )
 
+
 @pytest.fixture
 def trainer():
     return nl.Trainer(
@@ -24,9 +26,10 @@ def trainer():
         max_steps=1,
     )
 
+
 def test_single_data_distribution(tokenizer, trainer):
 
-    data =  PreTrainingDataModule(
+    data = PreTrainingDataModule(
         paths=[DATA_PATH],
         seq_length=512,
         micro_batch_size=2,
@@ -44,12 +47,13 @@ def test_single_data_distribution(tokenizer, trainer):
     ## this should succeed
     data.setup(stage="dummy")
 
+
 def test_multiple_data_distributions(tokenizer, trainer):
-    data =  PreTrainingDataModule(
+    data = PreTrainingDataModule(
         paths={
-            "train":['1', DATA_PATH],
-            "validation":[DATA_PATH, DATA_PATH],
-            "test":['1', DATA_PATH], 
+            "train": ['1', DATA_PATH],
+            "validation": [DATA_PATH, DATA_PATH],
+            "test": ['1', DATA_PATH],
         },
         seq_length=512,
         micro_batch_size=2,
@@ -60,4 +64,3 @@ def test_multiple_data_distributions(tokenizer, trainer):
 
     ## this should succeed
     data.setup(stage="dummy")
-

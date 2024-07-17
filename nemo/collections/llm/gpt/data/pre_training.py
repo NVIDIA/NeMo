@@ -1,6 +1,6 @@
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
-import warnings
 
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
@@ -42,12 +42,12 @@ class PreTrainingDataModule(pl.LightningDataModule):
             paths = [paths]
 
         from megatron.core.datasets.utils import get_blend_from_list
+
         build_kwargs = {}
         if isinstance(paths, dict):
             if split is not None:
                 warnings.warn(
-                    f"{split=} will be ignored since datasets are being created "
-                    f"from 3 separate distributions."
+                    f"{split=} will be ignored since datasets are being created " f"from 3 separate distributions."
                 )
             build_kwargs["blend_per_split"] = [
                 get_blend_from_list(paths["train"]),
