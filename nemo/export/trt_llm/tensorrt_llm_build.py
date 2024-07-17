@@ -45,7 +45,7 @@ def build_and_save_engine(
     paged_kv_cache: bool = True,
     remove_input_padding: bool = True,
     paged_context_fmha: bool = False,
-    custom_all_reduce: bool = True,
+    use_custom_all_reduce: bool = True,
     use_refit: bool = False,
     max_num_tokens: int = None,
     max_seq_len: int = None,
@@ -53,6 +53,8 @@ def build_and_save_engine(
     max_beam_width: int = 1,
     tokens_per_block: int = 128,
     multiple_profiles: bool = False,
+    gpt_attention_plugin: str = "auto",
+    gemm_plugin: str = "auto",
 ):
     architecture = "LLaMAForCausalLM" if model_config.architecture == "LlamaForCausalLM" else model_config.architecture
     try:
@@ -61,19 +63,18 @@ def build_and_save_engine(
         raise AttributeError(f"Could not find TRTLLM model type: {model_type}!")
 
     logger.set_level("info")
-    str_dtype = model_config.dtype
     plugin_config = PluginConfig()
-    # plugin_config.set_gpt_attention_plugin(dtype=str_dtype)
-    # plugin_config.set_gemm_plugin(dtype=str_dtype)
-    plugin_config.use_custom_all_reduce = custom_all_reduce
-    # plugin_config.set_plugin("multi_block_mode", enable_multi_block_mode)
-    plugin_config._multi_block_mode = enable_multi_block_mode
+    plugin_config.gpt_attention_plugin = gpt_attention_plugin
+    plugin_config.gemm_plugin = gemm_plugin
+    plugin_config.set_nccl_plugin(use_custom_all_reduce=use_custom_all_reduce)
+    plugin_config.multi_block_mode = enable_multi_block_mode
     if paged_kv_cache:
         plugin_config.enable_paged_kv_cache(tokens_per_block=tokens_per_block)
     else:
         plugin_config.paged_kv_cache = False
     plugin_config.remove_input_padding = remove_input_padding
     plugin_config.use_paged_context_fmha = paged_context_fmha
+    plugin_config.multiple_profiles = multiple_profiles
 
     if max_seq_len is None:
         max_seq_len = max_input_len + max_output_len

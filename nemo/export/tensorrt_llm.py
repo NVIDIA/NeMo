@@ -154,6 +154,10 @@ class TensorRTLLM(ITritonDeployable):
         max_lora_rank: int = 64,
         max_num_tokens: int = None,
         opt_num_tokens: int = None,
+        max_seq_len: int = None,
+        multiple_profiles: bool = False,
+        gpt_attention_plugin: str = "auto",
+        gemm_plugin: str = "auto",
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -185,6 +189,10 @@ class TensorRTLLM(ITritonDeployable):
             max_lora_rank (int): maximum lora rank.
             max_num_tokens (int):
             opt_num_tokens (int):
+            max_seq_len (int):
+            multiple_profiles: (bool): enables multiple profiles feature of TRT-LLM. Default = False
+            gpt_attention_plugin (str): enable the gpt attention plugin. Default = "auto"
+            gemm_plugin (str): enable the gpt plugin. Default = "auto"
         """
 
         if n_gpus is not None:
@@ -321,6 +329,10 @@ class TensorRTLLM(ITritonDeployable):
                         paged_context_fmha=paged_context_fmha,
                         max_num_tokens=max_num_tokens,
                         opt_num_tokens=opt_num_tokens,
+                        max_seq_len=max_seq_len,
+                        multiple_profiles=multiple_profiles,
+                        gpt_attention_plugin=gpt_attention_plugin,
+                        gemm_plugin=gemm_plugin,
                     )
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
