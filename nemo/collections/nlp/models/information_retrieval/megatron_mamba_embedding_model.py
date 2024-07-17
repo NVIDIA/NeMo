@@ -19,7 +19,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from megatron.core.models.mamba import MambaModel
-from megatron.core.models.mamba.mamba_layer_specs import get_mamba_layer_with_transformer_engine_spec
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.distributed import all_gather as all_gather_no_backprop
@@ -64,6 +63,8 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         self.global_inbatch_negatives = self.cfg.get("global_inbatch_negatives", True)
         self.backprop_type = self.cfg.get("backprop_type", "local")
         assert self.backprop_type in ["local", "global"], "Backprop type must be `local` or `global`"
+        self.output_head_type = self.cfg.get("output_head_type", "eos_only")
+        assert self.output_head_type in ["eos_only", "avg_pool", "bidir_eos"], "Output head type must be `eos_only`, `avg_pool` or `bidir_eos`"
 
         # Matryoshka Representation Learning
         # if self.cfg.get("do_mrl", False):
@@ -454,55 +455,58 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         cs = cs / temperature
         return cs, pos_cs, neg_cs, labels
 
-    # def inference_loss_func(self, loss_mask, num_valid_tokens_in_ub, eos_tensors):
-    #     hs = eos_tensors
-    #     hs = F.normalize(hs, dim=1)
-    #     _blank = torch.zeros(1, device=hs.device, dtype=hs.dtype)[0]
-    #     return _blank, hs, hs, _blank, _blank, _blank
-
-    def _gather_global_inbatch_representations(self, local_eos_tensor):
-        local_eos_tensor = local_eos_tensor.contiguous()
+    def _gather_global_inbatch_representations(self, local_output_tensor):
+        local_output_tensor = local_output_tensor.contiguous()
         if self.backprop_type == 'local':
-            global_eos_tensors = [
-                torch.zeros_like(local_eos_tensor) for _ in range(parallel_state.get_data_parallel_world_size())
+            global_output_tensors = [
+                torch.zeros_like(local_output_tensor) for _ in range(parallel_state.get_data_parallel_world_size())
             ]
             all_gather_no_backprop(
-                global_eos_tensors, local_eos_tensor, group=parallel_state.get_data_parallel_group()
+                global_output_tensors, local_output_tensor, group=parallel_state.get_data_parallel_group()
             )
-            global_eos_tensors[parallel_state.get_data_parallel_rank()] = local_eos_tensor
-            global_eos_tensors = torch.cat(global_eos_tensors, dim=0)
+            global_output_tensors[parallel_state.get_data_parallel_rank()] = local_output_tensor
+            global_output_tensors = torch.cat(global_output_tensors, dim=0)
 
         else:
-            global_eos_tensors = all_gather_with_backprop(local_eos_tensor)
-            global_eos_tensors = torch.cat(global_eos_tensors, dim=0)
+            global_output_tensors = all_gather_with_backprop(local_output_tensor)
+            global_output_tensors = torch.cat(global_output_tensors, dim=0)
 
-        return global_eos_tensors
+        return global_output_tensors
 
     def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
-        idx = torch.arange(output_tensor.shape[1], device=output_tensor.device)
-        eos_tensors = output_tensor[loss_mask, idx, :]
+        if self.output_head_type == "eos_only":
+            idx = torch.arange(output_tensor.shape[1], device=output_tensor.device)
+            output_tensor = output_tensor[loss_mask, idx, :]
+        else:
+            output_tensor = output_tensor.permute(1, 0, 2)
+            lengths = loss_mask+1
+            attention_mask = torch.arange(output_tensor.shape[1], device=output_tensor.device).expand(len(lengths), output_tensor.shape[1]) < lengths.unsqueeze(1)
+            input_mask_expanded = attention_mask.unsqueeze(-1).expand(output_tensor.size()).float()
+            sum_embeddings = torch.sum(output_tensor * input_mask_expanded, 1)
+
+            sum_mask = input_mask_expanded.sum(1)
+
+            sum_mask = torch.clamp(sum_mask, min=1e-9)
+
+            output_tensor = sum_embeddings / sum_mask
+
         # print("Using ", self.backprop_type)
-        # print(parallel_state.get_data_parallel_rank(), "Before EOS: ", eos_tensors.shape)
+        # print(parallel_state.get_data_parallel_rank(), "Before EOS: ", output_tensor.shape)
 
         if self.global_inbatch_negatives and self.trainer.training:
-            eos_tensors = self._gather_global_inbatch_representations(eos_tensors)
+            output_tensor = self._gather_global_inbatch_representations(output_tensor)
 
-        # print(parallel_state.get_data_parallel_rank(), "After EOS: ", len(eos_tensors), eos_tensors[0].shape, eos_tensors[1].shape)
+        # print(parallel_state.get_data_parallel_rank(), "After EOS: ", len(output_tensor), output_tensor[0].shape, output_tensor[1].shape)
 
         if not self.trainer.training:
-            return self.inference_loss_func(loss_mask, num_valid_tokens_in_ub, eos_tensors)
+            return self.inference_loss_func(loss_mask, num_valid_tokens_in_ub, output_tensor)
 
         num_tensors_per_example = 2 + self.hard_negatives_to_train
-        bs = eos_tensors.shape[0] // num_tensors_per_example
-        chunks = eos_tensors.chunk(bs)
+        bs = output_tensor.shape[0] // num_tensors_per_example
+        chunks = output_tensor.chunk(bs)
         query_hs = torch.stack([item[0] for item in chunks])
         pos_doc_hs = torch.stack([item[1] for item in chunks])
         neg_doc_hs = [torch.stack([item[i + 2] for item in chunks]) for i in range(self.hard_negatives_to_train)]
-
-        # query_hs = eos_tensors[::num_tensors_per_example, :]  # every third tensor is a query (bs x hidden_size)
-        # pos_doc_hs = eos_tensors[1::num_tensors_per_example, :]  # every third tensor is a positive doc (bs x hidden_size)
-        #
-        # neg_doc_hs = eos_tensors[2::3, :]  # every third tensor is a negative doc (bs x hidden_size)
 
         query_hs = F.normalize(query_hs, dim=1)
         pos_doc_hs = F.normalize(pos_doc_hs, dim=1)

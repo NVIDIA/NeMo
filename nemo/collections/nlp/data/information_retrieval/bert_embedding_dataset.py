@@ -132,7 +132,10 @@ class BertEmbeddingDataset(Dataset):
             if isinstance(idx, np.uint32):
                 idx = idx.item()
 
-        assert idx < len(self.indexed_dataset)
+        if idx is not None:
+            assert idx < len(self.indexed_dataset)
+        else:
+            idx = -1
         # idx may < 0 because we pad_samples_to_global_batch_size, e.g. id = -1
         if idx < 0:
             idx = len(self) + idx
@@ -278,7 +281,8 @@ class BertEmbeddingDataset(Dataset):
             else:
                 raise ValueError(f"Invalid data type: {self.data_type}")
 
-        max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))
+        # max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))
+        max_length = self.max_seq_length
         assert max_length <= self.max_seq_length
 
         attention_mask = [self._create_attention_mask2(max_length, len) for len in lengths]
@@ -292,6 +296,7 @@ class BertEmbeddingDataset(Dataset):
             'input_ids': input_ids,
             'token_type_ids': torch.zeros_like(input_ids),
             'attention_mask': attention_mask,
+            'metadata': metadata,
         }
 
         return processed_batch

@@ -11,8 +11,7 @@ from nemo.utils.exp_manager import exp_manager
 
 mp.set_start_method("spawn", force=True)
 
-
-@hydra_runner(config_path="conf", config_name="megatron_bert_embedding_config")
+@hydra_runner(config_path="conf", config_name="megatron_mamba_embedding_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
