@@ -27,9 +27,9 @@ from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecRNNTBPEModel
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
-from nemo.collections.asr.parts.utils.transcribe_utils import prepare_audio_data, setup_model
+from nemo.collections.asr.parts.utils.transcribe_utils import prepare_audio_data
 
-DEVICES = ['cpu']
+DEVICES = []
 
 if torch.cuda.is_available():
     DEVICES.append('cuda')
@@ -37,15 +37,8 @@ if torch.cuda.is_available():
 
 @pytest.fixture(scope="module")
 def stt_en_conformer_transducer_small_model():
-    model = EncDecRNNTBPEModel.from_pretrained(model_name="stt_en_conformer_transducer_small")
+    model = EncDecRNNTBPEModel.from_pretrained(model_name="stt_en_conformer_transducer_small", map_location="cpu")
     return model
-
-
-@pytest.fixture(scope="module")
-def stt_en_conformer_transducer_small_path(stt_en_conformer_transducer_small_model, tmp_path_factory):
-    path = tmp_path_factory.mktemp("asr_models") / "stt_en_conformer_transducer_small.nemo"
-    stt_en_conformer_transducer_small_model.save_to(path)
-    return path
 
 
 @pytest.fixture(scope="module")
@@ -68,12 +61,12 @@ def an4_val_manifest_corrected(tmp_path_factory, test_data_dir):
 def get_rnnt_alignments(
     strategy: str,
     manifest_path: Union[Path, str],
-    model_path: Union[Path, str],
+    model: EncDecRNNTBPEModel,
     loop_labels: bool = True,
     use_cuda_graph_decoder=False,
     device="cuda",
 ):
-    cfg = OmegaConf.structured(TranscriptionConfig(model_path=str(model_path)))
+    cfg = OmegaConf.structured(TranscriptionConfig())
     cfg.rnnt_decoding.confidence_cfg.preserve_frame_confidence = True
     cfg.rnnt_decoding.preserve_alignments = True
     cfg.rnnt_decoding.strategy = strategy
@@ -83,7 +76,7 @@ def get_rnnt_alignments(
     cfg.dataset_manifest = str(manifest_path)
     filepaths = prepare_audio_data(cfg)[0][:10]  # selecting 10 files only
 
-    model = setup_model(cfg, map_location=device)[0]
+    model = model.to(device)
     model.change_decoding_strategy(cfg.rnnt_decoding)
 
     transcriptions = model.transcribe(
@@ -125,7 +118,7 @@ def test_rnnt_alignments(
     use_cuda_graph_decoder: bool,
     device: str,
     an4_val_manifest_corrected,
-    stt_en_conformer_transducer_small_path,
+    stt_en_conformer_transducer_small_model,
 ):
     if use_cuda_graph_decoder and device != "cuda":
         pytest.skip("CUDA decoder works only with CUDA")
@@ -135,7 +128,7 @@ def test_rnnt_alignments(
     ref_transcriptions = get_rnnt_alignments(
         "greedy",
         manifest_path=an4_val_manifest_corrected,
-        model_path=stt_en_conformer_transducer_small_path,
+        model=stt_en_conformer_transducer_small_model,
         device=device,
     )
     transcriptions = get_rnnt_alignments(
@@ -143,7 +136,7 @@ def test_rnnt_alignments(
         loop_labels=loop_labels,
         use_cuda_graph_decoder=use_cuda_graph_decoder,
         manifest_path=an4_val_manifest_corrected,
-        model_path=stt_en_conformer_transducer_small_path,
+        model=stt_en_conformer_transducer_small_model,
         device=device,
     )
     # comparing that label sequence in alignments is exactly the same
