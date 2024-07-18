@@ -150,8 +150,10 @@ class MultiHeadAttention(nn.Module):
 
                 if mask is not None:
                     mask = mask.unsqueeze(1)
-                    
-                out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=self.dropout_rate, scale=scale)
+
+                out = torch.nn.functional.scaled_dot_product_attention(
+                    q, k, v, attn_mask=mask, dropout_p=self.dropout_rate, scale=scale
+                )
                 out = out.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
                 out = self.linear_out(out)  # (batch, time1, d_model)
             else:
@@ -181,7 +183,9 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         use_bias (bool): whether to apply bias in linear and conv layers of MultiHeadAttention
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v, max_cache_len=0, use_bias=True, use_sdpa=False):
+    def __init__(
+        self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v, max_cache_len=0, use_bias=True, use_sdpa=False
+    ):
         """Construct an RelPositionMultiHeadedAttention object."""
         super().__init__(
             n_head=n_head,
@@ -189,7 +193,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             dropout_rate=dropout_rate,
             max_cache_len=max_cache_len,
             use_bias=use_bias,
-            use_sdpa=use_sdpa
+            use_sdpa=use_sdpa,
         )
         # linear transformation for positional encoding
         self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
@@ -271,7 +275,9 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
                     mask = mask.unsqueeze(1)
                     matrix_bd.masked_fill_(mask.logical_not(), float("-inf"))
 
-                out = torch.nn.functional.scaled_dot_product_attention(q_with_bias_u, k, v, attn_mask=matrix_bd, dropout_p=self.dropout_rate, scale=scale_factor)
+                out = torch.nn.functional.scaled_dot_product_attention(
+                    q_with_bias_u, k, v, attn_mask=matrix_bd, dropout_p=self.dropout_rate, scale=scale_factor
+                )
                 out = out.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
                 out = self.linear_out(out)  # (batch, time1, d_model)
             else:
