@@ -1807,6 +1807,14 @@ class ModelPT(LightningModule, Model):
                         f'Memory profile output path ({self._memory_profile_output_path}) is not set or does not exist.'
                     )
 
+        if self.cfg.get('detect_reference_cycles', False) is not False:
+            from torch.utils.viz._cycles import observe_tensor_cycles
+            def print_html_and_throw(html):
+                # For debugging purposes; maybe log to file?
+                print(html)
+                raise ValueError("Got tensor cycles")
+            observe_tensor_cycles(print_html_and_throw)
+
     def on_train_start(self):
         """PyTorch Lightning hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-start
