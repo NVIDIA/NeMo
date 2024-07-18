@@ -35,9 +35,10 @@ class TestNeMoLogger:
         explicit_dir = "explicit_test_dir"
         logger = nl.NeMoLogger(name="test", explicit_log_dir=explicit_dir)
 
-        with patch("nemo.utils.exp_manager.check_explicit_log_dir") as mock_check:
-            logger.setup(trainer)
-            mock_check.assert_called_once_with(trainer, explicit_dir, None, "test", None)
+        app_state = logger.setup(trainer)
+        assert str(app_state.log_dir) == "explicit_test_dir"
+        assert app_state.name == "" ## name should be ignored when explicit_log_dir is passed in
+        assert app_state.version == ""
 
     def test_default_log_dir(self, trainer):
 
