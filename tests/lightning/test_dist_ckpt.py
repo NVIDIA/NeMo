@@ -136,7 +136,7 @@ class TestDistCkptIO:
 
     def test_sharded_strategies(self):
 
-        model_checkpoint = nl.ModelCheckpoint(async_save=True)
+        model_checkpoint = nl.ModelCheckpoint()
 
         strategy = nl.MegatronStrategy(
             enable_nemo_ckpt_io=False,
@@ -147,6 +147,7 @@ class TestDistCkptIO:
         trainer = nl.Trainer(
             callbacks=[model_checkpoint],
             strategy=strategy,
+            async_save=True,
         )
         strategy.trainer = trainer
 
