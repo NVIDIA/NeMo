@@ -156,14 +156,23 @@ class FloatList(click.Option):
 
 
 @click.command(context_settings={'show_default': True})
-@click.option("-n", "--pretrained-name", type=str, help="Name of a pretrained model to use, e.g. 'nvidia/canary-1b'.")
+@click.option(
+    "-n",
+    "--pretrained-name",
+    type=str,
+    default=None,
+    help="Name of a pretrained model to use, e.g. 'nvidia/canary-1b'.",
+)
 @click.option(
     "-m",
     "--module-name",
     type=str,
+    default=None,
     help="Full path to NeMo's module corresponding to CONFIG_PATH, e.g. 'nemo.collections.asr.models.EncDecMultiTaskModel'.",
 )
-@click.option("-c", "--config-path", type=str, help="Path to the training configuration file for MODULE_NAME.")
+@click.option(
+    "-c", "--config-path", type=str, default=None, help="Path to the training configuration file for MODULE_NAME."
+)
 @click.option("-o", "--optimizer-name", type=str, default="adamw", help="Name of optimizer to use.")
 @click.option(
     "-b",
@@ -229,7 +238,7 @@ def oomptimizer(
     trainer.log_every_n_steps = 1000000
     if pretrained_name is not None:
         assert (
-            config_path is not None and module_name is not None
+            config_path is None and module_name is None
         ), "--pretrained-name cannot be used together with --module-name/--config-path"
         print(f"Intializing ASR model from pretrained checkpoint {pretrained_name}.")
         model = ASRModel.from_pretrained(pretrained_name, trainer=trainer).to(device)
