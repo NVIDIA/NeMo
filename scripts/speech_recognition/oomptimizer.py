@@ -53,13 +53,17 @@ class ProfilingBatchGenerator:
     In addition, ``"seq_length"`` key is used to determine whether we should apply input or output sequence length
     to a given tensor, and "vocab_size" is required for ``LabelsType`` so that we can generate proper label values.
 
+    The search terminates once the difference between max working batch size and min OOM batch size
+    divided by the latter is smaller than ``rel_gap_thresh`` that difference amounts to a single element.
+    For example, a max working batch size is 96 and min OOM batch size is 100 indicates a gap of 0.04,
+    which would terminate the search with threshold of 0.05.
     """
 
     def __init__(
         self,
         schema: list[dict] = None,
         start_batch_size: int = 1024,
-        rel_gap_thresh: float = 0.1,
+        rel_gap_thresh: float = 0.05,
         device: str = "cuda",
     ):
         self.schema = schema
@@ -89,6 +93,10 @@ class ProfilingBatchGenerator:
 
     @property
     def max_batch_size(self) -> int | None:
+        """
+        Return the solution of the batch size search problem.
+        It will keep returning None until the search is done.
+        """
         if (
             self._max_ok is not None
             and self._min_err is not None
@@ -98,12 +106,18 @@ class ProfilingBatchGenerator:
         return None
 
     @property
-    def current_rel_gap(self) -> int | None:
+    def current_rel_gap(self) -> float | None:
+        """
+        Return the current gap between the largest batch that works and the smallest batch that triggers OOM.
+        The gap is defined as the batch size difference divided by the larger element.
+        E.g., if the best found batch size is 95 and the smallest that triggers OOM is 100, the gap is 0.05.
+        """
         if self._min_err is None or self._max_ok is None:
             return None
         return (self._min_err - self._max_ok) / self._min_err
 
     def reset(self):
+        """Reset the generator to prepare it for a new search."""
         self._current = self.start_batch_size
         self._max_ok = None  # max batch size that works
         self._min_err = None  # min batch size that doesn't work
@@ -142,6 +156,8 @@ class ProfilingBatchGenerator:
 
 
 class FloatList(click.Option):
+    """Support passing bucket duration bins as [1.1,2.5,5.6,...]"""
+
     name = "list[float]"
 
     def type_cast_value(self, ctx, value):
