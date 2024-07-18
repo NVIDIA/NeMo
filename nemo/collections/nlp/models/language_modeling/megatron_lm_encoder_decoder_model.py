@@ -276,6 +276,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             de_block_spec = enc_dec_spec_fns[1](self.cfg.decoder.num_layers)
             model = MCoreT5Model(
                 config=self.transformer_config,
+                encoder_config=self.transformer_config,
                 transformer_encoder_layer_spec=en_block_spec,
                 transformer_decoder_layer_spec=de_block_spec,
                 vocab_size=self.padded_vocab_size,
