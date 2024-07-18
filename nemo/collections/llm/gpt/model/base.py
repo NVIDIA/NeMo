@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 TRAIN_LOSS_REDUCTION = MaskedTokenLossReduction()
 VALIDATION_LOSS_REDUCTION = MaskedTokenLossReduction(validation_step=True)
 
+
 def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
 
