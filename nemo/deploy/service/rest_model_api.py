@@ -75,6 +75,7 @@ class CompletionRequest(BaseModel):
     stop: str | None = None
     frequency_penalty: float = 1.0
 
+
 @app.get("/triton_health")
 async def check_triton_health():
     """

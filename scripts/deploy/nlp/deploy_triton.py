@@ -198,6 +198,7 @@ def get_args(argv):
     args = parser.parse_args(argv)
     return args
 
+
 def store_args_to_json(args):
     """
     Stores user defined arg values relevant for REST API in config.json
@@ -211,6 +212,7 @@ def store_args_to_json(args):
     }
     with open("nemo/deploy/service/config.json", "w") as f:
         json.dump(args_dict, f)
+
 
 def get_trtllm_deployable(args):
     if args.triton_model_repository is None:
