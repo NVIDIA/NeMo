@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Union
 import os
 import uvicorn
+import json
 
 import pytorch_lightning as pl
 from typing_extensions import Annotated
@@ -276,14 +277,26 @@ def get_trtllm_deployable(nemo_checkpoint, model_type, triton_model_repository, 
 
     return trt_llm_exporter
 
+def store_args_to_json(triton_http_address, triton_port,
+                       triton_request_timeout, openai_format_response):
+    args_dict = {
+        "triton_service_ip": triton_http_address,
+        "triton_service_port": triton_port,
+        "triton_request_timeout": triton_request_timeout,
+        "openai_format_response": openai_format_response
+    }
+    with open("nemo/deploy/service/config.json", "w") as f:
+        json.dump(args_dict, f)
+
 @task(namespace="llm")
 def deploy(
     nemo_checkpoint: Path = None,
     model_type: str = "llama",
-    triton_model_name: str,
+    triton_model_name: str = "xxx",
     triton_model_version: Optional[int] = 1,
     triton_port: int = 8000,
     triton_http_address: str = "0.0.0.0",
+    triton_request_timeout: int = 60,
     triton_model_repository: Path = None,
     num_gpus: int = 1,
     tensor_parallelism_size: int = 1,
@@ -294,16 +307,19 @@ def deploy(
     max_batch_size: int = 8,
     start_rest_service: bool = False,
     rest_service_http_address: str = "0.0.0.0",
-    rest_service_port: int = 8000
+    rest_service_port: int = 8000,
+    openai_format_response: bool = False
 ):
-    triton_deployable = get_trtllm_deployable(nemo_checkpoint, model_type, triton_model_repository, num_gpus,
-                            tensor_parallelism_size, pipeline_parallelism_size, max_input_len, max_output_len,
-                            max_batch_size, dtype)
-
     if start_rest_service:
         if triton_port == rest_service_port:
             raise ValueError("REST service port and Triton server port cannot use the same port.")
             return
+        # Store triton ip, port and other args relevant for REST API in config.json to be accessible by rest_model_api.py
+        store_args_to_json(triton_http_address, triton_port, triton_request_timeout, openai_format_response)
+
+    triton_deployable = get_trtllm_deployable(nemo_checkpoint, model_type, triton_model_repository, num_gpus,
+                            tensor_parallelism_size, pipeline_parallelism_size, max_input_len, max_output_len,
+                            max_batch_size, dtype)
 
     try:
         nm = DeployPyTriton(
@@ -312,7 +328,7 @@ def deploy(
             triton_model_version=triton_model_version,
             max_batch_size=max_batch_size,
             port=triton_port,
-            address=triton_http_addresss
+            address=triton_http_address
         )
 
         print("Triton deploy function will be called.")

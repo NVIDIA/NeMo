@@ -5,7 +5,7 @@ except ImportError:
     pass
 
 from nemo.collections.llm import peft, tokenizer
-from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
+from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate, deploy
 from nemo.collections.llm.gpt.data import (
     DollyDataModule,
     FineTuningDataModule,
@@ -99,6 +99,7 @@ __all__ = [
     "pretrain",
     "validate",
     "finetune",
+    "deploy",
     "tokenizer",
     "mock",
     "squad",
