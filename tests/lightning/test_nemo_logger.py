@@ -1,6 +1,7 @@
+import os
 from pathlib import Path
 from unittest.mock import patch
-import os
+
 import pytest
 from pytorch_lightning.callbacks import ModelCheckpoint as PTLModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
@@ -8,6 +9,7 @@ from pytorch_lightning.loggers import WandbLogger
 from nemo import lightning as nl
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.utils.exp_manager import NotFoundError
+
 
 class TestNeMoLogger:
     @pytest.fixture
@@ -38,11 +40,11 @@ class TestNeMoLogger:
             mock_check.assert_called_once_with(trainer, explicit_dir, None, "test", None)
 
     def test_default_log_dir(self, trainer):
-        
+
         if os.environ.get(NEMO_ENV_VARNAME_VERSION, None) is not None:
             del os.environ[NEMO_ENV_VARNAME_VERSION]
         logger = nl.NeMoLogger(use_datetime_version=False)
-        app_state = logger.setup(trainer) 
+        app_state = logger.setup(trainer)
         assert app_state.log_dir == Path(Path.cwd() / "nemo_experiments" / "default")
 
     def test_custom_version(self, trainer):
@@ -98,7 +100,6 @@ class TestNeMoLogger:
             resume_ignore_no_checkpoint=True,
         ).setup(None, trainer)
 
-
         path = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints").mkdir(parents=True)
         # Error because checkpoints do not exist in folder
         with pytest.raises(NotFoundError):
@@ -107,7 +108,6 @@ class TestNeMoLogger:
                 resume_if_exists=True,
             ).setup(None, trainer)
 
-        
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end").mkdir()
         # Error because *end.ckpt is in folder indicating that training has already finished
         with pytest.raises(ValueError):
