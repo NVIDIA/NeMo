@@ -144,13 +144,12 @@ class TestDistCkptIO:
             save_ckpt_format='torch_dist',
             ckpt_parallel_save=True,
             ckpt_load_directly_on_device=False,
+            ckpt_async_save=True,
         )
         trainer = nl.Trainer(
             callbacks=[model_checkpoint],
             strategy=strategy,
-            async_save=True,
         )
-        strategy.trainer = trainer
 
         assert isinstance(strategy.checkpoint_io, AsyncFinalizableCheckpointIO)
         assert isinstance(strategy.checkpoint_io._checkpoint_io, MegatronCheckpointIO)
