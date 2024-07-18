@@ -23,26 +23,15 @@ class NeMoLogger(IOMixin):
 
     Args:
         name (str): Name of the experiment.
-        dir (Optional[str]): Directory to save logs and new checkpoints to.
-            Log_dir will be set to ``dir`` / ``name`` / ``version``.
-        explicit_log_dir (Optional[str]): Explicit log directory. If set, name,
-           dir and version are ignored and logs and checkpoints are written to
-           ``explicit_log_dir`` instead.
+        dir (Optional[str]): Directory to save logs.
+        explicit_log_dir (Optional[str]): Explicit log directory.
         version (Optional[str]): Version of the experiment.
         use_datetime_version (bool): Whether to use datetime as version.
-        log_local_rank_0_only (bool): Whether to log only on local rank 0.
-        log_global_rank_0_only (bool): Whether to log only on global rank 0.
-            should not be used with ``log_local_rank_0_only``.
+        log_local_rank_0_only (bool): Log only on local rank 0.
+        log_global_rank_0_only (bool): Log only on global rank 0.
         files_to_copy (Optional[List[str]]): List of files to copy to log directory.
-        update_logger_directory (bool): If True, logger directory is updated so that
-            loggers write output to log_dir, as well.
+        update_logger_directory (bool): Whether to update logger directory.
         ckpt (Optional[ModelCheckpoint]): Model checkpoint callback.
-        tensorboard (Optional[TensorBoardLogger]): TensorBoardLogger instance to append
-            to the set of loggers.
-        wandb (Optional[WandbLogger]): WandbLogger instance to append
-            to the set of loggers.
-        extra_loggers: (Optional[List[Logger]]): Any additional loggers to append
-            to the set of loggers.
     """
 
     name: str = "default"
@@ -84,45 +73,30 @@ class NeMoLogger(IOMixin):
         logging.rank = self.global_rank
 
         if self.explicit_log_dir and isinstance(trainer, pl.Trainer):  # If explicit log_dir was passed, short circuit
-            if trainer.logger is not None and not self.update_logger_directory:
-                logging.warning(
-                    f"nemo logger received explicit_log_dir: {self.explicit_log_dir} and the pytorch lightning trainer "
-                    f"that was passed to nemo_logger container a logger, but update_logger_directory is False. This means "
-                    f"that the trainer's logger directory may not match with the explicit_log_dir."
-                )
-            if self.dir or self.version:
-                logging.error(
-                    f"nemo logger received explicit_log_dir: {self.explicit_log_dir} and at least one of dir: {self.dir}, "
-                    f"or version: {self.version}. Please note that dir, name, and version will be ignored."
-                )
-            if is_global_rank_zero() and Path(self.explicit_log_dir).exists():
-                logging.warning(f"Exp_manager is logging to {self.explicit_log_dir}, but it already exists.")
-            log_dir, _dir, self.name, version = Path(self.explicit_log_dir), str(self.explicit_log_dir), "", ""
+            return check_explicit_log_dir(trainer, self.explicit_log_dir, self.dir, self.name, self.version)
 
-        else:
-            # Default dir to ./nemo_experiments if None was passed
-            _dir = self.dir
-            if self.dir is None:
-                _dir = str(Path.cwd() / 'nemo_experiments')
+        # Default dir to ./nemo_experiments if None was passed
+        _dir = self.dir
+        if self.dir is None:
+            _dir = str(Path.cwd() / 'nemo_experiments')
 
-            if not self.name:
-                self.name = "default"
+        if not self.name:
+            self.name = "default"
 
-            version = self.version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
+        version = self.version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
+        if is_global_rank_zero():
+            if self.use_datetime_version:
+                version = time.strftime('%Y-%m-%d_%H-%M-%S')
+        if resume_if_exists:
+            logging.warning(
+                "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
+            )
+            version = None
+        if version:
             if is_global_rank_zero():
-                if self.use_datetime_version:
-                    version = time.strftime('%Y-%m-%d_%H-%M-%S')
-            if resume_if_exists:
-                logging.warning(
-                    "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
-                )
-                version = None
-            if version:
-                if is_global_rank_zero():
-                    os.environ[NEMO_ENV_VARNAME_VERSION] = version
+                os.environ[NEMO_ENV_VARNAME_VERSION] = version
 
-            log_dir = Path(_dir) / Path(str(self.name)) / Path("" if version is None else str(version))
-
+        log_dir = Path(_dir) / Path(str(self.name)) / Path("" if version is None else str(version))
         # update app_state with log_dir, exp_dir, etc
         app_state = AppState()
         app_state.log_dir = log_dir
