@@ -206,12 +206,11 @@ class MultimodalModelRunner:
         )  # [num_frames, 3, H, W]
         return media_tensors.unsqueeze(0)  # [1, num_frames, 3, H, W]
 
-    def insert_tokens_by_index(self, input_ids, nemo_config):
+    def insert_tokens_by_index(self, input_ids, num_frames):
         im_start_id = self.tokenizer.im_start_id
         im_end_id = self.tokenizer.im_end_id
         vid_start_id = self.tokenizer.vid_start_id
         vid_end_id = self.tokenizer.vid_end_id
-        num_frames = nemo_config['mm_cfg']['lita']['sample_frames']
 
         image_token_indices = (input_ids == 0).nonzero(as_tuple=False).squeeze().tolist()
         input_ids = input_ids.squeeze().tolist()
@@ -264,27 +263,29 @@ class MultimodalModelRunner:
             return input_ids, input_lengths, ptuning_args, visual_features
 
         elif self.model_type == 'lita' or self.model_type == 'vita':
+            visual_input = []
             for i, img in enumerate(image):
                 visual_features, visual_atts = self.get_visual_features(img, attention_mask)
             visual_features = visual_features.unsqueeze(0)
-            im_tokens, vid_tokens = self.preprocess_lita_visual(visual_features, self.nemo_config)
+            im_tokens, vid_tokens, num_sample_frames = self.preprocess_lita_visual(visual_features, self.nemo_config)
+            visual_input.extend([im_tokens, vid_tokens])
+            
             input_ids = self.tokenizer_image_token(batch_size, pre_prompt[0] + post_prompt[0], self.tokenizer)
-            input_ids = self.insert_tokens_by_index(input_ids, self.nemo_config)
+            input_ids = self.insert_tokens_by_index(input_ids, num_sample_frames)
             batch_splits = self.split_prompt_by_images(input_ids)
             first_batch_split_prompts = batch_splits[0]
             length = sum([ids.shape[1] for ids in first_batch_split_prompts])
 
-            visual_input = []
-            visual_input.append(im_tokens)
-            visual_input.append(vid_tokens)
 
-            # we need to update visual atts shape to match im_tokens shape and vid_tokens shape
+            # Update visual atts shape to match im_tokens shape and vid_tokens shape
             im_tokens = im_tokens.view(1, -1, im_tokens.shape[-1])
             visual_features = torch.cat([im_tokens, vid_tokens], dim=1)
             visual_atts = torch.ones(visual_features.size()[:-1], dtype=torch.long).to(image.device)
 
             if batch_size == 1:
                 length += visual_atts.shape[0] * visual_atts.shape[1]
+            else:
+                raise ValueError("Batch size greater than 1 is not supported for LITA and VITA models")
 
             input_lengths = torch.IntTensor([length] * batch_size).to(torch.int32)
             input_ids, ptuning_args = self.setup_fake_prompts_vila(
@@ -545,7 +546,7 @@ class MultimodalModelRunner:
             im_features = visual_features[:, idx, ...]
 
             vid_features = einops.reduce(visual_features, 'b t s d -> b t d', 'mean')
-            return im_features, vid_features
+            return im_features, vid_features, num_image_frames
 
         elif (
             'lita_video_arch' in config['mm_cfg']['lita']
@@ -560,7 +561,7 @@ class MultimodalModelRunner:
 
             t_tokens = einops.reduce(visual_features, 'b t s d -> b t d', 'mean')
 
-            return t_tokens, s_tokens
+            return t_tokens, s_tokens, pool_size**2
 
         else:
             raise ValueError(f'Invalid visual token format: {config["mm_cfg"]["lita"]["visual_token_format"]}')
@@ -612,18 +613,25 @@ class MultimodalModelRunner:
             result[:, :, :, paste_start:paste_end] = images
             return result
 
-    def load_video(self, config, video_path, processor, num_frames):
-
-        decord.bridge.set_bridge('torch')
-        video_reader = decord.VideoReader(uri=video_path)
-        idx = np.round(np.linspace(0, len(video_reader) - 1, num_frames)).astype(int)
-        frames = video_reader.get_batch(idx)
+    def load_video(self, config, video_path, processor, num_frames=None):
+        if isinstance(video_path, str):
+            decord.bridge.set_bridge('torch')
+            video_reader = decord.VideoReader(uri=video_path)
+            if num_frames is not None:
+                idx = np.round(np.linspace(0, len(video_reader) - 1, num_frames)).astype(int)
+                frames = video_reader.get_batch(idx)
+            else:
+                frames = torch.cat([torch.tensor(f.asnumpy()) for f in video_reader])
+        elif isinstance(video_path, np.ndarray):
+            frames = torch.tensor(video_path, dtype=torch.float32)
+        
+        return self.preprocess_frames(frames, config, processor)
+    
+    def preprocess_frames(self, frames, config, processor):
         frames = einops.rearrange(frames, 't h w c -> t c h w')
-
         if config['data']['image_aspect_ratio'] == 'pad':
             frames = self.expand2square_pt(frames, tuple(int(x * 255) for x in processor.image_mean))
         processed_frames = processor.preprocess(frames, return_tensors='pt')['pixel_values']
-
         return processed_frames
 
     def get_num_sample_frames(self, config, vid_len):
@@ -640,14 +648,21 @@ class MultimodalModelRunner:
         else:
             return config['mm_cfg']['lita']['sample_frames']
 
-    def process_video(self, nemo_config, video_path, image_processor):
-        vid_len = len(decord.VideoReader(video_path))
-        num_sample_frames = self.get_num_sample_frames(nemo_config, vid_len)
-        image = (
-            self.load_video(nemo_config, video_path, image_processor, num_sample_frames)
-            .unsqueeze(0)
-            .to(self.device, dtype=torch.bfloat16)
-        )
+    def process_lita_video(self, nemo_config, video_path, image_processor):
+        if isinstance(video_path, str):
+            vid_len = len(decord.VideoReader(video_path))
+            num_sample_frames = self.get_num_sample_frames(nemo_config, vid_len)
+            image = (
+                self.load_video(nemo_config, video_path, image_processor, num_sample_frames)
+                .unsqueeze(0)
+                .to(self.device, dtype=torch.bfloat16)
+            )
+        elif isinstance(video_path, np.ndarray):
+            image = (
+                self.load_video(nemo_config, video_path, image_processor)
+                .unsqueeze(0)
+                .to(self.device, dtype=torch.bfloat16)
+            )
         return image
 
     def process_image(self, image_file, image_processor, nemo_config, image_folder):
@@ -718,16 +733,19 @@ class MultimodalModelRunner:
                 post_prompt = input_text + " ASSISTANT:"
 
             elif self.model_type == "vita":
-                pre_prompt = "You are a helpful language and vision assistant. You are able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language. USER: "
+                # llama3 prompt template
+                pre_prompt = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful language and vision assistant. "
+                                "You are able to understand the visual content that the user provides, "
+                                "and assist the user with a variety of tasks using natural language. <|start_header_id|>user<|end_header_id|>\n\n"""
                 if input_text is None:
                     input_text = "<image>\n Please elaborate what you see in the images?"
-                post_prompt = input_text + " ASSISTANT:"
+                post_prompt = input_text + "<|start_header_id|>assistant<|end_header_id|>\n\n"
 
         else:
             raise RuntimeError(f"Invalid model type {self.model_type}")
 
         if self.model_type == 'lita' or self.model_type == 'vita':
-            image = self.process_video(self.nemo_config, raw_image, self.image_processor)
+            image = self.process_lita_video(self.nemo_config, raw_image, self.image_processor)
 
         if self.model_type == 'vila':
             raw_image = [raw_image] * batch_size

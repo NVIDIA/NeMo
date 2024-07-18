@@ -140,7 +140,6 @@ def update_tokenizer_paths(tokenizer_config: Dict, unpacked_checkpoints_dir):
 
 
 def copy_tokenizer_files(config, out_dir):
-
     basenames = {
         "model": "tokenizer",
         "vocab_file": "vocab",
