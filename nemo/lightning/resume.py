@@ -19,11 +19,11 @@ else:
 
 
 class Resume(IOMixin):
-    def nemo_path(self, model) -> Optional[Path]:
+    def nemo_path(self, model=None) -> Optional[Path]:
         """ Returns the checkpoint to resume from. """
         raise NotImplementedError
 
-    def setup(self, model, trainer: Union[pl.Trainer, fl.Fabric]):
+    def setup(self, trainer: Union[pl.Trainer, fl.Fabric], model=None):
         if isinstance(trainer, fl.Fabric):
             raise NotImplementedError("Fabric is not supported yet.")
 
