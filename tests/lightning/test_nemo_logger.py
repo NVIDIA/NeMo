@@ -37,7 +37,7 @@ class TestNeMoLogger:
 
         app_state = logger.setup(trainer)
         assert str(app_state.log_dir) == "explicit_test_dir"
-        assert app_state.name == "" ## name should be ignored when explicit_log_dir is passed in
+        assert app_state.name == ""  ## name should be ignored when explicit_log_dir is passed in
         assert app_state.version == ""
 
     def test_default_log_dir(self, trainer):
