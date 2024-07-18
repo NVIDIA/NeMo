@@ -17,12 +17,12 @@ import os
 import shutil
 import tarfile
 import tempfile
+from pathlib import Path
 from time import time
 
 import tensorrt as trt
 import torch
 import yaml
-from pathlib import Path
 from tensorrt_llm.builder import Builder
 from transformers import AutoModel
 

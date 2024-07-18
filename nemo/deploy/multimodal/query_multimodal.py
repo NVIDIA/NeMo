@@ -67,7 +67,7 @@ class NemoQueryMultimodal:
             return np.expand_dims(np.array(media), axis=0)
         else:
             raise RuntimeError(f"Invalid model type {self.model_type}")
-    
+
     def frame_len(self, frames):
         max_frames = 256
         if len(frames) <= max_frames:
@@ -75,7 +75,7 @@ class NemoQueryMultimodal:
         else:
             subsample = int(np.ceil(float(len(frames)) / max_frames))
             return int(np.round(float(len(frames)) / subsample))
-    
+
     def get_subsampled_frames(self, frames, subsample_len):
         idx = np.round(np.linspace(0, len(frames) - 1, subsample_len)).astype(int)
         sub_frames = [frames[i] for i in idx]

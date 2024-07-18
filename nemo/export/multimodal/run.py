@@ -269,13 +269,12 @@ class MultimodalModelRunner:
             visual_features = visual_features.unsqueeze(0)
             im_tokens, vid_tokens, num_sample_frames = self.preprocess_lita_visual(visual_features, self.nemo_config)
             visual_input.extend([im_tokens, vid_tokens])
-            
+
             input_ids = self.tokenizer_image_token(batch_size, pre_prompt[0] + post_prompt[0], self.tokenizer)
             input_ids = self.insert_tokens_by_index(input_ids, num_sample_frames)
             batch_splits = self.split_prompt_by_images(input_ids)
             first_batch_split_prompts = batch_splits[0]
             length = sum([ids.shape[1] for ids in first_batch_split_prompts])
-
 
             # Update visual atts shape to match im_tokens shape and vid_tokens shape
             im_tokens = im_tokens.view(1, -1, im_tokens.shape[-1])
@@ -624,9 +623,9 @@ class MultimodalModelRunner:
                 frames = torch.cat([torch.tensor(f.asnumpy()) for f in video_reader])
         elif isinstance(video_path, np.ndarray):
             frames = torch.tensor(video_path, dtype=torch.float32)
-        
+
         return self.preprocess_frames(frames, config, processor)
-    
+
     def preprocess_frames(self, frames, config, processor):
         frames = einops.rearrange(frames, 't h w c -> t c h w')
         if config['data']['image_aspect_ratio'] == 'pad':
