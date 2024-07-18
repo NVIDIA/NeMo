@@ -5,9 +5,9 @@ from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.api import squad
 from nemo.collections.llm.gpt.model.llama import Llama2Config7B, LlamaModel
+from nemo.collections.llm.models.log.default import default_log
+from nemo.collections.llm.models.optim.adam import adam_with_cosine_annealing
 from nemo.collections.llm.peft.api import gpt_lora
-from nemo.collections.llm.recipies.log.default import default_log
-from nemo.collections.llm.recipies.optim.adam import adam_with_cosine_annealing
 from nemo.collections.llm.utils import factory
 
 NAME = "llama2_7b"
@@ -36,7 +36,7 @@ def hf_resume() -> nl.AutoResume:
     return nl.AutoResume(import_path="hf://meta-llama/Llama-2-7b-hf")
 
 
-@factory(name=NAME)
+@factory(name=NAME, for_task="llm.pretrain")
 def pretrain_recipe() -> sdk.Partial:
     return sdk.Partial(
         pretrain,
@@ -48,7 +48,7 @@ def pretrain_recipe() -> sdk.Partial:
     )
 
 
-@factory(name=NAME)
+@factory(name=NAME, for_task="llm.finetune")
 def finetune_recipe() -> sdk.Partial:
     return sdk.Partial(
         finetune,

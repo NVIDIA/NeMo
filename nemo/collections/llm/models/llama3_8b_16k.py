@@ -5,8 +5,8 @@ from nemo import lightning as nl
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.api import squad
 from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
-from nemo.collections.llm.recipies.log.default import default_log
-from nemo.collections.llm.recipies.optim.adam import adam_with_cosine_annealing
+from nemo.collections.llm.models.log.default import default_log
+from nemo.collections.llm.models.optim.adam import adam_with_cosine_annealing
 from nemo.collections.llm.utils import factory
 
 NAME = "llama3_8b_16k"
@@ -35,7 +35,7 @@ def trainer(devices=8) -> nl.Trainer:
     )
 
 
-@factory(name=NAME)
+@factory(name=NAME, for_task="llm.pretrain")
 def pretrain_recipe() -> sdk.Partial:
     return sdk.Partial(
         pretrain,
