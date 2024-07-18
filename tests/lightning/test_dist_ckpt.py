@@ -3,32 +3,17 @@ from pathlib import Path
 import pytest
 import types
 import pytorch_lightning as pl
-from pytorch_lightning.demos.boring_classes import RandomDataset
-from pytorch_lightning.utilities.types import STEP_OUTPUT
 import torch
-from torch import Tensor
-from torch.optim.lr_scheduler import LRScheduler
-from torch.utils.data import DataLoader
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Optional, Tuple
 
 from nemo.collections import llm
 import nemo.lightning as nl
 from nemo.lightning.io.pl import MegatronCheckpointIO
-from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.utils.callbacks.dist_ckpt_io import (
     AsyncFinalizableCheckpointIO,
     AsyncFinalizerCallback,
-    DistributedCheckpointIO,
 )
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
-
-try:
-    from megatron.core.dist_checkpointing import ShardedTensor
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_MEGATRON_CORE = False
 
 def _get_nlp_strategy_without_optimizer_state():
     strategy = nl.MegatronStrategy(
@@ -45,7 +30,7 @@ def _get_last_checkpoint_dir(model: pl.LightningModule, suffix: str = '') -> Pat
 
 def get_model_and_data():
     seq_length = 128
-    data = llm.MockDataModule(seq_length=seq_length, global_batch_size=32)
+    data = llm.MockDataModule(seq_length=seq_length, micro_batch_size=2, global_batch_size=2)
 
     config = llm.GPTConfig(
         num_layers=2,
@@ -57,29 +42,16 @@ def get_model_and_data():
     return llm.GPTModel(config, tokenizer=data.tokenizer), data
 
 class TestDistCkptIO:
-    @pytest.fixture
-    def model_and_data(self):
-        seq_length = 128
-        data = llm.MockDataModule(seq_length=seq_length, global_batch_size=32)
-
-        config = llm.GPTConfig(
-            num_layers=2,
-            hidden_size=64,
-            ffn_hidden_size=256,
-            num_attention_heads=4,
-            seq_length=seq_length,
-        )
-        return llm.GPTModel(config, tokenizer=data.tokenizer), data
 
     @pytest.mark.run_only_on('GPU')
-    def test_dist_ckpt_io_called_for_mcore_models(self, model_and_data, tmp_path):
+    def test_dist_ckpt_io_called_for_mcore_models(self, tmp_path):
 
-        model, data = model_and_data
+        model, data = get_model_and_data()
 
         strategy = _get_nlp_strategy_without_optimizer_state()
         
         trainer = nl.Trainer(
-            devices=2,
+            devices=1,
             accelerator="gpu",
             strategy=strategy,
             enable_checkpointing=True,
@@ -111,6 +83,7 @@ class TestDistCkptIO:
 
         # dummy_trainer just to initialize NCCL
         dummy_trainer = pl.Trainer(
+            devices=1,
             logger=False,
             max_steps=2,
             strategy=_get_nlp_strategy_without_optimizer_state(),
@@ -122,6 +95,7 @@ class TestDistCkptIO:
         ## reset the model and data and train with sync checkpointing
         model, data = get_model_and_data()
         sync_test_trainer = pl.Trainer(
+            devices=1,
             enable_checkpointing=True,
             logger=False,
             max_steps=2,
@@ -134,6 +108,7 @@ class TestDistCkptIO:
         ## reset the model and data and train with sync checkpointing
         model, data = get_model_and_data()
         async_test_trainer = pl.Trainer(
+            devices=1,
             enable_checkpointing=True,
             logger=False,
             max_steps=2,
@@ -170,9 +145,8 @@ class TestDistCkptIO:
             ckpt_load_directly_on_device=False,
         )
         trainer = nl.Trainer(
-            accelerator = 'cpu',
-            callbacks = [model_checkpoint],
-            strategy = strategy,
+            callbacks=[model_checkpoint],
+            strategy=strategy,
         )
         strategy.trainer = trainer
 
