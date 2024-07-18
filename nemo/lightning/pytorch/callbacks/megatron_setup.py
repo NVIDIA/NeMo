@@ -6,10 +6,10 @@ from lightning_fabric.plugins import ClusterEnvironment
 from pytorch_lightning.callbacks import Callback, TQDMProgressBar
 
 from nemo.lightning import _strategy_lib
-from nemo.lightning.pytorch.callbacks import MegatronProgressBar
+from nemo.lightning.io import IOMixin
 
 
-class MegatronSetup(Callback):
+class MegatronSetup(Callback, IOMixin):
     """Callback that implements the setup hook for setting up common elements with or without MegatronStrategy.
 
     With MegatronStrategy, this callback will setup the requested parallelism.
@@ -53,6 +53,8 @@ class MegatronSetup(Callback):
             trainer.strategy.data_sampler.connect(trainer)
 
     def _fix_progress_bar(self, trainer: pl.Trainer) -> None:
+        from nemo.lightning.pytorch.callbacks import MegatronProgressBar
+        
         callbacks: List[pl.Callback] = cast(List[pl.Callback], getattr(trainer, "callbacks"))
         contains_megatron_progress, contains_progress = False, False
         for callback in callbacks:

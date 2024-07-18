@@ -2,8 +2,10 @@ from pytorch_lightning.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
+from nemo.lightning.io import IOMixin
 
-class FSDPStrategy(PLFSDPStrategy):
+
+class FSDPStrategy(PLFSDPStrategy, IOMixin):
     """NeMo plugin for Pytorch Lightning FSDP Strategy.
 
     This strategy simply uses Pytorch Lightning's FSDP strategy adding the necessary component needed to
