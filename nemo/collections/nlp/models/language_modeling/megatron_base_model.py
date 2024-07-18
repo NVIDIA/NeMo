@@ -379,15 +379,23 @@ class MegatronBaseModel(NLPModel):
         # NVIDIA container version check
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
 
+	def is_official_release_version(nvidia_torch_version):
+            import re
+            return re.fullmatch("[0-9][0-9]\.[0-9][0-9].*", nvidia_torch_version)  # "YY.MM.*"
+
+	# Support DLFW dev container
+	if not is_official_release_version(nvidia_torch_version):
+            nvidia_torch_version = datetime.now().strftime('%y.%m')
+
         if nvidia_torch_version is not None:
             try:
                 NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
             except Exception:
-                NVIDIA_TORCH_MAJOR = int(datetime.now().strftime('%y'))
+                NVIDIA_TORCH_MAJOR = 0
             try:
-                NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
+                NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1][:2])
             except Exception:
-                NVIDIA_TORCH_MINOR = int(datetime.now().strftime('%m'))
+                NVIDIA_TORCH_MINOR = 0
 
             # Apex Persistent layer norm is supported from Nvidia PyTorch container v21.11
             # This only depends on Apex version?
