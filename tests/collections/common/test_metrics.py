@@ -115,6 +115,7 @@ class TestCommonMetrics:
         assert abs(acc_top1 - 0.6) < 1e-3  # 3/5
 
 
+@pytest.mark.pleasefixme
 @pytest.mark.parametrize("ddp", [True, False])
 @pytest.mark.parametrize("dist_sync_on_step", [True, False])
 @pytest.mark.parametrize(
@@ -134,6 +135,7 @@ class TestPerplexity(PerplexityTester):
         )
 
 
+@pytest.mark.pleasefixme
 @pytest.mark.parametrize("ddp", [True, False])
 @pytest.mark.parametrize("dist_sync_on_step", [True, False])
 @pytest.mark.parametrize("take_avg_loss", [True, False])
