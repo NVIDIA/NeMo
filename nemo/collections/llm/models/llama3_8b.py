@@ -1,4 +1,3 @@
-import nemo_sdk as sdk
 import pytorch_lightning as pl
 
 from nemo import lightning as nl
@@ -8,7 +7,7 @@ from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
 from nemo.collections.llm.models.log.default import default_log
 from nemo.collections.llm.models.optim.adam import adam_with_cosine_annealing
 from nemo.collections.llm.peft.api import gpt_lora
-from nemo.collections.llm.utils import factory
+from nemo.collections.llm.utils import Partial, factory
 
 NAME = "llama3_8b"
 
@@ -37,8 +36,8 @@ def hf_resume() -> nl.AutoResume:
 
 
 @factory(name=NAME, for_task="llm.pretrain")
-def pretrain_recipe() -> sdk.Partial:
-    return sdk.Partial(
+def pretrain_recipe() -> Partial:
+    return Partial(
         pretrain,
         model=model,
         trainer=trainer,
@@ -49,8 +48,8 @@ def pretrain_recipe() -> sdk.Partial:
 
 
 @factory(name=NAME, for_task="llm.finetune")
-def finetune_recipe() -> sdk.Partial:
-    return sdk.Partial(
+def finetune_recipe() -> Partial:
+    return Partial(
         finetune,
         model=model,
         trainer=trainer,
