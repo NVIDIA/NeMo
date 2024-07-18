@@ -11,11 +11,11 @@ There are three main classes in NeMo 2.0 that are responsible for configuring lo
 
 Each of these classes is described in detail below. 
 
-:class:`~nemo.lightning.pytorch.callbacks.modle_checkpoint.ModelCheckpoint`
+:class:`~nemo.lightning.pytorch.callbacks.model_checkpoint.ModelCheckpoint`
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 NeMo's ``ModelCheckpoint`` callback is a wrapper around Pytorch Lightning's ``ModelCheckpoint`` and is responsible for handling the logic of when to
-save and clean up checkpoints. Additionally, ``ModelCheckpoint`` supports saving a checkpoint on train_end, and the callback provides support for
+save and clean up checkpoints. Additionally, ``ModelCheckpoint`` supports saving a checkpoint on train_end, and the callback provides the necessary support for
 asynchronous checkpointing. Below is an example of instantiating a ``ModelCheckpoint`` callback:
 
 .. code-block:: python
@@ -27,13 +27,13 @@ asynchronous checkpointing. Below is an example of instantiating a ``ModelCheckp
         save_top_k=2,
         every_n_train_steps=30,
         enable_nemo_ckpt_io=False,
-        async_save=True,
         dirpath='my_model_directory',
     )
 
 Refer to NeMo Lightning's and Pytorch Lightning's ``ModelCheckpoint`` documentation for the full list of arguments that are supported by the
 ``ModelCheckpoint`` class. Note that ``dirpath`` is optional. If not provided, it will be determined automatically by ``AutoResume``, described
-in detail in the subsequent sections.
+in detail in the subsequent sections. Also, note that asynchronous checkponting is set using the ``ckpt_async_save`` argument in ``MegatronStrategy``.
+This attribute is then accessed by the checkpoint callback to perform async checkpointing as requested.
 
 The ``ModelCheckpoint`` callback instance can be passed to the trainer in two ways:
 
@@ -143,7 +143,6 @@ Putting it all together, setting up loggers and checkpointers in NeMo 2.0 looks 
         save_top_k=2,
         every_n_train_steps=30,
         enable_nemo_ckpt_io=False,
-        async_save=True,
         dirpath='my_model_directory',
     )
 
