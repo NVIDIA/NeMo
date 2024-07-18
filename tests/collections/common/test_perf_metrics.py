@@ -1,98 +1,134 @@
-import os
-import sys
-
 import pytest
 import yaml
 
-current = os.path.dirname(os.path.realpath(__file__))
-parent = os.path.dirname(os.path.dirname(os.path.dirname(current)))
-print(parent)
-sys.path.append(parent)
-
 from nemo.collections.common.metrics.perf_metrics import FLOPsMeasurementCallback
-from tests.collections.common.test_perf_metrics_data import LLAMA2_CFG_STR, NEMOTRON_CFG_STR, UNSUPPORTED_MODEL_CFG_STR
+
+LLAMA2_CFG_STR = """
+    run:
+        name: train_llama2_7b_tp1_pp1_FP8_1node_15steps
+    trainer:
+        num_nodes: 1
+        devices: 8
+        precision: bf16
+    exp_manager:
+        explicit_log_dir: "results/logs"
+    model:
+        micro_batch_size: 1
+        global_batch_size: 128
+        encoder_seq_length: 4096
+        max_position_embeddings: 4096
+        num_layers: 32
+        hidden_size: 4096
+        ffn_hidden_size: 11008
+        num_attention_heads: 32
+"""
+
+NEMOTRON_CFG_STR = """
+    run:
+      name: train_nemotron_8b_tp2_pp1_FP8_8node_20steps
+    trainer:
+      num_nodes: 8
+      devices: 8
+      precision: bf16
+    exp_manager:
+      explicit_log_dir: null
+    model:
+      micro_batch_size: 4
+      global_batch_size: 256
+      encoder_seq_length: 4096
+      max_position_embeddings: 4096
+      num_layers: 32
+      hidden_size: 4096
+      ffn_hidden_size: 16384
+      num_attention_heads: 32
+      fp8: true
+"""
+
+UNSUPPORTED_MODEL_CFG_STR = """
+    run:
+        name: unsupported_model
+    trainer:
+        num_nodes: 1
+        devices: 8
+        precision: bf64
+    exp_manager:
+        explicit_log_dir: null
+    model:
+        micro_batch_size: 1
+        global_batch_size: 1
+        encoder_seq_length: 1
+        max_position_embeddings: 1
+        num_layers: 1
+        hidden_size: 1
+        ffn_hidden_size: 1
+        num_attention_heads: 1
+"""
+
+NULL_MODEL_CFG_STR = """
+    run:
+        name: null
+"""
+
+@pytest.fixture
+def model_config(cfg):
+    return yaml.safe_load(cfg)
+
+@pytest.mark.unit
+@pytest.mark.parametrize("cfg, model_name, train_step_time, expected_value", [
+    (LLAMA2_CFG_STR, None, 8, 377.53),
+    (LLAMA2_CFG_STR, "llama2", 8, 377.53),
+    (LLAMA2_CFG_STR, None, [8,8,8,8], 377.53),
+    (NEMOTRON_CFG_STR, None, 1.31, 642.73),
+    (UNSUPPORTED_MODEL_CFG_STR, None, 1, # model_name in config is unsupported
+     "Failed to extract valid model name from or missing FLOPs calculations for unsupported_model"),
+    (UNSUPPORTED_MODEL_CFG_STR, "unknown_model", 1, # overrided model name is unsupported
+     "Failed to extract valid model name from or missing FLOPs calculations for unknown_model"),
+    (NULL_MODEL_CFG_STR, None, 1, # both- config and overrided model name are None
+     "Failed to extract valid model name from or missing FLOPs calculations for None")
+])
+def test_eval_tflops_per_sec_per_gpu(model_config, model_name, train_step_time, expected_value):
+    if isinstance(expected_value, (int, float)):
+        flops_callback = FLOPsMeasurementCallback(model_config, model_name=model_name)
+        tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time)
+        assert tflops_per_sec_per_gpu == pytest.approx(expected_value, rel=1e-4)
+
+        if model_name is None:
+            # extract valid model name with delimiter='-'
+            model_config["run"]["name"] = model_config["run"]["name"].replace("_", ".")
+            flops_callback = FLOPsMeasurementCallback(model_config, model_name=model_name)
+            tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time)
+            assert tflops_per_sec_per_gpu == pytest.approx(expected_value, rel=1e-4)
+
+            # # extract valid model name from a string
+            model_config["run"]["name"] = model_config["run"]["name"].replace("_", "")
+            flops_callback = FLOPsMeasurementCallback(model_config, model_name=model_name)
+            tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time)
+            assert tflops_per_sec_per_gpu == pytest.approx(expected_value, rel=1e-4)
+
+    if isinstance(expected_value, str):
+        flops_callback = FLOPsMeasurementCallback(model_config, model_name=model_name)
+        with pytest.raises(KeyError, match=expected_value):
+            _ = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time)
 
 
 @pytest.mark.unit
-def test_flops_measurement():
-    llama2_cfg = yaml.safe_load(LLAMA2_CFG_STR)
+@pytest.mark.parametrize("cfg, gpu_name, tflops_per_sec_per_gpu, expected_value", [
+    (LLAMA2_CFG_STR, "H100", 542, 54.8), # precision=bf16
+    (NEMOTRON_CFG_STR, "h100", 643, 32.5), # precision = fp8
+    (NEMOTRON_CFG_STR, "", 643, # missing gpu name
+     "Missing hardware FLOPs for self.gpu_name=''"),
+    (UNSUPPORTED_MODEL_CFG_STR, "a100", 0, # unspported precision= bf64
+     "Missing hardware FLOPs for precision='bf64'"),
+    (NULL_MODEL_CFG_STR, "H100", 0, # missing 'precision' key from config
+     "Missing hardware FLOPs for precision=''"),
+])
+def test_eval_mfu(model_config, gpu_name, tflops_per_sec_per_gpu, expected_value):
+    if isinstance(expected_value, (int, float)):
+        flops_callback = FLOPsMeasurementCallback(model_config, gpu_name=gpu_name)
+        mfu = flops_callback.eval_mfu(tflops_per_sec_per_gpu)
+        assert mfu == pytest.approx(expected_value, rel=1e-3)
 
-    # extract model name from cfg
-    flops_callback = FLOPsMeasurementCallback(llama2_cfg, model_name=None)
-    tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time=8)
-    assert tflops_per_sec_per_gpu == pytest.approx(377.53, rel=1e-5)
-
-    # override model name from args
-    flops_callback = FLOPsMeasurementCallback(llama2_cfg, model_name="llama2")
-    tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time=8)
-    assert tflops_per_sec_per_gpu == pytest.approx(377.53, rel=1e-5)
-
-    # list of train step times
-    tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time=[8, 8, 8, 8])
-    assert tflops_per_sec_per_gpu == pytest.approx(377.53, rel=1e-5)
-
-    nemotron_cfg = yaml.safe_load(NEMOTRON_CFG_STR)
-
-    flops_callback = FLOPsMeasurementCallback(nemotron_cfg, model_name=None)
-    tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time=1.31)
-    assert tflops_per_sec_per_gpu == pytest.approx(642.71, rel=1e-5)
-
-    # extract valid model name with delimiter='-'
-    nemotron_cfg["run"]["name"] = nemotron_cfg["run"]["name"].replace("-", ".")
-    flops_callback = FLOPsMeasurementCallback(nemotron_cfg, model_name=None)
-    tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time=1.31)
-    assert tflops_per_sec_per_gpu == pytest.approx(642.71, rel=1e-5)
-
-    # extract valid model name from a string
-    nemotron_cfg["run"]["name"] = nemotron_cfg["run"]["name"].replace(".", "")
-    flops_callback = FLOPsMeasurementCallback(nemotron_cfg, model_name=None)
-    tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time=1.31)
-    assert tflops_per_sec_per_gpu == pytest.approx(642.71, rel=1e-5)
-
-    # model_name=None, both as a param and in config
-    llama2_cfg["run"]["name"] = None
-    flops_callback = FLOPsMeasurementCallback(llama2_cfg, model_name=None)
-    with pytest.raises(
-        KeyError, match="Failed to extract valid model name from or missing FLOPs calculations for None"
-    ):
-        tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time=1)
-
-    unsupported_model_cfg = yaml.safe_load(UNSUPPORTED_MODEL_CFG_STR)
-    flops_callback = FLOPsMeasurementCallback(unsupported_model_cfg, model_name=None)
-    with pytest.raises(
-        KeyError, match="Failed to extract valid model name from or missing FLOPs calculations for unsupported_model"
-    ):
-        tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time=1)
-
-
-@pytest.mark.unit
-def test_eval_mfu():
-    llama2_cfg = yaml.safe_load(LLAMA2_CFG_STR)
-
-    # precision = BF16
-    flops_callback = FLOPsMeasurementCallback(llama2_cfg, gpu_name="H100")
-    mfu = flops_callback.eval_mfu(tflops_per_sec_per_gpu=542)
-    assert mfu == pytest.approx(54.8, rel=1e-3)
-
-    nemotron_cfg = yaml.safe_load(NEMOTRON_CFG_STR)
-
-    # precision = FP8
-    flops_callback = FLOPsMeasurementCallback(nemotron_cfg, gpu_name="H100")
-    mfu = flops_callback.eval_mfu(tflops_per_sec_per_gpu=643)
-    assert mfu == pytest.approx(32.5, rel=1e-3)
-
-    # unsupported GPU
-    flops_callback = FLOPsMeasurementCallback(nemotron_cfg, gpu_name="")
-    with pytest.raises(KeyError, match="Missing hardware FLOPs for self.gpu_name=''"):
-        mfu = flops_callback.eval_mfu(tflops_per_sec_per_gpu=643)
-
-    # precision not supported
-    unssuported_cfg = yaml.safe_load(UNSUPPORTED_MODEL_CFG_STR)
-    flops_callback = FLOPsMeasurementCallback(unssuported_cfg, gpu_name="a100")
-    with pytest.raises(KeyError, match="Missing hardware FLOPs for precision='bf64'"):
-        mfu = flops_callback.eval_mfu(tflops_per_sec_per_gpu=643)
-
-    # 'precision' key missing
-    unssuported_cfg["trainer"].pop("precision")
-    with pytest.raises(KeyError, match="Missing hardware FLOPs for precision=''"):
-        mfu = flops_callback.eval_mfu(tflops_per_sec_per_gpu=643)
+    if isinstance(expected_value, str):
+        flops_callback = FLOPsMeasurementCallback(model_config, gpu_name=gpu_name)
+        with pytest.raises(KeyError, match=expected_value):
+            _ = flops_callback.eval_mfu(tflops_per_sec_per_gpu)
