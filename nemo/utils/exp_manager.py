@@ -584,10 +584,12 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             raise ValueError(
                 'FaultToleranceCallback was enabled with create_fault_tolerance_callback, but fault_tolerance package is not installed.'
             )
-    
+
     if cfg.log_mfu:
-        logging.info("TFLOPs per sec GPU and Model FLOPs Utilization (MFU%) will be calculated if possible based on \
-                     GPU type, training precision and supported models. Values will default to -1 upon failure.")
+        logging.info(
+            "TFLOPs per sec GPU and Model FLOPs Utilization (MFU%) will be calculated if possible based on \
+                     GPU type, training precision and supported models. Values will default to -1 upon failure."
+        )
 
     if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present

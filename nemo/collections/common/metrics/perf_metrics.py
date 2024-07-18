@@ -13,24 +13,25 @@ from nemo.utils import logging
 
 __all__ = ["FLOPsMeasurementCallback"]
 
+
 class FLOPsMeasurementCallback(Callback):
     """
     Calculate FLOPs per second after last train step for a given job run.
 
     Args:
-        model_config (Dict[str, Any]): params for running the experiment/job. 
+        model_config (Dict[str, Any]): params for running the experiment/job.
         Expects a nested dictionary with parent keys
-            1. run- for assessing model name (Eg. 'gpt3', 'llama2', etc.) from sub-key 'name'. 
+            1. run- for assessing model name (Eg. 'gpt3', 'llama2', etc.) from sub-key 'name'.
                 'name' usually has value like- train_gpt3_5b_*, which is matched to model name 'gpt3'.
-            2. exp_manager- for accessing 'explicit_log_dir'. tensorboard log file is stored here, 
-                used for accessing step time needed for calculating TFLOPs per sec per GPU 
-            3. trainer- for accessing 'num_nodes' and 'devices' needed for calculating 
+            2. exp_manager- for accessing 'explicit_log_dir'. tensorboard log file is stored here,
+                used for accessing step time needed for calculating TFLOPs per sec per GPU
+            3. trainer- for accessing 'num_nodes' and 'devices' needed for calculating
                 TFLOPs per sec per GPU
             4. model- Hyperparams for the model. Specifically- global batch size, sequence length,
-                hidden size,  ffn hidden size, num_layers, num_attention_heads, num_query_groups, 
+                hidden size,  ffn hidden size, num_layers, num_attention_heads, num_query_groups,
                 moe_router_topk. (list might increase with new models as required)
-        log_dir (Optional[str]): Directory with tenbsorboard log file. If present, will overrride 
-            'explicit_log_dir' in model_config. Defaults to None. 
+        log_dir (Optional[str]): Directory with tenbsorboard log file. If present, will overrride
+            'explicit_log_dir' in model_config. Defaults to None.
         model_name (Optional[str]): If present, will override 'name' under 'run' in model_config.
             Defaults to None.
         gpu_name (Optional[str]): If present, do not try to assess gpu name using NVML (pynvml package).
@@ -40,12 +41,12 @@ class FLOPsMeasurementCallback(Callback):
     higher_is_better = True
 
     def __init__(
-            self, 
-            model_config: Dict[str, Any], 
-            log_dir: Optional[str] = None, 
-            model_name: Optional[str] = None,
-            gpu_name: Optional[str] = None
-        ):
+        self,
+        model_config: Dict[str, Any],
+        log_dir: Optional[str] = None,
+        model_name: Optional[str] = None,
+        gpu_name: Optional[str] = None,
+    ):
         self.cfg = model_config
         self.log_dir = log_dir
         self.model = model_name
@@ -77,7 +78,7 @@ class FLOPsMeasurementCallback(Callback):
 
     def on_train_end(self, trainer, pl_module):
         """
-        PyTorch Lightning callback hook to calculate TFLOPs per sec per GPU 
+        PyTorch Lightning callback hook to calculate TFLOPs per sec per GPU
         and MFU (in %) after training
         """
         tflops_per_sec_per_gpu, mfu = -1, -1
@@ -105,8 +106,8 @@ class FLOPsMeasurementCallback(Callback):
     def eval_tflops_per_sec_per_gpu(self, train_step_time: List | float | int) -> float:
         """
         Args:
-            train_step_time (Any[List, float, int]): Train step time (in seconds). 
-            Step time will be less stable for initial steps (~10 steps)- less 
+            train_step_time (Any[List, float, int]): Train step time (in seconds).
+            Step time will be less stable for initial steps (~10 steps)- less
             accurate measurement
             Use average step time over several steps for higher accuracy
         Returns:
@@ -118,7 +119,7 @@ class FLOPsMeasurementCallback(Callback):
             train_step_time = [train_step_time]
         # efficient mean computation if num train steps is very large
         step_time_arr = np.array(train_step_time)
-        train_step_time = np.mean(step_time_arr[len(step_time_arr)//2:])
+        train_step_time = np.mean(step_time_arr[len(step_time_arr) // 2 :])
 
         return flops_per_gpu / (1e12 * train_step_time)
 
@@ -177,55 +178,97 @@ class FLOPsMeasurementCallback(Callback):
 
         vocab_size = LLM_VOCAB_SIZE_MAP["gpt3"]
 
-        return ((24 * self.gbs * self.enc_seq_len *self.hs * self.hs + 
-                4 * self.gbs * self.enc_seq_len * self.enc_seq_len * self.hs) *
-                (3 * self.layers) + 
-                (6 * self.gbs * self.enc_seq_len * self.hs * vocab_size))
+        return (
+            24 * self.gbs * self.enc_seq_len * self.hs * self.hs
+            + 4 * self.gbs * self.enc_seq_len * self.enc_seq_len * self.hs
+        ) * (3 * self.layers) + (6 * self.gbs * self.enc_seq_len * self.hs * vocab_size)
 
     def _llama2(self):
         """Model FLOPs for llama2 family"""
         vocab_size = LLM_VOCAB_SIZE_MAP["llama2"]
 
-        return (self.gbs * self.enc_seq_len * self.layers * self.hs * self.hs * 
-                (12 + (12 * self.query_groups/self.attention_heads) + 
-                 (18 * self.ffn_hs / self.hs) + 
-                 (12 * self.enc_seq_len / self.hs) +
-                 (6 * vocab_size / (self.layers * self.hs))))
+        return (
+            self.gbs
+            * self.enc_seq_len
+            * self.layers
+            * self.hs
+            * self.hs
+            * (
+                12
+                + (12 * self.query_groups / self.attention_heads)
+                + (18 * self.ffn_hs / self.hs)
+                + (12 * self.enc_seq_len / self.hs)
+                + (6 * vocab_size / (self.layers * self.hs))
+            )
+        )
 
     def _llama3(self):
         """Model FLOPs for llama3 family"""
         vocab_size = LLM_VOCAB_SIZE_MAP["llama3"]
 
-        return (self.gbs * self.enc_seq_len * self.layers * self.hs * self.hs * 
-                (12 + (12 * self.query_groups/self.attention_heads) + 
-                 (18 * self.ffn_hs / self.hs) + 
-                 (12 * self.enc_seq_len / self.hs) +
-                 (6 * vocab_size / (self.layers * self.hs))))
+        return (
+            self.gbs
+            * self.enc_seq_len
+            * self.layers
+            * self.hs
+            * self.hs
+            * (
+                12
+                + (12 * self.query_groups / self.attention_heads)
+                + (18 * self.ffn_hs / self.hs)
+                + (12 * self.enc_seq_len / self.hs)
+                + (6 * vocab_size / (self.layers * self.hs))
+            )
+        )
 
     def _nemotron(self):
         """Model FLOPs for nemotron family"""
         vocab_size = LLM_VOCAB_SIZE_MAP["nemotron"]
 
-        return (self.gbs * self.enc_seq_len * self.layers * self.hs * self.hs * 
-                (12 + (12 * self.query_groups/self.attention_heads) + 
-                 (12 * self.ffn_hs / self.hs) + 
-                 (12 * self.enc_seq_len / self.hs) + 
-                 (6 * vocab_size / (self.layers * self.hs))))
+        return (
+            self.gbs
+            * self.enc_seq_len
+            * self.layers
+            * self.hs
+            * self.hs
+            * (
+                12
+                + (12 * self.query_groups / self.attention_heads)
+                + (12 * self.ffn_hs / self.hs)
+                + (12 * self.enc_seq_len / self.hs)
+                + (6 * vocab_size / (self.layers * self.hs))
+            )
+        )
 
     def _mixtral(self):
         """Model FLOPs for mixtral family"""
         vocab_size = LLM_VOCAB_SIZE_MAP["mixtral"]
 
-        return (self.gbs * self.enc_seq_len * self.layers * self.hs * self.hs * 
-                (12 + (12 * self.query_groups/self.attention_heads) + 
-                 (18 * self.moe_router_topk * self.ffn_hs / self.hs) + 
-                 (12 * self.enc_seq_len / self.hs) + 
-                 (6 * vocab_size / (self.layers * self.hs))))
+        return (
+            self.gbs
+            * self.enc_seq_len
+            * self.layers
+            * self.hs
+            * self.hs
+            * (
+                12
+                + (12 * self.query_groups / self.attention_heads)
+                + (18 * self.moe_router_topk * self.ffn_hs / self.hs)
+                + (12 * self.enc_seq_len / self.hs)
+                + (6 * vocab_size / (self.layers * self.hs))
+            )
+        )
 
     def _bert(self):
         """Model FLOPs for BERT family"""
         vocab_size = LLM_VOCAB_SIZE_MAP["bert"]
 
-        return (72 * self.gbs * self.layers * self.enc_seq_len * self.hs * self.hs *
-                ( 1 + (self.enc_seq_len/(6*self.hs)) + 
-                 (vocab_size/(12 * self.hs * self.layers))))
+        return (
+            72
+            * self.gbs
+            * self.layers
+            * self.enc_seq_len
+            * self.hs
+            * self.hs
+            * (1 + (self.enc_seq_len / (6 * self.hs)) + (vocab_size / (12 * self.hs * self.layers)))
+        )

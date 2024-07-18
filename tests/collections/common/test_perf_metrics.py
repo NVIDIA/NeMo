@@ -52,17 +52,18 @@ def test_flops_measurement():
     # model_name=None, both as a param and in config
     llama2_cfg["run"]["name"] = None
     flops_callback = FLOPsMeasurementCallback(llama2_cfg, model_name=None)
-    with pytest.raises(KeyError, 
-        match="Failed to extract valid model name from or missing FLOPs calculations for None"
-        ):
+    with pytest.raises(
+        KeyError, match="Failed to extract valid model name from or missing FLOPs calculations for None"
+    ):
         tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time=1)
 
     unsupported_model_cfg = yaml.safe_load(UNSUPPORTED_MODEL_CFG_STR)
     flops_callback = FLOPsMeasurementCallback(unsupported_model_cfg, model_name=None)
-    with pytest.raises(KeyError, 
-        match="Failed to extract valid model name from or missing FLOPs calculations for unsupported_model"
-        ):
+    with pytest.raises(
+        KeyError, match="Failed to extract valid model name from or missing FLOPs calculations for unsupported_model"
+    ):
         tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time=1)
+
 
 @pytest.mark.unit
 def test_eval_mfu():

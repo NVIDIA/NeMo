@@ -1,4 +1,3 @@
-
 LLAMA2_CFG_STR = """
     run:
         name: train_llama2_7b_tp1_pp1_FP8_1node_15steps

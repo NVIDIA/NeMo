@@ -17,26 +17,26 @@ GPU_HW_FLOPS_MAP = {
     "h100": {
         "int8": 1979,
         "fp8": 1979,
-        "fp16": 1979/2,
-        "bf16": 1979/2,
-        "tf32": 989/2,
+        "fp16": 1979 / 2,
+        "bf16": 1979 / 2,
+        "tf32": 989 / 2,
         "fp64": 67,
     },
     "h200": {
         "int8": 1979,
         "fp8": 1979,
-        "fp16": 1979/2,
-        "bf16": 1979/2,
-        "tf32": 989/2,
+        "fp16": 1979 / 2,
+        "bf16": 1979 / 2,
+        "tf32": 989 / 2,
         "fp64": 67,
     },
     "a100": {
         "int8": 624,
-        "fp16": 624/2,
-        "bf16": 624/2,
+        "fp16": 624 / 2,
+        "bf16": 624 / 2,
         "tf32": 156,
         "fp64": 19.5,
-    }
+    },
 }
 
 LLM_VOCAB_SIZE_MAP = {
@@ -46,7 +46,8 @@ LLM_VOCAB_SIZE_MAP = {
     "nemotron": 256000,
     "bert": 29000,
     "mixtral": 32000,
-    }
+}
+
 
 def read_tb_log(path: str, summary_name: str) -> List:
     """
@@ -76,6 +77,7 @@ def read_tb_log(path: str, summary_name: str) -> List:
 
     return summary_list
 
+
 def get_gpu_name() -> str:
     """
     Assess GPU name using NVML
@@ -83,7 +85,7 @@ def get_gpu_name() -> str:
     try:
         pynvml.nvmlInit()
         nvsmi = nvidia_smi.getInstance()
-        product_name=nvsmi.DeviceQuery('name')
+        product_name = nvsmi.DeviceQuery('name')
         # Example output: {'gpu': [{'product_name': 'NVIDIA A16', 'product_brand': 'NVIDIA'}]}
         gpu_name = product_name['gpu'][0]['product_name'].split(" ")[1]
         pynvml.nvmlShutdown()
