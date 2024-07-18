@@ -1,19 +1,17 @@
 import os
-from pathlib import Path
-import pytest
 import types
-import pytorch_lightning as pl
-import torch
+from pathlib import Path
 from typing import Optional, Tuple
 
-from nemo.collections import llm
+import pytest
+import pytorch_lightning as pl
+import torch
+
 import nemo.lightning as nl
+from nemo.collections import llm
 from nemo.lightning.io.pl import MegatronCheckpointIO
-from nemo.utils.callbacks.dist_ckpt_io import (
-    AsyncFinalizableCheckpointIO,
-    AsyncFinalizerCallback,
-)
-from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
+from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
+
 
 def _get_nlp_strategy_without_optimizer_state():
     strategy = nl.MegatronStrategy(
@@ -25,8 +23,10 @@ def _get_nlp_strategy_without_optimizer_state():
     )
     return strategy
 
+
 def _get_last_checkpoint_dir(model: pl.LightningModule, suffix: str = '') -> Path:
     return f'epoch={model.trainer.current_epoch - 1}-step={model.trainer.max_steps - 1}{suffix}'
+
 
 def get_model_and_data():
     seq_length = 128
@@ -41,6 +41,7 @@ def get_model_and_data():
     )
     return llm.GPTModel(config, tokenizer=data.tokenizer), data
 
+
 class TestDistCkptIO:
 
     @pytest.mark.run_only_on('GPU')
@@ -49,7 +50,7 @@ class TestDistCkptIO:
         model, data = get_model_and_data()
 
         strategy = _get_nlp_strategy_without_optimizer_state()
-        
+
         trainer = nl.Trainer(
             devices=1,
             accelerator="gpu",
@@ -65,10 +66,10 @@ class TestDistCkptIO:
         # Ckpt path doesn't contain the .ckpt suffix
         ## TODO: make more generic
         ## why does this path include "lightning logs" while original test does not?
-        ckpts = os.listdir(Path(tmp_path / "lightning_logs/version_0/checkpoints" ))
-        assert len(ckpts) == 1 ## can do other things with this. Assert the right number of checkpoints are present
+        ckpts = os.listdir(Path(tmp_path / "lightning_logs/version_0/checkpoints"))
+        assert len(ckpts) == 1  ## can do other things with this. Assert the right number of checkpoints are present
         ckpt = ckpts[0]
-        assert str(ckpt)==_get_last_checkpoint_dir(model)
+        assert str(ckpt) == _get_last_checkpoint_dir(model)
 
     @pytest.mark.run_only_on('GPU')
     def test_async_save_produces_same_checkpoints_as_sync(self, tmp_path):
@@ -113,7 +114,7 @@ class TestDistCkptIO:
             logger=False,
             max_steps=2,
             strategy=_get_nlp_strategy_without_optimizer_state(),
-            plugins=[async_checkpoint_io], ## error is not specific to async checkpointing
+            plugins=[async_checkpoint_io],  ## error is not specific to async checkpointing
             callbacks=AsyncFinalizerCallback(),
             default_root_dir=str(async_ckpt_dir),
         )
@@ -132,7 +133,7 @@ class TestDistCkptIO:
         ## one of the keys is a _io.BytesIO object
         for k in sync_state_dict['sharded_state_dict'].keys():
             if isinstance(sync_state_dict['sharded_state_dict'][k], torch.Tensor):
-                assert(torch.all(sync_state_dict['sharded_state_dict'][k] == async_state_dict['sharded_state_dict'][k]))
+                assert torch.all(sync_state_dict['sharded_state_dict'][k] == async_state_dict['sharded_state_dict'][k])
 
     def test_sharded_strategies(self):
 
@@ -150,14 +151,11 @@ class TestDistCkptIO:
         )
         strategy.trainer = trainer
 
-        assert (isinstance(strategy.checkpoint_io, AsyncFinalizableCheckpointIO))
-        assert (isinstance(strategy.checkpoint_io._checkpoint_io, MegatronCheckpointIO))
+        assert isinstance(strategy.checkpoint_io, AsyncFinalizableCheckpointIO)
+        assert isinstance(strategy.checkpoint_io._checkpoint_io, MegatronCheckpointIO)
 
         base_checkpoint_io = strategy.checkpoint_io._checkpoint_io
 
-        assert(base_checkpoint_io.save_ckpt_format=='torch_dist')
-        assert(base_checkpoint_io.parallel_save)
-        assert(base_checkpoint_io.load_directly_on_device==False)
-
-
-
+        assert base_checkpoint_io.save_ckpt_format == 'torch_dist'
+        assert base_checkpoint_io.parallel_save
+        assert base_checkpoint_io.load_directly_on_device == False
