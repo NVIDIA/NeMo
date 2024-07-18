@@ -69,23 +69,40 @@ NULL_MODEL_CFG_STR = """
         name: null
 """
 
+
 @pytest.fixture
 def model_config(cfg):
     return yaml.safe_load(cfg)
 
+
 @pytest.mark.unit
-@pytest.mark.parametrize("cfg, model_name, train_step_time, expected_value", [
-    (LLAMA2_CFG_STR, None, 8, 377.53),
-    (LLAMA2_CFG_STR, "llama2", 8, 377.53),
-    (LLAMA2_CFG_STR, None, [8,8,8,8], 377.53),
-    (NEMOTRON_CFG_STR, None, 1.31, 642.73),
-    (UNSUPPORTED_MODEL_CFG_STR, None, 1, # model_name in config is unsupported
-     "Failed to extract valid model name from or missing FLOPs calculations for unsupported_model"),
-    (UNSUPPORTED_MODEL_CFG_STR, "unknown_model", 1, # overrided model name is unsupported
-     "Failed to extract valid model name from or missing FLOPs calculations for unknown_model"),
-    (NULL_MODEL_CFG_STR, None, 1, # both- config and overrided model name are None
-     "Failed to extract valid model name from or missing FLOPs calculations for None")
-])
+@pytest.mark.parametrize(
+    "cfg, model_name, train_step_time, expected_value",
+    [
+        (LLAMA2_CFG_STR, None, 8, 377.53),
+        (LLAMA2_CFG_STR, "llama2", 8, 377.53),
+        (LLAMA2_CFG_STR, None, [8, 8, 8, 8], 377.53),
+        (NEMOTRON_CFG_STR, None, 1.31, 642.73),
+        (
+            UNSUPPORTED_MODEL_CFG_STR,
+            None,
+            1,  # model_name in config is unsupported
+            "Failed to extract valid model name from or missing FLOPs calculations for unsupported_model",
+        ),
+        (
+            UNSUPPORTED_MODEL_CFG_STR,
+            "unknown_model",
+            1,  # overrided model name is unsupported
+            "Failed to extract valid model name from or missing FLOPs calculations for unknown_model",
+        ),
+        (
+            NULL_MODEL_CFG_STR,
+            None,
+            1,  # both- config and overrided model name are None
+            "Failed to extract valid model name from or missing FLOPs calculations for None",
+        ),
+    ],
+)
 def test_eval_tflops_per_sec_per_gpu(model_config, model_name, train_step_time, expected_value):
     if isinstance(expected_value, (int, float)):
         flops_callback = FLOPsMeasurementCallback(model_config, model_name=model_name)
@@ -112,16 +129,26 @@ def test_eval_tflops_per_sec_per_gpu(model_config, model_name, train_step_time, 
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("cfg, gpu_name, tflops_per_sec_per_gpu, expected_value", [
-    (LLAMA2_CFG_STR, "H100", 542, 54.8), # precision=bf16
-    (NEMOTRON_CFG_STR, "h100", 643, 32.5), # precision = fp8
-    (NEMOTRON_CFG_STR, "", 643, # missing gpu name
-     "Missing hardware FLOPs for self.gpu_name=''"),
-    (UNSUPPORTED_MODEL_CFG_STR, "a100", 0, # unspported precision= bf64
-     "Missing hardware FLOPs for precision='bf64'"),
-    (NULL_MODEL_CFG_STR, "H100", 0, # missing 'precision' key from config
-     "Missing hardware FLOPs for precision=''"),
-])
+@pytest.mark.parametrize(
+    "cfg, gpu_name, tflops_per_sec_per_gpu, expected_value",
+    [
+        (LLAMA2_CFG_STR, "H100", 542, 54.8),  # precision=bf16
+        (NEMOTRON_CFG_STR, "h100", 643, 32.5),  # precision = fp8
+        (NEMOTRON_CFG_STR, "", 643, "Missing hardware FLOPs for self.gpu_name=''"),  # missing gpu name
+        (
+            UNSUPPORTED_MODEL_CFG_STR,
+            "a100",
+            0,  # unspported precision= bf64
+            "Missing hardware FLOPs for precision='bf64'",
+        ),
+        (
+            NULL_MODEL_CFG_STR,
+            "H100",
+            0,  # missing 'precision' key from config
+            "Missing hardware FLOPs for precision=''",
+        ),
+    ],
+)
 def test_eval_mfu(model_config, gpu_name, tflops_per_sec_per_gpu, expected_value):
     if isinstance(expected_value, (int, float)):
         flops_callback = FLOPsMeasurementCallback(model_config, gpu_name=gpu_name)
