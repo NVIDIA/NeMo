@@ -613,6 +613,7 @@ class MultimodalModelRunner:
             return result
 
     def load_video(self, config, video_path, processor, num_frames=None):
+        frames = None
         if isinstance(video_path, str):
             decord.bridge.set_bridge('torch')
             video_reader = decord.VideoReader(uri=video_path)
@@ -648,6 +649,7 @@ class MultimodalModelRunner:
             return config['mm_cfg']['lita']['sample_frames']
 
     def process_lita_video(self, nemo_config, video_path, image_processor):
+        image = None
         if isinstance(video_path, str):
             vid_len = len(decord.VideoReader(video_path))
             num_sample_frames = self.get_num_sample_frames(nemo_config, vid_len)
