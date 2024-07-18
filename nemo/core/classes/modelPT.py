@@ -1809,10 +1809,12 @@ class ModelPT(LightningModule, Model):
 
         if self.cfg.get('detect_reference_cycles', False) is not False:
             from torch.utils.viz._cycles import observe_tensor_cycles
+
             def print_html_and_throw(html):
                 # For debugging purposes; maybe log to file?
                 print(html)
                 raise ValueError("Got tensor cycles")
+
             observe_tensor_cycles(print_html_and_throw)
 
     def on_train_start(self):
