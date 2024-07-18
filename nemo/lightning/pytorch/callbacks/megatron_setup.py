@@ -54,7 +54,7 @@ class MegatronSetup(Callback, IOMixin):
 
     def _fix_progress_bar(self, trainer: pl.Trainer) -> None:
         from nemo.lightning.pytorch.callbacks import MegatronProgressBar
-        
+
         callbacks: List[pl.Callback] = cast(List[pl.Callback], getattr(trainer, "callbacks"))
         contains_megatron_progress, contains_progress = False, False
         for callback in callbacks:

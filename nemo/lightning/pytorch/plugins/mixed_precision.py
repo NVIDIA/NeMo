@@ -21,8 +21,8 @@ from pytorch_lightning.plugins.precision import MixedPrecision
 from torch.nn import Module
 from torch.optim import Optimizer
 
-from nemo.lightning.io import IOMixin
 from nemo.lightning._strategy_lib import GradScaler
+from nemo.lightning.io import IOMixin
 
 AnyT = TypeVar("AnyT")
 
