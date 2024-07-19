@@ -63,9 +63,7 @@ class HuggingFaceFileIO(ABC):
         return model_filter
 
     @classmethod
-    def search_huggingface_models(
-        cls, model_filter: Optional[Dict[str, Any]] = None
-    ) -> Iterable['ModelInfo']:
+    def search_huggingface_models(cls, model_filter: Optional[Dict[str, Any]] = None) -> Iterable['ModelInfo']:
         """
         Should list all pre-trained models available via Hugging Face Hub.
 
@@ -259,7 +257,10 @@ class HuggingFaceFileIO(ABC):
             A HuggingFace ModelCard object that can be converted to a model card string.
         """
         card_data = ModelCardData(
-            library_name='nemo', tags=['pytorch', 'NeMo'], license='cc-by-4.0', ignore_metadata_errors=True,
+            library_name='nemo',
+            tags=['pytorch', 'NeMo'],
+            license='cc-by-4.0',
+            ignore_metadata_errors=True,
         )
 
         if 'card_data' not in template_kwargs:
