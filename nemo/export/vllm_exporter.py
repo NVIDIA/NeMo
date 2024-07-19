@@ -19,8 +19,9 @@ from typing import Iterable, List, Optional, Union
 import numpy
 import wrapt
 from vllm import RequestOutput, SamplingParams
-from vllm.config import CacheConfig, DeviceConfig, LoadConfig, LoadFormat, ParallelConfig, SchedulerConfig
+from vllm.config import CacheConfig, DeviceConfig, LoadConfig, LoadFormat, LoRAConfig, ParallelConfig, SchedulerConfig
 from vllm.executor.ray_utils import initialize_ray_cluster
+from vllm.lora.request import LoRARequest
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output
@@ -83,6 +84,8 @@ class vLLMExporter(ITritonDeployable):
         tensor_parallel_size: int = 1,
         pipeline_parallel_size: int = 1,
         max_model_len: int = None,
+        max_lora_rank=None,
+        lora_checkpoints: List[str] = [],
         dtype: str = 'auto',
         seed: int = 0,
         log_stats: bool = True,
@@ -207,6 +210,17 @@ class vLLMExporter(ITritonDeployable):
             model_loader_extra_config=None,
         )
 
+        # max_lora_rank and max_loras must both be positive for LoRA to be enabled
+        if max_lora_rank is not None and max_lora_rank > 0 \
+            and len(lora_checkpoints) > 0:
+            lora_config = LoRAConfig(max_lora_rank=max_lora_rank,
+                                     max_loras=len(lora_checkpoints),
+                                     lora_dtype=model_config.dtype)
+            self.lora_checkpoints = lora_checkpoints
+        else:
+            lora_config = None
+            self.lora_checkpoints = []
+
         # Initialize the cluster and specify the executor class.
         if device_config.device_type == "neuron":
             from vllm.executor.neuron_executor import NeuronExecutor
@@ -239,7 +253,7 @@ class vLLMExporter(ITritonDeployable):
             scheduler_config=scheduler_config,
             device_config=device_config,
             load_config=load_config,
-            lora_config=None,
+            lora_config=lora_config,
             multimodal_config=None,
             speculative_config=None,
             decoding_config=None,
@@ -249,17 +263,31 @@ class vLLMExporter(ITritonDeployable):
         )
 
     def _add_request_to_engine(
-        self, prompt: str, max_output_len: int, temperature: float = 1.0, top_k: int = 1, top_p: float = 0.0
+        self,
+        prompt: str,
+        max_output_len: int,
+        temperature: float = 1.0,
+        top_k: int = 1,
+        top_p: float = 0.0,
+        lora_uid: Optional[int] = None
     ) -> str:
         if top_p <= 0.0:
             top_p = 1.0
 
         sampling_params = SamplingParams(max_tokens=max_output_len, temperature=temperature, top_k=top_k, top_p=top_p)
 
+        if lora_uid is not None and lora_uid >= 0 and lora_uid < len(self.lora_checkpoints):
+            lora_request = LoRARequest(
+                lora_name=f'LoRA_{lora_uid}',
+                lora_int_id=lora_uid + 1,
+                lora_local_path=self.lora_checkpoints[lora_uid])
+        else:
+            lora_request = None
+
         request_id = str(self.request_id)
         self.request_id += 1
 
-        self.engine.add_request(request_id, prompt, sampling_params)
+        self.engine.add_request(request_id, prompt, sampling_params, lora_request=lora_request)
 
         return request_id
 
@@ -305,12 +333,18 @@ class vLLMExporter(ITritonDeployable):
             yield [[response] for response in responses]
 
     def _add_triton_request_to_engine(self, inputs: numpy.ndarray, index: int) -> str:
+        if 'lora_uids' in inputs:
+            lora_uid = int(numpy.char.decode(inputs['lora_uids'][index][0], encoding="utf-8"))
+        else:
+            lora_uid = None
+
         return self._add_request_to_engine(
             prompt=inputs['prompts'][index][0].decode('UTF-8'),
             max_output_len=inputs['max_output_len'][index][0],
             temperature=inputs['temperature'][index][0],
             top_k=inputs['top_k'][index][0],
             top_p=inputs['top_p'][index][0],
+            lora_uid=lora_uid,
         )
 
     @property
@@ -321,6 +355,7 @@ class vLLMExporter(ITritonDeployable):
             Tensor(name="top_k", shape=(-1,), dtype=numpy.int_, optional=True),
             Tensor(name="top_p", shape=(-1,), dtype=numpy.single, optional=True),
             Tensor(name="temperature", shape=(-1,), dtype=numpy.single, optional=True),
+            Tensor(name="lora_uids", shape=(-1,), dtype=bytes, optional=True),
         )
         return inputs
 
@@ -393,9 +428,6 @@ class vLLMExporter(ITritonDeployable):
         if task_ids is not None and task_ids != []:
             raise NotImplementedError("task_ids is not supported")
 
-        if lora_uids is not None and lora_uids != []:
-            raise NotImplementedError("lora_uids is not supported")
-
         if prompt_embeddings_table is not None:
             raise NotImplementedError("prompt_embeddings_table is not supported")
 
@@ -406,9 +438,21 @@ class vLLMExporter(ITritonDeployable):
             raise NotImplementedError("output_log_probs is not supported")
 
         request_ids = []
-        for prompt in input_texts:
+        for index in range(len(input_texts)):
+            prompt = input_texts[index]
+
+            if lora_uids is not None and index < len(lora_uids):
+                lora_uid = lora_uids[index]
+            else:
+                lora_uid = None
+
             request_id = self._add_request_to_engine(
-                prompt=prompt, max_output_len=max_output_len, temperature=temperature, top_k=top_k, top_p=top_p
+                prompt=prompt,
+                max_output_len=max_output_len,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                lora_uid=lora_uid
             )
             request_ids.append(request_id)
 

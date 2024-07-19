@@ -30,33 +30,29 @@ python scripts/checkpoint_converters/lora_converters/convert_nemo_to_canonical.p
 """
 import json
 import tempfile
+import re
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Tuple, List
 
 import torch
 from omegaconf import OmegaConf, open_dict
-from scripts.nlp_language_modeling.merge_lora_weights.merge import replace_number_add_offset
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
-target_map = {
-    "all": ["gate_proj", "o_proj", "up_proj", "down_proj", "k_proj", "q_proj", "v_proj"],
-    "attention_qkv": ["k_proj", "q_proj", "v_proj"],
-    "attention_dense": ["gate_proj", "o_proj", "up_proj"],
-}
 
+def replace_number_add_offset(key, offset_value):
+    # This function finds the layer number in the state dict key and adds a numeric offset to that number
 
-def rename_keys(key):
-    new_keys = []
-    if "lora_kqv_adapter" in key:
-        new_keys.append(key.replace(".lora_kqv_adapter.", ".lora_unfused_kqv_adapter.q_adapter."))
-        new_keys.append(key.replace(".lora_kqv_adapter.", ".lora_unfused_kqv_adapter.k_adapter."))
-        new_keys.append(key.replace(".lora_kqv_adapter.", ".lora_unfused_kqv_adapter.v_adapter."))
-    elif "lora_hto4h_adapter" in key:
-        new_keys.append(key.replace(".lora_hto4h_adapter.", ".lora_unfused_hto4h_adapter.gate_adapter."))
-        new_keys.append(key.replace(".lora_hto4h_adapter.", ".lora_unfused_hto4h_adapter.up_adapter."))
-    return new_keys
+    if offset_value == 0:
+        return key
+
+    pattern = r'layers.(\d+)'
+
+    def add_offset(match):
+        return "layers." + str(int(match.group(1)) + offset_value)
+
+    return re.sub(pattern, add_offset, key)
 
 
 def rename_qkv_keys(key):
@@ -67,8 +63,10 @@ def rename_qkv_keys(key):
     return new_keys
 
 
-def reformat_module_names_to_hf(tensors: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+def reformat_module_names_to_hf(tensors: Dict[str, torch.Tensor]) -> Tuple[Dict[str, torch.Tensor], List[str]]:
     new_tensors = dict()
+    module_names = set()
+    known_module_names = ["q_proj", "k_proj", "v_proj", "o_proj", "down_proj", "gate_proj", "up_proj"]
     for module_name, module_weight in tensors.items():
         # map linear_in and linear_out to lora_a/lora_b counterparts
         new_module_name = "base_model." + module_name.replace("linear_in", "lora_A").replace("linear_out", "lora_B")
@@ -90,7 +88,13 @@ def reformat_module_names_to_hf(tensors: Dict[str, torch.Tensor]) -> Dict[str, t
         new_module_name = new_module_name.replace("decoder", "model")
 
         new_tensors[new_module_name] = module_weight
-    return new_tensors
+
+        # keep track of the modules that we've added to store them in the config file
+        for kmn in known_module_names:
+            if f'.{kmn}' in new_module_name:
+                module_names.add(kmn)
+        
+    return (new_tensors, list(module_names))
 
 
 def convert_lora_weights_to_canonical(
@@ -199,20 +203,24 @@ def convert_lora(lora_nemo, save_path, hf_format=False):
 
         # TODO: currently suport tp=1
         lora_state_dict = lora_state_dict[0]
-        if lora_config.peft.lora_tuning.variant == "nemo":
+        if lora_config.peft.lora_tuning.get('variant', 'nemo') == "nemo":
             with open_dict(lora_config):
                 lora_config.peft.lora_tuning.variant = "canonical"
             with open(f"{tmpdir}/model_config.yaml", "w") as f:
                 OmegaConf.save(lora_config, f)
             lora_state_dict = convert_lora_weights_to_canonical(lora_config, lora_state_dict)
         if hf_format:
-            lora_state_dict = reformat_module_names_to_hf(lora_state_dict)
+            lora_state_dict, target_modules = reformat_module_names_to_hf(lora_state_dict)
             Path(save_path).mkdir(parents=True, exist_ok=True)
             torch.save(lora_state_dict, f"{save_path}/adapter_model.bin")
-            adapter_config = json.load(open(args.hf_config))
+            if args.hf_config is not None:
+                adapter_config = json.load(open(args.hf_config))
+            else:
+                adapter_config = {}
             adapter_config['peft_type'] = "LORA"
             adapter_config['r'] = lora_config.peft.lora_tuning.adapter_dim
             adapter_config['lora_alpha'] = lora_config.peft.lora_tuning.alpha
+            adapter_config['target_modules'] = target_modules
             with open(f"{save_path}/adapter_config.json", "w") as f:
                 json.dump(adapter_config, f, indent=4)
         else:

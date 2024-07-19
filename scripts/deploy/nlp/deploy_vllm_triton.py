@@ -68,6 +68,15 @@ def get_args(argv):
     )
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
     parser.add_argument(
+        '--max_lora_rank',
+        type=int,
+        default=64,
+        help='Maximum rank for the LoRA modules used in this deployment',
+    )
+    parser.add_argument(
+        "-lc", "--lora_ckpt", default=[], type=str, nargs="+", help="List of LoRA checkpoints in HF format"
+    )
+    parser.add_argument(
         "-es", '--enable_streaming', default=False, action='store_true', help="Enables streaming sentences."
     )
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
@@ -114,6 +123,8 @@ def get_vllm_deployable(args):
             model_type=args.model_type,
             tensor_parallel_size=args.tensor_parallelism_size,
             max_model_len=args.max_model_len,
+            max_lora_rank=args.max_lora_rank,
+            lora_checkpoints=args.lora_ckpt,
             dtype=args.dtype,
             weight_storage=args.weight_storage,
             gpu_memory_utilization=args.gpu_memory_utilization,
