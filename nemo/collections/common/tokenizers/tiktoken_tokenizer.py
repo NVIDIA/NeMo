@@ -16,14 +16,11 @@ import base64
 import json
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
-import numpy as np
 import tiktoken
 
-from nemo.collections.common.parts.utils import if_exist
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.utils import logging
 
 __all__ = ['TiktokenTokenizer']
 
