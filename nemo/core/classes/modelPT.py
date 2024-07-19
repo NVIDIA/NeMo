@@ -1787,16 +1787,21 @@ class ModelPT(LightningModule, Model):
                 self._memory_profile_rank = self.cfg.memory_profile.get('rank', 0)
                 self._memory_profile_output_path = self.cfg.memory_profile.get('output_path', None)
                 self._memory_profile_snapshot_file_activation = f'{self._memory_profile_output_path}/memory_profile_rank{self._memory_profile_rank}_act.pickle'    
-                self._memory_profile_snapshot_file_weight = f'{self._memory_profile_output_path}/memory_profile_rank{self._memory_profile_rank}_weight.pickle'    
+                self._memory_profile_snapshot_file_weight = f'{self._memory_profile_output_path}/memory_profile_rank{self._memory_profile_rank}_weight.pickle'
+                self._memory_profile_snapshot_file_oom = f'{self._memory_profile_output_path}/memory_profile_rank{self._memory_profile_rank}_oom.pickle'
                 # CUDA memory profiling options: analysis
                 self._memory_profile_analysis_enabled = self.cfg.memory_profile.get('analysis_enabled', False)
                 self._memory_profile_analysis_path = os.path.join(self._memory_profile_output_path, f"analysis")
-                # CUDA memory profiling options: weight profile
+                # CUDA memory profiling options: weight profile & OOM profile
                 self._memory_profile_weight_enabled = True # Set as True
+                self._memory_profile_oom_enabled = True # Set as True
 
                 if self._memory_profile_weight_enabled and get_rank() == self._memory_profile_rank: # For the weight profile, we record the snapshot from the initialization, and dump it before batch-0 start. 
                     logging.info(f"====== Rank[{self._memory_profile_rank}], Initialization. Start CUDA memory profiling: Weight ======")
                     torch.cuda.memory._record_memory_history() 
+
+                if self._memory_profile_oom_enabled:
+                    torch._C._cuda_attach_out_of_memory_observer(self.oom_observer)
 
                 if type(self._memory_profile_start_step) == int:
                     logging.info(f'CUDA memory profiling (Activation) setup with start_step: {self._memory_profile_start_step}')
@@ -1822,7 +1827,18 @@ class ModelPT(LightningModule, Model):
                         f'Memory profile output path ({self._memory_profile_output_path}) is not set or does not exist.'
                     )
 
-
+    def oom_observer(self, device, alloc, device_alloc, device_free, *args, **kwargs):
+        if get_rank() == self._memory_profile_rank:
+            logging.info(f"====== Rank[{self._memory_profile_rank}]. OOM Profile. End CUDA memory profiling: Out Of Memory. Snapshot saved in {self._memory_profile_snapshot_file_oom} ======")
+            torch.cuda.memory._dump_snapshot(f"{self._memory_profile_snapshot_file_oom}")
+            # if snapshot exists, we call the peak-memory-analyzer and export the csv file
+            # Need to wait a bit after error shows up. It is running the function.
+            if self._memory_profile_oom_enabled and self._memory_profile_analysis_enabled:
+                if os.path.exists(self._memory_profile_snapshot_file_oom):
+                    logging.info(f"===== Memory Profile Analysis: OOM ======")
+                    peak_memory_analysis(self._memory_profile_snapshot_file_oom, self._memory_profile_analysis_path, 'oom', self._memory_profile_rank)
+                else:
+                    raise Exception(f"Snapshot file not found: {self._memory_profile_snapshot_file_oom}")
 
     def on_train_start(self):
         """PyTorch Lightning hook:
@@ -1866,7 +1882,7 @@ class ModelPT(LightningModule, Model):
                         try:
                             logging.info(f"====== Rank[{self._memory_profile_rank}], Batch[{batch_idx}]. End CUDA memory profiling: Weight. Snapshot saved in {self._memory_profile_snapshot_file_weight} ======")
                             torch.cuda.memory._dump_snapshot(f"{self._memory_profile_snapshot_file_weight}")
-                            torch.cuda.memory._record_memory_history(enabled=None)
+                            # torch.cuda.memory._record_memory_history(enabled=None)
                         except Exception as e:
                             logging.error(f"Failed to capture memory snapshot {e}")
                             return
@@ -1887,6 +1903,8 @@ class ModelPT(LightningModule, Model):
                         logging.info(f"====== Rank[{self._memory_profile_rank}], Batch[{batch_idx}]. Start CUDA memory profiling: Activation ======")
                         # Record the current allocated_memory before this training batch. 
                         self._memory_profile_allocated = torch.cuda.memory_allocated() / (1024*1024*1024) # should be weight_memory. # in GB. 
+                        # Restart recording memory history
+                        torch.cuda.memory._record_memory_history(enabled=None)
                         torch.cuda.memory._record_memory_history(max_entries=30000000) # we set a very large max_entries to avoid the truncation that we don't want. Normally a few global batches won't exceed this restriction. This is only to avoid the extremely large file.
                         self._memory_profile_started = True
                         logging.info(f"Before recording activation memory snapshot, allocated memory: {self._memory_profile_allocated} GB")
@@ -1941,7 +1959,7 @@ class ModelPT(LightningModule, Model):
                         if not os.path.exists(self._memory_profile_analysis_path):
                             os.makedirs(self._memory_profile_analysis_path)
                         if os.path.exists(self._memory_profile_snapshot_file_activation):
-                            logging.info(f"====== Memory Profile Analysis: Analyzing the generated memory snapshot file ======")
+                            logging.info(f"====== Memory Profile Analysis: Activation ======")
                             peak_memory_analysis(self._memory_profile_snapshot_file_activation, self._memory_profile_analysis_path, 'act', self._memory_profile_rank)
                         else:
                             raise Exception(f"Snapshot file not found: {self._memory_profile_snapshot_file_activation}")    
