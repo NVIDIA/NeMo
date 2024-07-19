@@ -212,6 +212,15 @@ class FloatList(click.Option):
     default=15,  # conservative estimate towards longer transcripts
     help="How many labels/second should we simulate. More means longer output text sequences, and can increase memory consumption.",
 )
+@click.option(
+    "-f",
+    "--memory-fraction",
+    type=float,
+    default=0.95,
+    help="Limits the use of CUDA memory for this process to MEMORY_FRACTION of the total device memory. "
+    "By default we force 5% memory to be unused to account for non-training-loop related CUDA memory usage"
+    "in actual training scripts.",
+)
 def oomptimizer(
     pretrained_name: str | None,
     module_name: str | None,
@@ -221,6 +230,7 @@ def oomptimizer(
     threshold: float,
     start_batch_size: int,
     labels_per_second: int,
+    memory_fraction: float,
 ):
     """
     OOMptimizer finds the optimal batch sizes for training your model with bucketing dataloading.
@@ -249,6 +259,7 @@ def oomptimizer(
         sys.exit(1)
     logging.setLevel(logging.CRITICAL)
     device = "cuda"
+    torch.cuda.set_per_process_memory_fraction(memory_fraction, device)
 
     trainer = pl.Trainer(barebones=True)
     trainer.log_every_n_steps = 1000000
