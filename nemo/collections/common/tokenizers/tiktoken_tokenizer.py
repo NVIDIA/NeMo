@@ -137,7 +137,7 @@ class TiktokenTokenizer(TokenizerSpec):
 
     def token_to_id(self, token):
         return self.tokenizer.encode_single_token(token)
-    
+
     def tokens_to_ids(self, tokens):
         return [self.tokenizer.encode_single_token(token) for token in tokens]
 
