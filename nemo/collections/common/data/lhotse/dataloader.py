@@ -95,6 +95,8 @@ class LhotseDataLoadingConfig:
     num_workers: int = 0
     pin_memory: bool = False
     channel_selector: int | str | None = None
+    min_tps: int = -1  # allowed tokens per second
+    max_tps: float = 1_000_000
 
     # 4. Optional Lhotse data augmentation.
     #   a. On-the-fly noise/audio mixing.
@@ -188,16 +190,14 @@ def get_lhotse_dataloader_from_config(
     # Expands cuts if multiple translations are provided.
     cuts = CutSet(LazyFlattener(cuts.map(_flatten_alt_text, apply_fn=None)))
 
-    if config.use_multimodal_sampling:
-        assert (
-            tokenizer is not None
-        ), "You must pass a tokenizer to `get_lhotse_dataloader_from_config` in order to read text-only datasets (enabled via use_multimodal_dataloading)"
+    if tokenizer is not None:
         from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 
         if not isinstance(tokenizer, TokenizerWrapper):
             tokenizer = TokenizerWrapper(tokenizer)
         # Note this code can also pre-tokenize the text in cuts, but for now we disable it with apply_fn.
         cuts = cuts.map(partial(tokenize, tokenizer=tokenizer), apply_fn=is_text)
+        cuts = cuts.filter(TokenPerSecondFilter(config.min_tps, config.max_tps))
 
     # 2. Optional augmentations.
     # 2.a. Noise mixing.
@@ -521,6 +521,24 @@ class DurationFilter:
     def __call__(self, example) -> bool:
         if isinstance(example, Cut):
             return self.d_min <= example.duration <= self.d_max
+        else:
+            return True  # does not apply to text etc.
+
+
+class TokenPerSecondFilter:
+    """
+    Callable, returns ``True`` if a cut's num_tokens (sum of len(tokens) for each supervision)
+    is in range [tps_min, tps_max] and ``False`` otherwise.
+    """
+
+    def __init__(self, tps_min: float, tps_max: float) -> None:
+        self.tps_min = tps_min
+        self.tps_max = tps_max
+
+    def __call__(self, example) -> bool:
+        if isinstance(example, Cut):
+            num_tokens = sum(len(s.tokens) for s in example.supervisions)
+            return self.tps_min <= num_tokens <= self.tps_max
         else:
             return True  # does not apply to text etc.
 

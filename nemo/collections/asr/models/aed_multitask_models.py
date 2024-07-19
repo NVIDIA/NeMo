@@ -512,6 +512,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 prompt_format_fn=get_prompt_format_fn(self.prompt_format),
                 inference=inference,
             ),
+            tokenizer=self.tokenizer,
         )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
