@@ -353,6 +353,9 @@ def get_tarred_audio_noise_dataset(config, shuffle_n, global_rank, world_size, a
             manifest_filepath = manifest_filepath[0]
 
         is_sharded_manifest = True if "_OP_" in manifest_filepath and "_CL_" in manifest_filepath else False
+        logging.info(
+            f"Loading TarredAudioNoiseDataset from {tarred_audio_filepath} and {manifest_filepath}, shard={is_sharded_manifest}"
+        )
         dataset = TarredAudioNoiseDataset(
             noise_manifest=config.get('noise_manifest', None),
             batch_augmentor=batch_augmentor,
