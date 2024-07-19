@@ -370,7 +370,7 @@ def prune_frames(frames):
 
 
 
-def peak_memory_analysis(mem_snapshot_filepath, mem_snapshot_csv_dir):
+def peak_memory_analysis(mem_snapshot_filepath, mem_snapshot_csv_dir, name_suffix, device_id):
     """
     Key and Entry Function for peak memory analysis. 
     Find the global peak of the trace. 
@@ -381,11 +381,14 @@ def peak_memory_analysis(mem_snapshot_filepath, mem_snapshot_csv_dir):
     # ===== Loading =====
     snapshot = load_pickle_file(mem_snapshot_filepath)
     traces = snapshot['device_traces']
-    trace = traces[0] # useful trace. Device 0. 
+    trace = traces[device_id] # useful trace. 
 
     # remove the last timepoint, if it is an oom action
     if trace[-1]['action'] == 'oom':
         trace = trace[:-1]
+    # remove the timepoint that has the action 'snapshot'
+    trace = [tp for tp in trace if tp['action'] != 'snapshot']
+
 
     min_time_us, max_time_us = trace[0]['time_us'], trace[-1]['time_us']
     TIME_OFFSET = min_time_us
@@ -426,7 +429,7 @@ def peak_memory_analysis(mem_snapshot_filepath, mem_snapshot_csv_dir):
         "Pruned Stack Trace": [prune_frames(x[3]) for x in alive_memory_max], # prune the stack trace
     }
     df = pd.DataFrame(data)
-    csv_1_path = os.path.join(mem_snapshot_csv_dir, "alive_memory.csv")
+    csv_1_path = os.path.join(mem_snapshot_csv_dir, f"alive_memory_{name_suffix}.csv")
     df.to_csv(csv_1_path, index=False) # this generates a big csv file, since the alloc_frames are huge. 
     logging.info(f"1: Exported to {csv_1_path}")
 
@@ -448,7 +451,7 @@ def peak_memory_analysis(mem_snapshot_filepath, mem_snapshot_csv_dir):
         "Pruned Stack Trace": [prune_frames(x[3]) for x in memory_group_by_alloc_frames] # prune the stack trace
     }
     df_group = pd.DataFrame(data_group)
-    csv_2_path = os.path.join(mem_snapshot_csv_dir, "group_by_alloc_frames.csv")
+    csv_2_path = os.path.join(mem_snapshot_csv_dir, f"group_by_alloc_frames_{name_suffix}.csv")
     df_group.to_csv(csv_2_path, index=False)
     logging.info(f"2: Exported to {csv_2_path}")   
 
