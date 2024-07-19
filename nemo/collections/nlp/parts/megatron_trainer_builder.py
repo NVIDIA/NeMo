@@ -149,6 +149,7 @@ class MegatronTrainerBuilder:
         async_save = self.cfg.get('exp_manager', {}).get('checkpoint_callback_params', {}).get('async_save', False)
 
         from nemo.utils.s3_dirpath_utils import is_s3_url
+
         dirpath = self.cfg.get('exp_manager', {}).get('checkpoint_callback_params', {}).get('dirpath', None)
         s3_checkpointing = is_s3_url(dirpath)
 
@@ -164,6 +165,7 @@ class MegatronTrainerBuilder:
             )
         elif s3_checkpointing:
             from nemo.utils.callbacks.s3_checkpoint_io import S3CheckpointIO
+
             async_checkpointing = self.cfg.s3_checkpointing.get('enable_async_checkpointing', False)
             checkpoint_io = S3CheckpointIO(dirpath=dirpath, async_checkpointing=async_checkpointing)
             plugins.append(checkpoint_io)

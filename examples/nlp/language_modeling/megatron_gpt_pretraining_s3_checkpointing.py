@@ -25,7 +25,7 @@ from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerB
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager, NeMoCheckpointConnector
+from nemo.utils.exp_manager import NeMoCheckpointConnector, exp_manager
 
 torch._dynamo.config.suppress_errors = True
 
@@ -39,7 +39,7 @@ def main(cfg) -> None:
 
     # megatron trainer builder will add s3_checkpoint_io plugin when using above config name
     # dirpath needs to be s3 dirpath and mcore_gpt: False
-    # mcore_gpt is false because it forces sharded mcore checkpoint format. 
+    # mcore_gpt is false because it forces sharded mcore checkpoint format.
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
     trainer._checkpoint_connector = NeMoCheckpointConnector(trainer)
     exp_manager(trainer, cfg.exp_manager)
