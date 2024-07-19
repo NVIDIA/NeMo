@@ -441,6 +441,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
+                scale_positional_embedding=self.cfg.get('scale_positional_embedding', False),
             )
             mcore_model_customize(self.cfg, model)
         else:
