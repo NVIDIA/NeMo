@@ -42,7 +42,7 @@ from nemo.collections.llm.gpt.model import (
     gpt_data_step,
     gpt_forward_step,
 )
-from nemo.collections.llm.models import *  # noqa
+from nemo.collections.llm.configs import *  # noqa
 
 __all__ = [
     "MockDataModule",

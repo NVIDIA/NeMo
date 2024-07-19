@@ -4,8 +4,8 @@ from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.api import squad
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
-from nemo.collections.llm.models.log.default import default_log
-from nemo.collections.llm.models.optim.adam import adam_with_cosine_annealing
+from nemo.collections.llm.configs.log.default import default_log
+from nemo.collections.llm.configs.optim.adam import adam_with_cosine_annealing
 from nemo.collections.llm.peft.api import gpt_lora
 from nemo.collections.llm.utils import Partial, factory
 
