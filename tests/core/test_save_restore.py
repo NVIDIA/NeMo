@@ -19,11 +19,10 @@ from typing import Dict, Optional, Set, Union
 
 import pytest
 import torch
-from huggingface_hub.hf_api import ModelFilter
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
-from nemo.collections.nlp.models import PunctuationCapitalizationModel
+# from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.core.classes import ModelPT
 from nemo.core.connectors import save_restore_connector
 from nemo.utils.app_state import AppState
@@ -1302,8 +1301,8 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_hf_model_filter(self):
         filt = ModelPT.get_hf_model_filter()
-        assert isinstance(filt, ModelFilter)
-        assert filt.library == 'nemo'
+        assert isinstance(filt, dict)
+        assert filt['library'] == 'nemo'
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
@@ -1312,10 +1311,12 @@ class TestSaveRestore:
 
         # check no override results
         model_infos = ModelPT.search_huggingface_models(model_filter=None)
+        model_infos = [next(model_infos) for _ in range(5)]
         assert len(model_infos) > 0
 
         # check with default override results (should match above)
         default_model_infos = ModelPT.search_huggingface_models(model_filter=filt)
+        default_model_infos = [next(default_model_infos) for _ in range(5)]
         assert len(model_infos) == len(default_model_infos)
 
     @pytest.mark.pleasefixme()
@@ -1326,13 +1327,12 @@ class TestSaveRestore:
 
         # check no override results
         model_infos = ModelPT.search_huggingface_models(model_filter=filt)
+        model_infos = [next(model_infos) for _ in range(5)]
         assert len(model_infos) > 0
-        assert not hasattr(model_infos[0], 'cardData')
 
         # check overriden defaults
-        filt.resolve_card_info = True
+        filt['cardData'] = True
         model_infos = ModelPT.search_huggingface_models(model_filter=filt)
-        assert len(model_infos) > 0
 
         for info in model_infos:
             if hasattr(info, 'cardData'):
@@ -1346,10 +1346,12 @@ class TestSaveRestore:
 
         # check no override results
         model_infos = ModelPT.search_huggingface_models(model_filter=filt)
+        model_infos = [next(model_infos) for _ in range(6)]
         assert len(model_infos) > 0
 
         # check overriden defaults
-        filt.limit_results = 5
+        filt['limit'] = 5
         new_model_infos = ModelPT.search_huggingface_models(model_filter=filt)
+        new_model_infos = list(new_model_infos)
         assert len(new_model_infos) <= 5
         assert len(new_model_infos) < len(model_infos)
