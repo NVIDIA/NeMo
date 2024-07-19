@@ -108,7 +108,15 @@ class PreTrainingDataModule(pl.LightningDataModule):
         if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
             assert (
                 "blend" not in self.build_kwargs
-            ), f"When using a single data distribution, limit_val_batches <= 1.0 is not supported."
+            ), ("When using a single data distribution, limit_val_batches <= 1.0 is not supported. If you'd "
+                "like to run with a fractional value of limit_val_batches, please pass in separate datasets for "
+                "the train, validation, and test datasets by providing a dictionary of paths, e.g.: \n"
+                "    paths={ \n "
+                "        'train': [PATHS FOR TRAIN], \n "
+                "        'validation': [PATHS FOR VALIDATION], \n "
+                "        'test' :[PATHS FOR TEST],  \n"
+                "    }"
+            )
 
             # This is to make sure we only have one epoch on every validation iteration
             num_val_samples = None
