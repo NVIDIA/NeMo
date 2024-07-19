@@ -147,6 +147,11 @@ class MegatronTrainerBuilder:
             self.cfg.model.get('mcore_gpt', False) or self.cfg.model.get('mcore_bert', False)
         )
         async_save = self.cfg.get('exp_manager', {}).get('checkpoint_callback_params', {}).get('async_save', False)
+
+        from nemo.utils.s3_dirpath_utils import is_s3_url
+        dirpath = self.cfg.get('exp_manager', {}).get('checkpoint_callback_params', {}).get('dirpath', None)
+        s3_checkpointing = is_s3_url(dirpath)
+
         if use_dist_ckpt:
             checkpoint_io = DistributedCheckpointIO.from_config(self.cfg.model, async_save)
             if async_save:
@@ -157,6 +162,11 @@ class MegatronTrainerBuilder:
                 'exp_manager.checkpoint_callback_params.async_save=True without'
                 'distributed checkpoints is currently not supported'
             )
+        elif s3_checkpointing:
+            from nemo.utils.callbacks.s3_checkpoint_io import S3CheckpointIO
+            async_checkpointing = self.cfg.s3_checkpointing.get('enable_async_checkpointing', False)
+            checkpoint_io = S3CheckpointIO(dirpath=dirpath, async_checkpointing=async_checkpointing)
+            plugins.append(checkpoint_io)
 
         return plugins
 
