@@ -139,7 +139,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
             collate_fn=getattr(dataset, 'collate_fn', data.dataloader.default_collate),
             **kwargs,
         )
-        dataloader.mode = 'mode'
+        dataloader.mode = mode
         return dataloader
 
     @property
