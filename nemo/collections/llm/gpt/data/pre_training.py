@@ -121,17 +121,17 @@ class PreTrainingDataModule(pl.LightningDataModule):
     #     ).build()
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
-        return self._create_dataloader(self._train_ds)
+        return self._create_dataloader(self._train_ds, mode='train')
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
-        return self._create_dataloader(self._validation_ds)
+        return self._create_dataloader(self._validation_ds, mode='validation')
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
-        return self._create_dataloader(self._test_ds)
+        return self._create_dataloader(self._test_ds, mode='test')
 
-    def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
+    def _create_dataloader(self, dataset, mode, **kwargs) -> DataLoader:
         self.init_global_step = self.trainer.global_step
-        return DataLoader(
+        dataloader = DataLoader(
             dataset,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
@@ -139,6 +139,8 @@ class PreTrainingDataModule(pl.LightningDataModule):
             collate_fn=getattr(dataset, 'collate_fn', data.dataloader.default_collate),
             **kwargs,
         )
+        dataloader.mode = 'mode'
+        return dataloader
 
     @property
     def gpt_dataset_config(self) -> "GPTDatasetConfig":
