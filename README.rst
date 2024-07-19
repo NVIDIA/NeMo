@@ -313,13 +313,13 @@ To install the nemo_toolkit, use the following installation method:
 
 Depending on the shell used, you may need to use the ``"nemo_toolkit[all]"`` specifier instead in the above command.
 
-Additionally, the LLM collection (the first collection to migrate over to NeMo 2.0) is pip installable from source. If you would like
-to use this collection, you can pip install using the following commands:
+Additionally, the LLM collection (the first collection to migrate over to NeMo 2.0) is pip installable directly from source. If you would like
+to use this collection, you can pip install using the following commands, with no other required dependencies:
 
 .. code-block:: bash
 
-pip install git+https://github.com/NVIDIA/NeMo.git@main#egg=nemo_toolkit[all]
-pip install git+https://github.com/NVIDIA/Megatron-LM.git
+    pip install git+https://github.com/NVIDIA/NeMo.git@main#egg=nemo_toolkit[all]
+    pip install git+https://github.com/NVIDIA/Megatron-LM.git
 
 Note that this installation method will not install Apex or Transformer Engine. While these dependencies are not required for the LLM collection,
 we recommend installing them for optimal performance. Please refer to the `LLMs and MMs Dependencies <#install-llms-and-mms-dependencies>`_ for information
