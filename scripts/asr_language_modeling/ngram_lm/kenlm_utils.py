@@ -94,10 +94,10 @@ def setup_tokenizer(nemo_model_file):
             is_aggregate_tokenizer = True
 
         tokenizer_nemo = model.tokenizer
-
+    cfg = model.cfg
     del model
 
-    return tokenizer_nemo, encoding_level, is_aggregate_tokenizer
+    return tokenizer_nemo, encoding_level, is_aggregate_tokenizer, cfg
 
 
 def iter_files(source_path, dest_path, tokenizer, encoding_level, is_aggregate_tokenizer, verbose):
@@ -226,11 +226,9 @@ def write_dataset(chunks, path):
                 path.write((line + '\n').encode())
 
 
-def save_flashlight_lexicon(tokenizer, kenlm_file):
-    save_path = os.path.dirname(kenlm_file)
+def save_flashlight_lexicon(tokenizer, save_path=None):
     os.makedirs(save_path, exist_ok=True)
-
-    lex_file = os.path.join(save_path, os.path.splitext(os.path.basename(kenlm_file))[0] + '.flashlight_lexicon')
+    lex_file = os.path.join(save_path, "flashlight.lexicon")
 
     logging.info(f"Writing Lexicon file to: {lex_file}...")
     with open(lex_file, "w", encoding='utf_8', newline='\n') as f:
