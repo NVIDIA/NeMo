@@ -318,15 +318,11 @@ to use this collection, you can pip install using the following commands:
 
 .. code-block:: bash
 
-    git clone https://github.com/NVIDIA/Megatron-LM.git && git -C Megatron-LM checkout ${MEGATRON_BRANCH}
-    pip install Megatron-LM
-    git clone https://github.com/NVIDIA/NeMo.git && git -C NeMo checkout ${BRANCH}
-    pip install NeMo[core,common,nlp,audio]
+pip install git+https://github.com/NVIDIA/NeMo.git@main#egg=nemo_toolkit[all]
+pip install git+https://github.com/NVIDIA/Megatron-LM.git
 
-``core``, ``common``, ``nlp``, and ``audio`` are currently required dependencies of the llm collection. We are working on reducing
-the set of dependencies to make the installation process even simpler. Note that this installation method will not install
-Apex or Transformer Engine. While these dependencies are not required for the LLM collection, we recommend installing them
-for optimal performance. Please refer to the `LLMs and MMs Dependencies <#install-llms-and-mms-dependencies>`_ for information
+Note that this installation method will not install Apex or Transformer Engine. While these dependencies are not required for the LLM collection,
+we recommend installing them for optimal performance. Please refer to the `LLMs and MMs Dependencies <#install-llms-and-mms-dependencies>`_ for information
 about how to install these optional dependencies.
 
 Pip from a Specific Domain
