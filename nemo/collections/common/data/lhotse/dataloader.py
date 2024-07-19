@@ -33,6 +33,7 @@ from lhotse.dataset import (
 )
 from lhotse.dataset.dataloading import resolve_seed
 from lhotse.dataset.sampling.base import SamplingConstraint, TimeConstraint, TokenConstraint
+from lhotse.dataset.sampling.dynamic_bucketing import FixedBucketBatchSizeConstraint
 from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
@@ -67,6 +68,7 @@ class LhotseDataLoadingConfig:
     quadratic_duration: float | None = None
     #   c. Lhotse bucketing.
     use_bucketing: bool = False
+    bucket_batch_size: list[int] | None = None
     num_buckets: int = 30
     num_cuts_for_bins_estimate: int = 10000
     bucket_duration_bins: list[float] | None = None
@@ -239,18 +241,37 @@ def get_lhotse_dataloader_from_config(
     cuts = cuts.filter(DurationFilter(config.min_duration, config.max_duration))
 
     if config.use_multimodal_sampling:
-        constraint = MultimodalSamplingConstraint(
-            token_equivalent_duration=config.token_equivalent_duration,
-            batch_size=config.batch_size,
-            batch_tokens=config.batch_tokens,
-            quadratic_factor=config.quadratic_factor,
-        )
+        if config.bucket_batch_size is not None:
+            assert (
+                config.bucket_duration_bins is not None
+            ), "Cannot use bucket_batch_size option if bucket_duration_bins are not provided."
+            constraint = MultimodalFixedBucketBatchSizeConstraint(
+                max_seq_len_buckets=config.bucket_duration_bins,
+                batch_sizes=config.bucket_batch_size,
+                token_equivalent_duration=config.token_equivalent_duration,
+            )
+        else:
+            constraint = MultimodalSamplingConstraint(
+                token_equivalent_duration=config.token_equivalent_duration,
+                batch_size=config.batch_size,
+                batch_tokens=config.batch_tokens,
+                quadratic_factor=config.quadratic_factor,
+            )
     else:
-        constraint = TimeConstraint(
-            max_cuts=config.batch_size,
-            max_duration=config.batch_duration,
-            quadratic_duration=config.quadratic_duration,
-        )
+        if config.bucket_batch_size is not None:
+            assert (
+                config.bucket_duration_bins is not None
+            ), "Cannot use bucket_batch_size option if bucket_duration_bins are not provided."
+            constraint = FixedBucketBatchSizeConstraint(
+                max_seq_len_buckets=config.bucket_duration_bins,
+                batch_sizes=config.bucket_batch_size,
+            )
+        else:
+            constraint = TimeConstraint(
+                max_cuts=config.batch_size,
+                max_duration=config.batch_duration,
+                quadratic_duration=config.quadratic_duration,
+            )
 
     # 3. The sampler.
     if config.use_bucketing:
@@ -446,6 +467,20 @@ class MultimodalSamplingConstraint(SamplingConstraint):
             return example.duration / self.token_equivalent_duration
         if isinstance(example, (TextExample, TextPairExample)):
             return example.num_tokens
+        raise RuntimeError(f"Unsupported example type: {type(example)}")
+
+
+class MultimodalFixedBucketBatchSizeConstraint(FixedBucketBatchSizeConstraint):
+    token_equivalent_duration: float | None = None
+
+    def measure_length(self, example: Any) -> float:
+        if hasattr(example, "num_tokens"):
+            return example.num_tokens
+        if isinstance(example, Cut):
+            assert (
+                self.token_equivalent_duration is not None
+            ), "Cannot use MultimodalFixedBucketBatchSizeConstraint with speech data when token_equivalent_duration was not specified."
+            return example.duration / self.token_equivalent_duration
         raise RuntimeError(f"Unsupported example type: {type(example)}")
 
 
