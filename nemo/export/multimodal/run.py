@@ -592,7 +592,6 @@ class MultimodalModelRunner:
 
         return [prompt_table, tasks, task_vocab_size]
 
-
     def expand2square_pt(self, images, background_color):
         height, width = images.shape[-2:]
         b = len(images)
