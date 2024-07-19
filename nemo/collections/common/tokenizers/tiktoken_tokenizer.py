@@ -18,7 +18,10 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import tiktoken
+try:
+   import tiktoken
+except ImportError:
+   pass
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
