@@ -352,6 +352,7 @@ def get_tarred_audio_noise_dataset(config, shuffle_n, global_rank, world_size, a
         if len(manifest_filepath) == 1:
             manifest_filepath = manifest_filepath[0]
 
+        is_sharded_manifest = True if "_OP_" in manifest_filepath and "_CL_" in manifest_filepath else False
         dataset = TarredAudioNoiseDataset(
             noise_manifest=config.get('noise_manifest', None),
             batch_augmentor=batch_augmentor,
@@ -370,7 +371,7 @@ def get_tarred_audio_noise_dataset(config, shuffle_n, global_rank, world_size, a
             trim=config.get('trim_silence', False),
             parser=config.get('parser', 'en'),
             shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
-            shard_manifests=config.get('shard_manifests', False),
+            shard_manifests=is_sharded_manifest,
             global_rank=global_rank,
             world_size=world_size,
             return_sample_id=config.get('return_sample_id', False),
