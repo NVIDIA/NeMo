@@ -229,6 +229,12 @@ class FloatList(click.Option):
     "it must specify the device index (e.g. cuda:0). "
     "You can also leave the default index and select a specific GPU using env var CUDA_VISIBLE_DEVICES=<idx>",
 )
+@click.option(
+    "-y",
+    "--dtype",
+    default="bfloat16",
+    help="Float precision to use for computation (used together with autocast).",
+)
 def oomptimizer(
     pretrained_name: str | None,
     module_name: str | None,
@@ -240,6 +246,7 @@ def oomptimizer(
     labels_per_second: int,
     memory_fraction: float,
     device: str,
+    dtype: str,
 ):
     """
     OOMptimizer finds the optimal batch sizes for training your model with bucketing dataloading.
@@ -340,7 +347,7 @@ def oomptimizer(
                 print(f"- OK!")
             return oom
 
-        with torch.autocast(device, torch.bfloat16):
+        with torch.autocast("cuda", getattr(torch, dtype)):
             oom = step()
             while not (finished := gen.advance(oom)):
                 oom = step()
