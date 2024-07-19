@@ -5,7 +5,7 @@ NeMo 2.0: Logging and Checkpointing
 
 There are three main classes in NeMo 2.0 that are responsible for configuring logging and checkpointing directories. They are:
 
-1. :class:`~nemo.lightning.pytorch.callbacks.modle_checkpoint.ModelCheckpoint`: Handles the logic that determines when to save a checkpoint. In addition, this class provides the ability to perform asynchronous checkpointing
+1. :class:`~nemo.lightning.pytorch.callbacks.model_checkpoint.ModelCheckpoint`: Handles the logic that determines when to save a checkpoint. In addition, this class provides the ability to perform asynchronous checkpointing
 2. :class:`~nemo.lightning.nemo_logger.NeMoLogger`: Responsible for setting logging directories and (optionally) configuring loggers.
 3. :class:`~nemo.lightning.resume.AutoResume`: Sets the checkpointing directory and determines whether there is an existing checkpoint to resume from. 
 

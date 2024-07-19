@@ -5,7 +5,7 @@ The NeMo LLM Collection is the first collection that features NeMo 2.0, a redesi
 aims to improve the user experience in by taking a more PyTorch Lightning-like approach to make
 NeMo both simpler and more modular. 
 
-The current NLP are currently reimplemented in 2.0 as part of this collection:
+The current models are currently reimplemented in 2.0 as part of this collection:
 - **GPT**
 - **LLaMA**
 - **Mixtral**
