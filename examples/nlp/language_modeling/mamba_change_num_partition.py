@@ -49,12 +49,13 @@ python /opt/NeMo/examples/nlp/language_modeling/mamba_change_num_partition.py \
     --d-model=4096 \
     --mamba-version=2 \
     --mamba2-n-groups=8 \
-    --mamba2-head-dim=64
+    --mamba2-head-dim=64 \
+    --tokenizer_path=<path to tokenizer.model>
 """
 
 tp_split_dim = {
     'word_embeddings.weight': 0,
-    'norm.weight': -1,
+    'in_proj.layer_norm_weight': -1,
     'final_norm.weight': -1,
     'output_layer.weight': 0,
     # mamba1/2
@@ -81,12 +82,6 @@ tp_split_dim = {
 
 
 def get_split_dim(tensor_name):
-    # norm.weight will match tensor_name of mixer.norm.weight and norm.weight, need to distinguish
-    if 'norm.weight' in tensor_name:
-        if 'mixer.norm.weight' in tensor_name:
-            return tp_split_dim['mixer.norm.weight']
-        else:
-            return tp_split_dim['norm.weight']
 
     for key in tp_split_dim.keys():
         if key in tensor_name:
@@ -167,6 +162,90 @@ def split_tensor_for_tp(params, key, dim, tensor):
     return tensor_sliced
 
 
+def combine_tp_tensors(params, key, dim, tensors):
+    tp_size = len(tensors)
+
+    if 'mixer.in_proj.weight' in key and params.mamba_version == 1:
+        xs = []
+        zs = []
+        for tensor in tensors:
+            x, z = torch.split(tensor, [params.mamba_d_inner // tp_size, params.mamba_d_inner // tp_size], dim=dim)
+            xs.append(x)
+            zs.append(z)
+        return torch.cat([torch.cat(xs, dim=dim), torch.cat(zs, dim=dim)], dim=dim)
+
+    elif 'mixer.in_proj.weight' in key and params.mamba_version == 2:
+        xs = []
+        zs = []
+        Bs = []
+        Cs = []
+        dts = []
+        for tensor in tensors:
+            x, z, B, C, dt = torch.split(
+                tensor,
+                [
+                    params.mamba_d_inner // tp_size,
+                    params.mamba_d_inner // tp_size,
+                    (params.mamba2_n_groups // tp_size) * params.mamba_d_state,
+                    (params.mamba2_n_groups // tp_size) * params.mamba_d_state,
+                    params.mamba2_n_heads // tp_size,
+                ],
+                dim=dim,
+            )
+            xs.append(x)
+            zs.append(z)
+            Bs.append(B)
+            Cs.append(C)
+            dts.append(dt)
+
+        for ii in range(len(Bs)):
+            Bs[ii] = torch.reshape(Bs[ii], (-1, params.mamba_d_state, Bs[ii].shape[-1]))
+            Cs[ii] = torch.reshape(Cs[ii], (-1, params.mamba_d_state, Cs[ii].shape[-1]))
+        B = torch.cat(Bs, dim=dim)
+        C = torch.cat(Cs, dim=dim)
+        x = torch.cat(xs, dim=dim)
+        z = torch.cat(zs, dim=dim)
+        dt = torch.cat(dts, dim=dim)
+
+        return torch.cat([x, z, B.flatten(0, 1), C.flatten(0, 1), dt], dim=dim)
+
+    elif 'mixer.conv1d' in key and params.mamba_version == 2:
+        xs = []
+        Bs = []
+        Cs = []
+        for tensor in tensors:
+            x, B, C = torch.split(
+                tensor,
+                [
+                    params.mamba_d_inner // tp_size,
+                    (params.mamba2_n_groups // tp_size) * params.mamba_d_state,
+                    (params.mamba2_n_groups // tp_size) * params.mamba_d_state,
+                ],
+                dim=dim,
+            )
+            xs.append(x)
+            Bs.append(B)
+            Cs.append(C)
+
+        for ii in range(len(Bs)):
+            if 'weight' in key:
+                Bs[ii] = torch.reshape(Bs[ii], (-1, params.mamba_d_state, Bs[ii].shape[-2], Bs[ii].shape[-1]))
+                Cs[ii] = torch.reshape(Cs[ii], (-1, params.mamba_d_state, Cs[ii].shape[-2], Cs[ii].shape[-1]))
+            elif 'bias' in key:
+                Bs[ii] = torch.reshape(Bs[ii], (-1, params.mamba_d_state))
+                Cs[ii] = torch.reshape(Cs[ii], (-1, params.mamba_d_state))
+            else:
+                raise Exception("Unknown key")
+        B = torch.cat(Bs, dim=dim)
+        C = torch.cat(Cs, dim=dim)
+        x = torch.cat(xs, dim=dim)
+
+        return torch.cat([x, B.flatten(0, 1), C.flatten(0, 1)], dim=dim)
+
+    else:
+        return torch.cat(tensors, dim=dim)
+
+
 #################
 ### Utilities ###
 #################
@@ -212,7 +291,7 @@ def restore_model_config(cfg, original_dict):
     return cfg
 
 
-def write_tp_pp_split(model, splits, app_state, tp_size, pp_rank, write_path):
+def write_tp_pp_split(model, splits, app_state, tp_size, write_path):
     """
     Function to write the given TP PP split to NeMo File.
 
@@ -226,11 +305,10 @@ def write_tp_pp_split(model, splits, app_state, tp_size, pp_rank, write_path):
             Indexed as splits[idx][tp_rank].
         app_state: AppState object.
         tp_size:  The global tensor-parallel size of the final model.
-        pp_rank: The local pipeline parallel rank of the final model.
         write_path: The path to save the NeMo file.
     """
     for tp_rank in range(tp_size - 1, -1, -1):
-        app_state.pipeline_model_parallel_rank = pp_rank
+        app_state.pipeline_model_parallel_rank = 0
         app_state.tensor_model_parallel_rank = tp_rank
 
         idx = 0
@@ -246,7 +324,7 @@ def write_tp_pp_split(model, splits, app_state, tp_size, pp_rank, write_path):
             idx += 1
 
         if write_path is not None:
-            logging.info(f"Writing pp rank {pp_rank} tp rank {tp_rank} to file {write_path}")
+            logging.info(f"Writing pp rank {0} tp rank {tp_rank} to file {write_path}")
             model.save_to(write_path)
 
 
@@ -289,11 +367,62 @@ def split_tp_partition_only(args, model, original_model, tp_size, write_path=Non
     # Save each of the TP ranks in reverse order
     # This is done so that the last PP rank will save the last TP rank only after all other PP TP ranks are saved
     # The final rank will then save a new NeMo file with all other ranks inside.
-    write_tp_pp_split(model, splits, app_state, tp_size, pp_rank=0, write_path=write_path)
+    write_tp_pp_split(model, splits, app_state, tp_size, write_path=write_path)
 
     with tarfile.open(write_path, 'r') as tar:
         # Extract all contents to the specified path
         tar.extractall(path=os.path.dirname(write_path))
+
+
+def merge_partition(args, model, partitions, write_path: str = None):
+
+    input_tp_rank = len(partitions)
+
+    # During merge - model is TP 1 PP 1 model with all parameters present in correct order.
+    # Merge the parameters of the various PP X TP Y models into the TP 1 PP 1 model.
+    from collections import OrderedDict
+
+    full_model = OrderedDict()
+    combined_tp_model = OrderedDict()
+    for _, (key, original_tensor) in enumerate(partitions[0].items()):
+        if "_extra_state" in key:
+            combined_tp_model[key] = original_tensor
+            continue
+
+        import copy
+
+        split_dim = get_split_dim(key)
+        original_shape = list(original_tensor.shape)
+        combined_shape = copy.deepcopy(original_shape)
+        combined_shape[split_dim] *= input_tp_rank
+
+        if split_dim != -1:
+            # slice together model
+
+            combined_tensor = combine_tp_tensors(
+                args, key, split_dim, [partitions[jj][key].cpu() for jj in range(input_tp_rank)]
+            )
+            combined_tp_model[key] = combined_tensor
+        else:
+            # copy model
+            combined_tp_model[key] = original_tensor
+
+        for _, (local_key, local_original_tensor) in enumerate(combined_tp_model.items()):
+            try:
+                layer_num = int(re.findall(r'\d+', local_key)[0])
+                new_key = local_key.replace(str(layer_num), str(layer_num), 1)
+            except:
+                new_key = local_key
+            full_model[new_key] = local_original_tensor
+
+        # Update the model parameter with the merged tensor
+
+    model.load_state_dict(full_model, strict=True)
+
+    # Save the file iff the original file was PP 1 TP 1
+    if write_path is not None:
+        model.save_to(write_path)
+    return model
 
 
 def main():
@@ -304,18 +433,6 @@ def main():
         "--tensor_model_parallel_size", type=int, default=-1, required=False, help="TP size of source model"
     )
     parser.add_argument("--target_tensor_model_parallel_size", type=int, required=True, help="TP size of target model")
-    parser.add_argument(
-        '--pipeline_model_parallel_size', type=int, default=1, required=False, help='PP size of source model'
-    )
-    parser.add_argument(
-        '--target_pipeline_model_parallel_size', type=int, required=False, default=1, help='PP size of target model'
-    )
-    parser.add_argument(
-        '--target_pipeline_model_parallel_split_rank', type=int, default=0, help='PP rank to split for Enc-Dec models'
-    )
-    parser.add_argument(
-        '--virtual_pipeline_model_parallel_size', type=int, default=None, help='Virtual Pipeline parallelism size'
-    )
     parser.add_argument(
         '--ckpt_name', type=str, default=None, help='Checkpoint name to load from for Virtual Parallel'
     )
@@ -347,11 +464,9 @@ def main():
         help="Path to the tokenizer model path if your model uses a tokenizer model as an artifact. This is needed if your model uses a sentencepiece tokenizer.",
     )
     parser.add_argument('--hparams_file', type=str, default=None, help='Path to hparams file from PTL training')
-    parser.add_argument(
-        '--tp_conversion_only', default=True, action='store_true', help='Only convert TP model to TP model'
-    )
-    parser.add_argument('--model_extracted_dir', type=str, default=None, help='Path to pre-extracted model directory')
 
+    parser.add_argument('--model_extracted_dir', type=str, default=None, help='Path to pre-extracted model directory')
+    parser.add_argument('--tokenizer_path', type=str, default=None, required=True)
     parser.add_argument('--d-model', type=int, default=4096)
     parser.add_argument('--mamba-version', type=int, default=2)
     parser.add_argument('--mamba-d-state', type=int, default=128)
@@ -391,28 +506,6 @@ def main():
 
     tp_size = args.tensor_model_parallel_size
     tgt_tp_size = args.target_tensor_model_parallel_size
-    pp_size = args.pipeline_model_parallel_size
-    tgt_pp_size = args.target_pipeline_model_parallel_size
-    pipeline_model_parallel_split_rank = args.target_pipeline_model_parallel_split_rank
-    vp_size = args.virtual_pipeline_model_parallel_size
-    if vp_size is None:
-        vp_size = 1
-
-    convert_vp = vp_size > 1
-    if convert_vp:
-        from megatron.core import parallel_state
-
-        parallel_state.set_virtual_pipeline_model_parallel_world_size(vp_size)
-
-        hparams_filepath = args.hparams_file
-        if hparams_filepath is None:
-            logging.warning(
-                '\n\n\n!!!!!!!!!\n'
-                'You are converting a model with virtual pipeline parallelism enabled, \n'
-                'but have not passed `hparams_file` argument. \n'
-                'This will cause each ckpt file to be temporarily laoded onto GPU memory!\n\n'
-                'It is highly recommended to pass `hparams_file` argument to avoid this.\n'
-            )
 
     # Import the class of the model
 
@@ -447,7 +540,7 @@ def main():
         # precision plugins and precision to exist
     trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
 
-    if tp_size < 0 or pp_size < 0:
+    if tp_size < 0:
         logging.info(f"Loading model config from {args.model_file} to get TP and PP size")
         model_config_internal = MegatronMambaModel.restore_from(
             restore_path=args.model_file,
@@ -457,40 +550,17 @@ def main():
         )
 
         tp_size = model_config_internal.get('tensor_model_parallel_size', 1)
-        pp_size = model_config_internal.get('pipeline_model_parallel_size', 1)
 
     # Check if TP conversion only
-    tp_conversion_only = args.tp_conversion_only
-    if tp_conversion_only:
-        logging.info("Converting TP model to TP model only")
-
-        if pp_size > 1:
-            raise ValueError("Provided `--tp_conversion_only` but `--pipeline_model_parallel_size` > 1")
-
-        if tgt_pp_size > 1:
-            raise ValueError("Provided `--tp_conversion_only` but `--target_pipeline_model_parallel_size` > 1")
-
-        if pipeline_model_parallel_split_rank > 0:
-            raise ValueError("Provided `--tp_conversion_only` but `--target_pipeline_model_parallel_split_rank` > 0")
-
-        # Force PP size to 1
-        pp_size = 1
-        tgt_pp_size = 1
-        pipeline_model_parallel_split_rank = 0
-
-    if vp_size is None or vp_size < 0:
-        vp_size = 1
 
     app_state = AppState()
     app_state.data_parallel_rank = 0
-    app_state.pipeline_model_parallel_size = pp_size
+    app_state.pipeline_model_parallel_size = 1
     app_state.tensor_model_parallel_size = tp_size
 
-    if vp_size > 1:
-        app_state.virtual_pipeline_model_parallel_size = vp_size
     app_state.model_parallel_size = app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
 
-    world_size = pp_size * tp_size  # pseudo world size for simulating load of a specific rank on a single gpu
+    world_size = tp_size  # pseudo world size for simulating load of a specific rank on a single gpu
 
     app_state.tensor_model_parallel_rank = 0
     app_state.pipeline_model_parallel_rank = 0
@@ -520,60 +590,205 @@ def main():
                             f"`--tokenizer_model_path`.\n\n"
                         )
 
-    # If input model has TP > 1 or PP > 1
-    # Reconstruct the model to have TP = 1 and PP = 1
-    # Note that this is a forward loop that will process PP [0..N] TP [0..M] in sequential order.
+    # If input model has TP > 1
+    # Reconstruct the model to have TP = 1
+    if tp_size > 1:
 
-    # If input model has TP = 1 and PP = 1
-    app_state.model_parallel_size = 1
+        partitions = []
+        model = None
+        app_state.pipeline_model_parallel_rank = 0
 
-    save_restore_connector = NLPSaveRestoreConnector()
+        for tp_rank in range(tp_size):
+            app_state.tensor_model_parallel_rank = tp_rank
 
-    if args.model_extracted_dir is not None:
-        logging.info(f"Using extracted model directory: {args.model_extracted_dir}")
-        save_restore_connector.model_extracted_dir = args.model_extracted_dir
+            logging.info(f"Loading ------------ PP Rank: {0} TP Rank: {tp_rank}")
 
-    if args.model_file is not None:
-        model_filepath = args.model_file
+            # Override flag that forces Model to use AppState instead of Trainer
+            # to determine the world size, global and local rank
+            # Used for simulating load of a specific rank on a single gpu
+            os.environ[NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE] = "true"
+
+            # Compute the global rank to load the correct subset of parameters
+            global_rank = tp_rank
+
+            # Update AppState
+            app_state.world_size = world_size
+            app_state.global_rank = global_rank
+            app_state.local_rank = global_rank % num_gpu_per_node
+            app_state.pipeline_model_parallel_size = 1
+            app_state.tensor_model_parallel_size = tp_size
+            app_state.pipeline_model_parallel_split_rank = 0
+            app_state.model_parallel_size = (
+                app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
+            )
+
+            save_restore_connector = NLPSaveRestoreConnector()
+
+            if args.model_extracted_dir is not None:
+                logging.info(f"Using extracted model directory: {args.model_extracted_dir}")
+                save_restore_connector.model_extracted_dir = args.model_extracted_dir
+
+            if args.model_file is not None:
+                model_filepath = args.model_file
+            else:
+                model_filepath = args.model_extracted_dir
+
+            # Get model config
+            tmp_cfg = MegatronMambaModel.restore_from(
+                restore_path=model_filepath,
+                trainer=trainer,
+                map_location=torch.device("cpu"),
+                save_restore_connector=save_restore_connector,
+                return_config=True,
+            )
+
+            # Force model onto CPU
+            tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
+
+            # Restore model
+            model = MegatronMambaModel.restore_from(
+                restore_path=model_filepath,
+                trainer=trainer,
+                map_location=torch.device("cpu"),
+                save_restore_connector=save_restore_connector,
+                override_config_path=tmp_cfg,
+            )
+            model.freeze()
+
+            # Restore model config
+            restore_model_config(model.cfg, restore_dict)
+
+            model.to(dtype=dtype)
+
+            # Reset env flag
+            os.environ.pop(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, None)
+
+            logging.info(f"<<<<<<<< LOADED MODEL TP={tp_rank + 1} | " f"GLOBAL RANK = {global_rank} >>>>>>>>>")
+
+            # Save the parameters
+
+            partitions.append(model.state_dict())
+
+            # app_state is being updated incorrectly during restore
+            app_state.data_parallel_rank = 0
+            app_state.pipeline_model_parallel_rank = 0
+            app_state.tensor_model_parallel_rank = tp_rank
+            app_state.pipeline_model_parallel_size = 1
+            app_state.tensor_model_parallel_size = tp_size
+            app_state.model_parallel_size = (
+                app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
+            )
+
+        # Build a unified model with PP 1 TP 1
+        with open_dict(model.cfg):
+            model.cfg.tensor_model_parallel_size = 1
+            model.cfg.pipeline_model_parallel_size = 1
+            model.cfg.virtual_pipeline_model_parallel_size = None
+
+        app_state.global_rank = 0
+        app_state.local_rank = 0
+        app_state.data_parallel_rank = 0
+        app_state.pipeline_model_parallel_rank = 0
+        app_state.tensor_model_parallel_rank = 0
+        app_state.pipeline_model_parallel_size = 1
+        app_state.tensor_model_parallel_size = 1
+        app_state.model_parallel_size = 1
+
+        trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
+
+        with open_dict(model.cfg):
+            if args.tokenizer_model_path is not None:
+                model.cfg.tokenizer.model = args.tokenizer_model_path
+            if args.tokenizer_vocab_file is not None:
+                model.cfg.tokenizer.vocab_file = args.tokenizer_vocab_file
+
+            model.cfg, restore_dict = force_cpu_model(model.cfg)
+
+            # Remove Virtual Parallelism
+            model.cfg.virtual_pipeline_model_parallel_size = None
+
+        logging.info(f"<<<<<<<< Building TP 1 PP 1 base model >>>>>>>>>")
+
+        gbs = model.cfg.global_batch_size
+        mbs = model.cfg.micro_batch_size
+
+        model.cfg.global_batch_size = None
+        model.cfg.micro_batch_size = None
+
+        model.cfg.tokenizer.model = args.tokenizer_path
+        model.cfg.tokenizer.library = 'megatron'
+        model.cfg.tokenizer.type = 'GPTSentencePieceTokenizer'
+
+        model = MegatronMambaModel(model.cfg, trainer)  # type: nn.Module
+        model.freeze()
+        model = model.to('cpu')
+        model._save_restore_connector = NLPSaveRestoreConnector()
+
+        restore_model_config(model.cfg, restore_dict)
+
+        if tgt_tp_size > 1:
+            original_model = merge_partition(args, model, partitions)
+        else:
+            # Write out the PP 1 TP 1 model to disk
+            original_model = merge_partition(args, model, partitions, args.target_file)
+
+        # Empty cache memory of all parameters from all PP TP partitions
+        partitions.clear()
+
+        model.cfg.global_batch_size = gbs
+        model.cfg.micro_batch_size = mbs
+
+    # If input model has TP = 1
     else:
-        model_filepath = args.model_extracted_dir
+        app_state.model_parallel_size = 1
 
-    tmp_cfg = MegatronMambaModel.restore_from(
-        restore_path=model_filepath,
-        trainer=trainer,
-        map_location=torch.device("cpu"),
-        save_restore_connector=save_restore_connector,
-        return_config=True,
-    )
+        save_restore_connector = NLPSaveRestoreConnector()
 
-    tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
+        if args.model_extracted_dir is not None:
+            logging.info(f"Using extracted model directory: {args.model_extracted_dir}")
+            save_restore_connector.model_extracted_dir = args.model_extracted_dir
 
-    model = MegatronMambaModel.restore_from(
-        restore_path=model_filepath,
-        trainer=trainer,
-        map_location=torch.device("cpu"),
-        save_restore_connector=save_restore_connector,
-        override_config_path=tmp_cfg,
-    )
+        if args.model_file is not None:
+            model_filepath = args.model_file
+        else:
+            model_filepath = args.model_extracted_dir
 
-    original_model = MegatronMambaModel.restore_from(
-        restore_path=model_filepath,
-        trainer=trainer,
-        map_location=torch.device("cpu"),
-        save_restore_connector=save_restore_connector,
-        override_config_path=tmp_cfg,
-    )
-    original_model = original_model.to('cpu')
-    original_model._save_restore_connector = NLPSaveRestoreConnector()
-    original_model.freeze()
-    original_model.to(dtype=dtype)
+        tmp_cfg = MegatronMambaModel.restore_from(
+            restore_path=model_filepath,
+            trainer=trainer,
+            map_location=torch.device("cpu"),
+            save_restore_connector=save_restore_connector,
+            return_config=True,
+        )
 
-    model.to(dtype=dtype)
+        tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
 
-    restore_model_config(model.cfg, restore_dict)
+        model = MegatronMambaModel.restore_from(
+            restore_path=model_filepath,
+            trainer=trainer,
+            map_location=torch.device("cpu"),
+            save_restore_connector=save_restore_connector,
+            override_config_path=tmp_cfg,
+        )
+
+        original_model = MegatronMambaModel.restore_from(
+            restore_path=model_filepath,
+            trainer=trainer,
+            map_location=torch.device("cpu"),
+            save_restore_connector=save_restore_connector,
+            override_config_path=tmp_cfg,
+        )
+        original_model = original_model.to('cpu')
+        original_model._save_restore_connector = NLPSaveRestoreConnector()
+        original_model.freeze()
+        original_model.to(dtype=dtype)
+
+        model.to(dtype=dtype)
+
+        restore_model_config(model.cfg, restore_dict)
 
     # If target model has TP > 1 or PP > 1
-    if tgt_pp_size > 1 or tgt_tp_size > 1:
+    if tgt_tp_size > 1:
 
         # Preserve the TP 1 PP 1 model parameters and names
         global_params = []
@@ -586,110 +801,84 @@ def main():
 
         logging.info(f"TP 1 PP 1 Number of Parameters : {len(global_params[0])}")
 
-        world_size = (
-            tgt_pp_size * tgt_tp_size
-        )  # pseudo world size for simulating load of a specific rank on a single gpu
+        world_size = tgt_tp_size  # pseudo world size for simulating load of a specific rank on a single gpu
         new_global_batch_size = model.cfg.micro_batch_size * world_size
         old_global_batch_size = model.cfg.get('global_batch_size', model.cfg.micro_batch_size)
 
         global_offset = len(global_params[0]) - 1  # -1 cause this indexes the array, range [0, L-1]
         logging.info(f"Final layer offset for parameters: {global_offset}")
 
-        for pp_rank in range(tgt_pp_size - 1, -1, -1):  # reverse order
+        with open_dict(model.cfg):
+            model.cfg.pipeline_model_parallel_size = 1
+            model.cfg.tensor_model_parallel_size = tgt_tp_size
+            model.cfg.global_batch_size = old_global_batch_size  # Used for restoration
 
+        # Override flag that forces Model to use AppState instead of Trainer
+        # to determine the world size, global and local rank
+        # Used for simulating load of a specific rank on a single gpu
+        os.environ[NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE] = "true"
+
+        # Compute the global rank
+        global_rank = 0  # tp_rank = 0 needed just for modules, all TP will be merged to this PP rank
+
+        # Update AppState
+        app_state.world_size = world_size
+        app_state.global_rank = global_rank
+        app_state.local_rank = global_rank % num_gpu_per_node
+        app_state.pipeline_model_parallel_size = 1
+        app_state.tensor_model_parallel_size = tgt_tp_size
+        app_state.model_parallel_size = app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
+
+        trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
+        if args.tokenizer_model_path is not None:
             with open_dict(model.cfg):
-                model.cfg.pipeline_model_parallel_size = tgt_pp_size
-                model.cfg.tensor_model_parallel_size = tgt_tp_size
+                model.cfg.tokenizer.model = args.tokenizer_model_path
 
-                if 'pipeline_model_parallel_split_rank' in model.cfg:
-                    if pipeline_model_parallel_split_rank > 0:
-                        model.cfg.pipeline_model_parallel_split_rank = pipeline_model_parallel_split_rank
-                    elif pp_size > 1:
-                        logging.warning(
-                            f"Model config has `pipeline_model_parallel_split_rank` set to "
-                            f"{model.cfg.pipeline_model_parallel_split_rank} and target PP "
-                            f"size is {tgt_pp_size}. "
-                            f"Provided `pipeline_model_parallel_split_rank` is "
-                            f"{pipeline_model_parallel_split_rank}. "
-                            f"Be careful that the model config is correct "
-                            f"if encoder-decoder models are being converted."
-                        )
-
-                model.cfg.global_batch_size = old_global_batch_size  # Used for restoration
-
-            # Override flag that forces Model to use AppState instead of Trainer
-            # to determine the world size, global and local rank
-            # Used for simulating load of a specific rank on a single gpu
-            os.environ[NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE] = "true"
-
-            # Compute the global rank
-            global_rank = (
-                pp_rank * tgt_tp_size + 0
-            )  # tp_rank = 0 needed just for modules, all TP will be merged to this PP rank
-
-            # Update AppState
-            app_state.world_size = world_size
-            app_state.global_rank = global_rank
-            app_state.local_rank = global_rank % num_gpu_per_node
-            app_state.pipeline_model_parallel_size = tgt_pp_size
-            app_state.tensor_model_parallel_size = tgt_tp_size
-            app_state.model_parallel_size = (
-                app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
-            )
-
-            trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
-            if args.tokenizer_model_path is not None:
-                with open_dict(model.cfg):
-                    model.cfg.tokenizer.model = args.tokenizer_model_path
+        else:
+            if tokenizer_model_path is None:
+                logging.warning("Could not extract tokenizer model file from checkpoint.")
 
             else:
-                if tokenizer_model_path is None:
-                    logging.warning("Could not extract tokenizer model file from checkpoint.")
-
-                else:
-                    # Extract tokenizer info
-                    with open_dict(model.cfg):
-                        model.cfg.tokenizer.model = tokenizer_model_path
-
-            model.cfg, restore_dict = force_cpu_model(model.cfg)
-
-            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-
-            _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_global_batch_size = 1
-            _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_micro_batch_size = 1
-            model.cfg.global_batch_size = 1
-            model.cfg.micro_batch_size = 1
-
-            model = MegatronMambaModel(model.cfg, trainer)
-            model = model.to('cpu')
-            model._save_restore_connector = NLPSaveRestoreConnector()
-            model.freeze()
-            model.to(dtype=dtype)
-
-            restore_model_config(model.cfg, restore_dict)
-
-            # Update global batch size
-            if old_global_batch_size % new_global_batch_size != 0 or old_global_batch_size < new_global_batch_size:
-                logging.info(
-                    f"Global batch size {old_global_batch_size} is not divisible by new global batch size {new_global_batch_size}."
-                    f" The model config will be updated with new global batch size {new_global_batch_size}."
-                )
+                # Extract tokenizer info
                 with open_dict(model.cfg):
-                    model.cfg.global_batch_size = new_global_batch_size
+                    model.cfg.tokenizer.model = tokenizer_model_path
 
-            logging.info(f"Global rank: {global_rank} Local rank: {app_state.local_rank} World size: {world_size}")
-            logging.info(f"PP rank: {pp_rank} TP rank: {0}")
-            logging.info(f"TP 1 PP 1 Number of Layers : {len(global_params[0])}")
-            logging.info(f"Remaining layer offset for parameters: {global_offset}")
-            logging.info("\n")
+        model.cfg, restore_dict = force_cpu_model(model.cfg)
 
-            # Special case for TP conversion only mode
-            if tp_conversion_only:
-                logging.info(f"Skipping PP split due to flag `--tp_conversion_only`")
-                split_tp_partition_only(
-                    args, model, original_model, tgt_tp_size, args.target_file, args.megatron_legacy
-                )
-                break
+        gbs = model.cfg.global_batch_size
+        mbs = model.cfg.micro_batch_size
+
+        model.cfg.global_batch_size = None
+        model.cfg.micro_batch_size = None
+
+        model = MegatronMambaModel(model.cfg, trainer)
+        model = model.to('cpu')
+        model._save_restore_connector = NLPSaveRestoreConnector()
+        model.freeze()
+        model.to(dtype=dtype)
+
+        model.cfg.global_batch_size = gbs
+        model.cfg.micro_batch_size = mbs
+
+        restore_model_config(model.cfg, restore_dict)
+
+        # Update global batch size
+        if old_global_batch_size % new_global_batch_size != 0 or old_global_batch_size < new_global_batch_size:
+            logging.info(
+                f"Global batch size {old_global_batch_size} is not divisible by new global batch size {new_global_batch_size}."
+                f" The model config will be updated with new global batch size {new_global_batch_size}."
+            )
+            with open_dict(model.cfg):
+                model.cfg.global_batch_size = new_global_batch_size
+
+        logging.info(f"Global rank: {global_rank} Local rank: {app_state.local_rank} World size: {world_size}")
+        logging.info(f"PP rank: {0} TP rank: {0}")
+        logging.info(f"TP 1 PP 1 Number of Layers : {len(global_params[0])}")
+        logging.info(f"Remaining layer offset for parameters: {global_offset}")
+        logging.info("\n")
+
+        # TP conversion only mode
+        split_tp_partition_only(args, model, original_model, tgt_tp_size, args.target_file, args.megatron_legacy)
 
 
 if __name__ == '__main__':
