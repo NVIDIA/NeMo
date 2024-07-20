@@ -22,7 +22,6 @@ def trainer(devices=8) -> nl.Trainer:
         tensor_model_parallel_size=8,
         context_parallel_size=4,
         sequence_parallel=True,
-        expert_model_parallel_size=1,
     )
 
     return nl.Trainer(
