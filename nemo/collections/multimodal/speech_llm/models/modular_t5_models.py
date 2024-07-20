@@ -1517,11 +1517,8 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         # enc_input = speech prompt
         # dec_input and label = text prompt and text output label
         dec_input = audio_batch['tokens']
-        labels = audio_batch['tokens']
-        dec_mask = (dec_input != self.tokenizer.eos_id) * (dec_input != self.tokenizer.pad_id).long().contiguous()
-        assert len(dec_mask.shape) <= 3
-        if len(dec_mask.shape) == 3:
-            dec_mask = torch.any(dec_mask, 2)
+        labels = audio_batch['labels']
+        dec_mask = (dec_input[:, :, 0] != self.tokenizer.eos_id) * (dec_input[:, :, 0] != self.tokenizer.pad_id).long().contiguous()
         output = self.frozen_model.enc_dec_model(
             enc_input_ids=None,
             enc_attn_mask=enc_mask,
@@ -1532,6 +1529,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             output_enc_hidden_only=False,
             enc_input=encoder_input,
         )
+        
         loss_mask = audio_batch['loss_mask']
         return output, loss_mask
 
@@ -1569,6 +1567,8 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             'inputs': inputs_text,  # [str]
             'metadata': metadata,  # [dict]
         }
+
+        # import pdb; pdb.set_trace()
 
         if mode == 'validation':
             if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:

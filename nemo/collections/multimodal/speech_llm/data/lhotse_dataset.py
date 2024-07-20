@@ -189,8 +189,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             speaker_context = torch.stack(speaker_context_list).to(torch.int)
             speaker_context = torch.cat([torch.full((speaker_context.shape[0], speaker_context.shape[1], 1), text_unk_id, dtype=speaker_context.dtype), speaker_context], axis=2)
 
-        # import ipdb; ipdb.set_trace()
-
         def collate_and_pad(inputs):
             token_lengths = [len(seq) for seq in inputs]
             max_length = self.tokens_to_generate + max(token_lengths)
@@ -226,17 +224,19 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
             bos_tensor = torch.full((len(cuts_tts), 1, self.n_speech_codebooks+1), self.speech_pad_id).to(torch.int)
             bos_tensor[:,:,0] = self.text_processor.bos_id
+            eos_tensor = torch.full((len(cuts_tts), 1, self.n_speech_codebooks+1), self.speech_pad_id).to(torch.int)
+            eos_tensor[:,:,0] = self.text_processor.eos_id
             
-            answers = torch.concat([speaker_context, bos_tensor, tts_answer], 1)
+            answers = torch.concat([speaker_context, bos_tensor, tts_answer, eos_tensor], 1)
             # Move wav_tokens above current text token range
 
             # token_list = [torch.concat([c[:l], a], 0) for c, l, a in zip(contexts, context_lengths, answers)]
             token_list = [torch.concat([c[:l], a], 0) for c, l, a in zip(contexts, context_lengths, answers)]
             tokens, _ = collate_and_pad(token_list)
 
-            loss_mask = torch.zeros(tokens.shape[0], tokens.shape[1])  #Need to mask out speaker_context potion of audio
+            loss_mask = torch.zeros(tokens.shape[0], tokens.shape[1]-1)  #Need to mask out speaker_context potion of audio
             for i in range(len(tokens)):
-                leading_mask_len = context_lengths[i]+speaker_context.shape[1]+1
+                leading_mask_len = context_lengths[i]+speaker_context.shape[1]
                 loss_mask[i, leading_mask_len:leading_mask_len+features_lens[i]] = 1
             
             for i in range(self.n_speech_codebooks):
@@ -245,13 +245,17 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 answers[:,:,i+1] += sum(self.vocab_sizes[:i+1])
         # Merge batch
         return_batch = {
-            "tokens": tokens,
+            # For forward
+            "tokens": tokens[:, :-1, :],
+            "labels": tokens[:, 1:, :],
+            # For validation mainly
             "contexts": contexts,
             "context_lengths": context_lengths,
             "speaker_contexts": answers[:, :speaker_context.shape[1]+1, :],
-            "answers": answers,
+            "answers": answers[:, speaker_context.shape[1]+1:, :],
             "loss_mask": loss_mask,
         }
+        import pdb; pdb.set_trace()
         if len(cuts) > 0:
             return_batch = {
                 "audio_signal": audio,

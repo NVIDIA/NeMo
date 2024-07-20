@@ -240,6 +240,7 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
 
             forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
             fwd_bwd_func = get_forward_backward_func()
+            # import pdb; pdb.set_trace()
 
             output_tensor = fwd_bwd_func(
                 forward_step_func=forward_step_func,
@@ -613,6 +614,8 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
                         tokens_loss = torch.stack([
                             vocab_parallel_cross_entropy(token_logits[i].float(), labels[:, :, i]-sum(self.proj_head_dims[:i]), label_smoothing) for i in range(self.n_proj_heads)
                         ], axis=2)
+                    
+                    # import pdb; pdb.set_trace()
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
@@ -691,5 +694,6 @@ class SumMultiEmbedding(Embedding):
     #     self.init_method(self.tokentype_embeddings.weight)
 
     def forward(self, input_ids, position_ids=None, token_type_ids=None):
+        # import pdb; pdb.set_trace()
         embeddings = super().forward(input_ids, position_ids, token_type_ids)
         return torch.sum(embeddings, axis=2)
