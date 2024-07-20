@@ -6,7 +6,7 @@ except ImportError:
 
 from nemo.collections.llm import peft, tokenizer
 from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
-from nemo.collections.llm.configs import *  # noqa
+from nemo.collections.llm.recipes import *  # noqa
 from nemo.collections.llm.gpt.data import (
     DollyDataModule,
     FineTuningDataModule,

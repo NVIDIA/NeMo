@@ -2,19 +2,19 @@ import pytorch_lightning as pl
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
-from nemo.collections.llm.configs.log.default import default_log
-from nemo.collections.llm.configs.optim.adam import adam_with_cosine_annealing
+from nemo.collections.llm.recipes.log.default import default_log
+from nemo.collections.llm.recipes.optim.adam import adam_with_cosine_annealing
 from nemo.collections.llm.gpt.data.api import squad
-from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
+from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
 from nemo.collections.llm.peft.api import gpt_lora
 from nemo.collections.llm.utils import Partial, factory
 
-NAME = "mistral"
+NAME = "llama3_8b"
 
 
 @factory(name=NAME)
 def model() -> pl.LightningModule:
-    return MistralModel(MistralConfig7B())
+    return LlamaModel(Llama3Config8B(seq_length=16384))
 
 
 @factory(name=NAME)
@@ -32,7 +32,7 @@ def trainer(devices=8) -> nl.Trainer:
 
 @factory(name=NAME + "_hf")
 def hf_resume() -> nl.AutoResume:
-    return nl.AutoResume(import_path="hf://mistralai/Mistral-7B-v0.3")
+    return nl.AutoResume(import_path="hf://meta-llama/Meta-Llama-3-8B")
 
 
 @factory(name=NAME, for_task="llm.pretrain")
