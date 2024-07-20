@@ -6,7 +6,6 @@ except ImportError:
 
 from nemo.collections.llm import peft, tokenizer
 from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
-from nemo.collections.llm.recipes import *  # noqa
 from nemo.collections.llm.gpt.data import (
     DollyDataModule,
     FineTuningDataModule,
@@ -43,6 +42,7 @@ from nemo.collections.llm.gpt.model import (
     gpt_data_step,
     gpt_forward_step,
 )
+from nemo.collections.llm.recipes import *  # noqa
 
 __all__ = [
     "MockDataModule",
