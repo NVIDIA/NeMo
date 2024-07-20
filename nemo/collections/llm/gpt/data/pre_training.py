@@ -208,6 +208,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
         """
         # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches num of global batches
         from megatron.core.num_microbatches_calculator import get_num_microbatches
+
         if isinstance(limit_batches, int):
             limit_batches *= get_num_microbatches()
         else:
