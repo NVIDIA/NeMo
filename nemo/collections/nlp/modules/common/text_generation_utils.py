@@ -38,15 +38,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_an
 from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
 from nemo.utils import AppState
-
-try:
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
+from nemo.utils.apex_utils import _reconfigure_microbatch_calculator
 
 try:
     from megatron.core import parallel_state, tensor_parallel
@@ -793,6 +785,9 @@ def generate(
 
     if random_seed is not None:
         seed_everything(random_seed)
+
+    if hasattr(model, 'get_attention_mask_from_fusion') and model.get_attention_mask_from_fusion:
+        compute_attention_mask = False
 
     output = synced_generate(
         model,
