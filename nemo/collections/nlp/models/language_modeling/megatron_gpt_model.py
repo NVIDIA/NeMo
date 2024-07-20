@@ -30,7 +30,7 @@ from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.common.parts.utils import extend_instance
+from nemo.collections.common.parts.utils import apply_rope_scaling, extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
@@ -77,6 +77,7 @@ from nemo.utils import logging
 from nemo.utils.te_utils import is_float8tensor
 
 try:
+    import megatron.core as core
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
@@ -422,6 +423,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         if self.mcore_gpt:
+
             model = MCoreGPTModel(
                 config=self.transformer_config,
                 transformer_layer_spec=get_specs(
@@ -443,6 +445,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
             mcore_model_customize(self.cfg, model)
+
+            if self.cfg.get('scale_positional_embedding', False):
+                model.rotary_pos_emb.inv_freq = apply_rope_scaling(model.rotary_pos_emb.inv_freq)
+
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
                 'num_query_groups', None
