@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
-from torch.utils.data import DataLoader
+from nemo.lightning.data import WrappedDataLoader
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
@@ -129,17 +129,17 @@ class PreTrainingDataModule(pl.LightningDataModule):
     def test_dataloader(self) -> EVAL_DATALOADERS:
         return self._create_dataloader(self._test_ds, mode='test')
 
-    def _create_dataloader(self, dataset, mode, **kwargs) -> DataLoader:
+    def _create_dataloader(self, dataset, mode, **kwargs) -> WrappedDataLoader:
         self.init_global_step = self.trainer.global_step
-        dataloader = DataLoader(
-            dataset,
+        dataloader = WrappedDataLoader(
+            mode=mode,
+            dataset=dataset,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
             collate_fn=getattr(dataset, 'collate_fn', data.dataloader.default_collate),
             **kwargs,
         )
-        dataloader.mode = mode
         return dataloader
 
     @property
