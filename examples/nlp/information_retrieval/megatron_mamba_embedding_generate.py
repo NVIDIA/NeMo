@@ -97,10 +97,7 @@ def main(cfg) -> None:
     # model = MegatronMambaEmbeddingModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
     logging.info(f"Loading model from {cfg.restore_from_path}")
     model = MegatronMambaEmbeddingModel.restore_from(
-        restore_path=cfg.restore_from_path,
-        trainer=trainer,
-        override_config_path=model_cfg,
-        strict=True
+        restore_path=cfg.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=True
     )
 
     if not cfg.model.get('use_flash_attention', False):
@@ -111,7 +108,7 @@ def main(cfg) -> None:
     # if not cfg.server:
     trainer.test(model)
     # else:
-        # use_inference_server(cfg, model, trainer)
+    # use_inference_server(cfg, model, trainer)
 
 
 if __name__ == "__main__":

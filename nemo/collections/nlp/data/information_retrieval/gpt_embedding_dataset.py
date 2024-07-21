@@ -51,7 +51,7 @@ class GPTEmbeddingDataset(Dataset):
         bidirectional_sequences: bool = False,
     ):
         """
-        file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format. 
+        file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format.
         tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
         max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
         min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.

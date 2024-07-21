@@ -53,14 +53,20 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         self.mcore_gpt = True
         self.cross_entropy_loss = torch.nn.CrossEntropyLoss(label_smoothing=cfg.get('label_smoothing', 0.0))
         self.temperature = self.cfg.get('temperature', 1)
-        # self.use_all_possible_negatives = self.cfg.get("use_all_possible_negatives", True)
 
         self.hard_negatives_to_train = self.cfg.data.train_ds.get("hard_negatives_to_train", 4)
         self.global_inbatch_negatives = self.cfg.get("global_inbatch_negatives", True)
+
         self.backprop_type = self.cfg.get("backprop_type", "local")
         assert self.backprop_type in ["local", "global"], "Backprop type must be `local` or `global`"
+
         self.output_head_type = self.cfg.get("output_head_type", "eos_only")
-        assert self.output_head_type in ["eos_only", "avg_pool", "bidir_eos"], "Output head type must be `eos_only`, `avg_pool` or `bidir_eos`"
+        assert self.output_head_type in [
+            "eos_only",
+            "avg_pool",
+            "bidir_eos",
+        ], "Output head type must be `eos_only`, `avg_pool` or `bidir_eos`"
+
         self.bidirectional_sequences = self.cfg.get("bidirectional_sequences", False)
 
         # Matryoshka Representation Learning
@@ -76,23 +82,6 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         ), "post_process must be False to get hidden states in the loss_func"
 
     def model_provider_func(self, pre_process, post_process):
-        # self.hybrid_override_pattern="M" * self.transformer_config.num_layers #-MOM-MO*-MOM-MO"*4
-        # mamba_stack_spec = get_mamba_layer_with_transformer_engine_spec(self.transformer_config.num_moe_experts, moe_grouped_gemm=False)
-        # self.transformer_config.activation_func = F.silu
-        # self.transformer_config.add_bias_linear=self.cfg.get('add_bias_linear', False)
-        # self.transformer_config.autocast_dtype = torch.float32
-
-        # model = MambaModel(
-        #     config=self.transformer_config,
-        #     max_sequence_length=self.cfg.get('encoder_seq_length', 2048),
-        #     vocab_size=self.cfg.get('vocab_size', 65536),
-        #     mamba_stack_spec=mamba_stack_spec,
-        #     hybrid_override_pattern=self.hybrid_override_pattern,
-        #     post_process=post_process
-        # )
-
-        # return model
-
         self.hybrid_override_pattern = self.cfg.get(
             'hybrid_override_pattern', "M" * self.transformer_config.num_layers
         )
@@ -112,25 +101,6 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         )
 
         return model
-
-    # def maybe_setup_test(self):
-    #     if (
-    #         hasattr(self.cfg.data, 'test_ds')
-    #         and self.cfg.data.test_ds.get('doc_file_names', None) is not None
-    #         and self.cfg.data.test_ds.get('query_file_names', None) is not None
-    #     ):
-    #         self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
-    #     return
-
-    # def maybe_build_test(self):
-    #     if (
-    #         hasattr(self.cfg.data, 'test_ds')
-    #         and self.cfg.data.test_ds.get('doc_file_names', None) is not None
-    #         and self.cfg.data.test_ds.get('query_file_names', None) is not None
-    #     ):
-    #         logging.info('Building GPT Embedder test datasets.')
-    #         # Wrap this in a list since the general finetuning parent class supports multi-validation.
-    #         self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
 
     def _build_dataset(self, data_cfg, is_train=True):
         packed_sequence = data_cfg.get("packed_sequence", False)
@@ -489,7 +459,6 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         else:
             if self.bidirectional_sequences:
                 raise NotImplementedError("Bidirectional sequences are not supported for avg_pool output head")
-            # output_tensor = output_tensor.permute(1, 0, 2)
             lengths = loss_mask+1
             attention_mask = torch.arange(output_tensor.shape[1], device=output_tensor.device).expand(len(lengths), output_tensor.shape[1]) < lengths.unsqueeze(1)
             input_mask_expanded = attention_mask.unsqueeze(-1).expand(output_tensor.size()).float()
