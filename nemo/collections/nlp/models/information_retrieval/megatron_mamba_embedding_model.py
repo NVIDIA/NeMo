@@ -451,7 +451,7 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
                 idx = torch.arange(fwd_output_tensor.shape[0], device=output_tensor.device)
                 fwd_output_tensor = fwd_output_tensor[idx, loss_mask, :]
                 rev_output_tensor = rev_output_tensor[idx, loss_mask, :]
-                output_tensor = (fwd_output_tensor + rev_output_tensor)/2.0
+                output_tensor = (fwd_output_tensor + rev_output_tensor) / 2.0
 
             else:
                 idx = torch.arange(output_tensor.shape[0], device=output_tensor.device)
@@ -459,8 +459,10 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         else:
             if self.bidirectional_sequences:
                 raise NotImplementedError("Bidirectional sequences are not supported for avg_pool output head")
-            lengths = loss_mask+1
-            attention_mask = torch.arange(output_tensor.shape[1], device=output_tensor.device).expand(len(lengths), output_tensor.shape[1]) < lengths.unsqueeze(1)
+            lengths = loss_mask + 1
+            attention_mask = torch.arange(output_tensor.shape[1], device=output_tensor.device).expand(
+                len(lengths), output_tensor.shape[1]
+            ) < lengths.unsqueeze(1)
             input_mask_expanded = attention_mask.unsqueeze(-1).expand(output_tensor.size()).float()
             sum_embeddings = torch.sum(output_tensor * input_mask_expanded, 1)
 

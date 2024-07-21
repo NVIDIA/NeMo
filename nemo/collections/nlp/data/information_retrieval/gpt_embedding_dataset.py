@@ -150,7 +150,7 @@ class GPTEmbeddingDataset(Dataset):
             logging.error(f"Error while loading example {idx} from dataset {self.file_path}")
             raise e
         return self._process_example(example)
-    
+
     def _reverse_sequence(self, tokens):
         return tokens[::-1]
 
@@ -201,16 +201,10 @@ class GPTEmbeddingDataset(Dataset):
         }
 
         if self.bidirectional_sequences:
-            processed_example.update(
-                {
-                    'query_rev': q_rev,
-                    'pos_doc_rev': d_rev,
-                    'neg_doc_rev': nd_rev
-                }
-            )
+            processed_example.update({'query_rev': q_rev, 'pos_doc_rev': d_rev, 'neg_doc_rev': nd_rev})
 
         return processed_example
-    
+
     def _add_special_tokens(self, q, d, nd):
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
@@ -233,10 +227,8 @@ class GPTEmbeddingDataset(Dataset):
             q = q + [self.tokenizer.eos_id]  # type: ignore
             d = d + [self.tokenizer.eos_id]  # type: ignore
             nd = [n + [self.tokenizer.eos_id] for n in nd]  # type: ignore
-        
-        return q, d, nd
 
-        
+        return q, d, nd
 
     def _maybe_cast_to_list(self, x):
         if isinstance(x, np.ndarray):
@@ -286,7 +278,7 @@ class GPTEmbeddingDataset(Dataset):
                 max_length = max(
                     max_length, len(item['query']), len(item['pos_doc']), *(len(nd) for nd in item['neg_doc'])
                 )
-                    
+
             elif self.data_type == 'query':
                 input_ids.append(item['query'])
                 lengths.append(len(item['query']))
@@ -299,7 +291,7 @@ class GPTEmbeddingDataset(Dataset):
 
             else:
                 raise ValueError(f"Invalid data type: {self.data_type}")
-        
+
         if self.bidirectional_sequences:
             for item in batch:
                 if self.data_type == 'train':
@@ -311,7 +303,7 @@ class GPTEmbeddingDataset(Dataset):
                         input_ids.append(nd)
                         # lengths.append(len(nd))
                     # max_length will not change
-                        
+
                 elif self.data_type == 'query':
                     input_ids.append(item['query_rev'])
                     # lengths.append(len(item['query_rev']))
@@ -324,7 +316,6 @@ class GPTEmbeddingDataset(Dataset):
 
                 else:
                     raise ValueError(f"Invalid data type: {self.data_type}")
-
 
         max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 256))
         assert max_length <= self.max_seq_length
