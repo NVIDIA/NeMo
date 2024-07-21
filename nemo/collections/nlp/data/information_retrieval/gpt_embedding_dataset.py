@@ -48,6 +48,7 @@ class GPTEmbeddingDataset(Dataset):
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
         data_type: str = 'train',  # train, query or doc
         num_hard_negatives: int = 4,
+        bidirectional_sequences: bool = False,
     ):
         """
         file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format. 
@@ -75,6 +76,7 @@ class GPTEmbeddingDataset(Dataset):
         self.virtual_tokens = virtual_tokens
         self.truncation_method = truncation_method
         self.num_hard_negatives = num_hard_negatives
+        self.bidirectional_sequences = bidirectional_sequences
         if special_tokens is None:
             self.special_tokens = {
                 "system_turn_start": "<extra_id_0>",
@@ -148,6 +150,9 @@ class GPTEmbeddingDataset(Dataset):
             logging.error(f"Error while loading example {idx} from dataset {self.file_path}")
             raise e
         return self._process_example(example)
+    
+    def _reverse_sequence(self, tokens):
+        return tokens[::-1]
 
     def _process_example(self, example):
         """
@@ -180,6 +185,33 @@ class GPTEmbeddingDataset(Dataset):
         d = d if d is not None else []
         nd = nd if nd is not None else []
 
+        if self.bidirectional_sequences:
+            q_rev = self._reverse_sequence(q)
+            d_rev = self._reverse_sequence(d)
+            nd_rev = [self._reverse_sequence(n) for n in nd]
+            q_rev, d_rev, nd_rev = self._add_special_tokens(q_rev, d_rev, nd_rev)
+
+        q, d, nd = self._add_special_tokens(q, d, nd)
+
+        processed_example = {
+            'query': q,
+            'pos_doc': d,
+            'neg_doc': nd,
+            'metadata': metadata,
+        }
+
+        if self.bidirectional_sequences:
+            processed_example.update(
+                {
+                    'query_rev': q_rev,
+                    'pos_doc_rev': d_rev,
+                    'neg_doc_rev': nd_rev
+                }
+            )
+
+        return processed_example
+    
+    def _add_special_tokens(self, q, d, nd):
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
             # these pad/eos tokens are placeholders for virtual tokens for ptuning (if used)
@@ -201,15 +233,10 @@ class GPTEmbeddingDataset(Dataset):
             q = q + [self.tokenizer.eos_id]  # type: ignore
             d = d + [self.tokenizer.eos_id]  # type: ignore
             nd = [n + [self.tokenizer.eos_id] for n in nd]  # type: ignore
+        
+        return q, d, nd
 
-        processed_example = {
-            'query': q,
-            'pos_doc': d,
-            'neg_doc': nd,
-            'metadata': metadata,
-        }
-
-        return processed_example
+        
 
     def _maybe_cast_to_list(self, x):
         if isinstance(x, np.ndarray):
@@ -259,16 +286,45 @@ class GPTEmbeddingDataset(Dataset):
                 max_length = max(
                     max_length, len(item['query']), len(item['pos_doc']), *(len(nd) for nd in item['neg_doc'])
                 )
+                    
             elif self.data_type == 'query':
                 input_ids.append(item['query'])
                 lengths.append(len(item['query']))
                 max_length = max(max_length, len(item['query']))
+
             elif self.data_type == 'doc':
                 input_ids.append(item['pos_doc'])
                 lengths.append(len(item['pos_doc']))
                 max_length = max(max_length, len(item['pos_doc']))
+
             else:
                 raise ValueError(f"Invalid data type: {self.data_type}")
+        
+        if self.bidirectional_sequences:
+            for item in batch:
+                if self.data_type == 'train':
+                    input_ids.append(item['query_rev'])
+                    # lengths.append(len(item['query_rev']))
+                    input_ids.append(item['pos_doc_rev'])
+                    # lengths.append(len(item['pos_doc_rev']))
+                    for nd in item['neg_doc_rev']:
+                        input_ids.append(nd)
+                        # lengths.append(len(nd))
+                    # max_length will not change
+                        
+                elif self.data_type == 'query':
+                    input_ids.append(item['query_rev'])
+                    # lengths.append(len(item['query_rev']))
+                    # max_length will not change
+
+                elif self.data_type == 'doc':
+                    input_ids.append(item['pos_doc_rev'])
+                    # lengths.append(len(item['pos_doc_rev']))
+                    # max_length will not change
+
+                else:
+                    raise ValueError(f"Invalid data type: {self.data_type}")
+
 
         max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 256))
         assert max_length <= self.max_seq_length
@@ -281,6 +337,12 @@ class GPTEmbeddingDataset(Dataset):
             self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id)
         )
         lengths = torch.LongTensor(lengths) - 1  # subtract 1 to account for the eos token
+
+        ## sanity check
+        # if self.bidirectional_sequences:
+        #     a, b = input_ids.chunk(2)
+        #     for i in range(a.shape[0]):
+        #         assert torch.all(torch.eq(a[i][:lengths[i]], torch.flip(b[i][:lengths[i]], dims=(0,))))
 
         processed_batch = {
             'tokens': input_ids,

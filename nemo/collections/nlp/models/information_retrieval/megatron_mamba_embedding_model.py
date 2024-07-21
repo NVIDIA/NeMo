@@ -18,8 +18,11 @@ import os
 import numpy as np
 import torch
 import torch.nn.functional as F
+
 from megatron.core import parallel_state
 from megatron.core.models.mamba import MambaModel
+from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
+
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.distributed import all_gather as all_gather_no_backprop
@@ -58,6 +61,7 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         assert self.backprop_type in ["local", "global"], "Backprop type must be `local` or `global`"
         self.output_head_type = self.cfg.get("output_head_type", "eos_only")
         assert self.output_head_type in ["eos_only", "avg_pool", "bidir_eos"], "Output head type must be `eos_only`, `avg_pool` or `bidir_eos`"
+        self.bidirectional_sequences = self.cfg.get("bidirectional_sequences", False)
 
         # Matryoshka Representation Learning
         # if self.cfg.get("do_mrl", False):
@@ -210,6 +214,7 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
                     special_tokens=self.cfg.data.get(
                         'chat_prompt_tokens', None
                     ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
+                    bidirectional_sequences=self.bidirectional_sequences,
                 )
                 datasets.append(dataset)
             if packed_sequence:
@@ -244,6 +249,7 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
                     'chat_prompt_tokens', None
                 ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
                 data_type="query",
+                bidirectional_sequences=self.bidirectional_sequences,
             )
             doc_dataset = GPTEmbeddingDataset(
                 file_path=data_cfg.doc_file_names[0],
@@ -266,6 +272,7 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
                     'chat_prompt_tokens', None
                 ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
                 data_type="doc",
+                bidirectional_sequences=self.bidirectional_sequences,
             )
             return [query_dataset, doc_dataset]
 
@@ -443,7 +450,8 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         labels = torch.tensor(range(len(cs)), dtype=torch.long, device=cs.device)
         pos_cs = pos_cs.diag().clone().detach().mean()
         neg_cs = neg_cs.clone().detach().mean()
-        cs = cs.clamp(-1.0, 1.0)
+        # cs = cs.clamp(-1.0, 1.0)
+        cs = cs.clamp(None, 0.69)
         cs = cs / temperature
         return cs, pos_cs, neg_cs, labels
 
@@ -466,11 +474,22 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         return global_output_tensors
 
     def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
+        output_tensor = output_tensor.permute(1, 0, 2)
         if self.output_head_type == "eos_only":
-            idx = torch.arange(output_tensor.shape[1], device=output_tensor.device)
-            output_tensor = output_tensor[loss_mask, idx, :]
+            if self.bidirectional_sequences:
+                fwd_output_tensor, rev_output_tensor = output_tensor.chunk(2)
+                idx = torch.arange(fwd_output_tensor.shape[0], device=output_tensor.device)
+                fwd_output_tensor = fwd_output_tensor[idx, loss_mask, :]
+                rev_output_tensor = rev_output_tensor[idx, loss_mask, :]
+                output_tensor = (fwd_output_tensor + rev_output_tensor)/2.0
+
+            else:
+                idx = torch.arange(output_tensor.shape[0], device=output_tensor.device)
+                output_tensor = output_tensor[idx, loss_mask, :]
         else:
-            output_tensor = output_tensor.permute(1, 0, 2)
+            if self.bidirectional_sequences:
+                raise NotImplementedError("Bidirectional sequences are not supported for avg_pool output head")
+            # output_tensor = output_tensor.permute(1, 0, 2)
             lengths = loss_mask+1
             attention_mask = torch.arange(output_tensor.shape[1], device=output_tensor.device).expand(len(lengths), output_tensor.shape[1]) < lengths.unsqueeze(1)
             input_mask_expanded = attention_mask.unsqueeze(-1).expand(output_tensor.size()).float()
