@@ -18,6 +18,8 @@ Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
     python convert_llama_hf_to_nemo.py \
      --input_name_or_path <path_to_hf_checkpoints_folder> \
      --output_path <path_to_output_nemo_file>
+     --precision bf16 \
+     --apply_rope_scaling True 
 """
 
 import os
@@ -55,6 +57,9 @@ def get_args():
         ),
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
+    )
+    parser.add_argument(
+        "--apply_rope_scaling", type=bool, default=True, required=False, help="Apply scaling for RoPE frequencies",
     )
     parser.add_argument("--precision", type=str, default="16", help="Model precision")
     args = parser.parse_args()
@@ -103,6 +108,7 @@ def load_config(args, llama_config):
     while llama_config['vocab_size'] % base != 0:
         base //= 2
     nemo_config.make_vocab_size_divisible_by = base
+    nemo_config.scale_positional_embedding = args.apply_rope_scaling
 
     return nemo_config
 
@@ -154,6 +160,7 @@ def convert(args):
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
 
     nemo_config.precision = precision
+    nemo_config.micro_batch_size=1
     print(f"nemo_config: {nemo_config}")
 
     # Remove precision arg, since with PTL >= 2.1 both precision and precision plugin cannot exist together.
