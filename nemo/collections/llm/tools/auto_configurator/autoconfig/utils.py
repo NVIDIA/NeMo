@@ -494,7 +494,7 @@ def modify_cfg(
     # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
     num_gpus = new_cfg["trainer"]["num_nodes"] * new_cfg["trainer"]["devices"]
     gbs = new_cfg["model"].global_batch_size
-    seq_len = new_cfg["model"].encoder_seq_length
+    seq_len = new_cfg["model"].seq_length
 
     mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
     mod_att_heads = att_heads % tp
