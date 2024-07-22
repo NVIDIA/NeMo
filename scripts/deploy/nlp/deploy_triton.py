@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import argparse
+import json
 import logging
 import os
 import sys
-import tempfile
 from pathlib import Path
+
+import uvicorn
 
 from nemo.deploy import DeployPyTriton
 
@@ -36,13 +38,6 @@ try:
 except Exception as e:
     LOGGER.warning(f"Cannot import the TensorRTLLM exporter, it will not be available. {type(e).__name__}: {e}")
     trt_llm_supported = False
-
-vllm_supported = True
-try:
-    from nemo.export.vllm_exporter import vLLMExporter
-except Exception as e:
-    LOGGER.warning(f"Cannot import the vLLM exporter, it will not be available. {type(e).__name__}: {e}")
-    vllm_supported = False
 
 
 def get_args(argv):
@@ -80,6 +75,9 @@ def get_args(argv):
         "-tha", "--triton_http_address", default="0.0.0.0", type=str, help="HTTP address for the Triton server"
     )
     parser.add_argument(
+        "-trt", "--triton_request_timeout", default=60, type=int, help="Timeout in seconds for Triton server"
+    )
+    parser.add_argument(
         "-tmr", "--triton_model_repository", default=None, type=str, help="Folder for the trt-llm conversion"
     )
     parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
@@ -91,7 +89,7 @@ def get_args(argv):
         choices=["bfloat16", "float16", "fp8", "int8"],
         default="bfloat16",
         type=str,
-        help="dtype of the model on TensorRT-LLM or vLLM",
+        help="dtype of the model on TensorRT-LLM",
     )
     parser.add_argument("-mil", "--max_input_len", default=256, type=int, help="Max input length of the model")
     parser.add_argument("-mol", "--max_output_len", default=256, type=int, help="Max output length of the model")
@@ -175,29 +173,45 @@ def get_args(argv):
         nargs='?',
         const=None,
         default='TensorRT-LLM',
-        choices=['TensorRT-LLM', 'vLLM', 'In-Framework'],
+        choices=['TensorRT-LLM', 'In-Framework'],
         help="Different options to deploy nemo model.",
     )
+    parser.add_argument(
+        "-srs",
+        "--start_rest_service",
+        default="False",
+        type=str,
+        help="Starts the REST service for OpenAI API support",
+    )
+    parser.add_argument(
+        "-sha", "--service_http_address", default="0.0.0.0", type=str, help="HTTP address for the REST Service"
+    )
+    parser.add_argument("-sp", "--service_port", default=8080, type=int, help="Port for the REST Service")
+    parser.add_argument(
+        "-ofr",
+        "--openai_format_response",
+        default=False,
+        type=bool,
+        help="Return the response from PyTriton server in OpenAI compatible format",
+    )
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
-    parser.add_argument(
-        '-ws',
-        '--weight_storage',
-        default='auto',
-        choices=['auto', 'cache', 'file', 'memory'],
-        help='Strategy for storing converted weights for vLLM: "file" - always write weights into a file, '
-        '"memory" - always do an in-memory conversion, "cache" - reuse existing files if they are '
-        'newer than the nemo checkpoint, "auto" - use "cache" for multi-GPU runs and "memory" '
-        'for single-GPU runs.',
-    )
-    parser.add_argument(
-        "-gmu",
-        '--gpu_memory_utilization',
-        default=0.9,
-        type=float,
-        help="GPU memory utilization percentage for vLLM.",
-    )
     args = parser.parse_args(argv)
     return args
+
+
+def store_args_to_json(args):
+    """
+    Stores user defined arg values relevant for REST API in config.json
+    Gets called only when args.start_rest_service is True.
+    """
+    args_dict = {
+        "triton_service_ip": args.triton_http_address,
+        "triton_service_port": args.triton_port,
+        "triton_request_timeout": args.triton_request_timeout,
+        "openai_format_response": args.openai_format_response,
+    }
+    with open("nemo/deploy/service/config.json", "w") as f:
+        json.dump(args_dict, f)
 
 
 def get_trtllm_deployable(args):
@@ -306,45 +320,6 @@ def get_trtllm_deployable(args):
     return trt_llm_exporter
 
 
-def get_vllm_deployable(args):
-    if args.ptuning_nemo_checkpoint is not None:
-        raise ValueError("vLLM backend doesn't support P-tuning at this time.")
-    if args.lora_ckpt is not None:
-        raise ValueError("vLLM backend doesn't support LoRA at this time.")
-
-    tempdir = None
-    model_dir = args.triton_model_repository
-    if model_dir is None:
-        tempdir = tempfile.TemporaryDirectory()
-        model_dir = tempdir.name
-        LOGGER.info(
-            f"{model_dir} path will be used as the vLLM intermediate folder. "
-            + "Please set the --triton_model_repository parameter if you'd like to use a path that already "
-            + "includes the vLLM model files."
-        )
-    elif not os.path.exists(model_dir):
-        os.makedirs(model_dir)
-
-    try:
-        exporter = vLLMExporter()
-        exporter.export(
-            nemo_checkpoint=args.nemo_checkpoint,
-            model_dir=model_dir,
-            model_type=args.model_type,
-            tensor_parallel_size=args.num_gpus,
-            max_model_len=args.max_input_len + args.max_output_len,
-            dtype=args.dtype,
-            weight_storage=args.weight_storage,
-            gpu_memory_utilization=args.gpu_memory_utilization,
-        )
-        return exporter
-    except Exception as error:
-        raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))
-    finally:
-        if tempdir is not None:
-            tempdir.cleanup()
-
-
 def get_nemo_deployable(args):
     if args.nemo_checkpoint is None:
         raise ValueError("In-Framework deployment requires a .nemo checkpoint")
@@ -364,6 +339,13 @@ def nemo_deploy(argv):
     LOGGER.info("Logging level set to {}".format(loglevel))
     LOGGER.info(args)
 
+    if args.start_rest_service:
+        if args.service_port == args.triton_port:
+            logging.error("REST service port and Triton server port cannot use the same port.")
+            return
+        # Store triton ip, port and other args relevant for REST API in config.json to be accessible by rest_model_api.py
+        store_args_to_json(args)
+
     backend = args.backend.lower()
     if backend == 'tensorrt-llm':
         if not trt_llm_supported:
@@ -373,10 +355,6 @@ def nemo_deploy(argv):
         if not megatron_llm_supported:
             raise ValueError("MegatronLLMDeployable is not supported in this environment.")
         triton_deployable = get_nemo_deployable(args)
-    elif backend == 'vllm':
-        if not vllm_supported:
-            raise ValueError("vLLM engine is not supported in this environment.")
-        triton_deployable = get_vllm_deployable(args)
     else:
         raise ValueError("Backend: {0} is not supported.".format(backend))
 
@@ -399,11 +377,21 @@ def nemo_deploy(argv):
 
     try:
         LOGGER.info("Model serving on Triton is will be started.")
+        if args.start_rest_service == "True":
+            try:
+                LOGGER.info("REST service will be started.")
+                uvicorn.run(
+                    'nemo.deploy.service.rest_model_api:app',
+                    host=args.service_http_address,
+                    port=args.service_port,
+                    reload=True,
+                )
+            except Exception as error:
+                logging.error("Error message has occurred during REST service start. Error message: " + str(error))
         nm.serve()
     except Exception as error:
         LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
-
     LOGGER.info("Model serving will be stopped.")
     nm.stop()
 

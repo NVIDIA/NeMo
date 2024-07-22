@@ -478,12 +478,16 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         if optimizer_key not in state_dict:
             optimizer_key = 'optimizer_state_dict'
             logging.info('***WARNING*** loading optimizer from ' 'an old checkpoint ...')
+        if 'state' not in state_dict[optimizer_key]:
+            state_dict[optimizer_key]['state'] = {}
         self.optimizer.load_state_dict(state_dict[optimizer_key])
 
         # Copy data for the main params.
         fp32_from_float16_params_key = 'fp32_from_fp16_params'
         if fp32_from_float16_params_key not in state_dict:
             fp32_from_float16_params_key = 'fp32_from_fp16'
+        if fp32_from_float16_params_key not in state_dict:
+            state_dict[fp32_from_float16_params_key] = []
         for current_group, saved_group in zip(self.fp32_from_float16_groups, state_dict[fp32_from_float16_params_key]):
             for current_param, saved_param in zip(current_group, saved_group):
                 current_param.data.copy_(saved_param.data)
