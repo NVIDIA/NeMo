@@ -51,12 +51,12 @@ from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import Exportable
 from nemo.utils import AppState, logging, timers
-from nemo.utils.apex_utils import _reconfigure_microbatch_calculator, get_micro_batch_size
 
 try:
     from megatron.core import parallel_state
     from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator, get_micro_batch_size
 
     HAVE_MEGATRON_CORE = True
 
@@ -322,7 +322,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
         # Eval step requires text datasets so we need to reconfigure MBS on each batch.
         app_state = AppState()
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=batch['text_enc'].size(0) * parallel_state.get_data_parallel_world_size(),
@@ -543,7 +543,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
         app_state = AppState()
         if hasattr(self, "_train_ds"):
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=self._cfg.train_ds.global_batch_size,
@@ -814,7 +814,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
     def on_validation_epoch_start(self):
         app_state = AppState()
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=parallel_state.get_data_parallel_world_size(),

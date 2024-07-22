@@ -46,7 +46,6 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
-from nemo.utils.apex_utils import _reconfigure_microbatch_calculator, get_micro_batch_size
 
 try:
     from megatron.core import parallel_state, tensor_parallel
@@ -58,7 +57,7 @@ try:
         get_t5_encoder_with_local_block_spec,
         get_t5_encoder_with_transformer_engine_block_spec,
     )
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
+    from megatron.core.num_microbatches_calculator import get_num_microbatches, reconfigure_num_microbatches_calculator, get_micro_batch_size
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -1222,7 +1221,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # Reconfigure microbatch sizes here because on model restore, this will contain the micro/global batch configuration used while training.
             if reconfigure_microbatch:
-                _reconfigure_microbatch_calculator(
+                reconfigure_num_microbatches_calculator(
                     rank=0,  # This doesn't matter since it is only used for logging
                     rampup_batch_size=None,
                     global_batch_size=1,
@@ -1243,7 +1242,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
         # reconfigure back to how things were before encode
         if reconfigure_microbatch:
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -1313,7 +1312,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # Reset microbatch calculator to what it was before decoding.
         if reconfigure_microbatch:
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -1389,7 +1388,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             self.trainer.strategy.setup_environment()
 
             # Reconfigure microbatch sizes here because on model restore, this will contain the micro/global batch configuration used while training.
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=0,  # This doesn't matter since it is only used for logging
                 rampup_batch_size=None,
                 global_batch_size=1,
@@ -1417,7 +1416,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
         # reconfigure back to how things were before decode
         # TODO: Check if the user is trying to do gradient acc and maybe throw error
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -1513,7 +1512,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         # reconfigure batch size since the tensor have been augmented with beam size
                         global_batch_per_gpu = token_ids.shape[0]
                         tensor_shape[1] = global_batch_per_gpu
-                        _reconfigure_microbatch_calculator(
+                        reconfigure_num_microbatches_calculator(
                             rank=app_state.global_rank,
                             rampup_batch_size=None,
                             global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -1604,7 +1603,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 )
 
         # Reset microbatch calculator to what it was before decoding.
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -1659,7 +1658,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         app_state = AppState()
 
         # The complete method only works with global batch = micro batch size = data parallel size = 1.
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=1,
