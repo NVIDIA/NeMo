@@ -42,17 +42,17 @@ class PreemptionCallback(Callback, IOMixin):
         self.sig = sig if sig is not None else signal.SIGTERM
         self._interrupted = False
         self._handler_context = None
-        self.preemption_supported = None
+        self._preemption_supported = None
 
     def on_train_start(self, trainer: Trainer, pl_module) -> None:
-        if self.preemption_supported:
+        if self._preemption_supported:
             self._handler_context = self._preemption_handler()
             self._handler_context.__enter__()
 
     def on_train_batch_start(self, trainer: Trainer, pl_module, batch, batch_idx: int) -> None:
-        if not self.preemption_supported:
-            self.preemption_supported = self._check_preemption_support()
-            if self.preemption_supported:
+        if not self._preemption_supported:
+            self._preemption_supported = self._check_preemption_support()
+            if self._preemption_supported:
                 self._handler_context = self._preemption_handler()
                 self._handler_context.__enter__()
 
@@ -72,7 +72,7 @@ class PreemptionCallback(Callback, IOMixin):
 
     @contextlib.contextmanager
     def _preemption_handler(self):
-        if not self.preemption_supported:
+        if not self._preemption_supported:
             logging.warning("Preemption requires torch distributed to be initialized, preemption may be disabled")
             yield
             return
@@ -96,16 +96,16 @@ class PreemptionCallback(Callback, IOMixin):
 
     @property
     def preemption_supported(self) -> bool:
-        if self.preemption_supported is None:
-            self.preemption_supported = self._check_preemption_support()
-        return self.preemption_supported
+        if self._preemption_supported is None:
+            self._preemption_supported = self._check_preemption_support()
+        return self._preemption_supported
 
     def _check_preemption_support(self) -> bool:
         return torch.distributed.is_available() and torch.distributed.is_initialized()
 
     @property
     def interrupted(self) -> bool:
-        if not self.preemption_supported:
+        if not self._preemption_supported:
             return False
         interrupted = torch.tensor(self._interrupted, device=torch.cuda.current_device(), dtype=torch.int32)
         torch.distributed.broadcast(interrupted, 0)
