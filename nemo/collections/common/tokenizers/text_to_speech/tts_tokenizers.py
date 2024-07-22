@@ -931,7 +931,7 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
 
 class JapanesePhonemeTokenizer(BaseTokenizer):
 
-    PUNCT_LIST = get_ipa_punctuation_list("ja-JP")
+    JA_PUNCT_LIST = get_ipa_punctuation_list("ja-JP")
 
     def __init__(
         self,
@@ -971,11 +971,9 @@ class JapanesePhonemeTokenizer(BaseTokenizer):
             self.silence, tokens = len(tokens), tokens + [silence]  # Silence
 
         self.phoneme_list = g2p.phoneme_list
-        self.tone_list = g2p.tone_list
         self.ascii_letter_list = g2p.ascii_letter_list
 
         tokens.extend(self.phoneme_list)
-        tokens.extend(self.tone_list)
         tokens.extend(self.ascii_letter_list)
 
         self.text_preprocessing_func = text_preprocessing_func
@@ -987,7 +985,7 @@ class JapanesePhonemeTokenizer(BaseTokenizer):
             if non_default_punct_list is not None:
                 self.PUNCT_LIST = non_default_punct_list
             else:
-                self.PUNCT_LIST = list(self.ZH_PUNCT_LIST)
+                self.PUNCT_LIST = list(self.JA_PUNCT_LIST)
             tokens.extend(self.PUNCT_LIST)
 
         super().__init__(tokens, sep=sep, add_blank_at=add_blank_at)
