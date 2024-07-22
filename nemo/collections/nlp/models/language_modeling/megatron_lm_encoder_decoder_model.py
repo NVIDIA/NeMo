@@ -57,7 +57,11 @@ try:
         get_t5_encoder_with_local_block_spec,
         get_t5_encoder_with_transformer_engine_block_spec,
     )
-    from megatron.core.num_microbatches_calculator import get_num_microbatches, reconfigure_num_microbatches_calculator, get_micro_batch_size
+    from megatron.core.num_microbatches_calculator import (
+        get_micro_batch_size,
+        get_num_microbatches,
+        reconfigure_num_microbatches_calculator,
+    )
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig

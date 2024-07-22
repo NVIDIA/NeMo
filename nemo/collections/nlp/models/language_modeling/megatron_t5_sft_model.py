@@ -33,7 +33,12 @@ from nemo.utils import AppState, logging
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.num_microbatches_calculator import get_current_global_batch_size, get_num_microbatches,reconfigure_num_microbatches_calculator, get_micro_batch_size
+    from megatron.core.num_microbatches_calculator import (
+        get_current_global_batch_size,
+        get_micro_batch_size,
+        get_num_microbatches,
+        reconfigure_num_microbatches_calculator,
+    )
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
