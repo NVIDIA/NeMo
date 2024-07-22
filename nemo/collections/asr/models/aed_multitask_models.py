@@ -674,14 +674,25 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         signal, signal_len, transcript, transcript_len, prompt, prompt_len = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
 
-        transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
-            input_signal=signal,
-            input_signal_length=signal_len,
-            transcript=input_ids,
-            transcript_length=transcript_len,
-        )
+        print(f"[{torch.distributed.get_rank()+1}/{torch.distributed.get_world_size()}] batch_size={signal.shape[0]} ilen={signal.shape[1]} olen={transcript.shape[1]}")
 
-        audio_loss = self.loss(log_probs=transf_log_probs, labels=labels)
+        try:
+            transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
+                input_signal=signal,
+                input_signal_length=signal_len,
+                transcript=input_ids,
+                transcript_length=transcript_len,
+            )
+
+            audio_loss = self.loss(log_probs=transf_log_probs, labels=labels)
+        except Exception:
+            for item in transcript.cpu().tolist():
+                print(item)
+            print(transcript_len)
+            import pickle
+            with open('/home/pzelasko/batch.pkl', 'wb') as f:
+                pickle.dump(batch, f)
+            raise
 
         num_frames = signal_len.sum()
         num_tokens = transcript_len.sum()

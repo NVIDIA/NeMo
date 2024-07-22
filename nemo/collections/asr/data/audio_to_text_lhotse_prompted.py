@@ -25,6 +25,20 @@ from nemo.collections.common.tokenizers import CanaryTokenizer, TokenizerSpec
 from nemo.collections.common.tokenizers.canary_tokenizer import CANARY_SPECIAL_TOKENIZER
 
 
+def is_subsequence(subseq, main_list):
+    if not subseq:
+        return True
+
+    subseq_index = 0
+    for item in main_list:
+        if item == subseq[subseq_index]:
+            subseq_index += 1
+            if subseq_index == len(subseq):
+                return True
+
+    return False
+
+
 class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     """
     This dataset is based on :class:`~nemo.collections.asr.data.audio_to_text_lhotse.LhotseSpeechToTextBpeDataset`.
@@ -58,16 +72,69 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts: CutSet) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
-        prompts_with_answers, prompts = self.prompt_format_fn(cuts, self.tokenizer, inference=self.inference)
+        prompts_with_answers_orig, prompts = self.prompt_format_fn(cuts, self.tokenizer, inference=self.inference)
 
-        prompts_with_answers = [torch.as_tensor(t) for t in prompts_with_answers]
+        for idx, p in enumerate(prompts_with_answers_orig):
+            # TODO: change to is subseq
+            if is_subsequence([221, 407, 52, 65, 13, 407, 52, 65, 13, 494, 337, 65], list(p)):
+                msg = "================= ALERT ==================\n"
+                msg += ("Cut: " + str(cuts[idx]) + "\n")
+                msg += ("Token-ids: " + str(list(p)) + "\n")
+                msg += ("De-tokenized: " + self.tokenizer._tokenizer.ids_to_text(p) + "\n")
+                msg += "================ END ====================\n"
+                print(msg)
+
+
+        prompts_with_answers = [torch.as_tensor(t) for t in prompts_with_answers_orig]
         prompts_with_answers_lens = torch.tensor([t.size(0) for t in prompts_with_answers], dtype=torch.long)
         prompts_with_answers = collate_vectors(prompts_with_answers, padding_value=self.padding_value)
+
+        tps = prompts_with_answers_lens.to(torch.float32) / torch.tensor([c.duration for c in cuts])
+        exceeded = tps > 22.0
+        if exceeded.any():
+            culprit_tps = tps[exceeded].tolist()
+            exceeded_set = set(torch.nonzero(exceeded).squeeze(dim=1).tolist())
+            culprits = [c for idx, c in enumerate(cuts) if idx in exceeded_set]
+            print(f"Discarding {exceeded.to(torch.long).sum().item()} examples with prompt+transcript token/sec of {culprit_tps} vs threshold of 15.0. The first culprit is: {culprits[0]}\nprompt_with_answer={prompts_with_answers[exceeded].tolist()}")
+            #audio = audio[~exceeded]
+            #audio_lens = audio_lens[~exceeded]
+            #prompts_with_answers = prompts_with_answers[~exceeded]
+            #prompts_with_answers_lens = prompts_with_answers_lens[~exceeded]
+            # TODO: filter cuts as well
+            formatter = CanaryPromptFormatter(self.tokenizer._tokenizer)
+            cut = culprits[0]
+            if isinstance(cut, MixedCut):
+                cut = cut._first_non_padding_cut
+            expected_slots = set(formatter.get_slots("user"))
+            missing_keys = expected_slots - set(cut.custom)
+            encoded = formatter.encode_dialog(
+                turns=[
+                    dict(
+                        role="user",
+                        slots={**{slot: cut.custom[slot] for slot in expected_slots}, formatter.PROMPT_LANGUAGE_SLOT: CANARY_SPECIAL_TOKENIZER},
+                    ),
+                    dict(
+                        role="assistant",
+                        slots={"text": ' '.join(s.text for s in cut.supervisions), formatter.PROMPT_LANGUAGE_SLOT: cut.custom["target_lang"]},
+                    ),
+                ]
+            )
+            print(f"Debugging prompt formatter: {encoded}")
+            ans = ""
+            for idx, (pa, cut) in enumerate(zip(prompts_with_answers_orig, cuts)):
+                if idx in exceeded_set:
+                    ans += f"[EXCEEDED] [{idx}] {list(cut.supervisions[0].tokens)} {list(pa)}\n"
+                else:
+                    ans += f"[OK] [{idx}] {list(cut.supervisions[0].tokens)} {list(pa)}\n"
+            print(ans)
 
         if self.inference:
             prompts = [torch.as_tensor(t) for t in prompts]
             prompts_lens = torch.tensor([t.size(0) for t in prompts], dtype=torch.long)
             prompts = collate_vectors(prompts, padding_value=self.padding_value)
+            if exceeded.any():
+                prompts = prompts[~exceeded]
+                prompts_lens = prompts_lens[~exceeded]
         else:
             prompts = None
             prompts_lens = None

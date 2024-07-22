@@ -288,6 +288,7 @@ def get_lhotse_dataloader_from_config(
         # Determine the bucket duration bins
         sampler = DynamicBucketingSampler(
             cuts,
+            concurrent=True,
             constraint=constraint,
             shuffle=config.shuffle,
             drop_last=config.drop_last,
@@ -582,6 +583,7 @@ class TokenPerSecondFilter:
         self.tps_max = tps_max
 
     def __call__(self, example) -> bool:
+<<<<<<< HEAD
         if not isinstance(example, Cut):
             return True  # pass-through for non-audio examples.
         tps = _measure_tps(example)

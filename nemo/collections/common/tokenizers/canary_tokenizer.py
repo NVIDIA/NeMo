@@ -68,10 +68,15 @@ class CanaryTokenizer(AggregateTokenizer):
 
     def text_to_ids(self, text, lang_id) -> list[int]:
         if lang_id == CANARY_SPECIAL_TOKENIZER:
-            return self._tokenize_special_prompt(text)
+            ans = self._tokenize_special_prompt(text)
         if text.endswith(CANARY_EOS):
-            return super().text_to_ids(text[: -len(CANARY_EOS)], lang_id) + [self.eos_id]
-        return super().text_to_ids(text, lang_id)
+            ans = super().text_to_ids(text[: -len(CANARY_EOS)], lang_id) + [self.eos_id]
+        ans = super().text_to_ids(text, lang_id)
+
+        #rev = self.ids_to_text(ans)
+        #if rev.strip() != text.strip():
+        #    print(f"[TOKENIZER ERROR] Incorrect result after tokenization. {text=} {ans=} {rev=}")
+        return ans
 
     def _tokenize_special_prompt(self, text: str) -> list[int]:
         """
