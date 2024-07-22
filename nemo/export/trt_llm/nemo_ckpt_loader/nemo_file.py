@@ -25,7 +25,8 @@ import tensorstore  # This is important even though not used. Otherwise zarr rai
 import torch
 import yaml
 import zarr
-from torch.distributed.checkpoint import FileSystemReader
+from torch.distributed.checkpoint import FileSystemReader, TensorStorageMetadata
+from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
