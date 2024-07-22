@@ -8,7 +8,7 @@ def get_auto_config(configs):
         auto_configs.append(list(auto_conf_values))
 
     global_batch_size = config['model'].global_batch_size
-    seq_length = config['model'].encoder_seq_length
+    seq_length = config['model'].seq_length
 
     return auto_configs, global_batch_size, seq_length
 
