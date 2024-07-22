@@ -45,14 +45,14 @@ class PreemptionCallback(Callback, IOMixin):
         self._preemption_supported = None
 
     def on_train_start(self, trainer: Trainer, pl_module) -> None:
-        if self._preemption_supported:
+        if self.preemption_supported:
             self._handler_context = self._preemption_handler()
             self._handler_context.__enter__()
 
     def on_train_batch_start(self, trainer: Trainer, pl_module, batch, batch_idx: int) -> None:
-        if not self._preemption_supported:
+        if not self.preemption_supported:
             self._preemption_supported = self._check_preemption_support()
-            if self._preemption_supported:
+            if self.preemption_supported:
                 self._handler_context = self._preemption_handler()
                 self._handler_context.__enter__()
 
@@ -72,7 +72,7 @@ class PreemptionCallback(Callback, IOMixin):
 
     @contextlib.contextmanager
     def _preemption_handler(self):
-        if not self._preemption_supported:
+        if not self.preemption_supported:
             logging.warning("Preemption requires torch distributed to be initialized, preemption may be disabled")
             yield
             return
@@ -105,7 +105,7 @@ class PreemptionCallback(Callback, IOMixin):
 
     @property
     def interrupted(self) -> bool:
-        if not self._preemption_supported:
+        if not self.preemption_supported:
             return False
         interrupted = torch.tensor(self._interrupted, device=torch.cuda.current_device(), dtype=torch.int32)
         torch.distributed.broadcast(interrupted, 0)
