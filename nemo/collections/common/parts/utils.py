@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import math
 import os
 from typing import Iterable, List
-import logging
+
 import torch
+
 logger = logging.getLogger(__name__)
 
 import torch.nn as nn
@@ -109,6 +111,7 @@ def extend_instance(obj, mixin):
         base_cls_name, (mixin, base_cls), {}
     )  # mixin needs to go first for our forward() logic to work
 
+
 def apply_rope_scaling(freqs):
     # Apply scaling for RoPE frequencies
     logger.info("apply rope scaling ...")
@@ -129,8 +132,6 @@ def apply_rope_scaling(freqs):
             new_freqs.append(freq / scale_factor)
         else:
             assert low_freq_wavelen != high_freq_wavelen
-            smooth = (old_context_len / wavelen - low_freq_factor) / (
-                high_freq_factor - low_freq_factor
-            )
+            smooth = (old_context_len / wavelen - low_freq_factor) / (high_freq_factor - low_freq_factor)
             new_freqs.append((1 - smooth) * freq / scale_factor + smooth * freq)
     return torch.tensor(new_freqs, dtype=freqs.dtype, device=freqs.device)
