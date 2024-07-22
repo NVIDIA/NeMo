@@ -27,6 +27,7 @@ import yaml
 import zarr
 from torch.distributed.checkpoint import FileSystemReader, TensorStorageMetadata
 from torch.distributed.checkpoint.state_dict_loader import load_state_dict
+from tensorrt_llm._utils import np_bfloat16
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
