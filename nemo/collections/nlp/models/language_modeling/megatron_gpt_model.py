@@ -1535,7 +1535,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "create_attention_mask": not self.get_attention_mask_from_fusion,
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
                 "drop_last_partial_validation_sequence": self.cfg.data.get("validation_drop_last", True),
-                "num_dataset_builder_threads": self.cfg.data.get("num_workers", 2),
+                "num_dataset_builder_threads": self.cfg.data.get("num_dataset_builder_threads", 1),
                 "add_extra_token_to_sequence": add_extra_token,
             }
 
