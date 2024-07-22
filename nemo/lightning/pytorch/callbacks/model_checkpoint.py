@@ -28,7 +28,6 @@ from pytorch_lightning.utilities import rank_zero_info
 
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import TrainerContext
-from nemo.lightning.pytorch.callbacks.preemption import PreemptionCallback
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import ckpt_to_dir
@@ -248,12 +247,6 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
                 should_save_last_checkpoint = True
             if isinstance(trainer.val_check_interval, int) and trainer.global_step % trainer.val_check_interval != 0:
                 should_save_last_checkpoint = True
-            if any(map(lambda callback: isinstance(callback, PreemptionCallback), trainer.callbacks)):
-                preemption_callback: PreemptionCallback = next(
-                    filter(lambda callback: isinstance(callback, PreemptionCallback), trainer.callbacks)
-                )
-                if preemption_callback.preemption_supported:
-                    should_save_last_checkpoint = True
             if should_save_last_checkpoint:
                 monitor_candidates = self._monitor_candidates(trainer)
                 if self.last_model_path == self.format_checkpoint_name(monitor_candidates, self.CHECKPOINT_NAME_LAST):
