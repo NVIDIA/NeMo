@@ -418,3 +418,53 @@ class TestGenerateConfgis:
         assert global_batch_size == 2048, f"expected global_batch_size is 2048 but got {global_batch_size}."
 
         assert seq_length == 16384, f"expected seq_length is 16384 but got {seq_length}."
+
+    def test_custom_model(self):
+        # Custom 1B
+        cfg = {
+            "model_type": "llama",
+            "model_version": None,
+            "model_measure": "B",
+            "num_nodes": 4,
+            "num_tokens_in_b": 300,
+            "tflops_per_gpu": 140,
+            "seq_length": 512,
+            "tensor_parallel_sizes": [1, 2],
+            "pipeline_parallel_sizes": [2, 4],
+            "micro_batch_sizes": [1, 256],
+            "context_parallel_sizes": [2, 22],
+            "expert_parallel_sizes": [1, 13],
+            "min_model_parallel_size": 2,
+            "max_model_parallel_size": 8,
+            "max_minutes_per_run": 20,
+            "vocab_size": 32000,
+            "max_training_days": 7,
+            "gpus_per_node": 8,
+            "gpu_memory_gb": 80,
+            "custom_model": True,
+        }
+
+        configs = search_configs(cfg)
+        auto_configs, global_batch_size, seq_length = get_auto_config(configs)
+
+        assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated but 2 were expected."
+        print(auto_configs)
+        assert auto_configs[0] == [
+            1,
+            2,
+            1,
+            2,
+            1,
+        ], f"[1, 2, 1, 2, 1] is expected configuration output but got {auto_configs[0]}."
+
+        assert auto_configs[1] == [
+            2,
+            2,
+            1,
+            2,
+            1,
+        ], f"[2, 2, 1, 2, 1] is expected configuration output but got {auto_configs[1]}."
+
+        assert global_batch_size == 1024, f"expected global_batch_size is 1024 but got {global_batch_size}."
+
+        assert seq_length == 512, f"expected seq_length is 512 but got {seq_length}."
