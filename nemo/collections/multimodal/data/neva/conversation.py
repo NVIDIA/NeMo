@@ -34,6 +34,10 @@ DEFAULT_IMAGE_PATCH_TOKEN["llama_3"] = "<|reserved_special_token_3|>"
 DEFAULT_IM_START_TOKEN["llama_3"] = "<|reserved_special_token_4|>"
 DEFAULT_IM_END_TOKEN["llama_3"] = "<|reserved_special_token_5|>"
 
+DEFAULT_VID_START_TOKEN = "<extra_id_8>"
+DEFAULT_VID_END_TOKEN = "<extra_id_9>"
+TIME_TOKEN_TEMPLATE = "<t{t}>"
+
 
 class SeparatorStyle(Enum):
     """Different separator style."""
@@ -43,6 +47,7 @@ class SeparatorStyle(Enum):
     PLAIN = auto()
     LLAMA_2 = auto()
     LLAMA_3 = auto()
+    MISTRAL = auto()
     NVGPT = auto()
 
 
@@ -94,11 +99,15 @@ class Conversation:
                         ret += " "
                 else:
                     ret += role + ":"
-        elif self.sep_style == SeparatorStyle.LLAMA_2:
-            wrap_sys = lambda msg: f"<<SYS>>\n{msg}\n<</SYS>>\n\n"
+        elif self.sep_style == SeparatorStyle.LLAMA_2 or self.sep_style == SeparatorStyle.MISTRAL:
+            if self.sep_style == SeparatorStyle.LLAMA_2:
+                wrap_sys = lambda msg: f"<<SYS>>\n{msg}\n<</SYS>>\n\n"
+            else:
+                wrap_sys = lambda msg: f"{msg}" + ("\n" if msg else "")
             wrap_inst = lambda msg: f"[INST] {msg} [/INST]"
             ret = ""
-
+            if self.sep_style == SeparatorStyle.MISTRAL:
+                ret += DEFAULT_BOS_TOKEN
             for i, (role, message) in enumerate(messages):
                 if i == 0:
                     assert message, "first message should not be none"
@@ -112,7 +121,10 @@ class Conversation:
                         message = wrap_inst(message)
                         ret += self.sep + " " + message
                     else:
-                        ret += " " + message + " " + self.sep2
+                        if self.sep_style == SeparatorStyle.LLAMA_2:
+                            ret += " " + message + " " + self.sep2
+                        else:
+                            ret += message + self.sep2
                 else:
                     ret += ""
             ret = ret.lstrip(self.sep)
@@ -449,6 +461,17 @@ conv_llava_v1_mmtag = Conversation(
     version="v1_mmtag",
 )
 
+conv_mistral = Conversation(
+    system="",
+    roles=("USER", "ASSISTANT"),
+    version="mistral",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.MISTRAL,
+    sep="",
+    sep2=DEFAULT_EOS_TOKEN,
+)
+
 default_conversation = conv_vicuna_v1
 conv_templates = {
     "default": conv_vicuna_v0,
@@ -466,6 +489,7 @@ conv_templates = {
     "nvgpt": conv_nvgpt,
     "nv_steerlm": conv_nvgpt,
     "nv_dpo": conv_nv_dpo,
+    "mistral": conv_mistral,
 }
 
 if __name__ == "__main__":

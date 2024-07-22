@@ -42,6 +42,9 @@ class PreTrainingDataModule(pl.LightningDataModule):
             paths = [paths]
         if weights is not None:
             assert len(weights) == len(paths)
+            if len(weights) == 1:
+                # weights must be None if there is only one dataset
+                weights = None
 
         self.paths = paths
         self.weights = weights
@@ -90,7 +93,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
 
         if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
             # This is to make sure we only have one epoch on every validation iteration
-            num_val_samples = None
+            num_val_samples = None if self.weights is None else 1
 
         train_valid_test_num_samples = [num_train_samples, num_val_samples, num_test_samples]
         self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
@@ -170,10 +173,8 @@ class PreTrainingDataModule(pl.LightningDataModule):
             state_dict: the datamodule state returned by ``state_dict``.
 
         """
-        try:
-            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-        except ModuleNotFoundError:
-            from nemo.lightning.apex_utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
         consumed_samples = state_dict['consumed_samples']
         self.data_sampler.init_consumed_samples = consumed_samples
         self.data_sampler.prev_consumed_samples = consumed_samples
