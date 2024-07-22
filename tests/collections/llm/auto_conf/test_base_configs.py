@@ -111,7 +111,7 @@ class TestBaseConfigs:
         assert model.size == None
         assert model.measure == "M"
         assert model.cfg == {}
-    
+
     def test_custom_base_config(self):
         model = base_configs.custom(name="Llama", cfg={})
 
