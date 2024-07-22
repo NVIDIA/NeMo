@@ -411,26 +411,49 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         if self.mcore_gpt:
-            model = MCoreGPTModel(
-                config=self.transformer_config,
-                transformer_layer_spec=get_specs(
-                    self.spec_name,
-                    self.transformer_config.num_moe_experts,
-                    self.transformer_config.moe_grouped_gemm,
-                    self.transformer_engine,
-                    self.cfg.get('hyena', None),
-                ),
-                vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
-                max_sequence_length=self.cfg.get('encoder_seq_length', 512),
-                pre_process=pre_process,
-                post_process=post_process,
-                parallel_output=True,
-                share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
-                position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
-                rotary_percent=self.cfg.get('rotary_percentage', 1.0),
-                seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
-                rotary_base=self.cfg.get('rotary_base', 10000),
-                scale_positional_embedding=self.cfg.get('scale_positional_embedding', False),
+            mcore_version = version.parse(megatron.core.__version__)
+            if mcore_version > version.parse("0.8"):
+                model = MCoreGPTModel(
+                    config=self.transformer_config,
+                    transformer_layer_spec=get_specs(
+                        self.spec_name,
+                        self.transformer_config.num_moe_experts,
+                        self.transformer_config.moe_grouped_gemm,
+                        self.transformer_engine,
+                        self.cfg.get('hyena', None),
+                    ),
+                    vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
+                    max_sequence_length=self.cfg.get('encoder_seq_length', 512),
+                    pre_process=pre_process,
+                    post_process=post_process,
+                    parallel_output=True,
+                    share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
+                    position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
+                    rotary_percent=self.cfg.get('rotary_percentage', 1.0),
+                    seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
+                    rotary_base=self.cfg.get('rotary_base', 10000),
+                    scale_positional_embedding=self.cfg.get('scale_positional_embedding', False),
+                )
+            else:
+                model = MCoreGPTModel(
+                    config=self.transformer_config,
+                    transformer_layer_spec=get_specs(
+                        self.spec_name,
+                        self.transformer_config.num_moe_experts,
+                        self.transformer_config.moe_grouped_gemm,
+                        self.transformer_engine,
+                        self.cfg.get('hyena', None),
+                    ),
+                    vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
+                    max_sequence_length=self.cfg.get('encoder_seq_length', 512),
+                    pre_process=pre_process,
+                    post_process=post_process,
+                    parallel_output=True,
+                    share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
+                    position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
+                    rotary_percent=self.cfg.get('rotary_percentage', 1.0),
+                    seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
+                    rotary_base=self.cfg.get('rotary_base', 10000),
             )
             if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
                 extend_instance(model.embedding, EmbeddingScalingMixin)
