@@ -65,9 +65,7 @@ def get_args():
     parser.add_argument(
         '--micro_batch_sizes', default=None, required=False, type=int, nargs='+', help="Path to results directory"
     )
-    parser.add_argument(
-        '--custom_model', action='store_true'
-    )
+    parser.add_argument('--custom_model', action='store_true')
 
     return parser.parse_args()
 
