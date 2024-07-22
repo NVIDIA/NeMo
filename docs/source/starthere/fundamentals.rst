@@ -3,8 +3,6 @@ NeMo fundamentals
 
 On this page we will go a little bit deeper on how NeMo works, to give you a good foundation for using NeMo for your :ref:`desired usecase <where_next>`.
 
-.. _nemo_model:
-
 NeMo Models
 -----------
 
