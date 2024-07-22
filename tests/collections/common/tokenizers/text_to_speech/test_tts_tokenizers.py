@@ -24,7 +24,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     SpanishCharsTokenizer,
 )
 from nemo.collections.tts.g2p.models.i18n_ipa import IpaG2p
-from nemo.collections.tts.g2p.models.ja_jp_g2p.py import JapaneseG2p
+from nemo.collections.tts.g2p.models.ja_jp_ipa.py import JapaneseG2p
 
 
 class TestTTSTokenizers:
