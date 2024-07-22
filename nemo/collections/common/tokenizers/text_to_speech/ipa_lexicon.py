@@ -230,6 +230,7 @@ def get_ipa_punctuation_list(locale):
             ]
         )
     elif locale == "ja-JP":
+        # ref: https://en.wikipedia.org/wiki/List_of_Japanese_typographic_symbols
         punct_set.update(
             [
                 '【',
