@@ -66,12 +66,9 @@ class PreemptionCallback(Callback, IOMixin):
         if self.interrupted:
             logging.info("Preemption detected, saving checkpoint and exiting")
             trainer.should_stop = True
-            if any(map(lambda callback: isinstance(callback, ModelCheckpoint), trainer.callbacks)):
-                checkpoint_callback: ModelCheckpoint = next(
-                    filter(lambda callback: isinstance(callback, ModelCheckpoint), trainer.callbacks)
-                )
-                monitor_candidates = checkpoint_callback._monitor_candidates(trainer)
-                checkpoint_callback._save_last_checkpoint(trainer, monitor_candidates)
+            if trainer.checkpoint_callback:
+                monitor_candidates = trainer.checkpoint_callback._monitor_candidates(trainer)
+                trainer.checkpoint_callback._save_last_checkpoint(trainer, monitor_candidates)
                 sys.exit(0)
 
     @contextlib.contextmanager
