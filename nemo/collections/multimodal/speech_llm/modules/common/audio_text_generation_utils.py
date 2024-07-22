@@ -28,10 +28,10 @@ from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import OutputType
 from nemo.utils import AppState
-from nemo.utils.apex_utils import _reconfigure_microbatch_calculator
 
 try:
     from megatron.core import parallel_state, tensor_parallel
+    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
 
     HAVE_MEGATRON_CORE = True
 
@@ -512,7 +512,7 @@ def sample_sequence_batch(
 ):
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
-    _reconfigure_microbatch_calculator(
+    reconfigure_num_microbatches_calculator(
         rank=app_state.global_rank,
         rampup_batch_size=None,
         global_batch_size=micro_batch_size,
