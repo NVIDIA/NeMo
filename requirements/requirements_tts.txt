@@ -11,3 +11,4 @@ nltk
 pandas
 pypinyin
 pypinyin-dict
+cutlet
