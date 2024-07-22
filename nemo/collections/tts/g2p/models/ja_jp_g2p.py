@@ -41,7 +41,7 @@ class JapaneseG2p(BaseG2p):
         Japanese G2P module. This module first segments Japanese characters into words using Janome, then
             these separated words are converted into phoneme sequences by looking them up in the 'phoneme_dict'.
         Args:
-            phoneme_dict (str, Path, Dict): Path to jp_dict_nv_24.06.txt dict file or a dict object.
+            phoneme_dict (str, Path, Dict): Path to ja_JP_wordtoipa.txt dict file or a dict object.
             phoneme_prefix (str): Prepend a special symbol to any phonemes in order to distinguish phonemes from
                 graphemes because there may be overlaps between the two sets. It is suggested to choose a prefix that
                 is not used or preserved somewhere else. Default to "#".
@@ -69,7 +69,7 @@ class JapaneseG2p(BaseG2p):
 
         # phonemes
         phoneme_dict = (
-            self._parse_jp_phoneme_dict(phoneme_dict, phoneme_prefix)
+            self._parse_ja_phoneme_dict(phoneme_dict, phoneme_prefix)
             if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path)
             else phoneme_dict
         )
@@ -113,10 +113,10 @@ class JapaneseG2p(BaseG2p):
 
     def _segment_with_janome(self, text):
         segmented_text = self.janome_tokenizer.tokenize(text)
-        return [(str(token).split())[0] for token in segmented_text]
+        return [str(token).split()[0] for token in segmented_text]
 
     @staticmethod
-    def _parse_jp_phoneme_dict(
+    def _parse_ja_phoneme_dict(
         phoneme_dict_path: Union[str, pathlib.Path], phoneme_prefix: str
     ) -> Dict[str, List[str]]:
         """Loads prondict dict file, and generates a set of all valid symbols."""
