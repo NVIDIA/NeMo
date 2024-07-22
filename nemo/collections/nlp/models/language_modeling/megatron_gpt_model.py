@@ -20,12 +20,12 @@ from contextlib import nullcontext
 from dataclasses import fields
 from functools import cache, partial
 from importlib.metadata import version
-from packaging import version as library_verison
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
+from packaging import version as library_verison
 from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
