@@ -20,6 +20,7 @@ from contextlib import nullcontext
 from dataclasses import fields
 from functools import cache, partial
 from importlib.metadata import version
+from packaging import version as library_verison
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
@@ -411,8 +412,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         if self.mcore_gpt:
-            mcore_version = version.parse(megatron.core.__version__)
-            if mcore_version > version.parse("0.8"):
+            mcore_version = library_verison.parse(megatron.core.__version__)
+            if mcore_version > library_verison.parse("0.8"):
                 model = MCoreGPTModel(
                     config=self.transformer_config,
                     transformer_layer_spec=get_specs(
