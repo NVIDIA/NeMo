@@ -331,8 +331,7 @@ def generic_base_config(
     default_model = False if model_size_in_b else True
     custom_model = True if cfg.get("custom_model") else False
 
-    model_name = MODULES[model_name]
-    model_cls = getattr(base_configs, model_name)
+    model_cls = getattr(base_configs, MODULES[model_name])
 
     model_size_in_b = calculate_model_size(
         cfg.get("gpu_count"),
@@ -346,7 +345,7 @@ def generic_base_config(
     if default_model:
         model = model_cls(cfg=cfg)
     elif custom_model:
-        model = base_configs.custom(name=model_name, cfg=cfg)
+        model = base_configs.custom(name=MODULES[model_name], cfg=cfg)
     else:
         model = model_cls(version=model_version, size=model_size_in_b, measure=model_measure, cfg=cfg)
 
