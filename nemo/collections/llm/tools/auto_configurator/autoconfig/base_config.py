@@ -169,8 +169,6 @@ def generate_base_config(
     :rtype: dict
     """
 
-    # model_size_in_b =
-
     base_cfg = generic_base_config(
         model_name=model_name,
         model_version=model_version,

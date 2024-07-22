@@ -36,7 +36,7 @@ class Mixtral(Basic):
         self.config_name = f"{self.name}Config{self.version}x{self.size}{self.measure}"
 
     def get_model_config(self):
-        model_config = getattr(llm, self.config_name)
+        model_class = getattr(llm, self.config_name)
         kwargs = self.cfg.get("kwargs", {})
         model_config = model_class(**kwargs)
 
