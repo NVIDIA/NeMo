@@ -249,7 +249,9 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
             if isinstance(trainer.val_check_interval, int) and trainer.global_step % trainer.val_check_interval != 0:
                 should_save_last_checkpoint = True
             if any(map(lambda callback: isinstance(callback, PreemptionCallback), trainer.callbacks)):
-                preemption_callback: PreemptionCallback = next(filter(lambda callback: isinstance(callback, PreemptionCallback), trainer.callbacks))
+                preemption_callback: PreemptionCallback = next(
+                    filter(lambda callback: isinstance(callback, PreemptionCallback), trainer.callbacks)
+                )
                 if preemption_callback.preemption_supported:
                     should_save_last_checkpoint = True
             if should_save_last_checkpoint:
