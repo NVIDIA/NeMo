@@ -42,7 +42,7 @@ class TestGenerateConfgis:
         configs = search_configs(cfg)
         auto_configs, global_batch_size, seq_length = get_auto_config(configs)
 
-        assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated, but 2 were expected."
+        assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated but 2 were expected."
 
         assert auto_configs[0] == [
             4,
@@ -50,7 +50,7 @@ class TestGenerateConfgis:
             1,
             1,
             1,
-        ], f"[4, 2, 1, 1, 1] is expected configuration output, but got {auto_configs[0]}."
+        ], f"[4, 2, 1, 1, 1] is expected configuration output but got {auto_configs[0]}."
 
         assert auto_configs[1] == [
             4,
@@ -58,11 +58,11 @@ class TestGenerateConfgis:
             2,
             1,
             1,
-        ], f"[4, 2, 2, 1, 1] is expected configuration output, but got {auto_configs[1]}."
+        ], f"[4, 2, 2, 1, 1] is expected configuration output but got {auto_configs[1]}."
 
-        assert global_batch_size == 256, f"expected global_batch_size is 256, but got {global_batch_size}."
+        assert global_batch_size == 256, f"expected global_batch_size is 256 but got {global_batch_size}."
 
-        assert seq_length == 2048, f"expected seq_length is 2048, but got {seq_length}."
+        assert seq_length == 2048, f"expected seq_length is 2048 but got {seq_length}."
 
         # GPT3 20B
         cfg = {
@@ -91,7 +91,7 @@ class TestGenerateConfgis:
         configs = search_configs(cfg)
         auto_configs, _, _ = get_auto_config(configs)
 
-        assert len(auto_configs) == 1, f"{len(auto_configs)} configurations were generated, but 1 were expected."
+        assert len(auto_configs) == 1, f"{len(auto_configs)} configurations were generated but 1 were expected."
 
         assert auto_configs[0] == [
             11,
@@ -100,7 +100,7 @@ class TestGenerateConfgis:
             1,
             1,
             1,
-        ], f"[11, 4, 4, 1, 1, 1] is expected configuration output, but got {auto_configs[0]}."
+        ], f"[11, 4, 4, 1, 1, 1] is expected configuration output but got {auto_configs[0]}."
 
         # GPT3 175B
         cfg = {
@@ -129,7 +129,7 @@ class TestGenerateConfgis:
         configs = search_configs(cfg)
         auto_configs, _, _ = get_auto_config(configs)
 
-        assert len(auto_configs) == 3, f"{len(auto_configs)} configurations were generated, but 3 were expected."
+        assert len(auto_configs) == 3, f"{len(auto_configs)} configurations were generated but 3 were expected."
 
         assert auto_configs[0] == [
             12,
@@ -138,7 +138,7 @@ class TestGenerateConfgis:
             1,
             1,
             1,
-        ], f"[12, 8, 8, 1, 1, 1] is expected configuration output, but got {auto_configs[0]}."
+        ], f"[12, 8, 8, 1, 1, 1] is expected configuration output but got {auto_configs[0]}."
 
         assert auto_configs[1] == [
             12,
@@ -147,7 +147,7 @@ class TestGenerateConfgis:
             2,
             1,
             1,
-        ], f"[12, 8, 8, 2, 1, 1] is expected configuration output, but got {auto_configs[1]}."
+        ], f"[12, 8, 8, 2, 1, 1] is expected configuration output but got {auto_configs[1]}."
 
         assert auto_configs[2] == [
             12,
@@ -156,7 +156,7 @@ class TestGenerateConfgis:
             4,
             1,
             1,
-        ], f"[12, 8, 8, 4, 1, 1] is expected configuration output, but got {auto_configs[2]}."
+        ], f"[12, 8, 8, 4, 1, 1] is expected configuration output but got {auto_configs[2]}."
 
     def test_llama_model(self):
         # Llama2 7B
@@ -187,7 +187,7 @@ class TestGenerateConfgis:
         configs = search_configs(cfg)
         auto_configs, _, _ = get_auto_config(configs)
 
-        assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated, but 2 were expected."
+        assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated but 2 were expected."
 
         assert auto_configs[0] == [
             1,
@@ -195,7 +195,7 @@ class TestGenerateConfgis:
             1,
             1,
             1,
-        ], f"[1, 1, 1, 1, 1] is expected configuration output, but got {auto_configs[0]}."
+        ], f"[1, 1, 1, 1, 1] is expected configuration output but got {auto_configs[0]}."
 
         assert auto_configs[1] == [
             1,
@@ -203,7 +203,7 @@ class TestGenerateConfgis:
             1,
             2,
             1,
-        ], f"[1, 1, 1, 2, 1] is expected configuration output, but got {auto_configs[1]}."
+        ], f"[1, 1, 1, 2, 1] is expected configuration output but got {auto_configs[1]}."
 
         # Llama3 8B
         cfg = {
@@ -233,7 +233,7 @@ class TestGenerateConfgis:
         configs = search_configs(cfg)
         auto_configs, _, _ = get_auto_config(configs)
 
-        assert len(auto_configs) == 1, f"{len(auto_configs)} configurations were generated, but 1 were expected."
+        assert len(auto_configs) == 1, f"{len(auto_configs)} configurations were generated but 1 were expected."
 
         assert auto_configs[0] == [
             2,
@@ -241,7 +241,7 @@ class TestGenerateConfgis:
             2,
             2,
             1,
-        ], f"[2, 2, 2, 2, 1] is expected configuration output, but got {auto_configs[0]}."
+        ], f"[2, 2, 2, 2, 1] is expected configuration output but got {auto_configs[0]}."
 
         # Llama3 70B
         cfg = {
@@ -271,7 +271,7 @@ class TestGenerateConfgis:
         configs = search_configs(cfg)
         auto_configs, global_batch_size, seq_length = get_auto_config(configs)
 
-        assert len(auto_configs) == 3, f"{len(auto_configs)} configurations were generated, but 3 were expected."
+        assert len(auto_configs) == 3, f"{len(auto_configs)} configurations were generated but 3 were expected."
 
         assert auto_configs[0] == [
             1,
@@ -279,7 +279,7 @@ class TestGenerateConfgis:
             1,
             2,
             1,
-        ], f"[1, 1, 1, 2, 1] is expected configuration output, but got {auto_configs[0]}."
+        ], f"[1, 1, 1, 2, 1] is expected configuration output but got {auto_configs[0]}."
 
         assert auto_configs[1] == [
             1,
@@ -287,7 +287,7 @@ class TestGenerateConfgis:
             1,
             2,
             1,
-        ], f"[1, 2, 1, 2, 1] is expected configuration output, but got {auto_configs[1]}."
+        ], f"[1, 2, 1, 2, 1] is expected configuration output but got {auto_configs[1]}."
 
         assert auto_configs[2] == [
             2,
@@ -295,11 +295,11 @@ class TestGenerateConfgis:
             1,
             2,
             1,
-        ], f"[2, 1, 1, 2, 1] is expected configuration output, but got {auto_configs[2]}."
+        ], f"[2, 1, 1, 2, 1] is expected configuration output but got {auto_configs[2]}."
 
-        assert global_batch_size == 2048, f"expected global_batch_size is 2048, but got {global_batch_size}."
+        assert global_batch_size == 2048, f"expected global_batch_size is 2048 but got {global_batch_size}."
 
-        assert seq_length == 8192, f"expected seq_length is 8192, but got {seq_length}."
+        assert seq_length == 8192, f"expected seq_length is 8192 but got {seq_length}."
 
     def test_mixtral_model(self):
         # Mixtral 8x7B
@@ -330,7 +330,7 @@ class TestGenerateConfgis:
         configs = search_configs(cfg)
         auto_configs, global_batch_size, seq_length = get_auto_config(configs)
 
-        assert len(auto_configs) == 4, f"{len(auto_configs)} configurations were generated, but 4 were expected."
+        assert len(auto_configs) == 4, f"{len(auto_configs)} configurations were generated but 4 were expected."
 
         assert auto_configs[0] == [
             2,
@@ -338,7 +338,7 @@ class TestGenerateConfgis:
             2,
             1,
             2,
-        ], f"[2, 1, 2, 1, 2] is expected configuration output, but got {auto_configs[0]}."
+        ], f"[2, 1, 2, 1, 2] is expected configuration output but got {auto_configs[0]}."
 
         assert auto_configs[1] == [
             2,
@@ -346,7 +346,7 @@ class TestGenerateConfgis:
             2,
             1,
             4,
-        ], f"[2, 1, 2, 1, 4] is expected configuration output, but got {auto_configs[1]}."
+        ], f"[2, 1, 2, 1, 4] is expected configuration output but got {auto_configs[1]}."
 
         assert auto_configs[2] == [
             2,
@@ -354,7 +354,7 @@ class TestGenerateConfgis:
             2,
             1,
             2,
-        ], f"[2, 2, 2, 1, 2] is expected configuration output, but got {auto_configs[2]}."
+        ], f"[2, 2, 2, 1, 2] is expected configuration output but got {auto_configs[2]}."
 
         assert auto_configs[3] == [
             4,
@@ -362,11 +362,11 @@ class TestGenerateConfgis:
             2,
             1,
             2,
-        ], f"[4, 1, 2, 1, 2] is expected configuration output, but got {auto_configs[3]}."
+        ], f"[4, 1, 2, 1, 2] is expected configuration output but got {auto_configs[3]}."
 
-        assert global_batch_size == 2048, f"expected global_batch_size is 2048, but got {global_batch_size}."
+        assert global_batch_size == 2048, f"expected global_batch_size is 2048 but got {global_batch_size}."
 
-        assert seq_length == 4096, f"expected seq_length is 4096, but got {seq_length}."
+        assert seq_length == 4096, f"expected seq_length is 4096 but got {seq_length}."
 
     def test_mistral_model(self):
         # Mistral 7B
@@ -397,7 +397,7 @@ class TestGenerateConfgis:
         configs = search_configs(cfg)
         auto_configs, global_batch_size, seq_length = get_auto_config(configs)
 
-        assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated, but 2 were expected."
+        assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated but 2 were expected."
 
         assert auto_configs[0] == [
             1,
@@ -405,7 +405,7 @@ class TestGenerateConfgis:
             1,
             1,
             2,
-        ], f"[1, 2, 1, 1, 2] is expected configuration output, but got {auto_configs[0]}."
+        ], f"[1, 2, 1, 1, 2] is expected configuration output but got {auto_configs[0]}."
 
         assert auto_configs[1] == [
             2,
@@ -413,8 +413,8 @@ class TestGenerateConfgis:
             1,
             1,
             2,
-        ], f"[2, 2, 1, 1, 2] is expected configuration output, but got {auto_configs[1]}."
+        ], f"[2, 2, 1, 1, 2] is expected configuration output but got {auto_configs[1]}."
 
-        assert global_batch_size == 2048, f"expected global_batch_size is 2048, but got {global_batch_size}."
+        assert global_batch_size == 2048, f"expected global_batch_size is 2048 but got {global_batch_size}."
 
-        assert seq_length == 16384, f"expected seq_length is 16384, but got {seq_length}."
+        assert seq_length == 16384, f"expected seq_length is 16384 but got {seq_length}."
