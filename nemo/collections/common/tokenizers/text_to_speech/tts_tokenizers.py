@@ -1004,7 +1004,7 @@ class JapanesePhonemeTokenizer(BaseTokenizer):
 
     def encode_from_g2p(self, g2p_text: List[str], raw_text: Optional[str] = None):
         """
-        Encodes text that has already been run through G2Pr.
+        Encodes text that has already been run through G2P.
         Called for encoding to tokens after text preprocessing and G2P.
 
         Args:
