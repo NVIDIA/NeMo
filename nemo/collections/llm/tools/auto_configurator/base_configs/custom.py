@@ -12,8 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.llm.tools.auto_configurator.base_configs.gpt import GPT
-from nemo.collections.llm.tools.auto_configurator.base_configs.llama import Llama
-from nemo.collections.llm.tools.auto_configurator.base_configs.mistral import Mistral
-from nemo.collections.llm.tools.auto_configurator.base_configs.mixtral import Mixtral
-from nemo.collections.llm.tools.auto_configurator.base_configs.custom import custom
+import copy
+import os
+
+from nemo.collections.llm.tools.auto_configurator import base_configs
+
+from .basic import Basic
+
+def custom(name, cfg):
+    basic_class = getattr(base_configs, name)
+
+    class Custom(basic_class):
+        def __init__(self, name, cfg):
+            super().__init__(name=name, cfg=cfg)
+    
+    custom_class = Custom(name, cfg)
+
+    return custom_class
