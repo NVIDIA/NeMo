@@ -10,3 +10,4 @@ nltk
 pandas
 pypinyin
 pypinyin-dict
+janome
