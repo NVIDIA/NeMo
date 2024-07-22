@@ -11,17 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import importlib
 import pytest
 import torch
 from torchmetrics.audio.snr import SignalNoiseRatio
 
 from nemo.collections.audio.metrics.audio import AudioMetricWrapper
 from nemo.collections.audio.metrics.squim import SquimMOSMetric, SquimObjectiveMetric
-from nemo.collections.audio.parts.utils.squim import calculate_squim_mos, calculate_squim_objective
 
 try:
-    importlib.import_module('torchaudio')
+    import torchaudio
 
     HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
@@ -163,8 +161,30 @@ class TestSquimMetrics:
             batch_size = 4
             atol = 1e-6
 
+            # UUT
             squim_mos_metric = SquimMOSMetric(fs=fs)
 
+            # Helper function
+            resampler = torchaudio.transforms.Resample(
+                orig_freq=fs,
+                new_freq=16000,
+                lowpass_filter_width=64,
+                rolloff=0.9475937167399596,
+                resampling_method='sinc_interp_kaiser',
+                beta=14.769656459379492,
+            )
+            squim_mos_model = torchaudio.pipelines.SQUIM_SUBJECTIVE.get_model()
+
+            def calculate_squim_mos(preds: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+                if fs != 16000:
+                    preds = resampler(preds)
+                    target = resampler(target)
+
+                # Calculate MOS
+                mos_batch = squim_mos_model(preds, target)
+                return mos_batch
+
+            # Test
             mos_sum = torch.tensor(0.0)
 
             for n in range(num_batches):
@@ -175,7 +195,7 @@ class TestSquimMetrics:
                 squim_mos_metric.update(preds=preds, target=target)
 
                 # Golden
-                mos_golden = calculate_squim_mos(preds=preds, target=target, fs=fs)
+                mos_golden = calculate_squim_mos(preds=preds, target=target)
                 # Accumulate
                 mos_sum += mos_golden.sum()
 
@@ -198,8 +218,37 @@ class TestSquimMetrics:
             batch_size = 4
             atol = 1e-6
 
+            # UUT
             squim_objective_metric = SquimObjectiveMetric(fs=fs, metric=metric)
 
+            # Helper function
+            resampler = torchaudio.transforms.Resample(
+                orig_freq=fs,
+                new_freq=16000,
+                lowpass_filter_width=64,
+                rolloff=0.9475937167399596,
+                resampling_method='sinc_interp_kaiser',
+                beta=14.769656459379492,
+            )
+            squim_objective_model = torchaudio.pipelines.SQUIM_OBJECTIVE.get_model()
+
+            def calculate_squim_objective(preds: torch.Tensor) -> torch.Tensor:
+                if fs != 16000:
+                    preds = resampler(preds)
+
+                # Calculate metric
+                stoi_batch, pesq_batch, si_sdr_batch = squim_objective_model(preds)
+
+                if metric == 'stoi':
+                    return stoi_batch
+                elif metric == 'pesq':
+                    return pesq_batch
+                elif metric == 'si_sdr':
+                    return si_sdr_batch
+                else:
+                    raise ValueError(f'Unknown metric {metric}')
+
+            # Test
             metric_sum = torch.tensor(0.0)
 
             for n in range(num_batches):
@@ -209,7 +258,7 @@ class TestSquimMetrics:
                 squim_objective_metric.update(preds=preds, target=None)
 
                 # Golden
-                metric_golden = calculate_squim_objective(preds=preds, fs=fs, metric=metric)
+                metric_golden = calculate_squim_objective(preds=preds)
                 # Accumulate
                 metric_sum += metric_golden.sum()
 
