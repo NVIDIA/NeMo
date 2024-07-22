@@ -20,10 +20,11 @@ import torch
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
 
 
-class PreemptionCallback(Callback):
+class PreemptionCallback(Callback, IOMixin):
     """
     PreemptionCallback checks for preemption during training at the end of every step.
     Upon preemption, it signals the trainer to stop gracefully.
