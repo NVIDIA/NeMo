@@ -1,4 +1,5 @@
 attrdict
+cutlet
 einops
 janome
 jieba
@@ -11,4 +12,3 @@ nltk
 pandas
 pypinyin
 pypinyin-dict
-cutlet
