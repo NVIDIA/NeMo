@@ -172,7 +172,7 @@ model:
 
   optim:
     name: adamw
-    lr: 5.0
+    lr: 0.001
     # optimizer arguments
     betas: [0.9, 0.98]
     # less necessity for weight_decay as we already have large augmentations with SpecAug
@@ -182,9 +182,8 @@ model:
 
     # scheduler setup
     sched:
-      name: NoamAnnealing
+      name: CosineAnnealing
       # scheduler config override
-      d_model: ${model.encoder.d_model}
       warmup_steps: 5000
       warmup_ratio: null
       min_lr: 1e-6
