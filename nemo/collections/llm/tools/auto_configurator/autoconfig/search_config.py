@@ -15,8 +15,8 @@
 import os
 from typing import Optional
 
-from autoconfig.training_config import search_training_config
-from autoconfig.utils import generic_base_config
+from nemo.collections.llm.tools.auto_configurator.autoconfig.training_config import search_training_config
+from nemo.collections.llm.tools.auto_configurator.autoconfig.utils import generic_base_config
 
 SUPPORTED_MODELS = [
     "gpt3",
@@ -26,7 +26,7 @@ SUPPORTED_MODELS = [
 ]
 
 
-def search_config(cfg: dict):
+def search_configs(cfg: dict):
     """
     Main function that implements the entire pipeline to search the optimal
     model config and launch the grid searches for both training and inference

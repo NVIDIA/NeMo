@@ -16,7 +16,7 @@
 
 import argparse
 
-from autoconfig.search_config import search_config
+from autoconfig.search_config import search_configs
 
 
 def get_args():
@@ -71,7 +71,7 @@ def get_args():
 
 def main():
     args = get_args()
-    configs = search_config(cfg=vars(args))
+    configs = search_configs(cfg=vars(args))
 
 
 if __name__ == "__main__":
