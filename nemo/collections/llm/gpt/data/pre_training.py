@@ -187,14 +187,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
             consistency_check=False,
         )
         current_global_batch_size = num_microbatch_calculator.current_global_batch_size
-        '''pl_module.log(
-            "global_batch_size",
-            current_global_batch_size,
-            prog_bar=True,
-            rank_zero_only=True,
-            batch_size=1,
-        )'''
-        self.if_first_step = 1
+        self.data_sampler.if_first_step = 1
 
     def reconfigure_limit_batches(self):
         # Override limit_train_batches in terms of num of microbatches
