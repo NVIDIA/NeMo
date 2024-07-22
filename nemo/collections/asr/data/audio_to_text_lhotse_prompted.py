@@ -131,10 +131,6 @@ def canary(
     (i.e., spoken language in the recording) and the second occurrence is for the "target" language
     (i.e., the language in which we are going to output the text).
     """
-
-    assert isinstance(
-        tokenizer._tokenizer, CanaryTokenizer
-    ), "To use 'canary' prompt format, you must use the CanaryTokenizer."
     formatter = CanaryPromptFormatter(tokenizer._tokenizer)
 
     prompts_with_answers, prompts = [], []
