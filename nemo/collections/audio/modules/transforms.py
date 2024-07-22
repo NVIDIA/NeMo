@@ -14,6 +14,7 @@
 from typing import Dict, Optional, Tuple
 
 import torch
+from einops import rearrange
 
 from nemo.collections.asr.parts.preprocessing.features import make_seq_mask_like
 from nemo.core.classes import NeuralModule, typecheck
@@ -56,8 +57,7 @@ class AudioToSpectrogram(NeuralModule):
         window = torch.hann_window(self.win_length)
         self.register_buffer('window', window)
 
-        # number of subbands
-        self.F = fft_length // 2 + 1
+        self.num_subbands = fft_length // 2 + 1
 
         if magnitude_power <= 0:
             raise ValueError(f'Magnitude power needs to be positive: current value {magnitude_power}')
@@ -74,10 +74,6 @@ class AudioToSpectrogram(NeuralModule):
         logging.debug('\tscale:           %s', scale)
 
     @property
-    def num_subbands(self) -> int:
-        return self.F
-
-    @property
     def win_length(self) -> int:
         return self.fft_length
 
@@ -91,8 +87,8 @@ class AudioToSpectrogram(NeuralModule):
             Time-domain signal ``x_spec = STFT(x)``, shape (..., F, N).
         """
         # pack batch
-        shape = x.size()
-        x = x.reshape(-1, shape[-1])
+        B, C, T = x.size()
+        x = rearrange(x, 'B C T -> (B C) T')
 
         x_spec = torch.stft(
             input=x,
@@ -108,7 +104,7 @@ class AudioToSpectrogram(NeuralModule):
         )
 
         # unpack batch
-        x_spec = x_spec.reshape(shape[:-1] + x_spec.shape[-2:])
+        x_spec = rearrange(x_spec, '(B C) F N -> B C F N', B=B, C=C)
 
         return x_spec
 
@@ -181,6 +177,7 @@ class AudioToSpectrogram(NeuralModule):
         Returns:
             Number of valid frames, shape (B,)
         """
+        # centered STFT results in (T // hop_length + 1) frames for T samples (cf. torch.stft)
         output_length = input_length.div(self.hop_length, rounding_mode='floor').add(1).long()
         return output_length
 
@@ -217,7 +214,7 @@ class AudioToSpectrogramTA(NeuralModule):
         )
 
         # number of subbands
-        self.F = fft_length // 2 + 1
+        self.num_subbands = fft_length // 2 + 1
 
         if magnitude_power <= 0:
             raise ValueError(f'Magnitude power needs to be positive: current value {magnitude_power}')
@@ -232,10 +229,6 @@ class AudioToSpectrogramTA(NeuralModule):
         logging.debug('\thop_length:      %s', hop_length)
         logging.debug('\tmagnitude_power: %s', magnitude_power)
         logging.debug('\tscale:           %s', scale)
-
-    @property
-    def num_subbands(self) -> int:
-        return self.F
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
@@ -333,7 +326,7 @@ class SpectrogramToAudio(NeuralModule):
         window = torch.hann_window(self.win_length)
         self.register_buffer('window', window)
 
-        self.F = fft_length // 2 + 1
+        self.num_subbands = fft_length // 2 + 1
 
         if magnitude_power <= 0:
             raise ValueError(f'Magnitude power needs to be positive: current value {magnitude_power}')
@@ -348,10 +341,6 @@ class SpectrogramToAudio(NeuralModule):
         logging.debug('\thop_length:      %s', hop_length)
         logging.debug('\tmagnitude_power: %s', magnitude_power)
         logging.debug('\tscale:           %s', scale)
-
-    @property
-    def num_subbands(self) -> int:
-        return self.F
 
     @property
     def win_length(self) -> int:
@@ -370,8 +359,8 @@ class SpectrogramToAudio(NeuralModule):
             raise ValueError("Expected `x_spec` to be complex dtype.")
 
         # pack batch
-        shape = x_spec.size()
-        x_spec = x_spec.reshape(-1, shape[-2], shape[-1])
+        B, C, F, N = x_spec.size()
+        x_spec = rearrange(x_spec, 'B C F N -> (B C) F N')
 
         x = torch.istft(
             input=x_spec,
@@ -387,7 +376,7 @@ class SpectrogramToAudio(NeuralModule):
         )
 
         # unpack batch
-        x = x.reshape(shape[:-2] + x.shape[-1:])
+        x = rearrange(x, '(B C) T -> B C T', B=B, C=C)
 
         return x
 
@@ -421,7 +410,7 @@ class SpectrogramToAudio(NeuralModule):
             and output length with shape (B,).
         """
         B, F, N = input.size(0), input.size(-2), input.size(-1)
-        assert F == self.F, f'Number of subbands F={F} not matching self.F={self.F}'
+        assert F == self.num_subbands, f'Number of subbands F={F} not matching self.num_subbands={self.num_subbands}'
         input = input.view(B, -1, F, N)
 
         # iSTFT output (B, C, T)
@@ -460,6 +449,7 @@ class SpectrogramToAudio(NeuralModule):
         Returns:
             Number of valid samples, shape (B,)
         """
+        # centered STFT results in ((N-1) * hop_length) time samples for N frames (cf. torch.istft)
         output_length = input_length.sub(1).mul(self.hop_length).long()
         return output_length
 
@@ -493,7 +483,7 @@ class SpectrogramToAudioTA(NeuralModule):
             n_fft=fft_length, hop_length=hop_length, pad_mode='constant'
         )
 
-        self.F = fft_length // 2 + 1
+        self.num_subbands = fft_length // 2 + 1
 
         if magnitude_power <= 0:
             raise ValueError(f'Magnitude power needs to be positive: current value {magnitude_power}')
@@ -508,10 +498,6 @@ class SpectrogramToAudioTA(NeuralModule):
         logging.debug('\thop_length:      %s', hop_length)
         logging.debug('\tmagnitude_power: %s', magnitude_power)
         logging.debug('\tscale:           %s', scale)
-
-    @property
-    def num_subbands(self) -> int:
-        return self.F
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
@@ -543,7 +529,7 @@ class SpectrogramToAudioTA(NeuralModule):
             and output length with shape (B,).
         """
         B, F, N = input.size(0), input.size(-2), input.size(-1)
-        assert F == self.F, f'Number of subbands F={F} not matching self.F={self.F}'
+        assert F == self.num_subbands, f'Number of subbands F={F} not matching self.num_subbands={self.num_subbands}'
         input = input.view(B, -1, F, N)
 
         # iSTFT output (B, C, T)
