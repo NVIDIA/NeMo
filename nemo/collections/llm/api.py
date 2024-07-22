@@ -294,7 +294,7 @@ def deploy(
     model_type: str = "llama",
     triton_model_name: str = "xxx",
     triton_model_version: Optional[int] = 1,
-    triton_port: int = 8000,
+    triton_port: int = 8080,
     triton_http_address: str = "0.0.0.0",
     triton_request_timeout: int = 60,
     triton_model_repository: Path = None,
