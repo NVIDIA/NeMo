@@ -78,6 +78,7 @@ from nemo.utils import logging
 from nemo.utils.te_utils import is_float8tensor
 
 try:
+    import megatron.core as core
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
@@ -412,7 +413,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         if self.mcore_gpt:
-            mcore_version = library_verison.parse(megatron.core.__version__)
+            mcore_version = library_verison.parse(core.__version__)
             if mcore_version > library_verison.parse("0.8"):
                 model = MCoreGPTModel(
                     config=self.transformer_config,
