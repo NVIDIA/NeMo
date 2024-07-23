@@ -1685,7 +1685,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._reconfigure_limit_batches(self.trainer.limit_val_batches, self._validation_dl, 'val')
 
         # Data cache generation only
-        # Stops training after creating a data cache
+        # Stops script execution after creating a data cache
         if self.cfg.data.get('data_cache_generation_only', False):
             self.trainer.num_sanity_val_steps = 0
             self.trainer.should_stop = True
