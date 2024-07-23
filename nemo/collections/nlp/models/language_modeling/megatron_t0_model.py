@@ -28,13 +28,18 @@ from nemo.utils import AppState, logging
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
 
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
+    
+except (ImportError, ModuleNotFoundError):
+    import apex.transformer.pipeline_parallel.utils.reconfigure_num_microbatches_calculator as reconfigure_num_microbatches_calculator
 
 __all__ = ['MegatronT0Model']
 

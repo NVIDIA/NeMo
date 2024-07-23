@@ -49,7 +49,6 @@ from nemo.utils.decorators import deprecated_warning
 try:
     from megatron.core import InferenceParams, ModelParallelConfig, parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
-    from megatron.core.num_microbatches_calculator import get_micro_batch_size, get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
@@ -59,6 +58,12 @@ except (ImportError, ModuleNotFoundError):
     ModelParallelConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import get_micro_batch_size, get_num_microbatches
+    
+except (ImportError, ModuleNotFoundError):
+    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
 
 __all__ = ['MegatronGPTPromptLearningModel']

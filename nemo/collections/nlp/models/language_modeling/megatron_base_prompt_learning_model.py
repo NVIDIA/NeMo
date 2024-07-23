@@ -41,7 +41,6 @@ from nemo.utils.decorators import deprecated_warning
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state
-    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
 
     HAVE_MEGATRON_CORE = True
 
@@ -50,6 +49,20 @@ except (ImportError, ModuleNotFoundError):
     ModelParallelConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
+
+
+try:
+    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
+    
+except (ImportError, ModuleNotFoundError):
+    try:
+        import apex.transformer.pipeline_parallel.utils._reconfigure_microbatch_calculator as reconfigure_microbatch_calculator
+
+        HAVE_APEX = True
+        
+    except (ImportError, ModuleNotFoundError):
+        
+        HAVE_APEX = False
 
 
 __all__ = ['MegatronBasePromptLearningModel']

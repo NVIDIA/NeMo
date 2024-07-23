@@ -16,10 +16,6 @@ import random
 
 import numpy as np
 import torch
-from megatron.core.num_microbatches_calculator import (
-    ConstantNumMicroBatchesCalculator,
-    init_num_microbatches_calculator,
-)
 
 from nemo.utils import AppState, logging
 
@@ -46,10 +42,23 @@ try:
         set_tensor_model_parallel_world_size,
         set_virtual_pipeline_model_parallel_rank,
     )
+    
+    HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import (
+        ConstantNumMicroBatchesCalculator,
+        init_num_microbatches_calculator,
+    )
+
+except (ImportError, ModuleNotFoundError):
+    import apex.transformer.microbatches.ConstantNumMicroBatches as ConstantNumMicroBatchesCalculator
+    from apex.transformer.pipeline_parallel.utils import init_num_microbatches_calculator
+    
 
 try:
     from apex.transformer.parallel_state import set_virtual_pipeline_model_parallel_world_size

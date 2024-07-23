@@ -42,7 +42,6 @@ from nemo.utils import logging
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
@@ -51,6 +50,11 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+try:
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
+
+except (ImportError, ModuleNotFoundError):
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 class VitClassificationModel(MegatronModule):
     """Vision Transformer Model."""

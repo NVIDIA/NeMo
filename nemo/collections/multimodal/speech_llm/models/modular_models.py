@@ -60,13 +60,19 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
-    from megatron.core.num_microbatches_calculator import get_num_microbatches, reconfigure_num_microbatches_calculator
 
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
+
+try:
+    from megatron.core.num_microbatches_calculator import get_num_microbatches, reconfigure_num_microbatches_calculator
+
+except (ImportError, ModuleNotFoundError):
+    import apex.transformer.pipeline_parallel.utils._reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 __all__ = ["ModularAudioGPTModel", "CrossAttendModularAudioGPTModel"]
 
