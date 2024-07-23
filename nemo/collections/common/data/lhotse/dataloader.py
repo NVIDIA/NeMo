@@ -71,7 +71,7 @@ class LhotseDataLoadingConfig:
     bucket_batch_size: list[int] | None = None
     num_buckets: int = 30
     num_cuts_for_bins_estimate: int = 10000
-    bucket_duration_bins: list[float] | list[list[float]] | None = None
+    bucket_duration_bins: Any = None  # list[float] | list[list[float]] | None = None
     bucket_buffer_size: int = 10000
     concurrent_bucketing: bool = True  # fetches data in a background thread
     #   d. Other Lhotse sampling options.
