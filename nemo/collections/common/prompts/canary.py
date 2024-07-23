@@ -20,7 +20,7 @@ class CanaryPromptFormatter(PromptFormatter):
                     "asr", "ast", "translate", "transcribe", "s2t_translation", "<|transcribe|>", "<|translate|>"
                 ),
                 "target_lang": Modality.Text,
-                "pnc": Modality.TextLiteral("yes", "no", "<|pnc|>", "<|nopnc|>"),
+                "pnc": Modality.TextLiteral("yes", "no", "true", "True", "false", "False", "1", "0", "pnc", "nopnc", "<|pnc|>", "<|nopnc|>"),
             },
         },
         OUTPUT_ROLE: {
@@ -56,7 +56,7 @@ def map_manifest_values_to_special_tokens(slot_values: dict[str, str]) -> dict[s
 
     k = "pnc"
     if k in slot_values and slot_values[k] not in (CANARY_PNC, CANARY_NOPNC):
-        slot_values[k] = CANARY_PNC if slot_values[k] in ("yes", "1", "True", "true") else CANARY_NOPNC
+        slot_values[k] = CANARY_PNC if slot_values[k] in ("yes", "1", "True", "true", "pnc") else CANARY_NOPNC
         any_special_token_present = True
 
     # Note: we re-map 'taskname' to 'task' for compatibility with earlier versions of Canary training.
