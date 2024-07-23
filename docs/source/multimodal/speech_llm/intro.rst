@@ -21,7 +21,7 @@ Model Architecture
 ^^^^^^^^^^^^^^^^^^^^
 
 One way to incorporate speech into LLM is to concatenate speech features with the token embeddings of the input text prompt before being fed into the LLM. In this way, the LLM can have direct access to the speech information when generating the output text.
-    .. image:: images/salm.png
+    .. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.23.0/salm.png
         :align: center
         :alt: SALM model
         :scale: 50%
@@ -30,7 +30,7 @@ One way to incorporate speech into LLM is to concatenate speech features with th
 
 Another way is to use cross-attention mechanism, by using text embeddings to attend to speech embeddings to extract task-specific information from the speech embeddings. In order to minimize the computational cost of cross-attention, we add a cross-attention module only before the LLM.
    
-    .. image:: images/bestow.png
+    .. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.23.0/bestow.png
         :align: center
         :alt: BESTOW model
         :scale: 50%
