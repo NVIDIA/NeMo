@@ -485,7 +485,7 @@ def create_neva_model_and_processor(cfg):
         else:
             frames = maybe_video_path
 
-        #if neva_cfg.mm_cfg.vision_encoder.get("from_hf", False):
+        # if neva_cfg.mm_cfg.vision_encoder.get("from_hf", False):
         #    if (
         #        "siglip" in neva_cfg.mm_cfg.vision_encoder.from_pretrained
         #        or "siglip" in neva_cfg.mm_cfg.vision_encoder.get("model_type", "")
@@ -494,10 +494,12 @@ def create_neva_model_and_processor(cfg):
         #    else:
         #        # for clip and vit model
         #        processor = CLIPImageProcessor.from_pretrained(neva_cfg.mm_cfg.vision_encoder.from_pretrained)
-        #else:
+        # else:
         #    processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14")
 
-        processor = model.model.module.image_processor if hasattr(model.model, "module") else model.model.image_processor
+        processor = (
+            model.model.module.image_processor if hasattr(model.model, "module") else model.model.image_processor
+        )
         # support single video inference
         if neva_cfg.data.image_aspect_ratio == 'keep':
             max_hw, min_hw = max(frames.size), min(frames.size)
