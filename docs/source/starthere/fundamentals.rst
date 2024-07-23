@@ -12,9 +12,9 @@ A NeMo "model" includes all of the below components wrapped into a singular, coh
 
 * dataset & data loaders,
 
-* data preprocessing & postprocessing,
+* preprocessing of input data & postprocessing of model outputs,
 
-* optimizer & schedulers,
+* loss function, optimizer & schedulers,
 
 * any other supporting infrastructure: tokenizers, language model configuration, data augmentation etc.
 
