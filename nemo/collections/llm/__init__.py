@@ -4,7 +4,6 @@ try:
 except ImportError:
     pass
 
-from nemo.collections.llm.modules import peft, tokenizer
 from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
 from nemo.collections.llm.data.gpt import (
     DollyDataModule,
@@ -42,6 +41,7 @@ from nemo.collections.llm.models.gpt import (
     gpt_data_step,
     gpt_forward_step,
 )
+from nemo.collections.llm.modules import peft, tokenizer
 from nemo.collections.llm.recipes import *  # noqa
 
 __all__ = [
