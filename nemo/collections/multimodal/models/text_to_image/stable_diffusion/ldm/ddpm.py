@@ -87,16 +87,16 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import get_num_microbatches
-    
+
 except (ImportError, ModuleNotFoundError):
     try:
         from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
         HAVE_APEX = True
     except (ImportError, ModuleNotFoundError):
-        
+
         HAVE_APEX = False
-    
+
 
 __conditioning_keys__ = {'concat': 'c_concat', 'crossattn': 'c_crossattn', 'adm': 'y'}
 

@@ -48,7 +48,7 @@ try:
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
 
     HAVE_MEGATRON_CORE = True
-    
+
 except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     ModelParallelConfig = ApexGuardDefaults
@@ -57,7 +57,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import get_num_microbatches
-    
+
 except (ImportError, ModuleNotFoundError):
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 

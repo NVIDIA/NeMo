@@ -37,7 +37,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
-    
+
 except (ImportError, ModuleNotFoundError):
     import apex.transformer.pipeline_parallel.utils.reconfigure_num_microbatches_calculator as reconfigure_num_microbatches_calculator
 

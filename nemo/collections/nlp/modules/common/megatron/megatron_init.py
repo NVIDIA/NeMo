@@ -42,7 +42,7 @@ try:
         set_tensor_model_parallel_world_size,
         set_virtual_pipeline_model_parallel_rank,
     )
-    
+
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -58,7 +58,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     import apex.transformer.microbatches.ConstantNumMicroBatches as ConstantNumMicroBatchesCalculator
     from apex.transformer.pipeline_parallel.utils import init_num_microbatches_calculator
-    
+
 
 try:
     from apex.transformer.parallel_state import set_virtual_pipeline_model_parallel_world_size
