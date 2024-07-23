@@ -15,11 +15,10 @@
 import functools
 import itertools
 import os
-import re
 import shutil
 import tempfile
 from collections import OrderedDict, defaultdict
-from contextlib import contextmanager, ExitStack
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
 
@@ -56,7 +55,6 @@ from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimSta
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
 
-from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import unwrap_model
 
 try:
@@ -541,18 +539,7 @@ class NLPDDPStrategy(DDPStrategy):
                     self.lightning_module.get_model_module_list(), checkpoint_path, prefix="model."
                 )
 
-            # [ModelOpt]: Initial loading from non-resume sharded checkpoint to a Distillation Model
-            # will result in key mismatch with loss modules potentially containing parameters, since
-            # it requires generating a state_dict before loading. Here we hide those modules if present.
-            # Context managers not activated if `self.model` inner class not a DistillationModel.
-            with ExitStack() as stack:  # Allows multiple context managers for each model shard
-                model = self.model if isinstance(self.model, list) else [self.model]
-                model = unwrap_model(model)
-                if hasattr(model[0], "hide_loss_modules"):
-                    for m in model:
-                        stack.enter_context(m.hide_loss_modules())
-
-                sharded_state_dict = self.lightning_module.sharded_state_dict()
+            sharded_state_dict = self.lightning_module.sharded_state_dict()
 
             checkpoint = {}
 
@@ -1020,7 +1007,8 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         dist_ckpt_dir = None
 
         # [ModelOpt]: If Distillation, export the student model.
-        if HAVE_MODELOPT and isinstance(unwrap_model(model), mtd.DistillationModel):
+        unwrapped_model = unwrap_model(model, (Float16Module, MCoreFloat16Module))
+        if HAVE_MODELOPT and isinstance(unwrapped_model, mtd.DistillationModel):
             self.log("Distillation: Exporting Distillation Model into original student model...")
             model = mtd.export(model)
 
@@ -1355,20 +1343,8 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                         instance.get_model_module_list(), tmp_model_weights_dir, prefix="model."
                     )
 
-                # [ModelOpt]: Initial loading from non-resume sharded checkpoint to a Distillation Model
-                # will result in key mismatch with loss modules potentially containing parameters, since
-                # it requires generating a state_dict before loading. Here we hide those modules if present.
-                # Context managers not activated if `instance.model` inner class not a DistillationModel.
-                with ExitStack() as stack:  # Allows multiple context managers for each model shard
-                    model = instance.model if isinstance(instance.model, list) else [instance.model]
-                    model = unwrap_model(model)
-                    if hasattr(model[0], "hide_loss_modules"):
-                        for m in model:
-                            stack.enter_context(m.hide_loss_modules())
-
-                    sharded_state_dict = instance.sharded_state_dict()
-
                 checkpoint = {}
+                sharded_state_dict = instance.sharded_state_dict()
                 checkpoint['state_dict'] = sharded_state_dict
 
                 checkpoint_io = DistributedCheckpointIO.from_config(conf)
