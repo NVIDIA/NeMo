@@ -1,6 +1,6 @@
 
-Getting Started with Llama 3
-============================
+Getting Started with Llama 3 and Llama 3.1
+==========================================
 
 This repository contains jupyter notebook tutorials for Llama-3 and Llama-3.1 models by Meta.
 
