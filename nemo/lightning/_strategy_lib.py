@@ -127,7 +127,9 @@ def set_model_parallel_attributes(model, parallelism):
     from megatron.core.model_parallel_config import ModelParallelConfig
     from megatron.core.transformer.transformer_config import TransformerConfig
 
-    assert isinstance(parallelism, ModelParallelConfig), f"Expected parallelism config to be of type ModelParallelConfig, but got {type(parallelism)}"
+    assert isinstance(
+        parallelism, ModelParallelConfig
+    ), f"Expected parallelism config to be of type ModelParallelConfig, but got {type(parallelism)}"
     has_mcore_config = isinstance(getattr(model, "config", None), TransformerConfig)
     if has_mcore_config and hasattr(model, "configure_model"):
         config: TransformerConfig = model.config
