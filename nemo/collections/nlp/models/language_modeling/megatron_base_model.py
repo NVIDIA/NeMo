@@ -63,10 +63,10 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
-
+    from megatron.core.num_microbatches_calculator import get_current_global_batch_size, get_num_microbatches
+    
 except (ImportError, ModuleNotFoundError):
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size, get_num_microbatches
 
 try:
     from megatron.core import Timers
@@ -916,9 +916,7 @@ class MegatronBaseModel(NLPModel):
         app_state = AppState()
 
         if self.cfg.get('rampup_batch_size', None):
-            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-
-            current_global_batch_size = getattr(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'current_global_batch_size', 1)
+            current_global_batch_size = get_current_global_batch_size() if get_current_global_batch_size() else 1
             consumed_samples = self.prev_consumed_samples + self.if_first_step * current_global_batch_size
         else:
             consumed_samples = (
