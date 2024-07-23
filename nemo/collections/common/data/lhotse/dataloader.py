@@ -241,7 +241,7 @@ def get_lhotse_dataloader_from_config(
     # We can filter after the augmentations because they are applied only when calling load_audio().
     cuts = cuts.filter(DurationFilter(config.min_duration, config.max_duration))
 
-    bucket_duration_bins = determine_bucket_duration_bins(config.bucket_duration_bins)
+    bucket_duration_bins = determine_bucket_duration_bins(config)
     if config.use_multimodal_sampling:
         if config.bucket_batch_size is not None:
             assert (
