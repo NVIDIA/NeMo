@@ -38,7 +38,12 @@ from nemo.collections.common.tokenizers import AggregateTokenizer, SentencePiece
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Estimate duration bins for Lhotse dynamic bucketing using a sample of the input dataset. "
-        "The dataset is read either from one or more manifest files and supports data weighting.",
+        "The dataset is read either from one or more manifest files and supports data weighting. "
+        "Unlike estimate_duration_bins.py, this script prepares the setup for 2D bucketing. "
+        "This means that each main bucket for audio duration is sub-divided into sub-buckets "
+        "for the number of output tokens (supporting BPE and Aggregated tokenizers). "
+        "2D bucketing is especially useful for encoder-decoder models where input audio duration is often "
+        "not sufficient to stratify the sampling with an optimal GPU utilization.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
@@ -60,8 +65,20 @@ def parse_args():
     parser.add_argument(
         "-a", "--langs", nargs="+", help="Language names for each of AggregateTokenizer sub-tokenizers."
     )
-    parser.add_argument("-b", "--buckets", type=int, default=30, help="The desired number of buckets.")
-    parser.add_argument("-s", "--sub-buckets", type=int, default=4, help="The desired number of sub-buckets.")
+    parser.add_argument(
+        "-b",
+        "--buckets",
+        type=int,
+        default=30,
+        help="The desired number of buckets (dim0 => covers input sequence length / audio duration).",
+    )
+    parser.add_argument(
+        "-s",
+        "--sub-buckets",
+        type=int,
+        default=2,
+        help="The desired number of sub-buckets (dim1 => covers output sequence length / num_tokens).",
+    )
     parser.add_argument("--text-field", default="text", help="The key in manifests to read transcripts from.")
     parser.add_argument("--lang-field", default="lang", help="The key in manifests to read language from.")
     parser.add_argument(
@@ -90,7 +107,8 @@ def parse_args():
         "--max_tps",
         type=float,
         default=float("inf"),
-        help="If specified, we'll filter out utterances with more tokens/second than this.",
+        help="If specified, we'll filter out utterances with more tokens/second than this. "
+        "On regular utterances and BPE tokenizers with 1024 tokens 10-12tps is generally a reasonable limit.",
     )
     parser.add_argument(
         "-q", "--quiet", type=bool, default=False, help="When specified, only print the estimated duration bins."
