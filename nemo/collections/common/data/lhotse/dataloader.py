@@ -241,13 +241,14 @@ def get_lhotse_dataloader_from_config(
     # We can filter after the augmentations because they are applied only when calling load_audio().
     cuts = cuts.filter(DurationFilter(config.min_duration, config.max_duration))
 
+    bucket_duration_bins = determine_bucket_duration_bins(config.bucket_duration_bins)
     if config.use_multimodal_sampling:
         if config.bucket_batch_size is not None:
             assert (
-                config.bucket_duration_bins is not None
+                bucket_duration_bins is not None
             ), "Cannot use bucket_batch_size option if bucket_duration_bins are not provided."
             constraint = MultimodalFixedBucketBatchSizeConstraint2D(
-                max_seq_len_buckets=config.bucket_duration_bins,
+                max_seq_len_buckets=bucket_duration_bins,
                 batch_sizes=config.bucket_batch_size,
                 token_equivalent_duration=config.token_equivalent_duration,
             )
@@ -261,10 +262,10 @@ def get_lhotse_dataloader_from_config(
     else:
         if config.bucket_batch_size is not None:
             assert (
-                config.bucket_duration_bins is not None
+                bucket_duration_bins is not None
             ), "Cannot use bucket_batch_size option if bucket_duration_bins are not provided."
             constraint = FixedBucketBatchSizeConstraint2D(
-                max_seq_len_buckets=config.bucket_duration_bins,
+                max_seq_len_buckets=bucket_duration_bins,
                 batch_sizes=config.bucket_batch_size,
             )
         else:
