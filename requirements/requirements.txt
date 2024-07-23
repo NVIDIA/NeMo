@@ -1,5 +1,5 @@
 fiddle
-huggingface_hub>=0.20.3,<0.24.0  # 0.24.0 breaks huggingface_hub imports in 'nemo/core/classes/mixins/hf_io_mixin.py'
+huggingface_hub>=0.20.3,<0.24.0
 numba
 numpy>=1.22
 onnx>=1.7.0
