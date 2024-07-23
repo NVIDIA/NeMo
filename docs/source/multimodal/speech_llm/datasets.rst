@@ -3,6 +3,7 @@ SpechLLM Dataset
 
 The dataset classes can be found on `NeMo GitHub <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/multimodal/speech_llm/data/audio_text_dataset.py>`_.
 
+
 Input Manifest Format
 ------------------------------
 
@@ -66,7 +67,7 @@ Multi-task Training
 
 In order to use a context file, you can set `++model.data.train_ds.context_file=<path to to context file>` in the command line or use multiple context files with `++model.data.train_ds.context_file=[<path to to context file1>,<path to context file2>,...]`. If the number of context files is equal to the number of provided datasets, the dataloader will assigne each context file to a dataset. Otherwise, the dataloader will randomly pick a context file from all provided context files for each audio sample. Using multiple context files is useful for training with multiple tasks, where each task has its own set of prompts. Meanwhile, you can control the weights for different tasks/datasets by using concatentated tarred datasets, where you can assign weights to datasets by:
 
-.. code-block:: yaml
+.. code-block:: bash
 
     ++model.data.train_ds.is_tarred=True \
     ++model.data.train_ds.is_concat=True \
@@ -76,3 +77,33 @@ In order to use a context file, you can set `++model.data.train_ds.context_file=
     ++model.data.train_ds.concat_sampling_probabilities=[0.4,0.6] \
 
 
+
+Use Lhotse Dataloader
+------------------------------
+
+Speech-LLM supports NeMo dataloader and Lhotse dataloader. Most of the Lhotse specific flags can be referred to `Lhotse Dataloader <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/datasets.html#lhotse-dataloading>`.
+Example config can be referred to `Lhotse Speech-LLM examples <https://github.com/NVIDIA/NeMo/blob/main/examples/multimodal/speech_llm/conf/salm/modular_audio_gpt_config_llama_lhotse.yaml>`_.
+
+Lhotse Dataloader also supports using a standalone YAML file to set up the manifest info:
+
+.. code-block:: bash
+
+    ++model.data.train_ds.input_cfg=$INPUT_CFG_FILE \
+
+which points to a $INPUT_CFG_FILE file like the following:
+
+.. code-block:: yaml
+
+    - input_cfg:
+    - manifest_filepath: manifest1.json
+        type: nemo
+        weight: 2.0
+        tags:
+        default_context: "please transcribe the audio"
+    - manifest_filepath: manifest2.json
+        type: nemo
+        weight: 1.0
+        tags:
+        default_context: "please translate English audio to German"
+    type: group
+    weight: 0.4
