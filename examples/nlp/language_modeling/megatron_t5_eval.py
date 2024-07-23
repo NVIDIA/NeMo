@@ -121,8 +121,8 @@ def main():
     )
     model.freeze()
     model.training = False
-    model.add_encoder = False
-    
+    model.add_encoder = None
+
     request = {
         "prompt": args.prompt,
         "tokens_to_generate": args.tokens_to_generate,
