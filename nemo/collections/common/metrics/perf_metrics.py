@@ -3,10 +3,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 from pytorch_lightning.callbacks import Callback
 
-from nemo.collections.common.parts.perf_metrics_utils import (
-    LLM_VOCAB_SIZE_MAP,
-    read_tb_log,
-)
+from nemo.collections.common.parts.perf_metrics_utils import LLM_VOCAB_SIZE_MAP, read_tb_log
 from nemo.utils import logging
 
 __all__ = ["FLOPsMeasurementCallback"]

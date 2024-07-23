@@ -15,6 +15,7 @@ LLM_VOCAB_SIZE_MAP = {
     "mixtral": 32000,
 }
 
+
 def read_tb_log(path: str, summary_name: str) -> List:
     """
     Reads a TensorBoard Events file from the input path, and returns the
