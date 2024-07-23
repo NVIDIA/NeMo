@@ -199,7 +199,7 @@ NeMo will handle creation of data loaders for you, as long as you put your data 
 Model checkpoints
 -----------------
 
-Throughout training, model checkpoints will be saved inside ``.nemo`` files. These are archive files containing all the necessary components to restore a usable model, e.g.:
+Throughout training, model :doc:`checkpoints <../checkpoints/intro>` will be saved inside ``.nemo`` files. These are archive files containing all the necessary components to restore a usable model, e.g.:
 
 * model weights (``.ckpt`` files),
 * model configuration (``.yaml`` files),
