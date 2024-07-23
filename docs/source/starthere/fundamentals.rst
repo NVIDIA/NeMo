@@ -99,9 +99,9 @@ NeMo models are also designed to be easily configurable; often this is done with
 Configuring and training NeMo models
 ------------------------------------
 
-During initialization of the model, a lot of key parameters are read from the config (``cfg``), which gets passed in to the model construtor (left panel above, line 2).
+During initialization of the model, key parameters are read from the config (``cfg``), which gets passed in to the model construtor (left panel above, line 2).
 
-The other object that passed into the constructor is a PyTorch Lightning ``trainer`` object, which handles the training process. The trainer will take care of the standard training `boilerplate <https://lightning.ai/docs/pytorch/stable/common/trainer.html#under-the-hood>`__. For things that are not-standard, PTL will refer to any specific methods that we may have defined in our NeMo model. For example, PTL requires every model to have a specified ``training_step`` method (left panel above, line 15).
+The other object that passed into the constructor is a PyTorch Lightning ``trainer`` object, which handles the training process. The trainer will take care of the standard training `boilerplate <https://lightning.ai/docs/pytorch/stable/common/trainer.html#under-the-hood>`__. For things that are not standard, PTL will refer to any specific methods that we may have defined in our NeMo model. For example, PTL requires every model to have a specified ``training_step`` method (left panel above, line 15).
 
 The configuration of the trainer is also specified in the config (right panel above, line 20 onwards). This will include parameters such as (number of) ``devices``, ``max_steps``, (numerical) ``precision`` and `more <https://lightning.ai/docs/pytorch/stable/common/trainer.html#trainer-class-api>`__.
 
