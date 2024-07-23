@@ -51,14 +51,24 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import (
+        _GLOBAL_NUM_MICROBATCHES_CALCULATOR,
         ConstantNumMicroBatchesCalculator,
+        get_current_global_batch_size,
+        get_micro_batch_size,
+        get_num_microbatches,
         init_num_microbatches_calculator,
     )
 
 except (ImportError, ModuleNotFoundError):
     import apex.transformer.microbatches.ConstantNumMicroBatches as ConstantNumMicroBatchesCalculator
-    from apex.transformer.pipeline_parallel.utils import init_num_microbatches_calculator
-
+    import apex.transformer.pipeline_parallel.utils.setup_microbatch_calculator as init_num_microbatches_calculator
+    from apex.transformer.pipeline_parallel.utils import (
+        _GLOBAL_NUM_MICROBATCHES_CALCULATOR,
+        get_current_global_batch_size,
+        get_micro_batch_size,
+        get_num_microbatches,
+    )
+    
 
 try:
     from apex.transformer.parallel_state import set_virtual_pipeline_model_parallel_world_size
@@ -148,8 +158,6 @@ def initialize_model_parallel_for_nemo(
 
     if global_batch_size and micro_batch_size is not None:
         # TODO: add rampup_batch_size here when we have it implemented
-        from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-
         if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
             init_num_microbatches_calculator(
                 rank=global_rank,
@@ -160,9 +168,9 @@ def initialize_model_parallel_for_nemo(
             )
         else:
             if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
-                assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_global_batch_size == global_batch_size
-                assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.micro_batch_size == micro_batch_size
-                assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.num_micro_batches == global_batch_size // (
+                assert get_current_global_batch_size() == global_batch_size
+                assert get_micro_batch_size() == micro_batch_size
+                assert get_num_microbatches() == global_batch_size // (
                     micro_batch_size * app_state.data_parallel_size
                 )
             else:

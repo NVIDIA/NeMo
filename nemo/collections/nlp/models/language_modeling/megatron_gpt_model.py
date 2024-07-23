@@ -112,10 +112,18 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
-
+    from megatron.core.num_microbatches_calculator import (
+        get_current_global_batch_size,
+        get_num_microbatches,
+        update_num_microbatches,
+    )
+    
 except (ImportError, ModuleNotFoundError):
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import (
+        get_current_global_batch_size,
+        get_num_microbatches,
+        update_num_microbatches,
+    )
 
 try:
     import transformer_engine
@@ -782,10 +790,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.if_init_step = False
 
         if self.rampup_batch_size:
-            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-
-            num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-            current_global_batch_size = num_microbatch_calculator.current_global_batch_size
+            current_global_batch_size = get_current_global_batch_size()
             # do validation and save the checkpoint when gbs is changed
             if self.prev_global_batch_size != current_global_batch_size and self.prev_global_batch_size:
                 self.trainer.should_stop = True
@@ -1669,10 +1674,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.init_global_step = self.trainer.global_step
 
         if self.rampup_batch_size:
-            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-
-            num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-            num_microbatch_calculator.update(self.init_consumed_samples, consistency_check=False)
+            update_num_microbatches(self.init_consumed_samples, consistency_check=False)
             self.prev_consumed_samples = self.init_consumed_samples
 
         if stage == 'predict':
