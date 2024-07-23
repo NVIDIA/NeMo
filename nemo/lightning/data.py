@@ -53,11 +53,17 @@ def setup_microbatch_calculator(
     else:
         init_global_rank = global_rank
 
-    from megatron.core.num_microbatches_calculator import (
-        _GLOBAL_NUM_MICROBATCHES_CALCULATOR,
-        ConstantNumMicroBatchesCalculator,
-        init_num_microbatches_calculator,
-    )
+    try:
+        from megatron.core.num_microbatches_calculator import (
+            _GLOBAL_NUM_MICROBATCHES_CALCULATOR,
+            ConstantNumMicroBatchesCalculator,
+            init_num_microbatches_calculator,
+        )
+
+    except (ImportError, ModuleNotFoundError):
+        import apex.transformer.microbatches.ConstantNumMicroBatches as ConstantNumMicroBatchesCalculator
+        import apex.transformer.pipeline_parallel.utils.setup_microbatch_calculator as init_num_microbatches_calculator
+        from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
     if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
         init_num_microbatches_calculator(

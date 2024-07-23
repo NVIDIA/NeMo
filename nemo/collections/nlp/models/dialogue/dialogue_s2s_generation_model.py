@@ -37,11 +37,8 @@ from nemo.utils.decorators import deprecated_warning
 try:
     from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
 
-    HAVE_MEGATRON_CORE = True
-
 except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
+    import apex.transformer.pipeline_parallel.utils._reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator
 
 __all__ = ['DialogueS2SGenerationModel']
 

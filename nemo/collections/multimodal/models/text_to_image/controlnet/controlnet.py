@@ -46,16 +46,19 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.utils import logging
 
 try:
-    from apex import amp
-    from apex.transformer.enums import AttnMaskType
-
-    HAVE_APEX = True
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
+    
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+    try:
+        from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
+        HAVE_APEX = True
+    except (ImportError, ModuleNotFoundError):
+        
+        HAVE_APEX = False
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
