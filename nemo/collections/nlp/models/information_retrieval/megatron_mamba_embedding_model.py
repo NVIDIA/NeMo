@@ -14,11 +14,9 @@
 
 import torch
 import torch.nn.functional as F
-
 from megatron.core import parallel_state
-from megatron.core.models.mamba import MambaModel, MambaEmbeddingModel
+from megatron.core.models.mamba import MambaEmbeddingModel, MambaModel
 from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
-
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.distributed import all_gather as all_gather_no_backprop
@@ -55,8 +53,6 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
 
         self.bidirectional_sequences = self.cfg.get("bidirectional_sequences", False)
 
-        
-
         # Matryoshka Representation Learning
         # if self.cfg.get("do_mrl", False):
         #     min_mrl = self.cfg.get("min_mrl_dim", int(np.log2(32))) - 1
@@ -80,7 +76,7 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
 
         if self.use_latent_attention:
             model = MambaEmbeddingModel(
-                config=self.transformer_config, 
+                config=self.transformer_config,
                 max_sequence_length=self.cfg.get('encoder_seq_length', 4096),
                 vocab_size=self.cfg.get('vocab_size', 65536),
                 mamba_ssm_ngroups=self.cfg.get('mamba_ssm_ngroups', 8),
@@ -304,7 +300,7 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         else:
             if self.bidirectional_sequences:
                 raise NotImplementedError("Bidirectional sequences are not supported for avg_pool output head")
-            
+
             lengths = loss_mask + 1
             attention_mask = torch.arange(output_tensor.shape[1], device=output_tensor.device).expand(
                 len(lengths), output_tensor.shape[1]
