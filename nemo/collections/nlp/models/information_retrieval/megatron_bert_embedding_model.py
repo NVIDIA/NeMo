@@ -19,9 +19,9 @@ import numpy as np
 
 try:
     from megatron.core import parallel_state
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
 
     HAVE_MEGATRON_CORE = True
 except (ImportError, ModuleNotFoundError):
