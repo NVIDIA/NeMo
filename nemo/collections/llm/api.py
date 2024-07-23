@@ -12,7 +12,7 @@ from nemo.collections.llm.utils import Config, task
 
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
-from nemo.lightning import AutoResume, MegatronStrategy, NeMoLogger, OptimizerModule, Trainer, io, teardown
+from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.export.tensorrt_llm import TensorRTLLM
 from nemo.deploy import DeployPyTriton
 
@@ -260,7 +260,7 @@ def get_trtllm_deployable(nemo_checkpoint, model_type, triton_model_repository, 
 
     if nemo_checkpoint is not None:
         try:
-            #LOGGER.info("Export operation will be started to export the nemo checkpoint to TensorRT-LLM.")
+            logging.info("Export operation will be started to export the nemo checkpoint to TensorRT-LLM.")
             trt_llm_exporter.export(
                 nemo_checkpoint_path=nemo_checkpoint,
                 model_type=model_type,
@@ -312,7 +312,7 @@ def deploy(
 ):
     if start_rest_service:
         if triton_port == rest_service_port:
-            raise ValueError("REST service port and Triton server port cannot use the same port.")
+            logging.error("REST service port and Triton server port cannot use the same port.")
             return
         # Store triton ip, port and other args relevant for REST API in config.json to be accessible by rest_model_api.py
         store_args_to_json(triton_http_address, triton_port, triton_request_timeout, openai_format_response)
@@ -331,17 +331,17 @@ def deploy(
             address=triton_http_address
         )
 
-        print("Triton deploy function will be called.")
+        logging.info("Triton deploy function will be called.")
         nm.deploy()
     except Exception as error:
-        print("Error message has occurred during deploy function. Error message: " + str(error))
+        logging.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
 
     try:
-        print("Model serving on Triton is will be started.")
+        logging.info("Model serving on Triton is will be started.")
         if start_rest_service:
             try:
-                print(("REST service will be started."))
+                logging.info("REST service will be started.")
                 uvicorn.run(
                     'nemo.deploy.service.rest_model_api:app',
                     host=rest_service_http_address,
@@ -349,13 +349,13 @@ def deploy(
                     reload=True,
                 )
             except Exception as error:
-                print("Error message has occurred during REST service start. Error message: " + str(error))
+                logging.error("Error message has occurred during REST service start. Error message: " + str(error))
         nm.serve()
     except Exception as error:
-        print("Error message has occurred during deploy function. Error message: " + str(error))
+        logging.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
 
-    print("Model serving will be stopped.")
+    logging.info("Model serving will be stopped.")
     nm.stop()
 
 @task(name="import", namespace="llm")
