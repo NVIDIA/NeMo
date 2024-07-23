@@ -71,7 +71,7 @@ class LhotseDataLoadingConfig:
     bucket_batch_size: list[int] | None = None
     num_buckets: int = 30
     num_cuts_for_bins_estimate: int = 10000
-    bucket_duration_bins: list[float] | None = None
+    bucket_duration_bins: list[float] | list[list[float]] | None = None
     bucket_buffer_size: int = 10000
     concurrent_bucketing: bool = True  # fetches data in a background thread
     #   d. Other Lhotse sampling options.
@@ -246,7 +246,7 @@ def get_lhotse_dataloader_from_config(
             assert (
                 config.bucket_duration_bins is not None
             ), "Cannot use bucket_batch_size option if bucket_duration_bins are not provided."
-            constraint = MultimodalFixedBucketBatchSizeConstraint(
+            constraint = MultimodalFixedBucketBatchSizeConstraint2D(
                 max_seq_len_buckets=config.bucket_duration_bins,
                 batch_sizes=config.bucket_batch_size,
                 token_equivalent_duration=config.token_equivalent_duration,
@@ -263,7 +263,7 @@ def get_lhotse_dataloader_from_config(
             assert (
                 config.bucket_duration_bins is not None
             ), "Cannot use bucket_batch_size option if bucket_duration_bins are not provided."
-            constraint = FixedBucketBatchSizeConstraint(
+            constraint = FixedBucketBatchSizeConstraint2D(
                 max_seq_len_buckets=config.bucket_duration_bins,
                 batch_sizes=config.bucket_batch_size,
             )
@@ -472,10 +472,23 @@ class MultimodalSamplingConstraint(SamplingConstraint):
         raise RuntimeError(f"Unsupported example type: {type(example)}")
 
 
-class MultimodalFixedBucketBatchSizeConstraint(FixedBucketBatchSizeConstraint):
+class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
+    @property
+    def bucketing_2d_enabled(self) -> bool:
+        return isinstance(self.max_seq_len_buckets[0], (list, tuple)) and len(self.max_seq_len_buckets[0]) == 2
+
+    def measure_length(self, example: Any) -> tuple[float, float]:
+        if self.bucketing_2d_enabled:
+            return example.duration, _measure_tokens(example)
+        else:
+            return example.duration
+
+
+class MultimodalFixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint2D):
     token_equivalent_duration: float | None = None
 
     def measure_length(self, example: Any) -> float:
+        assert not self.bucketing_2d_enabled, "2D bucketing for multimodal sampling is not yet supported."
         if hasattr(example, "num_tokens"):
             return example.num_tokens
         if isinstance(example, Cut):
@@ -483,32 +496,6 @@ class MultimodalFixedBucketBatchSizeConstraint(FixedBucketBatchSizeConstraint):
                 self.token_equivalent_duration is not None
             ), "Cannot use MultimodalFixedBucketBatchSizeConstraint with speech data when token_equivalent_duration was not specified."
             return example.duration / self.token_equivalent_duration
-        raise RuntimeError(f"Unsupported example type: {type(example)}")
-
-
-class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
-    def __post_init__(self):
-        assert all(isinstance(item, tuple) and len(item) == 2 for item in self.max_seq_len_buckets), (
-            f"2D bucketing requires the buckets to be specified as tuples of (input_seq_len, output_seq_len). "
-            f"We received {self.max_seq_len_buckets}."
-        )
-        assert sorted(self.max_seq_len_buckets) == list(self.max_seq_len_buckets)
-
-    def measure_length(self, example: Any) -> tuple[float, float]:
-        return example.duration, _measure_tokens(example)
-
-
-class MultimodalFixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint2D):
-    token_equivalent_duration: float | None = None
-
-    def measure_length(self, example: Any) -> tuple[float, float]:
-        if isinstance(example, Cut):
-            assert (
-                self.token_equivalent_duration is not None
-            ), "Cannot use MultimodalFixedBucketBatchSizeConstraint with speech data when token_equivalent_duration was not specified."
-            return example.duration / self.token_equivalent_duration, _measure_tokens(example)
-        elif isinstance(example, TextPairExample):
-            return example.source.num_tokens, example.target.num_tokens
         raise RuntimeError(f"Unsupported example type: {type(example)}")
 
 

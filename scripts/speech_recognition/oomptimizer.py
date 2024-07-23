@@ -212,8 +212,9 @@ class FloatList(click.Option):
     "-l",
     "--labels-per-second",
     type=int,
-    default=15,  # conservative estimate towards longer transcripts
-    help="How many labels/second should we simulate. More means longer output text sequences, and can increase memory consumption.",
+    default=12,  # conservative estimate towards longer transcripts
+    help="How many labels/second should we simulate. More means longer output text sequences, and can increase memory consumption. "
+    "This argument is ignored when 2D buckets are provided to --buckets option.",
 )
 @click.option(
     "-f",
@@ -295,7 +296,7 @@ def oomptimizer(
         model_cls = getattr(importlib.import_module(namespace), name)
         model = model_cls(cfg=cfg.model, trainer=trainer).to(device)
 
-    # TODO(pzelasko): ideally move into model @property e.g. "oomptimizer_schema" :D
+    # TODO(pzelasko): ideally move into model @property e.g. "oomptimizer_schema"
     schema = [
         {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
         {"type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
@@ -314,6 +315,11 @@ def oomptimizer(
     print("Setting up the optimizers.")
     optimizer, _ = model.setup_optimization({"name": optimizer_name, "lr": 1e-7, "weight_decay": 0.0})
 
+    is_2d_bucketing = all(
+        isinstance(item, (list, tuple)) and len(item) == 2 and all(isinstance(v, Number) for v in item)
+        for item in buckets
+    )
+
     def get_max_seq_lens(buckets):
         # TODO(pzelasko): support text data inputs.
         if all(isinstance(item, Number) for item in buckets):
@@ -325,12 +331,8 @@ def oomptimizer(
                 )
                 for dur in buckets
             ]
-        else:
+        elif is_2d_bucketing:
             # 2D bucketing on both input and output sequence lengths.
-            assert all(
-                isinstance(item, tuple) and len(item) == 2 and all(isinstance(v, Number) for v in item)
-                for item in buckets
-            ), "The passed buckets list is invalid, we expected either 1D or 2D buckets."
             return [
                 (
                     compute_num_samples(dur, sampling_rate=16000),  # num_samples
@@ -338,6 +340,8 @@ def oomptimizer(
                 )
                 for dur, toks in buckets
             ]
+        else:
+            raise RuntimeError("The passed buckets list is invalid, we expected either 1D or 2D buckets.")
 
     print("Starting profiling.")
     max_seq_lens = get_max_seq_lens(buckets)
@@ -353,11 +357,17 @@ def oomptimizer(
             batch = gen(seq_len_in, seq_len_out)
             oom = False
             try:
-                print(f"Current gap: {gen.current_rel_gap}. Attempting shapes: {[b.shape for b in batch]}", end=" ")
+                print(f"\tCurrent gap: {gen.current_rel_gap}. Attempting shapes: {[b.shape for b in batch]}", end=" ")
                 optimizer.zero_grad()
                 model.training_step(batch, batch_idx)
                 optimizer.step()
-            except torch.cuda.OutOfMemoryError:
+            except torch.cuda.OutOfMemoryError as e:
+                print(f"- OOM!")
+                torch.cuda.memory.empty_cache()
+                oom = True
+            except RuntimeError as e:
+                if "cuFFT error: CUFFT_INTERNAL_ERROR" not in str(e):
+                    raise
                 print(f"- OOM!")
                 torch.cuda.memory.empty_cache()
                 oom = True
@@ -370,29 +380,40 @@ def oomptimizer(
             while not (finished := gen.advance(oom)):
                 oom = step()
 
-        print(f"Optimal setting for input={seq_len_in} output={seq_len_out} is max_batch_size={gen.max_batch_size}")
-        profile[(bucket, seq_len_in, seq_len_out)] = gen.max_batch_size
+        print(
+            f"=> Optimal setting for bucket={bucket} (input={seq_len_in} output={seq_len_out}) is max_batch_size={gen.max_batch_size}"
+        )
+        profile[(tuple(bucket), seq_len_in, seq_len_out)] = gen.max_batch_size
         gen.start_batch_size = gen.max_batch_size
 
     print("The 1st stage profile is:")
     for (bucket, seq_len_in, seq_len_out), bs in profile.items():
         print(f"Bucket={bucket} (input={seq_len_in} output={seq_len_out}) => max_batch_size={bs}")
 
-    print("Bucket merging stage...")
-    final_profile = []
-    for idx, ((bucket, seq_len_in, seq_len_out), bs) in enumerate(profile.items()):
-        if idx == 0:
+    if is_2d_bucketing:
+        # 2D bucketing doesn't support bucket merging.
+        final_profile = [["[" + ",".join(map(str, b)) + "]", bs] for (b, _, __), bs in profile.items()]
+        max_duration, max_tokens = final_profile[-1][0]
+        labels_per_second = max_tokens / max_duration
+    else:
+        print("Bucket merging stage...")
+        final_profile = []
+        for idx, ((bucket, seq_len_in, seq_len_out), bs) in enumerate(profile.items()):
+            if idx == 0:
+                final_profile.append([bucket, bs])
+                continue
+            if bs == final_profile[-1][1]:
+                print(f"Merging bucket {idx} with bucket {idx-1} due to identical batch sizes.")
+                final_profile[-1][0] = bucket
+                continue
             final_profile.append([bucket, bs])
-            continue
-        if bs == final_profile[-1][1]:
-            print(f"Merging bucket {idx} with bucket {idx-1} due to identical batch sizes.")
-            final_profile[-1][0] = bucket
-            continue
-        final_profile.append([bucket, bs])
+        max_duration = final_profile[-1][0]
 
     print("The final profile is:")
     print("\tbucket_duration_bins=[", ",".join(str(seqlen) for seqlen, bs in final_profile), "]", sep="")
     print("\tbucket_batch_size=[", ",".join(str(bs) for seqlen, bs in final_profile), "]", sep="")
+    print(f"\tmax_tps={labels_per_second}")
+    print(f"\tmax_duration={max_duration}")
 
 
 if __name__ == "__main__":
