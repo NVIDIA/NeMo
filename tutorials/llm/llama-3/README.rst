@@ -4,14 +4,14 @@ Getting Started with Llama 3
 
 This repository contains jupyter notebook tutorials for Llama-3 and Llama-3.1 models by Meta.
 
-.. list-table:: Llama-3 Tutorials
-   :widths: 50 25 100
+.. list-table:: 
+   :widths: 100 25 100
    :header-rows: 1
 
    * - Tutorial
      - Dataset
      - Description
-   * - `Llama 3 LoRA Fine-Tuning and Multi-LoRA Deployment with NeMo Framework and NVIDIA NIM <./pubmedqa>`_
+   * - `Llama 3 LoRA Fine-Tuning and Multi-LoRA Deployment with NeMo Framework and NVIDIA NIM <./biomedical-qa>`_
      - `PubMedQA <https://pubmedqa.github.io/>`_
      - Perform LoRA PEFT on Llama 3 8B Instruct using a dataset for bio-medical domain question answering. Deploy multiple LoRA adapters with NVIDIA NIM.
    * - `Llama 3.1 Law-Domain LoRA Fine-Tuning and Deployment with NeMo Framework and NVIDIA NIM <./sdg-law-title-generation>`_

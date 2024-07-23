@@ -36,7 +36,7 @@ Requirements
 
 * `Authenticate with NVIDIA NGC <https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#ngc-authentication>`_, and download `NGC CLI Tool <https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#ngc-cli-tool>`_. You will use this tool to download the model and customize it with NeMo Framework.
 
-* Have a Hugging Face `access token <https://huggingface.co/docs/hub/en/security-tokens>`_, which will be used to obtain the tokenizer required during training.
+* Get your Hugging Face `access token <https://huggingface.co/docs/hub/en/security-tokens>`_, which will be used to obtain the tokenizer required during training.
 
 
 `Process the Dataset with NeMo Curator <https://github.com/NVIDIA/NeMo-Curator/tree/main/tutorials/peft-curation-with-sdg>`__
@@ -128,7 +128,7 @@ Ensure that the LoRA model store directory follows this structure: the model nam
 
 Note that NIM supports deployment of multiple LoRA adapters over the same base model. As such, if you have any other adapters for other tasks trained or available, you can place them in separate sub-folders under `$LOCAL_PEFT_DIRECTORY`.
 
-3. Set-up NIM.
+2. Set-up NIM.
 
 From your host OS environment, start the NIM docker container while mounting the LoRA model store, as follows:
 
@@ -164,7 +164,7 @@ From your host OS environment, start the NIM docker container while mounting the
 The first time you run the command, it will download the model and cache it in ``$NIM_CACHE_PATH`` so subsequent deployments are even faster. There are several options to configure NIM other than the ones listed above. You can find a full list in the `NIM configuration <https://docs.nvidia.com/nim/large-language-models/latest/configuration.html>`__ documentation.
 
 
-4. Start the notebook.
+3. Start the notebook.
 
 From another terminal, follow the same instructions as the previous notebook to launch Jupyter Lab, and then navigate to `this notebook <./llama3-sdg-lora-deploy-nim.ipynb>`__.
 
