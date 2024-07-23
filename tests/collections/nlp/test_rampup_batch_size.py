@@ -16,13 +16,12 @@ import os
 
 import pytest
 import torch
+from megatron.core.num_microbatches_calculator import get_num_microbatches, update_num_microbatches_calculator
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
-
-from megatron.core.num_microbatches_calculator import get_num_microbatches, update_num_microbatches_calculator
 
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
