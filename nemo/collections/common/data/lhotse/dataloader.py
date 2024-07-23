@@ -474,6 +474,13 @@ class MultimodalSamplingConstraint(SamplingConstraint):
 
 
 class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
+    def __post_init__(self):
+        super().__post_init__()
+        if self.bucketing_2d_enabled:
+            # Ensure we're using tuples for correct behaviour of '<' operator
+            # between the bucket bin tuples and the output of measure_length.
+            self.max_seq_len_buckets = [tuple(item) for item in self.max_seq_len_buckets]
+
     @property
     def bucketing_2d_enabled(self) -> bool:
         return isinstance(self.max_seq_len_buckets[0], (list, tuple)) and len(self.max_seq_len_buckets[0]) == 2
