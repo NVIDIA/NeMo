@@ -28,14 +28,14 @@ To use MoE  in the NeMo Framework, adjust the ``num_moe_experts`` parameter in t
 
        num_moe_experts: 8  # Set MoE to use 8 experts
 
-2. Set ``moe_router_topk`` to the number of experts you want activated, for eaxmple if you want to process each input with two experts:
+2. Set ``moe_router_topk`` to the number of experts you want activated. For example, if you want to process each input with two experts:
 
    .. code-block:: yaml
 
        moe_router_topk: 2  # Processes each token using 2 experts.
 
-In addition NeMo provides options to configure MoE-specific loss function, for example to balance token
-distribution across experts:
+In addition, NeMo provides options to configure MoE-specific loss function.
+To balance token distribution across experts:
 
 1. Set ``moe_router_load_balancing_type`` to specify the load balancing method:
 
@@ -43,13 +43,13 @@ distribution across experts:
 
       moe_router_load_balancing_type: aux_loss  # to use the auxilary loss, other options include "sinkhorn".
 
-2. Set ``moe_aux_loss_coeff`` to specify the weight of the auxilary loss, values in the 1e-2 range are a good start:
+2. Set ``moe_aux_loss_coeff`` to specify the weight of the auxilary loss. Values in the 1e-2 range are a good start, as follows:
 
    .. code-block:: yaml
 
       moe_aux_loss_coeff: 1e-2  # set the aux-loss weight to 1e-2
 
-3. Set ``moe_z_loss_coeff`` to specify the weight of the z-loss, a starting value of 1e-3 is recommended:
+3. Set ``moe_z_loss_coeff`` to specify the weight of the z-loss. A starting value of 1e-3 is recommended, as follows:
 
    .. code-block:: yaml
 
@@ -57,7 +57,7 @@ distribution across experts:
 
 Other options include:
 
-1. ``moe_input_jitter_eps`` adds noise to the input tensor by applying jitter with a specified epsilon value
+1. ``moe_input_jitter_eps`` adds noise to the input tensor by applying jitter with a specified epsilon value.
 
 2. ``moe_token_dropping`` enables selectively dropping and padding tokens for each expert to achieve
    a specified capacity.
