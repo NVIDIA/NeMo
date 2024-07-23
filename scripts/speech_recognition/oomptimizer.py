@@ -2,6 +2,7 @@
 import importlib
 import math
 import sys
+from numbers import Number
 
 import click
 import pytorch_lightning as pl
@@ -195,7 +196,9 @@ class FloatList(click.Option):
     "--buckets",
     cls=FloatList,
     default=[5.0, 10.0, 15.0, 20.0, 25.0, 30.0],
-    help="List of upper-bound bucket bins (i.e. first bucket is [0.0 - item0), second bucket is [item0 - item1), etc.)",
+    help="List of upper-bound bucket bins (i.e. first bucket is [0.0 - item0), second bucket is [item0 - item1), etc.). "
+    "We also support a nested list for 2D bucketing, e.g. [[2.0, 10],[2.0,20],[4.5,15],[4.5,30],...], "
+    "where each item is a pair of (max_input_seq_len, max_output_seq_len) for a given bucket.",
 )
 @click.option(
     "-t",
@@ -313,13 +316,28 @@ def oomptimizer(
 
     def get_max_seq_lens(buckets):
         # TODO(pzelasko): support text data inputs.
-        return [
-            (
-                compute_num_samples(d, sampling_rate=16000),  # num_samples
-                math.ceil(labels_per_second * d),  # num_labels; might need to go data-driven for optimal tuning
-            )
-            for d in buckets
-        ]
+        if all(isinstance(item, Number) for item in buckets):
+            # Regular bucketing on input sequence length (1D).
+            return [
+                (
+                    compute_num_samples(dur, sampling_rate=16000),  # num_samples
+                    math.ceil(labels_per_second * dur),  # num_labels; might need to go data-driven for optimal tuning
+                )
+                for dur in buckets
+            ]
+        else:
+            # 2D bucketing on both input and output sequence lengths.
+            assert all(
+                isinstance(item, tuple) and len(item) == 2 and all(isinstance(v, Number) for v in item)
+                for item in buckets
+            ), "The passed buckets list is invalid, we expected either 1D or 2D buckets."
+            return [
+                (
+                    compute_num_samples(dur, sampling_rate=16000),  # num_samples
+                    toks,  # num labels is given by bucket definition in 2D bucketing.
+                )
+                for dur, toks in buckets
+            ]
 
     print("Starting profiling.")
     max_seq_lens = get_max_seq_lens(buckets)

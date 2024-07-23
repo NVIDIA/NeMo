@@ -488,10 +488,7 @@ class MultimodalFixedBucketBatchSizeConstraint(FixedBucketBatchSizeConstraint):
 
 class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
     def __post_init__(self):
-        assert all(
-            isinstance(item, tuple) and len(item) == 2 and isinstance(item[0], float) and isinstance(item[1], float)
-            for item in self.max_seq_len_buckets
-        ), (
+        assert all(isinstance(item, tuple) and len(item) == 2 for item in self.max_seq_len_buckets), (
             f"2D bucketing requires the buckets to be specified as tuples of (input_seq_len, output_seq_len). "
             f"We received {self.max_seq_len_buckets}."
         )
