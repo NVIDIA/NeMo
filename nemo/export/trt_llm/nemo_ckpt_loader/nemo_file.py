@@ -25,9 +25,9 @@ import tensorstore  # This is important even though not used. Otherwise zarr rai
 import torch
 import yaml
 import zarr
+from tensorrt_llm._utils import np_bfloat16
 from torch.distributed.checkpoint import FileSystemReader, TensorStorageMetadata
 from torch.distributed.checkpoint.state_dict_loader import load_state_dict
-from tensorrt_llm._utils import np_bfloat16
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
@@ -230,6 +230,9 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(nemo_dir, load_checkpoints_to_cpu=True)
 
         dist_ckpt_folder = nemo_dir / "model_weights"
+        if not dist_ckpt_folder.exists():
+            dist_ckpt_folder = nemo_dir
+
         if dist_ckpt_folder.exists():
             model = load_sharded_metadata(dist_ckpt_folder)
             nemo_model_config = unpacked_checkpoint_dir.model_config
