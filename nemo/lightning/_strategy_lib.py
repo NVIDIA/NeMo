@@ -18,6 +18,18 @@ if TYPE_CHECKING:
 class SharedStateDictProtocol(Protocol):
     def sharded_state_dict(self, prefix=""): ...
 
+def extract_parallel_size_args(config):
+    """
+    Extracts from a config all options that end with _parallel_size, ie
+    [
+     'context_parallel_size',
+     'expert_model_parallel_size',
+     'pipeline_model_parallel_size',
+     'tensor_model_parallel_size',
+     'virtual_pipeline_model_parallel_size'
+    ]
+    """
+    return {k: getattr(config, k) for k in filter(lambda x: x.endswith('_parallel_size'), config)}
 
 def init_parallel_ranks(
     world_size: int,
@@ -60,13 +72,11 @@ def init_parallel_ranks(
         world_size=init_world_size,
         global_rank=init_global_rank,
         local_rank=init_local_rank,
-        tensor_model_parallel_size=parallel_config.tensor_model_parallel_size,
-        pipeline_model_parallel_size=parallel_config.pipeline_model_parallel_size,
-        virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
         seed=seed,
         pipeline_model_parallel_split_rank=getattr(parallel_config, "pipeline_model_parallel_split_rank", None),
         use_fp8=fp8,
         init_mpi_proc_group=getattr(parallel_config, "ub_tp_comm_overlap", False),
+        **extract_parallel_size_args(parallel_config),
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
@@ -88,10 +98,8 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
         parallel_state.destroy_model_parallel()
         if torch.distributed.is_initialized():
             parallel_state.initialize_model_parallel(
-                tensor_model_parallel_size=app_state.tensor_model_parallel_size,
-                pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
-                virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                **extract_parallel_size_args(parallel_config),
             )
 
             # assert that fake tp and pp rank match after model parallel init
