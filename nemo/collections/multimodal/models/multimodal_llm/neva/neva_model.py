@@ -481,7 +481,7 @@ class NevaBaseModel:
             from transformers import AutoConfig
 
             config = AutoConfig.from_pretrained(mm_cfg.vision_encoder.from_pretrained)
-            if config.architectures[0] == "CLIPVisionModel":
+            if config.architectures[0] == "CLIPVisionModel" or config.architectures[0] == "CLIPModel":
                 vision_encoder = CLIPVisionModel.from_pretrained(
                     mm_cfg.vision_encoder.from_pretrained,
                     torch_dtype=torch.bfloat16,
@@ -491,7 +491,7 @@ class NevaBaseModel:
                     for param in vision_encoder.parameters():
                         param.requires_grad = False
                     vision_encoder = vision_encoder.eval()
-            elif config.architectures[0] == "SiglipVisionModel":
+            elif config.architectures[0] == "SiglipVisionModel" or config.architectures[0] == "SiglipModel":
                 vision_encoder = SiglipVisionModel.from_pretrained(
                     mm_cfg.vision_encoder.from_pretrained,
                     torch_dtype=torch.bfloat16,
