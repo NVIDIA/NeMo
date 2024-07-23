@@ -51,7 +51,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
-    
+
 try:
     from megatron.core.num_microbatches_calculator import get_num_microbatches
 except (ImportError, ModuleNotFoundError):

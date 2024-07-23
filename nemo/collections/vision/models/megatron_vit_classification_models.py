@@ -56,6 +56,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
+
 class VitClassificationModel(MegatronModule):
     """Vision Transformer Model."""
 
