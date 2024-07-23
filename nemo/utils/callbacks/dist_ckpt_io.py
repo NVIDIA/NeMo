@@ -242,7 +242,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
                 it should be provided separately. Defaults to False.
         """
         return cls(
-            save_ckpt_format=model_cfg.get('dist_ckpt_format', 'zarr'),
+            save_ckpt_format=model_cfg.get('dist_ckpt_format', 'torch_dist'),
             load_directly_on_device=model_cfg.get('dist_ckpt_load_on_device', True),
             load_strictness=model_cfg.get('dist_ckpt_load_strictness', None),
             async_save=async_save,
