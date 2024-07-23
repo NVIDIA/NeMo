@@ -229,8 +229,8 @@ class ExpManagerConfig:
     # Fault tolrance
     create_fault_tolerance_callback: Optional[bool] = False
     fault_tolerance: Optional[FaultToleranceParams] = field(default_factory=FaultToleranceParams)
-    # logs TFLOPs per sec per gpu and MFU
-    log_mfu: Optional[bool] = True
+    # logs TFLOPs per sec per gpu
+    log_tflops_per_sec_per_gpu: Optional[bool] = True
 
 
 class TimingCallback(Callback):
@@ -585,10 +585,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 'FaultToleranceCallback was enabled with create_fault_tolerance_callback, but fault_tolerance package is not installed.'
             )
 
-    if cfg.log_mfu:
+    if cfg.log_tflops_per_sec_per_gpu:
         logging.info(
-            "TFLOPs per sec GPU and Model FLOPs Utilization (MFU%) will be calculated if possible based on \
-                     GPU type, training precision and supported models. Values will default to -1 upon failure."
+            "TFLOPs per sec per GPU will be calculated, conditioned on supported models. Defaults to -1 upon failure."
         )
 
     if is_global_rank_zero():

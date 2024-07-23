@@ -175,7 +175,7 @@ class MegatronTrainerBuilder:
         if self.cfg.get('exp_manager', {}).get('checkpoint_callback_params', {}).get('async_save', False):
             callbacks.append(AsyncFinalizerCallback())
 
-        if self.cfg.get('exp_manager', {}).get('log_mfu', True):
+        if self.cfg.get('exp_manager', {}).get('log_tflops_per_sec_per_gpu', True):
             callbacks.append(FLOPsMeasurementCallback(self.cfg))
 
         return callbacks

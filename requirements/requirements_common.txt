@@ -1,6 +1,5 @@
 datasets
 inflect
 pandas
-pynvml
 sacremoses>=0.0.43
 sentencepiece<1.0.0

@@ -4,9 +4,7 @@ import numpy as np
 from pytorch_lightning.callbacks import Callback
 
 from nemo.collections.common.parts.perf_metrics_utils import (
-    GPU_HW_FLOPS_MAP,
     LLM_VOCAB_SIZE_MAP,
-    get_gpu_name,
     read_tb_log,
 )
 from nemo.utils import logging
@@ -34,8 +32,6 @@ class FLOPsMeasurementCallback(Callback):
             'explicit_log_dir' in model_config. Defaults to None.
         model_name (Optional[str]): If present, will override 'name' under 'run' in model_config.
             Defaults to None.
-        gpu_name (Optional[str]): If present, do not try to assess gpu name using NVML (pynvml package).
-            Defaults to None.
     """
 
     higher_is_better = True
@@ -45,12 +41,10 @@ class FLOPsMeasurementCallback(Callback):
         model_config: Dict[str, Any],
         log_dir: Optional[str] = None,
         model_name: Optional[str] = None,
-        gpu_name: Optional[str] = None,
     ):
         self.cfg = model_config
         self.log_dir = log_dir
         self.model = model_name
-        self.gpu_name = gpu_name
 
         self.run_cfg = self.cfg.get('run', {})
         self.exp_cfg = self.cfg.get('exp_manager', {})
@@ -78,10 +72,9 @@ class FLOPsMeasurementCallback(Callback):
 
     def on_train_end(self, trainer, pl_module):
         """
-        PyTorch Lightning callback hook to calculate TFLOPs per sec per GPU
-        and MFU (in %) after training
+        PyTorch Lightning callback hook to calculate TFLOPs per sec per GPU after training
         """
-        tflops_per_sec_per_gpu, mfu = -1, -1
+        tflops_per_sec_per_gpu = -1
         try:
             if "peft" in self.cfg["model"]:
                 raise NotImplementedError("FLOPs measurement not supported for finetuning jobs")
@@ -91,17 +84,8 @@ class FLOPsMeasurementCallback(Callback):
         except Exception as exc:
             logging.error(f"Failed to calculate TFLOPs per sec per GPU.\n{exc}")
 
-        if tflops_per_sec_per_gpu != -1:
-            try:
-                mfu = self.eval_mfu(tflops_per_sec_per_gpu)
-            except Exception as exc:
-                logging.error(f"Failed to calculate MFU.\n{exc}")
-
         logging.info(f"TFLOPs per sec per GPU={tflops_per_sec_per_gpu:.2f}")
         pl_module.logger.experiment.add_scalar("tflops_per_sec_per_gpu", tflops_per_sec_per_gpu)
-
-        logging.info(f"Model FLOPs Utilization (MFU)={mfu:.2f} %")
-        pl_module.logger.experiment.add_scalar("model_flops_utilization", mfu)
 
     def eval_tflops_per_sec_per_gpu(self, train_step_time: List | float | int) -> float:
         """
@@ -148,30 +132,6 @@ class FLOPsMeasurementCallback(Callback):
         flops_per_gpu = total_flops / (self.num_nodes * self.num_gpus_per_node)
 
         return total_flops, flops_per_gpu
-
-    def eval_mfu(self, tflops_per_sec_per_gpu):
-        """
-        Evaluate Model FLOPs Utilization for given hardware
-        Hardware FLOPs assume Tensor Core and dense computation
-        """
-        if self.gpu_name is None:
-            self.gpu_name = get_gpu_name()
-        self.gpu_name = self.gpu_name.lower()
-        if self.gpu_name not in GPU_HW_FLOPS_MAP:
-            raise KeyError(f"Missing hardware FLOPs for {self.gpu_name=}")
-
-        if self.model_cfg.get("fp8", False):
-            precision = "fp8"
-        else:
-            precision = self.train_cfg.get("precision", "").lower()
-
-        hw_flops = GPU_HW_FLOPS_MAP[self.gpu_name].get(precision, -1)
-        if hw_flops == -1:
-            raise KeyError(f"Missing hardware FLOPs for {precision=}")
-
-        logging.info(f"GPU={self.gpu_name}, compute {precision=}")
-
-        return 100 * (tflops_per_sec_per_gpu / hw_flops)
 
     def _gpt3(self):
         """Model FLOPs for GPT3 family"""
