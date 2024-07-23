@@ -473,6 +473,7 @@ class MultimodalSamplingConstraint(SamplingConstraint):
         raise RuntimeError(f"Unsupported example type: {type(example)}")
 
 
+@dataclass
 class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
     def __post_init__(self):
         super().__post_init__()
@@ -492,6 +493,7 @@ class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
             return example.duration
 
 
+@dataclass
 class MultimodalFixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint2D):
     token_equivalent_duration: float | None = None
 
