@@ -3,127 +3,92 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
-import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.fn.activation import openai_gelu
+from nemo.collections.llm.models.gpt.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 
 if TYPE_CHECKING:
-    from transformers import LlamaConfig as HFLlamaConfig
-    from transformers import LlamaForCausalLM
+    from transformers import GemmaForCausalLM
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
-# Note: these Llama configs are copied from the corresponding HF model. You may need to modify the parameter for
+# Note: Gemma requires huggingface transformers >= 4.38
+# Note: these Gemma configs are copied from the corresponding HF model. You may need to modify the parameter for
 # your own needs, in particular: seq_length and rotary_base.
 @dataclass
-class LlamaConfig(GPTConfig):
+class GemmaConfig(GPTConfig):
     # configs that are common across model sizes
     normalization: str = "RMSNorm"
-    activation_func: Callable = F.silu
+    activation_func: Callable = openai_gelu
     gated_linear_unit: bool = True
     position_embedding_type: str = "rope"
     add_bias_linear: bool = False
-    seq_length: int = 4096
-
-
-@dataclass
-class Llama2Config7B(LlamaConfig):
-    num_layers: int = 32
-    hidden_size: int = 4096
-    num_attention_heads: int = 32
-    num_query_groups: int = 32
-    ffn_hidden_size: int = 11008
-
-
-@dataclass
-class Llama2Config13B(LlamaConfig):
-    num_layers: int = 40
-    hidden_size: int = 5120
-    num_attention_heads: int = 40
-    num_query_groups: int = 40
-    ffn_hidden_size: int = 13824
-
-
-@dataclass
-class Llama2Config70B(LlamaConfig):
-    num_layers: int = 80
-    hidden_size: int = 8192
-    num_attention_heads: int = 64
-    num_query_groups: int = 8
-    ffn_hidden_size: int = 28672
-
-
-@dataclass
-class Llama3Config8B(Llama2Config7B):
     seq_length: int = 8192
-    num_query_groups: int = 8
-    ffn_hidden_size: int = 14336
+    kv_channels: int = 256
+    share_embeddings_and_output_weights: bool = True
+    # Note: different behavior compared to Legacy NeMo
+    # Legacy NeMo does not set layernorm_zero_centered_gamma and instead adds 1 in the HF -> NeMo conversion script
+    # The present implementation is more in line with the official implementation
+    layernorm_zero_centered_gamma: bool = True
 
 
 @dataclass
-class Llama3Config70B(Llama2Config70B):
-    seq_length: int = 8192
+class GemmaConfig2B(GemmaConfig):
+    num_layers: int = 18
+    hidden_size: int = 2048
+    num_attention_heads: int = 8
+    num_query_groups: int = 1
+    ffn_hidden_size: int = 16384
 
 
 @dataclass
-class CodeLlamaConfig7B(Llama2Config7B):
-    rotary_base: int = 1_000_000
-    seq_length: int = 16384
+class GemmaConfig7B(GemmaConfig):
+    num_layers: int = 28
+    hidden_size: int = 3072
+    num_attention_heads: int = 16
+    num_query_groups: int = 16
+    ffn_hidden_size: int = 24576
 
 
-@dataclass
-class CodeLlamaConfig13B(Llama2Config13B):
-    rotary_base: int = 1_000_000
-    seq_length: int = 16384
-
-
-@dataclass
-class CodeLlamaConfig34B(LlamaConfig):
-    num_layers: int = 48
-    hidden_size: int = 8192
-    num_attention_heads: int = 64
-    num_query_groups: int = 8
-    ffn_hidden_size: int = 22016
-    rotary_base: int = 1_000_000
-    seq_length: int = 16384
-
-
-@dataclass
-class CodeLlamaConfig70B(Llama2Config70B):
+class CodeGemmaConfig2B(GemmaConfig2B):
     pass
 
 
-class LlamaModel(GPTModel):
+class CodeGemmaConfig7B(GemmaConfig7B):
+    pass
+
+
+class GemmaModel(GPTModel):
     def __init__(
         self,
-        config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
+        config: Annotated[Optional[GemmaConfig], Config[GemmaConfig]] = None,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(config or GemmaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
 
-@io.model_importer(LlamaModel, "hf")
-class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
-    def init(self) -> LlamaModel:
-        return LlamaModel(self.config, tokenizer=self.tokenizer)
+@io.model_importer(GemmaModel, "hf")
+class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
+    def init(self) -> GemmaModel:
+        return GemmaModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
-        from transformers import LlamaForCausalLM
+        from transformers import GemmaForCausalLM
 
-        source = LlamaForCausalLM.from_pretrained(str(self))
+        source = GemmaForCausalLM.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Llama model to Nemo, model saved to {output_path}")
+        print(f"Converted Gemma model to Nemo, model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
@@ -138,7 +103,6 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
             "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
             "model.norm.weight": "decoder.final_layernorm.weight",
-            "lm_head.weight": "output_layer.weight",
         }
 
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_linear_fc1])
@@ -150,10 +114,10 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         return AutoTokenizer(str(self))
 
     @property
-    def config(self) -> LlamaConfig:
-        from transformers import LlamaConfig as HFLlamaConfig
+    def config(self) -> GemmaConfig:
+        from transformers import GemmaConfig as HFGemmaConfig
 
-        source = HFLlamaConfig.from_pretrained(str(self))
+        source = HFGemmaConfig.from_pretrained(str(self))
 
         def make_vocab_size_divisible_by(vocab_size):
             base = 128
@@ -161,7 +125,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
                 base //= 2
             return base
 
-        output = LlamaConfig(
+        output = GemmaConfig(
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
@@ -178,9 +142,9 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         return output
 
 
-@io.model_exporter(LlamaModel, "hf")
-class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
-    def init(self) -> "LlamaForCausalLM":
+@io.model_exporter(GemmaModel, "hf")
+class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
+    def init(self) -> "GemmaForCausalLM":
         from transformers import AutoModelForCausalLM
 
         return AutoModelForCausalLM.from_config(self.config)
@@ -204,7 +168,6 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
             "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
             "decoder.final_layernorm.weight": "model.norm.weight",
-            "output_layer.weight": "lm_head.weight",
         }
 
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
@@ -214,12 +177,12 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
-    def config(self) -> "HFLlamaConfig":
-        source: LlamaConfig = io.load_context(str(self)).model.config
+    def config(self) -> "GemmaConfig":
+        source: GemmaConfig = io.load_context(str(self)).model.config
 
-        from transformers import LlamaConfig as HFLlamaConfig
+        from transformers import GemmaConfig as HFGemmaConfig
 
-        return HFLlamaConfig(
+        return HFGemmaConfig(
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
@@ -228,7 +191,6 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,
             num_key_value_heads=source.num_query_groups,
-            rope_theta=source.rotary_base,
             vocab_size=self.tokenizer.vocab_size,
         )
 
@@ -330,15 +292,10 @@ def _export_linear_fc1(linear_fc1):
 
 
 __all__ = [
-    "LlamaConfig",
-    "Llama2Config7B",
-    "Llama2Config13B",
-    "Llama2Config70B",
-    "Llama3Config8B",
-    "Llama3Config70B",
-    "CodeLlamaConfig7B",
-    "CodeLlamaConfig13B",
-    "CodeLlamaConfig34B",
-    "CodeLlamaConfig70B",
-    "LlamaModel",
+    "GemmaConfig",
+    "GemmaConfig2B",
+    "GemmaConfig7B",
+    "CodeGemmaConfig2B",
+    "CodeGemmaConfig7B",
+    "GemmaModel",
 ]

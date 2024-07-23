@@ -1,6 +1,6 @@
 import pytorch_lightning as pl
 
-from nemo.collections.llm.gpt.model.gemma import (
+from nemo.collections.llm.models.gpt.gemma import (
     CodeGemmaConfig2B,
     CodeGemmaConfig7B,
     GemmaConfig,
@@ -8,7 +8,7 @@ from nemo.collections.llm.gpt.model.gemma import (
     GemmaConfig7B,
     GemmaModel,
 )
-from nemo.collections.llm.gpt.model.llama import (
+from nemo.collections.llm.models.gpt.llama import (
     CodeLlamaConfig7B,
     CodeLlamaConfig13B,
     CodeLlamaConfig34B,
@@ -20,8 +20,8 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama3Config70B,
     LlamaModel,
 )
-from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
-from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
+from nemo.collections.llm.models.gpt.mistral import MistralConfig7B, MistralModel
+from nemo.collections.llm.models.gpt.mixtral import MixtralConfig8x7B, MixtralModel
 from nemo.collections.llm.utils import factory
 
 

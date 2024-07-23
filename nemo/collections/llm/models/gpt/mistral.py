@@ -1,94 +1,74 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, Optional
+from typing import TYPE_CHECKING, Callable, List, Optional
 
+import pytorch_lightning as pl
 import torch
+import torch.nn.functional as F
 from torch import nn
+from typing_extensions import Annotated
 
-from nemo.collections.llm.fn.activation import openai_gelu
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.models.gpt.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
-from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning import io, teardown
+from nemo.lightning.pytorch.optim import OptimizerModule
 
 if TYPE_CHECKING:
-    from transformers import GemmaForCausalLM
+    from transformers import MistralConfig, MistralForCausalLM
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
-# Note: Gemma requires huggingface transformers >= 4.38
-# Note: these Gemma configs are copied from the corresponding HF model. You may need to modify the parameter for
-# your own needs, in particular: seq_length and rotary_base.
 @dataclass
-class GemmaConfig(GPTConfig):
-    # configs that are common across model sizes
+class MistralConfig7B(GPTConfig):
     normalization: str = "RMSNorm"
-    activation_func: Callable = openai_gelu
-    gated_linear_unit: bool = True
+    activation_func: Callable = F.silu
     position_embedding_type: str = "rope"
     add_bias_linear: bool = False
-    seq_length: int = 8192
-    kv_channels: int = 256
-    share_embeddings_and_output_weights: bool = True
-    # Note: different behavior compared to Legacy NeMo
-    # Legacy NeMo does not set layernorm_zero_centered_gamma and instead adds 1 in the HF -> NeMo conversion script
-    # The present implementation is more in line with the official implementation
-    layernorm_zero_centered_gamma: bool = True
+    gated_linear_unit: bool = True
+    apply_query_key_layer_scaling: bool = False  # TODO: Should this be True?
+
+    num_layers: int = 32
+    hidden_size: int = 4096
+    num_attention_heads: int = 32
+    num_query_groups: int = 8
+    ffn_hidden_size: int = 14336
+    seq_length: int = 32768
+
+    init_method_std: float = 0.02
+    layernorm_epsilon: float = 1e-5
+    window_size: List[int] = field(default_factory=lambda: [4096, 0])
 
 
-@dataclass
-class GemmaConfig2B(GemmaConfig):
-    num_layers: int = 18
-    hidden_size: int = 2048
-    num_attention_heads: int = 8
-    num_query_groups: int = 1
-    ffn_hidden_size: int = 16384
-
-
-@dataclass
-class GemmaConfig7B(GemmaConfig):
-    num_layers: int = 28
-    hidden_size: int = 3072
-    num_attention_heads: int = 16
-    num_query_groups: int = 16
-    ffn_hidden_size: int = 24576
-
-
-class CodeGemmaConfig2B(GemmaConfig2B):
-    pass
-
-
-class CodeGemmaConfig7B(GemmaConfig7B):
-    pass
-
-
-class GemmaModel(GPTModel):
+class MistralModel(GPTModel):
     def __init__(
         self,
-        config: Annotated[Optional[GemmaConfig], Config[GemmaConfig]] = None,
+        config: Annotated[Optional[MistralConfig7B], Config[MistralConfig7B]] = None,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or GemmaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or MistralConfig7B(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+        )
 
 
-@io.model_importer(GemmaModel, "hf")
-class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
-    def init(self) -> GemmaModel:
-        return GemmaModel(self.config, tokenizer=self.tokenizer)
+@io.model_importer(MistralModel, "hf")
+class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
+    def init(self) -> MistralModel:
+        return MistralModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
-        from transformers import GemmaForCausalLM
+        from transformers import MistralForCausalLM
 
-        source = GemmaForCausalLM.from_pretrained(str(self))
+        source = MistralForCausalLM.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Gemma model to Nemo, model saved to {output_path}")
+        print(f"Converted Mistral 7B model to Nemo, model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
@@ -103,6 +83,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
             "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
             "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
             "model.norm.weight": "decoder.final_layernorm.weight",
+            "lm_head.weight": "output_layer.weight",
         }
 
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_linear_fc1])
@@ -114,46 +95,53 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
         return AutoTokenizer(str(self))
 
     @property
-    def config(self) -> GemmaConfig:
-        from transformers import GemmaConfig as HFGemmaConfig
+    def config(self) -> MistralConfig7B:
+        from transformers import MistralConfig
 
-        source = HFGemmaConfig.from_pretrained(str(self))
+        source = MistralConfig.from_pretrained(str(self))
 
-        def make_vocab_size_divisible_by(vocab_size):
+        def make_vocab_size_divisible_by(mistral_vocab_size):
             base = 128
-            while vocab_size % base != 0:
+            while mistral_vocab_size % base != 0:
                 base //= 2
             return base
 
-        output = GemmaConfig(
+        output = MistralConfig7B(
+            seq_length=source.sliding_window,
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
             num_attention_heads=source.num_attention_heads,
+            # max_position_embeddings=source.max_position_embeddings,
             init_method_std=source.initializer_range,
             layernorm_epsilon=source.rms_norm_eps,
             num_query_groups=source.num_key_value_heads,
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
+            window_size=[source.sliding_window, 0],
             share_embeddings_and_output_weights=False,
         )
 
         return output
 
 
-@io.model_exporter(GemmaModel, "hf")
-class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
-    def init(self) -> "GemmaForCausalLM":
+@io.model_exporter(MistralModel, "hf")
+class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
+    def init(self) -> "MistralForCausalLM":
         from transformers import AutoModelForCausalLM
 
         return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
+        # TODO: Make it work with lazy init
+        # with torch.device("meta"):
+        #     target = self.init()
         target = self.init()
         source, _ = self.nemo_load(str(self))
         target = self.convert_state(source, target)
 
+        # TODO: Make sure we don't need to do this
         target = target.cpu()
         target.save_pretrained(output_path)
         self.tokenizer.save_pretrained(output_path)
@@ -168,6 +156,7 @@ class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
             "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
             "decoder.final_layernorm.weight": "model.norm.weight",
+            "output_layer.weight": "lm_head.weight",
         }
 
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
@@ -177,12 +166,13 @@ class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
-    def config(self) -> "GemmaConfig":
-        source: GemmaConfig = io.load_context(str(self)).model.config
+    def config(self) -> "MistralConfig":
+        source: MistralConfig7B = io.load_context(str(self)).model.config
 
-        from transformers import GemmaConfig as HFGemmaConfig
+        from transformers import MistralConfig as HfMistralConfig
 
-        return HFGemmaConfig(
+        return HfMistralConfig(
+            sliding_window=source.window_size[0],
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
@@ -191,6 +181,7 @@ class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,
             num_key_value_heads=source.num_query_groups,
+            rope_theta=source.rotary_base,
             vocab_size=self.tokenizer.vocab_size,
         )
 
@@ -289,13 +280,3 @@ def _export_linear_fc1(linear_fc1):
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
 
     return gate_proj, up_proj
-
-
-__all__ = [
-    "GemmaConfig",
-    "GemmaConfig2B",
-    "GemmaConfig7B",
-    "CodeGemmaConfig2B",
-    "CodeGemmaConfig7B",
-    "GemmaModel",
-]

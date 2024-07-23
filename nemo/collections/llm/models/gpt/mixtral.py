@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.models.gpt.base import GPTConfig, GPTModel
 from nemo.lightning import io, teardown
 from nemo.lightning.pytorch.optim import OptimizerModule
 

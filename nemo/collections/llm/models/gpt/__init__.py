@@ -1,4 +1,4 @@
-from nemo.collections.llm.gpt.model.base import (
+from nemo.collections.llm.models.gpt.base import (
     GPTConfig,
     GPTModel,
     MaskedTokenLossReduction,
@@ -7,7 +7,7 @@ from nemo.collections.llm.gpt.model.base import (
     local_layer_spec,
     transformer_engine_layer_spec,
 )
-from nemo.collections.llm.gpt.model.gemma import (
+from nemo.collections.llm.models.gpt.gemma import (
     CodeGemmaConfig2B,
     CodeGemmaConfig7B,
     GemmaConfig,
@@ -15,7 +15,7 @@ from nemo.collections.llm.gpt.model.gemma import (
     GemmaConfig7B,
     GemmaModel,
 )
-from nemo.collections.llm.gpt.model.llama import (
+from nemo.collections.llm.models.gpt.llama import (
     CodeLlamaConfig7B,
     CodeLlamaConfig13B,
     CodeLlamaConfig34B,
@@ -28,8 +28,8 @@ from nemo.collections.llm.gpt.model.llama import (
     LlamaConfig,
     LlamaModel,
 )
-from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
-from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
+from nemo.collections.llm.models.gpt.mistral import MistralConfig7B, MistralModel
+from nemo.collections.llm.models.gpt.mixtral import MixtralConfig8x7B, MixtralModel
 
 __all__ = [
     "GPTConfig",

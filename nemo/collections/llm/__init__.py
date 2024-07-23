@@ -6,15 +6,15 @@ except ImportError:
 
 from nemo.collections.llm import peft, tokenizer
 from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
-from nemo.collections.llm.gpt.data import (
+from nemo.collections.llm.data.gpt import (
     DollyDataModule,
     FineTuningDataModule,
     MockDataModule,
     PreTrainingDataModule,
     SquadDataModule,
 )
-from nemo.collections.llm.gpt.data.api import dolly, mock, squad
-from nemo.collections.llm.gpt.model import (
+from nemo.collections.llm.data.gpt.api import dolly, mock, squad
+from nemo.collections.llm.models.gpt import (
     CodeGemmaConfig2B,
     CodeGemmaConfig7B,
     CodeLlamaConfig7B,
@@ -42,7 +42,7 @@ from nemo.collections.llm.gpt.model import (
     gpt_data_step,
     gpt_forward_step,
 )
-from nemo.collections.llm.gpt.model.api import (
+from nemo.collections.llm.models.gpt.api import (
     code_gemma_2b,
     code_gemma_7b,
     code_llama_7b,

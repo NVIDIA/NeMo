@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, List, Optional, Union
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
-from nemo.collections.llm.gpt.data.core import create_sft_dataset
+from nemo.collections.llm.data.gpt.core import create_sft_dataset
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 if TYPE_CHECKING:

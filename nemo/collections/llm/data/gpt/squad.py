@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, List, Optional
 
 from datasets import DatasetDict, load_dataset
 
-from nemo.collections.llm.gpt.data.core import get_dataset_root
-from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
+from nemo.collections.llm.data.gpt.core import get_dataset_root
+from nemo.collections.llm.data.gpt.fine_tuning import FineTuningDataModule
 from nemo.utils import logging
 
 if TYPE_CHECKING:

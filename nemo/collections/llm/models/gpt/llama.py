@@ -1,74 +1,129 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
-import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from torch import nn
-from typing_extensions import Annotated
 
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.models.gpt.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
-from nemo.lightning import io, teardown
-from nemo.lightning.pytorch.optim import OptimizerModule
+from nemo.lightning import OptimizerModule, io, teardown
 
 if TYPE_CHECKING:
-    from transformers import MistralConfig, MistralForCausalLM
+    from transformers import LlamaConfig as HFLlamaConfig
+    from transformers import LlamaForCausalLM
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
+# Note: these Llama configs are copied from the corresponding HF model. You may need to modify the parameter for
+# your own needs, in particular: seq_length and rotary_base.
 @dataclass
-class MistralConfig7B(GPTConfig):
+class LlamaConfig(GPTConfig):
+    # configs that are common across model sizes
     normalization: str = "RMSNorm"
     activation_func: Callable = F.silu
+    gated_linear_unit: bool = True
     position_embedding_type: str = "rope"
     add_bias_linear: bool = False
-    gated_linear_unit: bool = True
-    apply_query_key_layer_scaling: bool = False  # TODO: Should this be True?
+    seq_length: int = 4096
 
+
+@dataclass
+class Llama2Config7B(LlamaConfig):
     num_layers: int = 32
     hidden_size: int = 4096
     num_attention_heads: int = 32
+    num_query_groups: int = 32
+    ffn_hidden_size: int = 11008
+
+
+@dataclass
+class Llama2Config13B(LlamaConfig):
+    num_layers: int = 40
+    hidden_size: int = 5120
+    num_attention_heads: int = 40
+    num_query_groups: int = 40
+    ffn_hidden_size: int = 13824
+
+
+@dataclass
+class Llama2Config70B(LlamaConfig):
+    num_layers: int = 80
+    hidden_size: int = 8192
+    num_attention_heads: int = 64
+    num_query_groups: int = 8
+    ffn_hidden_size: int = 28672
+
+
+@dataclass
+class Llama3Config8B(Llama2Config7B):
+    seq_length: int = 8192
     num_query_groups: int = 8
     ffn_hidden_size: int = 14336
-    seq_length: int = 32768
-
-    init_method_std: float = 0.02
-    layernorm_epsilon: float = 1e-5
-    window_size: List[int] = field(default_factory=lambda: [4096, 0])
 
 
-class MistralModel(GPTModel):
+@dataclass
+class Llama3Config70B(Llama2Config70B):
+    seq_length: int = 8192
+
+
+@dataclass
+class CodeLlamaConfig7B(Llama2Config7B):
+    rotary_base: int = 1_000_000
+    seq_length: int = 16384
+
+
+@dataclass
+class CodeLlamaConfig13B(Llama2Config13B):
+    rotary_base: int = 1_000_000
+    seq_length: int = 16384
+
+
+@dataclass
+class CodeLlamaConfig34B(LlamaConfig):
+    num_layers: int = 48
+    hidden_size: int = 8192
+    num_attention_heads: int = 64
+    num_query_groups: int = 8
+    ffn_hidden_size: int = 22016
+    rotary_base: int = 1_000_000
+    seq_length: int = 16384
+
+
+@dataclass
+class CodeLlamaConfig70B(Llama2Config70B):
+    pass
+
+
+class LlamaModel(GPTModel):
     def __init__(
         self,
-        config: Annotated[Optional[MistralConfig7B], Config[MistralConfig7B]] = None,
+        config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(
-            config or MistralConfig7B(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
-        )
+        super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
 
-@io.model_importer(MistralModel, "hf")
-class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
-    def init(self) -> MistralModel:
-        return MistralModel(self.config, tokenizer=self.tokenizer)
+@io.model_importer(LlamaModel, "hf")
+class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
+    def init(self) -> LlamaModel:
+        return LlamaModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
-        from transformers import MistralForCausalLM
+        from transformers import LlamaForCausalLM
 
-        source = MistralForCausalLM.from_pretrained(str(self))
+        source = LlamaForCausalLM.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Mistral 7B model to Nemo, model saved to {output_path}")
+        print(f"Converted Llama model to Nemo, model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
@@ -95,53 +150,46 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
         return AutoTokenizer(str(self))
 
     @property
-    def config(self) -> MistralConfig7B:
-        from transformers import MistralConfig
+    def config(self) -> LlamaConfig:
+        from transformers import LlamaConfig as HFLlamaConfig
 
-        source = MistralConfig.from_pretrained(str(self))
+        source = HFLlamaConfig.from_pretrained(str(self))
 
-        def make_vocab_size_divisible_by(mistral_vocab_size):
+        def make_vocab_size_divisible_by(vocab_size):
             base = 128
-            while mistral_vocab_size % base != 0:
+            while vocab_size % base != 0:
                 base //= 2
             return base
 
-        output = MistralConfig7B(
-            seq_length=source.sliding_window,
+        output = LlamaConfig(
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
             num_attention_heads=source.num_attention_heads,
-            # max_position_embeddings=source.max_position_embeddings,
             init_method_std=source.initializer_range,
             layernorm_epsilon=source.rms_norm_eps,
             num_query_groups=source.num_key_value_heads,
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            window_size=[source.sliding_window, 0],
             share_embeddings_and_output_weights=False,
         )
 
         return output
 
 
-@io.model_exporter(MistralModel, "hf")
-class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
-    def init(self) -> "MistralForCausalLM":
+@io.model_exporter(LlamaModel, "hf")
+class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
+    def init(self) -> "LlamaForCausalLM":
         from transformers import AutoModelForCausalLM
 
         return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
-        # TODO: Make it work with lazy init
-        # with torch.device("meta"):
-        #     target = self.init()
         target = self.init()
         source, _ = self.nemo_load(str(self))
         target = self.convert_state(source, target)
 
-        # TODO: Make sure we don't need to do this
         target = target.cpu()
         target.save_pretrained(output_path)
         self.tokenizer.save_pretrained(output_path)
@@ -166,13 +214,12 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
-    def config(self) -> "MistralConfig":
-        source: MistralConfig7B = io.load_context(str(self)).model.config
+    def config(self) -> "HFLlamaConfig":
+        source: LlamaConfig = io.load_context(str(self)).model.config
 
-        from transformers import MistralConfig as HfMistralConfig
+        from transformers import LlamaConfig as HFLlamaConfig
 
-        return HfMistralConfig(
-            sliding_window=source.window_size[0],
+        return HFLlamaConfig(
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
@@ -280,3 +327,18 @@ def _export_linear_fc1(linear_fc1):
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
 
     return gate_proj, up_proj
+
+
+__all__ = [
+    "LlamaConfig",
+    "Llama2Config7B",
+    "Llama2Config13B",
+    "Llama2Config70B",
+    "Llama3Config8B",
+    "Llama3Config70B",
+    "CodeLlamaConfig7B",
+    "CodeLlamaConfig13B",
+    "CodeLlamaConfig34B",
+    "CodeLlamaConfig70B",
+    "LlamaModel",
+]

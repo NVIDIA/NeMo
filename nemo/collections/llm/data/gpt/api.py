@@ -1,8 +1,8 @@
 import pytorch_lightning as pl
 
-from nemo.collections.llm.gpt.data.dolly import DollyDataModule
-from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
+from nemo.collections.llm.data.gpt.dolly import DollyDataModule
+from nemo.collections.llm.data.gpt.mock import MockDataModule
+from nemo.collections.llm.data.gpt.squad import SquadDataModule
 from nemo.collections.llm.utils import factory
 
 
