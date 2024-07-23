@@ -1,5 +1,6 @@
 import pickle
 import os
+import csv
 import pandas as pd
 import numpy as np
 from scipy.signal import find_peaks, peak_prominences
@@ -26,6 +27,24 @@ def make_hashable(obj):
     if isinstance(obj, list):
         return tuple(make_hashable(e) for e in obj)
     return obj
+
+def prune_frames(frames):
+    """
+    The stack trace is too long, and include many not-so-useful frame. We prune those frames with '??' in the filename. 
+    """
+    return [frame for frame in frames if '??' not in frame['filename']]
+
+def get_printed_frames(alive_memory):
+    """
+    Get the printed frames for the alive_memory. 
+    prune_frames to get rid of '??' in the filename. 
+    Add `\n` in between each frame for the readability. 
+    """
+    # Prune Frames
+    after_prune_frames = [prune_frames(x[3]) for x in alive_memory]
+    # add `\n` to each frame. Connect them together.
+    printed_frames = ['\n'.join([str(frame) for frame in frames]) for frames in after_prune_frames]
+    return printed_frames
 
 
 def read_tp(timepoint):
@@ -359,11 +378,7 @@ def print_memory_list_summary(memory_list, name):
     total_size = sum([x[2] for x in memory_list])
     print(f"len({name}): {len(memory_list)}, Total memory size: {total_size:.5f} GB")
 
-def prune_frames(frames):
-    """
-    The stack trace is too long, and include many not-so-useful frame. We prune those frames with '??' in the filename. 
-    """
-    return [frame for frame in frames if '??' not in frame['filename']]
+
 
 
 
@@ -425,12 +440,11 @@ def peak_memory_analysis(mem_snapshot_filepath, mem_snapshot_csv_dir, name_suffi
         "Time of Allocation (us)": [x[1] for x in alive_memory_max],
         "Size (GB)": [x[2] for x in alive_memory_max],
         "First Python Frame": [x[3] for x in alive_memory_max_short], # this is the first frame that shows a `.py` file
-        "Full Stack Trace": [x[3] for x in alive_memory_max], 
-        "Pruned Stack Trace": [prune_frames(x[3]) for x in alive_memory_max], # prune the stack trace
+        "Stack Trace": get_printed_frames(alive_memory_max), 
     }
     df = pd.DataFrame(data)
     csv_1_path = os.path.join(mem_snapshot_csv_dir, f"alive_memory_{name_suffix}.csv")
-    df.to_csv(csv_1_path, index=False) # this generates a big csv file, since the alloc_frames are huge. 
+    df.to_csv(csv_1_path, index=False, quoting=csv.QUOTE_ALL) # this generates a big csv file, since the alloc_frames are huge. 
     logging.info(f"1: Exported to {csv_1_path}")
 
 
@@ -448,11 +462,11 @@ def peak_memory_analysis(mem_snapshot_filepath, mem_snapshot_csv_dir, name_suffi
         "First Python Frame": [x[0] for x in memory_group_by_alloc_frames],
         "Repeat": [x[1] for x in memory_group_by_alloc_frames],
         "Total Size (GB)": [x[2] for x in memory_group_by_alloc_frames], 
-        "Pruned Stack Trace": [prune_frames(x[3]) for x in memory_group_by_alloc_frames] # prune the stack trace
+        "Stack Trace": get_printed_frames(memory_group_by_alloc_frames) # prune the stack trace
     }
     df_group = pd.DataFrame(data_group)
     csv_2_path = os.path.join(mem_snapshot_csv_dir, f"group_by_alloc_frames_{name_suffix}.csv")
-    df_group.to_csv(csv_2_path, index=False)
+    df_group.to_csv(csv_2_path, index=False, quoting=csv.QUOTE_ALL)
     logging.info(f"2: Exported to {csv_2_path}")   
 
 
