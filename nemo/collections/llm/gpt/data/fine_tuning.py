@@ -6,13 +6,14 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
+from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
 
 
-class FineTuningDataModule(pl.LightningDataModule):
+class FineTuningDataModule(pl.LightningDataModule, IOMixin):
     """Base class for fine-tuning an LLM.
 
     This class provides a foundation for building custom data modules for fine-tuning Nemo NLP models. It inherits from
