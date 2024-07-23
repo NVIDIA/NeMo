@@ -8,4 +8,4 @@ Some of the useful classes provided here are:
 - `MegatronStrategy`: A PTL strategy that enables training of Megatron models on NVIDIA GPUs. More information on `MegatronStrategy` can be found here (TODO: link to doc).
 - `MegatronParallel`: Class which sets up and manages Megatron's distributed model parallelism. Refer to this document for more information (TODO: Link to doc).
 - `MegatronMixedPrecision`: A specialized precision plugin for training Megatron-based models in PTL. More information can be found here (TODO: link to doc).
-- `Trainer`: A lightweight wrapper around PTL's `Trainer` object which provides some additional support for serializing train states.
+- `Trainer`: A lightweight wrapper around PTL's `Trainer` object which provides some additional support for serializing a run's exact trainer and model.

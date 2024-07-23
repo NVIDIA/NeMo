@@ -90,6 +90,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_parallel_save_optim (bool): Parallel save/load of a DistributedOptimizer. 'True' 
             allows performant save and reshardable checkpoints. Set to 'False' only in order to minimize
             the number of checkpoint files.
+        ckpt_load_directly_on_device (bool): if True, loads the weights directly on GPU.
+            Has effect only for `zarr` based checkpoints (PyT Distributed always loads on device).
         setup_optimizers (bool): Whether to call the trainer's setup_optimizers function to perform any
             necessary conversions of optimizer parameters and move optimizer parameters to the correct device.
         init_model_parallel (bool): Whether to initialize the model parallel groups.
