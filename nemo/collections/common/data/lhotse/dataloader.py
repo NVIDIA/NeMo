@@ -486,6 +486,35 @@ class MultimodalFixedBucketBatchSizeConstraint(FixedBucketBatchSizeConstraint):
         raise RuntimeError(f"Unsupported example type: {type(example)}")
 
 
+class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
+    def __post_init__(self):
+        assert all(
+            isinstance(item, tuple) and len(item) == 2 and isinstance(item[0], float) and isinstance(item[1], float)
+            for item in self.max_seq_len_buckets
+        ), (
+            f"2D bucketing requires the buckets to be specified as tuples of (input_seq_len, output_seq_len). "
+            f"We received {self.max_seq_len_buckets}."
+        )
+        assert sorted(self.max_seq_len_buckets) == list(self.max_seq_len_buckets)
+
+    def measure_length(self, example: Any) -> tuple[float, float]:
+        return example.duration, _measure_tokens(example)
+
+
+class MultimodalFixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint2D):
+    token_equivalent_duration: float | None = None
+
+    def measure_length(self, example: Any) -> tuple[float, float]:
+        if isinstance(example, Cut):
+            assert (
+                self.token_equivalent_duration is not None
+            ), "Cannot use MultimodalFixedBucketBatchSizeConstraint with speech data when token_equivalent_duration was not specified."
+            return example.duration / self.token_equivalent_duration, _measure_tokens(example)
+        elif isinstance(example, TextPairExample):
+            return example.source.num_tokens, example.target.num_tokens
+        raise RuntimeError(f"Unsupported example type: {type(example)}")
+
+
 def is_text(example) -> bool:
     return isinstance(example, (TextExample, TextPairExample))
 
@@ -540,14 +569,22 @@ class TokenPerSecondFilter:
     def __call__(self, example) -> bool:
         if not isinstance(example, Cut):
             return True  # pass-through for non-audio examples.
-        supervisions_with_tokens = [s for s in example.supervisions if hasattr(s, "tokens")]
-        assert len(supervisions_with_tokens) > 0, (
-            "Cannot apply token-per-second filter to untokenized supervisions. "
-            "Did you forget to provide the tokenizer argument to get_lhotse_dataloader_from_config() method?"
-        )
-        num_tokens = sum(len(s.tokens) for s in supervisions_with_tokens)
-        tps = num_tokens / example.duration
+        tps = _measure_tps(example)
         return self.tps_min <= tps <= self.tps_max
+
+
+def _measure_tokens(cut: Cut) -> int:
+    supervisions_with_tokens = [s for s in cut.supervisions if hasattr(s, "tokens")]
+    assert len(supervisions_with_tokens) > 0, (
+        "Cannot measure tokens-per-second with untokenized supervisions. "
+        "Did you forget to provide the tokenizer argument to get_lhotse_dataloader_from_config() method?"
+    )
+    return sum(len(s.tokens) for s in supervisions_with_tokens)
+
+
+def _measure_tps(cut: Cut) -> float:
+    num_tokens = _measure_tokens(cut)
+    return num_tokens / cut.duration
 
 
 def _normalize_loudness(cuts: CutSet, db_norm: float) -> CutSet:
