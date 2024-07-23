@@ -186,12 +186,12 @@ The parameters commonly shared across most multimodal language models include:
 +------------------------------------------+--------------+---------------------------------------------------------------------------------------+
 
 SALM
-~~~~~~~~
+~~~~
 
 For model-specific configurations, refer to `the examples <https://github.com/NVIDIA/NeMo/tree/main/examples/multimodal/speech_llm/conf/salm>`_.
 
 
 BESTOW
-~~~~~~~~
+~~~~~~
 
 For model-specific configurations, refer to `the examples <https://github.com/NVIDIA/NeMo/tree/main/examples/multimodal/speech_llm/conf/bestow>`_.

@@ -1,11 +1,11 @@
 SpechLLM Dataset
-==================================
+================
 
 The dataset classes can be found on `NeMo GitHub <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/multimodal/speech_llm/data/audio_text_dataset.py>`_.
 
 
 Input Manifest Format
-------------------------------
+---------------------
 
 You'll need to prepare data in the NeMo manifest format, where each line is a python dictionary with some keys, for example:
 
@@ -23,7 +23,7 @@ You'll need to prepare data in the NeMo manifest format, where each line is a py
 The `context` field in the manifest is optional, and you can put a list of context in a context file (one context for each line) then set `++model.data.train_ds.context_file=<path to to context file>` to ask the dataloader to randomly pick a context from the file for each audio sample. This is useful for training with multiple prompts for the same task. If neither `context` field nor `context_file` is provided, the dataloader will use a default context `what does the audio mean?` for all audios. During inference, it is recommended to have the `context` field in the manifest. 
 
 Customizing the fields to use
-------------------------------
+-----------------------------
 
 You can also use other fields in the manifest to replace the `context` and `answer`fields, but you'll also need to change the `prompt_template` to use the new field names. For example, if you desire to use the new fields `input_text` and `output_text`, you need to set:
 
@@ -37,7 +37,7 @@ Note that there're single quotes around the prompt template (to avoid hydra erro
 
 
 Customizing the input format
-------------------------------
+----------------------------
 
 If you would like to use multiple audios, you can set the `audio_filepath` to be a list of audio file paths, and specify the location of each audio by using a special `audio_locator` string in the context. The choice of `audio_locator` should also be passed into the config. For example, if you have a manifest item like this:
 
@@ -62,7 +62,7 @@ By using `audio_locator`, the dataloader will replace the `audio_locator` in the
 
 
 Multi-task Training
-------------------------------
+-------------------
 
 
 In order to use a context file, you can set `++model.data.train_ds.context_file=<path to to context file>` in the command line or use multiple context files with `++model.data.train_ds.context_file=[<path to to context file1>,<path to context file2>,...]`. If the number of context files is equal to the number of provided datasets, the dataloader will assigne each context file to a dataset. Otherwise, the dataloader will randomly pick a context file from all provided context files for each audio sample. Using multiple context files is useful for training with multiple tasks, where each task has its own set of prompts. Meanwhile, you can control the weights for different tasks/datasets by using concatentated tarred datasets, where you can assign weights to datasets by:
@@ -79,7 +79,7 @@ In order to use a context file, you can set `++model.data.train_ds.context_file=
 
 
 Use Lhotse Dataloader
-------------------------------
+---------------------
 
 Speech-LLM supports NeMo dataloader and Lhotse dataloader. Most of the Lhotse specific flags can be referred to `Lhotse Dataloader <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/datasets.html#lhotse-dataloading>`.
 Example config can be referred to `Lhotse Speech-LLM examples <https://github.com/NVIDIA/NeMo/blob/main/examples/multimodal/speech_llm/conf/salm/modular_audio_gpt_config_llama_lhotse.yaml>`_.

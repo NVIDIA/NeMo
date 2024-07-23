@@ -1,5 +1,5 @@
 SpeechLLM API
-===================
+=============
 
 Model Classes
 -------------
@@ -37,7 +37,7 @@ Model Classes
 
 
 Modules
----------------
+-------
 
 .. autoclass:: nemo.collections.multimodal.speech_llm.modules.perception_modules.AudioPerceptionModule
     :show-inheritance:

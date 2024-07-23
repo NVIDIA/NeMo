@@ -1,5 +1,5 @@
 Speech-agumented Large Language Models (SpeechLLM)
-==========================
+==================================================
 
 The endeavor to extend Language Models (LLMs) with the ability to understand speech and audio inputs, detailed examples can be found in the `SpeechLLM example <https://github.com/NVIDIA/NeMo/blob/main/examples/multimodal/speech_llm/README.md>`_.. 
 
@@ -18,7 +18,7 @@ In general, there're three main components of a modular SpeechLLM:
 
 
 Model Architecture
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
 
 One way to incorporate speech into LLM is to concatenate speech features with the token embeddings of the input text prompt before being fed into the LLM. In this way, the LLM can have direct access to the speech information when generating the output text.
     .. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.23.0/salm.png
