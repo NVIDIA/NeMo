@@ -60,6 +60,7 @@ def parse_args():
         "-t",
         "--tokenizer",
         nargs="+",
+        required=True,
         help="Path to one or more SPE tokenizers. More than one means we'll use AggregateTokenizer and --langs argument must also be used. When provided, we'll estimate a 2D distribution for input and output sequence lengths.",
     )
     parser.add_argument(
@@ -123,21 +124,6 @@ def estimate_duration_buckets(
     max_tps: float,
     max_duration: float,
 ) -> list[tuple[float, float]]:
-    """
-    Given an iterable of cuts and a desired number of buckets, select duration values
-    that should start each bucket.
-
-    The returned list, ``bins``, has ``num_buckets - 1`` elements.
-    The first bucket should contain cuts with duration ``0 <= d < bins[0]``;
-    the last bucket should contain cuts with duration ``bins[-1] <= d < float("inf")``,
-    ``i``-th bucket should contain cuts with duration ``bins[i - 1] <= d < bins[i]``.
-
-    :param cuts: an iterable of :class:`lhotse.cut.Cut`.
-    :param num_buckets: desired number of buckets.
-    :param constraint: object with ``.measure_length()`` method that's used to determine
-        the size of each sample. If ``None``, we'll use ``TimeConstraint``.
-    :return: a list of boundary duration values (floats).
-    """
     assert num_buckets > 1
 
     constraint = FixedBucketBatchSizeConstraint2D([(0.0, 0.0)], [0])
@@ -156,6 +142,11 @@ def estimate_duration_buckets(
     num_tokens = joint.f1
 
     size_per_bucket = sizes.sum() / num_buckets
+
+    if math.isinf(max_duration):
+        max_duration = sizes[-1]
+    if math.isinf(max_tps):
+        max_tps = (num_tokens / sizes).max()
 
     bins = []
     bin_indexes = [0]

@@ -393,7 +393,7 @@ def oomptimizer(
     if is_2d_bucketing:
         # 2D bucketing doesn't support bucket merging.
         final_profile = [["[" + ",".join(map(str, b)) + "]", bs] for (b, _, __), bs in profile.items()]
-        max_duration, max_tokens = final_profile[-1][0]
+        max_duration, max_tokens = buckets[-1]
         labels_per_second = max_tokens / max_duration
     else:
         print("Bucket merging stage...")
