@@ -141,7 +141,9 @@ class AutoResume(Resume, io.IOMixin):
                 else:
                     # Select the checkpoint with the latest modified time
                     checkpoint = sorted(last_checkpoints, key=lambda pth: pth.lstat().st_mtime, reverse=True)[0]
-                    logging.warning(f"Multiple checkpoints {last_checkpoints} matches *last.ckpt. Selecting one with the latest modified time.")
+                    logging.warning(
+                        f"Multiple checkpoints {last_checkpoints} matches *last.ckpt. Selecting one with the latest modified time."
+                    )
             else:
                 checkpoint = last_checkpoints[0]
 
