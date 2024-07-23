@@ -20,7 +20,9 @@ class CanaryPromptFormatter(PromptFormatter):
                     "asr", "ast", "translate", "transcribe", "s2t_translation", "<|transcribe|>", "<|translate|>"
                 ),
                 "target_lang": Modality.Text,
-                "pnc": Modality.TextLiteral("yes", "no", "true", "True", "false", "False", "1", "0", "pnc", "nopnc", "<|pnc|>", "<|nopnc|>"),
+                "pnc": Modality.TextLiteral(
+                    "yes", "no", "true", "True", "false", "False", "1", "0", "pnc", "nopnc", "<|pnc|>", "<|nopnc|>"
+                ),
             },
         },
         OUTPUT_ROLE: {
