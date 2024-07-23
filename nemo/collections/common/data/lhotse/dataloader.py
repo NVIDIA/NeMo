@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import bisect
 import os
 import random
 import warnings
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Optional, TypeVar, Union
+from typing import Any, Optional, Sequence, TypeVar, Union
 
 import numpy as np
 import torch
@@ -196,8 +197,7 @@ def get_lhotse_dataloader_from_config(
 
         if not isinstance(tokenizer, TokenizerWrapper):
             tokenizer = TokenizerWrapper(tokenizer)
-        # Note this code can also pre-tokenize the text in cuts, but for now we disable it with apply_fn.
-        cuts = cuts.map(partial(tokenize, tokenizer=tokenizer))
+        cuts = cuts.map(partial(tokenize, tokenizer=tokenizer), apply_fn=None)
         cuts = cuts.filter(TokenPerSecondFilter(config.min_tps, config.max_tps))
 
     # 2. Optional augmentations.
@@ -380,7 +380,12 @@ def get_lhotse_dataloader_from_config(
 def determine_bucket_duration_bins(config):
     if config.bucket_duration_bins is not None:
         # Bucket duration bins are provided: just use them.
-        return OmegaConf.to_container(config.bucket_duration_bins)
+        ans = OmegaConf.to_container(config.bucket_duration_bins)
+        if isinstance(ans[0], Sequence):
+            # 2D bucketing. Ensure we're using tuples for correct behaviour of '<' operator
+            # between the bucket bin tuples and the output of measure_length.
+            ans = [tuple(item) for item in ans]
+        return ans
     # Bucket duration bins are not set.
     if config.use_multimodal_sampling:
         # For multimodal sampling it's currently impossible to define a linspace over durations
@@ -475,22 +480,33 @@ class MultimodalSamplingConstraint(SamplingConstraint):
 
 @dataclass
 class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
-    def __post_init__(self):
-        super().__post_init__()
-        if self.bucketing_2d_enabled:
-            # Ensure we're using tuples for correct behaviour of '<' operator
-            # between the bucket bin tuples and the output of measure_length.
-            self.max_seq_len_buckets = [tuple(item) for item in self.max_seq_len_buckets]
-
     @property
     def bucketing_2d_enabled(self) -> bool:
-        return isinstance(self.max_seq_len_buckets[0], (list, tuple)) and len(self.max_seq_len_buckets[0]) == 2
+        return isinstance(self.max_seq_len_buckets[0], Sequence) and len(self.max_seq_len_buckets[0]) == 2
 
     def measure_length(self, example: Any) -> tuple[float, float]:
         if self.bucketing_2d_enabled:
             return example.duration, _measure_tokens(example)
         else:
             return example.duration
+
+    def select_bucket(self, buckets: Any, example: Any = None, example_len: Any = None) -> int:
+        if not self.bucketing_2d_enabled:
+            return super().select_bucket(buckets=buckets, example=example, example_len=example_len)
+        if example_len is None:
+            example_len = self.measure_length(example)
+        bucket_idx = bisect.bisect_right(buckets, example_len)
+        # For 2D bucketing we have to refine the initially found bucket_idx, as bisect
+        # looks primarily at the first index of a tuple (i.e. duration).
+        # For example, with buckets [(1, 1), (1, 2), (2, 2), (2, 4)] and example (1.5, 3)
+        # bisect would allocate it to bucket_idx=2 instead of bucket_idx=3.
+        # To refine, we'll try to push the example to as many buckets to the right as possible,
+        # as long as they have the same dim0 length (e.g. audio duration) and the example's dim1
+        # is smaller than the bin's dim1 (e.g., output token sequence length).
+        bin_dim0 = self.max_seq_len_buckets[bucket_idx][0]
+        while (bin := self.max_seq_len_buckets[bucket_idx + 1])[0] == bin_dim0 and example_len[1] < bin[1]:
+            bucket_idx += 1
+        return bucket_idx
 
 
 @dataclass
