@@ -380,7 +380,7 @@ def get_lhotse_dataloader_from_config(
 def determine_bucket_duration_bins(config):
     if config.bucket_duration_bins is not None:
         # Bucket duration bins are provided: just use them.
-        return config.bucket_duration_bins
+        return OmegaConf.to_container(config.bucket_duration_bins)
     # Bucket duration bins are not set.
     if config.use_multimodal_sampling:
         # For multimodal sampling it's currently impossible to define a linspace over durations
