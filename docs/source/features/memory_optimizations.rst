@@ -12,7 +12,7 @@ Mixture of Experts
 Overview
 ^^^^^^^^
 
-NeMo supports Mixture of Experts (MoE)in the transformer layer for NLP models.
+NeMo supports Mixture of Experts (MoE) in the transformer layer for NLP models.
 
 MoE is a machine learning technique where multiple specialized models (experts,
 usually multi-layer perceptrons) are combined to solve a complex task. Each expert
