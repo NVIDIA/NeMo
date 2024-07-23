@@ -1788,7 +1788,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
                     # addressing the current T5 mcore version's implementation of sharded_state_dict
                     checkpoint_state_dict['lm_head.output_layer.bias'] = checkpoint_state_dict['output_layer.bias']
-
+                    checkpoint_state_dict['position_embeddings.weight'] = checkpoint_state_dict[
+                        'embedding.position_embeddings.weight'
+                    ]
                     module.load_state_dict(checkpoint_state_dict, strict=True)
             else:
                 checkpoint['state_dict'] = {}
