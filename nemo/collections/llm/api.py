@@ -1,21 +1,19 @@
+import json
+import os
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, Optional, Union
-import os
-import uvicorn
-import json
 
 import pytorch_lightning as pl
+import uvicorn
 from typing_extensions import Annotated
 
 from nemo.collections.llm.utils import Config, task
-
+from nemo.deploy import DeployPyTriton
+from nemo.export.tensorrt_llm import TensorRTLLM
+from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
-from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
-from nemo.export.tensorrt_llm import TensorRTLLM
-from nemo.deploy import DeployPyTriton
-
 
 TokenizerType = Any
 
@@ -230,8 +228,19 @@ def validate(
 
     return app_state.exp_dir
 
-def get_trtllm_deployable(nemo_checkpoint, model_type, triton_model_repository, num_gpus, tensor_parallelism_size, pipeline_parallelism_size,
-                        max_input_len, max_output_len, max_batch_size, dtype):
+
+def get_trtllm_deployable(
+    nemo_checkpoint,
+    model_type,
+    triton_model_repository,
+    num_gpus,
+    tensor_parallelism_size,
+    pipeline_parallelism_size,
+    max_input_len,
+    max_output_len,
+    max_batch_size,
+    dtype,
+):
     if triton_model_repository is None:
         trt_llm_path = "/tmp/trt_llm_model_dir/"
         Path(trt_llm_path).mkdir(parents=True, exist_ok=True)
@@ -277,16 +286,17 @@ def get_trtllm_deployable(nemo_checkpoint, model_type, triton_model_repository, 
 
     return trt_llm_exporter
 
-def store_args_to_json(triton_http_address, triton_port,
-                       triton_request_timeout, openai_format_response):
+
+def store_args_to_json(triton_http_address, triton_port, triton_request_timeout, openai_format_response):
     args_dict = {
         "triton_service_ip": triton_http_address,
         "triton_service_port": triton_port,
         "triton_request_timeout": triton_request_timeout,
-        "openai_format_response": openai_format_response
+        "openai_format_response": openai_format_response,
     }
     with open("nemo/deploy/service/config.json", "w") as f:
         json.dump(args_dict, f)
+
 
 @task(namespace="llm")
 def deploy(
@@ -308,7 +318,7 @@ def deploy(
     start_rest_service: bool = False,
     rest_service_http_address: str = "0.0.0.0",
     rest_service_port: int = 8000,
-    openai_format_response: bool = False
+    openai_format_response: bool = False,
 ):
     if start_rest_service:
         if triton_port == rest_service_port:
@@ -317,9 +327,18 @@ def deploy(
         # Store triton ip, port and other args relevant for REST API in config.json to be accessible by rest_model_api.py
         store_args_to_json(triton_http_address, triton_port, triton_request_timeout, openai_format_response)
 
-    triton_deployable = get_trtllm_deployable(nemo_checkpoint, model_type, triton_model_repository, num_gpus,
-                            tensor_parallelism_size, pipeline_parallelism_size, max_input_len, max_output_len,
-                            max_batch_size, dtype)
+    triton_deployable = get_trtllm_deployable(
+        nemo_checkpoint,
+        model_type,
+        triton_model_repository,
+        num_gpus,
+        tensor_parallelism_size,
+        pipeline_parallelism_size,
+        max_input_len,
+        max_output_len,
+        max_batch_size,
+        dtype,
+    )
 
     try:
         nm = DeployPyTriton(
@@ -328,7 +347,7 @@ def deploy(
             triton_model_version=triton_model_version,
             max_batch_size=max_batch_size,
             port=triton_port,
-            address=triton_http_address
+            address=triton_http_address,
         )
 
         logging.info("Triton deploy function will be called.")
@@ -357,6 +376,7 @@ def deploy(
 
     logging.info("Model serving will be stopped.")
     nm.stop()
+
 
 @task(name="import", namespace="llm")
 def import_ckpt(
