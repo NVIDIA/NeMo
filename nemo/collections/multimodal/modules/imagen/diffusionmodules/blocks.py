@@ -153,7 +153,9 @@ class ResBlock(TimestepBlock):
         self.use_scale_shift_norm = use_scale_shift_norm
 
         self.in_layers = nn.Sequential(
-            normalization(channels), nn.SiLU(), conv_nd(dims, channels, self.out_channels, 3, padding=1),
+            normalization(channels),
+            nn.SiLU(),
+            conv_nd(dims, channels, self.out_channels, 3, padding=1),
         )
 
         self.updown = up or down
@@ -172,7 +174,11 @@ class ResBlock(TimestepBlock):
             self.h_upd = self.x_upd = nn.Identity()
 
         self.emb_layers = nn.Sequential(
-            nn.SiLU(), linear(emb_channels, 2 * self.out_channels if use_scale_shift_norm else self.out_channels,),
+            nn.SiLU(),
+            linear(
+                emb_channels,
+                2 * self.out_channels if use_scale_shift_norm else self.out_channels,
+            ),
         )
         self.out_layers = nn.Sequential(
             normalization(self.out_channels),
@@ -262,7 +268,11 @@ class EfficientResBlock(TimestepBlock):
         )
 
         self.emb_layers = nn.Sequential(
-            nn.SiLU(), nn.Linear(emb_channels, 2 * out_channels if use_scale_shift_norm else out_channels,),
+            nn.SiLU(),
+            nn.Linear(
+                emb_channels,
+                2 * out_channels if use_scale_shift_norm else out_channels,
+            ),
         )
 
         self.out_layers = nn.Sequential(
