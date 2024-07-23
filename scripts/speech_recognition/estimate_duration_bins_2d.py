@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import ast
 import math
 from functools import partial
 from itertools import islice
@@ -32,6 +33,7 @@ from nemo.collections.common.data.lhotse.dataloader import (
     TokenPerSecondFilter,
     tokenize,
 )
+from nemo.collections.common.prompts.formatter import PromptFormatter
 from nemo.collections.common.tokenizers import AggregateTokenizer, SentencePieceTokenizer
 
 
@@ -114,6 +116,13 @@ def parse_args():
     parser.add_argument(
         "-q", "--quiet", type=bool, default=False, help="When specified, only print the estimated duration bins."
     )
+    parser.add_argument(
+        "-f",
+        "--prompt-format",
+        type=str,
+        help="When specified, we'll use a prompt formatter in addition to the tokenizer for the purpose of estimating token count bins.",
+    )
+    parser.add_argument("-p", "--prompt", type=str, help="Prompt slots as a Python list (TODO better doc)")
     return parser.parse_args()
 
 
@@ -192,12 +201,35 @@ def load_tokenizer(paths: list[str], langs: list[str] = None) -> TokenizerWrappe
     return TokenizerWrapper(tok)
 
 
+def apply_tokenizer(cut, tokenizer=None, prompt: PromptFormatter = None):
+    if prompt is not None:
+        default_turns = prompt.get_default_dialog_slots()
+        last_turn = {"role": prompt.OUTPUT_ROLE, "slots": prompt.get_slots(prompt.OUTPUT_ROLE)}
+        assert len(last_turn["slots"]) == 1  # TODO: not sure how to handle multi-slot for system output here
+        for key in last_turn["slots"]:
+            last_turn["slots"][key] = cut.supervisions[0].text
+        last_turn["slots"][prompt.PROMPT_LANGUAGE_SLOT] = cut.supervisions[0].language
+        ans = prompt.encode_dialog(default_turns)
+        cut.supervisions[0].tokens = ans["input_ids"]
+
+    elif tokenizer is not None:
+        cut = tokenize(cut, tokenizer)
+
+    return cut
+
+
 def main():
     args = parse_args()
 
     tokenizer = None
+    prompt = None
     if args.tokenizer is not None:
         tokenizer = load_tokenizer(args.tokenizer, args.langs)
+        if args.prompt_format is not None:
+            prompt_defaults = None
+            if args.prompt is not None:
+                prompt_defaults = ast.literal_eval(args.prompt)
+            prompt = PromptFormatter.resolve(args.prompt_format)(tokenizer, defaults=prompt_defaults)
 
     if '=' in args.input:
         inp_arg = args.input
@@ -215,7 +247,7 @@ def main():
     )
     cuts, _ = read_cutset_from_config(config)
     cuts = cuts.filter(DurationFilter(args.min_duration, args.max_duration))
-    cuts = cuts.map(partial(tokenize, tokenizer=tokenizer))
+    cuts = cuts.map(partial(apply_tokenizer, tokenizer=tokenizer, prompt=prompt))
     cuts = cuts.filter(TokenPerSecondFilter(-1, args.max_tps))
     if (N := args.num_examples) > 0:
         cuts = islice(cuts, N)
