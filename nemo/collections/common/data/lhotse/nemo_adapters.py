@@ -314,6 +314,8 @@ class LazyNeMoTarredIterator:
                         )
                     )
                     cut.custom = _to_custom_attr_dict(data)
+                    cut.manifest_origin = manifest_path
+                    cut.tar_origin = tar_path
                     yield cut
 
     def __len__(self) -> int:
