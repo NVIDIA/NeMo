@@ -70,7 +70,7 @@ For LoRA-tuning the model, you will use the NeMo Framework which is available as
 
 .. code:: bash
 
-   export FW_VERSION=dev
+   export FW_VERSION=24.05.llama3.1
 
 
 .. code:: bash
@@ -148,18 +148,15 @@ From your host OS environment, start the NIM docker container while mounting the
    export NIM_PEFT_SOURCE=/home/nvs/loras # Path to LoRA models internal to the container
    export CONTAINER_NAME=meta-llama3.1-8b-instruct
 
-   docker run -it --rm --gpus all \
+   docker run -it --rm --name=$CONTAINER_NAME \
+         --gpus all \
          --network=host \
          --shm-size=16GB \
          -e NGC_API_KEY \
-         -e NIM_MANIFEST_PATH=/etc/nim/manifests/llama_8b_instruct_factory.yaml \
-         -e NIM_MPI_ALLOW_RUN_AS_ROOT=1 \
-         -e NIM_PEFT_SOURCE=/home/nvs/lora \
-         -v /mnt/nvdl/usr/nevaid/nim/manifests:/etc/nim/manifests \
+         -e NIM_PEFT_SOURCE \
          -v $NIM_CACHE_PATH:/opt/nim/.cache \
-         -v $LOCAL_PEFT_DIRECTORY:/home/nvs/lora \
-         nvcr.io/nvidian/nim-llm-dev/nim-llm:1.1.0.rc7 \
-         python3 -m vllm_nvext.entrypoints.launch
+         -v $LOCAL_PEFT_DIRECTORY:$NIM_PEFT_SOURCE \
+         nvcr.io/nim/meta/llama-3.1-8b-instruct:1.1.0
 
 The first time you run the command, it will download the model and cache it in ``$NIM_CACHE_PATH`` so subsequent deployments are even faster. There are several options to configure NIM other than the ones listed above. You can find a full list in the `NIM configuration <https://docs.nvidia.com/nim/large-language-models/latest/configuration.html>`__ documentation.
 
