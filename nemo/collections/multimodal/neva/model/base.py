@@ -13,6 +13,7 @@ from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.collections.llm.gpt.model import transformer_engine_layer_spec, local_layer_spec
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
-def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
@@ -37,11 +38,9 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     required_keys = set()
     required_keys.add("attention_mask")
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("tokens", "position_ids"))
+        required_keys.update(("media", "tokens", "position_ids"))
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
-    # if self.get_attention_mask_from_fusion:
-    #     required_keys.remove('attention_mask')
 
     _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
     # slice batch along sequence dimension for context parallelism
@@ -50,8 +49,9 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     return output
 
 
-def gpt_forward_step(model, batch) -> torch.Tensor:
+def neva_forward_step(model, batch) -> torch.Tensor:
     forward_args = {
+        "media": batch["media"],
         "input_ids": batch["tokens"],
         "position_ids": batch["position_ids"],
         "attention_mask": batch["attention_mask"],
@@ -64,89 +64,71 @@ def gpt_forward_step(model, batch) -> torch.Tensor:
     return model(**forward_args)
 
 
-def transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
-    from megatron.core.models.gpt import gpt_layer_specs
-
-    return gpt_layer_specs.get_gpt_layer_with_transformer_engine_spec(
-        num_experts=config.num_moe_experts, moe_grouped_gemm=config.moe_grouped_gemm, qk_layernorm=config.qk_layernorm
-    )
-
-
-def local_layer_spec(config: "GPTConfig") -> ModuleSpec:
-    from megatron.core.models.gpt import gpt_layer_specs
-
-    return gpt_layer_specs.get_gpt_layer_local_spec(
-        num_experts=config.num_moe_experts, moe_grouped_gemm=config.moe_grouped_gemm, qk_layernorm=config.qk_layernorm
-    )
-
-
 @dataclass
-class GPTConfig(TransformerConfig, io.IOMixin):
-    # From megatron.core.models.gpt.gpt_model.GPTModel
-    fp16_lm_cross_entropy: bool = False
-    parallel_output: bool = True
-    share_embeddings_and_output_weights: bool = True
-    make_vocab_size_divisible_by: int = 128
-    position_embedding_type: Literal["learned_absolute", "rope"] = "learned_absolute"
-    rotary_base: int = 10000
-    rotary_percent: float = 1.0
-    seq_len_interpolation_factor: Optional[float] = None
-    seq_length: int = 1024
+class NevaConfig(TransformerConfig, io.IOMixin):
+    vision_config: Optional[TransformerConfig] = None  # TODO(yuya): is not ideal, should be something like NeMo's config
+    text_config: Optional[TransformerConfig] = None
 
-    # TODO: Move this to better places?
-    get_attention_mask_from_fusion: bool = False
+    forward_step_fn: Callable = neva_forward_step
+    data_step_fn: Callable = neva_data_step
 
-    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = transformer_engine_layer_spec
-    forward_step_fn: Callable = gpt_forward_step
-    data_step_fn: Callable = gpt_data_step
+    # def configure_model(self, tokenizer) -> "MCoreGPTModel":
+    #     vision_model = None
+    #     vision_projector = None
+    #     language_model = None
+    #     return vision_model, vision_projector, language_model
+        # vp_size = self.virtual_pipeline_model_parallel_size
+        # if vp_size:
+        #     p_size = self.pipeline_model_parallel_size
+        #     assert (
+        #         self.num_layers // p_size
+        #     ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
+        #
+        # from megatron.core import parallel_state
+        # from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
+        #
+        # transformer_layer_spec = self.transformer_layer_spec
+        # if not isinstance(transformer_layer_spec, ModuleSpec):
+        #     transformer_layer_spec = transformer_layer_spec(self)
+        #
+        # return MCoreGPTModel(
+        #     self,
+        #     transformer_layer_spec=transformer_layer_spec,
+        #     vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
+        #     max_sequence_length=self.seq_length,
+        #     fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
+        #     parallel_output=self.parallel_output,
+        #     share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
+        #     position_embedding_type=self.position_embedding_type,
+        #     rotary_percent=self.rotary_percent,
+        #     rotary_base=self.rotary_base,
+        #     seq_len_interpolation_factor=self.seq_len_interpolation_factor,
+        #     pre_process=parallel_state.is_pipeline_first_stage(),
+        #     post_process=parallel_state.is_pipeline_last_stage(),
+        # )
 
-    def configure_model(self, tokenizer) -> "MCoreGPTModel":
-        vp_size = self.virtual_pipeline_model_parallel_size
-        if vp_size:
-            p_size = self.pipeline_model_parallel_size
-            assert (
-                self.num_layers // p_size
-            ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
+class MCoreNevaModel:
 
-        from megatron.core import parallel_state
-        from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-
-        transformer_layer_spec = self.transformer_layer_spec
-        if not isinstance(transformer_layer_spec, ModuleSpec):
-            transformer_layer_spec = transformer_layer_spec(self)
-
-        return MCoreGPTModel(
-            self,
-            transformer_layer_spec=transformer_layer_spec,
-            vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
-            max_sequence_length=self.seq_length,
-            fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
-            parallel_output=self.parallel_output,
-            share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
-            position_embedding_type=self.position_embedding_type,
-            rotary_percent=self.rotary_percent,
-            rotary_base=self.rotary_base,
-            seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-            pre_process=parallel_state.is_pipeline_first_stage(),
-            post_process=parallel_state.is_pipeline_last_stage(),
-        )
-
-
-class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
         self,
-        config: GPTConfig,
+        config: NevaConfig,
         # TODO: Add transformer_layer_spec when we update mcore
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
+        vision_processor: Optional = None, # TODO(yuya): add class type
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
+        self.vision_processor = vision_processor
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
+
+        self.vision_model = None
+        self.text_model = None
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
@@ -246,11 +228,11 @@ def get_packed_seq_params(batch):
     )
 
 
-__all__ = [
-    "GPTModel",
-    "GPTConfig",
-    "gpt_data_step",
-    "gpt_forward_step",
-    "transformer_engine_layer_spec",
-    "local_layer_spec",
-]
+# __all__ = [
+#     "GPTModel",
+#     "GPTConfig",
+#     "gpt_data_step",
+#     "gpt_forward_step",
+#     "transformer_engine_layer_spec",
+#     "local_layer_spec",
+# ]
