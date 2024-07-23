@@ -31,7 +31,7 @@ def main(cfg) -> None:
 
     logging.info(f"Loading model from {cfg.restore_from_path}")
     model = MegatronMambaEmbeddingModel.restore_from(
-        restore_path=cfg.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=True
+        restore_path=cfg.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=False
     )
     model._save_restore_connector = SaveRestoreConnector()
 
