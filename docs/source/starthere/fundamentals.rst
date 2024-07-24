@@ -69,7 +69,7 @@ NeMo models are also designed to be easily configurable; often this is done with
 	  :emphasize-lines: 4, 7, 10, 13, 16, 20
 
 	  #
-	  # desired configuration of the NeMo model
+	  # configuration of the NeMo model
 	  model:
 	      tokenizer:
 	       ...
@@ -90,7 +90,7 @@ NeMo models are also designed to be easily configurable; often this is done with
 	      train_ds:
 	       ...
 
-	  # desired configuration of the
+	  # configuration of the
 	  # PyTorch Lightning trainer object
 	  trainer:
 	      ...
@@ -99,11 +99,11 @@ NeMo models are also designed to be easily configurable; often this is done with
 Configuring and Training NeMo Models
 ------------------------------------
 
-During initialization of the model, key parameters are read from the config (``cfg``), which gets passed in to the model construtor (left panel above, line 2).
+During initialization of the model, the "model" section of the config is passed into the model's constructor (as the variable ``cfg``, see line 3 of the left panel above). The model class will read key parameters from the ``cfg`` variable to configure the model (see highlighted lines in the left panel above).
 
-The other object passed into the model's constructor is a PyTorch Lightning ``trainer`` object, which manages the training process. The trainer handles the standard training `boilerplate <https://lightning.ai/docs/pytorch/stable/common/trainer.html#under-the-hood>`__. For non-standard tasks, PyTorch Lightning (PTL) relies on specific methods defined in our NeMo model. For example, PTL mandates that every model must have a specified ``training_step`` method (left panel above, line 15).
+The other object passed into the model's constructor is a PyTorch Lightning ``trainer`` object, which manages the training process. The trainer handles the standard training `boilerplate <https://lightning.ai/docs/pytorch/stable/common/trainer.html#under-the-hood>`__. For non-standard tasks, PyTorch Lightning (PTL) relies on specific methods defined in our NeMo model. For example, PTL mandates that every model must have a specified ``training_step`` method (left panel above, line 27).
 
-The trainer’s configuration is also specified in the config (right panel above, line 20 onwards). This includes parameters such as ``accelerator``, (number of) ``devices``, ``max_steps``, (numerical) ``precision`` and `more <https://lightning.ai/docs/pytorch/stable/common/trainer.html#trainer-class-api>`__.
+The trainer’s configuration is also specified in the config (right panel above, line 25 onwards). This includes parameters such as ``accelerator``, (number of) ``devices``, ``max_steps``, (numerical) ``precision`` and `more <https://lightning.ai/docs/pytorch/stable/common/trainer.html#trainer-class-api>`__.
 
 
 Example Training Script
@@ -136,10 +136,10 @@ Below is an example training script for our ``ExampleEncDecModel`` model. We hig
 Let's go through the code:
 
 * *Lines 1-3*: import statements (second one is made up for the example).
-* *Lines 5-8*: a decorator on lines 5-8 of ``run_example_training.py`` will look for a config file at ``{config_path}/{config_name}.yaml`` and load its contents into the ``cfg`` object that is passed into the ``main`` function. This functionality is provided by `Hydra <https://hydra.cc/docs/intro/>`__. Instead of a YAML file, we could also have specified the default config as a dataclass and passed that into the ``@hydra_runner`` decorator.
-* *Line 7*: initialize a PTL trainer object using the parameters specified in the ``trainer`` section of the config.
-* *Line 8*: initialize a NeMo model, passing in both the parameters in the ``model`` section of the config, and a PTL trainer.
-* *Line 9*: call ``trainer.fit`` on the model. This one unassuming line will carry out our entire training process. PTL will make sure we iterate over our data and call the ``training_step`` we define for each batch (as well as any other PTL `callbacks <https://lightning.ai/docs/pytorch/stable/extensions/callbacks.html>`__ that may have been defined).
+* *Lines 5-8*: the decorator will look for a config file at ``{config_path}/{config_name}.yaml`` and load its contents into the ``cfg`` object that is passed into the ``main`` function on line 9. This functionality is provided by `Hydra <https://hydra.cc/docs/intro/>`__. Instead of a YAML file, we could also have specified the default config as a dataclass and passed that into the ``@hydra_runner`` decorator.
+* *Line 10*: initialize a PTL trainer object using the parameters specified in the ``trainer`` section of the config.
+* *Line 11*: initialize a NeMo model, passing in both the parameters in the ``model`` section of the config, and a PTL ``trainer`` object.
+* *Line 12*: call ``trainer.fit`` on the model. This one unassuming line will carry out our entire training process. PTL will make sure we iterate over our data and call the ``training_step`` we define for each batch (as well as any other PTL `callbacks <https://lightning.ai/docs/pytorch/stable/extensions/callbacks.html>`__ that may have been defined).
 
 
 
@@ -230,7 +230,7 @@ Here are some options:
   * For Large Language Models (LLMs), checkout out the :doc:`LLM <../nlp/nemo_megatron/intro>` documentation.
   * For Multimodal tasks, refer to the :doc:`Multimodal <../multimodal/mllm/intro>` documentation.
 
-  * If you’re interested in Automatic Speech Recognition (ASR), explore the :doc:`ASR <../asr/intro>`` documentation.
+  * If you’re interested in Automatic Speech Recognition (ASR), explore the :doc:`ASR <../asr/intro>` documentation.
   * For Text-to-Speech (TTS), find details in the :doc:`TTS <../tts/intro>` documentation.
   * Lastly, for Vision Models, consult the :doc:`Vision Models <../vision/intro>` documentation.
 
