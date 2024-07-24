@@ -13,13 +13,9 @@ from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
 
 
-def _get_nlp_strategy_without_optimizer_state():
+def _get_strategy():
     strategy = nl.MegatronStrategy(
         enable_nemo_ckpt_io=False,
-    )
-    # this ensures optimizer sharded state creation is skipped
-    strategy.optimizer_sharded_state_dict = types.MethodType(
-        lambda self, unsharded_optim_state: unsharded_optim_state, strategy
     )
     return strategy
 
@@ -49,7 +45,7 @@ class TestDistCkptIO:
 
         model, data = get_model_and_data()
 
-        strategy = _get_nlp_strategy_without_optimizer_state()
+        strategy = _get_strategy()
 
         trainer = nl.Trainer(
             devices=1,
@@ -58,16 +54,15 @@ class TestDistCkptIO:
             enable_checkpointing=True,
             max_steps=2,
             default_root_dir=str(tmp_path),
+            logger=False,
         )
 
         trainer.fit(model, data)
 
         assert isinstance(trainer.strategy.checkpoint_io, MegatronCheckpointIO)
         # Ckpt path doesn't contain the .ckpt suffix
-        ## TODO: make more generic
-        ## why does this path include "lightning logs" while original test does not?
-        ckpts = os.listdir(Path(tmp_path / "lightning_logs/version_0/checkpoints"))
-        assert len(ckpts) == 1  ## can do other things with this. Assert the right number of checkpoints are present
+        ckpts = os.listdir(Path(tmp_path / "checkpoints"))
+        assert len(ckpts) == 1
         ckpt = ckpts[0]
         assert str(ckpt) == _get_last_checkpoint_dir(model)
 
@@ -87,10 +82,10 @@ class TestDistCkptIO:
             devices=1,
             logger=False,
             max_steps=2,
-            strategy=_get_nlp_strategy_without_optimizer_state(),
+            strategy=_get_strategy(),
         )
         dummy_trainer.fit(model, data)
-        strategy = _get_nlp_strategy_without_optimizer_state()
+        strategy = _get_strategy()
         tmp_path = strategy.broadcast(tmp_path)
 
         ## reset the model and data and train with sync checkpointing
@@ -100,7 +95,7 @@ class TestDistCkptIO:
             enable_checkpointing=True,
             logger=False,
             max_steps=2,
-            strategy=_get_nlp_strategy_without_optimizer_state(),
+            strategy=_get_strategy(),
             plugins=[sync_checkpoint_io],
             default_root_dir=str(sync_ckpt_dir),
         )
@@ -113,8 +108,8 @@ class TestDistCkptIO:
             enable_checkpointing=True,
             logger=False,
             max_steps=2,
-            strategy=_get_nlp_strategy_without_optimizer_state(),
-            plugins=[async_checkpoint_io],  ## error is not specific to async checkpointing
+            strategy=_get_strategy(),
+            plugins=[async_checkpoint_io],
             callbacks=AsyncFinalizerCallback(),
             default_root_dir=str(async_ckpt_dir),
         )
