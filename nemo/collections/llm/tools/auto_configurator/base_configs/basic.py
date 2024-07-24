@@ -58,6 +58,6 @@ class Basic:
 
         datafiles_num = len(self.data_paths)
         weight = np.round(1 / datafiles_num, 2)
-        weights = [weight] * datafiles_num
+        weights = [float(weight)] * datafiles_num
 
         return weights
