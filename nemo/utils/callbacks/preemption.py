@@ -91,10 +91,8 @@ class PreemptionCallback(Callback):
             # a regular local variable
             interrupted = self.interrupted
             if interrupted:
-                logging.info("Received SIGTERM, saving checkpoint and exiting")
-                monitor_candidates = self.checkpoint_callback._monitor_candidates(trainer)
-                self.checkpoint_callback._save_last_checkpoint(trainer, monitor_candidates)
-                sys.exit(0)
+                logging.info("Preemption detected, signaling trainer to stop")
+                trainer.should_stop = True
 
     def release(self):
         if self.released:

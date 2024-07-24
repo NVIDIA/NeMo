@@ -577,6 +577,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 autoresume=ft_use_autoresume,
                 calculate_timeouts=ft_params.calculate_timeouts,
                 simulated_fault_params=ft_params.simulated_fault,
+                save_dir=exp_dir,
             )
             trainer.callbacks.append(fault_tol_callback)
         else:
