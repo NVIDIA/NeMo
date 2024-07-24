@@ -206,10 +206,9 @@ class EnglishCharsTokenizer(BaseCharsTokenizer):
 
 class VietnameseCharsTokenizer(BaseCharsTokenizer):
 
-    _punctuation = '-();:,.!?¡¿—…"«»“”%'
-    _letters = 'abcdefghijklmnopqrstuvwxyzđáàãảạăắằẵẳặâấầẫẩậóòõỏọôốồỗổộơớờỡởợéèẽẻẹêếềễểệúùũủụưứừữửựíìĩỉịýỳỹỷỵ'
-    _CHARSET_STR = _letters
-    _PUNCT_LIST = _punctuation
+    _LOCALE = "vi-VN"
+    _PUNCT_LIST = get_ipa_punctuation_list(_LOCALE)
+    _CHARSET_STR = get_grapheme_character_set(locale=_LOCALE, case="mixed")
 
     def __init__(
         self,
