@@ -49,3 +49,5 @@ class Mistral(Basic):
             "class": AutoTokenizer,
             "name": "mistralai/Mistral-7B-v0.1",
         }
+
+        return tokenizer_config

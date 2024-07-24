@@ -49,3 +49,5 @@ class Mixtral(Basic):
             "class": AutoTokenizer,
             "name": "mistralai/Mixtral-8x7B-v0.1",
         }
+
+        return tokenizer_config

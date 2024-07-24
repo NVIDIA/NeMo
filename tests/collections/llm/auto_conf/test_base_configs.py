@@ -1,4 +1,6 @@
 from nemo.collections.llm.tools.auto_configurator import base_configs
+from megatron.core.optimizer import OptimizerConfig
+from nemo.collections.common.tokenizers import SentencePieceTokenizer, AutoTokenizer
 
 
 class TestBaseConfigs:
@@ -120,3 +122,135 @@ class TestBaseConfigs:
         assert model.size == 7
         assert model.measure == "B"
         assert model.cfg == {}
+    
+    def test_trainer_config(self):
+        model_cls = getattr(base_configs, "GPT")
+
+        model_126m = model_cls(size=126, measure="M")
+        trainer_config_source = model_126m.get_trainer_config()
+
+        trainer_config_target = {
+            "accelerator": "gpu",
+            "precision": "bf16",
+            "logger": False,
+            "enable_checkpointing": False,
+            "use_distributed_sampler": False,
+            "max_epochs": None,
+            "log_every_n_steps": 1,
+            "limit_val_batches": 1,
+            "limit_test_batches": 1,
+            "accumulate_grad_batches": 1,
+            "gradient_clip_val": 1.0,
+            "num_nodes": 8,
+            "devices": 8,
+            "max_steps": 50,
+            "val_check_interval": 50,
+        }
+
+        assert trainer_config_target == trainer_config_source, f"{trainer_config_target} is expected trainer config but got {trainer_config_source}"
+    
+    def test_data_config(self):
+        model_cls = getattr(base_configs, "Llama")
+
+        model_70b = model_cls(size=70)
+        data_config_source = model_70b.get_data_config()
+
+        data_config_target = {
+            "paths": None,
+            "weights": None,
+            "seq_length": 2048,
+            "global_batch_size": 2048,
+            "num_workers": 2,
+            "split": "99990,8,2",
+            "index_mapping_dir": None,
+        }
+
+        assert data_config_target == data_config_source, f"{data_config_target} is expected data config but got {data_config_source}"
+    
+    def test_optim_config(self):
+        model_cls = getattr(base_configs, "Mixtral")
+
+        model_7b = model_cls(size=7)
+        optim_config_source = model_7b.get_optim_config()
+
+        optim_config_target = OptimizerConfig(
+            optimizer='adam',
+            lr=1e-4,
+            min_lr=1e-5,
+            use_distributed_optimizer=True,
+            bf16=True,
+            adam_beta1=0.9,
+            adam_beta2=0.95,
+            overlap_grad_reduce=False,
+            overlap_param_gather=True,
+        )
+
+        assert optim_config_target == optim_config_source, f"{optim_config_target} is expected optim config but got {optim_config_source}"
+    
+    def test_run_config(self):
+        model_cls = getattr(base_configs, "Mistral")
+
+        model_7b = model_cls(size=7)
+        run_config_source = model_7b.get_run_config()
+
+        run_config_target = {
+            "name": f"Mistral_7B",
+            "results_dir": None,
+            "time_limit": "0-00:30:00",
+        }
+
+        assert run_config_target == run_config_source, f"{run_config_target} is expected run config but got {run_config_source}"
+    
+
+    def test_tokenizer_config(self):
+        #Mistral
+        model_cls = getattr(base_configs, "Mistral")
+
+        model_7b = model_cls(size=7)
+        tokenizer_config_source = model_7b.get_tokenizer_config()
+
+        tokenizer_config_target = {
+            "class": AutoTokenizer,
+            "name": "mistralai/Mistral-7B-v0.1",
+        }
+
+        assert tokenizer_config_target == tokenizer_config_source, f"{tokenizer_config_target} is expected tokenizer config but got {tokenizer_config_source}"
+
+        #Mixtral
+        model_cls = getattr(base_configs, "Mixtral")
+
+        model_7b = model_cls(size=7)
+        tokenizer_config_source = model_7b.get_tokenizer_config()
+
+        tokenizer_config_target = {
+            "class": AutoTokenizer,
+            "name": "mistralai/Mixtral-8x7B-v0.1",
+        }
+
+        assert tokenizer_config_target == tokenizer_config_source, f"{tokenizer_config_target} is expected tokenizer config but got {tokenizer_config_source}"
+
+        #Llama
+        model_cls = getattr(base_configs, "Llama")
+
+        model_8b = model_cls(size=8, version=3)
+        tokenizer_config_source = model_8b.get_tokenizer_config()
+
+        tokenizer_config_target = {
+            "class": SentencePieceTokenizer,
+            "path": None,
+        }
+
+        assert tokenizer_config_target == tokenizer_config_source, f"{tokenizer_config_target} is expected tokenizer config but got {tokenizer_config_source}"
+
+        #GPT
+        model_cls = getattr(base_configs, "GPT")
+
+        model_5b = model_cls(size=5, version=3)
+        tokenizer_config_source = model_5b.get_tokenizer_config()
+
+        tokenizer_config_target = {
+            "class": AutoTokenizer,
+            "name": "GPT2BPETokenizer",
+        }
+
+        assert tokenizer_config_target == tokenizer_config_source, f"{tokenizer_config_target} is expected tokenizer config but got {tokenizer_config_source}"
