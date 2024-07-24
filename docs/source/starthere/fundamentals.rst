@@ -1,4 +1,4 @@
-NeMo fundamentals
+NeMo Fundamentals
 =================
 
 On this page we will go a little bit deeper on how NeMo works, to give you a good foundation for using NeMo for your :ref:`desired usecase <where_next>`.
@@ -8,15 +8,15 @@ NeMo Models
 
 A NeMo "model" includes all of the below components wrapped into a singular, cohesive unit:
 
-* neural network architecture,
+* neural network architecture
 
-* dataset & data loaders,
+* dataset and data loaders
 
-* preprocessing of input data & postprocessing of model outputs,
+* preprocessing of input data and postprocessing of model outputs
 
-* loss function, optimizer & schedulers,
+* loss function, optimizer, and schedulers
 
-* any other supporting infrastructure: tokenizers, language model configuration, data augmentation etc.
+* any other supporting infrastructure such as tokenizers, language model configuration, data augmentation
 
 NeMo models are based on PyTorch. Many of their components are subclasses of ``torch.nn.Module``. NeMo models use PyTorch Lightning (PTL) for training, thus reducing the amount of boilerplate code needed.
 
