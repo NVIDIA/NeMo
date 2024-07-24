@@ -18,9 +18,9 @@ A NeMo "model" includes all of the below components wrapped into a singular, coh
 
 * any other supporting infrastructure, such as tokenizers, language model configuration, and data augmentation
 
-NeMo models are based on PyTorch. Many of their components are subclasses of ``torch.nn.Module``. NeMo models use PyTorch Lightning (PTL) for training, thus reducing the amount of boilerplate code needed.
+NeMo models are built on PyTorch, with many of their components being subclasses of ``torch.nn.Module``. Additionally, NeMo models utilize PyTorch Lightning (PTL) for training, which helps reduce the boilerplate code required.
 
-NeMo models are also designed to be easily configurable; often this is done with YAML files. Below we show simplified examples of a NeMo model defined in pseudocode, and a config defined in YAML. We highlight the lines where the Python config parameter is read from the YAML file.
+NeMo models are also designed to be easily configurable; often this is done with YAML files. Below we show simplified examples of a NeMo model defined in pseudocode and a config defined in YAML. We highlight the lines where the Python config parameter is read from the YAML file.
 
 .. list-table:: Simplified examples of a model and config.
     :widths: 1 1
@@ -96,7 +96,7 @@ NeMo models are also designed to be easily configurable; often this is done with
 	      ...
 
 
-Configuring and training NeMo models
+Configuring and Training NeMo Models
 ------------------------------------
 
 During initialization of the model, key parameters are read from the config (``cfg``), which gets passed in to the model construtor (left panel above, line 2).
@@ -106,7 +106,7 @@ The other object passed into the model's constructor is a PyTorch Lightning ``tr
 The configuration of the trainer is also specified in the config (right panel above, line 20 onwards). This will include parameters such as ``accelerator``, (number of) ``devices``, ``max_steps``, (numerical) ``precision`` and `more <https://lightning.ai/docs/pytorch/stable/common/trainer.html#trainer-class-api>`__.
 
 
-Example training script
+Example Training Script
 -----------------------
 
 Putting it all together, here is an example training script for our ``ExampleEncDecModel`` model. We highlight the 3 most important lines, which put together everything we discussed in the previous section.
@@ -136,27 +136,26 @@ Putting it all together, here is an example training script for our ``ExampleEnc
 Let's go through the code:
 
 * *Lines 1-3*: import statements (second one is made up for the example).
-* *Lines 5-8*: a decorator on lines 5-8 of ``run_example_training.py`` will look for a config file at ``{config_path}/{config_name}.yaml``, and load its contents into the ``cfg`` object that is passed into the ``main`` function. This functionality is provided by `Hydra <https://hydra.cc/docs/intro/>`__. Instead of a YAML file, we could also have specified the default config as a dataclass, and passed that into the ``@hydra_runner`` decorator.
-* *Line 7*: initialize a PTL trainer object, using the parameters specified in the ``trainer`` section of the config.
+* *Lines 5-8*: a decorator on lines 5-8 of ``run_example_training.py`` will look for a config file at ``{config_path}/{config_name}.yaml`` and load its contents into the ``cfg`` object that is passed into the ``main`` function. This functionality is provided by `Hydra <https://hydra.cc/docs/intro/>`__. Instead of a YAML file, we could also have specified the default config as a dataclass and passed that into the ``@hydra_runner`` decorator.
+* *Line 7*: initialize a PTL trainer object using the parameters specified in the ``trainer`` section of the config.
 * *Line 8*: initialize a NeMo model, passing in both the parameters in the ``model`` section of the config, and a PTL trainer.
 * *Line 9*: call ``trainer.fit`` on the model. This one unassuming line will carry out our entire training process. PTL will make sure we iterate over our data and call the ``training_step`` we define for each batch (as well as any other PTL `callbacks <https://lightning.ai/docs/pytorch/stable/extensions/callbacks.html>`__ that may have been defined).
 
 
 
-Overriding configs
+Overriding Configs
 ------------------
 
-The ``cfg`` object in the script above is a dictionary-like object that contains our configuration parameters. Specifically, it is an `OmegaConf <https://omegaconf.readthedocs.io/en/2.3_branch/usage.html>`__ ``DictConfig`` object. These objects have special features such as dot-notation `access <https://omegaconf.readthedocs.io/en/latest/usage.html#access>`__, `variable interpolation <https://omegaconf.readthedocs.io/en/latest/usage.html#variable-interpolation>`__ and ability to set `mandatory values <https://omegaconf.readthedocs.io/en/latest/usage.html#mandatory-values>`__.
+The ``cfg`` object in the script above is a dictionary-like object that contains our configuration parameters. Specifically, it is an `OmegaConf <https://omegaconf.readthedocs.io/en/2.3_branch/usage.html>`__ ``DictConfig`` object. These objects have special features such as dot-notation `access <https://omegaconf.readthedocs.io/en/latest/usage.html#access>`__, `variable interpolation <https://omegaconf.readthedocs.io/en/latest/usage.html#variable-interpolation>`__, and the ability to set `mandatory values <https://omegaconf.readthedocs.io/en/latest/usage.html#mandatory-values>`__.
 
-We can run the script above like this:
-
+You can run the script above by running the following:
 .. code-block:: bash
 
 	python run_example_training.py
 
-This will use the default config file specified inside the ``@hydra_runner`` decorator.
+The script will use the default config file specified inside the ``@hydra_runner`` decorator.
 
-We can specify a different config file to use by calling the script like this:
+To specify a different config file, you can call the script like this:
 
 .. code-block:: diff
 
@@ -164,7 +163,7 @@ We can specify a different config file to use by calling the script like this:
 	+    --config_path="different_config_file_dir_path" \
 	+    --config_name="different_config_file_name"
 
-We can also override, delete or add elements to the config when we call the script like this:
+You can also override, delete, or add elements to the config by calling a script like this:
 
 
 .. code-block:: diff
@@ -177,7 +176,7 @@ We can also override, delete or add elements to the config when we call the scri
 	+    ~trainer.max_epochs \                                      # deleting
 	+    +trainer.max_steps=1000                                    # adding
 
-Running NeMo scripts
+Running NeMo Scripts
 --------------------
 
 NeMo scripts typically take on the form shown above, where the Python script relies on a config object which has some specified default values that you can choose to override.
@@ -196,29 +195,29 @@ Specifying training data
 NeMo will handle creation of data loaders for you, as long as you put your data into the expected input format. You may also need to train a tokenizer before starting training. Learn more about data formats for :doc:`LLM <../nlp/nemo_megatron/gpt/gpt_training>`, :doc:`Multimodal <../multimodal/mllm/datasets>`, :ref:`Speech AI <section-with-manifest-format-explanation>`, and :doc:`Vision models <../vision/datasets>`.
 
 
-Model checkpoints
+Model Checkpoints
 -----------------
 
 Throughout training, model :doc:`checkpoints <../checkpoints/intro>` will be saved inside ``.nemo`` files. These are archive files containing all the necessary components to restore a usable model, e.g.:
 
-* model weights (``.ckpt`` files),
-* model configuration (``.yaml`` files),
+* model weights (``.ckpt`` files)
+* model configuration (``.yaml`` files)
 * tokenizer files
 
-The NeMo team also releases pretrained models which you browse on `NGC <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_ and `HuggingFace Hub <https://huggingface.co/models?library=nemo&sort=downloads&search=nvidia>`_.
+The NeMo team also releases pretrained models which you can browse on `NGC <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_ and `HuggingFace Hub <https://huggingface.co/models?library=nemo&sort=downloads&search=nvidia>`_.
 
 
-Finetuning
+Fine-Tuning
 ----------
 
-NeMo allows you to finetune models as well as train them from scratch.
+NeMo allows you to fine-tune models as well as train them from scratch.
 
 You can do this by initializing a model with random weights, replacing some/all the weights with those of a pretrained model, and then continuing training as normal, potentially with some small changes such as reducing your learning rate or freezing some model parameters.
 
 
 .. _where_next:
 
-Where next?
+Where To Go Next?
 -----------
 
 Here are some options:
