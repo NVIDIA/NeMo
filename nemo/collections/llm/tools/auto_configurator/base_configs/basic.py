@@ -16,6 +16,7 @@ import numpy as np
 
 from megatron.core.optimizer import OptimizerConfig
 
+
 class Basic:
     def __init__(
         self,
