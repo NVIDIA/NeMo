@@ -4560,6 +4560,8 @@ jobs:
 
   Nemo_CICD_Test:
     needs: 
+      - gpu-test
+      - cicd-test-container-setup
       - L0_Unit_Tests_GPU
       - L0_Unit_Tests_CPU
       - L2_Community_LLM_Checkpoints_tests_Llama
