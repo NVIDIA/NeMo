@@ -22,7 +22,7 @@ import numpy as np
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding, rnnt_greedy_decoding
+from nemo.collections.asr.parts.submodules import rnnt_beam_decoding, rnnt_greedy_decoding, tdt_beam_decoding
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
@@ -218,7 +218,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 raise ValueError("blank_id must equal len(non_blank_vocabs) for TDT models")
             if self.big_blank_durations is not None and self.big_blank_durations != []:
                 raise ValueError("duration and big_blank_durations can't both be not None")
-            if self.cfg.strategy not in ['greedy', 'greedy_batch']:
+            if self.cfg.strategy not in ['greedy', 'greedy_batch', 'beam']:
                 raise ValueError("currently only greedy and greedy_batch inference is supported for TDT models")
 
         if (
@@ -365,20 +365,32 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 )
 
         elif self.cfg.strategy == 'beam':
-
-            self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                beam_size=self.cfg.beam.beam_size,
-                return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
-                search_type='default',
-                score_norm=self.cfg.beam.get('score_norm', True),
-                softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
-                preserve_alignments=self.preserve_alignments,
-            )
+            if self.big_blank_durations is None or self.big_blank_durations == []:
+                if not self._is_tdt:
+                    self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        beam_size=self.cfg.beam.beam_size,
+                        return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
+                        search_type='default',
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
+                        preserve_alignments=self.preserve_alignments,
+                    )
+                else: 
+                    self.decoding = tdt_beam_decoding.BeamTDTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        durations=self.durations,
+                        beam_size=self.cfg.beam.beam_size,
+                        return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
+                        search_type='default',
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
+                        preserve_alignments=self.preserve_alignments,
+                    )
 
         elif self.cfg.strategy == 'tsd':
-
             self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
@@ -392,7 +404,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             )
 
         elif self.cfg.strategy == 'alsd':
-
             self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
@@ -406,26 +417,46 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             )
 
         elif self.cfg.strategy == 'maes':
-
-            self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                beam_size=self.cfg.beam.beam_size,
-                return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
-                search_type='maes',
-                score_norm=self.cfg.beam.get('score_norm', True),
-                maes_num_steps=self.cfg.beam.get('maes_num_steps', 2),
-                maes_prefix_alpha=self.cfg.beam.get('maes_prefix_alpha', 1),
-                maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
-                maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
-                softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
-                preserve_alignments=self.preserve_alignments,
-                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
-                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
-                hat_subtract_ilm=self.cfg.beam.get('hat_subtract_ilm', False),
-                hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
-            )
-
+            if self.big_blank_durations is None or self.big_blank_durations == []:
+                if not self._is_tdt:
+                    self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        beam_size=self.cfg.beam.beam_size,
+                        return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
+                        search_type='maes',
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        maes_num_steps=self.cfg.beam.get('maes_num_steps', 2),
+                        maes_prefix_alpha=self.cfg.beam.get('maes_prefix_alpha', 1),
+                        maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
+                        maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
+                        softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        hat_subtract_ilm=self.cfg.beam.get('hat_subtract_ilm', False),
+                        hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
+                    )
+                else:
+                    self.decoding = tdt_beam_decoding.BeamTDTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        durations=self.durations,
+                        beam_size=self.cfg.beam.beam_size,
+                        return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
+                        search_type='maes',
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        maes_num_steps=self.cfg.beam.get('maes_num_steps', 2),
+                        maes_prefix_alpha=self.cfg.beam.get('maes_prefix_alpha', 1),
+                        maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
+                        maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
+                        softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        hat_subtract_ilm=self.cfg.beam.get('hat_subtract_ilm', False),
+                        hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
+                    )
         else:
 
             raise ValueError(
@@ -1196,7 +1227,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
             blank_id=blank_id,
         )
 
-        if isinstance(self.decoding, rnnt_beam_decoding.BeamRNNTInfer):
+        if isinstance(self.decoding, rnnt_beam_decoding.BeamRNNTInfer) or isinstance(self.decoding, tdt_beam_decoding.BeamTDTInfer):
             self.decoding.set_decoding_type('char')
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
@@ -1460,7 +1491,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
             decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id
         )
 
-        if isinstance(self.decoding, rnnt_beam_decoding.BeamRNNTInfer):
+        if isinstance(self.decoding, rnnt_beam_decoding.BeamRNNTInfer) or isinstance(self.decoding, tdt_beam_decoding.BeamTDTInfer):
             self.decoding.set_decoding_type('subword')
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
