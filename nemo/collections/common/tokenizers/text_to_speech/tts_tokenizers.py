@@ -207,7 +207,6 @@ class EnglishCharsTokenizer(BaseCharsTokenizer):
 class VietnameseCharsTokenizer(BaseCharsTokenizer):
 
     _LOCALE = "vi-VN"
-    _PUNCT_LIST = get_ipa_punctuation_list(_LOCALE)
     _CHARSET_STR = get_grapheme_character_set(locale=_LOCALE, case="mixed")
 
     def __init__(
@@ -217,7 +216,7 @@ class VietnameseCharsTokenizer(BaseCharsTokenizer):
         apostrophe=True,
         add_blank_at=None,
         pad_with_space=False,
-        non_default_punct_list=_PUNCT_LIST,
+        non_default_punct_list=None,
         text_preprocessing_func=vietnamese_text_preprocessing,
     ):
         """Vietnamese grapheme tokenizer.
