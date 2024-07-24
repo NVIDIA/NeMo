@@ -674,8 +674,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         signal, signal_len, transcript, transcript_len, prompt, prompt_len = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
 
+        if torch.distributed.is_initialized():
+            pfx = f"{torch.distributed.get_rank()+1}/{torch.distributed.get_world_size()}"
+        else:
+            pfx = "1GPU"
         print(
-            f"[{torch.distributed.get_rank()+1}/{torch.distributed.get_world_size()}] batch_size={signal.shape[0]} ilen={signal.shape[1]} olen={transcript.shape[1]}"
+            f"[{pfx}] batch_size={signal.shape[0]} ilen={signal.shape[1]} duration={signal.shape[1]/self.sample_rate:.3f} olen={transcript.shape[1]}"
         )
 
         try:
