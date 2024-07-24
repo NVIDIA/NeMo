@@ -74,16 +74,15 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
 
         prompts_with_answers_orig, prompts = self.prompt_format_fn(cuts, self.tokenizer, inference=self.inference)
 
-        for idx, p in enumerate(prompts_with_answers_orig):
-            # TODO: change to is subseq
-            if is_subsequence([221, 407, 52, 65, 13, 407, 52, 65, 13, 494, 337, 65], list(p)):
-                msg = "================= ALERT ==================\n"
-                msg += ("Cut: " + str(cuts[idx]) + "\n")
-                msg += ("Token-ids: " + str(list(p)) + "\n")
-                msg += ("De-tokenized: " + self.tokenizer._tokenizer.ids_to_text(p) + "\n")
-                msg += "================ END ====================\n"
-                print(msg)
-
+        # for idx, p in enumerate(prompts_with_answers_orig):
+        #    # TODO: change to is subseq
+        #    if is_subsequence([221, 407, 52, 65, 13, 407, 52, 65, 13, 494, 337, 65], list(p)):
+        #        msg = "================= ALERT ==================\n"
+        #        msg += ("Cut: " + str(cuts[idx]) + "\n")
+        #        msg += ("Token-ids: " + str(list(p)) + "\n")
+        #        msg += ("De-tokenized: " + self.tokenizer._tokenizer.ids_to_text(p) + "\n")
+        #        msg += "================ END ====================\n"
+        #        print(msg)
 
         prompts_with_answers = [torch.as_tensor(t) for t in prompts_with_answers_orig]
         prompts_with_answers_lens = torch.tensor([t.size(0) for t in prompts_with_answers], dtype=torch.long)
@@ -95,11 +94,13 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             culprit_tps = tps[exceeded].tolist()
             exceeded_set = set(torch.nonzero(exceeded).squeeze(dim=1).tolist())
             culprits = [c for idx, c in enumerate(cuts) if idx in exceeded_set]
-            print(f"Discarding {exceeded.to(torch.long).sum().item()} examples with prompt+transcript token/sec of {culprit_tps} vs threshold of 15.0. The first culprit is: {culprits[0]}\nprompt_with_answer={prompts_with_answers[exceeded].tolist()}")
-            #audio = audio[~exceeded]
-            #audio_lens = audio_lens[~exceeded]
-            #prompts_with_answers = prompts_with_answers[~exceeded]
-            #prompts_with_answers_lens = prompts_with_answers_lens[~exceeded]
+            print(
+                f"Discarding {exceeded.to(torch.long).sum().item()} examples with prompt+transcript token/sec of {culprit_tps} vs threshold of 15.0. The first culprit is: {culprits[0]}\nprompt_with_answer={prompts_with_answers[exceeded].tolist()}"
+            )
+            # audio = audio[~exceeded]
+            # audio_lens = audio_lens[~exceeded]
+            # prompts_with_answers = prompts_with_answers[~exceeded]
+            # prompts_with_answers_lens = prompts_with_answers_lens[~exceeded]
             # TODO: filter cuts as well
             formatter = CanaryPromptFormatter(self.tokenizer._tokenizer)
             cut = culprits[0]
@@ -111,11 +112,17 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
                 turns=[
                     dict(
                         role="user",
-                        slots={**{slot: cut.custom[slot] for slot in expected_slots}, formatter.PROMPT_LANGUAGE_SLOT: CANARY_SPECIAL_TOKENIZER},
+                        slots={
+                            **{slot: cut.custom[slot] for slot in expected_slots},
+                            formatter.PROMPT_LANGUAGE_SLOT: CANARY_SPECIAL_TOKENIZER,
+                        },
                     ),
                     dict(
                         role="assistant",
-                        slots={"text": ' '.join(s.text for s in cut.supervisions), formatter.PROMPT_LANGUAGE_SLOT: cut.custom["target_lang"]},
+                        slots={
+                            "text": ' '.join(s.text for s in cut.supervisions),
+                            formatter.PROMPT_LANGUAGE_SLOT: cut.custom["target_lang"],
+                        },
                     ),
                 ]
             )
