@@ -18,9 +18,10 @@ import math
 from functools import partial
 from itertools import islice
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 import numpy as np
+import pandas as pd
 from lhotse.cut import Cut
 from omegaconf import OmegaConf
 
@@ -132,6 +133,7 @@ def estimate_duration_buckets(
     num_subbuckets: int,
     max_tps: float,
     max_duration: float,
+    quiet: bool,
 ) -> list[tuple[float, float]]:
     assert num_buckets > 1
 
@@ -152,10 +154,19 @@ def estimate_duration_buckets(
 
     size_per_bucket = sizes.sum() / num_buckets
 
+    if not quiet:
+        print("Duration distribution:")
+        print(pd.Series(sizes).describe(percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]))
     if math.isinf(max_duration):
         max_duration = sizes[-1]
+
+    tps = num_tokens / sizes
+    if not quiet:
+        print("Token per second distribution:")
+        print(pd.Series(tps).describe(percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]))
     if math.isinf(max_tps):
-        max_tps = (num_tokens / sizes).max()
+        max_tps = tps.max()
+    del tps
 
     bins = []
     bin_indexes = [0]
@@ -219,8 +230,30 @@ def apply_tokenizer(cut, tokenizer=None, prompt: PromptFormatter = None):
     return cut
 
 
+class RejectionsCounter:
+    def __init__(self, predicate: Callable, message: str):
+        self.predicate = predicate
+        self.message = message
+        self.total = 0
+        self.rejected = 0
+
+    def __call__(self, example) -> bool:
+        ans = self.predicate(example)
+        self.total += 1
+        if not ans:
+            self.rejected += 1
+        return ans
+
+    def print_report(self) -> None:
+        if self.rejected:
+            print(f"{self.message} | Rejected {self.rejected}/{self.total} examples.")
+
+
 def main():
     args = parse_args()
+
+    if not args.quiet:
+        pd.set_option('display.float_format', lambda x: '%.2f' % x)
 
     tokenizer = None
     prompt = None
@@ -247,9 +280,11 @@ def main():
         ),
     )
     cuts, _ = read_cutset_from_config(config)
-    cuts = cuts.filter(DurationFilter(args.min_duration, args.max_duration))
+    duration_filter = RejectionsCounter(DurationFilter(args.min_duration, args.max_duration), "Duration filtering")
+    cuts = cuts.filter(duration_filter)
     cuts = cuts.map(partial(apply_tokenizer, tokenizer=tokenizer, prompt=prompt))
-    cuts = cuts.filter(TokenPerSecondFilter(-1, args.max_tps))
+    tps_filter = RejectionsCounter(TokenPerSecondFilter(-1, args.max_tps), "Token per second filtering")
+    cuts = cuts.filter(tps_filter)
     if (N := args.num_examples) > 0:
         cuts = islice(cuts, N)
 
@@ -259,11 +294,14 @@ def main():
         num_subbuckets=args.sub_buckets,
         max_tps=args.max_tps,
         max_duration=args.max_duration,
+        quiet=args.quiet,
     )
     duration_bins = "[" + ','.join(f"[{b:.3f},{sb:d}]" for b, sb in duration_bins) + "]"
     if args.quiet:
         print(duration_bins)
         return
+    duration_filter.print_report()
+    tps_filter.print_report()
     print("Use the following options in your config:")
     print(f"\tnum_buckets={args.buckets}")
     print(f"\tbucket_duration_bins={duration_bins}")
