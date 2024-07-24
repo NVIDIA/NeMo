@@ -21,6 +21,7 @@ from typing import Any, Optional, Union
 
 import sacrebleu
 import torch
+import numpy as np
 from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
@@ -1539,6 +1540,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+        speaker_contexts = batch.get('speaker_contexts', [{}] * len(batch['tokens']))
         loss = self._validation_step_internal(itertools.chain([batch]), batch_idx, dataloader_idx, result_mode=mode)
 
         # We need _inference_config to get generation params
@@ -1548,23 +1550,24 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             self.set_inference_config(inference_config=default_inference_config)
         self._inference_config['add_BOS'] = data_cfg.add_bos
         self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
+        # import pdb; pdb.set_trace()
 
         output = self.predict_step(batch, batch_idx, dataloader_idx)
+        # pdb.set_trace()
 
         inputs_text = output['input_text']
-        labels = output['labels']
+        answers = output['answers']
         preds = output['preds']
         if data_cfg.get("log_every_n_steps", None) is not None:
             if batch_idx % data_cfg.log_every_n_steps == 0:
                 logging.info(f"Input: `{inputs_text[0]}`")
-                logging.info(f"Label: `{labels[0]}`")
-                logging.info(f"Pred: `{preds[0]}`")
 
         outputs = {
             'loss': loss,
             'preds': preds,  # 2d array
-            'labels': labels,  # 2d array
+            'answers': answers,  # 2d array
             'inputs': inputs_text,  # [str]
+            'speaker_contexts': speaker_contexts,  # 2d array
             'metadata': metadata,  # [dict]
         }
 
@@ -1610,12 +1613,12 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
         input_text = batch['contexts'][:, :, 0]
         input_text = MegatronT5SFTModel.ids_to_text(input_text, self.tokenizer)
-        labels = batch['answers']
+        answers = batch['answers']
 
         return {
             'input_text': input_text,
             'preds': predicted_token_ids,
-            'labels': labels,
+            'answers': answers,
         }
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
@@ -1667,7 +1670,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             torch.distributed.all_gather_object(
                 gathered_outputs,
                 [
-                    {'preds': x['preds'], 'labels': x['labels'], 'inputs': x['inputs'], 'metadata': x['metadata']}
+                    {'preds': x['preds'], 'answers': x['answers'], 'inputs': x['inputs'], 'speaker_contexts': x['speaker_contexts'], 'metadata': x['metadata']}
                     for x in output
                 ],
                 group=parallel_state.get_data_parallel_group(),
@@ -1677,15 +1680,16 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             inp_label_set = set()
             deduplicated_outputs = {
                 'preds': [],
-                'labels': [],
+                'answers': [],
                 'inputs': [],
+                'speaker_contexts': [],
                 'metadata': [],
             }
             total_size = 0
             for rank in range(0, parallel_state.get_data_parallel_world_size()):
                 for batch in gathered_outputs[rank]:
-                    for pred, label, input, metadata in zip(
-                        batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
+                    for pred, answer, input, speaker_context, metadata in zip(
+                        batch['preds'], batch['answers'], batch['inputs'], batch['speaker_contexts'], batch['metadata']
                     ):
                         key = input
                         total_size += 1
@@ -1693,8 +1697,9 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
                         if (not dedup) or key not in inp_label_set:
                             inp_label_set.add(key)
                             deduplicated_outputs['preds'].append(pred)
-                            deduplicated_outputs['labels'].append(label)
+                            deduplicated_outputs['answers'].append(answer)
                             deduplicated_outputs['inputs'].append(input)
+                            deduplicated_outputs['speaker_contexts'].append(speaker_context)
                             deduplicated_outputs['metadata'].append(metadata)
 
             # Write predictions to file
@@ -1748,6 +1753,41 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             )
 
         return averaged_loss, averaged_loss
+
+    # consistent with speech models
+    def write_predictions_to_file(self, outputs, output_file_path_prefix, output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+        inputs_path = os.path.join(output_dir, output_file_path_prefix + "_inputs.jsonl")
+        preds_path = os.path.join(output_dir, 'npy', output_file_path_prefix + "_pred_{}.npy")
+        answers_path = os.path.join(output_dir, 'npy', output_file_path_prefix + "_answer_{}.npy")
+        speaker_contexts_path = os.path.join(output_dir, 'npy', output_file_path_prefix + "_speaker_context_{}.npy")
+
+        with open(inputs_path, "w") as f_json:
+            assert (
+                len(outputs['inputs']) == len(outputs['preds']) == len(outputs['answers']) == len(outputs['speaker_contexts']) == len(outputs['metadata'])
+            )
+            for i, (input_, pred, answer, speaker_context, md) in enumerate(zip(outputs['inputs'], outputs['preds'], outputs['answers'], outputs['speaker_contexts'], outputs['metadata'])):
+                json_string = {'input': input_}
+                for k, v in md.items():
+                    if k not in json_string:
+                        json_string[k] = v
+                f_json.write(json.dumps(json_string) + '\n')
+
+                vocab_sizes = self.frozen_model.proj_head_dims
+                pred = self.convert_speech_token_id(pred, vocab_sizes)
+                answer = self.convert_speech_token_id(answer, vocab_sizes)
+                speaker_context = self.convert_speech_token_id(speaker_context, vocab_sizes)
+
+                np.save(preds_path.format(i), pred.cpu().numpy())
+                np.save(answers_path.format(i), answer.cpu().numpy())
+                np.save(speaker_contexts_path.format(i), speaker_context.cpu().numpy())
+
+        logging.info(f'Predictions saved to {output_dir}')
+
+    def convert_speech_token_id(self, tokens, vocab_sizes):
+        for i, v in enumerate(vocab_sizes[:-1]):
+            tokens[:, i+1:] -= v
+        return tokens
 
     def _build_dataset(self, data_cfg, is_train=True):
         # this is crucial so as to tell the decoder when to start generate answer after context and paddings
