@@ -354,6 +354,9 @@ def oomptimizer(
         batch_idx = 0
 
         def step():
+            print(
+                f"\t[BEGIN step] [CUDA RAM CURRENT: {torch.cuda.memory_allocated() / (1024 * 1024):.1f}MB] [CUDA RAM MAX: {torch.cuda.max_memory_allocated() / (1024*1024):.1f}MB]"
+            )
             batch = gen(seq_len_in, seq_len_out)
             oom = False
             try:
@@ -363,21 +366,27 @@ def oomptimizer(
                 optimizer.step()
             except torch.cuda.OutOfMemoryError as e:
                 print(f"- OOM!")
-                torch.cuda.memory.empty_cache()
                 oom = True
             except RuntimeError as e:
                 if "cuFFT error: CUFFT_INTERNAL_ERROR" not in str(e):
                     raise
                 print(f"- OOM!")
-                torch.cuda.memory.empty_cache()
                 oom = True
             else:
                 print(f"- OK!")
+            finally:
+                print(
+                    f"\t[END step] [CUDA RAM CURRENT: {torch.cuda.memory_allocated() / (1024 * 1024):.1f}MB] [CUDA RAM MAX: {torch.cuda.max_memory_allocated() / (1024*1024):.1f}MB]"
+                )
+                del batch
+                torch.cuda.memory.empty_cache()
+                torch.cuda.reset_max_memory_allocated()
             return oom
 
         with torch.autocast("cuda", getattr(torch, dtype)):
             oom = step()
             while not (finished := gen.advance(oom)):
+                print("\t" + "=" * 80)
                 oom = step()
 
         print(
