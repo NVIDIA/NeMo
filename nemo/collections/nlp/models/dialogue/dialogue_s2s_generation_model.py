@@ -38,7 +38,9 @@ try:
     from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
 
 except (ImportError, ModuleNotFoundError):
-    import apex.transformer.pipeline_parallel.utils._reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
+    )
 
 __all__ = ['DialogueS2SGenerationModel']
 
