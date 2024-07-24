@@ -58,7 +58,7 @@ try:
         get_num_microbatches_calculator,
         init_num_microbatches_calculator,
     )
-    
+
     MCORE_MB_CALCULATOR = True
 
 except (ImportError, ModuleNotFoundError):
@@ -69,7 +69,7 @@ except (ImportError, ModuleNotFoundError):
         get_micro_batch_size,
         get_num_microbatches,
     )
-    
+
     MCORE_MB_CALCULATOR = False
 
 
@@ -174,11 +174,14 @@ def initialize_model_parallel_for_nemo(
                 if isinstance(get_num_microbatches_calculator(), ConstantNumMicroBatchesCalculator):
                     assert get_current_global_batch_size() == global_batch_size
                     assert get_micro_batch_size() == micro_batch_size
-                    assert get_num_microbatches() == global_batch_size // (micro_batch_size * app_state.data_parallel_size)
+                    assert get_num_microbatches() == global_batch_size // (
+                        micro_batch_size * app_state.data_parallel_size
+                    )
                 else:
                     raise Exception("Microbatch calculator already initialized.")
         else:
             from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
             if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
                 init_num_microbatches_calculator(
                     rank=global_rank,
@@ -191,7 +194,9 @@ def initialize_model_parallel_for_nemo(
                 if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
                     assert get_current_global_batch_size() == global_batch_size
                     assert get_micro_batch_size() == micro_batch_size
-                    assert get_num_microbatches() == global_batch_size // (micro_batch_size * app_state.data_parallel_size)
+                    assert get_num_microbatches() == global_batch_size // (
+                        micro_batch_size * app_state.data_parallel_size
+                    )
                 else:
                     raise Exception("Microbatch calculator already initialized.")
 
