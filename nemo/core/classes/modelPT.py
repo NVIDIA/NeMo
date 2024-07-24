@@ -1864,7 +1864,7 @@ class ModelPT(LightningModule, Model):
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
         We use it here to enable nsys profiling and dynamic freezing.
         """
-        logging.info(f"Training Real batch {self._real_batch_idx} started.")
+        # logging.info(f"Training Real batch {self._real_batch_idx} started.")
         # nsys profiling
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
@@ -1936,7 +1936,7 @@ class ModelPT(LightningModule, Model):
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-end
         We use it here to enable nsys profiling.
         """
-        logging.info(f"Training Real batch {self._real_batch_idx} ended.")
+        # logging.info(f"Training Real batch {self._real_batch_idx} ended.")
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
                 if self._nsys_profile_enabled and not self._nsys_profile_complete:
