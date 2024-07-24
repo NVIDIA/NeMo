@@ -4,3 +4,4 @@ pydantic-settings
 tensorstore==0.1.45
 uvicorn
 zarr
+vllm==0.5.1

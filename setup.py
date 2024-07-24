@@ -91,6 +91,7 @@ extras_require = {
     'slu': req_file("requirements_slu.txt"),
     'multimodal': req_file("requirements_multimodal.txt"),
     'audio': req_file("requirements_audio.txt"),
+    'export': req_file("requirements_infer.txt"),
 }
 
 
