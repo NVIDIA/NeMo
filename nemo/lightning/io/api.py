@@ -51,7 +51,6 @@ def load(path: Path, output_type: Type[CkptType] = Any) -> CkptType:
             if not serialization.find_node_traverser(locate(clss)):
                 track_io(locate(clss))
 
-
     with open(_path, "rb") as f:
         config = serialization.load_json(f.read())
 

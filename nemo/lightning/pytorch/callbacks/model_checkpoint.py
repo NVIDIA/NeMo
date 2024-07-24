@@ -412,6 +412,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
             ## NOTE: saving context happens synchronously always
             from nemo.utils.get_rank import is_global_rank_zero
+
             if self.enable_nemo_ckpt_io and is_global_rank_zero():
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath))
             if self.async_save:
