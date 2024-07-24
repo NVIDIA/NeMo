@@ -674,7 +674,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         signal, signal_len, transcript, transcript_len, prompt, prompt_len = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
 
-        print(f"[{torch.distributed.get_rank()+1}/{torch.distributed.get_world_size()}] batch_size={signal.shape[0]} ilen={signal.shape[1]} olen={transcript.shape[1]}")
+        print(
+            f"[{torch.distributed.get_rank()+1}/{torch.distributed.get_world_size()}] batch_size={signal.shape[0]} ilen={signal.shape[1]} olen={transcript.shape[1]}"
+        )
 
         try:
             transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
@@ -690,7 +692,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 print(item)
             print(transcript_len)
             import pickle
-            with open('/home/pzelasko/batch.pkl', 'wb') as f:
+
+            with open('batch.pkl', 'wb') as f:
                 pickle.dump(batch, f)
             raise
 
