@@ -56,7 +56,7 @@ class Basic:
         if not self.data_paths:
             return None
 
-        datafiles_num = len(data_paths)
+        datafiles_num = len(self.data_paths)
         weight = np.round(1 / datafiles_num, 2)
         weights = [weight] * datafiles_num
 
