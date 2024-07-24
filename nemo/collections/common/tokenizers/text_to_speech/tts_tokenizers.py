@@ -245,7 +245,12 @@ class SpanishCharsTokenizer(BaseCharsTokenizer):
     PUNCT_LIST = get_ipa_punctuation_list("es-ES")
 
     def __init__(
-        self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None,
+        self,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
     ):
         """Spanish grapheme tokenizer.
         Args:
@@ -274,7 +279,12 @@ class FrenchCharsTokenizer(BaseCharsTokenizer):
     PUNCT_LIST = get_ipa_punctuation_list("fr-FR")
 
     def __init__(
-        self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None,
+        self,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
     ):
         """French grapheme tokenizer.
         Args:
