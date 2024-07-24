@@ -203,13 +203,14 @@ def load_tokenizer(paths: list[str], langs: list[str] = None) -> TokenizerWrappe
 
 def apply_tokenizer(cut, tokenizer=None, prompt: PromptFormatter = None):
     if prompt is not None:
-        default_turns = prompt.get_default_dialog_slots()
+        turns = prompt.get_default_dialog_slots()
         last_turn = {"role": prompt.OUTPUT_ROLE, "slots": prompt.get_slots(prompt.OUTPUT_ROLE)}
         assert len(last_turn["slots"]) == 1  # TODO: not sure how to handle multi-slot for system output here
         for key in last_turn["slots"]:
             last_turn["slots"][key] = cut.supervisions[0].text
         last_turn["slots"][prompt.PROMPT_LANGUAGE_SLOT] = cut.supervisions[0].language
-        ans = prompt.encode_dialog(default_turns)
+        turns.append(last_turn)
+        ans = prompt.encode_dialog(turns)
         cut.supervisions[0].tokens = ans["input_ids"]
 
     elif tokenizer is not None:
@@ -229,7 +230,7 @@ def main():
             prompt_defaults = None
             if args.prompt is not None:
                 prompt_defaults = ast.literal_eval(args.prompt)
-            prompt = PromptFormatter.resolve(args.prompt_format)(tokenizer, defaults=prompt_defaults)
+            prompt = PromptFormatter.resolve(args.prompt_format)(tokenizer._tokenizer, defaults=prompt_defaults)
 
     if '=' in args.input:
         inp_arg = args.input
