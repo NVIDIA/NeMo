@@ -14,6 +14,7 @@
 
 import numpy as np
 
+
 class Basic:
     def __init__(
         self,
@@ -50,14 +51,13 @@ class Basic:
 
     def data_config(self):
         None
-    
+
     def _get_data_weights(self):
         if not self.data_paths:
             return None
-        
+
         datafiles_num = len(data_paths)
         weight = np.round(1 / datafiles_num, 2)
         weights = [weight] * datafiles_num
 
         return weights
-        
