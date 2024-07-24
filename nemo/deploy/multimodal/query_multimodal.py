@@ -27,7 +27,9 @@ try:
     from decord import VideoReader
 except Exception:
     import logging
+
     logging.warning("The package `decord` was not installed in this environment.")
+
 
 class NemoQueryMultimodal:
     """
