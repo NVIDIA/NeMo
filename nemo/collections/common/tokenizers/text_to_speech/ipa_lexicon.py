@@ -15,7 +15,7 @@
 
 # fmt: off
 
-SUPPORTED_LOCALES = ["en-US", "de-DE", "es-ES", "it-IT", "fr-FR", "ja-JP"]
+SUPPORTED_LOCALES = ["en-US", "de-DE", "es-ES", "it-IT", "fr-FR", "ja-JP", "vi-VN"]
 
 DEFAULT_PUNCTUATION = (
     ',', '.', '!', '?', '-',
@@ -47,6 +47,18 @@ GRAPHEME_CHARACTER_SETS = {
         'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
         'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
         'U', 'V', 'W', 'X', 'Y', 'Z', 'Ä', 'Ö', 'Ü', 'ẞ',
+    ),
+    "vi-VN": (
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 
+        'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 
+        'U', 'V', 'W', 'X', 'Y', 'Z', 'Đ', 'Á', 'À', 'Ã', 
+        'Ả', 'Ạ', 'Ă', 'Ắ', 'Ằ', 'Ẵ', 'Ẳ', 'Ặ', 'Â', 'Ấ', 
+        'Ầ', 'Ẫ', 'Ẩ', 'Ậ', 'Ó', 'Ò', 'Õ', 'Ỏ', 'Ọ', 'Ô', 
+        'Ố', 'Ồ', 'Ỗ', 'Ổ', 'Ộ', 'Ơ', 'Ớ', 'Ờ', 'Ỡ', 'Ở', 
+        'Ợ', 'É', 'È', 'Ẽ', 'Ẻ', 'Ẹ', 'Ê', 'Ế', 'Ề', 'Ễ', 
+        'Ể', 'Ệ', 'Ú', 'Ù', 'Ũ', 'Ủ', 'Ụ', 'Ư', 'Ứ', 'Ừ', 
+        'Ữ', 'Ử', 'Ự', 'Í', 'Ì', 'Ĩ', 'Ỉ', 'Ị', 'Ý', 'Ỳ', 
+        'Ỹ', 'Ỷ', 'Ỵ',
     ),
     "fr-FR": (
         'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 
@@ -115,6 +127,18 @@ IPA_CHARACTER_SETS = {
         'ɑ̃', 'ĩ', 'ũ', 'ẽ', 'õ', 'ɑ̃', 'ĩ', 'ũ', 'w̃',  
         'ẽ', 'õ', 'hʲ', 'ɪ', 'ː', 'o̞', 'e̞', 
     ),
+    "vi-VN": (
+        'a', 'ə', 'ɛ', 'e', 'i', 'o', 'ɔ', 'u', 'ɨ',
+        'b', 'c', 'z', 'j', 'd', 'g', 'h', 'x', 'l',
+        'm', 'n', 'ŋ', 'ɲ', 'p', 'f', 'w', 'r', 's',
+        'ʃ', 't', 'ʈ', 'ʂ', 'v', 'ʔ', 'ɓ', 'ɗ', 'ɣ',
+        'k', 'ʰ', 'ʷ', 'ɕ', 'ʑ', 'ʝ', '̚', '̟', 't͡',
+        '˧', 'ː', 'ɯ', '̀', '̄', '̌', '̂', 'ˀ', '͡', '˥',
+        '˩', '̤', '˨', 'ɹ', 'ʲ', '̯', 'ă', 'ə̆', 'ǐ',
+        '˦', 'æ', 'ɐ',
+        'ɜ', 'ɡ', 'ɪ', 'ɬ' 'ɾ', 'ʊ', 'ʌ', 'ʒ', '̃',
+        '̩', 'θ', 'ᵻ',
+    ),
 }
 
 GRAPHEME_CHARACTER_CASES = ["upper", "lower", "mixed"]
@@ -168,7 +192,7 @@ def get_ipa_punctuation_list(locale):
     punct_set = set(DEFAULT_PUNCTUATION)
     # TODO @xueyang: verify potential mismatches with locale-specific punctuation sets used
     #  in nemo_text_processing.text_normalization.en.taggers.punctuation.py
-    if locale in ["de-DE", "es-ES", "it-IT", "fr-FR", "ja-JP"]:
+    if locale in ["de-DE", "es-ES", "it-IT", "fr-FR", "ja-JP", "vi-VN"]:
         # ref: https://en.wikipedia.org/wiki/Guillemet#Uses
         punct_set.update(['«', '»', '‹', '›'])
     if locale == "de-DE":
@@ -182,6 +206,32 @@ def get_ipa_punctuation_list(locale):
                 '‒',  # figure dash, U+2012, decimal 8210
                 '–',  # en dash, U+2013, decimal 8211
                 '—',  # em dash, U+2014, decimal 8212
+            ]
+        )
+    if locale == "vi-VN":
+        punct_set.update(
+            [
+                '„',  # double low-9 quotation mark, U+201E, decimal 8222
+                '“',  # left double quotation mark, U+201C, decimal 8220
+                '‚',  # single low-9 quotation mark, U+201A, decimal 8218
+                '‘',  # left single quotation mark, U+2018, decimal 8216
+                '‒',  # figure dash, U+2012, decimal 8210
+                '–',  # en dash, U+2013, decimal 8211
+                '—',  # em dash, U+2014, decimal 8212
+                '-',
+                '(',
+                ')',
+                ';',
+                ':',
+                ',',
+                '.',
+                '!',
+                '?',
+                '¡',
+                '¿',
+                '…',
+                '"',
+                '%',
             ]
         )
     if locale == "it-IT":
