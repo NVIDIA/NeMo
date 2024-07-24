@@ -55,14 +55,7 @@ try:
     from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
 
 except (ImportError, ModuleNotFoundError):
-    try:
-        import apex.transformer.pipeline_parallel.utils._reconfigure_microbatch_calculator as reconfigure_microbatch_calculator
-
-        HAVE_APEX = True
-
-    except (ImportError, ModuleNotFoundError):
-
-        HAVE_APEX = False
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator
 
 
 __all__ = ['MegatronBasePromptLearningModel']
