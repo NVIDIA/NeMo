@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import numpy as np
+from megatron.core.optimizer import OptimizerConfig
 
 from nemo.collections.llm.utils import Config
-from megatron.core.optimizer import OptimizerConfig
 
 
 class Basic:
