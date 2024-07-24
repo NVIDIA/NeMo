@@ -85,6 +85,8 @@ class Hypothesis:
     tokens: (Optional) A list of decoded tokens (can be characters or word-pieces.
 
     last_token (Optional): A token or batch of tokens which was predicted in the last step.
+    
+    last_frame (Optional): Index of the last decoding step hypothesis was updated including blank token prediction.
     """
 
     score: float
@@ -104,6 +106,7 @@ class Hypothesis:
     ngram_lm_state: Optional[Union[Dict[str, Any], List[Any]]] = None
     tokens: Optional[Union[List[int], torch.Tensor]] = None
     last_token: Optional[torch.Tensor] = None
+    last_frame: Optional[int] = None
 
     @property
     def non_blank_frame_confidence(self) -> List[float]:
