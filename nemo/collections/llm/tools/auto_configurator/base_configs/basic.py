@@ -29,7 +29,7 @@ class Basic:
         self.cfg = cfg
         self.num_nodes = cfg.get("num_nodes", 8)
         self.num_gpus = cfg.get("num_gpus", 8)
-        self.max_steps = cfg.get("max_steps", 50)
+        self.max_steps = cfg.get("max_steps_per_run", 50)
         self.seq_length = cfg.get("seq_length", 2048)
         self.global_batch_size = cfg.get("global_batch_size", 2048)
 

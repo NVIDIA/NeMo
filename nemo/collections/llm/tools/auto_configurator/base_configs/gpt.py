@@ -80,13 +80,14 @@ class GPT(Basic):
             "use_distributed_sampler": False,
             "max_epochs": None,
             "log_every_n_steps": 1,
-            "limit_val_batches": 1,
-            "limit_test_batches": 1,
+            "limit_val_batches": 5,
+            "limit_test_batches": 5,
             "accumulate_grad_batches": 1,
             "gradient_clip_val": 1.0,
             "num_nodes": self.num_nodes,
             "devices": self.num_gpus,
             "max_steps": self.max_steps,
+            "val_check_interval": self.max_steps,
         }
 
         return trainer_config

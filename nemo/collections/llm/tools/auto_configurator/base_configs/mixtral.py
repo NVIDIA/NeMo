@@ -87,6 +87,7 @@ class Mixtral(Basic):
             "num_nodes": self.num_nodes,
             "devices": self.num_gpus,
             "max_steps": self.max_steps,
+            "val_check_interval": self.max_steps,
         }
 
         return trainer_config
