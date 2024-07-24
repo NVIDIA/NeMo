@@ -16,7 +16,7 @@ A NeMo "model" includes all of the below components wrapped into a singular, coh
 
 * loss function, optimizer, and schedulers
 
-* any other supporting infrastructure such as tokenizers, language model configuration, data augmentation
+* any other supporting infrastructure, such as tokenizers, language model configuration, and data augmentation
 
 NeMo models are based on PyTorch. Many of their components are subclasses of ``torch.nn.Module``. NeMo models use PyTorch Lightning (PTL) for training, thus reducing the amount of boilerplate code needed.
 
