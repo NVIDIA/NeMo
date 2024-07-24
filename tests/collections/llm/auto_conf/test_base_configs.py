@@ -1,6 +1,7 @@
-from nemo.collections.llm.tools.auto_configurator import base_configs
 from megatron.core.optimizer import OptimizerConfig
-from nemo.collections.common.tokenizers import SentencePieceTokenizer, AutoTokenizer
+
+from nemo.collections.common.tokenizers import AutoTokenizer, SentencePieceTokenizer
+from nemo.collections.llm.tools.auto_configurator import base_configs
 
 
 class TestBaseConfigs:
@@ -122,7 +123,7 @@ class TestBaseConfigs:
         assert model.size == 7
         assert model.measure == "B"
         assert model.cfg == {}
-    
+
     def test_trainer_config(self):
         model_cls = getattr(base_configs, "GPT")
 
@@ -147,8 +148,10 @@ class TestBaseConfigs:
             "val_check_interval": 50,
         }
 
-        assert trainer_config_target == trainer_config_source, f"{trainer_config_target} is expected trainer config but got {trainer_config_source}"
-    
+        assert (
+            trainer_config_target == trainer_config_source
+        ), f"{trainer_config_target} is expected trainer config but got {trainer_config_source}"
+
     def test_data_config(self):
         model_cls = getattr(base_configs, "Llama")
 
@@ -165,8 +168,10 @@ class TestBaseConfigs:
             "index_mapping_dir": None,
         }
 
-        assert data_config_target == data_config_source, f"{data_config_target} is expected data config but got {data_config_source}"
-    
+        assert (
+            data_config_target == data_config_source
+        ), f"{data_config_target} is expected data config but got {data_config_source}"
+
     def test_optim_config(self):
         model_cls = getattr(base_configs, "Mixtral")
 
@@ -185,8 +190,10 @@ class TestBaseConfigs:
             overlap_param_gather=True,
         )
 
-        assert optim_config_target == optim_config_source, f"{optim_config_target} is expected optim config but got {optim_config_source}"
-    
+        assert (
+            optim_config_target == optim_config_source
+        ), f"{optim_config_target} is expected optim config but got {optim_config_source}"
+
     def test_run_config(self):
         model_cls = getattr(base_configs, "Mistral")
 
@@ -199,11 +206,12 @@ class TestBaseConfigs:
             "time_limit": "0-00:30:00",
         }
 
-        assert run_config_target == run_config_source, f"{run_config_target} is expected run config but got {run_config_source}"
-    
+        assert (
+            run_config_target == run_config_source
+        ), f"{run_config_target} is expected run config but got {run_config_source}"
 
     def test_tokenizer_config(self):
-        #Mistral
+        # Mistral
         model_cls = getattr(base_configs, "Mistral")
 
         model_7b = model_cls(size=7)
@@ -214,9 +222,11 @@ class TestBaseConfigs:
             "name": "mistralai/Mistral-7B-v0.1",
         }
 
-        assert tokenizer_config_target == tokenizer_config_source, f"{tokenizer_config_target} is expected tokenizer config but got {tokenizer_config_source}"
+        assert (
+            tokenizer_config_target == tokenizer_config_source
+        ), f"{tokenizer_config_target} is expected tokenizer config but got {tokenizer_config_source}"
 
-        #Mixtral
+        # Mixtral
         model_cls = getattr(base_configs, "Mixtral")
 
         model_7b = model_cls(size=7)
@@ -227,9 +237,11 @@ class TestBaseConfigs:
             "name": "mistralai/Mixtral-8x7B-v0.1",
         }
 
-        assert tokenizer_config_target == tokenizer_config_source, f"{tokenizer_config_target} is expected tokenizer config but got {tokenizer_config_source}"
+        assert (
+            tokenizer_config_target == tokenizer_config_source
+        ), f"{tokenizer_config_target} is expected tokenizer config but got {tokenizer_config_source}"
 
-        #Llama
+        # Llama
         model_cls = getattr(base_configs, "Llama")
 
         model_8b = model_cls(size=8, version=3)
@@ -240,9 +252,11 @@ class TestBaseConfigs:
             "path": None,
         }
 
-        assert tokenizer_config_target == tokenizer_config_source, f"{tokenizer_config_target} is expected tokenizer config but got {tokenizer_config_source}"
+        assert (
+            tokenizer_config_target == tokenizer_config_source
+        ), f"{tokenizer_config_target} is expected tokenizer config but got {tokenizer_config_source}"
 
-        #GPT
+        # GPT
         model_cls = getattr(base_configs, "GPT")
 
         model_5b = model_cls(size=5, version=3)
@@ -253,4 +267,6 @@ class TestBaseConfigs:
             "name": "GPT2BPETokenizer",
         }
 
-        assert tokenizer_config_target == tokenizer_config_source, f"{tokenizer_config_target} is expected tokenizer config but got {tokenizer_config_source}"
+        assert (
+            tokenizer_config_target == tokenizer_config_source
+        ), f"{tokenizer_config_target} is expected tokenizer config but got {tokenizer_config_source}"
