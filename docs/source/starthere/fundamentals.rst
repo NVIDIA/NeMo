@@ -1,12 +1,12 @@
 NeMo Fundamentals
 =================
 
-On this page we will go a little bit deeper on how NeMo works, to give you a good foundation for using NeMo for your :ref:`desired usecase <where_next>`.
+On this page, we’ll look into how NeMo works, providing you with a solid foundation to effectively use NeMo for you :ref:`specific use case <where_next>`.
 
 NeMo Models
 -----------
 
-A NeMo "model" includes all of the below components wrapped into a singular, cohesive unit:
+NVIDIA NeMo is a powerful framework for building and deploying neural network models, including those used in generative AI, speech recognition, and natural language processing. NeMo stands for “Neural Modules,” which are the building blocks of the models created using this platform. NeMo includes all of the following components wrapped into a singular, cohesive unit:
 
 * neural network architecture
 
@@ -101,15 +101,15 @@ Configuring and Training NeMo Models
 
 During initialization of the model, key parameters are read from the config (``cfg``), which gets passed in to the model construtor (left panel above, line 2).
 
-The other object passed into the model's constructor is a PyTorch Lightning ``trainer`` object, which handles the training process. The trainer will take care of the standard training `boilerplate <https://lightning.ai/docs/pytorch/stable/common/trainer.html#under-the-hood>`__. For things that are not standard, PTL will refer to any specific methods that we may have defined in our NeMo model. For example, PTL requires every model to have a specified ``training_step`` method (left panel above, line 15).
+The other object passed into the model's constructor is a PyTorch Lightning ``trainer`` object, which manages the training process. The trainer handles the standard training `boilerplate <https://lightning.ai/docs/pytorch/stable/common/trainer.html#under-the-hood>`__. For non-standard tasks, PyTorch Lightning (PTL) relies on specific methods defined in our NeMo model. For example, PTL mandates that every model must have a specified ``training_step`` method (left panel above, line 15).
 
-The configuration of the trainer is also specified in the config (right panel above, line 20 onwards). This will include parameters such as ``accelerator``, (number of) ``devices``, ``max_steps``, (numerical) ``precision`` and `more <https://lightning.ai/docs/pytorch/stable/common/trainer.html#trainer-class-api>`__.
+The trainer’s configuration is also specified in the config (right panel above, line 20 onwards). This includes parameters such as ``accelerator``, (number of) ``devices``, ``max_steps``, (numerical) ``precision`` and `more <https://lightning.ai/docs/pytorch/stable/common/trainer.html#trainer-class-api>`__.
 
 
 Example Training Script
 -----------------------
 
-Putting it all together, here is an example training script for our ``ExampleEncDecModel`` model. We highlight the 3 most important lines, which put together everything we discussed in the previous section.
+Below is an example training script for our ``ExampleEncDecModel`` model. We highlight the three most important lines that combine everything we discussed in the previous section:
 
 .. code-block:: python
 	:caption: run_example_training.py
@@ -149,6 +149,7 @@ Overriding Configs
 The ``cfg`` object in the script above is a dictionary-like object that contains our configuration parameters. Specifically, it is an `OmegaConf <https://omegaconf.readthedocs.io/en/2.3_branch/usage.html>`__ ``DictConfig`` object. These objects have special features such as dot-notation `access <https://omegaconf.readthedocs.io/en/latest/usage.html#access>`__, `variable interpolation <https://omegaconf.readthedocs.io/en/latest/usage.html#variable-interpolation>`__, and the ability to set `mandatory values <https://omegaconf.readthedocs.io/en/latest/usage.html#mandatory-values>`__.
 
 You can run the script above by running the following:
+
 .. code-block:: bash
 
 	python run_example_training.py
@@ -181,24 +182,24 @@ Running NeMo Scripts
 
 NeMo scripts typically take on the form shown above, where the Python script relies on a config object which has some specified default values that you can choose to override.
 
-The NeMo `examples <https://github.com/NVIDIA/NeMo/tree/main/examples/>`__ directory contains many scripts for training and inference of various existing NeMo models. Note that this includes default configs whose default values for model, optimizer and trainer parameters were tuned over the course of many GPU-hours of the NeMo team's experiments. We thus recommend using these as a starting point for your own experiments.
+The NeMo `examples <https://github.com/NVIDIA/NeMo/tree/main/examples/>`__ directory provides numerous scripts for training and inference of various existing NeMo models. It’s important to note that these scripts include default configurations for model, optimize, and training parameters, which have been fine-tuned by the NeMo team over extensive GPU-hours of experimentation. As a result, we recommend using these default configurations as a starting point for your own experiments
 
-.. note::
-	**NeMo inference scripts**
 
-	The examples scripts directory also contains many inference scripts, e.g. `transcribe_speech.py <https://github.com/NVIDIA/NeMo/blob/main/examples/asr/transcribe_speech.py>`_. These normally have a different structure to the training scripts, as they have a lot of additional utilities for reading and saving files. The inference scripts also use configs, but these naturally do not require the ``trainer``, ``model``, ``exp_manager`` sections. Additionally, due to having fewer elements, the default configs for inference scripts are normally specified as dataclasses rather than separate files. Elements also can be overwritten/added/deleted via the command line.
+NeMo Inference Scripts
+######################
 
+The examples scripts directory also contains many inference scripts such as `transcribe_speech.py <https://github.com/NVIDIA/NeMo/blob/main/examples/asr/transcribe_speech.py>`_. These inference scripts typically differ in structure from training scripts, as they include additional utilities for file I/O (reading and saving files). While inference scripts still use configurations (configs), they don’t require the ``trainer`` and ``model`` sections. Additionally, the default configs for inference scripts are usually specified as dataclasses rather than separate files. You can also modify elements via the command line.
 
 Specifying training data
 ------------------------
 
-NeMo will handle creation of data loaders for you, as long as you put your data into the expected input format. You may also need to train a tokenizer before starting training. Learn more about data formats for :doc:`LLM <../nlp/nemo_megatron/gpt/gpt_training>`, :doc:`Multimodal <../multimodal/mllm/datasets>`, :ref:`Speech AI <section-with-manifest-format-explanation>`, and :doc:`Vision models <../vision/datasets>`.
+NeMo will handle creation of data loaders for you, as long as you put your data into the expected input format. You may also need to train a tokenizer before starting training. To learn more about data formats, see :doc:`LLM <../nlp/nemo_megatron/gpt/gpt_training>`, :doc:`Multimodal <../multimodal/mllm/datasets>`, :ref:`Speech AI <section-with-manifest-format-explanation>`, and :doc:`Vision models <../vision/datasets>`.
 
 
 Model Checkpoints
 -----------------
 
-Throughout training, model :doc:`checkpoints <../checkpoints/intro>` will be saved inside ``.nemo`` files. These are archive files containing all the necessary components to restore a usable model, e.g.:
+Throughout training, the model :doc:`checkpoints <../checkpoints/intro>` will be saved inside ``.nemo`` files. These are archive files containing all the necessary components to restore a usable model. For example:
 
 * model weights (``.ckpt`` files)
 * model configuration (``.yaml`` files)
@@ -212,7 +213,7 @@ Fine-Tuning
 
 NeMo allows you to fine-tune models as well as train them from scratch.
 
-You can do this by initializing a model with random weights, replacing some/all the weights with those of a pretrained model, and then continuing training as normal, potentially with some small changes such as reducing your learning rate or freezing some model parameters.
+You can achieve this by initializing a model with random weights, then replacing some or all of those weights with the pretrained model’s weights. Afterward, continue training as usual, possibly making minor adjustments like reducing the learning rate or freezing specific model parameters.
 
 
 .. _where_next:
@@ -222,18 +223,20 @@ Where To Go Next?
 
 Here are some options:
 
-* dive in to `examples <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ or :doc:`tutorials <./tutorials>`
-* read docs of the domain (e.g. :doc:`LLM <../nlp/nemo_megatron/intro>`, :doc:`Multimodal <../multimodal/mllm/intro>`, :doc:`ASR <../asr/intro>`, :doc:`TTS <../tts/intro>`, :doc:`Vision Models <../vision/intro>`) you want to work with
-* learn more about the inner workings of NeMo:
+* Explore Examples or Tutorials: dive into NeMo by exploring our `examples <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ or :doc:`tutorials <./tutorials>`
 
-  * `NeMo Primer <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/00_NeMo_Primer.ipynb>`_ notebook tutorial
+* Domain-Specific Documentation:
 
-    * hands-on intro to NeMo, PyTorch Lightning, and OmegaConf
-    * shows how to use, modify, save, and restore NeMo models
+  * For Large Language Models (LLMs), checkout out the :doc:`LLM <../nlp/nemo_megatron/intro>` documentation.
+  * For Multimodal tasks, refer to the :doc:`Multimodal <../multimodal/mllm/intro>` documentation.
 
-  * `NeMo Models <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`__ notebook tutorial
+  * If you’re interested in Automatic Speech Recognition (ASR), explore the :doc:`ASR <../asr/intro>`` documentation.
+  * For Text-to-Speech (TTS), find details in the :doc:`TTS <../tts/intro>` documentation.
+  * Lastly, for Vision Models, consult the :doc:`Vision Models <../vision/intro>` documentation.
 
-    * explains the fundamentals of how NeMo models are created
+* `NeMo Primer <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/00_NeMo_Primer.ipynb>`__: This tutorial provides a hands-on introduction to NeMo, PyTorch Lightning, and OmegaConf. It covers how to use, modify, save, and restore NeMo models.
 
-  * :doc:`NeMo Core <../core/core>` documentation
+* `NeMo Models <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`__: In this tutorial, you'll learn the fundamentals of creating NeMo models.
+
+* NeMo Core Documentation: Explore the :doc:`NeMo Core <../core/core>` documentation for NeMo, which explains the inner workings of the framework.
 
