@@ -50,6 +50,7 @@ def is_nemo_file(path):
     return flag
 
 
+'''
 class TarFileSystemReader(FileSystemReader):
     """Reader that accepts both Path and TarPath checkpoint directory.
 
@@ -61,6 +62,22 @@ class TarFileSystemReader(FileSystemReader):
         """No call to super().__init__ because it expects pure Path."""
         self.path = path
         self.storage_data = dict()
+'''
+
+
+class TarFileSystemReader(FileSystemReader):
+    """Reader that accepts both Path and TarPath checkpoint directory.
+
+    The FileSystemReader works with TarPath, but expects a pure Path.
+    It's enough to skip the Path check in __init__.
+    """
+
+    def __init__(self, path: Union[Path, TarPath]) -> None:
+        """Makes sure that super().__init__ gets a pure path as expected."""
+        super_path = str(path) if isinstance(path, TarPath) else path
+        super().__init__(super_path)
+        if isinstance(path, TarPath):
+            self.path = path  # overwrites path set in super().__init__ call
 
 
 def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
@@ -230,8 +247,6 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(nemo_dir, load_checkpoints_to_cpu=True)
 
         dist_ckpt_folder = nemo_dir / "model_weights"
-        if not dist_ckpt_folder.exists():
-            dist_ckpt_folder = nemo_dir
 
         if dist_ckpt_folder.exists():
             model = load_sharded_metadata(dist_ckpt_folder)
