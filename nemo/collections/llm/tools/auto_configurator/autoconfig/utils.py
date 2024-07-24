@@ -472,6 +472,7 @@ def modify_cfg(
     new_cfg["auto_config"]["tensor_model_parallel_size"] = tp
     new_cfg["auto_config"]["pipeline_model_parallel_size"] = pp
     new_cfg["auto_config"]["micro_batch_size"] = mbs
+    new_cfg["data"]["micro_batch_size"] = mbs
 
     if cp is not None:
         new_cfg["auto_config"]["context_parallel_size"] = cp
