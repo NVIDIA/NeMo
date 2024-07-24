@@ -94,8 +94,8 @@ class Mistral(Basic):
 
     def get_data_config(self):
         data_config = {
-            "paths": None,
-            "weights": None,
+            "paths": self.data_paths,
+            "weights": self.weights,
             "seq_length": self.seq_length,
             "global_batch_size": self.global_batch_size,
             "num_workers": 2,

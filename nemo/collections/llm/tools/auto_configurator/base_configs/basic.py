@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 
 class Basic:
     def __init__(
@@ -32,6 +33,8 @@ class Basic:
         self.max_steps = cfg.get("max_steps_per_run", 50)
         self.seq_length = cfg.get("seq_length", 2048)
         self.global_batch_size = cfg.get("global_batch_size", 2048)
+        self.data_paths = cfg.get("data_paths", None)
+        self.weights = self._get_data_weights()
 
     def model_config(self):
         None
@@ -47,3 +50,14 @@ class Basic:
 
     def data_config(self):
         None
+    
+    def _get_data_weights(self):
+        if not self.data_paths:
+            return None
+        
+        datafiles_num = len(data_paths)
+        weight = np.round(1 / datafiles_num, 2)
+        weights = [weight] * datafiles_num
+
+        return weights
+        
