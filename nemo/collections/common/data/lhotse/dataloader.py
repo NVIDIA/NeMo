@@ -504,8 +504,13 @@ class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
         # as long as they have the same dim0 length (e.g. audio duration) and the example's dim1
         # is smaller than the bin's dim1 (e.g., output token sequence length).
         bin_dim0 = self.max_seq_len_buckets[bucket_idx][0]
-        while (bin := self.max_seq_len_buckets[bucket_idx + 1])[0] == bin_dim0 and example_len[1] < bin[1]:
-            bucket_idx += 1
+        num_buckets = len(self.max_seq_len_buckets)
+        while (
+            (next_idx := bucket_idx + 1) < num_buckets
+            and (bin := self.max_seq_len_buckets[next_idx])[0] == bin_dim0
+            and example_len[1] < bin[1]
+        ):
+            bucket_idx = next_idx
         return bucket_idx
 
 
