@@ -31,9 +31,12 @@ python eval_wfst_decoding_ctc.py --cfg job
 
 python eval_wfst_decoding_ctc.py nemo_model_file=<path to the .nemo file of the model> \
            input_manifest=<path to the evaluation JSON manifest file> \
-           kenlm_model_file=<path to the binary KenLM model> \
+           arpa_model_file=<path to the ARPA LM model> \
+           decoding_wfst_file=<path to the decoding WFST file> \
            beam_width=[<list of the beam widths, separated with commas>] \
-           lm_weight=[<list of the beam alphas, separated with commas>] \
+           lm_weight=[<list of the LM weight multipliers, separated with commas>] \
+           decoding_mode=<decoding mode, affects output. Usually "nbest"> \
+           decoding_search_type=<a.k.a. decoding backend. Usually "riva"> \
            open_vocabulary_decoding=<whether to use open vocabulary mode for WFST decoding> \
            preds_output_folder=<optional folder to store the predictions> \
            probs_cache_file=null
