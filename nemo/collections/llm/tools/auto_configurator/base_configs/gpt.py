@@ -101,6 +101,7 @@ class GPT(Basic):
             "global_batch_size": self.global_batch_size,
             "num_workers": 2,
             "split": "99990,8,2",
+            "index_mapping_dir": None,
         }
 
         return data_config
