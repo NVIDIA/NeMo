@@ -46,7 +46,6 @@ def load(path: Path, output_type: Type[CkptType] = Any) -> CkptType:
     ## add IO functionality to custom objects present in the json file
     with open(_path) as f:
         j = json.load(f)
-        print(f'{j=}')
         for obj, val in j["objects"].items():
             clss = ".".join([val["type"]["module"], val["type"]["name"]])
             if not serialization.find_node_traverser(locate(clss)):
