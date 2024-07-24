@@ -349,4 +349,11 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         query_hs = query_hs.clone().detach()
         pos_doc_hs = pos_doc_hs.clone().detach()
         diff_cs = pos_cs - neg_cs
-        return loss, query_hs, pos_doc_hs, pos_cs, neg_cs, diff_cs
+        return {
+            "loss": loss,
+            "query_hs": query_hs,
+            "pos_doc_hs": pos_doc_hs,
+            "pos_cs": pos_cs,
+            "neg_cs": neg_cs,
+            "diff_cs": diff_cs,
+        }
