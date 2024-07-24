@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import numpy as np
-from decord import VideoReader
 from PIL import Image
 
 from nemo.deploy.utils import str_list2numpy
@@ -24,6 +23,11 @@ try:
 except Exception:
     use_pytriton = False
 
+try:
+    from decord import VideoReader
+except Exception:
+    import logging
+    logging.warning("The package `decord` was not installed in this environment.")
 
 class NemoQueryMultimodal:
     """
