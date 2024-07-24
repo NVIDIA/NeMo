@@ -14,6 +14,7 @@
 
 import numpy as np
 
+from nemo.collections.llm.utils import Config
 from megatron.core.optimizer import OptimizerConfig
 
 
@@ -47,7 +48,8 @@ class Basic:
         None
 
     def get_optim_config(self):
-        optim_config = OptimizerConfig(
+        optim_config = Config(
+            OptimizerConfig,
             optimizer='adam',
             lr=1e-4,
             min_lr=1e-5,
