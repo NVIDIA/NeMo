@@ -574,10 +574,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             # here we only need to know if the autoresume is enabled.
             ft_use_autoresume = ft_params.max_subsequent_job_failures > 0
             fault_tol_callback = FaultToleranceCallback(
+                exp_dir=Path(log_dir).parent,
                 autoresume=ft_use_autoresume,
                 calculate_timeouts=ft_params.calculate_timeouts,
                 simulated_fault_params=ft_params.simulated_fault,
-                exp_dir=exp_dir,
             )
             trainer.callbacks.append(fault_tol_callback)
         else:
