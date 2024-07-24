@@ -34,6 +34,7 @@ def get_model_and_data():
         ffn_hidden_size=256,
         num_attention_heads=4,
         seq_length=seq_length,
+        apply_query_key_layer_scaling=1,
     )
     return llm.GPTModel(config, tokenizer=data.tokenizer), data
 
