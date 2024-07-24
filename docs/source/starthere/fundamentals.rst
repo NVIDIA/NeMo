@@ -103,7 +103,7 @@ During initialization of the model, key parameters are read from the config (``c
 
 The other object passed into the model's constructor is a PyTorch Lightning ``trainer`` object, which handles the training process. The trainer will take care of the standard training `boilerplate <https://lightning.ai/docs/pytorch/stable/common/trainer.html#under-the-hood>`__. For things that are not standard, PTL will refer to any specific methods that we may have defined in our NeMo model. For example, PTL requires every model to have a specified ``training_step`` method (left panel above, line 15).
 
-The configuration of the trainer is also specified in the config (right panel above, line 20 onwards). This will include parameters such as (number of) ``devices``, ``max_steps``, (numerical) ``precision`` and `more <https://lightning.ai/docs/pytorch/stable/common/trainer.html#trainer-class-api>`__.
+The configuration of the trainer is also specified in the config (right panel above, line 20 onwards). This will include parameters such as ``accelerator``, (number of) ``devices``, ``max_steps``, (numerical) ``precision`` and `more <https://lightning.ai/docs/pytorch/stable/common/trainer.html#trainer-class-api>`__.
 
 
 Example training script
