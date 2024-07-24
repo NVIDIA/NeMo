@@ -30,7 +30,7 @@ from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.common.parts.utils import extend_instance
+from nemo.collections.common.parts.utils import extend_instance, apply_rope_scaling
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronCorePretrainingSampler,
     MegatronPretrainingRandomSampler,
@@ -433,6 +433,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
             if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
                 extend_instance(model.embedding, EmbeddingScalingMixin)
+
+            if self.cfg.get('scale_positional_embedding', False):
+                model.rotary_pos_emb.inv_freq = apply_rope_scaling(model.rotary_pos_emb.inv_freq)
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
                 'num_query_groups', None

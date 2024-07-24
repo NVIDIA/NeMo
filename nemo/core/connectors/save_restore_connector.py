@@ -604,10 +604,14 @@ class SaveRestoreConnector:
         return os.path.commonprefix([full_path, extract_to]) == extract_to
 
     @staticmethod
-    def _safe_extract(tar, out_folder: str, members=None):
+    def _safe_extract(tar, out_folder: str, members=None, include_names=None):
         extract_to = os.path.realpath(out_folder)
         if members is None:
             members = tar.getmembers()
+
+        if include_names is not None:
+            members = list(filter(lambda x: x.name in include_names, members))
+
         for member in members:
             if SaveRestoreConnector._is_safe_path(member, extract_to):
                 tar.extract(member, extract_to)
@@ -665,12 +669,12 @@ class SaveRestoreConnector:
             tar.close()
 
     @staticmethod
-    def _unpack_nemo_file(path2file: str, out_folder: str, members: Optional[list[str]] = None) -> str:
+    def _unpack_nemo_file(path2file: str, out_folder: str, members: Optional[list[str]] = None, include_names=None) -> str:
         with SaveRestoreConnector._tar_open(path2file) as tar:
             if members is None:
-                SaveRestoreConnector._safe_extract(tar, out_folder)
+                SaveRestoreConnector._safe_extract(tar, out_folder, include_names=include_names)
             else:
-                SaveRestoreConnector._safe_extract(tar, out_folder, members)
+                SaveRestoreConnector._safe_extract(tar, out_folder, members, include_names=include_names)
         return out_folder
 
     @staticmethod
