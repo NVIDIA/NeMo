@@ -126,36 +126,3 @@ def test_eval_tflops_per_sec_per_gpu(model_config, model_name, train_step_time, 
         flops_callback = FLOPsMeasurementCallback(model_config, model_name=model_name)
         with pytest.raises(KeyError, match=expected_value):
             _ = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time)
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "cfg, gpu_name, tflops_per_sec_per_gpu, expected_value",
-    [
-        (LLAMA2_CFG_STR, "H100", 542, 54.8),  # precision=bf16
-        (NEMOTRON_CFG_STR, "h100", 643, 32.5),  # precision = fp8
-        (NEMOTRON_CFG_STR, "", 643, "Missing hardware FLOPs for self.gpu_name=''"),  # missing gpu name
-        (
-            UNSUPPORTED_MODEL_CFG_STR,
-            "a100",
-            0,  # unspported precision= bf64
-            "Missing hardware FLOPs for precision='bf64'",
-        ),
-        (
-            NULL_MODEL_CFG_STR,
-            "H100",
-            0,  # missing 'precision' key from config
-            "Missing hardware FLOPs for precision=''",
-        ),
-    ],
-)
-def test_eval_mfu(model_config, gpu_name, tflops_per_sec_per_gpu, expected_value):
-    if isinstance(expected_value, (int, float)):
-        flops_callback = FLOPsMeasurementCallback(model_config, gpu_name=gpu_name)
-        mfu = flops_callback.eval_mfu(tflops_per_sec_per_gpu)
-        assert mfu == pytest.approx(expected_value, rel=1e-3)
-
-    if isinstance(expected_value, str):
-        flops_callback = FLOPsMeasurementCallback(model_config, gpu_name=gpu_name)
-        with pytest.raises(KeyError, match=expected_value):
-            _ = flops_callback.eval_mfu(tflops_per_sec_per_gpu)

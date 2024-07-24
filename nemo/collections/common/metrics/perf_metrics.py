@@ -40,18 +40,15 @@ class FLOPsMeasurementCallback(Callback):
         model_name: Optional[str] = None,
     ):
         self.cfg = model_config
-        self.log_dir = log_dir
-        self.model = model_name
 
         self.run_cfg = self.cfg.get('run', {})
         self.exp_cfg = self.cfg.get('exp_manager', {})
         self.train_cfg = self.cfg.get('trainer', {})
         self.model_cfg = self.cfg.get('model', {})
 
-        if self.model is None:
-            self.model = self.run_cfg.get('name', None)
-        if self.log_dir is None:
-            self.log_dir = self.exp_cfg.get('explicit_log_dir', None)
+        # use config params only when NOT provided explicitly
+        self.model = self.run_cfg.get('name', "") if model_name is None else model_name
+        self.log_dir = self.exp_cfg.get('explicit_log_dir', None) if log_dir is None else log_dir
 
         self.num_nodes = self.train_cfg.get('num_nodes', None)
         self.num_gpus_per_node = self.train_cfg.get('devices', None)
@@ -62,10 +59,14 @@ class FLOPsMeasurementCallback(Callback):
         self.layers = self.model_cfg.get('num_layers', None)
         self.ffn_hs = self.model_cfg.get('ffn_hidden_size', None)
         self.attention_heads = self.model_cfg.get('num_attention_heads', None)
+        self.moe_router_topk = self.model_cfg.get('moe_router_topk', None)
+
+        # this handles both- 1. key is present, value is None; 2. key is absent
         self.query_groups = self.model_cfg.get('num_query_groups', None)
         if self.query_groups is None:
             self.query_groups = self.attention_heads
-        self.moe_router_topk = self.model_cfg.get('moe_router_topk', None)
+        
+        self.model = self.model.lower()
 
     def on_train_end(self, trainer, pl_module):
         """
