@@ -169,13 +169,16 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
             # Build answer and label tensor
             features_lens = torch.tensor([cut.num_frames for cut in cuts_tts], dtype=torch.int)
-            tts_answer = get_3d_fully_padded_tensor(len(cuts_tts), max(features_lens).item())
+            tts_answer = get_3d_fully_padded_tensor(len(cuts_tts), max(features_lens).item()+1)
+            eos_tensor = torch.full((1, self.n_speech_codebooks+1), self.speech_pad_id).to(torch.int)
+            eos_tensor[:,0] = self.text_processor.eos_id
             # Loop through cuts and build tts_answer, label, and context tensors
             speaker_context_list = []
             for i, cut_t in enumerate(cuts_tts):
                 feat_i = cut_t.load_features()
                 tts_answer[i,:feat_i.shape[0],0] = text_unk_id
                 tts_answer[i,:feat_i.shape[0],1:] = torch.tensor(feat_i)[:, :self.n_speech_codebooks]
+                tts_answer[i, feat_i.shape[0], :] = eos_tensor
                 speaker_context = cut_t.load_context()
                 # take random 3s splice from context
                 # TODO: fix hardcode
@@ -224,10 +227,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
             bos_tensor = torch.full((len(cuts_tts), 1, self.n_speech_codebooks+1), self.speech_pad_id).to(torch.int)
             bos_tensor[:,:,0] = self.text_processor.bos_id
-            eos_tensor = torch.full((len(cuts_tts), 1, self.n_speech_codebooks+1), self.speech_pad_id).to(torch.int)
-            eos_tensor[:,:,0] = self.text_processor.eos_id
             
-            answers = torch.concat([speaker_context, bos_tensor, tts_answer, eos_tensor], 1)
+            answers = torch.concat([speaker_context, bos_tensor, tts_answer], 1)
             # Move wav_tokens above current text token range
 
             # token_list = [torch.concat([c[:l], a], 0) for c, l, a in zip(contexts, context_lengths, answers)]
@@ -237,7 +238,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             loss_mask = torch.zeros(tokens.shape[0], tokens.shape[1]-1)  #Need to mask out speaker_context potion of audio
             for i in range(len(tokens)):
                 leading_mask_len = context_lengths[i]+speaker_context.shape[1]
-                loss_mask[i, leading_mask_len:leading_mask_len+features_lens[i]] = 1
+                # Add 1 for eos token
+                loss_mask[i, leading_mask_len:leading_mask_len+features_lens[i]+1] = 1
             
             for i in range(self.n_speech_codebooks):
                 tokens[:,:,i+1] += sum(self.vocab_sizes[:i+1])
@@ -251,11 +253,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             # For validation mainly
             "contexts": contexts,
             "context_lengths": context_lengths,
-            "speaker_contexts": answers[:, :speaker_context.shape[1]+1, :],
+            "speaker_contexts": answers[:, :speaker_context.shape[1], :],
             "answers": answers[:, speaker_context.shape[1]+1:, :],
             "loss_mask": loss_mask,
         }
-        import pdb; pdb.set_trace()
+
         if len(cuts) > 0:
             return_batch = {
                 "audio_signal": audio,
