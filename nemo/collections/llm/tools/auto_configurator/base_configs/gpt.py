@@ -15,6 +15,7 @@
 import copy
 import os
 
+import nemo_sdk as sdk
 from nemo.collections import llm
 from nemo.collections.common.tokenizers import AutoTokenizer
 
@@ -36,10 +37,9 @@ class GPT(Basic):
     def get_model_config(self):
         model_class = getattr(llm, self.config_name)
         kwargs = self.cfg.get("kwargs", {})
-        model_config = model_class(**kwargs)
+        model_config = sdk.Config(model_class, **kwargs)
 
         model_config.global_batch_size = self.global_batch_size
-        model_config.activations_checkpoint_method = None
         model_config.seq_length = self.seq_length
 
         return model_config
