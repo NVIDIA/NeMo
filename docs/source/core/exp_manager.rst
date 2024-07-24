@@ -334,9 +334,10 @@ Timeouts for fault detection need to be adjusted for a given workload:
 checkpointing related operations should be taken into account.
 
 If ``calculate_timeouts: True`` timeouts will be automatically estimated based on observed intervals. 
-Estimated timeouts take precedence over timeouts defined in the config file. **Timeouts are estimated after 
-checkpoint loading and saving was observed**. For example, in multi-part training started from scratch, 
-estimated timeouts won't be available during the first run. Estimated timeouts are stored in the checkpoint. 
+Estimated timeouts take precedence over timeouts defined in the config file. **Timeouts are estimated 
+at the end of a training run, when checkpoint loading and saving were observed**. Hence, in a multi-part 
+training started from scratch, estimated timeouts won't be available during initial two runs. 
+Estimated timeouts are stored in a separate JSON file. 
 
 ``max_subsequent_job_failures`` allows for the automatic continuation of training on a SLURM cluster. 
 This feature requires SLURM job to be scheduled with ``NeMo-Framework-Launcher``. If ``max_subsequent_job_failures`` 
