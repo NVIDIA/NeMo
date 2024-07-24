@@ -1796,7 +1796,7 @@ class ModelPT(LightningModule, Model):
                 self._memory_profile_weight_enabled = True # Set as True
                 self._memory_profile_oom_enabled = True # Set as True
 
-                if self._memory_profile_weight_enabled and get_rank() == self._memory_profile_rank: # For the weight profile, we record the snapshot from the initialization, and dump it before batch-0 start. 
+                if self._memory_profile_weight_enabled: # For the weight profile, we record the snapshot from the initialization, and dump it before batch-0 start. Note: can't use `get_rank()` during initialization, since nccl_init_group is not called yet. 
                     logging.info(f"====== Rank[{self._memory_profile_rank}], Initialization. Start CUDA memory profiling: Weight ======")
                     torch.cuda.memory._record_memory_history() 
 
