@@ -69,7 +69,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.context_key = context_key
         self.default_context_key = default_context_key
 
-        if len(vocab_sizes) == 1 and vocab_sizes <= 0:
+        if len(vocab_sizes) == 1 and vocab_sizes[0] <= 0:
             vocab_sizes = [self.text_processor.tokenizer.vocab_size]
         self.vocab_sizes = vocab_sizes
         self.n_speech_codebooks = len(self.vocab_sizes) - 1
