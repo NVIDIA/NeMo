@@ -16,7 +16,7 @@ import copy
 import os
 
 from nemo.collections import llm
-from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
+from nemo.collections.common.tokenizers import AutoTokenizer
 
 from .basic import Basic
 
@@ -46,11 +46,8 @@ class GPT(Basic):
 
     def get_tokenizer_config(self):
         tokenizer_config = {
-            "library": "megatron",
-            "type": "GPT2BPETokenizer",
-            "tokenizer_model": None,
-            "legacy": False,
-            "chat_template": None,
+            "class": AutoTokenizer,
+            "name": "GPT2BPETokenizer",
         }
 
         return tokenizer_config

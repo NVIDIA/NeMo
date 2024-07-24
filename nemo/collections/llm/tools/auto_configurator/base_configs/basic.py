@@ -36,6 +36,7 @@ class Basic:
         self.max_steps = cfg.get("max_steps_per_run", 50)
         self.seq_length = cfg.get("seq_length", 2048)
         self.global_batch_size = cfg.get("global_batch_size", 2048)
+        self.tokenizer_path = cfg.get("tokenizer_path", None)
         self.data_paths = cfg.get("data_paths", None)
         self.weights = self._get_data_weights()
 

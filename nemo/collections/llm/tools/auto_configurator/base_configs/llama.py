@@ -16,7 +16,7 @@ import copy
 import os
 
 from nemo.collections import llm
-from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
+from nemo.collections.common.tokenizers import SentencePieceTokenizer
 
 from .basic import Basic
 
@@ -46,10 +46,8 @@ class Llama(Basic):
 
     def get_tokenizer_config(self):
         tokenizer_config = {
-            "library": "sentencepiece",
-            "tokenizer_model": None,
-            "legacy": False,
-            "chat_template": None,
+            "class": SentencePieceTokenizer,
+            "path": self.tokenizer_path,
         }
 
         return tokenizer_config
