@@ -48,6 +48,7 @@ GRAPHEME_CHARACTER_SETS = {
         'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
         'U', 'V', 'W', 'X', 'Y', 'Z', 'Ä', 'Ö', 'Ü', 'ẞ',
     ),
+    # ref: https://en.wikipedia.org/wiki/Vietnamese_alphabet
     "vi-VN": (
         'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 
         'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 
@@ -192,7 +193,7 @@ def get_ipa_punctuation_list(locale):
     punct_set = set(DEFAULT_PUNCTUATION)
     # TODO @xueyang: verify potential mismatches with locale-specific punctuation sets used
     #  in nemo_text_processing.text_normalization.en.taggers.punctuation.py
-    if locale in ["de-DE", "es-ES", "it-IT", "fr-FR", "ja-JP", "vi-VN"]:
+    if locale in ["de-DE", "es-ES", "it-IT", "fr-FR", "ja-JP"]:
         # ref: https://en.wikipedia.org/wiki/Guillemet#Uses
         punct_set.update(['«', '»', '‹', '›'])
     if locale == "de-DE":
@@ -206,32 +207,6 @@ def get_ipa_punctuation_list(locale):
                 '‒',  # figure dash, U+2012, decimal 8210
                 '–',  # en dash, U+2013, decimal 8211
                 '—',  # em dash, U+2014, decimal 8212
-            ]
-        )
-    if locale == "vi-VN":
-        punct_set.update(
-            [
-                '„',  # double low-9 quotation mark, U+201E, decimal 8222
-                '“',  # left double quotation mark, U+201C, decimal 8220
-                '‚',  # single low-9 quotation mark, U+201A, decimal 8218
-                '‘',  # left single quotation mark, U+2018, decimal 8216
-                '‒',  # figure dash, U+2012, decimal 8210
-                '–',  # en dash, U+2013, decimal 8211
-                '—',  # em dash, U+2014, decimal 8212
-                '-',
-                '(',
-                ')',
-                ';',
-                ':',
-                ',',
-                '.',
-                '!',
-                '?',
-                '¡',
-                '¿',
-                '…',
-                '"',
-                '%',
             ]
         )
     if locale == "it-IT":
