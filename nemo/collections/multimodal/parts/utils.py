@@ -15,7 +15,6 @@ import os
 import tempfile
 from typing import Any, Callable, Tuple
 
-import decord
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -32,6 +31,11 @@ from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import AppState, logging
 from nemo.utils.model_utils import inject_model_parallel_rank
+
+try:
+    import decord
+except Exception:
+    logging.warning("The package `decord` was not installed in this environment.")
 
 try:
     from megatron.core import dist_checkpointing
@@ -534,17 +538,14 @@ def create_neva_model_and_processor(cfg):
 
 def create_image_processor(mm_cfg):
     if mm_cfg.vision_encoder.get("from_hf", False):
-        if (
-            "clip" in mm_cfg.vision_encoder.from_pretrained
-            or "vit" in mm_cfg.vision_encoder.from_pretrained
-            or "clip" in mm_cfg.vision_encoder.get("model_type", "")
-        ):
+        from transformers import AutoConfig
+
+        config = AutoConfig.from_pretrained(mm_cfg.vision_encoder.from_pretrained)
+        if config.architectures[0] == "CLIPVisionModel":
             image_processor = CLIPImageProcessor.from_pretrained(
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )
-        elif "siglip" in mm_cfg.vision_encoder.from_pretrained or "siglip" in mm_cfg.vision_encoder.get(
-            "model_type", ""
-        ):
+        elif config.architectures[0] == "SiglipVisionModel":
             image_processor = SiglipImageProcessor.from_pretrained(
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )
