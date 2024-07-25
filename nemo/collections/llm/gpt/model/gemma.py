@@ -9,6 +9,7 @@ from nemo.collections.llm.fn.activation import openai_gelu
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.pytorch.callbacks import ModelTransform
 
 if TYPE_CHECKING:
     from transformers import GemmaForCausalLM
@@ -30,6 +31,8 @@ class GemmaConfig(GPTConfig):
     add_bias_linear: bool = False
     seq_length: int = 8192
     kv_channels: int = 256
+    attention_dropout: float = 0.0
+    hidden_dropout: float = 0.0
     share_embeddings_and_output_weights: bool = True
     # Note: different behavior compared to Legacy NeMo
     # Legacy NeMo does not set layernorm_zero_centered_gamma and instead adds 1 in the HF -> NeMo conversion script
