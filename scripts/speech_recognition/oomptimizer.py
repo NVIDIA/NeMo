@@ -254,6 +254,8 @@ def oomptimizer(
 ):
     """
     OOMptimizer finds the optimal batch sizes for training your model with bucketing dataloading.
+    It performs a search over batch sizes until it converges by measuring the GPU memory usage for
+    a model's training step and optimizer update.
 
     \b
     There are two main usage patterns: for using a pretrained model or an untrained model configuration.
@@ -269,8 +271,15 @@ def oomptimizer(
     \b
     The suggested workflow is the following:
     1) Run scripts/speech_recognition/estimate_duration_bins.py to get the duration distribution of your data.
+        (consider running estimate_duration_bins_2d.py for models with a strong dependency on output sequence length
+        such as attention-encoder-decoder models).
     2) Run OOMptimizer to find the optimal batch sizes for your specific model, optimizer, and GPU.
     3) Use these optimal settings in your actual training script and enjoy optimal GPU utilization OOM-free.
+
+    In the unlikely event that OOMptimizer bucket batch sizes are still leading to OOMs,
+    please try a lower setting of the MEMORY_FRACTION option, e.g. 0.75 (75% of GPU memory).
+    This may be required in very complex setups where there are additional GPU RAM loads that can't be anticipated
+    through the combination of training_step and optimizer update.
     """
     if all(opt is None for opt in (pretrained_name, module_name, config_path)):
         click.secho(

@@ -121,9 +121,17 @@ def parse_args():
         "-f",
         "--prompt-format",
         type=str,
-        help="When specified, we'll use a prompt formatter in addition to the tokenizer for the purpose of estimating token count bins.",
+        help="When specified, we'll use a prompt formatter in addition to the tokenizer for the purpose of estimating token count bins. "
+        "This is useful for accurate 2D bucket estimation with models such as EncDecMultiTaskModel (Canary-1B), "
+        "or any model where the label sequence consists of a user prompt and a model's response.",
     )
-    parser.add_argument("-p", "--prompt", type=str, help="Prompt slots as a Python list (TODO better doc)")
+    parser.add_argument(
+        "-p",
+        "--prompt",
+        type=str,
+        help="Prompt slots provided as a Python list of dicts. It is used together with --prompt-format option."
+        "For example, with Canary-1B you may use: [{'role':'user','slots':{'source_lang':'en','target_lang':'en','task':'asr','pnc':'yes'}]",
+    )
     return parser.parse_args()
 
 
