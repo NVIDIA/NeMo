@@ -329,18 +329,19 @@ def oomptimizer(
         isinstance(item, (list, tuple)) and len(item) == 2 and all(isinstance(v, Number) for v in item)
         for item in buckets
     )
-    input_modality = (
-        "text"
-        if any(isinstance(item["type"].elements_type, LabelsType) and item["seq_length"] == "input" for item in schema)
-        else "audio"
-    )
-    output_modality = (
-        "text"
-        if any(
-            isinstance(item["type"].elements_type, LabelsType) and item["seq_length"] == "output" for item in schema
+    # Determine modality for input and output.
+    modalities = [
+        (
+            "text"
+            if any(
+                isinstance(item["type"].elements_type, LabelsType) and item["seq_length"] == direction
+                for item in schema
+                if item["type"] != "dummy"
+            )
+            else "audio"
         )
-        else "audio"
-    )
+        for direction in ("input", "output")
+    ]
 
     def get_max_seq_lens(buckets):
 
@@ -350,7 +351,7 @@ def oomptimizer(
             else:
                 input_len = bin
                 output_len = ratio * input_len
-            match (input_modality, output_modality):
+            match modalities:
                 case "audio", "audio":
                     return (
                         compute_num_samples(input_len, sampling_rate=model.sample_rate),
