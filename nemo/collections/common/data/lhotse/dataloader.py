@@ -503,12 +503,12 @@ class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
         # To refine, we'll try to push the example to as many buckets to the right as possible,
         # as long as they have the same dim0 length (e.g. audio duration) and the example's dim1
         # is smaller than the bin's dim1 (e.g., output token sequence length).
-        bin_dim0 = self.max_seq_len_buckets[bucket_idx][0]
+        bin_dim0, bin_dim1 = self.max_seq_len_buckets[bucket_idx]
         num_buckets = len(self.max_seq_len_buckets)
         while (
             (next_idx := bucket_idx + 1) < num_buckets
             and (bin := self.max_seq_len_buckets[next_idx])[0] == bin_dim0
-            and example_len[1] < bin[1]
+            and bin_dim1 < example_len[1] <= bin[1]
         ):
             bucket_idx = next_idx
         return bucket_idx
