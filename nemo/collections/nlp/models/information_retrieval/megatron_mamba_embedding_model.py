@@ -14,11 +14,10 @@
 
 import torch
 import torch.nn.functional as F
-
-from numpy import log2
 from megatron.core import parallel_state
 from megatron.core.models.mamba import MambaEmbeddingModel, MambaModel
 from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
+from numpy import log2
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.distributed import all_gather as all_gather_no_backprop
@@ -332,13 +331,13 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         neg_doc_hs = [F.normalize(nd, dim=1) for nd in neg_doc_hs]
 
         cs, pos_cs, neg_cs, labels = self.constrastive_scores(
-            pos_doc_hs, 
-            neg_doc_hs, 
-            query_hs, 
-            bs, 
+            pos_doc_hs,
+            neg_doc_hs,
+            query_hs,
+            bs,
             self.temperature,
-            )
-        
+        )
+
         loss = self.cross_entropy_loss(cs, labels)
 
         if self.mrl_dims:
