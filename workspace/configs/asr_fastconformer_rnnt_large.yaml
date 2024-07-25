@@ -44,8 +44,13 @@ name: "FastConformer-CTC-BPE"
 model:
   sample_rate: 16000
   log_prediction: true # enables logging sample predictions in the output during training
-  ctc_reduction: 'mean_volume'
+  rnnt_reduction: 'mean_volume'
   skip_nan_grad: false
+
+  model_defaults:
+    enc_hidden: ${model.encoder.d_model}
+    pred_hidden: 640
+    joint_hidden: 640
 
   train_ds:
     manifest_filepath: ???
