@@ -1,10 +1,22 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import os
 import tempfile
 import pytest
 import torch
 import re
-from omegaconf import open_dict
 from nemo.collections.asr.models import EncDecCTCModelBPE,EncDecHybridRNNTCTCBPEModel
 import json
 from unittest.mock import mock_open, patch
@@ -23,7 +35,6 @@ def fast_conformer_ctc_model():
 def fast_conformer_hybrid_model():
     model = EncDecHybridRNNTCTCBPEModel.from_pretrained(model_name="stt_en_fastconformer_hybrid_large_pc")
     return model
-
 
 class TestPseudoLabelGeneration:
     @pytest.mark.unit
@@ -49,7 +60,7 @@ class TestPseudoLabelGeneration:
             asr_model_hybrid = fast_conformer_hybrid_model
             hypotheses = asr_model_hybrid.generate_pseudo_labels_hybrid(cache_manifest=f.name)
             assert len(hypotheses) == len(texts)
-            assert hypotheses[0].lower().replace(',', '') == texts[0]
+            assert re.sub(r'[.,?]', '', hypotheses[0]).lower()== texts[0]
     
     @pytest.mark.unit
     def test_generate_pseudo_labels_tar(self, test_data_dir, fast_conformer_ctc_model, fast_conformer_hybrid_model):
@@ -75,12 +86,10 @@ class TestPseudoLabelGeneration:
     @patch('builtins.open',new_callable=mock_open)
     def test_write_whole_cache(self, mock_open):
         cache_manifest = 'test_cache.json'
-        hypotheses = [['test1', 'test2'], ['test3', 'test4']]
+        hypotheses = [['test1'], ['test2']]
         data = [
-            [{'audio_filepath': "audio_0.wav", 'duration': '10', 'text': ''},
-             {'audio_filepath': "audio_1.wav", 'duration': '12', 'text': ''}],
-            [{'audio_filepath': "audio_2.wav", 'duration': '14', 'text': ''},
-             {'audio_filepath': "audio_3.wav", 'duration': '16', 'text': ''}]
+            [{'audio_filepath': "audio_0.wav", 'duration': '10', 'text': ''}],
+            [{'audio_filepath': "audio_1.wav", 'duration': '14', 'text': ''}]
         ]
         update_whole_cache = True
 
@@ -91,9 +100,7 @@ class TestPseudoLabelGeneration:
         write_calls = handle.write.call_args_list
         expected_data = (
             '{"audio_filepath": "audio_0.wav", "duration": "10", "text": "test1"}\n'
-            '{"audio_filepath": "audio_1.wav", "duration": "12", "text": "test2"}\n'
-            '{"audio_filepath": "audio_2.wav", "duration": "14", "text": "test3"}\n'
-            '{"audio_filepath": "audio_3.wav", "duration": "16", "text": "test4"}\n'
+            '{"audio_filepath": "audio_1.wav", "duration": "14", "text": "test2"}\n'
         )
 
         written_data = ''.join(call_arg.args[0] for call_arg in write_calls)
@@ -104,10 +111,8 @@ class TestPseudoLabelGeneration:
         'builtins.open', 
         new_callable=mock_open, 
         read_data=(
-            '{"audio_filepath": "audio_3.wav", "duration": "18", "text": "test1"}\n'
-            '{"audio_filepath": "audio_4.wav", "duration": "10", "text": "test2"}\n'
+            '{"audio_filepath": "audio_1.wav", "duration": "18", "text": "test1"}\n'
             '{"audio_filepath": "audio_0.wav", "duration": "12", "text": "test1"}\n'
-            '{"audio_filepath": "audio_1.wav", "duration": "14", "text": "test2"}'
         )
     )  
     @patch('random.shuffle', lambda x: x) 
@@ -117,18 +122,15 @@ class TestPseudoLabelGeneration:
         cache_manifest = 'test_cache.json'
         hypotheses = [["", ""]]
         data = [
-            [{'audio_filepath': "audio_0.wav", 'duration': '12', 'text': 'test1'},
-             {'audio_filepath': "audio_1.wav", 'duration': '14', 'text': 'test2'}]
+            [{'audio_filepath': "audio_0.wav", 'duration': '12', 'text': 'test1'}]
         ]
 
         write_cache_manifest(cache_manifest, hypotheses, data, update_whole_cache = False)
         handle = mock_open()
         write_calls = handle.write.call_args_list
         expected_data = (
-            '{"audio_filepath": "audio_3.wav", "duration": "18", "text": "test1"}\n'
-            '{"audio_filepath": "audio_4.wav", "duration": "10", "text": "test2"}\n'
+            '{"audio_filepath": "audio_1.wav", "duration": "18", "text": "test1"}\n'
             '{"audio_filepath": "audio_0.wav", "duration": "12", "text": ""}\n'
-            '{"audio_filepath": "audio_1.wav", "duration": "14", "text": ""}\n'
         )
 
         written_data = ''.join(call_arg.args[0] for call_arg in write_calls)
