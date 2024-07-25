@@ -32,6 +32,8 @@ class AutoConfigurator:
         self,
         model_type: str = None,
         num_nodes: int = None,
+        data_paths: List = None,
+        tokenizer_path: Optional[str] = None,
         model_size: Optional[int] = None,
         model_version: Optional[int] = None,
         gpus_per_node: Optional[int] = 8,
@@ -54,8 +56,10 @@ class AutoConfigurator:
         vocab_size: Optional[int] = 51200,
     ):
         """
-        :param str model_type: main hydra config object for the HP tool.
-        :param int num_nodes: main hydra config object for the HP tool.
+        :param str model_type: model type to be used for training.
+        :param int num_nodes: number of nodes to be used for training.
+        :param List data_paths: list of datafiles to be used for training.
+        :param Optional[str] tokenizer_path: path to the tokenizer model.
         :param Optional[int] model_size: size of model to be trained.
         :param Optional[int] model_version: version of model. 3 for GPT3, 2 for Llama2.
         :param Optional[int] gpus_per_node: number of GPUs per node to be used.
@@ -80,6 +84,7 @@ class AutoConfigurator:
 
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {SUPPORTED_MODELS}."
         assert num_nodes, "num_nodes value must be specified."
+        assert data_paths, "training data must be specified."
 
         self.config = locals()
         self.config.pop('self')
@@ -89,10 +94,10 @@ class AutoConfigurator:
 
     def get_configs(self) -> dict:
         """
-        return: dictionary of generated configs.
+        :return: dictionary of generated configs.
             key: model config name, type: str.
             value: model config values, type: dict.
-        rtype: dict.
+        :rtype: dict.
         """
 
         configs = search_configs(self.config)
@@ -100,6 +105,13 @@ class AutoConfigurator:
         return configs
 
     def _get_message(self, config) -> str:
+        """
+        Function that returns runner config line by line.
+        :param: dict config: runner config.
+        :return: runner config params.
+        :rtype: str.
+        """
+
         message = "AutoConfigurator runner config:\n"
         for key, value in config.items():
             message += f"{key}: {value}\n"

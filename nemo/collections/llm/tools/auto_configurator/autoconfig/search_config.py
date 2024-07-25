@@ -31,7 +31,7 @@ def search_configs(cfg: dict):
     Main function that implements the entire pipeline to search the optimal
     model config and launch the grid searches for both training and inference
     constraints.
-    :param dict cfg: main hydra config object for the HP tool.
+    :param dict cfg: main hydra config object for the auto configurator.
     :return: dictionary of generated configs.
     :rtype: dict
     """

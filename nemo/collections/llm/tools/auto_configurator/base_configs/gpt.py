@@ -31,10 +31,24 @@ class GPT(Basic):
         measure: str = "B",
         cfg: dict = {},
     ):
+        """
+        :param str name: model name.
+        :param int version: model version.
+        :param int size: model size.
+        :param str measure: meausre of model size. "M" if model size in millions, "B" if in billions.
+        :param dict cfg: auto configurator runner config.
+        """
+
         super().__init__(name=name, version=version, size=size, measure=measure, cfg=cfg)
         self.config_name = f"{self.name}Config{self.size}{self.measure}"
 
-    def get_model_config(self):
+    def get_model_config(self) -> Config:
+        """
+        Function that returns model config.
+        :return: model config.
+        :rtype: Config.
+        """
+
         model_class = getattr(llm, self.config_name)
         kwargs = self.cfg.get("kwargs", {})
         model_config = Config(model_class, **kwargs)
@@ -44,7 +58,13 @@ class GPT(Basic):
 
         return model_config
 
-    def get_tokenizer_config(self):
+    def get_tokenizer_config(self) -> dict:
+        """
+        Function that returns tokenizer config.
+        :return: tokenizer config.
+        :rtype: dict.
+        """
+
         tokenizer_config = {
             "class": AutoTokenizer,
             "name": "GPT2BPETokenizer",

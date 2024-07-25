@@ -27,27 +27,45 @@ class Basic:
         measure: str = "B",
         cfg: dict = {},
     ):
+        """
+        :param str name: model name.
+        :param int version: model version.
+        :param int size: model size.
+        :param str measure: meausre of model size. "M" if model size in millions, "B" if in billions.
+        :param dict cfg: auto configurator runner config.
+        """
+
         self.name = name
         self.version = version
         self.size = size
         self.measure = measure
         self.cfg = cfg
-        self.num_nodes = cfg.get("num_nodes", 8)
-        self.num_gpus = cfg.get("num_gpus", 8)
-        self.max_steps = cfg.get("max_steps_per_run", 50)
-        self.seq_length = cfg.get("seq_length", 2048)
-        self.global_batch_size = cfg.get("global_batch_size", 2048)
-        self.tokenizer_path = cfg.get("tokenizer_path", None)
-        self.data_paths = cfg.get("data_paths", None)
+        self.num_nodes = cfg.get("num_nodes")
+        self.num_gpus = cfg.get("num_gpus")
+        self.max_steps = cfg.get("max_steps_per_run")
+        self.seq_length = cfg.get("seq_length")
+        self.global_batch_size = cfg.get("global_batch_size")
+        self.tokenizer_path = cfg.get("tokenizer_path")
+        self.data_paths = cfg.get("data_paths")
         self.weights = self._get_data_weights()
 
     def model_config(self):
+        """Function that returns model config."""
+
         None
 
     def tokenizer_config(self):
+        """Function that returns tokenizer config."""
+
         None
 
-    def get_optim_config(self):
+    def get_optim_config(self) -> OptimizerConfig:
+        """
+        Function that returns optimizer config.
+        :return: optim config.
+        :rtype: OptimizerConfig.
+        """
+
         optim_config = Config(
             OptimizerConfig,
             optimizer='adam',
@@ -63,7 +81,13 @@ class Basic:
 
         return optim_config
 
-    def get_trainer_config(self):
+    def get_trainer_config(self) -> dict:
+        """
+        Function that returns config for PTL trainer.
+        :return: trainer config.
+        :rtype: dict.
+        """
+
         trainer_config = {
             "accelerator": "gpu",
             "precision": "bf16",
@@ -84,7 +108,13 @@ class Basic:
 
         return trainer_config
 
-    def get_data_config(self):
+    def get_data_config(self) -> dict:
+        """
+        Function that returns dataset config.
+        :return: data config.
+        :rtype: dict.
+        """
+
         data_config = {
             "paths": self.data_paths,
             "weights": self.weights,
@@ -97,7 +127,13 @@ class Basic:
 
         return data_config
 
-    def get_run_config(self):
+    def get_run_config(self) -> dict:
+        """
+        Function that returns config for cluster job.
+        :return: cluster job config.
+        :rtype: dict.
+        """
+
         run_config = {
             "name": f"{self.name}_{self.size}{self.measure}",
             "results_dir": None,
@@ -106,7 +142,13 @@ class Basic:
 
         return run_config
 
-    def _get_data_weights(self):
+    def _get_data_weights(self) -> list:
+        """
+        Function that returns weights for train dataset.
+        :return: list of data weights.
+        :rtype: list.
+        """
+
         if not self.data_paths:
             return None
 
