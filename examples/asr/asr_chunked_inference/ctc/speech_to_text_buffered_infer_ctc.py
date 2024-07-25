@@ -50,7 +50,8 @@ from omegaconf import OmegaConf
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
-from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR, FrameBatchASRModified
+
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     get_buffered_pred_feat,
