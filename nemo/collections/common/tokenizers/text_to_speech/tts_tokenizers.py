@@ -1053,9 +1053,7 @@ class JapanesePhonemeTokenizer(BaseTokenizer):
             if p == space and len(ps) > 0 and ps[-1] != space:
                 ps.append(p)
             # Add next phoneme or tone or ascii letter or apostrophe.
-            elif (
-                p.isalnum() or p == "'" or p in self.phoneme_list + self.ascii_letter_list
-            ) and p in tokens:
+            elif (p.isalnum() or p == "'" or p in self.phoneme_list + self.ascii_letter_list) and p in tokens:
                 ps.append(p)
             # Add punctuation
             elif (p in self.PUNCT_LIST) and self.punct:
