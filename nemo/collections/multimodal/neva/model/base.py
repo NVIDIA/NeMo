@@ -16,8 +16,7 @@ from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModul
 from nemo.collections.llm.gpt.model import transformer_engine_layer_spec, local_layer_spec
 
 if TYPE_CHECKING:
-    from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-
+    from megatron.core.models.multimodal.llava_model import MCoreLLaVAModel
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -38,7 +37,7 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     required_keys = set()
     required_keys.add("attention_mask")
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("media", "tokens", "position_ids"))
+        required_keys.update(("images", "tokens", "position_ids"))
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
 
@@ -51,7 +50,7 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
 def neva_forward_step(model, batch) -> torch.Tensor:
     forward_args = {
-        "media": batch["media"],
+        "images": batch["images"],
         "input_ids": batch["tokens"],
         "position_ids": batch["position_ids"],
         "attention_mask": batch["attention_mask"],
@@ -63,61 +62,227 @@ def neva_forward_step(model, batch) -> torch.Tensor:
 
     return model(**forward_args)
 
+from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
+from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
+from megatron.core.transformer.custom_layers.transformer_engine import (
+    TEColumnParallelLinear,
+    TEDotProductAttention,
+    TELayerNormColumnParallelLinear,
+    TENorm,
+    TERowParallelLinear,
+)
+
+from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
+from megatron.core.inference_params import InferenceParams
+from megatron.core.transformer.mlp import MLP, MLPSubmodules
+from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+
+
+@dataclass
+class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
+
+    def configure_model(self) -> "MCoreMultimodalProjector":
+        layer_spec: ModuleSpec = MLPSubmodules
+        projector_type: str
+        input_size: int
+        return MCoreMultimodalProjector(
+            self,
+            self.layer_spec,
+            projector_type=self.projector_type,
+            input_size=self.input_size,
+        )
+
+@dataclass
+class CLIPViTConfig(TransformerConfig, io.IOMixin):
+    ln_pre_impl: Union[ModuleSpec, type] = TENorm
+    add_class_token: bool = True
+    class_token_len: int = 1
+    patch_dim: int = 14
+    img_h: int = 336
+    img_w: int = 336
+    transformer_layer_spec: ModuleSpec = transformer_engine_layer_spec
+
+    def configure_model(self) -> "MCoreCLIPViTModel":
+        return MCoreCLIPViTModel(
+            self,
+            self.transformer_layer_spec,
+            ln_pre_impl=self.ln_pre_impl,
+            add_class_token=self.add_class_token,
+            class_token_len=self.class_token_len,
+            patch_dim=self.patch_dim,
+            img_h=self.img_h,
+            img_w=self.img_w,
+        )
+
 
 @dataclass
 class NevaConfig(TransformerConfig, io.IOMixin):
-    vision_config: Optional[TransformerConfig] = None  # TODO(yuya): is not ideal, should be something like NeMo's config
-    text_config: Optional[TransformerConfig] = None
+    language_transformer_config: TransformerConfig
+    vision_transformer_config: TransformerConfig
+    vision_projection_config: TransformerConfig
+    drop_vision_class_token: bool
+    vision_projection_config: TransformerConfig
+    allow_missing_vision_projection_checkpoint: bool = False
+    img_embedding_idx: int = 0
 
     forward_step_fn: Callable = neva_forward_step
     data_step_fn: Callable = neva_data_step
 
-    # def configure_model(self, tokenizer) -> "MCoreGPTModel":
-    #     vision_model = None
-    #     vision_projector = None
-    #     language_model = None
-    #     return vision_model, vision_projector, language_model
-        # vp_size = self.virtual_pipeline_model_parallel_size
-        # if vp_size:
-        #     p_size = self.pipeline_model_parallel_size
-        #     assert (
-        #         self.num_layers // p_size
-        #     ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
-        #
-        # from megatron.core import parallel_state
-        # from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-        #
-        # transformer_layer_spec = self.transformer_layer_spec
-        # if not isinstance(transformer_layer_spec, ModuleSpec):
-        #     transformer_layer_spec = transformer_layer_spec(self)
-        #
-        # return MCoreGPTModel(
-        #     self,
-        #     transformer_layer_spec=transformer_layer_spec,
-        #     vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
-        #     max_sequence_length=self.seq_length,
-        #     fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
-        #     parallel_output=self.parallel_output,
-        #     share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
-        #     position_embedding_type=self.position_embedding_type,
-        #     rotary_percent=self.rotary_percent,
-        #     rotary_base=self.rotary_base,
-        #     seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-        #     pre_process=parallel_state.is_pipeline_first_stage(),
-        #     post_process=parallel_state.is_pipeline_last_stage(),
-        # )
+    def configure_model(self, tokenizer) -> "MCoreLLaVAModel":
+        language_model = self.language_transformer_config.configure_model(tokenizer)
+        vision_model = self.vision_transformer_config.configure_model()
+        vision_projection = self.vision_projection_config.configure_model()
+        return MCoreNevaModel(
+            transformer_config=self,
+            language_model=language_model,
+            vision_model=vision_model,
+            vision_projection=vision_projection,
+            drop_vision_class_token=self.drop_vision_class_token,
+            img_embedding_idx=self.img_embedding_idx,
+        )
 
-class MCoreNevaModel:
+
+class MCoreNevaModel(MCoreLLaVAModel):
+    def __init__(
+        self,
+        transformer_config: TransformerConfig,
+        language_model: MegatronModule,
+        vision_model: MegatronModule,
+        vision_projection: MegatronModule,
+        pre_process: bool = True,
+        post_process: bool = True,
+        drop_vision_class_token: bool = False,
+        img_embedding_idx: int = 0,
+    ) -> None:
+        MegatronModule.__init__(self, config=transformer_config)
+
+        logging.warning(
+            "LLaVA model is under development and may be missing features."
+        )
+
+        self.pre_process = pre_process
+        self.post_process = post_process
+        self.img_embedding_idx = img_embedding_idx
+
+        self.encoder_hidden_state = None
+        self.vision_model = vision_model
+        self.vision_projection = vision_projection
+        self.language_model = language_model
+
+        # This attribute is needed to check if an all-reduce is required
+        # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
+        self.share_embeddings_and_output_weights = False
+        if self.language_model is not None:
+            self.share_embeddings_and_output_weights = (
+                self.language_model.share_embeddings_and_output_weights
+            )
+
+        if self.vision_model is not None:
+            self._drop_vision_class_token = drop_vision_class_token
+            # Map (intermediate) vision model outputs to the language model input dimension.
+            # self.vision_projection = MultimodalProjector(
+            #     vision_projection_config,
+            #     vision_projection_layer_spec,
+            #     vision_projection_type,
+            #     vision_transformer_config.hidden_size,  # input size to the projection.
+            # )
+            # # This allows ignoring missing weights for the vision projection during checkpoint loading.
+            # # This should be disabled by default but can be enabled if your checkpoint contains pretrained
+            # # vision and language models but not the projection from vision model outputs to language model inputs.
+            # if allow_missing_vision_projection_checkpoint:
+            #     vision_projection_param_names = [
+            #         f"vision_projection.{name}"
+            #         for name in self.vision_projection.state_dict().keys()
+            #     ]
+            #     self.vision_projection.register_load_state_dict_post_hook(
+            #         partial(_load_state_dict_hook_ignore_param_names, vision_projection_param_names)
+            #     )
+
+    def _merge_input_ids_with_image_features(self, image_features, inputs_embeds, input_ids, attention_mask, labels):
+        pass
+
+    def forward(
+        self,
+        images: torch.Tensor,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        labels: torch.Tensor = None,
+        inference_params: InferenceParams = None,
+    ) -> torch.Tensor:
+        use_inference_kv_cache = (
+            inference_params is not None
+            and "image_tokens_count" in inference_params.key_value_memory_dict
+        )
+        # If running inference, we can skip image token computation if they were computed already earlier for this sample.
+        if use_inference_kv_cache:
+            image_embeddings = None
+        elif self.vision_model is not None:
+            image_embeddings = self.vision_model(images)  # [b, img_seq_len, h_vision]
+            if self._drop_vision_class_token:
+                image_embeddings = image_embeddings[:, self.vision_model.class_token_len :, :]
+            # contiguous() call required as `permute` can sparsify the tensor and this breaks pipelining
+            image_embeddings = image_embeddings.permute(
+                1, 0, 2
+            ).contiguous()  # [img_seq_len, b, h_vision]
+            # map vision model output size to language model input size.
+            image_embeddings = self.vision_projection(
+                image_embeddings
+            )  # [img_seq_len, b, h_vision]
+
+            # If running inference, the language model KV cache will be updated for image token positions.
+            # Here we store the image tokens sequence length, which can be used as an offset to the KV cache later.
+            if inference_params is not None:
+                inference_params.key_value_memory_dict["image_tokens_count"] = (
+                    image_embeddings.shape[0]
+                )
+        else:
+            image_embeddings = self.encoder_hidden_state
+
+        if not self.add_decoder:
+            return image_embeddings
+
+        if self.pre_process:
+            language_embeddings = self.language_model.embedding(
+                input_ids=input_ids, position_ids=position_ids
+            )  # [text_seq_len, b, h_language]
+
+            # If running inference, we can skip image token computation if they were computed already earlier for this sample.
+            if use_inference_kv_cache:
+                combined_embeddings = language_embeddings
+            else:
+                combined_embeddings = torch.cat(
+                    [
+                        language_embeddings[: self.img_embedding_idx],
+                        image_embeddings,
+                        language_embeddings[self.img_embedding_idx :],
+                    ],
+                    dim=0,
+                )  # [combined_seq_len, b, h_language]
+        else:
+            combined_embeddings = None
+
+        output = self.language_model(
+            input_ids=None,
+            position_ids=None,
+            attention_mask=attention_mask,
+            decoder_input=combined_embeddings,
+            labels=labels,
+            inference_params=inference_params,
+        )
+
+        return output
+
 
 class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
-        self,
-        config: NevaConfig,
-        # TODO: Add transformer_layer_spec when we update mcore
-        optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
-        vision_processor: Optional = None, # TODO(yuya): add class type
-        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+            self,
+            config: NevaConfig,
+            # TODO: Add transformer_layer_spec when we update mcore
+            optim: Optional[OptimizerModule] = None,
+            tokenizer: Optional["TokenizerSpec"] = None,
+            vision_processor: Optional = None,  # TODO(yuya): add class type
+            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
         self.config = config
@@ -127,27 +292,24 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
 
-        self.vision_model = None
-        self.text_model = None
-
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
             self.module = self.config.configure_model(self.tokenizer)
 
     def forward(
-        self,
-        input_ids: torch.Tensor,
-        position_ids: torch.Tensor,
-        attention_mask: torch.Tensor,
-        labels: Optional[torch.Tensor] = None,
-        decoder_input: Optional[torch.Tensor] = None,
-        inference_params=None,
+            self,
+            images: torch.Tensor,
+            input_ids: torch.Tensor,
+            position_ids: torch.Tensor,
+            attention_mask: torch.Tensor,
+            labels: torch.Tensor = None,
+            inference_params: InferenceParams = None,
     ) -> torch.Tensor:
         output_tensor = self.module(
+            images,
             input_ids,
             position_ids,
             attention_mask,
-            decoder_input=decoder_input,
             labels=labels,
             inference_params=inference_params,
         )
@@ -174,58 +336,6 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def validation_loss_reduction(self) -> MaskedTokenLossReduction:
         return MaskedTokenLossReduction(validation_step=True)
-
-
-def get_batch_on_this_context_parallel_rank(batch):
-    from megatron.core import parallel_state
-
-    if (cp_size := parallel_state.get_context_parallel_world_size()) > 1:
-        num_valid_tokens_in_ub = None
-        if 'loss_mask' in batch and batch['loss_mask'] is not None:
-            num_valid_tokens_in_ub = batch['loss_mask'].sum()
-
-        cp_rank = parallel_state.get_context_parallel_rank()
-        for key, val in batch.items():
-            if val is not None:
-                seq_dim = 1 if key != 'attention_mask' else 2
-                _val = val.view(
-                    *val.shape[0:seq_dim],
-                    2 * cp_size,
-                    val.shape[seq_dim] // (2 * cp_size),
-                    *val.shape[(seq_dim + 1) :],
-                )
-                index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True).cuda(
-                    non_blocking=True
-                )
-                _val = _val.index_select(seq_dim, index)
-                _val = _val.view(*val.shape[0:seq_dim], -1, *_val.shape[(seq_dim + 2) :])
-                batch[key] = _val
-        batch['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
-    return batch
-
-
-def get_packed_seq_params(batch):
-    from megatron.core.packed_seq_params import PackedSeqParams
-
-    cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
-    # remove -1 "paddings" added in collate_fn
-    if (cu_seqlens_argmin := batch.get('cu_seqlens_argmin', None)) is not None:
-        # pre-compute cu_seqlens_argmin in dataset class for perf
-        cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
-    else:
-        cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
-
-    # pre-compute max_seqlens in dataset class for perf
-    max_seqlen = batch['max_seqlen'].squeeze() if 'max_seqlen' in batch else None
-
-    # these args are passed eventually into TEDotProductAttention.forward()
-    return PackedSeqParams(
-        cu_seqlens_q=cu_seqlens,
-        cu_seqlens_kv=cu_seqlens,
-        max_seqlen_q=max_seqlen,
-        max_seqlen_kv=max_seqlen,
-        qkv_format='thd',
-    )
 
 
 # __all__ = [
