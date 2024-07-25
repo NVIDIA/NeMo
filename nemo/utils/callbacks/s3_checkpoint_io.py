@@ -59,11 +59,6 @@ class S3CheckpointIO(CheckpointIO):
         self.max_read_concurrency = max_read_concurrency
         self.max_write_concurrency = max_write_concurrency
         self._async_checkpointing = async_checkpointing
-        '''
-        When using shared memory, we create a temporary file to hold the checkpoint before uploading to S3. 
-        This list will track those temporary files, and clean up any leaked files that are still around during teardown. 
-        '''
-        self._temp_files = []
 
         if self.async_checkpointing:
             # create an executor that will asynchronously run functions
@@ -123,7 +118,6 @@ class S3CheckpointIO(CheckpointIO):
         """
         self._future is a list of tuples of form (future, destination path, source path)
         This function checks the result of all the futures, and updates the self._futures list appropriately.
-        It also updates the list of self._temp_files, which is used to clean up leaked temporary files in SHARED_MEM during teardown.
         """
         if not self._futures:
             return
@@ -142,11 +136,7 @@ class S3CheckpointIO(CheckpointIO):
             except Exception as e:
                 logging.error(f'Failed to upload {item[2]} to {item[1]}, exception: {e}')
                 raise e
-            # If the future is complete, we can remove the temp file since we choose to clear the temp file when uploading.
-            try:
-                self._temp_files.remove(item[2])
-            except:
-                pass  # When not using shared memory, we do not append anything to the temp_files list, so remove will do nothing.
+            
         self._futures = in_progress_futures
         logging.debug(
             f'Time elapsed checking uploading future results: {(time.perf_counter() - start_time):.2f} seconds'
@@ -158,7 +148,6 @@ class S3CheckpointIO(CheckpointIO):
         # if we have a shared memory directory, we can serialize as a file to shared memory instead of as bytes.
         if os.path.exists(SHARED_MEM_DIR):
             localfile = self._serialize_checkpoint_to_shm(checkpoint, path)
-            self._temp_files.append(localfile)
             saved_as_file = True
         else:
             bytes = self._serialize_checkpoint_to_bytes(checkpoint, path)
@@ -181,7 +170,6 @@ class S3CheckpointIO(CheckpointIO):
             logging.info(f'Uploading checkpoint to {path} in synchronous mode, rank {torch.distributed.get_rank()}')
             if saved_as_file:
                 _upload_file_to_s3(localfile, path, self.chunk_size_MB, self.max_write_concurrency, True)
-                self._temp_files.remove(localfile)
             else:
                 _upload_bytes_to_s3(bytes, path, self.chunk_size_MB, self.max_write_concurrency)
 
@@ -222,17 +210,6 @@ class S3CheckpointIO(CheckpointIO):
             self._executor.shutdown(wait=True)
             logging.info(f'executor shut down after {(time.perf_counter() - start_time):.2f} seconds, rank {rank}')
 
-        '''
-        this will be non-empty at the end of training if using asynchronous uploading since the futures are not processed with _check_uploading_results_so_far.
-        therefore, we check that the path exists first before trying to delete. 
-        '''
-        if self._temp_files:
-            for tfile in self._temp_files:
-                if os.path.exists(tfile):
-                    try:
-                        os.remove(tfile)
-                    except Exception as e:
-                        logging.info(f"Error occurred while deleting file {tfile}: {e}")
 
 
 def _clean_up_conflicting_checkpoint(filepath: str) -> None:
