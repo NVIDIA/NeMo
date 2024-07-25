@@ -19,10 +19,10 @@ else:
 
 
 class Resume(IOMixin):
-    def nemo_path(self, model) -> Optional[Path]:
-        raise NotImplementedError
+    def nemo_path(self, model=None) -> Optional[Path]:
+        """ Returns the checkpoint to resume from. """
 
-    def setup(self, model, trainer: Union[pl.Trainer, fl.Fabric]):
+    def setup(self, trainer: Union[pl.Trainer, fl.Fabric], model=None):
         if isinstance(trainer, fl.Fabric):
             raise NotImplementedError("Fabric is not supported yet.")
 
@@ -56,6 +56,7 @@ class AutoResume(Resume, io.IOMixin):
             import_path (str): Path to specify if importing a checkpoint from HF or
                 another non-NeMo checkpoint format. If import_path is provided, other arguments
                 are unused.
+            adapter_path (str): Path to any adapter checkpoints.
             resume_if_exists (bool): Whether this experiment is resuming from a previous run. If
                 True, it sets trainer._checkpoint_connector._ckpt_path so that the trainer should
                 auto-resume. exp_manager will move files under log_dir to log_dir/run_{int}.
