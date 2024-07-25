@@ -20,10 +20,7 @@ from unittest.mock import mock_open, patch
 
 import pytest
 import torch
-import re
-from nemo.collections.asr.models import EncDecCTCModelBPE,EncDecHybridRNNTCTCBPEModel
-import json
-from unittest.mock import mock_open, patch
+
 from nemo.collections.asr.models import EncDecCTCModelBPE, EncDecHybridRNNTCTCBPEModel
 from nemo.collections.asr.parts.utils.ipl_utils import (
     handle_multiple_tarr_filepaths,
@@ -42,6 +39,7 @@ def fast_conformer_ctc_model():
 def fast_conformer_hybrid_model():
     model = EncDecHybridRNNTCTCBPEModel.from_pretrained(model_name="stt_en_fastconformer_hybrid_large_pc")
     return model
+
 
 class TestPseudoLabelGeneration:
     @pytest.mark.unit
@@ -67,8 +65,8 @@ class TestPseudoLabelGeneration:
             asr_model_hybrid = fast_conformer_hybrid_model
             hypotheses = asr_model_hybrid.generate_pseudo_labels_hybrid(cache_manifest=f.name)
             assert len(hypotheses) == len(texts)
-            assert re.sub(r'[.,?]', '', hypotheses[0]).lower()== texts[0]
-    
+            assert re.sub(r'[.,?]', '', hypotheses[0]).lower() == texts[0]
+
     @pytest.mark.unit
     def test_generate_pseudo_labels_tar(self, test_data_dir, fast_conformer_ctc_model, fast_conformer_hybrid_model):
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -100,7 +98,7 @@ class TestPseudoLabelGeneration:
         hypotheses = [['test1'], ['test2']]
         data = [
             [{'audio_filepath': "audio_0.wav", 'duration': '10', 'text': ''}],
-            [{'audio_filepath': "audio_1.wav", 'duration': '14', 'text': ''}]
+            [{'audio_filepath': "audio_1.wav", 'duration': '14', 'text': ''}],
         ]
         update_whole_cache = True
 
@@ -117,25 +115,26 @@ class TestPseudoLabelGeneration:
         written_data = ''.join(call_arg.args[0] for call_arg in write_calls)
         assert written_data == expected_data
 
-    @pytest.mark.unit    
+    @pytest.mark.unit
     @patch(
-        'builtins.open', 
-        new_callable=mock_open, 
+        'builtins.open',
+        new_callable=mock_open,
         read_data=(
             '{"audio_filepath": "audio_1.wav", "duration": "18", "text": "test1"}\n'
             '{"audio_filepath": "audio_0.wav", "duration": "12", "text": "test1"}\n'
-        )
-    )  
-    @patch('random.shuffle', lambda x: x) 
-    def test_write_partial_cache(self, mock_open, ):
+        ),
+    )
+    @patch('random.shuffle', lambda x: x)
+    def test_write_partial_cache(
+        self,
+        mock_open,
+    ):
 
         cache_manifest = 'test_cache.json'
         hypotheses = [["", ""]]
-        data = [
-            [{'audio_filepath': "audio_0.wav", 'duration': '12', 'text': 'test1'}]
-        ]
+        data = [[{'audio_filepath': "audio_0.wav", 'duration': '12', 'text': 'test1'}]]
 
-        write_cache_manifest(cache_manifest, hypotheses, data, update_whole_cache = False)
+        write_cache_manifest(cache_manifest, hypotheses, data, update_whole_cache=False)
         handle = mock_open()
         write_calls = handle.write.call_args_list
         expected_data = (
