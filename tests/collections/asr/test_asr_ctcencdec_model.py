@@ -307,6 +307,7 @@ class TestEncDecCTCModel:
             'bucketing_strategy',
             'bucketing_weights',
             'max_utts',
+            'cache_audio',
         ]
 
         REMAP_ARGS = {

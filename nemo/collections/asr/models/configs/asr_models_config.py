@@ -57,6 +57,7 @@ class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     pad_id: int = 0
     use_start_end_token: bool = False
     return_sample_id: Optional[bool] = False
+    cache_audio: bool = True
 
     # bucketing params
     bucketing_strategy: str = "synced_randomized"
