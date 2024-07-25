@@ -40,6 +40,7 @@ class MixtralConfig8x7B(GPTConfig):
     seq_length: int = 4096  # 32768
     attention_dropout: float = 0.0
     hidden_dropout: float = 0.0
+    share_embeddings_and_output_weights: bool = False
 
     # MoE
     num_moe_experts: int = 8

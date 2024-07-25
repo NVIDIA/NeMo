@@ -105,6 +105,9 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     rotary_percent: float = 1.0
     seq_len_interpolation_factor: Optional[float] = None
     seq_length: int = 1024
+    attention_softmax_in_fp32: bool = False
+    masked_softmax_fusion: bool = True
+    persist_layer_norm: bool = True
 
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
@@ -113,7 +116,10 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
 
-    def configure_model(self, tokenizer) -> "MCoreGPTModel":
+    def configure_model(self, tokenizer, params_dtype) -> "MCoreGPTModel":
+        self.params_dtype = params_dtype
+        self.autocast_dtype = params_dtype
+
         vp_size = self.virtual_pipeline_model_parallel_size
         if vp_size:
             p_size = self.pipeline_model_parallel_size
@@ -165,7 +171,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
-            self.module = self.config.configure_model(self.tokenizer)
+            self.module = self.config.configure_model(self.tokenizer, self.optim.config.params_dtype)
 
     def forward(
         self,
