@@ -850,7 +850,11 @@ To run 2D bucketing with 30 buckets sub-divided into 5 sub-buckets each (150 buc
 
 .. code-block:: bash
 
-    $ python scripts/speech_recognition/estimate_duration_bins_2d.py -b 30 -s 5 input_cfg.yaml
+    $ python scripts/speech_recognition/estimate_duration_bins_2d.py \
+        --tokenizer path/to/tokenizer.model \
+        --buckets 30 \
+        --sub-buckets 5 \
+        input_cfg.yaml
     Use the following options in your config:
             num_buckets=30
             bucket_duration_bins=[[1.91,10],[1.91,17],[1.91,25],...
@@ -869,6 +873,31 @@ In general, if you change your data in training, it is highly advisable to re-es
 Note that reasonable values for tokens-per-second rarely exceed 12tps with reasonably good tokenizers.
 If you find your dataset's TPS is much higher than that, you may have some bad data outliers.
 In that case you may specify ``--max_tps`` option to discard those both in bin estimation and dataloading.
+
+We also support aggregate tokenizers for 2D bucketing estimation:
+
+.. code-block:: bash
+
+    $ python scripts/speech_recognition/estimate_duration_bins_2d.py \
+        --tokenizer path/to/en/tokenizer.model path/to/pl/tokenizer1.model \
+        --langs en pl \
+        --buckets 30 \
+        --sub-buckets 5 \
+        input_cfg.yaml
+
+To estimate 2D buckets for a prompted model such as Canary-1B, provide prompt format name and an example prompt.
+For Canary-1B, we'll also provide the special tokens tokenizer. Example:
+
+.. code-block:: bash
+
+    $ python scripts/speech_recognition/estimate_duration_bins_2d.py \
+        --prompt-format canary \
+        --prompt "[{'role':'user','slots':{'source_lang':'en','target_lang':'de','task':'ast','pnc':'yes'}}]" \
+        --tokenizer path/to/spl_tokens/tokenizer.model path/to/en/tokenizer.model path/to/de/tokenizer1.model \
+        --langs spl_tokens en de \
+        --buckets 30 \
+        --sub-buckets 5 \
+        input_cfg.yaml
 
 Pushing GPU utilization to the limits with bucketing and OOMptimizer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
