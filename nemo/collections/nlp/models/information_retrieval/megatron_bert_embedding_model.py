@@ -715,6 +715,7 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
 
         scores = torch.cat([pos_inbatch_negs_scores, hard_negs_scores], axis=1)
 
+        scores = scores.clamp(-1.0, 1.0)
         scores *= self.scale
 
         labels = torch.tensor(

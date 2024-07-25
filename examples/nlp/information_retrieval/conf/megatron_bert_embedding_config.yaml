@@ -78,7 +78,6 @@ model:
     merge_file: null 
 
   # embedding-specific arguemnts
-  hard_negatives_to_train: 4 # number of hard negatives to use per example for training
   softmax_temp: 0.02 # softmax temp for contrastive loss
   global_inbatch_negatives: True # whether to use in-batch negatives from other ranks during training
   backprop_type: 'global' # whether to use `global` or `local` backpropagation during training. Refer to Flava paper for details. 
@@ -133,7 +132,7 @@ model:
     # Path to data must be specified by the user.
     data_train: null
     data_validation: null
-    hard_negatives_to_train: 4
+    hard_negatives_to_train: 4 # number of hard negatives to use per example for training
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 900,50,50
