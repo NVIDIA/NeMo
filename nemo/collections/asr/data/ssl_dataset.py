@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
-from omegaconf import ListConfig
+from omegaconf import ListConfig, open_dict
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dataset
 from nemo.collections.asr.data.dataclasses import AudioNoiseBatch, AudioNoiseItem
@@ -35,7 +35,7 @@ from nemo.core.classes import Serialization
 from nemo.utils import logging
 
 
-def __parse_manifest_item(line: str, manifest_file: str) -> Dict[str, Any]:
+def _parse_manifest_item(line: str, manifest_file: str) -> Dict[str, Any]:
     item = json.loads(line)
 
     # Audio file
@@ -64,6 +64,7 @@ def __parse_manifest_item(line: str, manifest_file: str) -> Dict[str, Any]:
         offset=item.get('offset', None),
         speaker=item.get('speaker', None),
         orig_sr=item.get('orig_sample_rate', None),
+        token_labels=item.get('token_labels', None),
         lang=item.get('lang', None),
     )
     return item
@@ -208,7 +209,7 @@ class AudioNoiseDataset(audio_to_text.AudioToCharDataset):
     def __init__(
         self, noise_manifest: str | None = None, batch_augmentor: Any | None = None, **kwargs,
     ):
-        super().__init__(bos_id=0, manifest_parse_func=__parse_manifest_item, **kwargs)
+        super().__init__(bos_id=0, manifest_parse_func=_parse_manifest_item, **kwargs)
         self.noise_manifest = noise_manifest
         self.batch_augmentor = batch_augmentor
         self.noise_data = load_noise_manifest(noise_manifest)
@@ -255,7 +256,7 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
     def __init__(
         self, noise_manifest: str | None = None, batch_augmentor: Any | None = None, **kwargs,
     ):
-        super().__init__(bos_id=0, manifest_parse_func=__parse_manifest_item, **kwargs)
+        super().__init__(bos_id=0, manifest_parse_func=_parse_manifest_item, **kwargs)
         self.noise_manifest = noise_manifest
         self.batch_augmentor = batch_augmentor
         self.noise_data = load_noise_manifest(noise_manifest)
@@ -473,23 +474,27 @@ def get_audio_noise_dataset_from_config(
 
     is_concat = config.get('is_concat', False)
     if is_concat:
-        if 'concat_sampling_technique' in config and config['concat_sampling_technique'] is None:
+        if config.get('concat_sampling_technique', None) is None:
             logging.warning(
-                f"Concat dataset requires `concat_sampling_technique` but it was not provided. Config: {config}"
+                f"Concat dataset requires `concat_sampling_technique` but it was not provided, using round_robin. Config: {config}"
             )
-            return None
+            config['concat_sampling_technique'] = 'round_robin'
 
         if config['concat_sampling_technique'] == 'random':
             if not 'concat_sampling_probabilities' in config:
-                logging.warning(f"Concat dataset requires `concat_sampling_probabilities` list. Config: {config}")
-                return None
-            else:
-                if not isclose(sum(config['concat_sampling_probabilities']), 1, abs_tol=1e-6):
-                    logging.warning(f"`concat_sampling_probabilities` need to sum to 1. Config: {config}")
-                    return None
+                logging.warning(
+                    f"Concat dataset requires `concat_sampling_probabilities` list, using uniform weights. Config: {config}"
+                )
+                with open_dict(config):
+                    config['concat_sampling_probabilities'] = [1 / len(config['manifest_filepath'])] * len(
+                        config['manifest_filepath']
+                    )
+            elif not isclose(sum(config['concat_sampling_probabilities']), 1, abs_tol=1e-6):
+                raise ValueError(
+                    f"`concat_sampling_probabilities` need to sum to 1 with 1e-6 tolerance. Config: {config}"
+                )
 
     shuffle = config['shuffle']
-
     if config.get('is_tarred', False):
         if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
             'manifest_filepath' in config and config['manifest_filepath'] is None
