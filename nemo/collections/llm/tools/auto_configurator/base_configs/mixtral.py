@@ -30,7 +30,7 @@ class Mixtral(Basic):
         size: int = 7,
         measure: str = "B",
         cfg: dict = {},
-    ):  
+    ):
         """
         :param str name: model name.
         :param int version: model version.
