@@ -41,7 +41,7 @@ class Basic:
         self.measure = measure
         self.cfg = cfg
         self.num_nodes = cfg.get("num_nodes")
-        self.num_gpus = cfg.get("gpu_count")
+        self.num_gpus = cfg.get("num_gpus")
         self.max_steps = cfg.get("max_steps_per_run")
         self.seq_length = cfg.get("seq_length")
         self.global_batch_size = cfg.get("global_batch_size")

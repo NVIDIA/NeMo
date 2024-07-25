@@ -65,7 +65,8 @@ def search_configs(cfg: dict):
     ), "max_minutes_per_run must be an int and be at least 10 minutes."
 
     cfg["model_size_in_b"] = model_size_in_b
-    cfg["gpu_count"] = gpus_per_node
+    cfg["gpu_count"] = gpu_count
+    cfg["num_gpus"] = gpus_per_node
 
     # Generate base config for the given model size
     base_cfg, train_cfg = generic_base_config(

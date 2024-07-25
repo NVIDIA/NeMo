@@ -50,7 +50,7 @@ class Mistral(Basic):
         """
 
         model_class = getattr(llm, self.config_name)
-        kwargs = self.cfg.get("kwargs", {})
+        kwargs = self.cfg.get("model_args", {})
         model_config = model_class(**kwargs)
 
         model_config.global_batch_size = self.global_batch_size
