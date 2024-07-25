@@ -1767,3 +1767,40 @@ class FrameBatchChunkedCTC(FrameBatchASR):
 
         print("keep_logits=True is not supported for FrameBatchChunkedCTC. Returning empty logits.")
         return hypothesis, []
+
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
+
+class FrameBatchASRModified(FrameBatchASR):
+    def __init__(self, asr_model, frame_len=1.6, total_buffer=8.0, batch_size=4, pad_to_buffer_len=True):
+        self.n_chunk_samples = int(frame_len * asr_model.cfg.sample_rate)
+        self.n_total_samples = int(total_buffer * asr_model.cfg.sample_rate)
+        super().__init__(asr_model, frame_len, total_buffer, batch_size, pad_to_buffer_len)
+
+    def reset(self):
+        super().reset()
+        self.audio_buffer = torch.zeros(self.n_total_samples)
+
+    def _shift_and_update_audio_buffer(self, chunk):
+        self.audio_buffer[: -self.n_chunk_samples] = self.audio_buffer[self.n_chunk_samples:].clone()
+        self.audio_buffer[-self.n_chunk_samples:] = chunk.clone()
+
+    def _get_feature_from_buffer(self):
+        # Extract features from the audio buffer
+        device = self.asr_model.device
+        audio_signal = self.audio_buffer.unsqueeze(0).to(device)
+        audio_signal_len = torch.tensor([self.n_total_samples]).to(device)
+        features, _ = self.raw_preprocessor(input_signal=audio_signal, length=audio_signal_len)
+        features = features.squeeze()
+        return features[:, -self.feature_chunk_len:]
+
+    def update_feature_buffer(self, chunk):
+        if len(chunk) > self.n_chunk_samples:
+            raise ValueError(f"chunk should be of length {self.n_chunk_samples} or less")
+        if len(chunk) < self.n_chunk_samples:
+            temp_chunk = torch.zeros(self.n_chunk_samples, dtype=torch.float32)
+            temp_chunk[: chunk.shape[0]] = chunk
+            chunk = temp_chunk
+        self._shift_and_update_audio_buffer(chunk)
+        features = self._get_feature_from_buffer()
+        self.feature_buffer[:, : -self.feature_chunk_len] = self.feature_buffer[:, self.feature_chunk_len:].clone()
+        self.feature_buffer[:, -self.feature_chunk_len:] = features.clone()
