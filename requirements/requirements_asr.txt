@@ -2,6 +2,7 @@ braceexpand
 editdistance
 einops
 g2p_en
+IPython
 jiwer
 kaldi-python-io
 kaldiio
