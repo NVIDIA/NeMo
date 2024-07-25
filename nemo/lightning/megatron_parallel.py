@@ -616,6 +616,7 @@ class _ModuleStepFunction:
     This class acts as a bridge between Megatron core's lower-level functional API and PTL's object-oriented API,
         making it possible to use PTL-compatible functions in Megatron core.
     """
+
     def __init__(self, name: str, is_property: bool = False, includes_self: bool = False):
         self.name = name
         self.is_property = is_property

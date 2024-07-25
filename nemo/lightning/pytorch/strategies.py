@@ -135,7 +135,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_parallel_save_within_dp: bool = False,
         ckpt_parallel_load: bool = False,
         ckpt_parallel_save_optim: bool = True,
-        ckpt_load_directly_on_device: bool =True,
+        ckpt_load_directly_on_device: bool = True,
         setup_optimizers: bool = True,
         init_model_parallel: bool = True,
         **kwargs,

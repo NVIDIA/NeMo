@@ -20,7 +20,7 @@ else:
 
 class Resume(IOMixin):
     def nemo_path(self, model=None) -> Optional[Path]:
-        """ Returns the checkpoint to resume from. """
+        """Returns the checkpoint to resume from."""
 
     def setup(self, trainer: Union[pl.Trainer, fl.Fabric], model=None):
         if isinstance(trainer, fl.Fabric):
