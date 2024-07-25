@@ -99,5 +99,9 @@ class TestPreemptionCallback:
     @pytest.mark.parametrize("interrupted", [True, False])
     def test_on_train_batch_end(self, callback, mock_trainer, interrupted):
         with patch.object(PreemptionCallback, 'interrupted', new_callable=lambda: property(lambda self: interrupted)):
-            callback.on_train_batch_end(mock_trainer, None, None, None, 0)
+            if interrupted:
+                with pytest.raises(SystemExit):
+                    callback.on_train_batch_end(mock_trainer, None, None, None, 0)
+            else:
+                callback.on_train_batch_end(mock_trainer, None, None, None, 0)
             assert mock_trainer.should_stop == interrupted
