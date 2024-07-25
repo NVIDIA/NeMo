@@ -14,10 +14,12 @@ from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
 from nemo.deploy import DeployPyTriton
 
+trt_llm_supported = True
 try:
     from nemo.export.tensorrt_llm import TensorRTLLM
 except ImportError as error:
     logging.warning(f"TensorRTLLM could not be imported from nemo.export: {error}")
+    trt_llm_supported = False
 
 TokenizerType = Any
 
@@ -266,10 +268,12 @@ def get_trtllm_deployable(
     if nemo_checkpoint is not None and model_type is None:
         raise ValueError("Model type is required to be defined if a nemo checkpoint is provided.")
 
+    if not trt_llm_supported:
+        raise ValueError("TensorRT-LLM engine is not supported in this environment.")
     trt_llm_exporter = TensorRTLLM(
-        model_dir=trt_llm_path,
-        load_model=(nemo_checkpoint is None),
-    )
+            model_dir=trt_llm_path,
+            load_model=(nemo_checkpoint is None),
+        )
 
     if nemo_checkpoint is not None:
         try:
