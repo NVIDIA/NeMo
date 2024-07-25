@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.llm.tools.auto_configurator.autoconfig.search_config import search_configs
 from typing import List, Optional
-from nemo.utils import logging
 
+from nemo.collections.llm.tools.auto_configurator.autoconfig.search_config import search_configs
+from nemo.utils import logging
 
 SUPPORTED_MODELS = [
     "gpt3",
@@ -25,7 +25,7 @@ SUPPORTED_MODELS = [
 ]
 
 
-class AutoConfigurator():
+class AutoConfigurator:
     def __init__(
         self,
         model_type: str = None,
@@ -49,7 +49,7 @@ class AutoConfigurator():
         max_minutes_per_run: Optional[int] = 30,
         vocab_size: Optional[int] = 51200,
         max_training_days: Optional[int] = 2,
-    ):  
+    ):
 
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {SUPPORTED_MODELS}."
         assert num_nodes, "num_nodes value must be specified."
@@ -59,12 +59,12 @@ class AutoConfigurator():
 
         # Print the config
         logging.info(self._get_message(self.config))
-    
+
     def get_configs(self):
         configs = search_configs(self.config)
 
         return configs
-    
+
     def _get_message(self, config):
         message = "AutoConfigurator runner config:\n"
         for key, value in config.items():
