@@ -31,6 +31,7 @@ class LlamaConfig(GPTConfig):
     seq_length: int = 4096
     attention_dropout: float = 0.0
     hidden_dropout: float = 0.0
+    share_embeddings_and_output_weights: bool = False
 
 
 @dataclass
