@@ -1,7 +1,7 @@
 fiddle
 huggingface_hub>=0.24
 numba
-numpy>=1.22
+numpy>=1.22,<2.0
 onnx>=1.7.0
 python-dateutil
 ruamel.yaml
