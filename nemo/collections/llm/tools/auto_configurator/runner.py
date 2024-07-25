@@ -54,28 +54,28 @@ class AutoConfigurator:
         vocab_size: Optional[int] = 51200,
     ):
         """
-            :param str model_type: main hydra config object for the HP tool.
-            :param int num_nodes: main hydra config object for the HP tool.
-            :param Optional[int] model_size: size of model to be trained.
-            :param Optional[int] model_version: version of model. 3 for GPT3, 2 for Llama2. 
-            :param Optional[int] gpus_per_node: number of GPUs per node to be used.
-            :param Optional[int] gpu_memory_gb: memory per GPU, in GB. Currently 40GB and 80GB A100s/H100s supported.
-            :param Optional[str] model_measure: "M" if model_size is specified in millions. "B" if in billions.
-            :param Optional[int] seq_length: model sequence length. Available seq_length list for GPT-based models: [2048, 4096, 8192, 16384, 32768].
-            :param Optional[int] global_batch_size: model global batch size. Set to "auto" if you want auto configurator to find optimal gbs.
-            :param Optional[List[int]] tensor_parallel_sizes: set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
-            :param Optional[List[int]] pipeline_parallel_sizes: set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
-            :param Optional[List[int]] micro_batch_sizes: set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
-            :param Optional[List[int]] context_parallel_sizes: model context parallel size. A list, such as [1, 2, 4, 8].
-            :param Optional[List[int]] expert_parallel_sizes: model expert parallel size. A list, such as [1, 2, 4, 8].
-            :param Optional[int] min_model_parallel_size: set to "auto" to use our recommendation, or a value for the minimum desired parallelism.
-            :param Optional[int] max_model_parallel_size: set to "auto" to use our recommendation, or a value for the maximum desired parallelism.
-            :param Optional[int] num_tokens_in_b: number of tokens in billions in train dataset.
-            :param Optional[int] tflops_per_gpu: estimated tflops per GPU.
-            :param Optional[int] max_minutes_per_run: maximum number of minutes per run for the grid search.
-            :param Optional[int] max_training_days: number of days expected model to be trained.
-            :param Optional[int] max_steps_per_run: maximum number of steps per run for the grid search.
-            :param Optional[int] vocab_size: size of tokenizer vocabulary.
+        :param str model_type: main hydra config object for the HP tool.
+        :param int num_nodes: main hydra config object for the HP tool.
+        :param Optional[int] model_size: size of model to be trained.
+        :param Optional[int] model_version: version of model. 3 for GPT3, 2 for Llama2.
+        :param Optional[int] gpus_per_node: number of GPUs per node to be used.
+        :param Optional[int] gpu_memory_gb: memory per GPU, in GB. Currently 40GB and 80GB A100s/H100s supported.
+        :param Optional[str] model_measure: "M" if model_size is specified in millions. "B" if in billions.
+        :param Optional[int] seq_length: model sequence length. Available seq_length list for GPT-based models: [2048, 4096, 8192, 16384, 32768].
+        :param Optional[int] global_batch_size: model global batch size. Set to "auto" if you want auto configurator to find optimal gbs.
+        :param Optional[List[int]] tensor_parallel_sizes: set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
+        :param Optional[List[int]] pipeline_parallel_sizes: set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
+        :param Optional[List[int]] micro_batch_sizes: set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
+        :param Optional[List[int]] context_parallel_sizes: model context parallel size. A list, such as [1, 2, 4, 8].
+        :param Optional[List[int]] expert_parallel_sizes: model expert parallel size. A list, such as [1, 2, 4, 8].
+        :param Optional[int] min_model_parallel_size: set to "auto" to use our recommendation, or a value for the minimum desired parallelism.
+        :param Optional[int] max_model_parallel_size: set to "auto" to use our recommendation, or a value for the maximum desired parallelism.
+        :param Optional[int] num_tokens_in_b: number of tokens in billions in train dataset.
+        :param Optional[int] tflops_per_gpu: estimated tflops per GPU.
+        :param Optional[int] max_minutes_per_run: maximum number of minutes per run for the grid search.
+        :param Optional[int] max_training_days: number of days expected model to be trained.
+        :param Optional[int] max_steps_per_run: maximum number of steps per run for the grid search.
+        :param Optional[int] vocab_size: size of tokenizer vocabulary.
         """
 
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {SUPPORTED_MODELS}."
