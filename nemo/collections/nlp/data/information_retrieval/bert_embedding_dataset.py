@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from random import choices, sample
 from typing import Mapping, Optional
-from random import sample, choices
 
 import datasets
 import numpy as np
@@ -167,7 +167,7 @@ class BertEmbeddingDataset(Dataset):
             if len(example['neg_doc']) < self.num_hard_negatives:
                 nd = example['neg_doc']
                 # sample rest with replacement
-                nd = nd + choices(example['neg_doc'], k=self.num_hard_negatives-len(example['neg_doc']))
+                nd = nd + choices(example['neg_doc'], k=self.num_hard_negatives - len(example['neg_doc']))
             else:
                 # sample without replacement
                 nd = sample(example['neg_doc'], k=self.num_hard_negatives)
