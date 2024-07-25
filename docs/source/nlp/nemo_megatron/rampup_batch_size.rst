@@ -28,3 +28,33 @@ Automatic Node Scheduling
 
 In the `NeMo-Framework-Launcher <https://github.com/NVIDIA/NeMo-Framework-Launcher>`_, when using rampup batch size, a node scheduler is created automatically. This scheduler allows the use smaller number of nodes for smaller batch size stages and scales up according to the ``training.trainer.num_nodes`` parameter. This parameter corresponds to the maximum number of nodes you want to use for the maximum global batch size.
 
+Example
+-------
+
+Detailed example of ramp up batch size feature usage with GPT3 5B model and `NeMo-Framework-Launcher <https://github.com/NVIDIA/NeMo-Framework-Launcher>`_. In this example, the training started with a global batch size of 256, increased by 256 at each ramp up stage, and reach the target global batch size of 2048 over 10,000,000 training samples.
+Node schedule looks as follows:
++--------------------+--------------------+
+| global_batch_size  | num_nodes          |
++====================+====================+
+| 256                | 8                  |
++--------------------+--------------------+
+| 512                | 8                  |
++--------------------+--------------------+
+| 768                | 8                  |
++--------------------+--------------------+
+| 1024               | 8                  |
++--------------------+--------------------+
+| 1280               | 10                 |
++--------------------+--------------------+
+| 1536               | 12                 |
++--------------------+--------------------+
+| 1792               | 14                 |
++--------------------+--------------------+
+| 2048               | 16                 |
++--------------------+--------------------+
+
+Plot of ``global_batch_size`` increase during training:
+
+.. image:: https://github.com/NVIDIA/NeMo/releases/download/v2.0.0rc0/asset-post-rampup-batch-size-example.png
+  :alt: 
+  :width: 1080px
