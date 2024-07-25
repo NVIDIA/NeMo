@@ -24,8 +24,8 @@ from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.utils.cuda_python_utils import (
-    checked_graph,
     check_cuda_python_cuda_graphs_conditional_nodes_supported,
+    checked_graph,
     cu_call,
     run_nvrtc,
     with_conditional_node,

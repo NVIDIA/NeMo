@@ -114,7 +114,8 @@ def cuda_python_conditional_node_cooperative_kernels_supported():
         driver_version_major = driver_version // 1000
         driver_version_minor = (driver_version % 1000) // 10
         driver_version = (driver_version_major, driver_version_minor)
-        return driver_version >= (12,6)
+        return driver_version >= (12, 6)
+
 
 @contextlib.contextmanager
 def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditional_handle, device):
@@ -241,6 +242,7 @@ def run_nvrtc(kernel_string: str, kernel_name: bytes, program_name: bytes):
 
     return kernel
 
+
 @contextlib.contextmanager
 def checked_graph(*args, **kwargs):
     """
@@ -251,5 +253,7 @@ def checked_graph(*args, **kwargs):
             yield
     except RuntimeError as err:
         if "CUDA error: invalid argument" in str(err):
-            raise RuntimeError("CUDA Graph capture failed. It is likely that you are calling a cooperative kernel in your RNN-T or TDT prediction network. Cooperative kernels are not allowed inside the bodies of CUDA Graph conditional nodes until CUDA 12.6. Please update to CUDA 12.6. File an issue if that still does not work.") from err
+            raise RuntimeError(
+                "CUDA Graph capture failed. It is likely that you are calling a cooperative kernel in your RNN-T or TDT prediction network. Cooperative kernels are not allowed inside the bodies of CUDA Graph conditional nodes until CUDA 12.6. Please update to CUDA 12.6. File an issue if that still does not work."
+            ) from err
         raise
