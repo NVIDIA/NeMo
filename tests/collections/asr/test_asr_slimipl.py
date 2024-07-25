@@ -12,24 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
+import re
 import tempfile
+from unittest.mock import mock_open, patch
+
 import pytest
 import torch
 import re
 from nemo.collections.asr.models import EncDecCTCModelBPE,EncDecHybridRNNTCTCBPEModel
 import json
 from unittest.mock import mock_open, patch
+from nemo.collections.asr.models import EncDecCTCModelBPE, EncDecHybridRNNTCTCBPEModel
 from nemo.collections.asr.parts.utils.ipl_utils import (
-    process_manifest, 
+    handle_multiple_tarr_filepaths,
+    process_manifest,
     write_cache_manifest,
-    handle_multiple_tarr_filepaths 
 )
+
 
 @pytest.fixture(scope="module")
 def fast_conformer_ctc_model():
     model = EncDecCTCModelBPE.from_pretrained(model_name="stt_en_fastconformer_ctc_large")
     return model
+
 
 @pytest.fixture(scope="module")
 def fast_conformer_hybrid_model():
@@ -69,21 +76,25 @@ class TestPseudoLabelGeneration:
         tarred_path = os.path.abspath(os.path.join(test_data_dir, 'asr/libri_tarred_test/'))
         sharded_manifests = os.path.abspath(os.path.join(tarred_path, 'sharded_manifests/manifest__OP_0..1_CL_.json'))
         tarred_audio_filepaths = os.path.abspath(os.path.join(tarred_path, 'audio__OP_0..1_CL_.tar'))
-        manifest_data = process_manifest(os.path.abspath(os.path.join(tarred_path, 'sharded_manifests/manifest_0.json')))
-        asr_model_ctc.cfg.train_ds.is_tarred=True
-        hypotheses = asr_model_ctc.generate_pseudo_labels_ctc(cache_manifest=sharded_manifests, 
-                                                              tarred_audio_filepaths = tarred_audio_filepaths)
+        manifest_data = process_manifest(
+            os.path.abspath(os.path.join(tarred_path, 'sharded_manifests/manifest_0.json'))
+        )
+        asr_model_ctc.cfg.train_ds.is_tarred = True
+        hypotheses = asr_model_ctc.generate_pseudo_labels_ctc(
+            cache_manifest=sharded_manifests, tarred_audio_filepaths=tarred_audio_filepaths
+        )
         assert len(hypotheses) == 10
         assert hypotheses[0] == manifest_data[0]["text"]
         asr_model_hybrid = fast_conformer_hybrid_model
-        asr_model_hybrid.cfg.train_ds.is_tarred=True
-        hypotheses = asr_model_hybrid.generate_pseudo_labels_hybrid(cache_manifest=sharded_manifests, 
-                                                              tarred_audio_filepaths = tarred_audio_filepaths)
+        asr_model_hybrid.cfg.train_ds.is_tarred = True
+        hypotheses = asr_model_hybrid.generate_pseudo_labels_hybrid(
+            cache_manifest=sharded_manifests, tarred_audio_filepaths=tarred_audio_filepaths
+        )
         assert len(hypotheses) == 10
         assert re.sub(r'[.,?]', '', hypotheses[0]).lower() == manifest_data[0]["text"]
 
     @pytest.mark.unit
-    @patch('builtins.open',new_callable=mock_open)
+    @patch('builtins.open', new_callable=mock_open)
     def test_write_whole_cache(self, mock_open):
         cache_manifest = 'test_cache.json'
         hypotheses = [['test1'], ['test2']]
@@ -105,7 +116,7 @@ class TestPseudoLabelGeneration:
 
         written_data = ''.join(call_arg.args[0] for call_arg in write_calls)
         assert written_data == expected_data
-     
+
     @pytest.mark.unit    
     @patch(
         'builtins.open', 
@@ -117,7 +128,6 @@ class TestPseudoLabelGeneration:
     )  
     @patch('random.shuffle', lambda x: x) 
     def test_write_partial_cache(self, mock_open, ):
-
 
         cache_manifest = 'test_cache.json'
         hypotheses = [["", ""]]
@@ -136,9 +146,8 @@ class TestPseudoLabelGeneration:
         written_data = ''.join(call_arg.args[0] for call_arg in write_calls)
 
         assert written_data == expected_data
-    
 
-    @pytest.mark.unit    
+    @pytest.mark.unit
     def test_handle_multiple_tarr_filepaths(self):
         manifest_file = 'cache_manifests_0.json'
         tmpdir = '/tmp'
@@ -149,4 +158,3 @@ class TestPseudoLabelGeneration:
 
         result = handle_multiple_tarr_filepaths(manifest_file, tmpdir, number_of_manifests, tarr_file)
         assert result == (expected_temporary_manifest, expected_expanded_audio_path)
-
