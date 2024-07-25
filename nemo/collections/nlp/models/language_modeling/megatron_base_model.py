@@ -236,6 +236,7 @@ class MegatronBaseModel(NLPModel):
             self.validation_global_step = 1
 
         self.use_fsdp = cfg.get('fsdp', False)
+        self.moving_avg_grad_norm = 10.0
 
     def setup_transformer_engine_tp_groups(self):
         """This should be called after model parallel groups have been initialized
@@ -639,6 +640,20 @@ class MegatronBaseModel(NLPModel):
                 use_fsdp=self.use_fsdp,
             )
 
+        def update_moving_average(ma, value, beta=0.9):
+            return beta * ma + (1 - beta) * value
+
+        if grad_norm > self.moving_avg_grad_norm * 5:
+            # zero out the mcore grad buf
+            if self.use_mcore_dist_optim:
+                for model_chunk in self.model:
+                    model_chunk.zero_grad_buffer()
+
+            # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
+            self._optimizer.zero_grad()
+            grad_norm = 0
+        else:
+            self.moving_avg_grad_norm = update_moving_average(self.moving_avg_grad_norm, grad_norm)
         self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
 
     def allreduce_gradients(self):
