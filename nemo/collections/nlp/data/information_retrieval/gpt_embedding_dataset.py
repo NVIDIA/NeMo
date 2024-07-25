@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from typing import Mapping, Optional
+from random import sample, choices
 
 import datasets
 import numpy as np
@@ -164,11 +165,17 @@ class GPTEmbeddingDataset(Dataset):
         if self.data_type == 'train':
             q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
             d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
-            # nd = self.tokenizer.text_to_ids("passage: " + example['neg_doc'].strip())
-            nd = [
-                self.tokenizer.text_to_ids("passage: " + example['neg_doc'][i].strip())
-                for i in range(self.num_hard_negatives)
-            ]
+            # handle cases where the required number of hard negatives are not present
+            if len(example['neg_doc']) < self.num_hard_negatives:
+                nd = example['neg_doc']
+                # sample rest with replacement
+                nd = nd + choices(example['neg_doc'], k=self.num_hard_negatives-len(example['neg_doc']))
+            else:
+                # sample without replacement
+                nd = sample(example['neg_doc'], k=self.num_hard_negatives)
+            assert len(nd) == self.num_hard_negatives, "Error in sampling required number of hard negatives"
+            nd = [self.tokenizer.text_to_ids("passage: " + ex.strip()) for ex in nd]
+
         elif self.data_type == 'query':
             q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
             d, nd = None, None
@@ -269,9 +276,6 @@ class GPTEmbeddingDataset(Dataset):
                 lengths.append(len(item['query']))
                 input_ids.append(item['pos_doc'])
                 lengths.append(len(item['pos_doc']))
-                # input_ids.append(item['neg_doc'])
-                # lengths.append(len(item['neg_doc']))
-                # max_length = max(max_length, len(item['query']), len(item['pos_doc']), len(item['neg_doc']))
                 for nd in item['neg_doc']:
                     input_ids.append(nd)
                     lengths.append(len(nd))
@@ -296,22 +300,17 @@ class GPTEmbeddingDataset(Dataset):
             for item in batch:
                 if self.data_type == 'train':
                     input_ids.append(item['query_rev'])
-                    # lengths.append(len(item['query_rev']))
                     input_ids.append(item['pos_doc_rev'])
-                    # lengths.append(len(item['pos_doc_rev']))
                     for nd in item['neg_doc_rev']:
                         input_ids.append(nd)
-                        # lengths.append(len(nd))
                     # max_length will not change
 
                 elif self.data_type == 'query':
                     input_ids.append(item['query_rev'])
-                    # lengths.append(len(item['query_rev']))
                     # max_length will not change
 
                 elif self.data_type == 'doc':
                     input_ids.append(item['pos_doc_rev'])
-                    # lengths.append(len(item['pos_doc_rev']))
                     # max_length will not change
 
                 else:
