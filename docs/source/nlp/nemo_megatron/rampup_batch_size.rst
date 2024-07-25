@@ -17,7 +17,8 @@ To enable global batch size rampup during training, set the rampup_batch_size pa
 Example Configuration
 ---------------------
 
-``model.global_batch_size=1024 model.rampup_batch_size=[256, 128, 50000000]``
+``model.global_batch_size=1024 \
+  model.rampup_batch_size=[256, 128, 50000000]``
 
 In this example, the training will start with a batch size of 256, increment by 128, and reach the target global batch size of 1024 over 50,000,000 training samples.
 
