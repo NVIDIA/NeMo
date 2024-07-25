@@ -214,10 +214,10 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
     logging.info(f"tokens_per_chunk is {tokens_per_chunk}, mid_delay is {mid_delay}")
 
-    frame_asr = FrameBatchASR(
+    frame_asr = FrameBatchASRModified(
         asr_model=asr_model, frame_len=chunk_len, total_buffer=cfg.total_buffer_in_secs, batch_size=cfg.batch_size,
     )
-
+    
     hyps = get_buffered_pred_feat(
         frame_asr,
         chunk_len,
