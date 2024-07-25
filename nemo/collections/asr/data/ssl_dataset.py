@@ -14,6 +14,7 @@
 
 import copy
 import io
+import json
 import os
 from math import isclose
 from typing import Any, Dict, List, Optional, Union
@@ -32,6 +33,40 @@ from nemo.collections.common.data.dataset import ConcatDataset
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.core.classes import Serialization
 from nemo.utils import logging
+
+
+def __parse_manifest_item(line: str, manifest_file: str) -> Dict[str, Any]:
+    item = json.loads(line)
+
+    # Audio file
+    if 'audio_filename' in item:
+        item['audio_file'] = item.pop('audio_filename')
+    elif 'audio_filepath' in item:
+        item['audio_file'] = item.pop('audio_filepath')
+
+    # If the audio path is a relative path and does not exist,
+    # try to attach the parent directory of manifest to the audio path.
+    # Revert to the original path if the new path still doesn't exist.
+    # Assume that the audio path is like "wavs/xxxxxx.wav".
+    if 'audio_file' in item:
+        item['audio_file'] = get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
+
+    # Duration.
+    if 'duration' not in item:
+        item['duration'] = None
+
+    item['text'] = ""
+
+    item = dict(
+        audio_file=item.get('audio_file', None),
+        duration=item['duration'],
+        text=item['text'],
+        offset=item.get('offset', None),
+        speaker=item.get('speaker', None),
+        orig_sr=item.get('orig_sample_rate', None),
+        lang=item.get('lang', None),
+    )
+    return item
 
 
 def _audio_noise_collate_fn(batch: List[AudioNoiseItem], batch_augmentor: Any = None) -> AudioNoiseBatch:
@@ -173,7 +208,7 @@ class AudioNoiseDataset(audio_to_text.AudioToCharDataset):
     def __init__(
         self, noise_manifest: str | None = None, batch_augmentor: Any | None = None, **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__(bos_id=0, manifest_parse_func=__parse_manifest_item, **kwargs)
         self.noise_manifest = noise_manifest
         self.batch_augmentor = batch_augmentor
         self.noise_data = load_noise_manifest(noise_manifest)
@@ -220,7 +255,7 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
     def __init__(
         self, noise_manifest: str | None = None, batch_augmentor: Any | None = None, **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__(bos_id=0, manifest_parse_func=__parse_manifest_item, **kwargs)
         self.noise_manifest = noise_manifest
         self.batch_augmentor = batch_augmentor
         self.noise_data = load_noise_manifest(noise_manifest)

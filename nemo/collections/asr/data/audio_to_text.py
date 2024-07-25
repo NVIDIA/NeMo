@@ -138,6 +138,7 @@ class ASRManifestProcessor:
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         index_by_file_id: bool = False,
+        manifest_parse_func: Optional[Callable] = None,
     ):
         self.parser = parser
 
@@ -148,6 +149,7 @@ class ASRManifestProcessor:
             max_duration=max_duration,
             max_number=max_utts,
             index_by_file_id=index_by_file_id,
+            parse_func=manifest_parse_func,
         )
 
         self.eos_id = eos_id
@@ -446,6 +448,7 @@ class _AudioTextDataset(Dataset):
         pad_id: int = 0,
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
+        manifest_parse_func: Optional[Callable] = None,
     ):
         if type(manifest_filepath) == str:
             manifest_filepath = manifest_filepath.split(",")
@@ -462,6 +465,7 @@ class _AudioTextDataset(Dataset):
             bos_id=bos_id,
             eos_id=eos_id,
             pad_id=pad_id,
+            manifest_parse_func=manifest_parse_func,
         )
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
@@ -569,6 +573,7 @@ class AudioToCharDataset(_AudioTextDataset):
         parser: Union[str, Callable] = 'en',
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
+        manifest_parse_func: Optional[Callable] = None,
     ):
         self.labels = labels
 
@@ -591,6 +596,7 @@ class AudioToCharDataset(_AudioTextDataset):
             pad_id=pad_id,
             return_sample_id=return_sample_id,
             channel_selector=channel_selector,
+            manifest_parse_func=manifest_parse_func,
         )
 
 
@@ -821,6 +827,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         global_rank: int = 0,
         world_size: int = 0,
         return_sample_id: bool = False,
+        manifest_parse_func: Optional[Callable] = None,
     ):
         self.shard_manifests = shard_manifests
 
@@ -846,6 +853,7 @@ class _TarredAudioToTextDataset(IterableDataset):
             eos_id=eos_id,
             pad_id=pad_id,
             index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
+            manifest_parse_func=manifest_parse_func,
         )
 
         self.len = self._compute_len()
@@ -1117,6 +1125,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
         global_rank: int = 0,
         world_size: int = 0,
         return_sample_id: bool = False,
+        manifest_parse_func: Optional[Callable] = None,
     ):
         self.labels = labels
 
@@ -1143,6 +1152,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
             global_rank=global_rank,
             world_size=world_size,
             return_sample_id=return_sample_id,
+            manifest_parse_func=manifest_parse_func,
         )
 
 
