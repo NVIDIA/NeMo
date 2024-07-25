@@ -29,8 +29,8 @@ class JapaneseG2p(BaseG2p):
     def __init__(
         self,
         phoneme_dict: Union[str, pathlib.Path, Dict[str, List[str]]],
-        phoneme_prefix: str = "#",
-        ascii_letter_prefix: str = "",
+        phoneme_prefix: str = "",
+        ascii_letter_prefix: str = "#",
         ascii_letter_case: str = "upper",
         word_tokenize_func=None,
         apply_to_oov_word=None,
@@ -58,9 +58,10 @@ class JapaneseG2p(BaseG2p):
             word_segmenter: method that will be applied to segment utterances into words for better polyphone disambiguation.
         """
         assert phoneme_dict is not None, "Please set the phoneme_dict path."
-        assert (
-            word_segmenter == 'janome'
-        ), f"{word_segmenter} is not supported now. Please choose correct word_segmenter."
+        assert word_segmenter in [
+            None,
+            "janome",
+        ], f"{word_segmenter} is not supported now. Please choose correct word_segmenter."
 
         if phoneme_prefix is None:
             phoneme_prefix = ""

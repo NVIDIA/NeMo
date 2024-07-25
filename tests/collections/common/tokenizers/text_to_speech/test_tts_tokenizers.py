@@ -277,7 +277,7 @@ class TestTTSTokenizers:
     def test_japanese_phoneme_tokenizer(self):
         input_text = "ハロー ワールド."
         expected_output = "haɾoː wa:ɾdo."
-        g2p = JapaneseG2p(phoneme_dict=self.PHONEME_DICT_JA)
+        g2p = JapaneseG2p(phoneme_dict=self.PHONEME_DICT_JA, word_segmenter="janome")
 
         tokenizer = JapanesePhonemeTokenizer(g2p=g2p)
         chars, tokens = self._parse_text(tokenizer, input_text)
