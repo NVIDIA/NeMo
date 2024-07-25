@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from random import choices, sample
 from typing import Mapping, Optional
 
 import datasets
@@ -162,10 +163,16 @@ class BertEmbeddingDataset(Dataset):
         if self.data_type == 'train':
             q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
             d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
-            nd = [
-                self.tokenizer.text_to_ids("passage: " + example['neg_doc'][i].strip())
-                for i in range(self.num_hard_negatives)
-            ]
+            # handle cases where the required number of hard negatives are not present
+            if len(example['neg_doc']) < self.num_hard_negatives:
+                nd = example['neg_doc']
+                # sample rest with replacement
+                nd = nd + choices(example['neg_doc'], k=self.num_hard_negatives - len(example['neg_doc']))
+            else:
+                # sample without replacement
+                nd = sample(example['neg_doc'], k=self.num_hard_negatives)
+            assert len(nd) == self.num_hard_negatives, "Error in sampling required number of hard negatives"
+            nd = [self.tokenizer.text_to_ids("passage: " + ex.strip()) for ex in nd]
 
         elif self.data_type == 'query':
             q = self.tokenizer.text_to_ids("query: " + example['query'].strip())

@@ -171,6 +171,7 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
                 add_bos=True,
                 num_hard_negatives=self.cfg.data.get("hard_negatives_to_train", 4),
                 max_seq_length=self.cfg.encoder_seq_length,
+                seed=self.cfg.get("seed", 1234),
             )
             if self.cfg.data.data_validation:
                 self._validation_ds = BertEmbeddingDataset(
