@@ -52,7 +52,7 @@ def search_configs(cfg: dict):
     seq_length = cfg.get("seq_length", 2048)
     global_batch_size = cfg.get("global_batch_size")
 
-    assert model_name in SUPPORTED_MODELS, f"model must be set to one of {SUPPORTED_MODELS}/<model_size>"
+    assert model_name in SUPPORTED_MODELS, f"model must be set to one of {SUPPORTED_MODELS}"
 
     gpu_count = num_nodes * gpus_per_node
     assert isinstance(gpu_count, int) and gpu_count > 0, "num_nodes * gpus_per_node must be an int larger than zero."
