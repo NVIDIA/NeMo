@@ -14,6 +14,8 @@
 
 import torch
 import torch.nn.functional as F
+
+from numpy import log2
 from megatron.core import parallel_state
 from megatron.core.models.mamba import MambaEmbeddingModel, MambaModel
 from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
@@ -54,12 +56,12 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         self.bidirectional_sequences = self.cfg.get("bidirectional_sequences", False)
 
         # Matryoshka Representation Learning
-        # if self.cfg.get("do_mrl", False):
-        #     min_mrl = self.cfg.get("min_mrl_dim", int(np.log2(32))) - 1
-        #     max_mrl = int(np.log2(self.cfg.hidden_size // 2))
-        #     self.mrl_dims = [2**i for i in range(max_mrl, min_mrl, -1)]
-        # else:
-        #     self.mrl_dims = []
+        if self.cfg.get("do_mrl", False):
+            min_mrl = self.cfg.get("min_mrl_dim", int(log2(32))) - 1
+            max_mrl = int(log2(self.cfg.hidden_size // 2))
+            self.mrl_dims = [2**i for i in range(max_mrl, min_mrl, -1)]
+        else:
+            self.mrl_dims = []
 
         assert (
             self.cfg.get("post_process", False) is False
@@ -329,19 +331,26 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         pos_doc_hs = F.normalize(pos_doc_hs, dim=1)
         neg_doc_hs = [F.normalize(nd, dim=1) for nd in neg_doc_hs]
 
-        cs, pos_cs, neg_cs, labels = self.constrastive_scores(pos_doc_hs, neg_doc_hs, query_hs, bs, self.temperature)
+        cs, pos_cs, neg_cs, labels = self.constrastive_scores(
+            pos_doc_hs, 
+            neg_doc_hs, 
+            query_hs, 
+            bs, 
+            self.temperature,
+            )
+        
         loss = self.cross_entropy_loss(cs, labels)
 
-        # if self.mrl_dims:
-        #     for dim in self.mrl_dims:
-        #         cs_dim, _, _, _ = self.constrastive_scores(
-        #             pos_doc_hs[:, :dim],
-        #             [nd[:, :dim] for nd in neg_doc_hs],
-        #             query_hs[:, :dim],
-        #             bs,
-        #             self.temperature,
-        #         )
-        #         loss += self.cross_entropy_loss(cs_dim, labels)
+        if self.mrl_dims:
+            for dim in self.mrl_dims:
+                cs_dim, _, _, _ = self.constrastive_scores(
+                    pos_doc_hs[:, :dim],
+                    [nd[:, :dim] for nd in neg_doc_hs],
+                    query_hs[:, :dim],
+                    bs,
+                    self.temperature,
+                )
+                loss += self.cross_entropy_loss(cs_dim, labels)
 
         cp_size = self.cfg.get('context_parallel_size', 1)
         if cp_size > 1:
