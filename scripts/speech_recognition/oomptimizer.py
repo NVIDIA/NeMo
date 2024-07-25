@@ -10,8 +10,7 @@ import torch
 from lhotse import compute_num_samples
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.models.aed_multitask_models import EncDecMultiTaskModel
+from nemo.core.classes.common import Model
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
 
@@ -62,7 +61,7 @@ class ProfilingBatchGenerator:
 
     def __init__(
         self,
-        schema: list[dict] = None,
+        schema: list[dict],
         start_batch_size: int = 1024,
         rel_gap_thresh: float = 0.05,
         device: str = "cuda",
@@ -73,20 +72,23 @@ class ProfilingBatchGenerator:
         self.device = device
         self.reset()
 
-    def __call__(self, input_seq_len: int, output_seq_len: int):
+    def __call__(self, input_seq_length: int, output_seq_length: int):
         B = self._current
+        select_seq_length = {"input": input_seq_length, "output": output_seq_length}
         batch = []
         for item in self.schema:
             nt = item["type"]
             if not isinstance(nt, NeuralType):  # placeholder
                 tnsr = torch.tensor([])
             elif isinstance(nt.elements_type, AudioSignal):
-                tnsr = torch.randn(B, input_seq_len, dtype=torch.float32, device=self.device)
+                seq_length = select_seq_length[item["seq_length"]]
+                tnsr = torch.randn(B, seq_length, dtype=torch.float32, device=self.device)
             elif isinstance(nt.elements_type, LengthsType):
-                seq_len = input_seq_len if item["seq_length"] == "input" else output_seq_len
-                tnsr = torch.ones(B, dtype=torch.long, device=self.device) * seq_len
+                seq_length = select_seq_length[item["seq_length"]]
+                tnsr = torch.ones(B, dtype=torch.long, device=self.device) * seq_length
             elif isinstance(nt.elements_type, LabelsType):
-                tnsr = torch.randint(0, item["vocab_size"], size=(B, output_seq_len), device=self.device)
+                seq_length = select_seq_length[item["seq_length"]]
+                tnsr = torch.randint(0, item["vocab_size"], size=(B, seq_length), device=self.device)
             else:
                 raise RuntimeError("Unexpected item in oomptimizer schema: {item}")
             batch.append(tnsr)
@@ -209,11 +211,16 @@ class FloatList(click.Option):
 )
 @click.option("-s", "--start-batch-size", type=int, default=1024, help="Initial batch size to start the search from.")
 @click.option(
-    "-l",
-    "--labels-per-second",
+    "-r",
+    "--ratio",
     type=int,
     default=12,  # conservative estimate towards longer transcripts
-    help="How many labels/second should we simulate. More means longer output text sequences, and can increase memory consumption. "
+    help="The output_sequence_length to input_sequence_length ratio for the purpose of determing the maximum output sequence lengths. "
+    "The interpretation depends on input and output modalities. Examples: for audio->text it's tokens per second. "
+    "For text->audio it's seconds per token. For audio->audio it's output seconds per input second. "
+    "For text->text it's output tokens per input token. "
+    "In general larger ratio means longer output sequences and increased memory consumption. "
+    "The default value is set adequately for automatic speech recognition. "
     "This argument is ignored when 2D buckets are provided to --buckets option.",
 )
 @click.option(
@@ -247,7 +254,7 @@ def oomptimizer(
     buckets: list[float],
     threshold: float,
     start_batch_size: int,
-    labels_per_second: int,
+    ratio: int,
     memory_fraction: float,
     device: str,
     dtype: str,
@@ -296,7 +303,7 @@ def oomptimizer(
             config_path is None and module_name is None
         ), "--pretrained-name cannot be used together with --module-name/--config-path"
         print(f"Intializing ASR model from pretrained checkpoint {pretrained_name}.")
-        model = ASRModel.from_pretrained(pretrained_name, trainer=trainer).to(device)
+        model = Model.from_pretrained(pretrained_name, trainer=trainer).to(device)
     else:
         assert config_path is not None, "--module-name requires --config-path to be specified as well."
         assert module_name is not None, "--config-path requires --module-name to be specified as well."
@@ -305,21 +312,15 @@ def oomptimizer(
         model_cls = getattr(importlib.import_module(namespace), name)
         model = model_cls(cfg=cfg.model, trainer=trainer).to(device)
 
-    # TODO(pzelasko): ideally move into model @property e.g. "oomptimizer_schema"
-    schema = [
-        {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
-        {"type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
-        {
-            "type": NeuralType(("B", "T"), LabelsType()),
-            "seq_length": "output",
-            "vocab_size": model.tokenizer.vocab_size,
-        },
-        {"type": NeuralType(("B",), LengthsType()), "seq_length": "output"},
-    ]
-    if isinstance(model, EncDecMultiTaskModel):
-        schema.extend(
-            [{"type": "dummy"}, {"type": "dummy"}]
-        )  # multi-task has 2 extra tensors not needed for batch size tuning
+    if not hasattr(model, "oomptimizer_schema"):
+        click.secho(
+            f"We read model of type {type(model)} which doesn't seem to support OOMptimizer "
+            f"(we could not find the property .oomptimizer_schema).",
+            fg="red",
+        )
+        sys.exit(1)
+
+    schema = model.oomptimizer_schema
 
     print("Setting up the optimizers.")
     optimizer, _ = model.setup_optimization({"name": optimizer_name, "lr": 1e-7, "weight_decay": 0.0})
@@ -328,29 +329,46 @@ def oomptimizer(
         isinstance(item, (list, tuple)) and len(item) == 2 and all(isinstance(v, Number) for v in item)
         for item in buckets
     )
+    input_modality = (
+        "text"
+        if any(isinstance(item["type"].elements_type, LabelsType) and item["seq_length"] == "input" for item in schema)
+        else "audio"
+    )
+    output_modality = (
+        "text"
+        if any(
+            isinstance(item["type"].elements_type, LabelsType) and item["seq_length"] == "output" for item in schema
+        )
+        else "audio"
+    )
 
     def get_max_seq_lens(buckets):
-        # TODO(pzelasko): support text data inputs.
-        if all(isinstance(item, Number) for item in buckets):
-            # Regular bucketing on input sequence length (1D).
-            return [
-                (
-                    compute_num_samples(dur, sampling_rate=16000),  # num_samples
-                    math.ceil(labels_per_second * dur),  # num_labels; might need to go data-driven for optimal tuning
-                )
-                for dur in buckets
-            ]
-        elif is_2d_bucketing:
-            # 2D bucketing on both input and output sequence lengths.
-            return [
-                (
-                    compute_num_samples(dur, sampling_rate=16000),  # num_samples
-                    toks,  # num labels is given by bucket definition in 2D bucketing.
-                )
-                for dur, toks in buckets
-            ]
-        else:
-            raise RuntimeError("The passed buckets list is invalid, we expected either 1D or 2D buckets.")
+
+        def _determine_lens_for_bucket(bin):
+            if is_2d_bucketing:
+                input_len, output_len = bin
+            else:
+                input_len = bin
+                output_len = ratio * input_len
+            match (input_modality, output_modality):
+                case "audio", "audio":
+                    return (
+                        compute_num_samples(input_len, sampling_rate=model.sample_rate),
+                        compute_num_samples(output_len, sampling_rate=model.sample_rate),
+                    )
+                case "audio", "text":
+                    return (compute_num_samples(input_len, sampling_rate=model.sample_rate), output_len)
+                case "text", "audio":
+                    return (
+                        input_len,
+                        compute_num_samples(output_len, sampling_rate=model.sample_rate),
+                    )
+                case "text", "text":
+                    return input_len, output_len
+                case _:
+                    raise RuntimeError(f"Unexpected modality combination: {_}")
+
+        return [_determine_lens_for_bucket(bin) for bin in buckets]
 
     print("Starting profiling.")
     max_seq_lens = get_max_seq_lens(buckets)
@@ -411,8 +429,8 @@ def oomptimizer(
     if is_2d_bucketing:
         # 2D bucketing doesn't support bucket merging.
         final_profile = [["[" + ",".join(map(str, b)) + "]", bs] for (b, _, __), bs in profile.items()]
-        max_duration, max_tokens = buckets[-1]
-        labels_per_second = max_tokens / max_duration
+        max_input_len, max_output_len = buckets[-1]
+        ratio = max_output_len / max_input_len
     else:
         print("Bucket merging stage...")
         final_profile = []
@@ -425,13 +443,14 @@ def oomptimizer(
                 final_profile[-1][0] = bucket
                 continue
             final_profile.append([bucket, bs])
-        max_duration = final_profile[-1][0]
+        max_input_len = final_profile[-1][0]
 
     print("The final profile is:")
     print("\tbucket_duration_bins=[", ",".join(str(seqlen) for seqlen, bs in final_profile), "]", sep="")
     print("\tbucket_batch_size=[", ",".join(str(bs) for seqlen, bs in final_profile), "]", sep="")
-    print(f"\tmax_tps={labels_per_second}")
-    print(f"\tmax_duration={max_duration}")
+    print("\t(The following flags are suitable for ASR/speech-to-text models):")
+    print(f"\tmax_tps={ratio}")
+    print(f"\tmax_duration={max_input_len}")
 
 
 if __name__ == "__main__":

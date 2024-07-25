@@ -22,6 +22,7 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.core.utils.neural_type_utils import get_io_names
 from nemo.utils import logging, model_utils
 from nemo.utils.cast_utils import cast_all
@@ -299,3 +300,20 @@ class ExportableEncDecModel(Exportable):
             logging.info(f"Caching support enabled: {enable}")
             self.encoder.setup_streaming_params()
         super().set_export_config(args)
+
+    def oomptimizer_schema(self) -> list[dict]:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+        assert hasattr(self, "tokenizer"), "OOMptimizer currently supports only models that use tokenizers."
+        return [
+            {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+            {"type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+            {
+                "type": NeuralType(("B", "T"), LabelsType()),
+                "seq_length": "output",
+                "vocab_size": self.tokenizer.vocab_size,
+            },
+            {"type": NeuralType(("B",), LengthsType()), "seq_length": "output"},
+        ]

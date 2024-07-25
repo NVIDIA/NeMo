@@ -1074,6 +1074,25 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
     def adapter_module_names(self) -> List[str]:
         return ['', 'encoder', 'transf_encoder', 'transf_decoder']
 
+    def oomptimizer_schema(self) -> list[dict]:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+        assert hasattr(self, "tokenizer"), "OOMptimizer currently supports only models that use tokenizers."
+        return [
+            {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+            {"type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+            {
+                "type": NeuralType(("B", "T"), LabelsType()),
+                "seq_length": "output",
+                "vocab_size": self.tokenizer.vocab_size,
+            },
+            {"type": NeuralType(("B",), LengthsType()), "seq_length": "output"},
+            {"type": "dummy"},
+            {"type": "dummy"},
+        ]
+
 
 def parse_multitask_prompt(prompt: dict | None) -> list[dict]:
     if prompt is None or not prompt:
