@@ -79,5 +79,3 @@ runner = AutoConfigurator(
 
 # Get generated configs
 configs = runner.get_configs()
-
-
