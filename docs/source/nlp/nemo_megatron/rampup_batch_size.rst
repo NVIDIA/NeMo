@@ -21,7 +21,7 @@ In this example, the training will start with a batch size of 256, increment by 
 Ramp Up Stages and Training Interruption
 ----------------------------------------
 
-Once the next rampup stage is reached (the point in training when the global batch size increases), NeMo will stop the training. It allows you to rerun the training job with a larger number of GPUs or nodes for the next stage of ramp up batch size.
+Once the next rampup stage is reached (the point in training when the global batch size increases), NeMo will stop the training. It allows to rerun the training job with a larger number of GPUs or nodes for the next stage of ramp up batch size.
 
 Automatic Node Scheduling
 -------------------------
