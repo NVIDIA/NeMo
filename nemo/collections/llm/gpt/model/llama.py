@@ -29,6 +29,8 @@ class LlamaConfig(GPTConfig):
     position_embedding_type: str = "rope"
     add_bias_linear: bool = False
     seq_length: int = 4096
+    attention_dropout: float = 0.0
+    hidden_dropout: float = 0.0
 
 
 @dataclass
