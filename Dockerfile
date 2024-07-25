@@ -79,15 +79,13 @@ RUN git clone https://github.com/NVIDIA/apex.git && \
   git checkout ${APEX_TAG} && \
   pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
-# Transformer Engine tries to import `libcuda.so.1` which is not in path, add it at the end
-#ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:"${CUDA_HOME}/compat/lib.real"
 # Transformer Engine 1.2.0
-#RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
-#  cd TransformerEngine && \
-#  git fetch origin ${TE_TAG} && \
-#  git checkout FETCH_HEAD && \
-#  git submodule init && git submodule update && \
-#  NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
+RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
+  cd TransformerEngine && \
+  git fetch origin ${TE_TAG} && \
+  git checkout FETCH_HEAD && \
+  git submodule init && git submodule update && \
+  NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
 
 WORKDIR /tmp/
 
