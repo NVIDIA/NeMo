@@ -85,9 +85,9 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
                 pre_process=pre_process,
                 post_process=False,
                 num_latent_attention_vectors=self.cfg.get('num_latent_attention_vectors', 64),
-                num_latent_attention_heads=self.cfg.get('num_latent_attention_heads', 8),
+                num_latent_attention_heads=self.cfg.get('num_latent_attention_heads', 4),
                 latent_dim=self.cfg.get('latent_dim', 1024),
-                latent_inner_dim=self.cfg.get('latent_inner_dim', 1024),
+                latent_inner_dim=self.cfg.get('latent_inner_dim', 256),
                 dropout=0.1,
             )
         else:
