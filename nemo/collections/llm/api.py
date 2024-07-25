@@ -9,11 +9,19 @@ import uvicorn
 from typing_extensions import Annotated
 
 from nemo.collections.llm.utils import Config, task
-from nemo.deploy import DeployPyTriton
-from nemo.export.tensorrt_llm import TensorRTLLM
 from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
+
+try:
+    from nemo.deploy import DeployPyTriton
+except ImportError as error:
+    logging.warning(f"DeployPyTriton could not be imported from nemo.deploy: {error}")
+
+try:
+    from nemo.export.tensorrt_llm import TensorRTLLM
+except ImportError as error:
+    logging.warning(f"TensorRTLLM could not be imported from nemo.export: {error}")
 
 TokenizerType = Any
 
