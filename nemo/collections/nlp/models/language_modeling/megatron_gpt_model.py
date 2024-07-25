@@ -33,6 +33,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
+    MegatronCorePretrainingSampler,
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
@@ -45,7 +46,6 @@ from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_au
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common.hyena.hyena_spec import get_gpt_layer_with_te_and_hyena_spec
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -78,16 +78,6 @@ from nemo.utils import logging
 from nemo.utils.te_utils import is_float8tensor
 
 try:
-    import apex.transformer.pipeline_parallel.utils
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
@@ -104,6 +94,7 @@ try:
         get_gpt_layer_local_spec,
         get_gpt_layer_with_transformer_engine_spec,
     )
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -126,6 +117,8 @@ try:
     import transformer_engine
     from transformer_engine.pytorch import module as te_module
 
+    from nemo.collections.nlp.modules.common.hyena.hyena_spec import get_gpt_layer_with_te_and_hyena_spec
+
     HAVE_TE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -145,6 +138,7 @@ def mcore_supports_moe() -> bool:
         return False
 
 
+## TODO: This function will not work if TE is not installed
 def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, hyena_cfg: Dict = None):
     if num_experts is not None:
         assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
@@ -277,10 +271,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
         if not HAVE_MEGATRON_CORE:
             logging.warning(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
@@ -788,7 +778,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.if_init_step = False
 
         if self.rampup_batch_size:
-            num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
+            num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR
             current_global_batch_size = num_microbatch_calculator.current_global_batch_size
             # do validation and save the checkpoint when gbs is changed
             if self.prev_global_batch_size != current_global_batch_size and self.prev_global_batch_size:
@@ -1579,6 +1571,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "create_attention_mask": not self.get_attention_mask_from_fusion,
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
                 "drop_last_partial_validation_sequence": self.cfg.data.get("validation_drop_last", True),
+                "num_dataset_builder_threads": self.cfg.data.get("num_dataset_builder_threads", 1),
                 "add_extra_token_to_sequence": add_extra_token,
             }
 
@@ -1627,8 +1620,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
         # Megatron sampler
         if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
+            data_sampler = (
+                MegatronPretrainingSampler
+                if self.cfg.data.get('legacy_dataset', False)
+                else MegatronCorePretrainingSampler
+            )
             if self.cfg.data.dataloader_type == 'single':
-                batch_sampler = MegatronPretrainingSampler(
+                batch_sampler = data_sampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
                     micro_batch_size=self.cfg.micro_batch_size,
@@ -1688,7 +1686,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.init_global_step = self.trainer.global_step
 
         if self.rampup_batch_size:
-            num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
+            num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR
             num_microbatch_calculator.update(self.init_consumed_samples, consistency_check=False)
             self.prev_consumed_samples = self.init_consumed_samples
 
@@ -1705,6 +1705,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_dl, 'train')
             # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
             self._reconfigure_limit_batches(self.trainer.limit_val_batches, self._validation_dl, 'val')
+
+        # Data cache generation only
+        # Stops script execution after creating a data cache
+        if self.cfg.data.get('data_cache_generation_only', False):
+            self.trainer.num_sanity_val_steps = 0
+            self.trainer.should_stop = True
 
         if stage == 'fit':
             self.initialize_last_rank_embeddings()
