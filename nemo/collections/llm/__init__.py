@@ -5,7 +5,7 @@ except ImportError:
     pass
 
 from nemo.collections.llm import peft, tokenizer
-from nemo.collections.llm.api import deploy, export_ckpt, finetune, import_ckpt, pretrain, train, validate
+from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
 from nemo.collections.llm.gpt.data import (
     DollyDataModule,
     FineTuningDataModule,
@@ -43,6 +43,13 @@ from nemo.collections.llm.gpt.model import (
     gpt_forward_step,
 )
 from nemo.collections.llm.recipes import *  # noqa
+from nemo.utils import logging
+
+try:
+    from nemo.collections.llm.api import deploy
+except ImportError as error:
+    deploy = None
+    logging.warning(f"The deploy module could not be imported: {error}")
 
 __all__ = [
     "MockDataModule",
@@ -82,10 +89,13 @@ __all__ = [
     "pretrain",
     "validate",
     "finetune",
-    "deploy",
     "tokenizer",
     "mock",
     "squad",
     "dolly",
     "peft",
 ]
+
+# add 'deploy' to __all__ if it was successfully imported
+if deploy is not None:
+    __all__.append("deploy")
