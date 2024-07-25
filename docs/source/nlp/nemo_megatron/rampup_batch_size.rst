@@ -31,7 +31,7 @@ In the `NeMo-Framework-Launcher <https://github.com/NVIDIA/NeMo-Framework-Launch
 Example
 -------
 
-Detailed example of ramp up batch size feature usage with GPT3 5B model and `NeMo-Framework-Launcher <https://github.com/NVIDIA/NeMo-Framework-Launcher>`_. In this example, the training started with a global batch size of 256, increased by 256 at each ramp up stage, and reach the target global batch size of 2048 over 10,000,000 training samples.
+Detailed example of ramp up batch size feature usage with GPT3 5B model and `NeMo-Framework-Launcher <https://github.com/NVIDIA/NeMo-Framework-Launcher>`_. In this example, the training started with a global batch size of 256, increased by 256 at each ramp up stage, and reached the target global batch size of 2048 over 10,000,000 training samples.
 
 Node schedule looks as follows:
 
