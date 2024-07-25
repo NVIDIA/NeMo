@@ -37,6 +37,8 @@ from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import pack_hypoth
 from nemo.collections.asr.parts.utils.rnnt_utils import (
     Hypothesis,
     NBestHypotheses,
+    select_k_expansions,
+    is_prefix
 )
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
@@ -422,17 +424,9 @@ class BeamTDTInfer(Typing):
                             hyps_to_update = hyps if duration == 0 else kept_hyps
                         hyps_to_update.append(new_hyp)
                 
-                sorted_hyps = sorted(kept_hyps, key=lambda x: x.score, reverse=True)
-                kept_hyps = []
-                for hyp in sorted_hyps:
-                    is_present = False
-                    for kept_hyp in kept_hyps:
-                        if kept_hyp.y_sequence == hyp.y_sequence and kept_hyp.last_frame == hyp.last_frame:
-                            is_present = True
-                            break
-                    if not is_present:
-                        kept_hyps.append(hyp)
-                        
+                # removing duplicate hypothesis.
+                kept_hyps = self.remove_duplicate_hypotheses(kept_hyps)
+                
                 if (len(hyps) > 0):
                     # keep those hypothesis that have scores greater than next search generation
                     hyps_max = float(max(hyps, key=lambda x: x.score).score)
@@ -484,3 +478,16 @@ class BeamTDTInfer(Typing):
             return sorted(hyps, key=lambda x: x.score / len(x.y_sequence), reverse=True)
         else:
             return sorted(hyps, key=lambda x: x.score, reverse=True)
+
+    def remove_duplicate_hypotheses(self, hyps):
+        sorted_hyps = sorted(hyps, key=lambda x: x.score, reverse=True)
+        kept_hyps = []
+        for hyp in sorted_hyps:
+            is_present = False
+            for kept_hyp in kept_hyps:
+                if kept_hyp.y_sequence == hyp.y_sequence and kept_hyp.last_frame == hyp.last_frame:
+                    is_present = True
+                    break
+            if not is_present:
+                kept_hyps.append(hyp)
+        return kept_hyps
