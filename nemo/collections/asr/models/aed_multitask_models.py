@@ -1074,6 +1074,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
     def adapter_module_names(self) -> List[str]:
         return ['', 'encoder', 'transf_encoder', 'transf_decoder']
 
+    @property
     def oomptimizer_schema(self) -> list[dict]:
         """
         Return a typing schema for optimal batch size calibration for various

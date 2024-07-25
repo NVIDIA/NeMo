@@ -301,6 +301,7 @@ class ExportableEncDecModel(Exportable):
             self.encoder.setup_streaming_params()
         super().set_export_config(args)
 
+    @property
     def oomptimizer_schema(self) -> list[dict]:
         """
         Return a typing schema for optimal batch size calibration for various
