@@ -11,7 +11,7 @@ import nemo.lightning as nl
 from nemo.collections import llm
 from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
-
+from nemo.utils.apex_utils import _reconfigure_microbatch_calculator
 
 def _get_strategy():
     strategy = nl.MegatronStrategy(
@@ -25,8 +25,10 @@ def _get_last_checkpoint_dir(model: pl.LightningModule, suffix: str = '') -> Pat
 
 
 def get_model_and_data():
+    micro_batch_size = 2
+    global_batch_size = 2
     seq_length = 128
-    data = llm.MockDataModule(seq_length=seq_length, micro_batch_size=2, global_batch_size=2)
+    data = llm.MockDataModule(seq_length=seq_length, micro_batch_size=micro_batch_size, global_batch_size=global_batch_size)
 
     config = llm.GPTConfig(
         num_layers=2,
@@ -35,6 +37,13 @@ def get_model_and_data():
         num_attention_heads=4,
         seq_length=seq_length,
         apply_query_key_layer_scaling=1,
+    )
+    _reconfigure_microbatch_calculator(
+        0,
+        None,
+        global_batch_size,
+        micro_batch_size,
+        data_parallel_size=1,
     )
     return llm.GPTModel(config, tokenizer=data.tokenizer), data
 
