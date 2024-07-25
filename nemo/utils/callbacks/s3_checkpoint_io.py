@@ -136,7 +136,7 @@ class S3CheckpointIO(CheckpointIO):
             except Exception as e:
                 logging.error(f'Failed to upload {item[2]} to {item[1]}, exception: {e}')
                 raise e
-            
+
         self._futures = in_progress_futures
         logging.debug(
             f'Time elapsed checking uploading future results: {(time.perf_counter() - start_time):.2f} seconds'
@@ -209,7 +209,6 @@ class S3CheckpointIO(CheckpointIO):
             start_time = time.perf_counter()
             self._executor.shutdown(wait=True)
             logging.info(f'executor shut down after {(time.perf_counter() - start_time):.2f} seconds, rank {rank}')
-
 
 
 def _clean_up_conflicting_checkpoint(filepath: str) -> None:
