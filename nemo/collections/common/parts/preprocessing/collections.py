@@ -327,8 +327,7 @@ class ASRAudioText(AudioText):
             [],
             [],
         )
-        if parse_func is None:
-            parse_func = manifest.__parse_item
+
         speakers, orig_srs, token_labels, langs = [], [], [], []
         for item in manifest.item_iter(manifests_files, parse_func=parse_func):
             ids.append(item['id'])
