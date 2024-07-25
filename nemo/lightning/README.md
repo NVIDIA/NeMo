@@ -2,7 +2,7 @@
 
 This directory provides custom PyTorch Lightning-compatible objects for seamlessly training NeMo 2.0 models using PTL. NeMo 2.0 models
 are implemented in [Megatron Core](https://github.com/NVIDIA/Megatron-LM/tree/main/megatron/core), and NeMo Lightning provides the bridge between higher-level object-oriented PTL APIs and lower-level Megatron APIs. 
-For detailed tutorials and documentation of NeMo 2, please refer to the NeMo 2.0 [docs](../../../docs/source/2.0) (## TODO: update this hyperlink).
+For detailed tutorials and documentation of NeMo 2, please refer to the NeMo 2.0 [docs](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo_2.0/index.html) (TODO: update this hyperlink).
 
 Some of the useful classes provided here are:
 - `MegatronStrategy`: A PTL strategy that enables training of Megatron models on NVIDIA GPUs. More information on `MegatronStrategy` can be found here (TODO: link to doc).

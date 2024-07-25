@@ -10,4 +10,4 @@ The current models are currently reimplemented in 2.0 as part of this collection
 - **LLaMA**
 - **Mixtral**
 
-For detailed tutorials and documentation of NeMo 2, please refer to the NeMo 2.0 [docs](../../../docs/source/2.0) (## TODO: update this hyperlink).
+For detailed tutorials and documentation of NeMo 2, please refer to the NeMo 2.0 [docs](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo_2.0/index.html) (TODO: update this hyperlink).
