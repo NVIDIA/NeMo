@@ -101,6 +101,8 @@ class TensorRTLLM(ITritonDeployable):
         lora_ckpt_list: List[str] = None,
         load_model: bool = True,
         use_python_runtime: bool = True,
+        enable_chunked_context: bool = None,
+        max_tokens_in_paged_kv_cache: int = None,
     ):
         """
         Args:
@@ -110,9 +112,19 @@ class TensorRTLLM(ITritonDeployable):
             use_python_runtime (bool): whether to use python or c++ runtime.
         """
 
+        if use_python_runtime:
+            if enable_chunked_context is not None or max_tokens_in_paged_kv_cache is not None:
+                raise Exception(
+                    "enable_chunked_context and max_tokens_in_paged_kv_cache options "
+                    "work only with the TensorRT-LLM C++ runtime. Please set "
+                    "use_python_runtime=False to use these options."
+                )
+
         self.model_dir = model_dir
         self.lora_ckpt_list = lora_ckpt_list
         self.use_python_runtime = use_python_runtime
+        self.enable_chunked_context = enable_chunked_context if enable_chunked_context is not None else False
+        self.max_tokens_in_paged_kv_cache = max_tokens_in_paged_kv_cache
         self.model = None
         self.tokenizer = None
         self.n_gpus = None
@@ -852,14 +864,6 @@ class TensorRTLLM(ITritonDeployable):
 
         if Path(self.model_dir).exists():
             folders = os.listdir(self.model_dir)
-            self._load_config_file()
-            self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
-            self.model = load(
-                tokenizer=self.tokenizer,
-                engine_dir=self.model_dir,
-                lora_ckpt_list=self.lora_ckpt_list,
-                use_python_runtime=self.use_python_runtime,
-            )
             if len(folders) > 0:
                 try:
                     self._load_config_file()
@@ -869,6 +873,8 @@ class TensorRTLLM(ITritonDeployable):
                         engine_dir=self.model_dir,
                         lora_ckpt_list=self.lora_ckpt_list,
                         use_python_runtime=self.use_python_runtime,
+                        enable_chunked_context=self.enable_chunked_context,
+                        max_tokens_in_paged_kv_cache=self.max_tokens_in_paged_kv_cache,
                     )
                     self._load_prompt_tables()
                 except Exception as error:
