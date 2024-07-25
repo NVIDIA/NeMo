@@ -63,7 +63,7 @@ def get_args():
 
 def convert(args):
 
-    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')['model']
+    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')
     new_state_dict = {}
 
     if 'backbone' in list(checkpoint_weights.keys())[0]:
@@ -143,7 +143,7 @@ def convert(args):
         elif 'mlp' in layer_types:
             layer_pattern += '-'
         else:
-            raise AssertionError("Layer not found. Each layer must be eiher MLP, Mamba, or Attention")
+            raise AssertionError("Layer not found. Each layer must be either MLP, Mamba, or Attention")
 
     nemo_config = OmegaConf.load(args.hparams_file)
     nemo_config.trainer["precision"] = args.precision
