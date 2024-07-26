@@ -810,7 +810,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1
+        pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1 --with_downloads
 
   # L2: Segmentation Tool
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
@@ -3430,7 +3430,8 @@ jobs:
         trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=10 \
-        trainer.precision=16 \
+        trainer.precision=bf16 \
+        model.megatron_amp_O2=True \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
         model.tensor_model_parallel_size=2 \
@@ -3472,7 +3473,8 @@ jobs:
         trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=10 \
-        trainer.precision=16 \
+        trainer.precision=bf16 \
+        model.megatron_amp_O2=True \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
         exp_manager.resume_if_exists=True \
