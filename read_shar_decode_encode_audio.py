@@ -9,6 +9,7 @@ import librosa
 import torch
 import numpy as np
 from tqdm import tqdm
+from matplotlib import pyplot as plt
 
 
 def create_shar_from_manifest(
@@ -190,17 +191,22 @@ def read_result_dir(result_path, file_prefix, codec_model):
 
     n_samples = len(inputs)
     for i in tqdm(range(n_samples)):
-        answer = np.load(os.path.join(result_path, 'npy', file_prefix+f"answer_{i}.npy"))
+        answer = np.load(os.path.join(result_path, 'npy', 'answers', file_prefix+f"answer_{i}.npy"))
         answer_mask = answer[:, 0] == 1 # 1 is the unk token which we apply to the text channel of speech outputs
-        pred = np.load(os.path.join(result_path, 'npy', file_prefix+f"pred_{i}.npy"))
+        pred = np.load(os.path.join(result_path, 'npy', 'preds', file_prefix+f"pred_{i}.npy"))
         pred_mask = pred[:, 0] == 1
-        speaker_context = np.load(os.path.join(result_path, 'npy', file_prefix+f"speaker_context_{i}.npy"))
+        speaker_context = np.load(os.path.join(result_path, 'npy', 'speaker_contexts', file_prefix+f"speaker_context_{i}.npy"))
         context_mask = speaker_context[:, 0] == 1
 
         decode_savewav(answer[answer_mask, 1:], os.path.join(result_path, 'wav', 'answers', f"answer_{i}.wav"), codec_model)
         decode_savewav(pred[pred_mask, 1:], os.path.join(result_path, 'wav', 'preds', f"pred_{i}.wav"), codec_model)
         decode_savewav(speaker_context[context_mask, 1:], os.path.join(result_path, 'wav', 'speaker_contexts', f"speaker_context_{i}.wav"), codec_model)
 
+        self_attn = np.load(os.path.join(result_path, 'npy', 'self_attn', file_prefix+f"self_attn_{i}.npy"))
+        cross_attn = np.load(os.path.join(result_path, 'npy', 'cross_attn', file_prefix+f"cross_attn_{i}.npy"))
+
+        plot(self_attn, os.path.join(result_path, 'png', 'self_attn', f"self_attn_{i}.png"))
+        plot(cross_attn, os.path.join(result_path, 'png', 'cross_attn', f"self_attn_{i}.png"))
 
 def decode_savewav(codes, name, codec_model):
     sample_rate = 22050
@@ -212,6 +218,14 @@ def decode_savewav(codes, name, codec_model):
     wav = wav[0]
 
     sf.write(name, wav.detach().cpu().numpy(), sample_rate)
+
+
+def plot(attn_weights, name):
+    os.makedirs(os.path.dirname(name), exist_ok=True)
+    plt.imshow(attn_weights)
+    plt.savefig(name)
+    plt.clf()
+
 
 def encode_decode_savewav(wavfile_name, codec_model):
     y, sr = librosa.load(wavfile_name, sr=None)

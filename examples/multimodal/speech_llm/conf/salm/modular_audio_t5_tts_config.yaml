@@ -205,6 +205,9 @@ model:
     # output_dim: null
     # encoder: null
     # preprocessor: null
+  
+  # 'validation' or 'inference'
+  attention_map_mode: 'validation'
 
   data:
     train_ds:

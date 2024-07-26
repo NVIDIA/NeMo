@@ -1463,6 +1463,9 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             proj_head_loss_weights = cfg.model.get('proj_head_loss_weights', None)
             if proj_head_loss_weights is not None:
                 gpt_cfg.proj_head_loss_weights = proj_head_loss_weights
+            attention_map_mode = cfg.model.get('attention_map_mode', None)
+            if attention_map_mode is not None:
+                gpt_cfg.attention_map_mode = attention_map_mode
             # This is needed when modifying a hparam file directly to load `.ckpt` files.
             # This is not needed to modify the cfg in `.nemo` files.
             if add_cfg_to_tree:
@@ -1499,6 +1502,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         self,
         audio_batch,
         checkpoint_activations_all_layers,
+        **kwargs,
     ):
         """Forward pass of the model.
 
@@ -1529,10 +1533,164 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             labels=labels,
             output_enc_hidden_only=False,
             enc_input=encoder_input,
+            **kwargs,
         )
         
         loss_mask = audio_batch['loss_mask']
         return output, loss_mask
+    
+
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, return_attention_probs=False):
+        batch = next(dataloader_iter)
+        # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
+        batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
+        seq_length = batch['tokens'].shape[1]
+        # handle the case where the batch size from dynamic bucketting is not divisible in lhotse
+        data_iter = get_iterator_k_split(batch, get_num_microbatches(), enforce_divisible_batch=False)
+
+        # handle asynchronous grad reduction
+        no_sync_func = None
+        grad_sync_func = None
+        param_sync_func = None
+        if not forward_only and self.with_distributed_adam:
+            no_sync_func = partial(
+                self._optimizer.no_sync,
+                greedy_grad_copy=self.megatron_amp_O2,
+            )
+            grad_sync_func = self.reduce_overlap_gradients
+            param_sync_func = self.sync_overlap_parameters
+
+        self.model.config.no_sync_func = no_sync_func
+        self.model.config.grad_sync_func = grad_sync_func
+        self.model.config.param_sync_func = param_sync_func
+
+        fwd_bwd_function = get_forward_backward_func()
+
+        dec_seq_length = batch['answers'].shape[1]
+
+        output = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=data_iter,
+            model=[self.model],
+            num_microbatches=get_num_microbatches(),
+            forward_only=forward_only,
+            seq_length=seq_length,
+            micro_batch_size=get_micro_batch_size(),
+            decoder_seq_length=dec_seq_length,
+        )
+        attention_probs = sum([item['attention_probs'] for item in output], [])
+
+        # only the last stages of the pipeline return something
+        if output:
+            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+                # average loss across micro batches
+                loss_tensors_list = [item['avg'] for item in output]
+                loss_tensor = torch.concat(loss_tensors_list)
+                loss_mean = loss_tensor.mean()
+            else:
+                # Get the total loss since micro batches sizes are not uniform
+                loss_sum_tensors_list = [
+                    item['loss_sum_and_ub_size']
+                    for item in output
+                    if item['loss_sum_and_ub_size'][1] > 0
+                ]
+                loss_sum = (
+                    torch.vstack(loss_sum_tensors_list).sum(axis=0)
+                    if len(loss_sum_tensors_list) > 0
+                    else torch.tensor([0.0, 0.0]).cuda()
+                )
+                if return_attention_probs:
+                    return loss_sum, attention_probs
+                else:
+                    return loss_sum
+        else:
+            # we're not on the last pipeline stage so no losses
+            if forward_only:
+                loss_mean = []
+            else:
+                loss_mean = torch.tensor(0.0).cuda()
+
+        if return_attention_probs:
+            return loss_mean, attention_probs
+        else:
+            return loss_mean
+
+    def get_forward_output_and_loss_func(self, validation_step=False):
+        def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
+            batch = next(dataloader_iter)
+            batch = {key: val.cuda(non_blocking=True) for key, val in batch.items()}
+            output, loss_mask = self.forward(
+                batch, 
+                checkpoint_activations_all_layers=checkpoint_activations_all_layers, 
+                return_all_selfattention_probs=True,
+                return_all_crossattention_probs=True,
+            )
+
+            def loss_func(output):
+                output_tensor, attention_probs = output
+                # Loss for a micro-batch (ub)
+                if 'audio_ratio' in batch:
+                    text_loss_weight = self.cfg.get('text_loss_weight', 1.0)
+                    audio_ratio = batch['audio_ratio']
+                    scaled_loss_mask = loss_mask * torch.unsqueeze(
+                        (1 * audio_ratio + text_loss_weight * (1 - audio_ratio)), 1
+                    )
+                    loss_for_ub = self.loss_func(scaled_loss_mask, output_tensor)
+                else:
+                    loss_for_ub = self.loss_func(loss_mask, output_tensor)
+                if validation_step and not self.cfg.data.get('validation_drop_last', True):
+                    num_valid_tokens_in_ub = batch['loss_mask'].sum()
+                    if loss_for_ub.isnan():
+                        assert batch['loss_mask'].count_nonzero() == 0, 'Got NaN loss with non-empty input'
+                        loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)
+                    else:
+                        loss_sum_for_ub = num_valid_tokens_in_ub * loss_for_ub
+
+                    loss_sum_and_ub_size_all_gpu = torch.cat(
+                        [
+                            loss_sum_for_ub.clone().detach().view(1),
+                            torch.tensor([num_valid_tokens_in_ub]).cuda().clone().detach(),
+                        ]
+                    )
+                    # Could potentially reduce num_valid_samples_in_microbatch and use that to aggregate instead of len(self._validation_ds)
+                    torch.distributed.all_reduce(
+                        loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group()
+                    )
+                    return loss_for_ub, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu, 'attention_probs': attention_probs}
+                else:
+                    reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
+                    return loss_for_ub, {'avg': reduced_loss, 'attention_probs': attention_probs}
+
+            return output, loss_func
+
+        return fwd_output_and_loss_func
+    
+    def _validation_step_internal(
+        self, dataloader_iter, batch_idx, dataloader_idx=0, inference=False, result_mode='validation'
+    ):
+        """
+        Our dataloaders produce a micro-batch and then we fetch
+        a number of microbatches depending on the global batch size and model parallel size
+        from the dataloader to produce a list of microbatches.
+        The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
+        """
+        mode = self.training
+        self.eval()
+        loss, attention_probs = self.fwd_bwd_step(dataloader_iter, 0, True, return_attention_probs=True)
+        self.train(mode=mode)
+        self.frozen_model.eval()
+
+        if result_mode == 'validation':
+            if type(self._validation_dl) == list and len(self._validation_dl) > 1:
+                self.validation_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.validation_step_outputs.append(loss)
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.test_step_outputs.append(loss)
+        return loss, attention_probs
 
     def inference_step(self, dataloader_iter, mode, dataloader_idx=0):
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
@@ -1541,7 +1699,9 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
         speaker_contexts = batch.get('speaker_contexts', [{}] * len(batch['tokens']))
-        loss = self._validation_step_internal(itertools.chain([batch]), batch_idx, dataloader_idx, result_mode=mode)
+        loss, attention_probs = self._validation_step_internal(itertools.chain([batch]), batch_idx, dataloader_idx, result_mode=mode)
+        if self.cfg.attention_map_mode == 'validation':
+            self_attention_probs, cross_attention_probs = attention_probs
 
         # We need _inference_config to get generation params
         # add_BOS and tokens_to_generate are set in dataset
@@ -1550,7 +1710,6 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             self.set_inference_config(inference_config=default_inference_config)
         self._inference_config['add_BOS'] = data_cfg.add_bos
         self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
-        # import pdb; pdb.set_trace()
 
         output = self.predict_step(batch, batch_idx, dataloader_idx)
         # pdb.set_trace()
@@ -1558,6 +1717,8 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         inputs_text = output['input_text']
         answers = output['answers']
         preds = output['preds']
+        if self.cfg.attention_map_mode == 'inference':
+            self_attention_probs, cross_attention_probs = output['attention_probs']
         if data_cfg.get("log_every_n_steps", None) is not None:
             if batch_idx % data_cfg.log_every_n_steps == 0:
                 logging.info(f"Input: `{inputs_text[0]}`")
@@ -1568,6 +1729,8 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             'answers': answers,  # 2d array
             'inputs': inputs_text,  # [str]
             'speaker_contexts': speaker_contexts,  # 2d array
+            'self_attention_probs': self_attention_probs.cpu().numpy(),  # 2d array
+            'cross_attention_probs': cross_attention_probs.cpu().numpy(),  # 2d array
             'metadata': metadata,  # [dict]
         }
 
@@ -1593,7 +1756,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         # enc_input = speech prompt
         # dec_input and label = text prompt and text output label
 
-        predicted_token_ids, log_probs = self.frozen_model.decode(
+        predicted_token_ids, log_probs, attention_probs = self.frozen_model.decode(
             tokens_enc=None,
             enc_mask=enc_mask,
             num_tokens_to_generate=self._inference_config['tokens_to_generate'],
@@ -1619,6 +1782,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             'input_text': input_text,
             'preds': predicted_token_ids,
             'answers': answers,
+            'attention_probs': attention_probs,
         }
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
@@ -1670,7 +1834,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             torch.distributed.all_gather_object(
                 gathered_outputs,
                 [
-                    {'preds': x['preds'], 'answers': x['answers'], 'inputs': x['inputs'], 'speaker_contexts': x['speaker_contexts'], 'metadata': x['metadata']}
+                    {'preds': x['preds'], 'answers': x['answers'], 'inputs': x['inputs'], 'speaker_contexts': x['speaker_contexts'], 'metadata': x['metadata'], 'self_attention_probs': x['self_attention_probs'], 'cross_attention_probs': x['cross_attention_probs']}
                     for x in output
                 ],
                 group=parallel_state.get_data_parallel_group(),
@@ -1683,13 +1847,15 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
                 'answers': [],
                 'inputs': [],
                 'speaker_contexts': [],
+                'self_attn': [],
+                'cross_attn': [],
                 'metadata': [],
             }
             total_size = 0
             for rank in range(0, parallel_state.get_data_parallel_world_size()):
                 for batch in gathered_outputs[rank]:
-                    for pred, answer, input, speaker_context, metadata in zip(
-                        batch['preds'], batch['answers'], batch['inputs'], batch['speaker_contexts'], batch['metadata']
+                    for pred, answer, input, speaker_context, self_attn, cross_attn, metadata in zip(
+                        batch['preds'], batch['answers'], batch['inputs'], batch['speaker_contexts'], batch['self_attention_probs'], batch['cross_attention_probs'], batch['metadata']
                     ):
                         key = input
                         total_size += 1
@@ -1700,6 +1866,8 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
                             deduplicated_outputs['answers'].append(answer)
                             deduplicated_outputs['inputs'].append(input)
                             deduplicated_outputs['speaker_contexts'].append(speaker_context)
+                            deduplicated_outputs['self_attn'].append(self_attn)
+                            deduplicated_outputs['cross_attn'].append(cross_attn)
                             deduplicated_outputs['metadata'].append(metadata)
 
             # Write predictions to file
@@ -1756,17 +1924,20 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
 
     # consistent with speech models
     def write_predictions_to_file(self, outputs, output_file_path_prefix, output_dir):
-        os.makedirs(output_dir, exist_ok=True)
         inputs_path = os.path.join(output_dir, output_file_path_prefix + "_inputs.jsonl")
-        preds_path = os.path.join(output_dir, 'npy', output_file_path_prefix + "_pred_{}.npy")
-        answers_path = os.path.join(output_dir, 'npy', output_file_path_prefix + "_answer_{}.npy")
-        speaker_contexts_path = os.path.join(output_dir, 'npy', output_file_path_prefix + "_speaker_context_{}.npy")
+        for folder_name in ['preds', 'answers', 'speaker_contexts', 'self_attn', 'cross_attn']:
+            os.makedirs(os.path.join(output_dir, 'npy', folder_name), exist_ok=True)
+        preds_path = os.path.join(output_dir, 'npy', 'preds', output_file_path_prefix + "_pred_{}.npy")
+        answers_path = os.path.join(output_dir, 'npy', 'answers', output_file_path_prefix + "_answer_{}.npy")
+        speaker_contexts_path = os.path.join(output_dir, 'npy', 'speaker_contexts', output_file_path_prefix + "_speaker_context_{}.npy")
+        self_attn_path = os.path.join(output_dir, 'npy', 'self_attn', output_file_path_prefix + "_self_attn_{}.npy")
+        cross_attn_path = os.path.join(output_dir, 'npy', 'cross_attn', output_file_path_prefix + "_cross_attn_{}.npy")
 
         with open(inputs_path, "w") as f_json:
             assert (
-                len(outputs['inputs']) == len(outputs['preds']) == len(outputs['answers']) == len(outputs['speaker_contexts']) == len(outputs['metadata'])
+                len(outputs['inputs']) == len(outputs['preds']) == len(outputs['answers']) == len(outputs['speaker_contexts']) == len(outputs['self_attn']) == len(outputs['cross_attn']) == len(outputs['metadata'])
             )
-            for i, (input_, pred, answer, speaker_context, md) in enumerate(zip(outputs['inputs'], outputs['preds'], outputs['answers'], outputs['speaker_contexts'], outputs['metadata'])):
+            for i, (input_, pred, answer, speaker_context, self_attn, cross_attn, md) in enumerate(zip(outputs['inputs'], outputs['preds'], outputs['answers'], outputs['speaker_contexts'], outputs['self_attn'], outputs['cross_attn'], outputs['metadata'])):
                 json_string = {'input': input_}
                 for k, v in md.items():
                     if k not in json_string:
@@ -1781,6 +1952,8 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
                 np.save(preds_path.format(i), pred.cpu().numpy())
                 np.save(answers_path.format(i), answer.cpu().numpy())
                 np.save(speaker_contexts_path.format(i), speaker_context.cpu().numpy())
+                np.save(self_attn_path.format(i), self_attn)
+                np.save(cross_attn_path.format(i), cross_attn)
 
         logging.info(f'Predictions saved to {output_dir}')
 

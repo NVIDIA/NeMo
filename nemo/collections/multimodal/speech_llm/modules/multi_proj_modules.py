@@ -16,6 +16,7 @@ from typing import Dict
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -238,9 +239,8 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, batch_data]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'batch_data']
 
-            forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
+            forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name=["logits", "attention_probs"], return_all_selfattention_probs=True, return_all_crossattention_probs=True)
             fwd_bwd_func = get_forward_backward_func()
-            # import pdb; pdb.set_trace()
 
             output_tensor = fwd_bwd_func(
                 forward_step_func=forward_step_func,
@@ -259,7 +259,7 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
             
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
-                output_tensor = output_tensor[0]['logits']
+                output_tensor, attention_probs = output_tensor[0]['logits'], output_tensor[0]['attention_probs']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 # make sure it won't sample outside the vocab_size range
                 # ignore selected indices
@@ -316,7 +316,7 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
 
-        return predicted_tokens_dec, predicted_log_probs
+        return predicted_tokens_dec, predicted_log_probs, attention_probs
 
     def complete(self, request: Dict):
         """
@@ -384,6 +384,49 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
         response['completion']['tokens'] = list(zip(predicted_tokens_ids, predicted_tokens_dec, log_probs))
         self.unfreeze()
         return response
+
+    def _get_forward_output_only_func(self, arg_names, output_name, **kwargs):
+        """
+        args_idx - maps batch into index of args (with None filling gaps)
+        arg_names - corresponding names for a friendly error message
+        output_name - name of output (hiddens for encode, logits for decode)
+        kwargs - shared arguments (non tensors)
+        """
+
+        def fwd_output_only_func(dataloader_iter, model):
+            # Extract batch, batch_idx, dataloader_idx only if dataloader_iter is an object of PTL's _DataFetcherWrapper
+            if isinstance(dataloader_iter, _DataFetcherWrapper):
+                batch, _, _ = next(dataloader_iter)
+            else:
+                batch = next(dataloader_iter)
+            batch = [x.cuda(non_blocking=True) if torch.is_tensor(x) else x for x in batch]
+
+            # map batch and shared args into forward args
+            args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
+            output = model(*args)
+            if isinstance(output, tuple):
+                # The first item in output should be the major output of the autoregressive model
+                output = (output[0].contiguous(), *output[1:])
+            else:
+                output = model(*args).contiguous()
+
+            def id_func(output_tensor):
+                if isinstance(output_tensor, dict):
+                    # handle loss of hidden transformations ("output" is the default output)
+                    output_tensor = output_tensor["output"]
+                
+                if isinstance(output_name, list):
+                    assert isinstance(output_tensor, tuple)
+                    assert len(output_name) == len(output_tensor), "the number of items in output_tensor and output_name does not match"
+                    output_dict = {name: value for name, value in zip(output_name, output_tensor)}
+                else:
+                    output_dict = {output_name: output_tensor}
+
+                return output_tensor[0], output_dict
+
+            return output, id_func
+
+        return fwd_output_only_func
 
 class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderDecoderModule):
     """Token-based (input/output is tokens) encoder-decoder model (e.g. T5 Language model.)"""
@@ -473,6 +516,8 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
         enc_output_attn_mask=None,
         enc_input=None,  # Result of running encoder embedding only
         output_enc_hidden_only=False,
+        return_all_selfattention_probs=False,
+        return_all_crossattention_probs=False,
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
@@ -589,10 +634,49 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
                 dec_self_attention_relative_position_bias=decoder_self_attention_relative_position_bias,
                 dec_cross_attention_relative_position_bias=decoder_cross_attention_relative_position_bias,
                 batch_data=batch_data,
+                return_all_selfattention_probs=return_all_selfattention_probs,
+                return_all_crossattention_probs=return_all_crossattention_probs,
             )
 
             if self.post_process and self.add_decoder:
                 dec_output, enc_output = output  # [s, b, h], enc_output might be a dict if hiddens_module is used
+                if return_all_selfattention_probs or return_all_crossattention_probs:
+                    dec_output, self_attention_scores, cross_attention_scores = dec_output
+
+                    def post_process_attention_scores(attention_scores):
+                        if len(attention_scores) == 0:
+                            return None
+                        attention_probs = [torch.softmax(attention_score, dim=-1) for attention_score in attention_scores]
+                        attention_scores_averaged = torch.mean(torch.cat(attention_probs, dim=1), dim=1)
+                        # text_start_idx = text_limits[0, 0].item()
+                        # assert torch.all(
+                        #     text_limits[:, 0] == text_start_idx
+                        # )  # all texts should start at the same index
+                        # end_offset = self.alignment_text_end_offset
+                        # # align_every_n_head: eg if set to 2, will skip every other head
+                        # # if set to 12, will select 1 head from every layer
+                        # align_every_n_head = self.align_every_n_head
+                        # dec_start_idx = self.decoder_context_len + 1  # +1 to remove bos
+                        # attention_scores_sliced = attention_scores_combined[
+                        #     :, ::align_every_n_head, dec_start_idx:, text_start_idx : -(2 + end_offset)
+                        # ]  # -2 to remove eos and pad
+                        # attention_logprobs = (
+                        #     attention_scores_sliced  # not taking log_softmax, since we will do that in loss function
+                        # )
+                        # attention_logprobs = torch.mean(attention_logprobs, dim=1, keepdim=True)
+                        # dec_len = torch.sum(dec_attn_mask, dim=1) - dec_start_idx
+                        # enc_len = text_limits[:, 1] - text_limits[:, 0] - end_offset
+                        # alignment_loss = self.forward_sum_loss(
+                        #     attn_logprob=attention_logprobs, in_lens=enc_len, out_lens=dec_len
+                        # )
+                        return attention_scores_averaged
+                    
+                    self_attention_scores = post_process_attention_scores(self_attention_scores)
+                    cross_attention_scores = post_process_attention_scores(cross_attention_scores)
+                    attention_probs = [self_attention_scores, cross_attention_scores]
+                else:
+                    attention_probs = [None, None]
+
                 # project decoder output to vocabulary-size dimensions
                 token_logits = [self.tokens_heads[i](dec_output)[0] for i in range(self.n_proj_heads)]
 
@@ -621,7 +705,10 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
                     tokens_loss = torch.matmul(tokens_loss, torch.FloatTensor(self.proj_head_loss_weights).to(tokens_loss.device)) / sum(self.proj_head_loss_weights)
                     # check if hiddens is used
-                    return tokens_loss
+                    if return_all_selfattention_probs or return_all_crossattention_probs:
+                        return tokens_loss, attention_probs
+                    else:
+                        return tokens_loss
                 else:
                     # else return token logits (and hiddens if needed)
                     token_logits_blank = torch.full(
@@ -633,10 +720,15 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
                         token_logits_blank[:, :, sum(self.proj_head_dims[:i]):sum(self.proj_head_dims[:i+1]), i] = token_logits[i]
                     # [s, b, h, heads] -> [b, s, h, heads]
                     token_logits = token_logits_blank.transpose(0, 1).contiguous()
-                    return token_logits
+                    if return_all_selfattention_probs or return_all_crossattention_probs:
+                        return token_logits, attention_probs
+                    else:
+                        return token_logits
 
             elif self.add_decoder and not self.add_encoder:
                 decoder_output, _ = output
+                if return_all_selfattention_probs or return_all_crossattention_probs:
+                    decoder_output, self_attention_scores, cross_attention_scores = decoder_output
                 return decoder_output
             else:
                 encoder_output = output

@@ -481,6 +481,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_core_attention=False,
+        return_crossattention_scores=False,
+        return_selfattention_scores=False,
     ):
         # Self attention.
         if rotary_pos_emb is not None:
@@ -513,7 +515,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 rotary_pos_emb=self_attention_pos_emb,
                 relative_position_bias=self_attention_relative_position_bias,
                 checkpoint_core_attention=checkpoint_core_attention,
+                return_scores=return_selfattention_scores,
             )
+
+            if return_selfattention_scores:
+                attention_output, self_attention_probs = attention_output
 
             if get_key_value:
                 attention_output, presents = attention_output
@@ -579,7 +585,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     set_inference_key_value_memory=set_inference_key_value_memory,
                     inference_max_sequence_len=inference_max_sequence_len,
                     checkpoint_core_attention=checkpoint_core_attention,
+                    return_scores=return_crossattention_scores,
                 )
+                if return_crossattention_scores:
+                    attention_output, cross_attention_probs = attention_output
             else:
 
                 attention_output, attention_bias = self.inter_attention(
@@ -589,7 +598,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     rotary_pos_emb=cross_attention_pos_emb,
                     relative_position_bias=cross_attention_relative_position_bias,
                     checkpoint_core_attention=checkpoint_core_attention,
+                    return_scores=return_crossattention_scores,
                 )
+                if return_crossattention_scores:
+                    attention_output, cross_attention_probs = attention_output
 
             # If normformer, apply norm on the output of the self attention.
             if self.transformer_block_type == 'normformer':
@@ -633,6 +645,13 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
 
         if get_key_value:
             output = [output, presents]
+
+        if return_selfattention_scores or return_crossattention_scores:
+            if not return_selfattention_scores:
+                self_attention_probs = None
+            if not return_crossattention_scores:
+                cross_attention_probs = None
+            output = [output, self_attention_probs, cross_attention_probs]
 
         return output
 
@@ -737,6 +756,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_core_attention=False,
+        return_crossattention_scores=False,
+        return_selfattention_scores=False,
     ):
         if self.dtype == torch.float32:
             return super().forward(
@@ -752,6 +773,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
                 checkpoint_core_attention,
+                return_crossattention_scores=return_crossattention_scores,
+                return_selfattention_scores=return_selfattention_scores,
             )
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
@@ -767,6 +790,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
                 checkpoint_core_attention,
+                return_crossattention_scores=return_crossattention_scores,
+                return_selfattention_scores=return_selfattention_scores,
             )
 
 
@@ -1495,6 +1520,8 @@ class ParallelTransformer(MegatronModule):
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_activations_all_layers=None,
+        return_all_crossattention_probs=False,
+        return_all_selfattention_probs=False,
     ):
         # Checks.
         if inference_max_sequence_len:
@@ -1577,6 +1604,8 @@ class ParallelTransformer(MegatronModule):
                         if self.inference_params != None:
                             self.inference_params.sequence_len_offset = self.inference_current_sequence_len
 
+                    self_attention_probs_list = []
+                    cross_attention_probs_list = []
                     if self.return_select_layer < 0:
                         assert (
                             parallel_state.get_pipeline_model_parallel_world_size() == 1
@@ -1629,20 +1658,39 @@ class ParallelTransformer(MegatronModule):
                                 checkpoint_core_attention=checkpoint_core_attention,
                             )
                         else:
-                            hidden_states = layer(
-                                hidden_states,
-                                attention_mask,
-                                encoder_output=encoder_output,
-                                enc_dec_attn_mask=enc_dec_attn_mask,
-                                layer_past=past,
-                                get_key_value=get_key_value,
-                                set_inference_key_value_memory=set_inference_key_value_memory,
-                                inference_max_sequence_len=inference_max_sequence_len,
-                                rotary_pos_emb=rotary_pos_emb,
-                                self_attention_relative_position_bias=self_attention_relative_position_bias,
-                                cross_attention_relative_position_bias=cross_attention_relative_position_bias,
-                                checkpoint_core_attention=checkpoint_core_attention,
-                            )
+                            if layer.layer_type == LayerType.decoder and (return_all_selfattention_probs or return_all_crossattention_probs):
+                                hidden_states, self_attention_probs, cross_attention_probs = layer(
+                                    hidden_states,
+                                    attention_mask,
+                                    encoder_output=encoder_output,
+                                    enc_dec_attn_mask=enc_dec_attn_mask,
+                                    layer_past=past,
+                                    set_inference_key_value_memory=set_inference_key_value_memory,
+                                    inference_max_sequence_len=inference_max_sequence_len,
+                                    rotary_pos_emb=rotary_pos_emb,
+                                    self_attention_relative_position_bias=self_attention_relative_position_bias,
+                                    cross_attention_relative_position_bias=cross_attention_relative_position_bias,
+                                    checkpoint_core_attention=checkpoint_core_attention,
+                                    return_selfattention_scores=return_all_selfattention_probs,
+                                    return_crossattention_scores=return_all_crossattention_probs,
+                                )
+                                self_attention_probs_list.append(self_attention_probs)
+                                cross_attention_probs_list.append(cross_attention_probs)
+                            else:
+                                hidden_states = layer(
+                                    hidden_states,
+                                    attention_mask,
+                                    encoder_output=encoder_output,
+                                    enc_dec_attn_mask=enc_dec_attn_mask,
+                                    layer_past=past,
+                                    get_key_value=get_key_value,
+                                    set_inference_key_value_memory=set_inference_key_value_memory,
+                                    inference_max_sequence_len=inference_max_sequence_len,
+                                    rotary_pos_emb=rotary_pos_emb,
+                                    self_attention_relative_position_bias=self_attention_relative_position_bias,
+                                    cross_attention_relative_position_bias=cross_attention_relative_position_bias,
+                                    checkpoint_core_attention=checkpoint_core_attention,
+                                )
 
                         if self.return_select_layer < 0:
                             assert (
@@ -1675,5 +1723,8 @@ class ParallelTransformer(MegatronModule):
 
         if get_key_value:
             output = [output, presents]
+        
+        if return_all_crossattention_probs or return_all_selfattention_probs:
+            output = [output, self_attention_probs_list, cross_attention_probs_list]
 
         return output

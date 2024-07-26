@@ -376,6 +376,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         rotary_pos_emb=None,  # rotary positional embedding
         relative_position_bias=None,
         checkpoint_core_attention=False,
+        return_scores=False,
     ):
         # hidden_states: [sq, b, h]
 
@@ -562,7 +563,10 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 relative_position_bias=relative_position_bias,
                 headscale_tensor=self.head_scale_tensor if self.headscale else None,
                 inference_mode=inference_max_sequence_len is not None and query_layer.shape[0] == 1,
+                return_scores=return_scores,
             )
+            if return_scores:
+                context_layer, attention_probs = context_layer
 
         # =================
         # Output. [sq, b, h]
@@ -577,6 +581,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         if get_key_value:
             output = [output, present]
+        
+        if return_scores:
+            output = [output, attention_probs]
 
         return output, bias
 
@@ -850,6 +857,7 @@ class CoreAttention(MegatronModule):
         relative_position_bias=None,
         headscale_tensor=None,
         inference_mode=None,
+        return_scores=None,
     ):
         b, np, sq, sk, hn = (
             query_layer.size(1),
@@ -907,9 +915,37 @@ class CoreAttention(MegatronModule):
         # relative_position_bias [b, np, sq, sk]
         # context_layer [b, np, sq, hn]
         # ==================================================
-        context_layer = self.attn_fn(
-            query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode
-        )
+        if not return_scores:
+            context_layer = self.attn_fn(
+                query_layer,
+                key_layer,
+                value_layer,
+                attention_mask,
+                relative_position_bias,
+                inference_mode,
+            )
+        else:
+            # SpeechLLM TTS modifications
+            if return_scores or relative_position_bias is not None:
+                context_layer = self.torch_attention(
+                    query_layer,
+                    key_layer,
+                    value_layer,
+                    attention_mask,
+                    relative_position_bias,
+                    inference_mode,
+                    return_scores=return_scores,
+                )
+                context_layer, attention_probs = context_layer
+            else:
+                context_layer = self.attn_fn(
+                    query_layer,
+                    key_layer,
+                    value_layer,
+                    attention_mask,
+                    relative_position_bias,
+                    inference_mode,
+                )
 
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
@@ -921,9 +957,12 @@ class CoreAttention(MegatronModule):
         new_context_layer_shape = context_layer.size()[:-2] + (self.hidden_size_per_partition,)
         context_layer = context_layer.view(*new_context_layer_shape)
 
-        return context_layer
+        if return_scores:
+            return context_layer, attention_probs
+        else:
+            return context_layer
 
-    def torch_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode):
+    def torch_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode, return_scores=False):
         sq, b, np, hn = query_layer.shape
         sk = key_layer.shape[0]
 
@@ -977,7 +1016,11 @@ class CoreAttention(MegatronModule):
         # change view [b, np, sq, hn]
         context_layer = rearrange(context_layer, '(b np) sq hn -> b np sq hn', np=np)
 
-        return context_layer
+        if return_scores:
+            # return context_layer, _attention_probs
+            return context_layer, attention_scores
+        else:
+            return context_layer
 
     def flash_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode):
         query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
