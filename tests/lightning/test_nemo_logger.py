@@ -1,7 +1,7 @@
 import os
+import time
 from pathlib import Path
 from unittest.mock import patch
-import time
 
 import pytest
 from pytorch_lightning.callbacks import ModelCheckpoint as PTLModelCheckpoint
@@ -120,13 +120,15 @@ class TestNeMoLogger:
         ## if there are multiple "-last" checkpoints, choose the most recent one
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end").rmdir()
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last").mkdir()
-        time.sleep(1) ## sleep for a second so the checkpoints are created at different times
+        time.sleep(1)  ## sleep for a second so the checkpoints are created at different times
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last").mkdir()
         nl.AutoResume(
             dirpath=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
             resume_if_exists=True,
         ).setup(None, trainer)
-        assert str(trainer.ckpt_path) == str(Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last"))
+        assert str(trainer.ckpt_path) == str(
+            Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last")
+        )
 
         # Finally succeed
         logger = nl.NeMoLogger(
