@@ -1,5 +1,3 @@
-
-
 trainer:
   devices: 1
   num_nodes: 1
@@ -93,7 +91,7 @@ model:
   moe_token_dispatcher_type: alltoall
   moe_aux_loss_coeff: 0.01
   # model architecture
-  encoder_seq_length: 2048
+  encoder_seq_length: 4096
   max_position_embeddings: 32768
   position_embedding_type: rope
   num_layers: 32
