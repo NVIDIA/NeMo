@@ -21,6 +21,7 @@ To learn more about using NeMo to train Large Language Models at scale, please r
    positional_embeddings
    mcore_customization
    reset_learning_rate
+   rampup_batch_size
 
 
 References
