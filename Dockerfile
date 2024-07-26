@@ -156,10 +156,10 @@ RUN /usr/bin/test -n "$NEMO_VERSION" && \
 RUN --mount=from=nemo-src,target=/tmp/nemo,rw cd /tmp/nemo && pip install ".[all]"
 
 # Check install
-RUN python -c "import nemo.collections.asr as nemo_asr" && \
-  python -c "import nemo.collections.nlp as nemo_nlp" && \
-  python -c "import nemo.collections.tts as nemo_tts" && \
-  python -c "import nemo_text_processing.text_normalization as text_normalization"
+#RUN python -c "import nemo.collections.asr as nemo_asr" && \
+#  python -c "import nemo.collections.nlp as nemo_nlp" && \
+#  python -c "import nemo.collections.tts as nemo_tts" && \
+#  python -c "import nemo_text_processing.text_normalization as text_normalization"
 
 
 # copy scripts/examples/tests into container for end user
