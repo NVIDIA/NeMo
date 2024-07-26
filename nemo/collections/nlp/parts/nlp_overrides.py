@@ -15,6 +15,7 @@
 import functools
 import itertools
 import os
+import re
 import shutil
 import tempfile
 from collections import OrderedDict, defaultdict
@@ -55,7 +56,7 @@ from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimSta
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
 
-from nemo.utils.model_utils import unwrap_model
+from nemo.utils.get_rank import is_global_rank_zero
 
 try:
     from torch.cuda.amp.grad_scaler import _refresh_per_optimizer_state
@@ -123,7 +124,6 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    import modelopt.torch.distill as mtd
     from modelopt.torch.opt.plugins import restore_sharded_modelopt_state, save_sharded_modelopt_state
 
     HAVE_MODELOPT = True
@@ -1005,12 +1005,6 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             dist_ckpt = hasattr(model, 'sharded_state_dict') and model.sharded_state_dict() is not None
 
         dist_ckpt_dir = None
-
-        # [ModelOpt]: If Distillation, export the student model.
-        unwrapped_model = unwrap_model(model, (Float16Module, MCoreFloat16Module))
-        if HAVE_MODELOPT and isinstance(unwrapped_model, mtd.DistillationModel):
-            self.log("Distillation: Exporting Distillation Model into original student model...")
-            model = mtd.export(model)
 
         if (app_state.model_parallel_size is not None and app_state.model_parallel_size > 1) or dist_ckpt:
 

@@ -3,9 +3,9 @@ from pathlib import Path
 from typing import Any, Dict
 
 import modelopt.torch.distill as mtd
+import modelopt.torch.opt as mto
 import torch.multiprocessing as mp
-from omegaconf import OmegaConf
-from omegaconf.dictconfig import DictConfig
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 try:
@@ -97,25 +97,13 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
             trainer: Nemo trainer instance.
         """
         logging.info("Distillation: Enabled.")
-        logging.info("\n\n************** Model configuration ***********")
-        logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
-        assert cfg.kd_teacher_restore_from_path is not None
+        assert cfg.kd_teacher_restore_from_path is not None, "Path to teacher weights must be provided."
+        assert cfg.pipeline_model_parallel_size == 1, "Distillation mode does not yet support Pipeline Parallel."
 
         super().__init__(cfg, trainer)
 
-    def _teacher_provider(self) -> MCoreGPTModel:
-        """Teacher model factory (must be a non-local function to pickle)."""
-        logging.info("Loading teacher weights...")
-        teacher_model_cfg = _merge_model_arch_fields(self.cfg, self.cfg.kd_teacher_restore_from_path)
-
-        model = MegatronGPTModel.restore_from(
-            self.cfg.kd_teacher_restore_from_path,
-            override_config_path=teacher_model_cfg,
-            trainer=self.trainer,
-        )
-        teacher_model_module_list = model.get_model_module_list()
-        logging.info("... teacher weights loaded.")
-        return teacher_model_module_list[0]
+        logging.info("\n\n************** Final model configuration ***********")
+        logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
@@ -149,7 +137,7 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
         distill_cfg = load_distillation_config(self.transformer_config)
         # Intialize DistillationModel.
         kd_config = {
-            "teacher_model": self._teacher_provider,
+            "teacher_model": (_teacher_provider, [self.cfg, copy.deepcopy(self.trainer)], {}),
             "criterion": distill_cfg["criterion"],
             "loss_balancer": distill_cfg["loss_balancer"],
         }
@@ -279,6 +267,11 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
         if self.cfg.tensor_model_parallel_size > 1:
             loss = torch.sum(tensor_parallel.gather_from_tensor_model_parallel_region(loss.reshape(1)))
         return loss
+
+    def setup_optimizer_param_groups(self):
+        super().setup_optimizer_param_groups()
+        for group in self._optimizer_param_groups:
+            group["params"] = [p for p in group["params"] if p.requires_grad]
 
 
 ########################################################
@@ -450,6 +443,9 @@ def all_reduce_autograd(tensor, op=torch.distributed.ReduceOp.SUM, group=torch.d
 def adjust_distillation_model_for_mcore(model: mtd.DistillationModel, distill_cfg: Dict[str, Any]):
     """Extra modifcations to ``mtd.DistillationModel`` requried for Megatron-Core."""
 
+    # HACK: Get rid of ModelOpt Distillation state
+    mto.ModeloptStateManager(model)._state.pop()
+
     # HACK: Hide teacher during `sharded_state_dict` method.
     def _sharded_state_dict(self, *args, **kwargs) -> ShardedStateDict:
         with self.hide_teacher_model():
@@ -472,12 +468,30 @@ def adjust_distillation_model_for_mcore(model: mtd.DistillationModel, distill_cf
 ########################################################
 
 
-def _merge_model_arch_fields(cfg, model_load_path):
-    cfg = copy.deepcopy(cfg)
+def _teacher_provider(cfg, trainer) -> MCoreGPTModel:
+    """Teacher model factory (must be a non-local function to pickle)."""
+    logging.info("Distillation: Loading teacher weights...")
+    teacher_model_cfg = _merge_model_arch_fields(cfg, cfg.kd_teacher_restore_from_path)
+
+    model = MegatronGPTModel.restore_from(
+        cfg.kd_teacher_restore_from_path,
+        override_config_path=teacher_model_cfg,
+        trainer=trainer,
+    )
+    teacher_model_module_list = model.get_model_module_list()
+    logging.info("Distillation: ... teacher weights loaded.")
+    return teacher_model_module_list[0]
+
+
+def _merge_model_arch_fields(cfg: DictConfig, model_load_path: str) -> DictConfig:
+    """Overwrite model-architecture fields of a config with a checkpoint's."""
     model_cfg = load_config(model_load_path)
-    for attr in MODEL_ARCHITECHTURE_KEYS:
-        OmegaConf.update(cfg, attr, getattr(model_cfg, attr), force_add=True)
-    return cfg
+    model_arch_cfg = OmegaConf.masked_copy(model_cfg, MODEL_ARCHITECHTURE_KEYS)
+    with open_dict(cfg):
+        return OmegaConf.merge(cfg, model_arch_cfg)
+
+
+########################################################
 
 
 @hydra_runner(config_path="conf", config_name="megatron_llama_distill")
@@ -487,16 +501,18 @@ def main(cfg) -> None:
 
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
 
+    with open_dict(cfg):
+        cfg.model.name = "modelopt"  # Convert TE layernorm spec to unfused format
+        # HACK: Checkpoint-loading process hangs/loops if this isn't present here for some reason.
+        cfg.model.target = "nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTModel"
+
     # Continual training
     if cfg.model.get("restore_from_path") is not None:
         # Option 1: Restore only the model weights from a .nemo file
         logging.info(f"Continual training: loading weights from {cfg.model.restore_from_path}")
 
-        # Merge model config with the one from the checkpoint
-        cfg.model = OmegaConf.merge(load_config(cfg.model.restore_from_path), cfg.model)
-        # TODO: This should be the correct way below, but causes infinite load hang!
-        # cfg.model = _merge_model_arch_fields(cfg.model, cfg.model.restore_from_path)
-        OmegaConf.update(cfg, "model.name", "modelopt", force_add=True)  # Convert TE layers
+        # Merge model config's architecture fields with the one from the checkpoint
+        cfg.model = _merge_model_arch_fields(cfg.model, cfg.model.restore_from_path)
 
         model = DistillationMegatronGPTModel.restore_from(
             restore_path=cfg.model.restore_from_path,
@@ -519,6 +535,11 @@ def main(cfg) -> None:
         logging.info("... model instantiated.")
 
     trainer.fit(model)
+
+    if cfg.model.nemo_path:
+        model.save_to(cfg.model.nemo_path)
+    else:
+        logging.warning("Skipping saving final model as no `model.nemo_path` provided.")
 
 
 if __name__ == '__main__':
