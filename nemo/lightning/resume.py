@@ -52,7 +52,7 @@ class AutoResume(Resume, io.IOMixin):
             path (str): Can be used to specify a path to a specific checkpoint file to load from.
                 This will override any checkpoint found when resume_if_exists is True.
                 Defaults to None
-            dirpath (str): Path to save the checkpoints to. Defaults to <log_dir>/checkpoints
+            dirpath (str): Path to the checkpointing directory to restore from. Defaults to <log_dir>/checkpoints
             import_path (str): Path to specify if importing a checkpoint from HF or
                 another non-NeMo checkpoint format. If import_path is provided, other arguments
                 are unused.
