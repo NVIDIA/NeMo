@@ -36,7 +36,7 @@ from nemo.utils import logging
 
 
 def adjust_nemo_config(model_config, ref_config, args, mcore_bert=True):
-    model_config.tokenizer["type"] = args.input_name_or_path 
+    model_config.tokenizer["type"] = args.input_name_or_path
     model_config["max_position_embeddings"] = ref_config['max_position_embeddings']
     model_config["num_layers"] = ref_config["num_hidden_layers"]
     model_config["hidden_size"] = ref_config["hidden_size"]
@@ -84,14 +84,19 @@ def convert(args):
     nemo_config.trainer["precision"] = args.precision
     trainer = MegatronTrainerBuilder(nemo_config).create_trainer()
     model = MegatronBertModel(nemo_config.model, trainer)
-    
+
     if not args.post_process:
-        model.model.module.lm_head, model.model.module.encoder.final_layernorm, model.model.module.binary_head, model.model.module.output_layer = (
-        None,
-        None,
-        None,
-        None,
-    )
+        (
+            model.model.module.lm_head,
+            model.model.module.encoder.final_layernorm,
+            model.model.module.binary_head,
+            model.model.module.output_layer,
+        ) = (
+            None,
+            None,
+            None,
+            None,
+        )
 
     nemo_state_dict = {}
     hf_config = hf_model.config.to_dict()
@@ -262,15 +267,15 @@ def convert(args):
             nemo_state_dict['model.embedding.word_embeddings.weight'] = padded_embedding
         else:
             nemo_state_dict['model.language_model.embedding.word_embeddings.weight'] = padded_embedding
-    
+
     modified_dict = {}
     for key, value in nemo_state_dict.items():
         if key.startswith('model.'):
-            new_key = 'model.module.' + key[len('model.'):]
+            new_key = 'model.module.' + key[len('model.') :]
             modified_dict[new_key] = value
         else:
             modified_dict[key] = value
-    
+
     nemo_state_dict = modified_dict
 
     model.load_state_dict(nemo_state_dict, strict=True)
