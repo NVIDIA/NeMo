@@ -85,7 +85,7 @@ class NeMoLogger(IOMixin):
                     f"or version: {self.version}. Please note that dir, name, and version will be ignored."
                 )
             if is_global_rank_zero() and Path(self.explicit_log_dir).exists():
-                logging.warning(f"Exp_manager is logging to {self.explicit_log_dir}, but it already exists.")
+                logging.warning(f"NeMoLogger is logging to {self.explicit_log_dir}, but it already exists.")
             log_dir, _dir, self.name, version = Path(self.explicit_log_dir), str(self.explicit_log_dir), "", ""
 
         else:
