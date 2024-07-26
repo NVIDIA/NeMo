@@ -31,6 +31,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     french_text_preprocessing,
     italian_text_preprocessing,
     spanish_text_preprocessing,
+    vietnamese_text_preprocessing,
 )
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
@@ -202,6 +203,43 @@ class EnglishCharsTokenizer(BaseCharsTokenizer):
         )
 
 
+class VietnameseCharsTokenizer(BaseCharsTokenizer):
+
+    _LOCALE = "vi-VN"
+    _CHARSET_STR = get_grapheme_character_set(locale=_LOCALE, case="mixed")
+
+    def __init__(
+        self,
+        chars=_CHARSET_STR,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
+        text_preprocessing_func=vietnamese_text_preprocessing,
+    ):
+        """Vietnamese grapheme tokenizer.
+        Args:
+            punct: Whether to reserve grapheme for basic punctuation or not.
+            apostrophe: Whether to use apostrophe or not.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+            if None then no blank in labels.
+            pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            non_default_punct_list: List of punctuation marks which will be used instead default.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer. By default, it
+            would keep any word lowercase.
+        """
+        super().__init__(
+            chars=chars,
+            punct=punct,
+            apostrophe=apostrophe,
+            add_blank_at=add_blank_at,
+            pad_with_space=pad_with_space,
+            non_default_punct_list=non_default_punct_list,
+            text_preprocessing_func=vietnamese_text_preprocessing,
+        )
+
+
 class GermanCharsTokenizer(BaseCharsTokenizer):
 
     _LOCALE = "de-DE"
@@ -245,7 +283,12 @@ class SpanishCharsTokenizer(BaseCharsTokenizer):
     PUNCT_LIST = get_ipa_punctuation_list("es-ES")
 
     def __init__(
-        self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None,
+        self,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
     ):
         """Spanish grapheme tokenizer.
         Args:
@@ -274,7 +317,12 @@ class FrenchCharsTokenizer(BaseCharsTokenizer):
     PUNCT_LIST = get_ipa_punctuation_list("fr-FR")
 
     def __init__(
-        self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None,
+        self,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
     ):
         """French grapheme tokenizer.
         Args:
