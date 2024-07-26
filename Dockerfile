@@ -159,7 +159,7 @@ RUN --mount=from=nemo-src,target=/tmp/nemo,rw cd /tmp/nemo && pip install ".[all
 
 # Check install
 # NB: adjusting LD_LIBRARY_PATH (only here, should not be persistent!) is a temporary hack
-# to avoid failure if CUDA is unavailable (`docker build` does not exposes cuda)
+# to avoid failure if CUDA is unavailable (`docker build` does not expose cuda)
 # The error is raised in NeMo Core, and the main reason is reinstalled Transformer-Engine;
 RUN export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${CUDA_HOME}/compat/lib.real && \
   python -c "import nemo.collections.asr as nemo_asr" && \
