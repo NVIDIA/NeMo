@@ -77,7 +77,8 @@ RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
   git checkout ${APEX_TAG} && \
-  pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
+  pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir \
+    --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
 # Transformer Engine 1.2.0
 RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
@@ -130,8 +131,9 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/installers/install_k2.sh); INSTALL
 WORKDIR /tmp/nemo
 ENV LHOTSE_REQUIRE_TORCHAUDIO=0
 COPY requirements .
-# exclude requirements_vllm.txt, since `vllm==0.5.0` breaks the container due to hardcoded requirements `torch==2.3.0`
-RUN for f in $(ls requirements*.txt | grep -v 'requirements_vllm.txt'); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
+# exclude requirements_vllm.txt, since `vllm==0.5.x` breaks the container due to hardcoded requirements `torch==2.3.0`
+RUN for f in $(ls requirements*.txt | grep -v 'requirements_vllm.txt'); do \
+    pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
 
 # install flash attention
 RUN pip install flash-attn
@@ -156,6 +158,9 @@ RUN /usr/bin/test -n "$NEMO_VERSION" && \
 RUN --mount=from=nemo-src,target=/tmp/nemo,rw cd /tmp/nemo && pip install ".[all]"
 
 # Check install
+# NB: adjusting LD_LIBRARY_PATH (only here, should not be persistent!) is a temporary hack
+# to avoid failure if CUDA is unavailable (`docker build` does not exposes cuda)
+# The error is raised in NeMo Core, and the main reason is reinstalled Transformer-Engine;
 RUN export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${CUDA_HOME}/compat/lib.real && \
   python -c "import nemo.collections.asr as nemo_asr" && \
   python -c "import nemo.collections.nlp as nemo_nlp" && \
