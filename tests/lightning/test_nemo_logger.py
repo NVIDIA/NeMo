@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from unittest.mock import patch
+import time
 
 import pytest
 from pytorch_lightning.callbacks import ModelCheckpoint as PTLModelCheckpoint
@@ -79,12 +80,11 @@ class TestNeMoLogger:
             del os.environ[NEMO_ENV_VARNAME_VERSION]
 
         # Error because explicit_log_dir does not exist
-        ### TODO: make "model" arg optional
         with pytest.raises(NotFoundError):
             nl.AutoResume(
                 dirpath=str(tmp_path / "test_resume"),
                 resume_if_exists=True,
-            ).setup(None, trainer)
+            ).setup(model=None, trainer=trainer)
 
         # Error because checkpoints folder does not exist
         with pytest.raises(NotFoundError):
@@ -117,15 +117,16 @@ class TestNeMoLogger:
                 resume_if_exists=True,
             ).setup(None, trainer)
 
+        ## if there are multiple "-last" checkpoints, choose the most recent one
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end").rmdir()
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last").mkdir()
+        time.sleep(1) ## sleep for a second so the checkpoints are created at different times
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last").mkdir()
-        # Error because multiple *last.ckpt is in folder. If more than one, don't know which to restore
-        with pytest.raises(ValueError):
-            nl.AutoResume(
-                dirpath=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
-                resume_if_exists=True,
-            ).setup(None, trainer)
+        nl.AutoResume(
+            dirpath=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
+            resume_if_exists=True,
+        ).setup(None, trainer)
+        assert str(trainer.ckpt_path) == str(Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last"))
 
         # Finally succeed
         logger = nl.NeMoLogger(
