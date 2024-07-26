@@ -232,6 +232,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(nemo_dir, load_checkpoints_to_cpu=True)
 
         dist_ckpt_folder = nemo_dir / "model_weights"
+
         if dist_ckpt_folder.exists():
             model = load_sharded_metadata(dist_ckpt_folder)
             nemo_model_config = unpacked_checkpoint_dir.model_config
