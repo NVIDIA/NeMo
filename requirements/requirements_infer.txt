@@ -1,5 +1,5 @@
 nvidia-pytriton
 pydantic-settings
 tensorstore==0.1.45
-zarr
 vllm==0.5.1
+zarr
