@@ -90,7 +90,6 @@ class Basic:
 
         trainer_config = {
             "accelerator": "gpu",
-            "precision": "bf16",
             "logger": False,
             "enable_checkpointing": False,
             "use_distributed_sampler": False,
