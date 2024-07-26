@@ -102,19 +102,13 @@ class JapaneseG2p(BaseG2p):
         if word_segmenter == "janome":
             try:
                 from janome.tokenizer import Tokenizer
-
-                self.janome_tokenizer = Tokenizer()
             except ImportError as e:
                 logging.error(e)
 
             # Cut sentences into words to improve polyphone disambiguation
-            self.word_segmenter = self._segment_with_janome
+            self.word_segmenter = Tokenizer().tokenize
         else:
             self.word_segmenter = lambda x: [x]
-
-    def _segment_with_janome(self, text):
-        segmented_text = self.janome_tokenizer.tokenize(text)
-        return [str(token).split()[0] for token in segmented_text]
 
     @staticmethod
     def _parse_ja_phoneme_dict(
@@ -147,7 +141,8 @@ class JapaneseG2p(BaseG2p):
 
         words_list = self.word_segmenter(text)
         phoneme_seq = []
-        for word in words_list:
+        for token in words_list:
+            word = str(token).split("\t")[0]
             if word in self.phoneme_dict.keys():
                 phoneme_seq += self.phoneme_dict[word]
             elif word in self.punctuation:
