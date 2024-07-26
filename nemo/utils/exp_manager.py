@@ -240,6 +240,7 @@ class TimingCallback(Callback):
     """
 
     def __init__(self, timer_kwargs={}):
+        print(timer_kwargs)
         self.timer = timers.NamedTimer(**timer_kwargs)
 
     def _on_batch_start(self, name):
@@ -511,6 +512,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     # add loggers timing callbacks
     if cfg.log_step_timing:
         timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
+        print(f"TIMING CALL: {timing_callback}")
         trainer.callbacks.insert(0, timing_callback)
 
     if cfg.ema.enable:

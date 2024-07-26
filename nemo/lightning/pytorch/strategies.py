@@ -7,6 +7,7 @@ from collections import OrderedDict
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from nemo.utils.exp_manager import TimingCallback
 from typing import TYPE_CHECKING, Any, ContextManager, Dict, List, Literal, Mapping, Optional, TypeVar, Union, cast
 
 import pytorch_lightning as pl
@@ -245,6 +246,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         assert self.accelerator is not None
         self.accelerator.setup(trainer)
         self.trainer = trainer
+        print("BEFORE INSERTION: {self.trainer.callbacks}")
+        self.trainer.callbacks.insert(0, TimingCallback())
+        print("AFTER INSERTION: {self.trainer.callbacks}")
 
         # move the model to the correct device
         # self.model_to_device()

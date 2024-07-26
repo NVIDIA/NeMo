@@ -18,23 +18,47 @@ import re
 import sys
 from shutil import copyfile
 
-import hydra
 import pandas as pd
-from omegaconf import OmegaConf
 from tensorboard.backend.event_processing import event_accumulator
+from nemo.collections.llm.tools.auto_configurator.autoconfig.utils import generic_base_config
 
 
-@hydra.main(config_path="../../conf", config_name="config")
-def main(cfg):
-    auto_configurator_path = cfg.auto_configurator_path
-    settings_cfg = cfg.search_config.train_settings
-    model_size = settings_cfg.model_size_in_b
-    output_top_n = settings_cfg.output_top_n
-    nodes = settings_cfg.num_nodes
+def main(
+    training_logs="/home/data/nemo-experiments",
+    seq_length=2048,
+    global_batch_size=64,
+    model_name="gpt3",
+    model_version=3,
+    model_size=126,
+    model_measure="M",
+    num_nodes=1,
+    gpus_per_node=8,
+    configs=None,
+    vocab_size=32000,
+    max_training_days=2,
+    tflops_per_gpu=140,
+    num_tokens_in_b=300,
+    custom_model=None,
+    output_top_n=10,
+):
 
-    training_logs = os.path.join(settings_cfg.get("logs"), "training_logs")
-    candidate_configs = os.path.join(settings_cfg.get("logs"), "candidate_configs")
-    final_result_logs = os.path.join(settings_cfg.get("logs"), "final_result")
+    # Get model architecture
+    cfg = locals()
+    cfg["gpu_count"] = num_nodes * gpus_per_node
+    base_cfg, _ = generic_base_config(
+        model_name=model_name,
+        model_version=model_version,
+        model_size_in_b=model_size,
+        model_measure=model_measure,
+        cfg=cfg,
+    )
+
+    layers = base_cfg["model"].num_layers
+    hs = base_cfg["model"].hidden_size
+    ffn_hs = base_cfg["model"].ffn_hidden_size
+
+    training_logs = training_logs
+    final_result_logs = "."
 
     result_columns = [
         "Model Name",
@@ -83,93 +107,46 @@ def main(cfg):
     result = []
     errors = []
     dirs = os.listdir(training_logs)
+    if ".sdk" in dirs:
+        dirs.pop(0)
+
     for candidate_dir in dirs:
-        config_path = os.path.join(candidate_configs, f"{candidate_dir}.yaml")
-        candidate_cfg = OmegaConf.load(config_path)
-        model_cfg = candidate_cfg.get("model")
-        encoder_cfg = model_cfg.get("encoder")
-        decoder_cfg = model_cfg.get("decoder")
-        data_cfg = model_cfg.get("data")
-        trainer_cfg = candidate_cfg.get("trainer")
-
-        model_name = candidate_cfg.get("run").get("name").split("_")[0]
-        gbs = model_cfg.get("global_batch_size")
-        enc_seq_len = (
-            model_cfg.get("encoder_seq_length")
-            if model_name in ("gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral")
-            else model_cfg.get("seq_length")
-        )
-        dec_seq_len = data_cfg.get("seq_length_dec")
-
-        if model_name in (
-            "gpt3",
-            "bert",
-            "llama",
-            "baichuan2",
-            "chatglm",
-            "qwen2",
-            "mixtral",
-        ):
-            hs = model_cfg.get("hidden_size")
-            ffn_hs = None
-            layers = model_cfg.get("num_layers")
-            act_ckpt_layers = model_cfg.get("activations_checkpoint_num_layers")
-            num_mbs_act = model_cfg.get("num_micro_batches_with_partial_activation_checkpoints")
-            act_per_pipe = model_cfg.get("activations_checkpoint_layers_per_pipeline")
-            cp = model_cfg.get("context_parallel_size")
-            ep = model_cfg.get("expert_model_parallel_size")
-        else:
-            hs = encoder_cfg.get("hidden_size")
-            ffn_hs = encoder_cfg.get("ffn_hidden_size")
-            layers = encoder_cfg.get("num_layers") + decoder_cfg.get("num_layers")
-            act_ckpt_layers = encoder_cfg.get("activations_checkpoint_num_layers") + decoder_cfg.get(
-                "activations_checkpoint_num_layers"
-            )
-            num_mbs_act = None
-            act_per_pipe = None
-            cp = None
-            ep = None
-        tp = model_cfg.get("tensor_model_parallel_size")
-        pp = model_cfg.get("pipeline_model_parallel_size")
-        mbs = model_cfg.get("micro_batch_size")
-        vocab = settings_cfg.get("vocab_size")
-        gpus_per_node = trainer_cfg.get("devices")
-
-        if f"{nodes}nodes" not in candidate_dir:
-            continue
-
-        for f in os.listdir(os.path.join(training_logs, candidate_dir)):
-            if f.endswith(".err"):
-                error_file = os.path.join(training_logs, candidate_dir, f)
+        logs_dir = os.path.join(training_logs, candidate_dir)
+        logs_folder = [f.path for f in os.scandir(logs_dir) if f.is_dir()][0]
+        tp, pp, cp, ep, mbs, act_ckpt, num_mbs_act, act_per_pipe = get_config(candidate_dir)
+        
+        for f in os.listdir(logs_folder):
+            if f.endswith("0.txt"):
+                error_file = os.path.join(logs_folder, f)
                 error = find_error(error_file)
                 if error:
                     errors.append(
                         [
                             model_name,
                             model_size,
-                            enc_seq_len,
+                            seq_length,
                             tp,
+                            pp,
                             cp,
                             ep,
-                            pp,
                             mbs,
-                            act_ckpt_layers,
+                            act_ckpt,
                             num_mbs_act,
                             act_per_pipe,
                             layers,
                             hs,
                             ffn_hs,
-                            gbs,
-                            nodes,
+                            global_batch_size,
+                            num_nodes,
                             gpus_per_node,
                             error,
                         ]
                     )
 
-        files = os.listdir(os.path.join(training_logs, candidate_dir, "results"))
+        files = os.listdir(logs_folder)
         for f in files:
-            if f[:6] == "events":
-                event_file = os.path.join(training_logs, candidate_dir, "results", f)
+            if f.startswith("events"):
+                event_file = os.path.join(logs_folder, f)
                 ea = event_accumulator.EventAccumulator(event_file)
                 ea.Reload()
                 try:
@@ -178,39 +155,39 @@ def main(cfg):
                         continue
                     timing_list = [x.value for x in timing_list[5:]]
                     avg_global_step_time = round(sum(timing_list) / len(timing_list), 4)
-                    samples_per_s = round(gbs / avg_global_step_time, 2)
+                    samples_per_s = round(global_batch_size / avg_global_step_time, 2)
                     m_tflops, m_tflops_gpu = calculate_tflops(
                         model_name=model_name,
-                        gbs=gbs,
-                        enc_seq_len=enc_seq_len,
-                        dec_seq_len=dec_seq_len,
+                        gbs=global_batch_size,
+                        enc_seq_len=seq_length,
+                        dec_seq_len=seq_length,
                         hs=hs,
                         ffn_hs=ffn_hs,
                         layers=layers,
-                        vocab=vocab,
-                        nodes=nodes,
+                        vocab=vocab_size,
+                        nodes=num_nodes,
                         gpus_per_node=gpus_per_node,
                         time_per_step=avg_global_step_time,
                     )
-                    config_name = f"tp{tp}_pp{pp}_cp{cp}_ep{ep}_mbs{mbs}_act_{act_ckpt_layers}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}"
+                    config_name = f"tp{tp}_pp{pp}_cp{cp}_ep{ep}_mbs{mbs}_act_{act_ckpt}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}"
                     result.append(
                         [
                             model_name,
                             model_size,
-                            enc_seq_len,
+                            seq_length,
                             tp,
                             pp,
                             cp,
                             ep,
                             mbs,
-                            act_ckpt_layers,
+                            act_ckpt,
                             num_mbs_act,
                             act_per_pipe,
                             layers,
                             hs,
                             ffn_hs,
-                            gbs,
-                            nodes,
+                            global_batch_size,
+                            num_nodes,
                             gpus_per_node,
                             avg_global_step_time,
                             samples_per_s,
@@ -221,7 +198,6 @@ def main(cfg):
                     )
                 finally:
                     continue
-
     result.sort(key=lambda x: x[15])
     print(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
     for i, res in enumerate(result):
@@ -229,25 +205,19 @@ def main(cfg):
         if i + 1 == output_top_n:
             break
 
-    top_config = f"{model_name}_{model_size}b_{nodes}nodes_tp_{result[0][3]}_pp_{result[0][4]}_cp_{result[0][5]}_ep_{result[0][6]}_mbs_{result[0][7]}_act_ckpt_{result[0][8]}_num_mbs_act_{result[0][9]}_act_per_pipe_{result[0][10]}"
+    top_config = f"{model_name}_{model_size}b_{num_nodes}nodes_tp_{result[0][3]}_pp_{result[0][4]}_cp_{result[0][5]}_ep_{result[0][6]}_mbs_{result[0][7]}_act_ckpt_{result[0][8]}_num_mbs_act_{result[0][9]}_act_per_pipe_{result[0][10]}"
     print("\n==================================================")
     print(f"Optimal config: {top_config} with {result[0][14]:.4f}s per global step.")
-    print(f"Saving config to {final_result_logs}/optimal_config_{model_size}b_{nodes}nodes.yaml.")
+    print(f"Saving config to {final_result_logs}/optimal_config_{model_size}b_{num_nodes}nodes.yaml.")
     print("==================================================\n")
 
     # Save results as a CSV file.
     os.makedirs(final_result_logs, exist_ok=True)
     result_df = pd.DataFrame(result, columns=result_columns)
-    result_df.to_csv(os.path.join(final_result_logs, f"final_summary_{nodes}nodes.csv"), index=False)
+    result_df.to_csv(os.path.join(final_result_logs, f"final_summary_{num_nodes}nodes.csv"), index=False)
 
     error_df = pd.DataFrame(errors, columns=error_columns)
-    error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{nodes}nodes.csv"), index=False)
-
-    copyfile(
-        os.path.join(candidate_configs, f"{top_config}.yaml"),
-        os.path.join(final_result_logs, f"optimal_config_{model_size}b_{nodes}nodes.yaml"),
-    )
-
+    error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{num_nodes}nodes.csv"), index=False)
 
 def calculate_tflops(
     model_name,
@@ -339,6 +309,16 @@ def find_error(error_file: str, errors: list = ["CUDA out of memory"]):
             error = e
     return error
 
+def get_config(run_name: str):
+    pattern = r'_(tp|pp|cp|ep|mbs|act_ckpt|num_mbs_act|act_per_pipe)_([^_]+)'
+
+    # Find all matches in the input string
+    matches = re.findall(pattern, run_name)
+
+    # Convert matches to a dictionary
+    params = {param: value for param, value in matches}
+
+    return params["tp"], params["pp"], params["cp"], params["ep"], params["mbs"], params["act_ckpt"], params["num_mbs_act"], params["act_per_pipe"]
 
 if __name__ == "__main__":
     main()
