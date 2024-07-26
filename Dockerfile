@@ -156,8 +156,8 @@ RUN /usr/bin/test -n "$NEMO_VERSION" && \
 RUN --mount=from=nemo-src,target=/tmp/nemo,rw cd /tmp/nemo && pip install ".[all]"
 
 # Check install
-TMP_LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${CUDA_HOME}/compat/lib.real
-RUN LD_LIBRARY_PATH=${TMP_LD_LIBRARY_PATH} python -c "import nemo.collections.asr as nemo_asr" && \
+RUN export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${CUDA_HOME}/compat/lib.real && \
+  python -c "import nemo.collections.asr as nemo_asr" && \
   python -c "import nemo.collections.nlp as nemo_nlp" && \
   python -c "import nemo.collections.tts as nemo_tts" && \
   python -c "import nemo_text_processing.text_normalization as text_normalization"
