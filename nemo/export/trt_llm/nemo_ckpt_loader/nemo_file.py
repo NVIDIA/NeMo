@@ -50,21 +50,6 @@ def is_nemo_file(path):
     return flag
 
 
-'''
-class TarFileSystemReader(FileSystemReader):
-    """Reader that accepts both Path and TarPath checkpoint directory.
-
-    The FileSystemReader works with TarPath, but expects a pure Path.
-    It's enough to skip the Path check in __init__.
-    """
-
-    def __init__(self, path: Union[Path, TarPath]) -> None:
-        """No call to super().__init__ because it expects pure Path."""
-        self.path = path
-        self.storage_data = dict()
-'''
-
-
 class TarFileSystemReader(FileSystemReader):
     """Reader that accepts both Path and TarPath checkpoint directory.
 
