@@ -114,7 +114,7 @@ def main(
         logs_dir = os.path.join(training_logs, candidate_dir)
         logs_folder = [f.path for f in os.scandir(logs_dir) if f.is_dir()][0]
         tp, pp, cp, ep, mbs, act_ckpt, num_mbs_act, act_per_pipe = get_config(candidate_dir)
-        
+
         for f in os.listdir(logs_folder):
             if f.endswith("0.txt"):
                 error_file = os.path.join(logs_folder, f)
@@ -219,6 +219,7 @@ def main(
     error_df = pd.DataFrame(errors, columns=error_columns)
     error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{num_nodes}nodes.csv"), index=False)
 
+
 def calculate_tflops(
     model_name,
     gbs,
@@ -309,6 +310,7 @@ def find_error(error_file: str, errors: list = ["CUDA out of memory"]):
             error = e
     return error
 
+
 def get_config(run_name: str):
     pattern = r'_(tp|pp|cp|ep|mbs|act_ckpt|num_mbs_act|act_per_pipe)_([^_]+)'
 
@@ -318,7 +320,17 @@ def get_config(run_name: str):
     # Convert matches to a dictionary
     params = {param: value for param, value in matches}
 
-    return params["tp"], params["pp"], params["cp"], params["ep"], params["mbs"], params["act_ckpt"], params["num_mbs_act"], params["act_per_pipe"]
+    return (
+        params["tp"],
+        params["pp"],
+        params["cp"],
+        params["ep"],
+        params["mbs"],
+        params["act_ckpt"],
+        params["num_mbs_act"],
+        params["act_per_pipe"],
+    )
+
 
 if __name__ == "__main__":
     main()
