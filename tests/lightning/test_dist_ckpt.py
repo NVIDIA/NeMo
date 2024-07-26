@@ -1,14 +1,16 @@
 import os
+import types
 from pathlib import Path
+from typing import Optional, Tuple
 
 import pytest
 import pytorch_lightning as pl
 import torch
-from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
 
 import nemo.lightning as nl
 from nemo.collections import llm
 from nemo.lightning.io.pl import MegatronCheckpointIO
+from nemo.utils.apex_utils import _reconfigure_microbatch_calculator
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
 
 
@@ -39,7 +41,7 @@ def get_model_and_data():
         seq_length=seq_length,
         apply_query_key_layer_scaling=1,
     )
-    reconfigure_num_microbatches_calculator(
+    _reconfigure_microbatch_calculator(
         0,
         None,
         global_batch_size,
