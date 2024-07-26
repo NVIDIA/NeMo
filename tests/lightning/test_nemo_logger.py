@@ -74,7 +74,7 @@ class TestNeMoLogger:
         assert ptl_ckpt.filename == "test-{epoch:02d}-{val_loss:.2f}"
 
     def test_resume(self, trainer, tmp_path):
-        """Tests the resume capabilities of exp_manager"""
+        """Tests the resume capabilities of NeMoLogger + AutoResume"""
 
         if os.environ.get(NEMO_ENV_VARNAME_VERSION, None) is not None:
             del os.environ[NEMO_ENV_VARNAME_VERSION]
