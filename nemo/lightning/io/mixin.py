@@ -13,7 +13,8 @@ from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
 
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
-from cloudpickle import dump, load as pickle_load
+from cloudpickle import dump
+from cloudpickle import load as pickle_load
 from fiddle._src.experimental import serialization
 from typing_extensions import Self
 
@@ -524,6 +525,7 @@ def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: P
         except ValueError:
             pass
 
+
 def _artifact_transform_load(cfg: fdl.Config, path: Path):
     for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
         current_val = getattr(cfg, artifact.attr)
@@ -537,6 +539,7 @@ def _artifact_transform_load(cfg: fdl.Config, path: Path):
                 _artifact_transform_load(getattr(cfg, attr), path=path)
         except ValueError:
             pass
+
 
 def load(path: Path, output_type: Type[CkptType] = Any) -> CkptType:
     """
