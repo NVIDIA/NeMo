@@ -1,4 +1,3 @@
-import threading
 from pathlib import Path
 from typing import Any, Callable, Optional, Type, TypeVar
 
