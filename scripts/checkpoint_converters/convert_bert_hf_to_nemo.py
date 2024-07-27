@@ -19,7 +19,7 @@ Example to run this conversion script:
      --input_name_or_path /path/to/hf/checkpoints/folder \
      --output_path /path/to/output/nemo/file.nemo \
      --mcore True \
-     --precision bf16
+     --precision 32
 ```
 """
 
@@ -35,10 +35,8 @@ from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 
 
-def adjust_nemo_config(model_config, ref_config, mcore_bert=True):
-    model_config.tokenizer["type"] = ref_config["_name_or_path"]
-    model_config.tokenizer["library"] = "huggingface"
-    model_config.tokenizer["use_fast"] = True
+def adjust_nemo_config(model_config, ref_config, args, mcore_bert=True):
+    model_config.tokenizer["type"] = args.input_name_or_path
     model_config["max_position_embeddings"] = ref_config['max_position_embeddings']
     model_config["num_layers"] = ref_config["num_hidden_layers"]
     model_config["hidden_size"] = ref_config["hidden_size"]
@@ -81,7 +79,7 @@ def convert(args):
     hf_model = AutoModel.from_pretrained(args.input_name_or_path)
 
     nemo_config = OmegaConf.load(args.hparams_file)
-    nemo_config.model = adjust_nemo_config(nemo_config.model, hf_model.config.to_dict(), mcore_bert=args.mcore)
+    nemo_config.model = adjust_nemo_config(nemo_config.model, hf_model.config.to_dict(), args, mcore_bert=args.mcore)
 
     nemo_config.trainer["precision"] = args.precision
     trainer = MegatronTrainerBuilder(nemo_config).create_trainer()
