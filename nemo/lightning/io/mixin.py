@@ -530,7 +530,7 @@ def _artifact_transform_load(cfg: fdl.Config, path: Path):
     for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
         current_val = getattr(cfg, artifact.attr)
         ## replace local path with absolute one
-        new_val = Path(path) / current_val
+        new_val = str(Path(path) / current_val)
         setattr(cfg, artifact.attr, new_val)
 
     for attr in dir(cfg):
