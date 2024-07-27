@@ -132,7 +132,7 @@ WORKDIR /tmp/nemo
 ENV LHOTSE_REQUIRE_TORCHAUDIO=0
 COPY requirements .
 # exclude requirements_vllm.txt, since `vllm==0.5.x` breaks the container due to hardcoded requirements `torch==2.3.0`
-RUN for f in $(ls requirements*.txt | grep -v 'requirements_vllm.txt'); do \
+RUN for f in $(ls requirements*.txt | grep -v 'requirements_infer.txt' | grep -v 'requirements_service.txt'); do \
     pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
 
 # install flash attention
