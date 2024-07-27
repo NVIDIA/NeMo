@@ -225,11 +225,14 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
             output_tensor = model(**forward_args)
 
             def loss_func(output_tensor):
-                # [ModelOpt] KD Loss for a micro-batch (ub)
-                unwrapped_model = unwrap_model(model, (Float16Module, MCoreFloat16Module))
-                loss_for_ub = unwrapped_model.compute_kd_loss(
-                    loss_reduction_fn=lambda x: self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], x)
-                )
+                if validation_step:
+                    loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor, validation_step=True)
+                else:
+                    # [ModelOpt] KD Loss for a micro-batch (ub)
+                    unwrapped_model = unwrap_model(model, (Float16Module, MCoreFloat16Module))
+                    loss_for_ub = unwrapped_model.compute_kd_loss(
+                        loss_reduction_fn=lambda x: self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], x)
+                    )
                 cp_size = parallel_state.get_context_parallel_world_size()
                 if validation_step and not self.validation_drop_last:
                     num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
@@ -261,10 +264,10 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
 
         return fwd_output_and_loss_func
 
-    def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
+    def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor, validation_step=False):
         loss = super().loss_func(loss_mask, num_valid_tokens_in_ub, output_tensor)
-        # [ModelOpt] KD loss requires extra all-reduce to ensure same values across MP-TP partitions.
-        if self.cfg.tensor_model_parallel_size > 1:
+        if not validation_step and self.cfg.tensor_model_parallel_size > 1:
+            # [ModelOpt] KD loss requires extra all-reduce to ensure same values across MP-TP partitions.
             loss = torch.sum(tensor_parallel.gather_from_tensor_model_parallel_region(loss.reshape(1)))
         return loss
 
