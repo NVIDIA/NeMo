@@ -445,21 +445,32 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         return self.multi_evaluation_epoch_end(outputs, dataloader_idx, 'test')
 
     @torch.no_grad()
-    def infer_file(self, path2audio_file):
+    def infer_file(self, sourceAudio: Union[str, np.ndarray[np.float32]]):
         """
         Args:
-            path2audio_file: path to an audio wav file
+            audioFile: path to an audio wav file
+            audioData: audio data in bytes
 
         Returns:
             emb: speaker embeddings (Audio representations)
             logits: logits corresponding of final layer
         """
-        audio, sr = sf.read(path2audio_file)
+        if isinstance(sourceAudio, str):
+            audio, sr = sf.read(sourceAudio, dtype="float32")
+            print(f"shape of audio after reading from ifle: {audio.shape}")
+            print(f"the audio in infer_file when filereading: {audio}")
+        elif isinstance(sourceAudio, np.ndarray):
+            print(f"shape of audio after reading from arr: {sourceAudio.shape}")
+            audio, sr = sourceAudio, 16000
+            print(f"the audio in infer_file when arr: {audio}")
+
         target_sr = self._cfg.train_ds.get('sample_rate', 16000)
         if sr != target_sr:
             audio = librosa.core.resample(audio, orig_sr=sr, target_sr=target_sr)
         audio_length = audio.shape[0]
+        print(f"shape of audio inside model: {audio.shape}")
         device = self.device
+        # if not isinstance(sourceAudio, np.ndarray):
         audio = np.array([audio])
         audio_signal, audio_signal_len = (
             torch.tensor(audio, device=device, dtype=torch.float32),
@@ -551,18 +562,18 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
 
         return label
 
-    def get_embedding(self, path2audio_file):
+    def get_embedding(self, sourceAudio: Union[str, np.ndarray[np.float32]]):
         """
         Returns the speaker embeddings for a provided audio file.
 
         Args:
-            path2audio_file: path to an audio wav file
+            sourceAudio: path to an audio wav file or audio data in bytes
 
         Returns:
             emb: speaker embeddings (Audio representations)
         """
 
-        emb, _ = self.infer_file(path2audio_file=path2audio_file)
+        emb, _ = self.infer_file(sourceAudio=sourceAudio)
 
         return emb
 
