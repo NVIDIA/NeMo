@@ -95,7 +95,7 @@ def load_model(cls, checkpoint, strict, **kwargs):
     return model
 
 
-def load_config(mistral_config, tokenizer_path):
+def load_config(mistral_config, config_path):
     nemo_config = OmegaConf.load(
         os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')
     ).model
@@ -127,11 +127,23 @@ def load_config(mistral_config, tokenizer_path):
     if 'tokenizer_model' in mistral_config:
         nemo_config.tokenizer.model = mistral_config['tokenizer_model']
     else:
-        # Llama3 uses converted TikToken Tokenizer
+        # Load tekken.json, extract the 'vocab' field & write it to file.
+        vocab_path = os.path.join(config_path, 'tekken.json')
+        assert os.path.exists(vocab_path), f"Expected {vocab_path} to exist"
+        with open(vocab_path, 'rt') as fp:
+            tok_vocab = json.load(fp)
+        vocab_output_path = '/tmp/tekken.json'
+        if os.path.exists(vocab_output_path):
+            os.remove(vocab_output_path)
+        with open(vocab_output_path, 'wt') as fp:
+            json.dump(tok_vocab['vocab'], fp)
+        assert os.path.exists(vocab_output_path), f"Expected {vocab_output_path} to exist"
+        assert os.path.getsize(vocab_output_path) > 0, f"Expected {vocab_output_path} to be non-empty"
+
         tokenizer_dict = {
             'library': 'tiktoken',
             'type': 'tiktoken',
-            'vocab_file': '/mnt/4tb/mistral_conversion/tekken_ift2.json',
+            'vocab_file': vocab_output_path,
             'model': None,
             'merge_file': None,
             'delimiter': None,
@@ -169,7 +181,7 @@ def convert(args):
     logging.info(f"loading checkpoint {args.input_name_or_path}")
 
     model_args, ckpt, tokenizer = load_mistral_ckpt(args.input_name_or_path)
-    nemo_config = load_config(model_args, os.path.join(args.input_name_or_path, 'tokenizer.model'))
+    nemo_config = load_config(model_args, args.input_name_or_path)
     logging.info(f"loaded checkpoint {args.input_name_or_path}")
 
     if args.precision in ["32", "16"]:
