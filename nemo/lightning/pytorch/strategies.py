@@ -111,6 +111,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_parallel_save_within_dp=False,
         ckpt_parallel_load=False,
         ckpt_parallel_save_optim=True,
+        ckpt_load_directly_on_device=True,
+        setup_optimizers: bool = True,
+        init_model_parallel: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -133,6 +136,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.lazy_init = lazy_init
         self.ckpt_include_optimizer = ckpt_include_optimizer
         self.pipeline_dtype = pipeline_dtype
+        self._setup_optimizers = setup_optimizers
+        self._init_model_parallel = init_model_parallel
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
         self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
 
@@ -143,10 +148,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.parallel_save_within_dp = ckpt_parallel_save_within_dp
         self.parallel_load = ckpt_parallel_load
         self.parallel_save_optim = ckpt_parallel_save_optim
+        self.load_directly_on_device = ckpt_load_directly_on_device
 
         self._ddp = ddp
         if ddp == "megatron":
-            self.ddp_config = DistributedDataParallelConfig()
+            self.ddp_config = DistributedDataParallelConfig(check_for_nan_in_grad=True)
         elif isinstance(ddp, DistributedDataParallelConfig):
             self.ddp_config = ddp
         elif ddp == "pytorch":
@@ -182,7 +188,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     ddp_config.use_distributed_optimizer = mcore_opt_config.use_distributed_optimizer
 
     @override
-    def setup(self, trainer: pl.Trainer, setup_optimizers: bool = True) -> None:
+    def setup(self, trainer: pl.Trainer) -> None:
         assert self.accelerator is not None
         self.accelerator.setup(trainer)
         self.trainer = trainer
@@ -201,12 +207,13 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if not self.data_sampler and hasattr(datamodule, "data_sampler"):
             self.data_sampler = datamodule.data_sampler
             self.data_sampler.setup(self.cluster_environment.global_rank())
+            datamodule.reconfigure_limit_batches()
 
         if self.data_sampler:
             self.data_sampler.connect(trainer)
 
         self._fix_progress_bar(trainer)
-        self.setup_megatron_parallel(trainer, setup_optimizers=setup_optimizers)
+        self.setup_megatron_parallel(trainer)
         self.setup_precision_plugin()
 
         if getattr(self.lightning_module, "model_transform", None):
@@ -273,7 +280,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         return dataloader
 
-    def setup_megatron_parallel(self, trainer: pl.Trainer, setup_optimizers: bool = True) -> None:
+    def setup_megatron_parallel(self, trainer: pl.Trainer) -> None:
         assert self.model is not None, "Model is not set"
 
         convert_module_fn = None
@@ -288,6 +295,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             ddp_config=self.ddp_config,
             convert_module_fn=convert_module_fn,
         )
+
+        if self._init_model_parallel:
+            self.init_model_parallel()
+
         self.megatron_parallel.trainer = trainer
 
         # check signature-def of self.model.configure_optimizers to check if there's an optional arg: megatron_parallel
@@ -297,17 +308,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 self.model.configure_optimizers, megatron_parallel=self.megatron_parallel
             )
 
-        if setup_optimizers:
+        if self._setup_optimizers:
             self.setup_optimizers(trainer)
-
-        # TODO: Throw an execption if we have a mcore optimizer and no ddp_config
-
-        if hasattr(self.precision_plugin, "convert_optimizer"):
-            _optimizers = [*self.optimizers]
-            _optimizers[0] = self.precision_plugin.convert_optimizer(self.optimizers[0])
-            self.optimizers = _optimizers
-
-        _optimizers_to_device(self.optimizers, self.root_device)
 
         self.model = self.megatron_parallel
         self.model.callbacks.add(getattr(trainer, "callbacks"))
@@ -318,6 +320,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         datamodule = getattr(trainer, "datamodule", None)
         if datamodule:
             self.model.callbacks.add(datamodule)
+
+    def init_model_parallel(self):
+        self.megatron_parallel.init_model_parallel()
 
     @override
     def configure_ddp(self) -> None:
@@ -350,6 +355,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             model = dist_data_parallel
 
         return model
+
+    @override
+    def setup_optimizers(self, trainer: "pl.Trainer") -> None:
+        super().setup_optimizers(trainer)
+        if hasattr(self.precision_plugin, "convert_optimizer"):
+            _optimizers = [*self.optimizers]
+            _optimizers[0] = self.precision_plugin.convert_optimizer(self.optimizers[0])
+            self.optimizers = _optimizers
+
+        _optimizers_to_device(self.optimizers, self.root_device)
 
     def _setup_parallel_ranks(self) -> None:
         self.set_world_ranks()
@@ -427,7 +442,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         kwargs = self._update_step_kwargs(dataloader_iter, kwargs, "validation")
 
         with self.precision_plugin.val_step_context():  # TODO: Do we need this?
-            return self.model(dataloader_iter, forward_only=True, *args, **kwargs)
+            out = self.model(dataloader_iter, forward_only=True, *args, **kwargs)
+            self.lightning_module.log('val_loss', out, rank_zero_only=True, batch_size=1)
+            return out
 
     @override
     def test_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
@@ -570,6 +587,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 parallel_save=self.parallel_save,
                 parallel_save_within_dp=self.parallel_save_within_dp,
                 parallel_load=self.parallel_load,
+                load_directly_on_device=self.load_directly_on_device,
             )
             if async_save:
                 self._checkpoint_io = AsyncFinalizableCheckpointIO(self._checkpoint_io)

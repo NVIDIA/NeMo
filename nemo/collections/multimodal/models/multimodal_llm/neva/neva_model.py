@@ -66,18 +66,11 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
 try:
-    import apex.transformer.pipeline_parallel.utils
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
     from megatron.core import InferenceParams, dist_checkpointing, parallel_state, tensor_parallel
+    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
+    from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
 
@@ -86,6 +79,12 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+
+def skip_fp8_load(x):
+    if isinstance(x, ShardedObject) and 'fused_attention' in x.key and '_extra_state' in x.key:
+        x = LocalNonpersitentObject(x.data)  # use the FP8 state from initialization, not from ckpt
+    return x
 
 
 class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
@@ -396,8 +395,8 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
                 t_token_start, t_token_end = start, start + T
                 s_token_start, s_token_end = start + T, start + T + M
                 assert s_token_end == end + 1, "Token replacement error"
-                inputs_embeds[idx, t_token_start:t_token_end] = temporal_tokens[idx]
-                inputs_embeds[idx, s_token_start:s_token_end] = spatial_tokens[idx]
+                inputs_embeds[idx, t_token_start:t_token_end] = t_tokens[idx]
+                inputs_embeds[idx, s_token_start:s_token_end] = s_tokens[idx]
             elif self.visual_token_format == 'im_vid_start_end':  # v1.5 lita
                 if not self.use_media_start_end:
                     # replace the media start and media end embedding with
@@ -479,11 +478,10 @@ class NevaBaseModel:
     def create_vision_encoder_and_processor(self, mm_cfg):
         # Initialize vision encoder and freeze it
         if mm_cfg.vision_encoder.get("from_hf", False):
-            if (
-                "clip" in mm_cfg.vision_encoder.from_pretrained
-                or "vit" in mm_cfg.vision_encoder.from_pretrained
-                or "clip" in mm_cfg.vision_encoder.get("model_type", "")
-            ):
+            from transformers import AutoConfig
+
+            config = AutoConfig.from_pretrained(mm_cfg.vision_encoder.from_pretrained)
+            if config.architectures[0] == "CLIPVisionModel":
                 vision_encoder = CLIPVisionModel.from_pretrained(
                     mm_cfg.vision_encoder.from_pretrained,
                     torch_dtype=torch.bfloat16,
@@ -493,9 +491,7 @@ class NevaBaseModel:
                     for param in vision_encoder.parameters():
                         param.requires_grad = False
                     vision_encoder = vision_encoder.eval()
-            elif "siglip" in mm_cfg.vision_encoder.from_pretrained or "siglip" in mm_cfg.vision_encoder.get(
-                "model_type", ""
-            ):
+            elif config.architectures[0] == "SiglipVisionModel":
                 vision_encoder = SiglipVisionModel.from_pretrained(
                     mm_cfg.vision_encoder.from_pretrained,
                     torch_dtype=torch.bfloat16,
@@ -530,6 +526,9 @@ class NevaBaseModel:
         sharded_state_dict = None
         if getattr(self, "sharded_state_dict", None) is not None:
             sharded_state_dict = self.sharded_state_dict(prefix="model.")
+        # WAR: This is a temporary fix to skip loading FP8 parameters for Dot Product Attention
+        # TODO(yuya): Check if this skip affecting fp8 native checkpoints loading
+        dict_list_map_inplace(skip_fp8_load, sharded_state_dict)
         state_dict, self.is_dist_ckpt = load_nemo_model_weights(nemo_path, sharded_state_dict)
 
         return state_dict
@@ -740,8 +739,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 config=self.transformer_config,
                 transformer_layer_spec=get_specs(
                     self.spec_name,
-                    self.transformer_config.num_moe_experts,
-                    self.transformer_config.moe_grouped_gemm,
+                    self.transformer_config,
                     self.transformer_engine,
                 ),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
