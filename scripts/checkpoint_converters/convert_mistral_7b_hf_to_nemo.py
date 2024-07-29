@@ -266,9 +266,12 @@ def convert(args):
         new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
         new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
 
-        print("ckpt[f'model.layers.{l}.self_attn.q_proj.weight'].shape= ",
-              ckpt[f'model.layers.{l}.self_attn.q_proj.weight'].shape,
-              " new_q_tensor_shape= ", new_q_tensor_shape)
+        print(
+            "ckpt[f'model.layers.{l}.self_attn.q_proj.weight'].shape= ",
+            ckpt[f'model.layers.{l}.self_attn.q_proj.weight'].shape,
+            " new_q_tensor_shape= ",
+            new_q_tensor_shape,
+        )
         q = ckpt[f'model.layers.{l}.self_attn.q_proj.weight'].view(*new_q_tensor_shape)
         k = ckpt[f'model.layers.{l}.self_attn.k_proj.weight'].view(*new_kv_tensor_shape)
         v = ckpt[f'model.layers.{l}.self_attn.v_proj.weight'].view(*new_kv_tensor_shape)
