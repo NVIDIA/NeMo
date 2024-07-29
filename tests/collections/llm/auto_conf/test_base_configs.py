@@ -12,7 +12,7 @@ def get_class_name(config_cls):
     config_cls_name = None
     if match:
         config_cls_name = match.group(1)
-    
+
     return config_cls_name
 
 

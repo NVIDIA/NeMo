@@ -25,7 +25,7 @@ class TestGenerateConfgis:
             global_batch_size=256,
             tensor_parallel_sizes=[4],
             pipeline_parallel_sizes=[2],
-            micro_batch_sizes=[1,2],
+            micro_batch_sizes=[1, 2],
             context_parallel_sizes=[1],
             expert_parallel_sizes=[1],
             min_model_parallel_size=8,
