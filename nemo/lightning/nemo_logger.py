@@ -139,25 +139,27 @@ class NeMoLogger(IOMixin):
         loggers = [self.tensorboard, self.wandb, *self.extra_loggers]
         loggers = [logger for logger in loggers if logger is not None]
 
-        if self.update_logger_directory and self.wandb:
-            self.wandb._save_dir = dir
-            self.wandb._wandb_init["dir"] = dir
-            self.wandb._wandb_init["name"] = self.name
-            self.wandb._name = self.name
-
         if loggers:
             if trainer.logger is not None and not self.tensorboard:
                 loggers = [trainer.logger] + loggers
             trainer._logger_connector.configure_logger(loggers)
 
-        if trainer.logger is not None:
-            trainer.logger._version = version or ""
-            if self.update_logger_directory:
-                logging.warning(
-                    f'"update_logger_directory" is True. Overwriting logger "save_dir" to {dir} and "name" to {self.name}'
-                )
-                trainer.logger._root_dir = dir
-                trainer.logger._name = self.name
+        if self.update_logger_directory:
+            for logger in trainer.loggers:
+                if isinstance(logger, TensorBoardLogger):
+                    logger._root_dir = Path(dir) / logger.save_dir
+                    trainer.logger._name = self.name
+                    logging.warning(
+                        f'"update_logger_directory" is True. Overwriting tensorboard logger "save_dir" to {logger._root_dir}'
+                    )
+                elif isinstance(logger, WandbLogger):
+                    logger._save_dir = Path(dir) / logger.save_dir
+                    logger._wandb_init["dir"] = Path(dir) / logger.save_dir
+                    logger._wandb_init["name"] = self.name
+                    logger._name = self.name
+                    logging.warning(
+                        f'"update_logger_directory" is True. Overwriting wandb logger "save_dir" to {logger._save_dir}'
+                    )
 
     def _setup_trainer_model_checkpoint(self, trainer, log_dir, ckpt=None):
         if ckpt:
