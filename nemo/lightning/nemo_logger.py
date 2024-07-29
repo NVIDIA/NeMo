@@ -202,10 +202,13 @@ class NeMoLogger(IOMixin):
                 ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + '-last'
 
     def _handle_task_config(self, task_config, log_dir):
-        task_config.save_config_img(log_dir / "task.png")
-        task_json = serialization.dump_json(task_config)
-        with open(log_dir / "task.json", "w") as f:
-            f.write(task_json)
+        try:
+            task_config.save_config_img(log_dir / "task.png")
+            task_json = serialization.dump_json(task_config)
+            with open(log_dir / "task.json", "w") as f:
+                f.write(task_json)
+        except Exception as e:
+            logging.warning(f'Saving task config failed: {e}. Skipping saving')
 
     def _setup_file_logging(self, log_dir):
         """Set up file logging based on rank settings."""
