@@ -100,13 +100,17 @@ def load_config(mistral_config, tokenizer_path):
         os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')
     ).model
     # akoumparouli: verify this.
-    nemo_config.encoder_seq_length = mistral_config['sliding_window']
+    if mistral_config.get('sliding_window', None) is not None:
+        nemo_config.encoder_seq_length = mistral_config['sliding_window']
+    else:
+        nemo_config.encoder_seq_length = mistral_config['max_position_embeddings']
     nemo_config.num_layers = int(mistral_config['num_hidden_layers'])
     nemo_config.hidden_size = mistral_config['hidden_size']
     nemo_config.ffn_hidden_size = mistral_config['intermediate_size']
     nemo_config.num_attention_heads = mistral_config['num_attention_heads']
     nemo_config.max_position_embeddings = mistral_config['max_position_embeddings']
-    nemo_config.window_size = [mistral_config['sliding_window'], 0]
+    if mistral_config.get('sliding_window', None) is not None:
+        nemo_config.window_size = [mistral_config['sliding_window'], 0]
     nemo_config.init_method_std = mistral_config['initializer_range']
     # RMSNorm's epsilon.
     nemo_config.layernorm_epsilon = mistral_config['rms_norm_eps']
@@ -118,7 +122,24 @@ def load_config(mistral_config, tokenizer_path):
     # Mistral uses SiLU, but it is the same as swish with beta = 1.
     nemo_config.activation = 'fast-swiglu'
 
-    nemo_config.tokenizer.model = tokenizer_path
+    # nemo_config.tokenizer.model = tokenizer_path
+    # Tokenizer config
+    if 'tokenizer_model' in mistral_config:
+        nemo_config.tokenizer.model = mistral_config['tokenizer_model']
+    else:
+        # Llama3 uses converted TikToken Tokenizer
+        tokenizer_dict = {
+            'library': 'tiktoken',
+            'type': 'tiktoken',
+            'vocab_file': '/mnt/4tb/mistral_conversion/tekken_ift2.json',
+            'model': None,
+            'merge_file': None,
+            'delimiter': None,
+            'sentencepiece_legacy': False
+        }
+        nemo_config.tokenizer = tokenizer_dict
+
+    # nemo_config.tokenizer.model = tokenizer_path
     # TODO(@akoumparouli): rope_scaling.
     nemo_config['rotary_base'] = mistral_config['rope_theta']
 
@@ -197,7 +218,7 @@ def convert(args):
 
     hidden_size = nemo_config.hidden_size
     head_num = nemo_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = model_args.get('head_dim', hidden_size // head_num)
     num_layers = nemo_config.num_layers
 
     mcore_gpt = nemo_config.mcore_gpt
@@ -232,6 +253,9 @@ def convert(args):
         new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
         new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
 
+        print("ckpt[f'model.layers.{l}.self_attn.q_proj.weight'].shape= ",
+              ckpt[f'model.layers.{l}.self_attn.q_proj.weight'].shape,
+              " new_q_tensor_shape= ", new_q_tensor_shape)
         q = ckpt[f'model.layers.{l}.self_attn.q_proj.weight'].view(*new_q_tensor_shape)
         k = ckpt[f'model.layers.{l}.self_attn.k_proj.weight'].view(*new_kv_tensor_shape)
         v = ckpt[f'model.layers.{l}.self_attn.v_proj.weight'].view(*new_kv_tensor_shape)
