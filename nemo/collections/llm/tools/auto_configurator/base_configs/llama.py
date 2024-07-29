@@ -51,10 +51,9 @@ class Llama(Basic):
 
         model_class = getattr(llm, self.config_name)
         kwargs = self.cfg.get("model_args", {})
-        model_config = model_class(**kwargs)
+        model_config = Config(model_class, **kwargs)
 
         model_config.global_batch_size = self.global_batch_size
-        model_config.activations_checkpoint_method = None
         model_config.seq_length = self.seq_length
 
         return model_config
