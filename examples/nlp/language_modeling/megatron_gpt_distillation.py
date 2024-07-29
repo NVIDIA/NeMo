@@ -35,9 +35,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import (
     get_specs,
 )
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
@@ -50,40 +48,41 @@ mp.set_start_method("spawn", force=True)
 # These will be the values taken from the teacher's config file,
 # while the rest remain the same as student's.
 MODEL_ARCHITECHTURE_KEYS = [
-  "encoder_seq_length",
-  "max_position_embeddings",
-  "num_layers",
-  "hidden_size",
-  "ffn_hidden_size",
-  "num_attention_heads",
-  "init_method_std",
-  "use_scaled_init_method",
-  "hidden_dropout",
-  "attention_dropout",
-  "ffn_dropout",
-  "kv_channels",
-  "apply_query_key_layer_scaling",
-  "normalization",
-  "layernorm_epsilon",
-  "do_layer_norm_weight_decay",
-  "make_vocab_size_divisible_by",
-  "pre_process",
-  "post_process",
-  "persist_layer_norm",
-  "bias",
-  "activation",
-  "headscale",
-  "transformer_block_type",
-  "openai_gelu",
-  "normalize_attention_scores",
-  "position_embedding_type",
-  "rotary_percentage",
-  "attention_type",
-  "share_embeddings_and_output_weights",
-  "overlap_p2p_comm",
-  "batch_p2p_comm",
-  "num_query_groups",
+    "encoder_seq_length",
+    "max_position_embeddings",
+    "num_layers",
+    "hidden_size",
+    "ffn_hidden_size",
+    "num_attention_heads",
+    "init_method_std",
+    "use_scaled_init_method",
+    "hidden_dropout",
+    "attention_dropout",
+    "ffn_dropout",
+    "kv_channels",
+    "apply_query_key_layer_scaling",
+    "normalization",
+    "layernorm_epsilon",
+    "do_layer_norm_weight_decay",
+    "make_vocab_size_divisible_by",
+    "pre_process",
+    "post_process",
+    "persist_layer_norm",
+    "bias",
+    "activation",
+    "headscale",
+    "transformer_block_type",
+    "openai_gelu",
+    "normalize_attention_scores",
+    "position_embedding_type",
+    "rotary_percentage",
+    "attention_type",
+    "share_embeddings_and_output_weights",
+    "overlap_p2p_comm",
+    "batch_p2p_comm",
+    "num_query_groups",
 ]
+
 
 class DistillationMegatronGPTModel(MegatronGPTModel):
     """ModelOpt Distillation-enabled subclass of `MegatronGPTModel`."""
@@ -226,12 +225,16 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
 
             def loss_func(output_tensor):
                 if validation_step:
-                    loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor, validation_step=True)
+                    loss_for_ub = self.loss_func(
+                        batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor, validation_step=True
+                    )
                 else:
                     # [ModelOpt] KD Loss for a micro-batch (ub)
                     unwrapped_model = unwrap_model(model, (Float16Module, MCoreFloat16Module))
                     loss_for_ub = unwrapped_model.compute_kd_loss(
-                        loss_reduction_fn=lambda x: self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], x)
+                        loss_reduction_fn=lambda x: self.loss_func(
+                            batch['loss_mask'], batch['num_valid_tokens_in_ub'], x
+                        )
                     )
                 cp_size = parallel_state.get_context_parallel_world_size()
                 if validation_step and not self.validation_drop_last:
@@ -379,9 +382,7 @@ class LogitsKLLoss(BaseLoss):
             denom_teacher = torch.sum(torch.exp(output_teacher), dim=-1)
             # We can't use `gather_from_tensor_model_parallel_region` here since it discards
             # gradients from other ranks - we need to all_reduce the gradients as well.
-            denom_teacher = all_reduce_autograd(
-                denom_teacher, group=get_tensor_model_parallel_group()
-            )
+            denom_teacher = all_reduce_autograd(denom_teacher, group=get_tensor_model_parallel_group())
 
             # Maximum value along vocab dimension across all GPUs.
             student_logits_max, _ = torch.max(output_student, dim=-1)
@@ -396,8 +397,12 @@ class LogitsKLLoss(BaseLoss):
             denom_student = all_reduce_autograd(denom_student, group=get_tensor_model_parallel_group())
 
             slen, bsz, sharded_vocab_size = output_student.shape
-            student_log_prob = output_student - torch.log(denom_student).view(slen, bsz, 1).expand(slen, bsz, sharded_vocab_size)
-            teacher_log_prob = output_teacher - torch.log(denom_teacher).view(slen, bsz, 1).expand(slen, bsz, sharded_vocab_size)
+            student_log_prob = output_student - torch.log(denom_student).view(slen, bsz, 1).expand(
+                slen, bsz, sharded_vocab_size
+            )
+            teacher_log_prob = output_teacher - torch.log(denom_teacher).view(slen, bsz, 1).expand(
+                slen, bsz, sharded_vocab_size
+            )
 
             if self._reverse:
                 loss = torch.sum(
@@ -413,12 +418,16 @@ class LogitsKLLoss(BaseLoss):
         else:
             if self._reverse:
                 loss = torch.sum(
-                    F.kl_div(F.log_softmax(output_teacher, dim=-1), F.softmax(output_student, dim=-1), reduction="none"),
+                    F.kl_div(
+                        F.log_softmax(output_teacher, dim=-1), F.softmax(output_student, dim=-1), reduction="none"
+                    ),
                     dim=-1,
                 )
             else:
                 loss = torch.sum(
-                    F.kl_div(F.log_softmax(output_student, dim=-1), F.softmax(output_teacher, dim=-1), reduction="none"),
+                    F.kl_div(
+                        F.log_softmax(output_student, dim=-1), F.softmax(output_teacher, dim=-1), reduction="none"
+                    ),
                     dim=-1,
                 )
 
@@ -427,6 +436,7 @@ class LogitsKLLoss(BaseLoss):
 
 class _AllReduce(torch.autograd.Function):
     """Implementation from old PyTorch `torch.distributed.nn.parallel`."""
+
     @staticmethod
     def forward(ctx, op, group, tensor):
         ctx.group, ctx.op = group, op
