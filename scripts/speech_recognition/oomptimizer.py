@@ -227,7 +227,7 @@ class FloatList(click.Option):
     "-f",
     "--memory-fraction",
     type=float,
-    default=0.95,
+    default=0.9,
     help="Limits the use of CUDA memory for this process to MEMORY_FRACTION of the total device memory. "
     "By default we force 5% memory to be unused to account for non-training-loop related CUDA memory usage"
     "in actual training scripts.",
@@ -390,7 +390,8 @@ def oomptimizer(
             try:
                 print(f"\tCurrent gap: {gen.current_rel_gap}. Attempting shapes: {[b.shape for b in batch]}", end=" ")
                 optimizer.zero_grad()
-                model.training_step(batch, batch_idx)
+                out = model.training_step(batch, batch_idx)
+                out['loss'].backward()
                 optimizer.step()
             except torch.cuda.OutOfMemoryError as e:
                 print(f"- OOM!")
