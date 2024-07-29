@@ -55,6 +55,7 @@ class AutoConfigurator:
         max_steps_per_run: Optional[int] = 50,
         vocab_size: Optional[int] = 51200,
         model_args: Optional[dict] = {},
+        custom_model: Optional[bool] = False,
     ):
         """
         :param str model_type: model type to be used for training.
@@ -82,6 +83,7 @@ class AutoConfigurator:
         :param Optional[int] max_steps_per_run: maximum number of steps per run for the grid search.
         :param Optional[int] vocab_size: size of tokenizer vocabulary.
         :param Optional[dict] model_args: additional args to add to mdoel config.
+        :param Optional[bool] custom_model: set to True if you want to use custom model.
         """
 
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {SUPPORTED_MODELS}."
