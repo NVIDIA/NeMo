@@ -95,7 +95,7 @@ def load_model(cls, checkpoint, strict, **kwargs):
     return model
 
 
-def load_config(mistral_config, config_path):
+def load_config(mistral_config, tokenizer, config_path):
     nemo_config = OmegaConf.load(
         os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')
     ).model
@@ -122,10 +122,9 @@ def load_config(mistral_config, config_path):
     # Mistral uses SiLU, but it is the same as swish with beta = 1.
     nemo_config.activation = 'fast-swiglu'
 
-    # nemo_config.tokenizer.model = tokenizer_path
     # Tokenizer config
-    if 'tokenizer_model' in mistral_config:
-        nemo_config.tokenizer.model = mistral_config['tokenizer_model']
+    if hasattr(tokenizer, 'vocab_file'):
+        nemo_config.tokenizer.model = tokenizer.vocab_file
     else:
         # Load tekken.json, extract the 'vocab' field & write it to file.
         vocab_path = os.path.join(config_path, 'tekken.json')
@@ -147,7 +146,7 @@ def load_config(mistral_config, config_path):
             'model': None,
             'merge_file': None,
             'delimiter': None,
-            'sentencepiece_legacy': False
+            'sentencepiece_legacy': False,
         }
         nemo_config.tokenizer = tokenizer_dict
 
@@ -181,7 +180,7 @@ def convert(args):
     logging.info(f"loading checkpoint {args.input_name_or_path}")
 
     model_args, ckpt, tokenizer = load_mistral_ckpt(args.input_name_or_path)
-    nemo_config = load_config(model_args, args.input_name_or_path)
+    nemo_config = load_config(model_args, tokenizer, args.input_name_or_path)
     logging.info(f"loaded checkpoint {args.input_name_or_path}")
 
     if args.precision in ["32", "16"]:
@@ -231,6 +230,8 @@ def convert(args):
     hidden_size = nemo_config.hidden_size
     head_num = nemo_config.num_attention_heads
     head_size = model_args.get('head_dim', hidden_size // head_num)
+    # Set this explictly because 2407 does not use hidden_size // num_attention_heads
+    nemo_config.kv_channels = head_size
     num_layers = nemo_config.num_layers
 
     mcore_gpt = nemo_config.mcore_gpt
