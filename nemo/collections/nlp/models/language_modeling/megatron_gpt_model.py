@@ -811,9 +811,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     module = module.module
                 if not self.mcore_gpt:
                     module = module.language_model
-                if hasattr(module, 'embedding'):
-                    for param in module.embedding.parameters():
-                        param.data_ptr()
+                # if hasattr(module, 'embedding'):
+                    # for param in module.embedding.parameters():
+                    #     param.data_ptr()
+                for param in module.parameters():
+                    param.data_ptr()
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage(
             ignore_virtual=True

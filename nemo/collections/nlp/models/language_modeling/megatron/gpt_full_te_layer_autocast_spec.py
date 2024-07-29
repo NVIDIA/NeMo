@@ -20,6 +20,7 @@ from pkg_resources import packaging
 
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.parts import utils_funcs
+_IS_GRAPH_CAPTURING=False
 
 try:
     from transformer_engine.pytorch import TransformerLayer
@@ -187,6 +188,10 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
 
         self.config = config
         self.is_first_microbatch = True
+        self.sample_inputs = None
+        self.sample_outputs = None
+        self.enable_cuda_graph = config.enable_cuda_graph
+
         precision = 'bf16' if config.bf16 else 16
 
         transformer_layer_args = {
@@ -263,12 +268,8 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
             # checkpoint_core_attention,
         )
         self.is_first_microbatch = False
-        context = None
 
-        # CUDA graph requires returned values to be Tensors
-        if self.config.enable_cuda_graph and self.training:
-            return hidden_states
-        return hidden_states, context
+        return hidden_states, None
 
     def _get_layer_offset(self):
 
@@ -321,6 +322,18 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
         #    apply_prefix_mapping(sharded_state_dict, prefixed_map)
 
         return sharded_state_dict
+
+    def __call__(self, *args, **kwargs):
+        from megatron.core.transformer.graphs import CudaGraphManager
+
+        if hasattr(self, 'enable_cuda_graph') and self.enable_cuda_graph and self.training:
+            if not hasattr(self, 'cudagraph_manager'):
+                self.add_module('cudagraph_manager', CudaGraphManager())
+
+            out = self.cudagraph_manager(self, args, kwargs)
+        else:
+            out = super(MegatronModule, self).__call__(*args, **kwargs)
+        return out
 
 
 # Use this spec to use the full Transformer layer from Transformer Engine

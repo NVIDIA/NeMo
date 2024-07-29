@@ -60,6 +60,9 @@ def main(cfg) -> None:
     else:
         model = MegatronGPTModel(cfg.model, trainer)
 
+    s = torch.cuda.Stream()
+    torch.cuda.set_stream(s)
+    
     trainer.fit(model)
 
 
