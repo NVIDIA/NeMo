@@ -19,6 +19,26 @@ trainer:
   benchmark: False
   enable_model_summary: False # default PTL callback for this does not support model parallelism, instead we log manually
 
+exp_manager:
+  explicit_log_dir: null
+  exp_dir: null
+  name: megatron_llama_distill
+  create_wandb_logger: False
+  wandb_logger_kwargs:
+    project: null
+    name: null
+  resume_if_exists: True
+  resume_ignore_no_checkpoint: True
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: val_loss
+    save_top_k: 10
+    mode: min
+    always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
+    save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
+    filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
+    model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
+
 model:
   restore_from_path: null # overwrite if starting from pretrained
   restore_from_ckpt: null # overwrite if resuming training
