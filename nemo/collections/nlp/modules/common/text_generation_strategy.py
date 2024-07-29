@@ -21,19 +21,14 @@ from typing import List, Set, Tuple
 
 import torch
 from transformers import CLIPImageProcessor
+
+from nemo.collections.common.tokenizers.chat_template_mixin import explode_chat_template_input, is_chat_input
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
 try:
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
-
-try:
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.identity_op import IdentityOp
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
@@ -94,7 +89,12 @@ class TextGenerationStrategy:
             Tuple[torch.Tensor], the tokenized and padded torch tensor and the token context length tensor.
         """
         tokenizer = self.model.tokenizer
-        if add_BOS:
+        if is_chat_input(sentences):
+            assert getattr(
+                tokenizer, 'has_chat_template', False
+            ), "Got chat-template input but tokenizer does not support chat template formating."
+            context_tokens = list(map(tokenizer.text_to_ids, explode_chat_template_input(sentences)))
+        elif add_BOS:
             context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
         elif hasattr(tokenizer.tokenizer, "get_prefix_tokens"):
             # chatglm: add tokenizer.gmask_id, tokenizer.sop_id
@@ -501,6 +501,27 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
             copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
         )  # HARDCODED FOR NOW
         data_dict = preprocess_llama_3(sources, tokenizer, multimodal_cfg)
+    elif multimodal_cfg["conv_template"] == "mistral":
+        record = {
+            'conversations': [
+                {
+                    'from': 'human',
+                    'value': prompt,
+                },
+                {
+                    'from': 'gpt',
+                    'value': '',
+                },
+            ],
+        }
+        for turn in record['conversations']:
+            if turn.get('value') is not None:
+                turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
+        list_data_dict.append(record)
+        sources = preprocess_multimodal(
+            copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
+        )  # HARDCODED FOR NOW
+        data_dict = preprocess_llama_2(sources, tokenizer, multimodal_cfg, is_mistral=True)
     elif multimodal_cfg["conv_template"] == "v1":
         record = {
             'conversations': [
@@ -556,6 +577,7 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             media_type=getattr(self.data_cfg, 'media_type', 'image'),
             num_frames=getattr(self.data_cfg, 'num_frames', 1),
             mm_mlp_adapter_type=getattr(self.cfg.mm_cfg, 'mm_mlp_adapter_type', 'linear'),
+            use_lita=getattr(self.cfg.mm_cfg, 'use_lita', False),
         )
         if self.multimodal_cfg['crop_size'] is None:
             image_processor = CLIPImageProcessor.from_pretrained(
@@ -577,6 +599,21 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
                 width_num_patches += 1
 
         self.num_media_latents = height_num_patches * width_num_patches
+        # add config for lita
+        if self.multimodal_cfg['use_lita']:
+            if self.cfg.mm_cfg.get('lita'):
+                lita = {
+                    'lita_video_arch': getattr(self.cfg.mm_cfg.lita, 'lita_video_arch', 'temporal_spatial_pool'),
+                    'visual_token_format': getattr(self.cfg.mm_cfg.lita, 'visual_token_format', 'v1'),
+                    'sample_frames': getattr(self.cfg.mm_cfg.lita, 'sample_frames', 1),
+                }
+                self.multimodal_cfg['lita'] = lita
+            else:
+                self.multimodal_cfg['use_lita'] = False
+                raise Warning(
+                    'Use lita has been set True but Lita config not found in the config file'
+                    'LITA will be disabled for this run.'
+                )
 
     def clip_max_len(self, maxlen: int) -> int:
         """clip the max len based on the LM model max sequence length"""
@@ -659,6 +696,7 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             # not using type2use. uncomment it if it is used
             # if type_ids is not None:
             #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
+            media = None
 
         """Prepare batch for each of the inference steps"""
         attention_mask_repeat = None
@@ -981,6 +1019,7 @@ def model_inference_strategy_dispatcher(model, **args):
         MegatronGPTPromptLearningModel,
     )
     from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
+    from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
     from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
     from nemo.collections.nlp.models.language_modeling.megatron_retro_model import MegatronRetroModel
     from nemo.collections.nlp.modules.common.retro_inference_strategies import (
@@ -991,6 +1030,8 @@ def model_inference_strategy_dispatcher(model, **args):
 
     if isinstance(model, MegatronGriffinModel):
         return GriffinModelTextGenerationStrategy(model)
+    if isinstance(model, MegatronMambaModel):
+        return GPTModelTextGenerationStrategy(model)
     if isinstance(model, MegatronNevaModel):
         return NevaModelTextGenerationStrategy(model)
     if isinstance(model, MegatronGPTPromptLearningModel):

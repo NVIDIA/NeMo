@@ -16,7 +16,7 @@ import argparse
 import logging
 import sys
 
-from nemo.export import TensorRTLLM
+from nemo.export.tensorrt_llm import TensorRTLLM
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -40,8 +40,8 @@ def get_args(argv):
         "-mr", "--model_repository", required=True, default=None, type=str, help="Folder for the trt-llm model files"
     )
     parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
-    parser.add_argument("-tps", "--tensor_parallelism_size", type=int, help="Tensor parallelism size")
-    parser.add_argument("-pps", "--pipeline_parallelism_size", type=int, help="Pipeline parallelism size")
+    parser.add_argument("-tps", "--tensor_parallelism_size", default=1, type=int, help="Tensor parallelism size")
+    parser.add_argument("-pps", "--pipeline_parallelism_size", default=1, type=int, help="Pipeline parallelism size")
     parser.add_argument(
         "-dt",
         "--dtype",
@@ -138,10 +138,10 @@ def nemo_export_trt_llm(argv):
             nemo_checkpoint_path=args.nemo_checkpoint,
             model_type=args.model_type,
             n_gpus=args.num_gpus,
-            tensor_parallel_size=args.tensor_parallelism_size,
-            pipeline_parallel_size=args.pipeline_parallelism_size,
-            max_input_token=args.max_input_len,
-            max_output_token=args.max_output_len,
+            tensor_parallelism_size=args.tensor_parallelism_size,
+            pipeline_parallelism_size=args.pipeline_parallelism_size,
+            max_input_len=args.max_input_len,
+            max_output_len=args.max_output_len,
             max_batch_size=args.max_batch_size,
             max_num_tokens=args.max_num_tokens,
             opt_num_tokens=args.opt_num_tokens,
@@ -153,7 +153,6 @@ def nemo_export_trt_llm(argv):
             use_lora_plugin=args.use_lora_plugin,
             lora_target_modules=args.lora_target_modules,
             max_lora_rank=args.max_lora_rank,
-            save_nemo_model_config=True,
         )
 
         LOGGER.info("Export is successful.")

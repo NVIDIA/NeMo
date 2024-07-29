@@ -56,10 +56,9 @@ def check_cuda():
     dprops = torch.cuda.get_device_properties(cur_device)
 
     is_sm75 = dprops.major == 7 and dprops.minor == 5
-    is_sm8x = dprops.major == 8 and dprops.minor >= 0
-    is_sm90 = dprops.major == 9 and dprops.minor >= 0
+    is_sm8x_or_later = dprops.major >= 8
 
-    return is_sm8x or is_sm75 or is_sm90
+    return is_sm75 or is_sm8x_or_later
 
 
 try:
@@ -227,6 +226,10 @@ class LinearWrapper(nn.Linear, adapter_mixins.AdapterModuleMixin):
     def forward(self, x):
         mixed_x = super().forward(x)
         if self.is_adapter_available():
+            # return this output if lora is not enabled
+            cfg = self.get_adapter_cfg(AdapterName.PARALLEL_LINEAR_ADAPTER)
+            if not cfg['enabled']:
+                return mixed_x
             lora_linear_adapter = self.get_adapter_module(AdapterName.PARALLEL_LINEAR_ADAPTER)
             lora_mixed_x = lora_linear_adapter(x)
             # This value has the same meaning as the `--network_alpha` option in the kohya-ss trainer script.

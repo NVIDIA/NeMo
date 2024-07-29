@@ -14,13 +14,14 @@
 
 import os
 import warnings
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from math import ceil
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
@@ -30,16 +31,16 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
 )
 from nemo.collections.asr.metrics import BLEU, WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRTranscriptionMixin
+from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRModuleMixin, ASRTranscriptionMixin
 from nemo.collections.asr.parts.mixins.transcription import (
     GenericTranscriptionType,
     InternalTranscribeConfig,
     TranscribeConfig,
 )
+from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 from nemo.collections.asr.parts.utils import manifest_utils
-from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common import tokenizers
 from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
@@ -114,7 +115,7 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
         self.prompt = parse_multitask_prompt(self.prompt)
 
 
-class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTranscriptionMixin):
+class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModuleMixin, ASRTranscriptionMixin):
     """Base class for AED multi-task models"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -223,6 +224,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         self.bleu = BLEU(
             self.decoding, tokenize=self.cfg.get('bleu_tokenizer', "13a"), log_prediction=False
         )  # Wer is handling logging
+
+        # Setup encoder adapters (from ASRAdapterModelMixin)
+        self.setup_adapters()
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig):
         """
@@ -386,6 +390,59 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             self.cfg.prompt_format = prompt_format
 
         logging.info(f"Changed decoder to output to {vocabulary} vocabulary.")
+
+    def change_prompt(
+        self, prompt_format: Optional[str] = None, prompt_defaults: Optional[List[Dict[str, Any]]] = None
+    ):
+        """
+        Changes the prompt format used during Multi Task decoding process.
+
+        Args:
+            prompt_format: A string alias of the object that represents the prompt structure.
+                If not None, it will be used to update the prompt format.
+            prompt_defaults: A dictionary of default values for the prompt format.
+        """
+        if prompt_format is not None:
+            self.prompt_format = prompt_format
+
+        if prompt_defaults is not None:
+            # Perform some assertions on the prompt defaults contents
+            # Must be a list-like object
+            if not isinstance(prompt_defaults, Sequence):
+                raise ValueError("`prompt_defaults` must be a list of dictionaries")
+
+            # Must contain dict-like objects
+            for item in prompt_defaults:
+                if not isinstance(item, Mapping):
+                    raise ValueError("`prompt_defaults` must be a list of dictionaries")
+
+                # Each dict item must have a `role` key
+                if 'role' not in item:
+                    raise ValueError(
+                        "`prompt_defaults` must have a `role` key for each item in the list of dictionaries"
+                    )
+
+                if 'slots' not in item:
+                    raise ValueError(
+                        "`prompt_defaults` must have a `slots` key for each item in the list of dictionaries"
+                    )
+
+            # Cast to OmegaConf if not already
+            if not isinstance(prompt_defaults, ListConfig):
+                prompt_defaults = OmegaConf.create(prompt_defaults)
+
+        prompt_cls = PromptFormatter.resolve(self.prompt_format)
+        self.prompt = prompt_cls(
+            tokenizer=self.tokenizer,
+            defaults=OmegaConf.to_container(pd) if (pd := self.cfg.get('prompt_defaults')) is not None else None,
+        )
+
+        # Update config
+        with open_dict(self.cfg):
+            self.cfg.prompt_format = self.prompt_format
+            self.cfg.prompt_defaults = prompt_defaults
+
+        logging.info(f"Changed prompt format to `{self.prompt_format}`")
 
     @torch.no_grad()
     def transcribe(
@@ -861,19 +918,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             return_hypotheses=trcfg.return_hypotheses,
         )
 
-        if trcfg.return_hypotheses:
-            for hyp in best_hypotheses:
-                hyp.text = self.decoding.strip_special_tokens(hyp.text)
-            if all_hypotheses is not None:
-                for i in range(len(all_hypotheses)):
-                    for j in range(len(all_hypotheses[i])):
-                        all_hypotheses[i][j].text = self.decoding.strip_special_tokens(all_hypotheses[i][j].text)
-        else:
-            best_hypotheses = [self.decoding.strip_special_tokens(text) for text in best_hypotheses]
-            if all_hypotheses is not None:
-                for i in range(len(all_hypotheses)):
-                    all_hypotheses[i] = [self.decoding.strip_special_tokens(text) for text in all_hypotheses[i]]
-
         del enc_states, enc_mask, decoder_input_ids
         if all_hypotheses is None:
             return best_hypotheses
@@ -922,7 +966,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         """
         super()._transcribe_on_end(trcfg)
 
-        self.transf_decoder.unfreeze()
+        self.transf_decoder.unfreeze(partial=True)
 
     def _may_be_make_dict_and_fix_paths(self, json_items, manifest_path, trcfg: MultiTaskTranscriptionConfig):
         """
@@ -1002,6 +1046,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
         text = [self.decoding.strip_special_tokens(t) for t in text]
         return text
+
+    @property
+    def adapter_module_names(self) -> List[str]:
+        return ['', 'encoder', 'transf_encoder', 'transf_decoder']
 
 
 def parse_multitask_prompt(prompt: dict | None) -> list[dict]:

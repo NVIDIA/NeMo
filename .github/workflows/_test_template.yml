@@ -30,13 +30,22 @@ on:
       conclusion:
         description: Conclusion of main test step
         value: ${{ jobs.main.outputs.conclusion }}
-
+      log:
+        description: Last 2000 characters of the test step's log
+        value: ${{ jobs.main.outputs.log }} 
 jobs:
+  runner-auto-clean:
+    runs-on: ${{ inputs.RUNNER }}
+    steps:
+        - name: Docker system cleanup
+          run: |
+            docker system prune -a --filter "until=48h" --force
+
   main:
     runs-on: ${{ inputs.RUNNER }} 
-    timeout-minutes: ${{ inputs.TIMEOUT }}
     outputs:
       conclusion: ${{ steps.main.conclusion }}
+      log: ${{ steps.main.outputs.log }}
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -50,7 +59,22 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v4
         - id: main
-          run: ${{ inputs.SCRIPT }}
+          name: Run main script
+          timeout-minutes: ${{ inputs.TIMEOUT }}
+          run: |
+            set +e 
+            (  
+              set -e
+
+              ${{ inputs.SCRIPT }}
+            ) 2> >(tee err.log)
+
+            EXIT_CODE=$?
+            
+            echo "log=$(tail -c 2000 err.log |  base64 -w 0)" >> "$GITHUB_OUTPUT"
+            
+            exit $EXIT_CODE
+            
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: failure() && inputs.IS_OPTIONAL == false
         - name: after_script

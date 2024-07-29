@@ -26,8 +26,7 @@ def get_vocab_size(
 
     after = vocab_size
     multiple = make_vocab_size_divisible_by * config.tensor_model_parallel_size
-    while (after % multiple) != 0:
-        after += 1
+    after = ((after + multiple - 1) // multiple) * multiple
     logging.info(
         f"Padded vocab_size: {after}, original vocab_size: {vocab_size}, dummy tokens:" f" {after - vocab_size}."
     )
@@ -46,8 +45,11 @@ def teardown(trainer: Trainer, model: Optional[nn.Module] = None) -> None:
     trainer._teardown()  # noqa: SLF001
     if model is not None:
         for obj in gc.get_objects():
-            if torch.is_tensor(obj) and obj.is_cuda:
-                del obj
+            try:
+                if torch.is_tensor(obj) and obj.is_cuda:
+                    del obj
+            except:
+                pass
 
     gc.collect()
     torch.cuda.empty_cache()

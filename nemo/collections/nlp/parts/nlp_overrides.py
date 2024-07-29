@@ -74,7 +74,6 @@ from nemo.utils import AppState, logging
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
 try:
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
     from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
@@ -105,6 +104,7 @@ try:
         optim_state_to_sharding_state,
     )
     from megatron.core.dist_checkpointing.strategies import tensorstore
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
@@ -115,6 +115,15 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+
+try:
+    from modelopt.torch.opt.plugins import restore_sharded_modelopt_state, save_sharded_modelopt_state
+
+    HAVE_MODELOPT = True
+
+except Exception:
+    HAVE_MODELOPT = False
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
@@ -195,7 +204,12 @@ class NLPDDPStrategy(DDPStrategy):
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
+        super().__init__(
+            parallel_devices=parallel_devices,
+            cluster_environment=cluster_environment,
+            checkpoint_io=checkpoint_io,
+            **kwargs,
+        )
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.nccl_communicator_config_path = nccl_communicator_config_path
@@ -376,6 +390,14 @@ class NLPDDPStrategy(DDPStrategy):
             checkpoint['state_dict'] = OrderedDict([])
 
             self.checkpoint_io.save_checkpoint(checkpoint, ckpt_to_dir(filepath), storage_options=storage_options)
+
+            if HAVE_MODELOPT and hasattr(self.lightning_module, "get_model_module_list"):
+                save_sharded_modelopt_state(
+                    self.lightning_module.get_model_module_list(),
+                    ckpt_to_dir(filepath),
+                    self.unwrapped_checkpoint_io.save_sharded_strategy,
+                    prefix="model.",
+                )
         else:
             # PTL override to accomodate model parallel checkpoints
             filepath = inject_model_parallel_rank(filepath)
@@ -439,6 +461,9 @@ class NLPDDPStrategy(DDPStrategy):
             bool: True if the number of param groups does not match
         """
         common_state_dict = dist_checkpointing.load_common_state_dict(checkpoint_path)
+        # @akoumparouli: check if it contains an mcore dist opt
+        if common_state_dict.get('optimizer_states', [{}])[0].get('param_groups', None) is None:
+            return False
         model_param_groups = self._get_param_group(common_state_dict)
         checkpoint_param_groups = self._get_param_group(sharded_state_dict)
         return len(model_param_groups) != len(checkpoint_param_groups)
@@ -503,6 +528,11 @@ class NLPDDPStrategy(DDPStrategy):
             if not fs.isdir(checkpoint_path):
                 raise ValueError(f'Distributed checkpoints should be a directory. Found: {checkpoint_path}.')
 
+            if HAVE_MODELOPT and hasattr(self.lightning_module, "get_model_module_list"):
+                restore_sharded_modelopt_state(
+                    self.lightning_module.get_model_module_list(), checkpoint_path, prefix="model."
+                )
+
             sharded_state_dict = self.lightning_module.sharded_state_dict()
 
             checkpoint = {}
@@ -510,10 +540,14 @@ class NLPDDPStrategy(DDPStrategy):
             # after dist_checkpointing.load, sharded tensors will be replaced with tensors
             checkpoint['state_dict'] = sharded_state_dict
             checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict(is_loading=True)]
-
             if self._check_param_groups_mismatch(checkpoint_path, checkpoint):
-                return self._fix_param_groups(checkpoint_path, checkpoint)
-            return self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
+                checkpoint = self._fix_param_groups(checkpoint_path, checkpoint)
+            else:
+                checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
+
+            if getattr(self.lightning_module, 'continue_training', False):
+                checkpoint = self._integrate_original_checkpoint_data(checkpoint)
+            return checkpoint
 
         # Legacy model parallel checkpointing logic, does not use megatron core
         else:
@@ -523,6 +557,26 @@ class NLPDDPStrategy(DDPStrategy):
                 raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
             torch.cuda.empty_cache()
             return self.checkpoint_io.load_checkpoint(checkpoint_path)
+
+    def _integrate_original_checkpoint_data(self, checkpoint: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Ensures that model and optimizer weights are loaded from the checkpoint.
+        All other metadata are reinitialized.
+        """
+        original_checkpoint = self.lightning_module.trainer._checkpoint_connector.dump_checkpoint()
+        for key in checkpoint:
+            if key not in ['state_dict', 'optimizer_states']:
+                checkpoint[key] = original_checkpoint[key]
+        if 'optimizer' in checkpoint['optimizer_states'][0]:
+            checkpoint['optimizer_states'][0]['optimizer']['param_groups'] = original_checkpoint['optimizer_states'][
+                0
+            ]['optimizer']['param_groups']
+        else:
+            checkpoint['optimizer_states'][0]['param_groups'] = original_checkpoint['optimizer_states'][0][
+                'param_groups'
+            ]
+
+        return checkpoint
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         # check if filepath is a distributed checkpoint
@@ -541,10 +595,7 @@ class NLPDDPStrategy(DDPStrategy):
 
     @property
     def use_distributed_checkpointing(self):
-        checkpoint_io = self.checkpoint_io
-        while isinstance(checkpoint_io, _WrappingCheckpointIO):
-            checkpoint_io = checkpoint_io.checkpoint_io
-        has_dist_ckpt_io = HAVE_MEGATRON_CORE and isinstance(checkpoint_io, DistributedCheckpointIO)
+        has_dist_ckpt_io = HAVE_MEGATRON_CORE and isinstance(self.unwrapped_checkpoint_io, DistributedCheckpointIO)
         has_sharded_state_dict = (
             hasattr(self.lightning_module, 'sharded_state_dict')
             and self.lightning_module.sharded_state_dict() is not None
@@ -583,6 +634,14 @@ class NLPDDPStrategy(DDPStrategy):
         deserializing the checkpoint.
         """
         return True
+
+    @property
+    def unwrapped_checkpoint_io(self) -> CheckpointIO:
+        """Returns CheckpointIO unwrapped from any _WrappedCheckpointIO wrappers."""
+        checkpoint_io = self.checkpoint_io
+        while isinstance(checkpoint_io, _WrappingCheckpointIO):
+            checkpoint_io = checkpoint_io.checkpoint_io
+        return checkpoint_io
 
 
 class NLPDDPStrategyNotebook(NLPDDPStrategy):
@@ -642,6 +701,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         nccl_communicator_config_path: Optional[str] = None,
         sharp: bool = False,
         set_buffer_dtype: Optional[str] = None,
+        extra_fsdp_wrap_module: Optional[set] = None,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -671,6 +731,11 @@ class NLPFSDPStrategy(FSDPStrategy):
             ParallelTransformerLayer,
             BasicTransformerBlock,
         }
+
+        # if extra wrap modules are provided, use them
+        if extra_fsdp_wrap_module is not None:
+            self.fsdp_wrap_module.update(extra_fsdp_wrap_module)
+
         kwargs['auto_wrap_policy'] = functools.partial(
             transformer_auto_wrap_policy, transformer_layer_cls=self.fsdp_wrap_module
         )
@@ -943,8 +1008,6 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             if dist_ckpt:
                 # model weights is a directory
                 dist_ckpt_dir = ckpt_to_dir(os.path.join(dir_name, self.model_weights_ckpt))
-
-                sharded_state_dict = model.sharded_state_dict()
                 # dist checkpoint needs torch.distributed to save the checkpoint
                 if not parallel_state.is_initialized():
 
@@ -954,8 +1017,19 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     if model.trainer.strategy.launcher is not None:
                         model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
                     model.trainer.strategy.setup_environment()
-                checkpoint_io = DistributedCheckpointIO(model.cfg.get('dist_ckpt_format', 'zarr'))
+                sharded_state_dict = model.sharded_state_dict()
+                checkpoint_io = DistributedCheckpointIO.from_config(model.cfg, async_save=False)
                 checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_dir)
+
+                if HAVE_MODELOPT and hasattr(model, "get_model_module_list"):
+                    while isinstance(checkpoint_io, _WrappingCheckpointIO):
+                        checkpoint_io = checkpoint_io.checkpoint_io
+                    save_sharded_modelopt_state(
+                        model.get_model_module_list(),
+                        dist_ckpt_dir,
+                        checkpoint_io.save_sharded_strategy,
+                        prefix="model.",
+                    )
 
             else:
 
@@ -1172,6 +1246,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
+        validate_access_integrity: bool = True,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -1206,6 +1281,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             strict,
             return_config,
             trainer,
+            validate_access_integrity,
         )
         if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
@@ -1236,19 +1312,35 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
                 else:
                     # Extract the nemo file into the temporary directory
+                    filter_fn = None
+                    if return_config:
+                        filter_fn = lambda name: '.yaml' in name
+                    members = self._filtered_tar_info(restore_path, filter_fn=filter_fn)
                     self._unpack_nemo_file(
-                        path2file=restore_path, out_folder=tmpdir, extract_config_only=return_config is True
+                        path2file=restore_path,
+                        out_folder=tmpdir,
+                        members=members,
                     )
-                checkpoint = {}
-                sharded_state_dict = instance.sharded_state_dict()
-                checkpoint['state_dict'] = sharded_state_dict
                 # remove model weights extension
                 tmp_model_weights_ckpt = os.path.join(tmpdir, self.model_weights_ckpt)
                 tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
                 assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
+
+                if HAVE_MODELOPT and hasattr(instance, "get_model_module_list"):
+                    restore_sharded_modelopt_state(
+                        instance.get_model_module_list(), tmp_model_weights_dir, prefix="model."
+                    )
+
+                checkpoint = {}
+                sharded_state_dict = instance.sharded_state_dict()
+                checkpoint['state_dict'] = sharded_state_dict
+
                 checkpoint_io = DistributedCheckpointIO.from_config(conf)
                 checkpoint = checkpoint_io.load_checkpoint(
-                    tmp_model_weights_dir, sharded_state_dict=checkpoint, strict=strict
+                    tmp_model_weights_dir,
+                    sharded_state_dict=checkpoint,
+                    strict=strict,
+                    validate_access_integrity=validate_access_integrity,
                 )
                 instance.on_load_checkpoint(checkpoint)
                 if hasattr(instance, 'setup_transformer_engine_tp_groups'):
