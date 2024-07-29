@@ -1000,6 +1000,8 @@ class LazySupervisedDataset(Dataset):
         return len(self.list_data_dict)
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        if isinstance(i, np.integer):
+            i = int(i)
         sources = self.list_data_dict[i]
         if isinstance(i, int):
             sources = [sources]
@@ -1186,7 +1188,6 @@ class NevaDataset(LazySupervisedDataset):
     """Dataset for supervised fine-tuning."""
 
     def __init__(self, data_path: str, tokenizer, multimodal_cfg: dict, data_cfg: dict):
-
         if data_path.endswith(".json"):
             super(NevaDataset, self).__init__(data_path, tokenizer, multimodal_cfg, data_cfg)
 
@@ -1309,7 +1310,7 @@ class DataCollatorForSupervisedDataset(object):
         return batch
 
 
-def make_supervised_data_module(tokenizer, image_processor, model_cfg) -> Dict:
+def make_supervised_data_module(tokenizer, image_processor, model_cfg, data_file) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     data_cfg = model_cfg.data
     mm_cfg = model_cfg.mm_cfg
@@ -1317,10 +1318,14 @@ def make_supervised_data_module(tokenizer, image_processor, model_cfg) -> Dict:
     if getattr(model_cfg, 'no_seqlen_plus_one_input_tokens', False):
         add_extra_token = 0
     crop_size = mm_cfg.vision_encoder.get("crop_size", (224, 224))
-
+    if not data_cfg.get("data_path"):
+        data_path = data_file
+    else:
+        data_path = data_cfg.data_path
+        # use blend
     train_dataset = NevaDataset(
         tokenizer=tokenizer,
-        data_path=data_cfg.data_path,
+        data_path=data_path,
         multimodal_cfg=dict(
             is_multimodal=data_cfg.is_multimodal,
             sep_image_conv_front=data_cfg.sep_image_conv_front,
@@ -1349,7 +1354,7 @@ def make_supervised_data_module(tokenizer, image_processor, model_cfg) -> Dict:
     )
 
     return dict(train_dataset=train_dataset, eval_dataset=train_dataset)
-
+    
 
 class NevaPackedSeqDatatset(Dataset):
     def __init__(self, data_path: str, crop_size: Tuple[int, int] = (224, 224)):
