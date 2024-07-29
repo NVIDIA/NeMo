@@ -96,7 +96,7 @@ class AutoConfigurator:
         # Print the config
         logging.info(self._get_message(self.config))
 
-    def get_configs(self) -> dict:
+    def generate_configs(self) -> dict:
         """
         :return: dictionary of generated configs.
             key: model config name, type: str.

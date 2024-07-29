@@ -1,7 +1,19 @@
+import re
+
 from megatron.core.optimizer import OptimizerConfig
 
 from nemo.collections.common.tokenizers import AutoTokenizer, SentencePieceTokenizer
 from nemo.collections.llm.tools.auto_configurator import base_configs
+from nemo.collections.llm.utils import Config
+
+
+def get_class_name(config_cls):
+    match = re.search(r'<Config\[(\w+)\(', repr(config_cls))
+    config_cls_name = None
+    if match:
+        config_cls_name = match.group(1)
+    
+    return config_cls_name
 
 
 class TestBaseConfigs:
@@ -10,44 +22,58 @@ class TestBaseConfigs:
 
         # GPT3 126M
         model_126m = model_cls(size=126, measure="M")
+        config_cls = model_126m.get_model_config()
+        config_cls_name = get_class_name(config_cls)
         assert (
-            model_126m.get_model_config().__class__.__name__ == "GPTConfig126M"
+            config_cls_name == "GPTConfig126M"
         ), "the name of the config class for the GPT3 126M model should be 'GPTConfig126M'."
 
         # GPT3 5B
         model_5b = model_cls(size=5)
+        config_cls = model_5b.get_model_config()
+        config_cls_name = get_class_name(config_cls)
         assert (
-            model_5b.get_model_config().__class__.__name__ == "GPTConfig5B"
+            config_cls_name == "GPTConfig5B"
         ), "the name of the config class for the GPT3 5B model should be 'GPTConfig5B'."
 
         # GPT3 7B
         model_7b = model_cls(size=7)
+        config_cls = model_7b.get_model_config()
+        config_cls_name = get_class_name(config_cls)
         assert (
-            model_7b.get_model_config().__class__.__name__ == "GPTConfig7B"
+            config_cls_name == "GPTConfig7B"
         ), "the name of the config class for the GPT3 7B model should be 'GPTConfig7B'."
 
         # GPT3 20B
         model_20b = model_cls(size=20)
+        config_cls = model_20b.get_model_config()
+        config_cls_name = get_class_name(config_cls)
         assert (
-            model_20b.get_model_config().__class__.__name__ == "GPTConfig20B"
+            config_cls_name == "GPTConfig20B"
         ), "the name of the config class for the GPT3 20B model should be 'GPTConfig20B'."
 
         # GPT3 40B
         model_40b = model_cls(size=40)
+        config_cls = model_40b.get_model_config()
+        config_cls_name = get_class_name(config_cls)
         assert (
-            model_40b.get_model_config().__class__.__name__ == "GPTConfig40B"
+            config_cls_name == "GPTConfig40B"
         ), "the name of the config class for the GPT3 40B model should be 'GPTConfig40B'."
 
         # GPT3 175B
         model_175b = model_cls(size=175)
+        config_cls = model_175b.get_model_config()
+        config_cls_name = get_class_name(config_cls)
         assert (
-            model_175b.get_model_config().__class__.__name__ == "GPTConfig175B"
+            config_cls_name == "GPTConfig175B"
         ), "the name of the config class for the GPT3 175B model should be 'GPTConfig175B'."
 
         try:
             model_111b = model_cls(size=111)
+            config_cls = model_111b.get_model_config()
+            config_cls_name = get_class_name(config_cls)
             assert (
-                model_111b.get_model_config().__class__.__name__ == "GPTConfig111B"
+                config_cls_name == "GPTConfig111B"
             ), "the name of the config class for the GPT3 111B model should be 'GPTConfig111B'."
         except AttributeError:
             None
@@ -57,32 +83,42 @@ class TestBaseConfigs:
 
         # Llama2_7B
         model_7b = model_cls(size=7)
+        config_cls = model_7b.get_model_config()
+        config_cls_name = get_class_name(config_cls)
         assert (
-            model_7b.get_model_config().__class__.__name__ == "Llama2Config7B"
+            config_cls_name == "Llama2Config7B"
         ), "the name of the config class for the Llama2 7B model should be 'Llama2Config7B'."
 
         # Llama2_13B
         model_13b = model_cls(size=13)
+        config_cls = model_13b.get_model_config()
+        config_cls_name = get_class_name(config_cls)
         assert (
-            model_13b.get_model_config().__class__.__name__ == "Llama2Config13B"
+            config_cls_name == "Llama2Config13B"
         ), "the name of the config class for the Llama2 13B model should be 'Llama2Config13B'."
 
         # Llama2_70B
         model_70b = model_cls(size=70)
+        config_cls = model_70b.get_model_config()
+        config_cls_name = get_class_name(config_cls)
         assert (
-            model_70b.get_model_config().__class__.__name__ == "Llama2Config70B"
+            config_cls_name == "Llama2Config70B"
         ), "the name of the config class for the Llama2 70B model should be 'Llama2Config70B'."
 
         # Llama3_70B
         model_70b = model_cls(size=70, version=3)
+        config_cls = model_70b.get_model_config()
+        config_cls_name = get_class_name(config_cls)
         assert (
-            model_70b.get_model_config().__class__.__name__ == "Llama3Config70B"
+            config_cls_name == "Llama3Config70B"
         ), "the name of the config class for the Llama3 70B model should be 'Llama3Config70B'."
 
         # Llama3_8B
         model_8b = model_cls(size=8, version=3)
+        config_cls = model_8b.get_model_config()
+        config_cls_name = get_class_name(config_cls)
         assert (
-            model_8b.get_model_config().__class__.__name__ == "Llama3Config8B"
+            config_cls_name == "Llama3Config8B"
         ), "the name of the config class for the Llama3 8B model should be 'Llama3Config8B'."
 
     def test_mixtral_base_config(self):
@@ -90,8 +126,10 @@ class TestBaseConfigs:
 
         # Mixtral 8x7B
         model_7b = model_cls(size=7)
+        config_cls = model_7b.get_model_config()
+        config_cls_name = get_class_name(config_cls)
         assert (
-            model_7b.get_model_config().__class__.__name__ == "MixtralConfig8x7B"
+            config_cls_name == "MixtralConfig8x7B"
         ), "the name of the config class for the Mixtral 8x7B model should be 'MixtralConfig8x7B'."
 
     def test_mistral_base_config(self):
@@ -99,8 +137,10 @@ class TestBaseConfigs:
 
         # Mistral 7B
         model_7b = model_cls(size=7)
+        config_cls = model_7b.get_model_config()
+        config_cls_name = get_class_name(config_cls)
         assert (
-            model_7b.get_model_config().__class__.__name__ == "MistralConfig7B"
+            config_cls_name == "MistralConfig7B"
         ), "the name of the config class for the Mistral 7B model should be 'MistralConfig7B'."
 
     def test_basic_base_config(self):
@@ -132,7 +172,6 @@ class TestBaseConfigs:
 
         trainer_config_target = {
             "accelerator": "gpu",
-            "precision": "bf16",
             "logger": False,
             "enable_checkpointing": False,
             "use_distributed_sampler": False,
@@ -142,10 +181,10 @@ class TestBaseConfigs:
             "limit_test_batches": 1,
             "accumulate_grad_batches": 1,
             "gradient_clip_val": 1.0,
-            "num_nodes": 8,
-            "devices": 8,
-            "max_steps": 50,
-            "val_check_interval": 50,
+            "num_nodes": None,
+            "devices": None,
+            "max_steps": None,
+            "val_check_interval": None,
         }
 
         assert (
@@ -161,8 +200,8 @@ class TestBaseConfigs:
         data_config_target = {
             "paths": None,
             "weights": None,
-            "seq_length": 2048,
-            "global_batch_size": 2048,
+            "seq_length": None,
+            "global_batch_size": None,
             "num_workers": 2,
             "split": "99990,8,2",
             "index_mapping_dir": None,
@@ -178,7 +217,8 @@ class TestBaseConfigs:
         model_7b = model_cls(size=7)
         optim_config_source = model_7b.get_optim_config()
 
-        optim_config_target = OptimizerConfig(
+        optim_config_target = Config(
+            OptimizerConfig,
             optimizer='adam',
             lr=1e-4,
             min_lr=1e-5,
