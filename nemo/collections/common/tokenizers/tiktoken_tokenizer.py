@@ -17,7 +17,7 @@ import json
 import os
 from pathlib import Path
 from typing import Dict, List, Optional
-
+import re
 try:
     import tiktoken
 except ImportError:
@@ -128,18 +128,48 @@ class TiktokenTokenizer(TokenizerSpec):
         )
 
     def text_to_tokens(self, text: str):
-        token_ids = self.tokenizer.encode(text)
-        return [self.tokenizer.decode_single_token_bytes(token) for token in token_ids]
+        special_token_pattern = SPECIAL_TOKEN_TEMPLATE.format(id='\\d+')
+        parts = re.split(f"({special_token_pattern})", text)
+        tokens = []
+        for part in parts:
+            if re.match(special_token_pattern, part):
+                tokens.append(part.encode('utf-8'))
+            else:
+                token_ids = self.tokenizer.encode(part)
+                tokens.extend([self.tokenizer.decode_single_token_bytes(token) for token in token_ids])
+        return tokens
 
     def tokens_to_text(self, tokens: List[int]):
-        token_ids = [self.tokenizer.encode_single_token(tokens) for tokens in tokens]
-        return self.tokenizer.decode(token_ids)
+        result = []
+        for token in tokens:
+            if isinstance(token, bytes):
+                # Handle special token representation
+                result.append(token.decode('utf-8'))
+            else:
+                # Decode normal tokens
+                result.append(self.tokenizer.decode([token]))
+        return ''.join(result)
 
     def token_to_id(self, token):
-        return self.tokenizer.encode_single_token(token)
-
+        token_str = token.decode('utf-8', errors='replace') if isinstance(token, bytes) else token
+        if token_str in self.special_tokens:
+            return self.special_tokens.index(token_str)
+        else:
+            token_ids = self.tokenizer.encode(token_str)
+            if len(token_ids) != 1:
+                raise ValueError(f"Token '{token_str}' should correspond to exactly one ID, but got {token_ids}")
+            return token_ids[0] + self.num_special_tokens
+ 
     def tokens_to_ids(self, tokens):
-        return [self.tokenizer.encode_single_token(token) for token in tokens]
+        ids = []
+        for token in tokens:
+            token_str = token.decode('utf-8', errors='replace') if isinstance(token, bytes) else token
+            if token_str in self.special_tokens:
+                ids.append(self.special_tokens.index(token_str))
+            else:
+                # Regular tokens, not special tokens
+                ids.extend(self.tokenizer.encode(token_str))
+        return ids
 
     def ids_to_tokens(self, token_ids):
         tokens = []
@@ -153,23 +183,29 @@ class TiktokenTokenizer(TokenizerSpec):
         return tokens
 
     def text_to_ids(self, text: str):
-        tokens = self.tokenizer.encode(text)
-        tokens = [t + self.num_special_tokens for t in tokens]
+        tokens = []
+        special_token_pattern = SPECIAL_TOKEN_TEMPLATE.format(id='\\d+')
+        parts = re.split(f"({special_token_pattern})", text)
+        for part in parts:
+            if re.match(special_token_pattern, part):
+                token_id = int(re.findall(r"\d+", part)[0])
+                tokens.append(token_id)
+            else:
+                token_ids = self.tokenizer.encode(part)
+                tokens.extend([t + self.num_special_tokens for t in token_ids])
         return tokens
 
-    def ids_to_text(self, tokens: List[int]):
-        # Filter out special tokens and adjust the remaining tokens
-        adjusted_tokens = [
-            t - self.num_special_tokens
-            for t in tokens
-            if t not in {self.bos, self.eos} and t >= self.num_special_tokens
-        ]
-
-        # Decode only if there are tokens left after filtering
-        if adjusted_tokens:
-            return self.tokenizer.decode(adjusted_tokens)
-        else:
-            return ""  # Return an empty string if all tokens were filtered out
+    def ids_to_text(self, tokens: List[int], skip_special_tokens: bool = True):
+        result = []
+        for token in tokens:
+            if token < self.num_special_tokens:
+                if not skip_special_tokens:
+                    result.append(self.special_tokens[token])
+            else:
+                adjusted_token = token - self.num_special_tokens
+                result.append(self.tokenizer.decode([adjusted_token]))
+        
+        return ''.join(result)
 
     @property
     def bos_id(self):
