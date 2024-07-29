@@ -15,6 +15,8 @@ from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.collections.llm.gpt.model import transformer_engine_layer_spec, local_layer_spec
 
+from nemo.utils import logging
+
 if TYPE_CHECKING:
     from megatron.core.models.multimodal.llava_model import MCoreLLaVAModel
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
