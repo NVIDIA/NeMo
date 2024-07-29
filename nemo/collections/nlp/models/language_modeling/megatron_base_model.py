@@ -236,7 +236,7 @@ class MegatronBaseModel(NLPModel):
             self.validation_global_step = 1
 
         self.use_fsdp = cfg.get('fsdp', False)
-        self.moving_avg_grad_norm = 10.0
+        self.register_buffer('moving_avg_grad_norm', torch.tensor(10.0))
 
     def setup_transformer_engine_tp_groups(self):
         """This should be called after model parallel groups have been initialized
