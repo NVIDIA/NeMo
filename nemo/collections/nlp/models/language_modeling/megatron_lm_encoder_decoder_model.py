@@ -80,7 +80,9 @@ try:
     )
 
 except (ImportError, ModuleNotFoundError):
-    import apex.transformer.pipeline_parallel.utils.configure_global_num_microbatches_calculator as configure_global_num_microbatches_calculator
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator as configure_global_num_microbatches_calculator,
+    )
     from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
 __all__ = ["MegatronLMEncoderDecoderModel"]
