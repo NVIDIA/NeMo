@@ -53,12 +53,12 @@ try:
         get_current_global_batch_size,
         get_micro_batch_size,
         get_num_microbatches,
-        reconfigure_num_microbatches_calculator,
+        configure_global_num_microbatches_calculator,
     )
 
 except (ImportError, ModuleNotFoundError):
     from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
+        _reconfigure_microbatch_calculator as configure_global_num_microbatches_calculator,
     )
     from apex.transformer.pipeline_parallel.utils import (
         get_current_global_batch_size,
@@ -647,7 +647,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         app_state = AppState()
         self._restore_activation_checkpointing_args()
         if hasattr(self, "_train_ds"):
-            reconfigure_num_microbatches_calculator(
+            configure_global_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=self.cfg.data.train_ds.global_batch_size,
@@ -657,7 +657,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # When running `trainer.validate()`, the training dataset is not available.
         else:
             logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
-            reconfigure_num_microbatches_calculator(
+            configure_global_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=data_cfg.global_batch_size,
@@ -693,7 +693,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             response = generate(self, **inference_config)
 
         app_state = AppState()
-        reconfigure_num_microbatches_calculator(
+        configure_global_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -787,7 +787,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 != data_cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
             ):
                 app_state = AppState()
-                reconfigure_num_microbatches_calculator(
+                configure_global_num_microbatches_calculator(
                     rank=app_state.global_rank,
                     rampup_batch_size=None,
                     global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -797,7 +797,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             # NOTE: need to explicitly handle resetting for multi-validation
             else:
                 app_state = AppState()
-                reconfigure_num_microbatches_calculator(
+                configure_global_num_microbatches_calculator(
                     rank=app_state.global_rank,
                     rampup_batch_size=None,
                     global_batch_size=data_cfg.global_batch_size,
@@ -881,7 +881,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
     def on_validation_epoch_start(self):
         self._reset_activation_checkpointing_args()
         app_state = AppState()
-        reconfigure_num_microbatches_calculator(
+        configure_global_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=self.cfg.data.validation_ds.global_batch_size,
@@ -893,7 +893,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
     def on_test_epoch_start(self):
         self._reset_activation_checkpointing_args()
         app_state = AppState()
-        reconfigure_num_microbatches_calculator(
+        configure_global_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=self.cfg.data.test_ds.global_batch_size,

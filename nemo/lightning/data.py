@@ -14,7 +14,7 @@ try:
         get_micro_batch_size,
         get_num_microbatches,
         get_num_microbatches_calculator,
-        init_num_microbatches_calculator,
+        configure_global_num_microbatches_calculator,
     )
 
     MCORE_MB_CALCULATOR = True
@@ -27,7 +27,7 @@ except (ImportError, ModuleNotFoundError):
         get_num_microbatches,
     )
     from apex.transformer.pipeline_parallel.utils import (
-        setup_microbatch_calculator as init_num_microbatches_calculator,
+        setup_microbatch_calculator as configure_global_num_microbatches_calculator,
     )
 
     MCORE_MB_CALCULATOR = False
@@ -80,12 +80,13 @@ def setup_microbatch_calculator(
         init_global_rank = global_rank
     if MCORE_MB_CALCULATOR:
         if get_num_microbatches_calculator() is None:
-            init_num_microbatches_calculator(
+            configure_global_num_microbatches_calculator(
                 rank=init_global_rank,
                 global_batch_size=global_batch_size,
                 micro_batch_size=micro_batch_size,
                 data_parallel_size=app_state.data_parallel_size,
                 rampup_batch_size=rampup_batch_size,
+                init=True,
             )
         else:
             if isinstance(get_num_microbatches_calculator(), ConstantNumMicroBatchesCalculator):
@@ -98,7 +99,7 @@ def setup_microbatch_calculator(
         from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
         if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
-            init_num_microbatches_calculator(
+            configure_global_num_microbatches_calculator(
                 rank=init_global_rank,
                 global_batch_size=global_batch_size,
                 micro_batch_size=micro_batch_size,

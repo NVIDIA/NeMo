@@ -68,11 +68,11 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core.num_microbatches_calculator import get_num_microbatches, reconfigure_num_microbatches_calculator
+    from megatron.core.num_microbatches_calculator import get_num_microbatches, configure_global_num_microbatches_calculator
 
 except (ImportError, ModuleNotFoundError):
     from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
+        _reconfigure_microbatch_calculator as configure_global_num_microbatches_calculator,
     )
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
@@ -1198,7 +1198,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             response = generate(self, **inference_config)
 
         app_state = AppState()
-        reconfigure_num_microbatches_calculator(
+        configure_global_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -1367,7 +1367,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         app_state = AppState()
         self._restore_activation_checkpointing_args()
         if hasattr(self, "_train_ds"):
-            reconfigure_num_microbatches_calculator(
+            configure_global_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=self.cfg.data.train_ds.global_batch_size,
@@ -1377,7 +1377,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         # When running `trainer.validate()`, the training dataset is not available.
         else:
             logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
-            reconfigure_num_microbatches_calculator(
+            configure_global_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=data_cfg.global_batch_size,
