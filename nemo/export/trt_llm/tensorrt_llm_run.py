@@ -29,10 +29,22 @@ from mpi4py.futures import MPIPoolExecutor
 from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
 from tensorrt_llm.runtime import ModelConfig, ModelRunner, ModelRunnerCpp, SamplingConfig
+
 from transformers import PreTrainedTokenizer
 
-
 LOGGER = logging.getLogger("NeMo")
+
+use_trtllm_bindings = True
+try:
+    from tensorrt_llm.bindings import GptJsonConfig, GptSession, GptSessionConfig, KvCacheConfig, WorldConfig
+except Exception as e:
+    use_trtllm_bindings = False
+
+use_cpp_gpt_session = True
+try:
+    from tensorrt_llm.runtime.model_runner_cpp import ModelRunnerCppGptSession
+except Exception as e:
+    use_cpp_gpt_session = False
 
 
 @dataclass
@@ -130,6 +142,8 @@ def _load(
     lora_ckpt_list=None,
     num_beams=1,
     use_python_runtime: bool = True,
+    enable_chunked_context: bool = False,
+    max_tokens_in_paged_kv_cache: int = None,
 ):
     """The impl of `load` API for on a single GPU worker."""
     try:
@@ -144,7 +158,7 @@ def _load(
 
         max_batch_size = config["build_config"]["max_batch_size"]
         max_input_len = config["build_config"]["max_input_len"]
-        max_output_len = config["build_config"]["max_output_len"]
+        # max_output_len = config["build_config"]["max_output_len"]
         max_beam_width = config["build_config"]["max_beam_width"]
 
         runtime_rank = tensorrt_llm.mpi_rank()
@@ -165,8 +179,10 @@ def _load(
                 rank=runtime_rank,
                 max_batch_size=max_batch_size,
                 max_input_len=max_input_len,
-                max_output_len=max_output_len,
+                # max_output_len=max_output_len,
                 max_beam_width=max_beam_width,
+                enable_chunked_context=enable_chunked_context,
+                max_tokens_in_paged_kv_cache=max_tokens_in_paged_kv_cache,
                 debug_mode=False,
             )
 
@@ -278,6 +294,8 @@ def load(
     lora_ckpt_list: List[str] = None,
     num_beams: int = 1,
     use_python_runtime: bool = True,
+    enable_chunked_context: bool = False,
+    max_tokens_in_paged_kv_cache: int = None,
 ) -> TensorrtLLMHostContext:
     """Loaded the compiled LLM model and run it.
 
@@ -289,17 +307,42 @@ def load(
         config = json.load(f)
     world_size = config["pretrained_config"]["mapping"]["world_size"]
     if world_size == 1:
-        _load(tokenizer, engine_dir, lora_ckpt_list, num_beams, use_python_runtime)
+        _load(
+            tokenizer,
+            engine_dir,
+            lora_ckpt_list,
+            num_beams,
+            use_python_runtime,
+            enable_chunked_context,
+            max_tokens_in_paged_kv_cache,
+        )
         executor = None
     elif tensorrt_llm.mpi_world_size() > 1:
-        _load(tokenizer, engine_dir, lora_ckpt_list, num_beams, use_python_runtime)
+        _load(
+            tokenizer,
+            engine_dir,
+            lora_ckpt_list,
+            num_beams,
+            use_python_runtime,
+            enable_chunked_context,
+            max_tokens_in_paged_kv_cache,
+        )
         executor = None
         tensorrt_llm.mpi_barrier()
     else:
         executor = MPIPoolExecutor(max_workers=world_size)
         futures = []
         for _ in range(world_size):
-            future = executor.submit(_load, tokenizer, engine_dir, lora_ckpt_list, num_beams, use_python_runtime)
+            future = executor.submit(
+                _load,
+                tokenizer,
+                engine_dir,
+                lora_ckpt_list,
+                num_beams,
+                use_python_runtime,
+                enable_chunked_context,
+                max_tokens_in_paged_kv_cache,
+            )
             futures.append(future)
         for future in futures:
             future.result()
@@ -397,6 +440,77 @@ def forward(
                 return result
 
         raise RuntimeError("Internal error")
+
+
+def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
+    """Loads TRTLLM engines in a distributed gpu environment, in particular
+    this function creates a custom mapping of device_id to WorldConfig
+    """
+    global tensorrt_llm_worker_context
+    if isinstance(tensorrt_llm_worker_context.decoder, ModelRunnerCppGptSession):
+        return
+
+    config_path = Path(engine_dir) / f"config_{torch.distributed.get_rank()}.json"
+    json_config = GptJsonConfig.parse_file(config_path)
+    model_config = json_config.model_config
+
+    max_beam_width = model_config.max_beam_width
+    max_batch_size = model_config.max_batch_size
+    max_input_len = model_config.max_input_len
+    max_seq_len = model_config.max_seq_len
+
+    tp_size = json_config.tensor_parallelism
+    pp_size = json_config.pipeline_parallelism
+    assert tp_size <= gpus_per_node, "Multinode TP is not unsupported"
+
+    # TRTLLM asserts that rank equals the device num however this
+    # is not true for the megatron mapping of TP->DP->PP.
+    # So we manipulate TRTLLM to emulate a TP->PP single node setup
+    # TRTLLM is expected to fix this in future releases
+    offset = (torch.cuda.current_device() - model_parallel_rank % gpus_per_node + gpus_per_node) % gpus_per_node
+    device_ids = [i for i in range(gpus_per_node)]
+    for _ in range(offset):
+        device_ids.append(device_ids.pop(0))
+    world_config = WorldConfig.mpi(
+        gpus_per_node=gpus_per_node, tensor_parallelism=tp_size, pipeline_parallelism=pp_size, device_ids=device_ids
+    )
+    engine_filename = json_config.engine_filename(world_config)
+    serialize_path = Path(engine_dir) / engine_filename
+    assert torch.cuda.current_device() == world_config.device
+
+    session_config = GptSessionConfig(
+        max_batch_size=max_batch_size, max_beam_width=max_beam_width, max_sequence_length=max_seq_len
+    )
+    session_config.gen_micro_batch_size = max_batch_size
+    session_config.ctx_micro_batch_size = max_batch_size
+    session_config.kv_cache_config = KvCacheConfig(
+        max_tokens=max_seq_len * max_batch_size, max_attention_window=max_seq_len
+    )
+
+    with open(serialize_path, "rb") as f:
+        engine_data = bytearray(f.read())
+
+    session = GptSession(session_config, model_config, world_config, engine_data)
+    decoder = ModelRunnerCppGptSession(
+        session,
+        lora_manager=None,
+        max_batch_size=max_batch_size,
+        max_input_len=max_input_len,
+        max_seq_len=max_seq_len,
+        max_beam_width=max_beam_width,
+    )
+
+    tensorrt_llm_worker_context.decoder = decoder
+    tensorrt_llm_worker_context.max_batch_size = max_batch_size
+    tensorrt_llm_worker_context.max_input_len = max_input_len
+    # Save the model config in case for refit
+    tensorrt_llm_worker_context.model_config = model_config
+
+
+def refit(weights_dict):
+    global tensorrt_llm_worker_context
+    dtype = tensorrt_llm_worker_context.model_config.data_type
+    tensorrt_llm_worker_context.decoder.session.refit_engine(weights_dict, dtype)
 
 
 def prepare_input_tensors(

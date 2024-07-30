@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gc
 import json
 import logging
 import os
@@ -30,17 +31,32 @@ import wrapt
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import get_tokenzier, is_nemo_file, load_nemo_model
-from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
-from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
-from nemo.export.trt_llm.qnemo.utils import is_qnemo_checkpoint
+from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_trt_llm_ckpt
+from nemo.export.trt_llm.converter.utils import init_model_parallel_from_nemo
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
+    build_tokenizer,
+    get_tokenzier,
+    is_nemo_file,
+    load_nemo_model,
+)
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
-from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load
+from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_distributed, refit
+
+LOGGER = logging.getLogger("NeMo")
+
+use_model_opt = True
+try:
+    from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
+    from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
+    from nemo.export.trt_llm.qnemo.utils import is_qnemo_checkpoint
+except Exception as e:
+    LOGGER.warning(f"Cannot import the Model Optimizer, it will not be available. {type(e).__name__}: {e}")
+    use_model_opt = False
 
 use_deploy = True
 try:
     from nemo.deploy.utils import cast_output, str_ndarray2list
-except Exception:
+except Exception as e:
     use_deploy = False
 
 
@@ -60,15 +76,13 @@ try:
 except Exception:
     use_pytriton = False
 
-LOGGER = logging.getLogger("NeMo")
-
 
 class TensorRTLLM(ITritonDeployable):
     """
     Exports nemo checkpoints to TensorRT-LLM and run fast inference.
 
     Example:
-        from nemo.export import TensorRTLLM
+        from nemo.export.tensorrt_llm import TensorRTLLM
 
         trt_llm_exporter = TensorRTLLM(model_dir="/path/for/model/files")
         trt_llm_exporter.export(
@@ -88,6 +102,8 @@ class TensorRTLLM(ITritonDeployable):
         lora_ckpt_list: List[str] = None,
         load_model: bool = True,
         use_python_runtime: bool = True,
+        enable_chunked_context: bool = None,
+        max_tokens_in_paged_kv_cache: int = None,
     ):
         """
         Args:
@@ -97,9 +113,19 @@ class TensorRTLLM(ITritonDeployable):
             use_python_runtime (bool): whether to use python or c++ runtime.
         """
 
+        if use_python_runtime:
+            if enable_chunked_context is not None or max_tokens_in_paged_kv_cache is not None:
+                raise Exception(
+                    "enable_chunked_context and max_tokens_in_paged_kv_cache options "
+                    "work only with the TensorRT-LLM C++ runtime. Please set "
+                    "use_python_runtime=False to use these options."
+                )
+
         self.model_dir = model_dir
         self.lora_ckpt_list = lora_ckpt_list
         self.use_python_runtime = use_python_runtime
+        self.enable_chunked_context = enable_chunked_context if enable_chunked_context is not None else False
+        self.max_tokens_in_paged_kv_cache = max_tokens_in_paged_kv_cache
         self.model = None
         self.tokenizer = None
         self.n_gpus = None
@@ -116,11 +142,11 @@ class TensorRTLLM(ITritonDeployable):
     def export(
         self,
         nemo_checkpoint_path: str,
-        model_type: str,
+        model_type: Optional[str] = None,
         delete_existing_files: bool = True,
-        n_gpus: int = 1,
-        tensor_parallel_size: int = None,
-        pipeline_parallel_size: int = None,
+        n_gpus: int = None,
+        tensor_parallelism_size: int = 1,
+        pipeline_parallelism_size: int = 1,
         gpus_per_node: int = None,
         max_input_len: int = 256,
         max_output_len: int = 256,
@@ -132,6 +158,7 @@ class TensorRTLLM(ITritonDeployable):
         use_embedding_sharing: bool = False,
         paged_kv_cache: bool = True,
         remove_input_padding: bool = True,
+        paged_context_fmha: bool = False,
         dtype: str = "bfloat16",
         load_model: bool = True,
         enable_multi_block_mode: bool = False,
@@ -140,18 +167,21 @@ class TensorRTLLM(ITritonDeployable):
         max_lora_rank: int = 64,
         max_num_tokens: int = None,
         opt_num_tokens: int = None,
-        save_nemo_model_config: bool = False,
+        max_seq_len: int = None,
+        multiple_profiles: bool = False,
+        gpt_attention_plugin: str = "auto",
+        gemm_plugin: str = "auto",
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
 
         Args:
             nemo_checkpoint_path (str): path for the nemo checkpoint.
-            model_type (str): type of the model. Currently, "llama", "gptnext", "falcon", and "starcoder" are supported.
-            delete_existing_files (bool): if Truen, deletes all the files in model_dir.
+            model_type (str): type of the model (optional for quantized checkpoints).
+            delete_existing_files (bool): if True, deletes all the files in model_dir.
             n_gpus (int): number of GPUs to use for inference.
-            tensor_parallel_size (int): tensor parallelism.
-            pipeline_parallel_size (int): pipeline parallelism.
+            tensor_parallelism_size (int): tensor parallelism.
+            pipeline_parallelism_size (int): pipeline parallelism.
             gpus_per_node (int): number of gpus per node.
             max_input_len (int): max input length.
             max_output_len (int): max output length.
@@ -162,6 +192,7 @@ class TensorRTLLM(ITritonDeployable):
             use_parallel_embedding (bool): whether to use parallel embedding feature of TRT-LLM or not
             use_embedding_sharing (bool):
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
+            paged_context_fmha (bool): whether to use paged context fmha feature of TRT-LLM or not
             remove_input_padding (bool): enables removing input padding or not.
             dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
             load_model (bool): load TensorRT-LLM model after the export.
@@ -171,29 +202,22 @@ class TensorRTLLM(ITritonDeployable):
             max_lora_rank (int): maximum lora rank.
             max_num_tokens (int):
             opt_num_tokens (int):
-            save_nemo_model_config (bool):
+            max_seq_len (int):
+            multiple_profiles: (bool): enables multiple profiles feature of TRT-LLM. Default = False
+            gpt_attention_plugin (str): enable the gpt attention plugin. Default = "auto"
+            gemm_plugin (str): enable the gpt plugin. Default = "auto"
         """
 
-        if model_type not in self.get_supported_models_list:
-            raise Exception(
-                "Model {0} is not currently a supported model type. "
-                "Supported model types are llama, gptnext, falcon, and starcoder.".format(model_type)
+        if n_gpus is not None:
+            warnings.warn(
+                "Parameter n_gpus is deprecated and will be removed in the next release. "
+                "Please use tensor_parallelism_size and pipeline_parallelism_size parameters instead.",
+                DeprecationWarning,
+                stacklevel=2,
             )
+            tensor_parallelism_size = n_gpus
 
-        if model_type == "gpt" or model_type == "starcoder":
-            model_type = "gptnext"
-
-        if model_type == "mixtral":
-            model_type = "llama"
-
-        if pipeline_parallel_size is None:
-            tensor_parallel_size = n_gpus
-            pipeline_parallel_size = 1
-        elif tensor_parallel_size is None:
-            tensor_parallel_size = 1
-            pipeline_parallel_size = n_gpus
-
-        gpus_per_node = tensor_parallel_size if gpus_per_node is None else gpus_per_node
+        gpus_per_node = tensor_parallelism_size if gpus_per_node is None else gpus_per_node
 
         if Path(self.model_dir).exists():
             if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
@@ -236,7 +260,12 @@ class TensorRTLLM(ITritonDeployable):
             tmp_dir = tempfile.TemporaryDirectory()
             nemo_export_dir = Path(tmp_dir.name)
 
-            if is_qnemo_checkpoint(nemo_checkpoint_path):
+            is_qnemo_ckpt = False
+            if use_model_opt:
+                if is_qnemo_checkpoint(nemo_checkpoint_path):
+                    is_qnemo_ckpt = True
+
+            if is_qnemo_ckpt:
                 if os.path.isdir(nemo_checkpoint_path):
                     nemo_export_dir = nemo_checkpoint_path
                 else:
@@ -251,8 +280,8 @@ class TensorRTLLM(ITritonDeployable):
                     max_output_len=max_output_len,
                     max_batch_size=max_batch_size,
                     max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-                    tensor_parallel_size=tensor_parallel_size,
-                    pipeline_parallel_size=pipeline_parallel_size,
+                    tensor_parallel_size=tensor_parallelism_size,
+                    pipeline_parallel_size=pipeline_parallelism_size,
                     use_parallel_embedding=use_parallel_embedding,
                     paged_kv_cache=paged_kv_cache,
                     remove_input_padding=remove_input_padding,
@@ -264,6 +293,21 @@ class TensorRTLLM(ITritonDeployable):
                     opt_num_tokens=opt_num_tokens,
                 )
             else:
+                if model_type is None:
+                    raise Exception("model_type needs to be specified, got None.")
+
+                if model_type not in self.get_supported_models_list:
+                    raise Exception(
+                        "Model {0} is not currently a supported model type. "
+                        "Supported model types are: {1}.".format(model_type, self.get_supported_models_list)
+                    )
+
+                if model_type == "gpt" or model_type == "starcoder":
+                    model_type = "gptnext"
+
+                if model_type == "mixtral":
+                    model_type = "llama"
+
                 model, model_configs, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir)
                 weights_dicts, model_configs = model_to_trtllm_ckpt(
                     model=model,
@@ -271,8 +315,8 @@ class TensorRTLLM(ITritonDeployable):
                     nemo_export_dir=nemo_export_dir,
                     decoder_type=model_type,
                     dtype=dtype,
-                    tensor_parallel_size=tensor_parallel_size,
-                    pipeline_parallel_size=pipeline_parallel_size,
+                    tensor_parallel_size=tensor_parallelism_size,
+                    pipeline_parallel_size=pipeline_parallelism_size,
                     gpus_per_node=gpus_per_node,
                     use_parallel_embedding=use_parallel_embedding,
                     use_embedding_sharing=use_embedding_sharing,
@@ -295,8 +339,13 @@ class TensorRTLLM(ITritonDeployable):
                         enable_multi_block_mode=enable_multi_block_mode,
                         paged_kv_cache=paged_kv_cache,
                         remove_input_padding=remove_input_padding,
+                        paged_context_fmha=paged_context_fmha,
                         max_num_tokens=max_num_tokens,
                         opt_num_tokens=opt_num_tokens,
+                        max_seq_len=max_seq_len,
+                        multiple_profiles=multiple_profiles,
+                        gpt_attention_plugin=gpt_attention_plugin,
+                        gemm_plugin=gemm_plugin,
                     )
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
@@ -316,6 +365,82 @@ class TensorRTLLM(ITritonDeployable):
 
         if load_model:
             self._load()
+
+    def build(
+        self,
+        model,
+        model_config,
+        model_type,
+        gpus_per_node,
+        tokenizer,
+        max_input_len: int = 1024,
+        max_output_len: int = 1024,
+        max_batch_size: int = 4,
+        use_refit: bool = True,
+        reshard_model: bool = False,
+    ):
+        """
+        Convert a model parallel nemo model to TensorRT-LLM.
+        """
+        assert tensorrt_llm.mpi_rank() == torch.distributed.get_rank()
+        self.use_refit, self.model_type, self.gpus_per_node = use_refit, model_type, gpus_per_node
+        self.mp_rank, self.dp_rank, self.tp_size, self.pp_size, self.dp_size = init_model_parallel_from_nemo(
+            reshard_model
+        )
+        self.tokenizer = build_tokenizer(tokenizer)
+
+        if self.dp_size > 1:
+            self.model_dir = os.path.join(self.model_dir, f"dp_rank{self.dp_rank}")
+
+        weights, model_config = model_to_trtllm_ckpt(
+            model=model,
+            nemo_model_config=model_config,
+            nemo_export_dir=self.model_dir,
+            decoder_type=model_type,
+            tensor_parallel_size=self.tp_size,
+            pipeline_parallel_size=self.pp_size,
+            gpus_per_node=gpus_per_node,
+            use_parallel_embedding=True,
+            use_distributed_convert=True,
+            model_parallel_rank=self.mp_rank,
+            vocab_size=self.tokenizer.vocab_size,
+        )
+
+        engine = build_and_save_engine(
+            max_input_len=max_input_len,
+            max_output_len=max_output_len,
+            max_batch_size=max_batch_size,
+            model_config=model_config[0],
+            model_weights=weights[0],
+            model_dir=self.model_dir,
+            model_type=model_type,
+            custom_all_reduce=False,
+            use_refit=use_refit,
+        )
+        torch.distributed.barrier()
+
+        cfg_path = Path(os.path.join(self.model_dir, f'config_{torch.distributed.get_rank()}.json'))
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(engine.config.to_dict(), f, indent=4)
+
+        load_distributed(self.model_dir, self.mp_rank, gpus_per_node)
+
+    def refit(self, model, model_config):
+        """
+        Refits an TensorRT engine using an instantiated nemo model.
+        This function should only be used after calling build()
+        """
+        weights_dict = dist_model_to_trt_llm_ckpt(
+            model=model,
+            nemo_model_config=model_config,
+            inference_tp_size=self.tp_size,
+            inference_pp_size=self.pp_size,
+            tokenizer_vocab_size=self.tokenizer.vocab_size,
+        )
+        load_distributed(self.model_dir, self.mp_rank, self.gpus_per_node)
+        gc.collect()
+        torch.cuda.empty_cache()
+        refit(weights_dict)
 
     def forward(
         self,
@@ -751,6 +876,8 @@ class TensorRTLLM(ITritonDeployable):
                         engine_dir=self.model_dir,
                         lora_ckpt_list=self.lora_ckpt_list,
                         use_python_runtime=self.use_python_runtime,
+                        enable_chunked_context=self.enable_chunked_context,
+                        max_tokens_in_paged_kv_cache=self.max_tokens_in_paged_kv_cache,
                     )
                     self._load_prompt_tables()
                 except Exception as error:

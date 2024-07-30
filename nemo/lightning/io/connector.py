@@ -1,3 +1,4 @@
+import inspect
 import logging
 import os
 import shutil
@@ -159,6 +160,8 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             output_path (Path): The path where the model checkpoint will be saved.
             trainer (pl.Trainer): The trainer with the strategy to save the model.
         """
+        trainer.strategy._setup_optimizers = False
+        trainer.strategy._init_model_parallel = False
         trainer.strategy.setup(trainer)
         trainer.save_checkpoint(output_path)
 
@@ -178,10 +181,12 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             Tuple[pl.LightningModule, pl.Trainer]: The loaded model and the trainer configured with the model.
         """
         from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
-        from nemo.lightning.io.api import load_ckpt
+        from nemo.lightning.io.api import load_context
 
-        model = load_ckpt(path).model
-        _trainer = trainer or Trainer(devices=1, accelerator="cpu" if cpu else "gpu", strategy=MegatronStrategy())
+        model = load_context(path).model
+        _trainer = trainer or Trainer(
+            devices=1, accelerator="cpu" if cpu else "gpu", strategy=MegatronStrategy(ddp="pytorch")
+        )
 
         _trainer.strategy.connect(model)
         _trainer.strategy.setup_environment()
@@ -208,3 +213,9 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             _base = Path(NEMO_MODELS_CACHE)
 
         return _base / str(self).replace("://", "/")
+
+    def on_import_ckpt(self, model: pl.LightningModule):
+        if hasattr(self, "tokenizer"):
+            model.tokenizer = self.tokenizer
+            if hasattr(model, "__io__"):
+                model.__io__.tokenizer = self.tokenizer

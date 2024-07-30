@@ -2,7 +2,7 @@ import itertools
 import os
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Dict, Generator, Mapping, Optional, Protocol, TypeVar
 
 import torch
 from torch import nn
@@ -16,12 +16,16 @@ if TYPE_CHECKING:
 
 
 class SharedStateDictProtocol(Protocol):
-    def sharded_state_dict(self, prefix=""):
-        ...
+    def sharded_state_dict(self, prefix=""): ...
 
 
 def init_parallel_ranks(
-    world_size: int, global_rank: int, local_rank: int, parallel_config: "ModelParallelConfig", seed=1234, fp8=False,
+    world_size: int,
+    global_rank: int,
+    local_rank: int,
+    parallel_config: "ModelParallelConfig",
+    seed=1234,
+    fp8=False,
 ) -> None:
     """
     Initializes the parallel ranks for distributed training.
@@ -57,12 +61,14 @@ def init_parallel_ranks(
         global_rank=init_global_rank,
         local_rank=init_local_rank,
         tensor_model_parallel_size=parallel_config.tensor_model_parallel_size,
+        expert_model_parallel_size=parallel_config.expert_model_parallel_size,
         pipeline_model_parallel_size=parallel_config.pipeline_model_parallel_size,
         virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
+        context_parallel_size=parallel_config.context_parallel_size,
         seed=seed,
         pipeline_model_parallel_split_rank=getattr(parallel_config, "pipeline_model_parallel_split_rank", None),
         use_fp8=fp8,
-        init_mpi_proc_group=getattr(parallel_config, "ub_tp_comm_overlap", False),
+        init_mpi_proc_group=getattr(parallel_config, "tp_comm_overlap", False),
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
@@ -88,6 +94,8 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                context_parallel_size=app_state.context_parallel_size,
+                expert_model_parallel_size=app_state.expert_model_parallel_size,
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -113,6 +121,30 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 if hasattr(child, "set_tensor_parallel_group"):
                     tp_group = parallel_state.get_tensor_model_parallel_group()
                     child.set_tensor_parallel_group(tp_group)
+
+
+def set_model_parallel_attributes(model, parallelism):
+    # Right now mcore sub-classes ModelParellelConfig, we should remove that
+    # Given Lightning's structure it would be better if parallelism is a different object
+    # Since then it can be passed to the Strategy
+
+    from megatron.core.model_parallel_config import ModelParallelConfig
+    from megatron.core.transformer.transformer_config import TransformerConfig
+
+    assert isinstance(
+        parallelism, ModelParallelConfig
+    ), f"Expected parallelism config to be of type ModelParallelConfig, but got {type(parallelism)}"
+    has_mcore_config = isinstance(getattr(model, "config", None), TransformerConfig)
+    if has_mcore_config and hasattr(model, "configure_model"):
+        config: TransformerConfig = model.config
+        for attr_name in filter(lambda x: not x.startswith('__'), dir(parallelism)):
+            if not hasattr(config, attr_name):
+                continue
+            setattr(config, attr_name, getattr(parallelism, attr_name))
+
+        return config
+
+    return None
 
 
 @contextmanager
@@ -161,7 +193,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
     def __init__(
         self,
-        init_scale=2.0 ** 16,
+        init_scale=2.0**16,
         growth_factor=2.0,
         backoff_factor=0.5,
         growth_interval=2000,
@@ -193,7 +225,9 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
         # Update across all model parallel instances.
         torch.distributed.all_reduce(
-            found_inf, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group(),
+            found_inf,
+            op=torch.distributed.ReduceOp.MAX,
+            group=parallel_state.get_model_parallel_group(),
         )
 
         if found_inf.item() == 0:
@@ -244,7 +278,9 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
             # Update across all model parallel instances.
             torch.distributed.all_reduce(
-                found_inf_combined, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group(),
+                found_inf_combined,
+                op=torch.distributed.ReduceOp.MAX,
+                group=parallel_state.get_model_parallel_group(),
             )
 
             if len(found_infs) > 1:
@@ -252,7 +288,9 @@ class GradScaler(torch.cuda.amp.GradScaler):
                     found_inf = found_infs[i]
                     # Update across all model parallel instances.
                     torch.distributed.all_reduce(
-                        found_inf, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group(),
+                        found_inf,
+                        op=torch.distributed.ReduceOp.MAX,
+                        group=parallel_state.get_model_parallel_group(),
                     )
                     found_inf_combined += found_inf
 
@@ -365,7 +403,12 @@ def enable_nvidia_optimizations() -> None:
         pass
 
 
-def optimizer_sharded_state_dict(model: SharedStateDictProtocol, optimizer: "Optimizable") -> Dict[str, torch.Tensor]:
+def optimizer_sharded_state_dict(
+    model: SharedStateDictProtocol,
+    optimizer: "Optimizable",
+    is_loading=False,
+    sharding_type='fully_sharded_model_space',
+) -> Dict[str, torch.Tensor]:
     """
     Sharded state dictionary for an MainParamsOptimizerWrapper.
     Used to save and load the optimizer state when training with distributed_checkpoint.
@@ -393,7 +436,9 @@ def optimizer_sharded_state_dict(model: SharedStateDictProtocol, optimizer: "Opt
     }
 
     if hasattr(optimizer, "sharded_state_dict"):
-        return optimizer.sharded_state_dict(model_sharded_state_dict)
+        return optimizer.sharded_state_dict(
+            model_sharded_state_dict, is_loading=is_loading, sharding_type=sharding_type
+        )
 
     if not isinstance(optimizer, MainParamsOptimizerWrapper):
         # Regular optimizer, e.g. Adam or FusedAdam
@@ -428,7 +473,8 @@ def optimizer_sharded_state_dict(model: SharedStateDictProtocol, optimizer: "Opt
             for param_id, fp32_param in zip(state_group["params"], fp32_group)
         ]
         for fp32_group, state_group in zip(
-            optimizer_state_dict["fp32_from_fp16_params"], optimizer_state_dict["optimizer"]["param_groups"],
+            optimizer_state_dict["fp32_from_fp16_params"],
+            optimizer_state_dict["optimizer"]["param_groups"],
         )
     ]
 
@@ -436,3 +482,45 @@ def optimizer_sharded_state_dict(model: SharedStateDictProtocol, optimizer: "Opt
     optim_state_to_sharding_state(optimizer_state_dict["optimizer"], id_to_sharded_param_map)
 
     return optimizer_state_dict
+
+
+def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
+    from megatron.core import parallel_state
+
+    for index, module in enumerate(megatron_parallel):
+        if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+            if "state_dict" in checkpoint:
+                checkpoint_state_dict = checkpoint["state_dict"][f"model_{index}"]
+            else:
+                checkpoint_state_dict = checkpoint[f"model_{index}"]
+        else:
+            if "state_dict" in checkpoint:
+                checkpoint_state_dict = checkpoint["state_dict"]
+            else:
+                checkpoint_state_dict = checkpoint
+
+        n_nesting = 0
+        mcore_model = megatron_parallel.module
+        while hasattr(mcore_model, "module"):
+            mcore_model = mcore_model.module
+            n_nesting += 1
+
+        _state_dict = {}
+        for key, value in checkpoint_state_dict.items():
+            # Count the number of "module." at the start of the key
+            count, _key = 0, key
+            while _key.startswith("module."):
+                _key = _key[len("module.") :]
+                count += 1
+
+            # Adjust the number of "module." prefixes
+            if count < n_nesting:
+                to_add = "module." * (n_nesting - count)
+                _state_dict[f"{to_add}{key}"] = value
+            elif count > n_nesting:
+                to_remove = "module." * (count - n_nesting)
+                _state_dict[key[len(to_remove) :]] = value
+            else:
+                _state_dict[key] = value
+
+        module.load_state_dict(_state_dict, strict=strict)

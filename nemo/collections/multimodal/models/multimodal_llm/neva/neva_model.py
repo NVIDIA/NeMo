@@ -17,9 +17,10 @@ from functools import partial
 from itertools import chain
 from typing import Any, Optional
 
+import numpy as np
 import torch
 import torch.nn.functional as F
-from einops import rearrange, repeat
+from einops import rearrange, reduce, repeat
 from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
 from pytorch_lightning.trainer.trainer import Trainer
@@ -65,18 +66,11 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
 try:
-    import apex.transformer.pipeline_parallel.utils
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
-    from megatron.core import InferenceParams, dist_checkpointing, parallel_state
+    from megatron.core import InferenceParams, dist_checkpointing, parallel_state, tensor_parallel
+    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
+    from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
 
@@ -85,6 +79,12 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+
+def skip_fp8_load(x):
+    if isinstance(x, ShardedObject) and 'fused_attention' in x.key and '_extra_state' in x.key:
+        x = LocalNonpersitentObject(x.data)  # use the FP8 state from initialization, not from ckpt
+    return x
 
 
 class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
@@ -137,6 +137,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         media_start_id,
         media_end_id,
         vision_select_layer=-1,
+        vision_select_feature="patch",
         class_token_length=1,
         use_im_start_end=False,
     ):
@@ -147,6 +148,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         self.class_token_length = class_token_length
         self.use_im_start_end = use_im_start_end
         self.vision_select_layer = vision_select_layer
+        self.vision_select_feature = vision_select_feature
         self.media = None
         self.set_accepted_adapter_types([MultimodalProjectorAdapterConfig._target_])
 
@@ -154,10 +156,34 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         self.media = media
 
     def forward(self, input_ids, **kwargs):
-        media = self.media  # avoid change the signature of embedding forward function
-        words_embeddings = super().forward(input_ids, **kwargs)
+        media = self.media  # avoid changing the signature of embedding forward function
 
-        return self.replace_media_embeddings(input_ids, words_embeddings, media)
+        # TODO: Refactor replace_media_embedding to account for MCore's embedding communication optimization
+        # https://github.com/NVIDIA/Megatron-LM/commit/ee423e7 changes the way we handle embeddings with sequence parallelism
+        # When using reduce_scatter_embeddings, word_embedding_tensor is now in the following shape: [sequence/tp, batch_size, hidden_size]
+        # replace_media_embedding currently expects [batch_size, sequence, hidden_size]
+
+        # Check if reduce_scatter_embeddings is enabled in the embedding forward function
+        apply_reduce_scatter = getattr(self, 'reduce_scatter_embeddings', False)
+
+        # Set reduce_scatter_embeddings to false to keep words_embedding's
+        # tensor dimesion the same for replace_media_embedding
+        if apply_reduce_scatter:
+            self.reduce_scatter_embeddings = False
+
+        words_embeddings = super().forward(input_ids, **kwargs)
+        words_embeddings = self.replace_media_embeddings(input_ids, words_embeddings, media)
+
+        # Scatter embeddings back to each TP rank if reduce_scatter_embeddings is enabled
+        if apply_reduce_scatter:
+            words_embeddings = self._apply_reduce_scatter(words_embeddings)
+            self.reduce_scatter_embeddings = True
+
+        return words_embeddings
+
+    def _apply_reduce_scatter(self, embeddings):
+        embeddings = embeddings.transpose(0, 1).contiguous()
+        return tensor_parallel.mappings.scatter_to_sequence_parallel_region(embeddings)
 
     def encode_vision_x(self, vision_x: torch.Tensor):
         """
@@ -184,7 +210,10 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
                 self.vision_encoder.backbone.transformer.return_select_layer = self.vision_select_layer
                 vision_x = self.vision_encoder(vision_x)
         vision_x = rearrange(vision_x, "(b T F) v d -> b T F v d", b=b, T=T, F=F)
-        vision_x = vision_x[:, :, :, self.class_token_length :]
+        if self.vision_select_feature == "patch":
+            vision_x = vision_x[:, :, :, self.class_token_length :]
+        elif self.vision_select_feature != "cls_patch":
+            raise ValueError(f"Unsupported vision_select_feature {self.vision_select_feature}")
         assert self.is_adapter_available(), "Cannot find multimodal vision adapter!"
         vision_connector = self.get_adapter_module(AdapterName.MULTIMODAL_PROJECTOR_ADAPTER)
         vision_x = vision_connector(vision_x)
@@ -193,7 +222,6 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
     def replace_media_embeddings(self, input_ids, inputs_embeds, media):
         if media is None:
             return inputs_embeds
-
         batch_size, sequence_length, hidden_size = inputs_embeds.shape
 
         # calculate media features without gradients
@@ -250,6 +278,147 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         return sharded_state_dict
 
 
+class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
+    def init_lita(
+        self,
+        lita_video_arch: str,
+        visual_token_format: str = "v1",
+        use_media_start_end: bool = False,
+        sample_frames: int = 4,
+    ):
+        """_summary_
+
+        Args:
+            lita_video_arch (str): ['temporal_spatial_pool', 'temporal_spatial', 'temporal_all_resolution']
+            visual_token_format (str, optional): default to 'v1', other option ["v1", "im_vid_start_end"]
+                v1: no video_start_id and video_end_id, video tokens are inserted between fast/slow (temporal/spatial) tokens
+                im_vid_start_end: video start and end tokens are inserted before and after temporal tokens
+                                  image start and end tokens are inserted before and after spatial tokens
+            use_media_start_end (bool, optional):
+                whether media start and media end is used in input_ids, Defaults to False.
+                Notice, when it is false, the media_start_id and media_end_id will play as an placeholder
+                input_ids = [..., media_start_id, t1, t2, t3...., media_end_id, ...]
+                use_media_start_end = False
+                    we will replace the tokens including and between: [media_start_id, ... media_end_id]
+                use_media_start_end = True
+                    we will replace the tokens between: (media_start_id, ... media_end_id)
+            num_frames (int, optional): number of frames to sample from the video, default to 4
+        """
+        self.lita_video_arch = lita_video_arch
+        self.visual_token_format = visual_token_format
+        self.use_media_start_end = use_media_start_end
+        self.sample_frames = sample_frames
+
+    def add_lita_layer(self, media_features):
+        """_summary_
+
+        Args:
+            media_features (torch.Tensor):
+                feature after encoded by vision encoder
+                shape: Batch, T (number of images), S (num patches), H (hidden  size)
+        Returns:
+            tokens (torch.Tensor):
+                shape: Batch, T + M, D (hidden size)
+        """
+
+        b, T, S, H = media_features.shape
+        tokens = media_features
+        if self.lita_video_arch == 'temporal_spatial_pool':
+            pool_size = 2
+            h = w = int(np.sqrt(S))
+            selected_frames = np.round(np.linspace(0, tokens.shape[1] - 1, pool_size * pool_size)).astype(int)
+            s_tokens = tokens[:, selected_frames, ...]
+            s_tokens = rearrange(s_tokens, 'b t (h w) d -> (b t) d h w', h=h, w=w)
+            s_tokens = F.avg_pool2d(s_tokens, kernel_size=pool_size)
+            s_tokens = rearrange(s_tokens, '(b t) d h w -> b (t h w) d', b=b)  # B, M, D
+            t_tokens = reduce(tokens, 'b t s d -> b t d', 'mean')
+            # tokens = torch.cat([t_tokens, s_tokens], dim=1)  # B, T + M, D
+            return t_tokens, s_tokens
+        elif self.lita_video_arch == 'temporal_spatial':
+            t_tokens = reduce(tokens, 'b t s d -> b t d', 'mean')
+            s_tokens = reduce(tokens, 'b t s d -> b s d', 'mean')
+            # tokens = torch.cat([t_tokens, s_tokens], dim=1)  # B, T + M, D
+            return t_tokens, s_tokens
+        elif self.lita_video_arch == 'temporal_all_resolution':
+            idx = np.round(np.linspace(0, tokens.shape[1] - 1, self.sample_frames)).astype(int)
+            im_features = tokens[:, idx, ...]  # B, num_frames, S, D
+            # im_tokens = im_features.view(b, -1, H) # flatten the B, num_frames * S, D
+            im_tokens = im_features
+            vid_tokens = reduce(tokens, 'b t s d -> b t d', 'mean')
+            # s and t tokens have been changed position
+            return im_tokens, vid_tokens
+        else:
+            raise ValueError(f"Unknown video architecture: {self.lita_video_arch}")
+
+    def replace_media_embeddings(self, input_ids, inputs_embeds, media):
+        """_summary_
+
+        Args:
+            input_ids (torch.tensor): The input token ids [B, T]
+            words_embeddings (torch.tensor): The input embeddings [B, T, D]
+            media (torch.Tensor): Vision input
+                shape (B, T_img, F, C, H, W)
+        """
+        if input_ids.shape[1] == 1:
+            return inputs_embeds
+
+        if media is None:
+            return inputs_embeds
+        if type(media) is list:
+            raise NotImplementedError("dynamic length of videos not supported yet, only fixed length of videos now")
+        # 1, 1, num_frames, 3, 244, 244
+        media_features = self.encode_vision_x(media)  # B T F S(eq) H(idden)
+        B, T, F, S, H = media_features.shape
+        assert T == 1, "multiple videos per sample not supported yet"
+        media_features = media_features.squeeze(1)
+        t_tokens, s_tokens = self.add_lita_layer(media_features)  # B, T, D & B, M, D
+        T = t_tokens.shape[1]
+        M = s_tokens.shape[1]
+        inputs_embeds = inputs_embeds.clone()
+        for idx, input_id in enumerate(input_ids):
+            media_start_position = torch.where(input_id == self.media_start_id)[0]
+            media_end_position = torch.where(input_id == self.media_end_id)[0]
+            if self.visual_token_format != 'im_vid_start_end':
+                assert len(media_start_position) == 1, "Only 1 video per sample supported"
+                assert len(media_end_position) == 1, "Only 1 video per sample supported"
+
+            media_start_position = media_start_position[0]
+            media_end_position = media_end_position[-1]
+            if self.use_media_start_end:
+                # replace the tokens between media_start_id and media_end_id
+                start, end = media_start_position + 1, media_end_position - 1
+            else:
+                # replace the tokens including and between media_start_id and media_end_id
+                start, end = media_start_position, media_end_position
+
+            if self.visual_token_format == 'v1':
+                t_token_start, t_token_end = start, start + T
+                s_token_start, s_token_end = start + T, start + T + M
+                assert s_token_end == end + 1, "Token replacement error"
+                inputs_embeds[idx, t_token_start:t_token_end] = t_tokens[idx]
+                inputs_embeds[idx, s_token_start:s_token_end] = s_tokens[idx]
+            elif self.visual_token_format == 'im_vid_start_end':  # v1.5 lita
+                if not self.use_media_start_end:
+                    # replace the media start and media end embedding with
+                    # img_start and vid_end token embedding
+                    inputs_embeds[idx, start] = inputs_embeds[idx, start + 1]
+                    inputs_embeds[idx, end] = inputs_embeds[idx, end - 1]
+                # TO DO: To optimize the below codes
+                im_features, vid_features = t_tokens[idx], s_tokens[idx]
+                # im_feature: num_frames * S, D
+                emb_start = start + 1  # skip the img_start token
+                num_frames, S, D = im_features.shape
+                for i in range(num_frames):
+                    inputs_embeds[idx, emb_start : emb_start + S] = im_features[i]
+                    emb_start = emb_start + S + 2  # skip the img_end token and img_start token
+                T = vid_features.shape[0]
+                inputs_embeds[idx, emb_start : emb_start + T] = vid_features
+                assert emb_start + T == end
+            else:
+                raise ValueError(f"Unsupported visual_token_format {self.visual_token_format}")
+        return inputs_embeds
+
+
 class NevaBaseModel:
     """
     Base class for a multimedia model integrating vision and language models.
@@ -284,12 +453,24 @@ class NevaBaseModel:
 
         # Monkey patch embedding
         if kwargs.get("pre_process", True):
-            extend_instance(self.embedding.word_embeddings, NevaWordEmbeddingMixin)
+            if not mm_cfg.get("use_lita", False):
+                extend_instance(self.embedding.word_embeddings, NevaWordEmbeddingMixin)
+            else:
+                extend_instance(self.embedding.word_embeddings, LitaWordEmbeddingMixin)
+                lita_conf = mm_cfg.get('lita', {})
+                self.embedding.word_embeddings.init_lita(
+                    lita_video_arch=lita_conf.get('lita_video_arch', 'temporal_spatial_pool'),
+                    visual_token_format=lita_conf.get('visual_token_format', 'v1'),
+                    use_media_start_end=mm_cfg.get('use_im_start_end', False),  # we need to make this clear
+                    sample_frames=lita_conf.get('sample_frames', 4),
+                )
+
             self.embedding.word_embeddings.init_vision(
                 vision_encoder,
                 media_start_id,
                 media_end_id,
                 vision_select_layer=mm_cfg.vision_encoder.get("vision_select_layer", -2),
+                vision_select_feature=mm_cfg.vision_encoder.get("vision_select_feature", "patch"),
                 class_token_length=mm_cfg.vision_encoder.get("class_token_length", 1),
                 use_im_start_end=mm_cfg.get("use_im_start_end", False),
             )
@@ -297,7 +478,10 @@ class NevaBaseModel:
     def create_vision_encoder_and_processor(self, mm_cfg):
         # Initialize vision encoder and freeze it
         if mm_cfg.vision_encoder.get("from_hf", False):
-            if "clip" in mm_cfg.vision_encoder.from_pretrained:
+            from transformers import AutoConfig
+
+            config = AutoConfig.from_pretrained(mm_cfg.vision_encoder.from_pretrained)
+            if config.architectures[0] == "CLIPVisionModel":
                 vision_encoder = CLIPVisionModel.from_pretrained(
                     mm_cfg.vision_encoder.from_pretrained,
                     torch_dtype=torch.bfloat16,
@@ -307,7 +491,7 @@ class NevaBaseModel:
                     for param in vision_encoder.parameters():
                         param.requires_grad = False
                     vision_encoder = vision_encoder.eval()
-            elif "siglip" in mm_cfg.vision_encoder.from_pretrained:
+            elif config.architectures[0] == "SiglipVisionModel":
                 vision_encoder = SiglipVisionModel.from_pretrained(
                     mm_cfg.vision_encoder.from_pretrained,
                     torch_dtype=torch.bfloat16,
@@ -342,6 +526,9 @@ class NevaBaseModel:
         sharded_state_dict = None
         if getattr(self, "sharded_state_dict", None) is not None:
             sharded_state_dict = self.sharded_state_dict(prefix="model.")
+        # WAR: This is a temporary fix to skip loading FP8 parameters for Dot Product Attention
+        # TODO(yuya): Check if this skip affecting fp8 native checkpoints loading
+        dict_list_map_inplace(skip_fp8_load, sharded_state_dict)
         state_dict, self.is_dist_ckpt = load_nemo_model_weights(nemo_path, sharded_state_dict)
 
         return state_dict
@@ -550,7 +737,11 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 media_end_id=media_end_id,
                 mcore_gpt=self.mcore_gpt,
                 config=self.transformer_config,
-                transformer_layer_spec=get_specs(self.spec_name),
+                transformer_layer_spec=get_specs(
+                    self.spec_name,
+                    self.transformer_config,
+                    self.transformer_engine,
+                ),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,

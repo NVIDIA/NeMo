@@ -71,7 +71,7 @@ class Quantizer:
 
     Available quantization methods are listed in `QUANT_CFG_CHOICES` dictionary above.
     Please consult Model Optimizer documentation https://nvidia.github.io/TensorRT-Model-Optimizer/ for details.
-    You can also inspect different choices in examples/nlp/language_modeling/conf/megatron_gpt_quantization.yaml
+    You can also inspect different choices in examples/nlp/language_modeling/conf/megatron_gpt_ptq.yaml
     for quantization algorithms and calibration data as well as recommended settings.
 
     Quantization algorithm can also be conveniently set to 'null' to perform only weights export step
@@ -86,6 +86,7 @@ class Quantizer:
             - decoder_type: str
             - awq_block_size: int (only for awq algorithms)
             - sq_alpha: float (only for smooth quant algorithms)
+            - enable_kv_cache: bool (default: None i.e. auto-detect based on algorithm and decoder_type)
 
         Expected keys in `export_config`:
             - dtype: str/int
@@ -116,9 +117,11 @@ class Quantizer:
             # Always turn on FP8 kv cache to save memory footprint.
             # For int8_sq, we use int8 kv cache.
             # TODO: Investigate why enabling FP8 kv cache will cause accuracy regressions for Nemotron.
-            enable_quant_kv_cache = (
-                "int8" not in quantization_config.algorithm and quantization_config.decoder_type != "gptnext"
-            )
+            enable_quant_kv_cache = quantization_config.get("enable_kv_cache", None)
+            if enable_quant_kv_cache is None:
+                enable_quant_kv_cache = (
+                    "int8" not in quantization_config.algorithm and quantization_config.decoder_type != "gptnext"
+                )
             logging.info(f'{"Enabled" if enable_quant_kv_cache else "Disabled"} KV cache quantization')
             quant_cfg["quant_cfg"]["*output_quantizer"] = {
                 "num_bits": 8 if quantization_config.algorithm == "int8_sq" else (4, 3),
@@ -222,16 +225,16 @@ class Quantizer:
         assert self.export_config is not None, "Export config is not set"
         torch_dtype = torch_dtype_from_precision(self.export_config.dtype)
 
-        self._sample_output(model)
+        if self.export_config.get("sample_output", True):
+            self._sample_output(model)
 
         if model.cfg.megatron_amp_O2:
             model.model = unwrap_model(model.model, Float16Module)
 
         # Setup model export handling: temporary directory for
         # '.qnemo' tarball or directly write to export_config.save_path
-        # TODO [later]: consider a flag like `export_config.compress`
-        save_qnemo = self.export_config.save_path.endswith(".qnemo")
-        if save_qnemo:
+        compress = self.export_config.get("compress", False)
+        if compress:
             export_handler = temporary_directory()
         else:
             export_handler = nullcontext(enter_result=self.export_config.save_path)
@@ -252,6 +255,6 @@ class Quantizer:
             )
             if dist.get_rank() == 0:
                 save_artifacts(model, export_dir)
-                if save_qnemo:
+                if compress:
                     with tarfile.open(self.export_config.save_path, "w:gz") as tar:
                         tar.add(export_dir, arcname="./")

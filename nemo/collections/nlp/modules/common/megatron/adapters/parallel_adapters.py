@@ -24,6 +24,7 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 
+from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
@@ -76,6 +77,7 @@ class AdapterName(str, enum.Enum):
     PTUNING_ADAPTER = "ptuning_adapter"
     LORA_KQV_ADAPTER = "lora_kqv_adapter"
     LORA_UNFUSED_KQV_ADAPTER = "lora_unfused_kqv_adapter"
+    MLP_HEAD_ADAPTER = "mlp_head_adapter"
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
     MM_LINEAR_ADAPTER = "mm_linear_adapter"
@@ -255,7 +257,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
             te_version = packaging.version.Version(version("transformer-engine"))
             if te_version >= packaging.version.Version("1.5.0dev") and (
-                not self.input_is_parallel and model_parallel_config.tp_comm_disable_qkv
+                not self.input_is_parallel and getattr(model_parallel_config, "tp_comm_overlap_disable_qkv", False)
             ):
                 # TE 1.5 introduces the option `return_layernorm_output_gathered`, so the all gather
                 # in the forward method is not needed, so set self._sequence_parallel to False
@@ -322,6 +324,16 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         return x
 
+    def sharded_state_dict(
+        self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
+    ) -> ShardedStateDict:
+        sharded_state_dict = {}
+        sharded_state_dict.update(self.linear_in.sharded_state_dict(f"{prefix}linear_in.", sharded_offsets, metadata))
+        sharded_state_dict.update(
+            self.linear_out.sharded_state_dict(f"{prefix}linear_out.", sharded_offsets, metadata)
+        )
+        return sharded_state_dict
+
 
 class _All2AllHp2Sp(torch.autograd.Function):
     """
@@ -375,6 +387,57 @@ class ParallelLinearAdapterConfig(AdapterConfig):
     network_alpha: int | None = None
     a2a_experimental: bool = False
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
+
+
+class MLPHeadAdapter(nn.Module, AdapterModuleUtil):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        input_is_parallel: bool = False,
+        model_parallel_config: Optional[ModelParallelConfig] = None,
+        **kwargs,
+    ):
+        super().__init__()
+        if model_parallel_config is None:
+            model_parallel_config = ModelParallelConfig()
+        self._sequence_parallel = model_parallel_config.sequence_parallel
+        model_parallel_config.sequence_parallel = False  # SP is irrelevant for the lora linear layer
+
+        if input_is_parallel:
+            self.linear = RowParallelLinear(
+                in_features,
+                out_features,
+                config=model_parallel_config,
+                input_is_parallel=True,
+                skip_bias_add=True,
+                bias=False,
+                init_method=init.xavier_normal_,
+            )
+        else:
+            self.linear = ColumnParallelLinear(
+                in_features,
+                out_features,
+                config=model_parallel_config,
+                bias=False,
+                gather_output=True,
+                init_method=init.xavier_normal_,
+                disable_grad_reduce=self._sequence_parallel,
+            )
+
+        # Setup adapter strategy
+        self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
+
+    def forward(self, x):
+        x, _ = self.linear(x)
+        return x
+
+
+@dataclass
+class MLPHeadAdapterConfig(AdapterConfig):
+    in_features: int
+    out_features: int
+    _target_: str = "{0}.{1}".format(MLPHeadAdapter.__module__, MLPHeadAdapter.__name__)
 
 
 class LoraKQVAdapter(ParallelLinearAdapter):
@@ -766,14 +829,21 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         self.is_inference_ready = True
         return True
 
-    def clear_inference_table(self):
+    def clear_inference_table(
+        self,
+    ):
         self.inference_table.fill_(0.0)
         self.is_inference_ready = False
 
-    def get_inference_table(self):
+    def get_inference_table(
+        self,
+    ):
         return self.inference_table.data
 
-    def inner_forward(self):
+    def inner_forward(
+        self,
+    ):
+
         input_embeds = self.embedding(self.indices).unsqueeze(0)
         intermediate_parallel, bias_parallel = self.first(input_embeds)
         intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)

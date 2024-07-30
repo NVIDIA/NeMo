@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,16 +13,31 @@
 # limitations under the License.
 
 import argparse
+import json
 import logging
 import os
 import sys
 from pathlib import Path
 
+import uvicorn
+
 from nemo.deploy import DeployPyTriton
-from nemo.deploy.nlp import MegatronLLMDeployable
-from nemo.export import TensorRTLLM
 
 LOGGER = logging.getLogger("NeMo")
+
+megatron_llm_supported = True
+try:
+    from nemo.deploy.nlp import MegatronLLMDeployable
+except Exception as e:
+    LOGGER.warning(f"Cannot import MegatronLLMDeployable, it will not be available. {type(e).__name__}: {e}")
+    megatron_llm_supported = False
+
+trt_llm_supported = True
+try:
+    from nemo.export.tensorrt_llm import TensorRTLLM
+except Exception as e:
+    LOGGER.warning(f"Cannot import the TensorRTLLM exporter, it will not be available. {type(e).__name__}: {e}")
+    trt_llm_supported = False
 
 
 def get_args(argv):
@@ -31,13 +46,6 @@ def get_args(argv):
         description=f"Deploy nemo models to Triton",
     )
     parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source .nemo file")
-    parser.add_argument(
-        "-dsn",
-        "--direct_serve_nemo",
-        default=False,
-        action='store_true',
-        help="Serve the nemo model directly instead of exporting to TRTLLM first. Will ignore other TRTLLM-specific arguments.",
-    )
     parser.add_argument(
         "-ptnc",
         "--ptuning_nemo_checkpoint",
@@ -67,9 +75,14 @@ def get_args(argv):
         "-tha", "--triton_http_address", default="0.0.0.0", type=str, help="HTTP address for the Triton server"
     )
     parser.add_argument(
+        "-trt", "--triton_request_timeout", default=60, type=int, help="Timeout in seconds for Triton server"
+    )
+    parser.add_argument(
         "-tmr", "--triton_model_repository", default=None, type=str, help="Folder for the trt-llm conversion"
     )
-    parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("-ng", "--num_gpus", default=None, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("-tps", "--tensor_parallelism_size", default=1, type=int, help="Tensor parallelism size")
+    parser.add_argument("-pps", "--pipeline_parallelism_size", default=1, type=int, help="Pipeline parallelism size")
     parser.add_argument(
         "-dt",
         "--dtype",
@@ -82,7 +95,13 @@ def get_args(argv):
     parser.add_argument("-mol", "--max_output_len", default=256, type=int, help="Max output length of the model")
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
     parser.add_argument("-mnt", "--max_num_tokens", default=None, type=int, help="Max number of tokens")
+    parser.add_argument("-msl", "--max_seq_len", default=None, type=int, help="Maximum number of sequence length")
+    parser.add_argument("-mp", "--multiple_profiles", default=False, action='store_true', help="Multiple profiles")
     parser.add_argument("-ont", "--opt_num_tokens", default=None, type=int, help="Optimum number of tokens")
+    parser.add_argument(
+        "-gap", "--gpt_attention_plugin", default="auto", type=str, help="dtype of gpt attention plugin"
+    )
+    parser.add_argument("-gp", "--gemm_plugin", default="auto", type=str, help="dtype of gpt plugin")
     parser.add_argument(
         "-mpet", "--max_prompt_embedding_table_size", default=None, type=int, help="Max prompt embedding table size"
     )
@@ -95,6 +114,13 @@ def get_args(argv):
         default=False,
         action='store_true',
         help="Disables the remove input padding option.",
+    )
+    parser.add_argument(
+        "-upe",
+        "--use_parallel_embedding",
+        default=False,
+        action='store_true',
+        help='Use parallel embedding feature of TensorRT-LLM.',
     )
     parser.add_argument(
         "-mbm",
@@ -147,10 +173,51 @@ def get_args(argv):
         action='store_true',
         help='Use TensorRT LLM C++ runtime',
     )
+    parser.add_argument(
+        "-b",
+        '--backend',
+        nargs='?',
+        const=None,
+        default='TensorRT-LLM',
+        choices=['TensorRT-LLM', 'In-Framework'],
+        help="Different options to deploy nemo model.",
+    )
+    parser.add_argument(
+        "-srs",
+        "--start_rest_service",
+        default="False",
+        type=str,
+        help="Starts the REST service for OpenAI API support",
+    )
+    parser.add_argument(
+        "-sha", "--service_http_address", default="0.0.0.0", type=str, help="HTTP address for the REST Service"
+    )
+    parser.add_argument("-sp", "--service_port", default=8080, type=int, help="Port for the REST Service")
+    parser.add_argument(
+        "-ofr",
+        "--openai_format_response",
+        default=False,
+        type=bool,
+        help="Return the response from PyTriton server in OpenAI compatible format",
+    )
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
-
     args = parser.parse_args(argv)
     return args
+
+
+def store_args_to_json(args):
+    """
+    Stores user defined arg values relevant for REST API in config.json
+    Gets called only when args.start_rest_service is True.
+    """
+    args_dict = {
+        "triton_service_ip": args.triton_http_address,
+        "triton_service_port": args.triton_port,
+        "triton_request_timeout": args.triton_request_timeout,
+        "openai_format_response": args.openai_format_response,
+    }
+    with open("nemo/deploy/service/config.json", "w") as f:
+        json.dump(args_dict, f)
 
 
 def get_trtllm_deployable(args):
@@ -158,8 +225,8 @@ def get_trtllm_deployable(args):
         trt_llm_path = "/tmp/trt_llm_model_dir/"
         LOGGER.info(
             "/tmp/trt_llm_model_dir/ path will be used as the TensorRT LLM folder. "
-            "Please set this parameter if you'd like to use a path that has already "
-            "included the TensorRT LLM model files."
+            "Please set the --triton_model_repository parameter if you'd like to use a path that already "
+            "includes the TensorRT LLM model files."
         )
         Path(trt_llm_path).mkdir(parents=True, exist_ok=True)
     else:
@@ -216,13 +283,15 @@ def get_trtllm_deployable(args):
                 nemo_checkpoint_path=args.nemo_checkpoint,
                 model_type=args.model_type,
                 n_gpus=args.num_gpus,
-                tensor_parallel_size=args.num_gpus,
-                pipeline_parallel_size=1,
+                tensor_parallelism_size=args.tensor_parallelism_size,
+                pipeline_parallelism_size=args.pipeline_parallelism_size,
                 max_input_len=args.max_input_len,
                 max_output_len=args.max_output_len,
                 max_batch_size=args.max_batch_size,
                 max_num_tokens=args.max_num_tokens,
                 opt_num_tokens=args.opt_num_tokens,
+                max_seq_len=args.max_seq_len,
+                use_parallel_embedding=args.use_parallel_embedding,
                 max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
                 paged_kv_cache=(not args.no_paged_kv_cache),
                 remove_input_padding=(not args.disable_remove_input_padding),
@@ -231,7 +300,9 @@ def get_trtllm_deployable(args):
                 use_lora_plugin=args.use_lora_plugin,
                 lora_target_modules=args.lora_target_modules,
                 max_lora_rank=args.max_lora_rank,
-                save_nemo_model_config=True,
+                multiple_profiles=args.multiple_profiles,
+                gpt_attention_plugin=args.gpt_attention_plugin,
+                gemm_plugin=args.gemm_plugin,
             )
         except Exception as error:
             raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))
@@ -261,7 +332,8 @@ def get_trtllm_deployable(args):
 
 def get_nemo_deployable(args):
     if args.nemo_checkpoint is None:
-        raise ValueError("Direct serve requires a .nemo checkpoint")
+        raise ValueError("In-Framework deployment requires a .nemo checkpoint")
+
     return MegatronLLMDeployable(args.nemo_checkpoint, args.num_gpus)
 
 
@@ -277,7 +349,24 @@ def nemo_deploy(argv):
     LOGGER.info("Logging level set to {}".format(loglevel))
     LOGGER.info(args)
 
-    triton_deployable = get_nemo_deployable(args) if args.direct_serve_nemo else get_trtllm_deployable(args)
+    if args.start_rest_service:
+        if args.service_port == args.triton_port:
+            logging.error("REST service port and Triton server port cannot use the same port.")
+            return
+        # Store triton ip, port and other args relevant for REST API in config.json to be accessible by rest_model_api.py
+        store_args_to_json(args)
+
+    backend = args.backend.lower()
+    if backend == 'tensorrt-llm':
+        if not trt_llm_supported:
+            raise ValueError("TensorRT-LLM engine is not supported in this environment.")
+        triton_deployable = get_trtllm_deployable(args)
+    elif backend == 'in-framework':
+        if not megatron_llm_supported:
+            raise ValueError("MegatronLLMDeployable is not supported in this environment.")
+        triton_deployable = get_nemo_deployable(args)
+    else:
+        raise ValueError("Backend: {0} is not supported.".format(backend))
 
     try:
         nm = DeployPyTriton(
@@ -298,11 +387,21 @@ def nemo_deploy(argv):
 
     try:
         LOGGER.info("Model serving on Triton is will be started.")
+        if args.start_rest_service == "True":
+            try:
+                LOGGER.info("REST service will be started.")
+                uvicorn.run(
+                    'nemo.deploy.service.rest_model_api:app',
+                    host=args.service_http_address,
+                    port=args.service_port,
+                    reload=True,
+                )
+            except Exception as error:
+                logging.error("Error message has occurred during REST service start. Error message: " + str(error))
         nm.serve()
     except Exception as error:
         LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
-
     LOGGER.info("Model serving will be stopped.")
     nm.stop()
 
