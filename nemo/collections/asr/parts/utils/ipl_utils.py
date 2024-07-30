@@ -185,7 +185,8 @@ def handle_multiple_tarr_filepaths(manifest_file: str, tmpdir: str, number_of_ma
     base_tarr_name = tarr_filename.rsplit('_', 1)[0]
 
     expanded_audio_path = os.path.join(base_path, f"{base_tarr_name}_{{{start_range}..{end_range}}}.tar")
-
+    if "pipe:ais" in base_path:
+        expanded_audio_path += " -"
     return temporary_manifest, expanded_audio_path
 
 

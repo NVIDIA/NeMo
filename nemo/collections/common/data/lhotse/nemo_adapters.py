@@ -276,7 +276,7 @@ class LazyNeMoTarredIterator:
         for sid in shard_ids:
             shard_manifest = self.shard_id_to_manifest[sid]
             tar_path = self.shard_id_to_tar_path[sid]
-            with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r") as tar:
+            with tarfile.open(fileobj=BytesIO(open_best(tar_path, mode="rb").read()), mode="r") as tar:
                 for data in shard_manifest:
                     try:
                         tar_info = tar.getmember(data["audio_filepath"])
