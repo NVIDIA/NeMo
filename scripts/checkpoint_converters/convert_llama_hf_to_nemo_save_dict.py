@@ -46,7 +46,11 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
+        "--input_name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to Huggingface LLaMA checkpoints",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output to dict dir")
     parser.add_argument(
@@ -59,7 +63,11 @@ def get_args():
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
     parser.add_argument(
-        "--apply_rope_scaling", type=bool, default=True, required=False, help="Apply scaling for RoPE frequencies",
+        "--apply_rope_scaling",
+        type=bool,
+        default=True,
+        required=False,
+        help="Apply scaling for RoPE frequencies",
     )
     parser.add_argument("--precision", type=str, default="16", help="Model precision")
     args = parser.parse_args()
@@ -116,7 +124,10 @@ def load_config(args, llama_config):
 def convert(args):
     logging.info(f"loading checkpoint {args.input_name_or_path}")
     import torch
-    model = LlamaForCausalLM.from_pretrained(args.input_name_or_path, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True)
+
+    model = LlamaForCausalLM.from_pretrained(
+        args.input_name_or_path, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True
+    )
     hf_config = vars(model.config)
     if os.path.exists(f'{args.input_name_or_path}/tokenizer.model'):
         tokenizer = LlamaTokenizer.from_pretrained(args.input_name_or_path)
@@ -147,7 +158,7 @@ def convert(args):
         scaler = None
         if precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
-                init_scale=nemo_config.get('native_amp_init_scale', 2 ** 32),
+                init_scale=nemo_config.get('native_amp_init_scale', 2**32),
                 growth_interval=nemo_config.get('native_amp_growth_interval', 1000),
                 hysteresis=nemo_config.get('hysteresis', 2),
             )
@@ -271,7 +282,6 @@ def convert(args):
 
         print(f"done layer {l}")
 
-
     final_ln_weight = model.state_dict()[f'model.norm.weight']
     if mcore_gpt:
         final_ln_base_name = f'model.decoder.final_layernorm.weight'
@@ -290,6 +300,7 @@ def convert(args):
 
     del model
     import gc
+
     gc.collect()
 
     if nemo_config.get('megatron_amp_O2', False):
@@ -303,7 +314,6 @@ def convert(args):
         print(f'Saving {key} in {checkpoint["state_dict"][key].dtype}..')
         save_location = f'{args.output_path}/{key[13:]}.pt'
         torch.save(checkpoint['state_dict'][key], save_location)
-        
 
 
 if __name__ == '__main__':

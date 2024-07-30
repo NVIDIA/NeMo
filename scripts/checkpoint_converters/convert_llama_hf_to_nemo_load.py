@@ -47,14 +47,26 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
+        "--input_name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to Huggingface LLaMA checkpoints",
     )
     parser.add_argument(
-        "--input_state_dict", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
+        "--input_state_dict",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to Huggingface LLaMA checkpoints",
     )
 
     parser.add_argument(
-        "--llama31", type=bool, default=True, required=False, help="Apply scaling for RoPE frequencies",
+        "--llama31",
+        type=bool,
+        default=True,
+        required=False,
+        help="Apply scaling for RoPE frequencies",
     )
 
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
@@ -89,7 +101,7 @@ def load_config(args, llama_config):
         nemo_config.num_query_groups = llama_config['num_key_value_heads']
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu'
-    nemo_config.megatron_amp_O2 = True # True
+    nemo_config.megatron_amp_O2 = True  # True
     nemo_config.scale_positional_embedding = args.llama31
 
     # Tokenizer config
@@ -123,7 +135,10 @@ def load_config(args, llama_config):
 def convert(args):
     logging.info(f"loading checkpoint {args.input_name_or_path}")
     import torch
-    model = LlamaForCausalLM.from_pretrained(args.input_name_or_path, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True)
+
+    model = LlamaForCausalLM.from_pretrained(
+        args.input_name_or_path, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True
+    )
     hf_config = vars(model.config)
     if os.path.exists(f'{args.input_name_or_path}/tokenizer.model'):
         tokenizer = LlamaTokenizer.from_pretrained(args.input_name_or_path)
@@ -153,7 +168,7 @@ def convert(args):
         scaler = None
         if precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
-                init_scale=nemo_config.get('native_amp_init_scale', 2 ** 32),
+                init_scale=nemo_config.get('native_amp_init_scale', 2**32),
                 growth_interval=nemo_config.get('native_amp_growth_interval', 1000),
                 hysteresis=nemo_config.get('hysteresis', 2),
             )
@@ -169,7 +184,7 @@ def convert(args):
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
 
     nemo_config.precision = precision
-    nemo_config.micro_batch_size=1
+    nemo_config.micro_batch_size = 1
     print(f"nemo_config: {nemo_config}")
 
     # Remove precision arg, since with PTL >= 2.1 both precision and precision plugin cannot exist together.
@@ -191,11 +206,13 @@ def convert(args):
     print('start init model')
     del model
     import time
+
     st = time.perf_counter()
     model = MegatronGPTModel(nemo_config, trainer)
     print(f'Model init took {time.perf_counter() - st} sec')
+    from functools import reduce
     from glob import glob
-    from functools import reduce 
+
     weights = glob(f'{args.input_state_dict}/*.pt')
     st = time.perf_counter()
     for weight_file in sorted(weights):
@@ -204,12 +221,12 @@ def convert(args):
         weight_type = str_list[-2]
         str_name = '.'.join(str_list[1:-1])
         print(f'-- Assign weight_type={weight_type} to {str_name}')
-        if nemo_config.get('megatron_amp_O2', False):   
+        if nemo_config.get('megatron_amp_O2', False):
             current = reduce(getattr, [model, 'model', 'module'] + str_list[:-2])
         else:
             current = reduce(getattr, [model, 'model'] + str_list[:-2])
         load = torch.load(weight_file)
-        if nemo_config.get('megatron_amp_O2', False): 
+        if nemo_config.get('megatron_amp_O2', False):
             if precision == 'bf16':
                 target_precision = torch.bfloat16
             elif precision == 16:
@@ -244,7 +261,7 @@ def convert(args):
             elif hf_config['num_hidden_layers'] == 80:
                 model.cfg.tokenizer.update(type='meta-llama/Meta-Llama-3.1-70B')
             elif hf_config['num_hidden_layers'] == 126:
-                model.cfg.tokenizer.update(type='meta-llama/Meta-Llama-3.1-8B') #405B tokenizer is the same as 8B
+                model.cfg.tokenizer.update(type='meta-llama/Meta-Llama-3.1-8B')  # 405B tokenizer is the same as 8B
             else:
                 logging.warning("Unexpected model config for Llama3. Tokenizer config has not been modified.")
         else:
@@ -259,7 +276,7 @@ def convert(args):
     dtype = torch_dtype_from_precision(precision)
     model = model.to(dtype=dtype)
     model.cfg.use_cpu_initialization = False
-    
+
     model.save_to(args.output_path)
     logging.info(f'NeMo model saved to: {args.output_path}')
 
