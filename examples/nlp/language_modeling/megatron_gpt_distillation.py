@@ -40,6 +40,7 @@ from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerB
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
 from nemo.utils.model_utils import load_config, unwrap_model
 
 mp.set_start_method("spawn", force=True)
@@ -81,6 +82,9 @@ MODEL_ARCHITECHTURE_KEYS = [
     "overlap_p2p_comm",
     "batch_p2p_comm",
     "num_query_groups",
+    "seq_len_interpolation_factor",
+    "rotary_base",
+    "scale_positional_embedding",
 ]
 
 
@@ -480,7 +484,7 @@ def adjust_distillation_model_for_mcore(model: mtd.DistillationModel, distill_cf
 ########################################################
 
 
-def _teacher_provider(cfg, trainer) -> MCoreGPTModel:
+def _teacher_provider(cfg: DictConfig, trainer: Trainer) -> MCoreGPTModel:
     """Teacher model factory (must be a non-local function to pickle)."""
     logging.info("Distillation: Loading teacher weights...")
     teacher_model_cfg = _merge_model_arch_fields(cfg, cfg.kd_teacher_restore_from_path)
@@ -498,7 +502,8 @@ def _teacher_provider(cfg, trainer) -> MCoreGPTModel:
 def _merge_model_arch_fields(cfg: DictConfig, model_load_path: str) -> DictConfig:
     """Overwrite model-architecture fields of a config with a checkpoint's."""
     model_cfg = load_config(model_load_path)
-    model_arch_cfg = OmegaConf.masked_copy(model_cfg, MODEL_ARCHITECHTURE_KEYS)
+    model_arch_keys = [k for k in MODEL_ARCHITECHTURE_KEYS if k in model_cfg]
+    model_arch_cfg = OmegaConf.masked_copy(model_cfg, model_arch_keys)
     with open_dict(cfg):
         return OmegaConf.merge(cfg, model_arch_cfg)
 
@@ -512,6 +517,7 @@ def main(cfg) -> None:
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
+    exp_manager(trainer, cfg.exp_manager)
 
     with open_dict(cfg):
         cfg.model.name = "modelopt"  # Convert TE layernorm spec to unfused format
