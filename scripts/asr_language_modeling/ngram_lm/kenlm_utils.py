@@ -31,6 +31,7 @@ import os
 import numpy as np
 import torch
 from joblib import Parallel, delayed
+from omegaconf import OmegaConf
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
@@ -226,14 +227,17 @@ def write_dataset(chunks, path):
                 path.write((line + '\n').encode())
 
 
-def save_flashlight_lexicon(tokenizer, save_path=None):
-    os.makedirs(save_path, exist_ok=True)
-    lex_file = os.path.join(save_path, "flashlight.lexicon")
-
-    logging.info(f"Writing Lexicon file to: {lex_file}...")
-    with open(lex_file, "w", encoding='utf_8', newline='\n') as f:
+def save_flashlight_lexicon(tokenizer, lexicon_file):
+    logging.info(f"Writing Lexicon file to: {lexicon_file}...")
+    with open(lexicon_file, "w", encoding='utf_8', newline='\n') as f:
         lexicon = create_lexicon(tokenizer)
         lexicon.pop("<unk>")
         for word in lexicon:
             f.write(f"{word}\t{lexicon[word][0][0]}\n")
-    return lex_file
+    return lexicon_file
+
+
+def save_config_file(config, config_file, encoding_level):
+    OmegaConf.set_struct(config, False)
+    config.encoding_level = encoding_level
+    OmegaConf.save(config=config, f=config_file)
