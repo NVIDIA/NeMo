@@ -127,7 +127,7 @@ class Basic:
             "seq_length": self.seq_length,
             "global_batch_size": self.global_batch_size,
             "num_workers": 2,
-            "split": "99990,8,2",
+            # "split": "99990,8,2",
             "index_mapping_dir": None,
         }
 

@@ -51,7 +51,7 @@ class Mixtral(Basic):
 
         model_class = getattr(llm, self.config_name)
         kwargs = self.cfg.get("model_args", {})
-        
+
         if self.nemo_sdk:
             model_config = Config(model_class, **kwargs)
         else:
