@@ -38,8 +38,8 @@ if __name__ == '__main__':
     tokenizer = get_nmt_tokenizer(
         "megatron",
         "GPT2BPETokenizer",
-        vocab_file=args.vocab_path,
-        merges_file=args.merges_path,
+        #vocab_file=args.vocab_path,
+        #merges_file=args.merges_path,
     )
     data = PreTrainingDataModule(
         paths=args.data_path,

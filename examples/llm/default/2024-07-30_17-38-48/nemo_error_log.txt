@@ -1,0 +1,8 @@
+[NeMo W 2024-07-30 17:38:48 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/huggingface_hub/file_download.py:1150: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+      warnings.warn(
+    
+[NeMo W 2024-07-30 17:38:48 nemo_logger:156] "update_logger_directory" is True. Overwriting logger "save_dir" to . and "name" to default
+[NeMo W 2024-07-30 17:38:52 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/pytorch_lightning/trainer/connectors/logger_connector/result.py:439: It is recommended to use `self.log('val_loss', ..., sync_dist=True)` when logging on epoch level in distributed setting to accumulate the metric across devices.
+    
+[NeMo W 2024-07-30 17:39:03 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/pytorch_lightning/trainer/call.py:54: Detected KeyboardInterrupt, attempting graceful shutdown...
+    

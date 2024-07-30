@@ -47,7 +47,6 @@ class Basic:
         self.global_batch_size = cfg.get("global_batch_size")
         self.tokenizer_path = cfg.get("tokenizer_path")
         self.data_paths = cfg.get("data_paths")
-        self.weights = self._get_data_weights()
 
     def model_config(self):
         """Function that returns model config."""
@@ -75,8 +74,6 @@ class Basic:
             bf16=True,
             adam_beta1=0.9,
             adam_beta2=0.95,
-            overlap_grad_reduce=False,
-            overlap_param_gather=True,
         )
 
         return optim_config
@@ -116,7 +113,6 @@ class Basic:
 
         data_config = {
             "paths": self.data_paths,
-            "weights": self.weights,
             "seq_length": self.seq_length,
             "global_batch_size": self.global_batch_size,
             "num_workers": 2,
@@ -140,19 +136,3 @@ class Basic:
         }
 
         return run_config
-
-    def _get_data_weights(self) -> list:
-        """
-        Function that returns weights for train dataset.
-        :return: list of data weights.
-        :rtype: list.
-        """
-
-        if not self.data_paths:
-            return None
-
-        datafiles_num = len(self.data_paths)
-        weight = np.round(1 / datafiles_num, 2)
-        weights = [float(weight)] * datafiles_num
-
-        return weights
