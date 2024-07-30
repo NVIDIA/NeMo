@@ -68,7 +68,10 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core.num_microbatches_calculator import get_num_microbatches, configure_global_num_microbatches_calculator
+    from megatron.core.num_microbatches_calculator import (
+        configure_global_num_microbatches_calculator,
+        get_num_microbatches,
+    )
 
 except (ImportError, ModuleNotFoundError):
     from apex.transformer.pipeline_parallel.utils import (

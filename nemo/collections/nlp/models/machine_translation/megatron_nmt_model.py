@@ -63,9 +63,9 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import (
+        configure_global_num_microbatches_calculator,
         get_micro_batch_size,
         get_num_microbatches,
-        configure_global_num_microbatches_calculator,
     )
 
 except (ImportError, ModuleNotFoundError):
