@@ -323,30 +323,42 @@ class TensorRTLLM(ITritonDeployable):
                 )
 
                 for weight_dict, model_config in zip(weights_dicts, model_configs):
-                    build_and_save_engine(
-                        max_input_len=max_input_len,
-                        max_output_len=max_output_len,
-                        max_batch_size=max_batch_size,
-                        model_config=model_config,
-                        model_weights=weight_dict,
-                        model_dir=self.model_dir,
-                        model_type=model_type,
-                        lora_ckpt_list=self.lora_ckpt_list,
-                        use_lora_plugin=use_lora_plugin,
-                        max_lora_rank=max_lora_rank,
-                        lora_target_modules=lora_target_modules,
-                        max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-                        enable_multi_block_mode=enable_multi_block_mode,
-                        paged_kv_cache=paged_kv_cache,
-                        remove_input_padding=remove_input_padding,
-                        paged_context_fmha=paged_context_fmha,
-                        max_num_tokens=max_num_tokens,
-                        opt_num_tokens=opt_num_tokens,
-                        max_seq_len=max_seq_len,
-                        multiple_profiles=multiple_profiles,
-                        gpt_attention_plugin=gpt_attention_plugin,
-                        gemm_plugin=gemm_plugin,
-                    )
+                    import safetensors
+                    from tensorrt_llm._utils import numpy_to_torch
+                    rank = model_config.mapping.tp_rank
+                    for k, v in weight_dict.items():
+                        weight_dict[k] = numpy_to_torch(v)
+                        safetensors.torch.save_file(
+                            weight_dict, os.path.join(self.model_dir, f'rank{rank}.safetensors')
+                        )
+
+                    # build_and_save_engine(
+                    #     max_input_len=max_input_len,
+                    #     max_output_len=max_output_len,
+                    #     max_batch_size=max_batch_size,
+                    #     model_config=model_config,
+                    #     model_weights=weight_dict,
+                    #     model_dir=self.model_dir,
+                    #     model_type=model_type,
+                    #     lora_ckpt_list=self.lora_ckpt_list,
+                    #     use_lora_plugin=use_lora_plugin,
+                    #     max_lora_rank=max_lora_rank,
+                    #     lora_target_modules=lora_target_modules,
+                    #     max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+                    #     enable_multi_block_mode=enable_multi_block_mode,
+                    #     paged_kv_cache=paged_kv_cache,
+                    #     remove_input_padding=remove_input_padding,
+                    #     paged_context_fmha=paged_context_fmha,
+                    #     max_num_tokens=max_num_tokens,
+                    #     opt_num_tokens=opt_num_tokens,
+                    #     max_seq_len=max_seq_len,
+                    #     multiple_profiles=multiple_profiles,
+                    #     gpt_attention_plugin=gpt_attention_plugin,
+                    #     gemm_plugin=gemm_plugin,
+                    # )
+
+                with open(os.path.join(self.model_dir, 'config.json'), 'w') as f:
+                    json.dump(model_configs[0], f, indent=4)
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
             if os.path.exists(tokenizer_path):
