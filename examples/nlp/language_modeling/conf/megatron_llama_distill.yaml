@@ -36,7 +36,7 @@ exp_manager:
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
-    filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
+    filename: "megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}"
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 model:
@@ -48,7 +48,7 @@ model:
   mcore_gpt: True
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
-  micro_batch_size: 4 # limited by GPU memory
+  micro_batch_size: 1 # limited by GPU memory
   global_batch_size: 8 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
@@ -185,9 +185,7 @@ model:
     # Dictionary: can override from CLI "model.data.data_prefix"={"train":[1.0, /path/to/data], "validation":/path/to/data, "test":/path/to/test}
     # Or see example below:
     # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
-    data_prefix:
-      - 1.0
-      - "/dataset/refineweb-edu-sample-1BT/llama2/refineweb-edu-sample-1BT-llama2_text_document"
+    data_prefix: []
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 98,1,1
