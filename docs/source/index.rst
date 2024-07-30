@@ -54,12 +54,8 @@ For more information, browse the developer docs for your area of interest in the
 
    features/mixed_precision
    features/parallelisms
-   features/attention_optimizations
    features/moe
-   features/sequence_packing
-   features/activation_recomputation
-   features/communication_overlap
-   features/cpu_offloading
+   features/optimizations/index
 
 .. toctree::
    :maxdepth: 1
