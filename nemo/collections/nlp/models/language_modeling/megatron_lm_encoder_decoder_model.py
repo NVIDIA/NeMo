@@ -36,7 +36,6 @@ from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder im
     MegatronTokenLevelEncoderDecoderModule,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
     average_losses_across_data_parallel_group,
     build_attention_mask_3d,
     get_params_for_weight_decay_optimization,
@@ -47,19 +46,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
-
-try:
-    from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator,
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
+from nemo.utils.apex_utils import _reconfigure_microbatch_calculator, get_micro_batch_size
 
 try:
     from megatron.core import parallel_state, tensor_parallel
@@ -71,6 +58,7 @@ try:
         get_t5_encoder_with_local_block_spec,
         get_t5_encoder_with_transformer_engine_block_spec,
     )
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -286,8 +274,18 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             en_block_spec = enc_dec_spec_fns[0](self.cfg.encoder.num_layers)
             de_block_spec = enc_dec_spec_fns[1](self.cfg.decoder.num_layers)
+
+            encoder_config = copy.deepcopy(self.transformer_config)
+            encoder_config.num_layers = self.cfg.encoder.num_layers
+            if self.cfg.pipeline_model_parallel_size > 1:
+                assert (
+                    self.cfg.pipeline_model_parallel_split_rank is not None
+                ), "Need to know how to shard the encoder & decoder."
+                encoder_config.pipeline_model_parallel_size = self.cfg.pipeline_model_parallel_split_rank
+
             model = MCoreT5Model(
                 config=self.transformer_config,
+                encoder_config=encoder_config,
                 transformer_encoder_layer_spec=en_block_spec,
                 transformer_decoder_layer_spec=de_block_spec,
                 vocab_size=self.padded_vocab_size,
@@ -1512,7 +1510,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         pad_profile = torch.zeros_like(scores).long()
                         decoder_seq_lengths = torch.zeros_like(scores).fill_(predicted_tokens_dec.size(1) + 1)
 
-                        # reconfigure batch size for apex since the tensor have been augmented with beam size
+                        # reconfigure batch size since the tensor have been augmented with beam size
                         global_batch_per_gpu = token_ids.shape[0]
                         tensor_shape[1] = global_batch_per_gpu
                         _reconfigure_microbatch_calculator(
@@ -1799,6 +1797,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
                     # addressing the current T5 mcore version's implementation of sharded_state_dict
                     checkpoint_state_dict['lm_head.output_layer.bias'] = checkpoint_state_dict['output_layer.bias']
+                    checkpoint_state_dict['position_embeddings.weight'] = checkpoint_state_dict[
+                        'embedding.position_embeddings.weight'
+                    ]
 
                     module.load_state_dict(checkpoint_state_dict, strict=True)
             else:

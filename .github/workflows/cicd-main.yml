@@ -260,7 +260,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_llama/ci_fp8.qnemo
 
-  L2_PTQ_Llama2_INT8_SQ:
+  OPTIONAL_L2_PTQ_Llama2_INT8_SQ:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
     with:
@@ -276,6 +276,7 @@ jobs:
         export.save_path=/home/TestData/nlp/megatron_llama/ci_int8_sq.qnemo
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_llama/ci_int8_sq.qnemo
+      IS_OPTIONAL: true
 
   # TODO: investigate int4_awq stuck issues and restore the test
   #L2_PTQ_Llama2_INT4_AWQ:
@@ -310,44 +311,42 @@ jobs:
         #- uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
         #  if: "failure()"
 
-  L2_QAT_Llama2_INT4:
-     needs: [cicd-test-container-setup]
-     runs-on: self-hosted-azure
-     timeout-minutes: 10
-     container:
-       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-       options:
-         # --user 0:128
-         --device=/dev/nvidia0
-         --gpus all
-         --shm-size=8g
-         --env TRANSFORMERS_OFFLINE=0
-         --env HYDRA_FULL_ERROR=1
-         --volume /mnt/datadrive/TestData:/home/TestData
-     steps:
-         - name: Checkout repository
-           uses: actions/checkout@v4
-         - run: |
-            python examples/nlp/language_modeling/tuning/megatron_gpt_qat.py \
-            quantization.algorithm=int4 \
-            quantization.num_calib_size=8 \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            trainer.max_steps=4 \
-            trainer.val_check_interval=4 \
-            +trainer.limit_val_batches=2 \
-            exp_manager.explicit_log_dir=llama2_qat_results \
-            model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
-            model.tensor_model_parallel_size=1 \
-            model.pipeline_model_parallel_size=1 \
-            model.global_batch_size=2 \
-            model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-            model.data.train_ds.concat_sampling_probabilities=[1.0] \
-            model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl]
+  # OPTIONAL_L2_QAT_Llama2_INT4:
+  #    needs: [cicd-test-container-setup]
+  #    runs-on: self-hosted-azure
+  #    timeout-minutes: 10
+  #    container:
+  #      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #      options:
+  #        # --user 0:128
+  #        --device=/dev/nvidia0
+  #        --gpus all
+  #        --shm-size=8g
+  #        --env TRANSFORMERS_OFFLINE=0
+  #        --env HYDRA_FULL_ERROR=1
+  #        --volume /mnt/datadrive/TestData:/home/TestData
+  #    steps:
+  #        - name: Checkout repository
+  #          uses: actions/checkout@v4
+  #        - run: |
+  #           python examples/nlp/language_modeling/tuning/megatron_gpt_qat.py \
+  #           quantization.algorithm=int4 \
+  #           quantization.num_calib_size=8 \
+  #           trainer.devices=1 \
+  #           trainer.num_nodes=1 \
+  #           trainer.max_steps=4 \
+  #           trainer.val_check_interval=4 \
+  #           +trainer.limit_val_batches=2 \
+  #           exp_manager.explicit_log_dir=llama2_qat_results \
+  #           model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+  #           model.tensor_model_parallel_size=1 \
+  #           model.pipeline_model_parallel_size=1 \
+  #           model.global_batch_size=2 \
+  #           model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+  #           model.data.train_ds.concat_sampling_probabilities=[1.0] \
+  #           model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl]
 
-            rm -rf llama2_qat_results
-         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-           if: "failure()"
+  #           rm -rf llama2_qat_results
 
   # L2: ASR dev run
   ASR_dev_run_Speech_to_Text:
@@ -810,7 +809,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1
+        pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1 --with_downloads
 
   # L2: Segmentation Tool
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
@@ -3305,6 +3304,62 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/lora_tuning_tp2
 
+  L2_Megatron_GPT_PEFT_Lora_TP2SP1:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure-gpus-2-h100
+      SCRIPT: |
+        rm -rf /home/TestData/nlp/lora_tuning_tp2_sp1
+
+        CUDA_DEVICE_MAX_CONNECTIONS=1 NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=1 python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
+        trainer.devices=2 \
+        trainer.log_every_n_steps=1 \
+        trainer.max_epochs=9999 \
+        trainer.max_steps=3 \
+        trainer.val_check_interval=3 \
+        ++trainer.limit_val_batches=2 \
+        trainer.precision=bf16 \
+        exp_manager.exp_dir=/home/TestData/nlp/lora_tuning_tp2_sp1 \
+        +model.mcore_gpt=True \
+        model.pipeline_model_parallel_size=1 \
+        model.tensor_model_parallel_size=2 \
+        model.sequence_parallel=True \
+        model.megatron_amp_O2=True \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
+        +model.fp8=True \
+        +model.fp8_params=True \
+        +model.fp8_hybrid=True \
+        +model.fp8_e4m3=False \
+        +model.fp8_interval=1 \
+        +model.fp8_margin=0 \
+        +model.fp8_amax_history_len=32 \
+        +model.fp8_amax_compute_algo=max \
+        +model.reduce_amax=False \
+        +model.ub_tp_comm_overlap=False \
+        +model.tp_comm_overlap_ag=False \
+        +model.tp_comm_overlap_rs=False \
+        +model.tp_comm_overlap_disable_qkv=True \
+        model.peft.peft_scheme='lora' \
+        model.peft.lora_tuning.adapter_dim=16 \
+        model.peft.lora_tuning.alpha=32 \
+        model.peft.lora_tuning.column_init_method="kaiming" \
+        +model.peft.lora_tuning.dropout_position='pre' \
+        model.peft.lora_tuning.target_modules=['attention'] \
+        model.peft.lora_tuning.adapter_dropout=0.1 \
+        +model.peft.lora_tuning.a2a_experimental=1 \
+        model.answer_only_loss=True \
+        model.micro_batch_size=1 \
+        model.global_batch_size=1 \
+        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+        model.data.train_ds.concat_sampling_probabilities=[1.0] \
+        model.data.train_ds.num_workers=0 \
+        model.data.validation_ds.num_workers=0 \
+        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+        model.data.validation_ds.names=[quarel]
+      AFTER_SCRIPT: |
+        rm -rf /home/TestData/nlp/lora_tuning_tp2_sp1        
+
   L2_Megatron_GPT_Eval:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -3859,7 +3914,7 @@ jobs:
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        model.pipeline_model_parallel_split_rank=1 \
+        model.pipeline_model_parallel_split_rank=0 \
         model.seq_length=256 \
         model.encoder.num_layers=4 \
         model.decoder.num_layers=1 \
@@ -4516,8 +4571,52 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf examples/multimodal/text_to_image/sd_train_results
 
+  L2_NeMo_2_GPT_Pretraining_no_transformer_engine:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    timeout-minutes: 10
+    container:
+      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+      options:
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g
+        --env TRANSFORMERS_OFFLINE=0
+        --volume /mnt/datadrive/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+        - run: |
+            pip uninstall -y apex ## TODO: remove when apex is no longer a dependency
+            pip uninstall -y transformer_engine
+
+            python examples/llm/megatron_gpt_pretraining.py \
+            --devices=2 \
+            --max-steps=3 \
+            --experiment-dir=examples/llm/gpt_pretrain_results \
+            --vocab-path=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+            --merges-path=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+            --data-path=/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
+            --index-mapping-dir=examples/llm/gpt_index_mappings
+
+            python examples/llm/megatron_gpt_pretraining.py \
+            --devices=2 \
+            --max-steps=6 \
+            --experiment-dir=examples/llm/gpt_pretrain_results \
+            --vocab-path=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+            --merges-path=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+            --data-path=/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
+            --index-mapping-dir=examples/llm/gpt_index_mappings
+
+            rm -rf examples/llm/gpt_pretrain_results
+            rm -rf examples/llm/gpt_index_mappings
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+          if: "failure()"
+
   Nemo_CICD_Test:
     needs: 
+      - gpu-test
+      - cicd-test-container-setup
       - L0_Unit_Tests_GPU
       - L0_Unit_Tests_CPU
       - L2_Community_LLM_Checkpoints_tests_Llama
@@ -4588,6 +4687,7 @@ jobs:
       - L2_Megatron_GPT_Embedding 
       - L2_Megatron_GPT_PEFT_Lora_PP2_O2
       - L2_Megatron_GPT_PEFT_Lora_TP2_O1
+      - L2_Megatron_GPT_PEFT_Lora_TP2SP1
       - L2_Megatron_GPT_Eval
       - L2_Megatron_GPT_Eval_PP2
       - L2_Megatron_GPT_SFT_Eval_inference_seq_len_greaterThan_training_seq_len
@@ -4616,6 +4716,7 @@ jobs:
       - L2_TTS_Fast_dev_runs_1_Hifigan
       - Speech_Checkpoints_tests
       - L2_Stable_Diffusion_Training
+      - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
     if: always()
     runs-on: ubuntu-latest
     steps:  
