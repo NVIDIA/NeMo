@@ -14,12 +14,6 @@ if TYPE_CHECKING:
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
-try:
-    from megatron.core.num_microbatches_calculator import update_num_microbatches
-
-except (ImportError, ModuleNotFoundError):
-    from apex.transformer.pipeline_parallel.utils import update_num_microbatches
-
 
 class PreTrainingDataModule(pl.LightningDataModule):
     def __init__(
@@ -205,6 +199,12 @@ class PreTrainingDataModule(pl.LightningDataModule):
             state_dict: the datamodule state returned by ``state_dict``.
 
         """
+        try:
+            from megatron.core.num_microbatches_calculator import update_num_microbatches
+
+        except (ImportError, ModuleNotFoundError):
+            from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+
         consumed_samples = state_dict['consumed_samples']
         self.data_sampler.init_consumed_samples = consumed_samples
         self.data_sampler.prev_consumed_samples = consumed_samples

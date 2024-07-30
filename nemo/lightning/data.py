@@ -7,31 +7,6 @@ from typing import List, Literal, Optional
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-try:
-    from megatron.core.num_microbatches_calculator import (
-        ConstantNumMicroBatchesCalculator,
-        configure_global_num_microbatches_calculator,
-        get_current_global_batch_size,
-        get_micro_batch_size,
-        get_num_microbatches,
-        get_num_microbatches_calculator,
-    )
-
-    MCORE_MB_CALCULATOR = True
-
-except (ImportError, ModuleNotFoundError):
-    from apex.transformer.microbatches import ConstantNumMicroBatches as ConstantNumMicroBatchesCalculator
-    from apex.transformer.pipeline_parallel.utils import (
-        get_current_global_batch_size,
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
-    from apex.transformer.pipeline_parallel.utils import (
-        setup_microbatch_calculator as configure_global_num_microbatches_calculator,
-    )
-
-    MCORE_MB_CALCULATOR = False
-
 
 ## TODO: remove? unused
 def create_dataloader(
@@ -71,6 +46,31 @@ def setup_microbatch_calculator(
     """
     from nemo.lightning._strategy_lib import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE
     from nemo.utils import AppState
+
+    try:
+        from megatron.core.num_microbatches_calculator import (
+            ConstantNumMicroBatchesCalculator,
+            configure_global_num_microbatches_calculator,
+            get_current_global_batch_size,
+            get_micro_batch_size,
+            get_num_microbatches,
+            get_num_microbatches_calculator,
+        )
+
+        MCORE_MB_CALCULATOR = True
+
+    except (ImportError, ModuleNotFoundError):
+        from apex.transformer.microbatches import ConstantNumMicroBatches as ConstantNumMicroBatchesCalculator
+        from apex.transformer.pipeline_parallel.utils import (
+            get_current_global_batch_size,
+            get_micro_batch_size,
+            get_num_microbatches,
+        )
+        from apex.transformer.pipeline_parallel.utils import (
+            setup_microbatch_calculator as configure_global_num_microbatches_calculator,
+        )
+
+        MCORE_MB_CALCULATOR = False
 
     app_state = AppState()
 

@@ -3,16 +3,6 @@ from typing import Any, Dict, List, Literal, Optional
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
-try:
-    from megatron.core.num_microbatches_calculator import (
-        get_current_global_batch_size,
-        get_num_microbatches,
-        update_num_microbatches,
-    )
-
-except (ImportError, ModuleNotFoundError):
-    from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size, get_num_microbatches
-
 
 class DataSampler:
     def connect(self, trainer: pl.Trainer):
@@ -67,6 +57,12 @@ class MegatronDataSampler(DataSampler):
         from nemo.lightning.pytorch.strategies import MegatronStrategy
         from nemo.utils import AppState
 
+        try:
+            from megatron.core.num_microbatches_calculator import get_current_global_batch_size
+
+        except (ImportError, ModuleNotFoundError):
+            from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size
+
         if not isinstance(self.trainer.strategy, MegatronStrategy):
             return 0
 
@@ -97,6 +93,15 @@ class MegatronDataSampler(DataSampler):
             trainer.should_stop = True
 
     def on_megatron_step_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        try:
+            from megatron.core.num_microbatches_calculator import (
+                get_current_global_batch_size,
+                update_num_microbatches,
+            )
+
+        except (ImportError, ModuleNotFoundError):
+            from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size, update_num_microbatches
+
         if self.rampup_batch_size is None:
             return
 
@@ -139,8 +144,20 @@ class MegatronDataSampler(DataSampler):
 
     @property
     def num_microbatches(self) -> int:
+        try:
+            from megatron.core.num_microbatches_calculator import get_num_microbatches
+
+        except (ImportError, ModuleNotFoundError):
+            from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
         return get_num_microbatches()
 
     @property
     def current_global_batch_size(self) -> int:
+        try:
+            from megatron.core.num_microbatches_calculator import get_current_global_batch_size
+
+        except (ImportError, ModuleNotFoundError):
+            from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size
+
         return get_current_global_batch_size()
