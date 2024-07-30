@@ -46,7 +46,7 @@ from omegaconf import MISSING, OmegaConf
 from scripts.asr_language_modeling.ngram_lm import kenlm_utils
 
 from nemo.core.config import hydra_runner
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector as src
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging
 
 """
@@ -92,15 +92,16 @@ def main(args: TrainKenlmConfig):
 
     tokenizer, encoding_level, is_aggregate_tokenizer, config = kenlm_utils.setup_tokenizer(args.nemo_model_file)
 
-    tmpdir = tempfile.TemporaryDirectory()
     if encoding_level == "subword":
+        tmpdir = tempfile.TemporaryDirectory()
         discount_arg = "--discount_fallback"  # --discount_fallback is needed for training KenLM for BPE-based models
         kenlm_utils.save_flashlight_lexicon(tokenizer, tmpdir.name)
+        kenlm_file = os.path.join(tmpdir.name, "kenlm_model.bin")
     else:
         discount_arg = ""
+        kenlm_file = args.kenlm_model_file
 
     arpa_file = f"{args.kenlm_model_file}.tmp.arpa"
-    kenlm_file = os.path.join(tmpdir.name, "kenlm_model.bin")
     """ LMPLZ ARGUMENT SETUP """
     kenlm_args = [
         os.path.join(args.kenlm_bin_path, 'lmplz'),
@@ -190,9 +191,11 @@ def main(args: TrainKenlmConfig):
         os.remove(arpa_file)
         logging.info(f"Deleted the arpa file '{arpa_file}'.")
 
-    config_yaml = os.path.join(tmpdir.name, "config.yaml")
-    OmegaConf.save(config=config, f=config_yaml)
-    src._make_nemo_file_from_folder(filename=args.kenlm_model_file, source_dir=tmpdir.name)
+    if encoding_level == "subword":
+        config_yaml = os.path.join(tmpdir.name, "config.yaml")
+        OmegaConf.save(config=config, f=config_yaml)
+        SaveRestoreConnector._make_nemo_file_from_folder(filename=args.kenlm_model_file, source_dir=tmpdir.name)
+        tmpdir.cleanup()
 
 
 if __name__ == '__main__':

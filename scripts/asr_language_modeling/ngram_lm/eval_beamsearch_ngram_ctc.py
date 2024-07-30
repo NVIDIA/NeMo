@@ -165,7 +165,6 @@ def beam_search_eval(
                                                     beam_alpha=beam_alpha,
                                                     beam_beta=beam_beta,
                                                     kenlm_path=cfg.ctc_decoding.beam.kenlm_path,
-                                                    kenlm_type=cfg.ctc_decoding.beam.kenlm_type,
                                                     preserve_alignments=cfg.ctc_decoding.beam.preserve_alignments,
                                                     compute_timestamps=cfg.ctc_decoding.beam.compute_timestamps,
                                                     flashlight_cfg=cfg.ctc_decoding.beam.flashlight_cfg,
