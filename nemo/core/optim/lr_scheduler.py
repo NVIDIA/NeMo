@@ -529,43 +529,44 @@ class NoamAnnealing(_LRScheduler):
 
 
 class NoamHoldAnnealing(WarmupHoldPolicy):
+    """
+    Implementation of the Noam Hold Annealing policy from the SqueezeFormer paper.
+
+    Unlike NoamAnnealing, the peak learning rate can be explicitly set for this scheduler.
+    The schedule first performs linear warmup, then holds the peak LR, then decays with some schedule for
+    the remainder of the steps. Therefore the min-lr is still dependent on the hyper parameters selected.
+
+    It's schedule is determined by three factors-
+
+    Warmup Steps: Initial stage, where linear warmup occurs uptil the peak LR is reached. Unlike NoamAnnealing,
+        the peak LR is explicitly stated here instead of a scaling factor.
+
+    Hold Steps: Intermediate stage, where the peak LR is maintained for some number of steps. In this region,
+        the high peak LR allows the model to converge faster if training is stable. However the high LR
+        may also cause instability during training. Should usually be a significant fraction of training
+        steps (around 30-40% of the entire training steps).
+
+    Decay Steps: Final stage, where the LR rapidly decays with some scaling rate (set by decay rate).
+        To attain Noam decay, use 0.5, for Squeezeformer recommended decay, use 1.0. The fast decay after
+        prolonged high LR during hold phase allows for rapid convergence.
+
+    References:
+        - [Squeezeformer: An Efficient Transformer for Automatic Speech Recognition](https://arxiv.org/abs/2206.00888)
+
+    Args:
+        optimizer: Pytorch compatible Optimizer object.
+        warmup_steps: Number of training steps in warmup stage
+        warmup_ratio: Ratio of warmup steps to total steps
+        hold_steps: Number of training steps to hold the learning rate after warm up
+        hold_ratio: Ratio of hold steps to total steps
+        max_steps: Total number of steps while training or `None` for
+            infinite training
+        decay_rate: Float value describing the polynomial decay after the hold period. Default value
+            of 0.5 corresponds to Noam decay.
+        min_lr: Minimum learning rate.
+    """
+
     def __init__(self, optimizer, *, max_steps, decay_rate=0.5, min_lr=0.0, last_epoch=-1, **kwargs):
-        """
-        Implementation of the Noam Hold Annealing policy from the SqueezeFormer paper.
-
-        Unlike NoamAnnealing, the peak learning rate can be explicitly set for this scheduler.
-        The schedule first performs linear warmup, then holds the peak LR, then decays with some schedule for
-        the remainder of the steps. Therefore the min-lr is still dependent on the hyper parameters selected.
-
-        It's schedule is determined by three factors-
-
-        Warmup Steps: Initial stage, where linear warmup occurs uptil the peak LR is reached. Unlike NoamAnnealing,
-            the peak LR is explicitly stated here instead of a scaling factor.
-
-        Hold Steps: Intermediate stage, where the peak LR is maintained for some number of steps. In this region,
-            the high peak LR allows the model to converge faster if training is stable. However the high LR
-            may also cause instability during training. Should usually be a significant fraction of training
-            steps (around 30-40% of the entire training steps).
-
-        Decay Steps: Final stage, where the LR rapidly decays with some scaling rate (set by decay rate).
-            To attain Noam decay, use 0.5, for Squeezeformer recommended decay, use 1.0. The fast decay after
-            prolonged high LR during hold phase allows for rapid convergence.
-
-        References:
-            - [Squeezeformer: An Efficient Transformer for Automatic Speech Recognition](https://arxiv.org/abs/2206.00888)
-
-        Args:
-            optimizer: Pytorch compatible Optimizer object.
-            warmup_steps: Number of training steps in warmup stage
-            warmup_ratio: Ratio of warmup steps to total steps
-            hold_steps: Number of training steps to hold the learning rate after warm up
-            hold_ratio: Ratio of hold steps to total steps
-            max_steps: Total number of steps while training or `None` for
-                infinite training
-            decay_rate: Float value describing the polynomial decay after the hold period. Default value
-                of 0.5 corresponds to Noam decay.
-            min_lr: Minimum learning rate.
-        """
         self.decay_rate = decay_rate
         super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
 
@@ -663,6 +664,170 @@ class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
             for initial_lr in self.base_lrs
         ]
         return new_lrs
+
+
+class MegatronAnnealing(_LRScheduler):
+    """
+    Implements the learning rate and weight decay annealing from Megatron-LM.
+    Code is adapted from the Megatron-LM codebase:
+    https://github.com/NVIDIA/Megatron-LM/blob/0bc3547702464501feefeb5523b7a17e591b21fa/megatron/training/optimizer_param_scheduler.py
+
+    Args:
+        optimizer: Pytorch compatible Optimizer object.
+        init_lr: Initial learning rate.
+        max_lr: Maximum learning rate.
+        min_lr: Minimum learning rate.
+        lr_warmup_steps: Number of training steps in warmup stage
+        lr_decay_steps: Number of steps to decay the learning rate over
+        lr_decay_style: Style of decay. Options: 'linear', 'cosine', 'constant', 'inverse-square-root'
+        start_wd: Initial weight decay.
+        end_wd: Final weight decay.
+        wd_incr_steps: Number of steps to increase the weight decay over
+        wd_incr_style: Style of weight decay increment. Options: 'linear', 'cosine', 'constant'
+        use_checkpoint_opt_param_scheduler: If True, the scheduler will be used from the checkpoint.
+        override_opt_param_scheduler: If True, the scheduler will override the optimizer's scheduler.
+    """
+
+    def __init__(
+        self,
+        optimizer,
+        *,
+        init_lr,
+        max_lr,
+        min_lr,
+        lr_warmup_steps,
+        lr_decay_steps,
+        lr_decay_style,
+        start_wd,
+        end_wd,
+        wd_incr_steps,
+        wd_incr_style,
+        use_checkpoint_opt_param_scheduler=True,
+        override_opt_param_scheduler=False,
+        last_epoch=-1,
+    ):
+
+        # Class values.
+        self.optimizer = optimizer
+
+        self.init_lr = init_lr
+        self.max_lr = float(max_lr)
+        self.min_lr = min_lr
+        assert self.min_lr >= 0.0
+        assert self.max_lr >= self.min_lr
+        assert self.init_lr <= self.max_lr
+
+        self.lr_warmup_steps = lr_warmup_steps
+        self.num_steps = 0
+        self.lr_decay_steps = lr_decay_steps
+        assert self.lr_decay_steps > 0
+        assert self.lr_warmup_steps < self.lr_decay_steps
+
+        self.lr_decay_style = lr_decay_style
+
+        self.start_wd = start_wd
+        self.end_wd = end_wd
+        assert self.start_wd >= 0.0
+        assert self.end_wd >= self.start_wd
+        self.wd_incr_steps = wd_incr_steps
+        self.wd_incr_style = wd_incr_style
+
+        self.override_opt_param_scheduler = override_opt_param_scheduler
+        self.use_checkpoint_opt_param_scheduler = use_checkpoint_opt_param_scheduler
+        if self.override_opt_param_scheduler:
+            assert not self.use_checkpoint_opt_param_scheduler, 'both override and ' 'use-checkpoint are set.'
+
+        # Set the learning rate
+        self.step(0)
+
+    def get_wd(self):
+        """Weight decay incr functions"""
+        if self.num_steps > self.wd_incr_steps:
+            return self.end_wd
+
+        if self.wd_incr_style == 'constant':
+            assert self.start_wd == self.end_wd
+            return self.end_wd
+
+        incr_ratio = float(self.num_steps) / float(self.wd_incr_steps)
+        assert incr_ratio >= 0.0
+        assert incr_ratio <= 1.0
+        delta_wd = self.end_wd - self.start_wd
+
+        if self.wd_incr_style == 'linear':
+            coeff = incr_ratio
+        elif self.wd_incr_style == 'cosine':
+            coeff = 0.5 * (math.cos(math.pi * (1 - incr_ratio)) + 1.0)
+        else:
+            raise Exception('{} weight decay increment style is not supported.'.format(self.wd_incr_style))
+
+        return self.start_wd + coeff * delta_wd
+
+    def get_lr(self, param_group):
+        """Learning rate decay functions from:
+        https://openreview.net/pdf?id=BJYwwY9ll pg. 4"""
+
+        max_lr = param_group.get('max_lr', self.max_lr)
+        min_lr = param_group.get('min_lr', self.min_lr)
+
+        # Use linear warmup for the initial part.
+        if self.lr_warmup_steps > 0 and self.num_steps <= self.lr_warmup_steps:
+            return self.init_lr + ((max_lr - self.init_lr) * float(self.num_steps) / float(self.lr_warmup_steps))
+
+        # If the learning rate is constant, just return the initial value.
+        if self.lr_decay_style == 'constant':
+            return max_lr
+
+        # For any steps larger than `self.lr_decay_steps`, use `min_lr`.
+        if self.num_steps > self.lr_decay_steps:
+            return min_lr
+
+        # If we are done with the warmup period, use the decay style.
+        if self.lr_decay_style == 'inverse-square-root':
+            warmup_steps = max(self.lr_warmup_steps, 1)
+            num_steps = max(self.num_steps, 1)
+            lr = max_lr * warmup_steps**0.5 / (num_steps**0.5)
+            return max(min_lr, lr)
+
+        num_steps_ = self.num_steps - self.lr_warmup_steps
+        decay_steps_ = self.lr_decay_steps - self.lr_warmup_steps
+        decay_ratio = float(num_steps_) / float(decay_steps_)
+        assert decay_ratio >= 0.0
+        assert decay_ratio <= 1.0
+        delta_lr = max_lr - min_lr
+
+        if self.lr_decay_style == 'linear':
+            coeff = 1.0 - decay_ratio
+        elif self.lr_decay_style == 'cosine':
+            coeff = 0.5 * (math.cos(math.pi * decay_ratio) + 1.0)
+        else:
+            raise Exception('{} decay style is not supported.'.format(self.lr_decay_style))
+
+        return min_lr + coeff * delta_lr
+
+    def step(self, increment=1) -> None:
+        """Set lr for all parameters groups."""
+        self.num_steps += increment
+        new_wd = self.get_wd()
+        for param_group in self.optimizer.param_groups:
+            new_lr = self.get_lr(param_group)
+            param_group['lr'] = new_lr * param_group.get('lr_mult', 1.0)
+            param_group['weight_decay'] = new_wd * param_group.get('wd_mult', 1.0)
+
+    def state_dict(self) -> Dict:
+        state_dict = {
+            'max_lr': self.max_lr,
+            'lr_warmup_steps': self.lr_warmup_steps,
+            'num_steps': self.num_steps,
+            'lr_decay_style': self.lr_decay_style,
+            'lr_decay_steps': self.lr_decay_steps,
+            'min_lr': self.min_lr,
+            'start_wd': self.start_wd,
+            'end_wd': self.end_wd,
+            'wd_incr_style': self.wd_incr_style,
+            'wd_incr_steps': self.wd_incr_steps,
+        }
+        return state_dict
 
 
 def register_scheduler(name: str, scheduler: _LRScheduler, scheduler_params: SchedulerParams):
@@ -1006,6 +1171,7 @@ AVAILABLE_SCHEDULERS = {
     'SquareRootAnnealing': SquareRootAnnealing,
     'PolynomialDecayAnnealing': PolynomialDecayAnnealing,
     'PolynomialHoldDecayAnnealing': PolynomialHoldDecayAnnealing,
+    'MegatronAnnealing': MegatronAnnealing,
     'StepLR': pt_scheduler.StepLR,
     'ExponentialLR': pt_scheduler.ExponentialLR,
     'ReduceLROnPlateau': pt_scheduler.ReduceLROnPlateau,

@@ -11,7 +11,7 @@ from torch import nn
 
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
-from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
+from nemo.lightning.megatron_parallel import MaskedTokenLossReduction, MegatronLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 
 HAVE_TE = True
@@ -112,6 +112,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
+    loss_reduction_fn: Callable = MaskedTokenLossReduction
 
     def configure_model(self, tokenizer) -> "MCoreGPTModel":
         vp_size = self.virtual_pipeline_model_parallel_size
@@ -200,11 +201,11 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return self.forward_step(batch)
 
-    def training_loss_reduction(self) -> MaskedTokenLossReduction:
-        return MaskedTokenLossReduction()
+    def training_loss_reduction(self) -> MegatronLossReduction:
+        return self.config.loss_reduction_fn()
 
-    def validation_loss_reduction(self) -> MaskedTokenLossReduction:
-        return MaskedTokenLossReduction(validation_step=True)
+    def validation_loss_reduction(self) -> MegatronLossReduction:
+        return self.config.loss_reduction_fn(validation_step=True)
 
 
 def get_batch_on_this_context_parallel_rank(batch):
