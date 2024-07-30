@@ -29,7 +29,7 @@ runner = AutoConfigurator(
 )
 
 # Get generated configs
-configs = runner.get_configs()
+configs = runner.generate_configs()
 
 
 # Llama3 70B default model
@@ -54,7 +54,7 @@ runner = AutoConfigurator(
 )
 
 # Get generated configs
-configs = runner.get_configs()
+configs = runner.generate_configs()
 
 
 # Llama uknown model size with additional args
@@ -78,4 +78,4 @@ runner = AutoConfigurator(
 )
 
 # Get generated configs
-configs = runner.get_configs()
+configs = runner.generate_configs()

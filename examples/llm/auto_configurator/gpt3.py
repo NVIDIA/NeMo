@@ -26,7 +26,7 @@ runner = AutoConfigurator(
 )
 
 # Get generated configs
-configs = runner.get_configs()
+configs = runner.generate_configs()
 
 
 # GPT-3 5B default model
@@ -41,7 +41,7 @@ runner = AutoConfigurator(
 )
 
 # Get generated configs
-configs = runner.get_configs()
+configs = runner.generate_configs()
 
 
 # GPT-3 uknown size with additional args
@@ -65,4 +65,4 @@ runner = AutoConfigurator(
 )
 
 # Get generated configs
-configs = runner.get_configs()
+configs = runner.generate_configs()
