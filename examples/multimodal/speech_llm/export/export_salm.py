@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from utils import separate_speechllm_model
+
 from nemo.core.config import hydra_runner
 from nemo.export.tensorrt_mm_exporter import TensorRTMMExporter
-from utils import separate_speechllm_model
+
 
 @hydra_runner(config_path='conf', config_name='salm_export')
 def main(cfg):

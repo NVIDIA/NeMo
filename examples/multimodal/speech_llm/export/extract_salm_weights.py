@@ -13,21 +13,21 @@
 # limitations under the License.
 
 
+import argparse
 import os
 import tempfile
-import torch
 
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector, NLPDDPStrategy
+import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
-from nemo.utils.model_utils import inject_model_parallel_rank
 from pytorch_lightning.trainer.trainer import Trainer
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.utils_funcs import load_state_dict_helper
-from nemo.utils import logging
 
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import AudioPerceptionModule
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.utils_funcs import load_state_dict_helper
+from nemo.utils import logging
+from nemo.utils.model_utils import inject_model_parallel_rank
 
-import argparse
 
 def get_config_and_state_dict_from_nemo(filepath, map_location, output_dir, sharded_state_dict=None):
         cwd = os.getcwd()
