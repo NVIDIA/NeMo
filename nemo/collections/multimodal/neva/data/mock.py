@@ -9,15 +9,12 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
-if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-
 
 class MockDataModule(pl.LightningDataModule):
     def __init__(
         self,
         seq_length: int = 2048,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        processor: Optional = None,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         rampup_batch_size: Optional[List[int]] = None,
@@ -37,9 +34,8 @@ class MockDataModule(pl.LightningDataModule):
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
 
-        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-
-        self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
+        from transformers import AutoProcessor
+        self.processor = processor or AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             micro_batch_size=micro_batch_size,
@@ -48,9 +44,9 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
-        self._train_ds = _MockGPTDataset(self.tokenizer, "train", self.num_train_samples, self.seq_length)
-        self._validation_ds = _MockGPTDataset(self.tokenizer, "valid", self.num_val_samples, self.seq_length)
-        self._test_ds = _MockGPTDataset(self.tokenizer, "test", self.num_test_samples, self.seq_length)
+        self._train_ds = _MockNevaDataset(self.processor, "train", self.num_train_samples, self.seq_length)
+        self._validation_ds = _MockNevaDataset(self.processor, "valid", self.num_val_samples, self.seq_length)
+        self._test_ds = _MockNevaDataset(self.processor, "test", self.num_test_samples, self.seq_length)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         if not hasattr(self, "_train_ds"):
@@ -78,10 +74,10 @@ class MockDataModule(pl.LightningDataModule):
         )
 
 
-class _MockGPTDataset(Dataset):
+class _MockNevaDataset(Dataset):
     def __init__(
         self,
-        tokenizer: "TokenizerSpec",
+        processor,
         name: str,
         num_samples: int,
         seq_length: int,
@@ -90,7 +86,15 @@ class _MockGPTDataset(Dataset):
         super().__init__()
         self.name = name
         self.seq_length = seq_length
+
+        tokenizer = processor.tokenizer
         self.vocab_size = tokenizer.vocab_size
+        if len(getattr(tokenizer, "added_tokens_encoder", {})):
+            self.vocab_size = max(max(tokenizer.added_tokens_decoder) + 1, self.vocab_size)
+
+        crop_size = processor.image_processor.crop_size
+        self.image_height, self.image_width = crop_size["height"], crop_size["width"]
+
         self.length = num_samples
         self.seed = seed
 
@@ -111,8 +115,10 @@ class _MockGPTDataset(Dataset):
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
         labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
+        images = torch.from_numpy(np_gen.random(size=[self.image_height, self.image_width], dtype=np.float32))
 
         return {
+            "images": images,
             "tokens": tokens,
             "labels": labels,
             "attention_mask": self.attention_mask,
