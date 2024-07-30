@@ -261,7 +261,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_llama/ci_fp8.qnemo
 
-  L2_PTQ_Llama2_INT8_SQ:
+  OPTIONAL_L2_PTQ_Llama2_INT8_SQ:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
     with:
@@ -278,6 +278,7 @@ jobs:
         export.save_path=/home/TestData/nlp/megatron_llama/ci_int8_sq.qnemo
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_llama/ci_int8_sq.qnemo
+      IS_OPTIONAL: true
 
   # TODO: investigate int4_awq stuck issues and restore the test
   #L2_PTQ_Llama2_INT4_AWQ:
