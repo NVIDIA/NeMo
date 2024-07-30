@@ -395,7 +395,7 @@ class BeamTDTInfer(Typing):
                     duration_idx = sum_logp_topk_idx // beam_k
                     
                     duration = self.durations[int(durations_logp_topk_idxs[duration_idx])]
-                    # construct hypothesis for non-blank token
+                    # Construct hypothesis for non-blank token
                     new_hyp = Hypothesis(
                         score=float(max_hyp.score + sum_logp_topk),                         # update score
                         y_sequence=max_hyp.y_sequence + [int(logp_topk_idxs[token_idx])],   # update hypothesis sequence
@@ -404,13 +404,13 @@ class BeamTDTInfer(Typing):
                         length=encoded_lengths,
                         last_frame=max_hyp.last_frame + duration)                           # update frame idx where last token appeared
                     
-                    # update current frame hypotheses if duration is zero and future frame hypotheses otherwise
+                    # Update current frame hypotheses if duration is zero and future frame hypotheses otherwise
                     if duration == 0:
                         hyps.append(new_hyp)
                     else:
                         kept_hyps.append(new_hyp)
                         
-                # updating future frames with blank tokens
+                # Update future frames with blank tokens
                 # Note: blank token can have only non-zero duration
                 for duration_idx in durations_logp_topk_idxs:
                     # If zero is the only duration in topk, switch to closest non-zero duration to continue 
@@ -436,7 +436,7 @@ class BeamTDTInfer(Typing):
                 kept_hyps = self.remove_duplicate_hypotheses(kept_hyps)
                 
                 if (len(hyps) > 0):
-                    # keep those hypothesis that have scores greater than next search generation
+                    # Keep those hypothesis that have scores greater than next search generation
                     hyps_max = float(max(hyps, key=lambda x: x.score).score)
                     kept_most_prob = sorted([hyp for hyp in kept_hyps if hyp.score > hyps_max], key=lambda x: x.score,)
                     # If enough hypotheses have scores greater than next search generation,
