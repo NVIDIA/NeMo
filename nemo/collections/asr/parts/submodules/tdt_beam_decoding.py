@@ -26,8 +26,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional, Union
+import numpy as np
 
 import torch
 from tqdm import tqdm
@@ -207,7 +207,7 @@ class BeamTDTInfer(Typing):
         else:
             raise NotImplementedError(
                 f"The search type ({search_type}) supplied is not supported!\n"
-                f"Please use one of : (default, tsd, alsd, nsc)"
+                f"Please use one of : (default, maes)"
             )
 
         if self.search_type == 'maes':
@@ -229,6 +229,12 @@ class BeamTDTInfer(Typing):
 
             if self.maes_num_steps < 2:
                 raise ValueError("`maes_num_steps` must be greater than 1.")
+            
+        try:
+            self.zero_duration_idx = self.durations.index(0)
+        except:
+            self.zero_duration_idx = None
+        self.min_non_zero_duration_idx = np.argmin(np.ma.masked_where(np.array(self.durations)==0, self.durations))
 
         if ngram_lm_model:
             if search_type != "maes":
@@ -252,8 +258,8 @@ class BeamTDTInfer(Typing):
         """Perform general beam search.
 
         Args:
-            encoder_output: Encoded speech features (B, D_enc, T_max)
-            encoded_lengths: Lengths of the encoder outputs
+            encoder_output: encoder outputs (batch, features, timesteps).
+            encoded_lengths: lengths of the encoder outputs.
 
         Returns:
             Either a list containing a single Hypothesis (when `return_best_hypothesis=True`,
@@ -329,117 +335,118 @@ class BeamTDTInfer(Typing):
         raise NotImplementedError("greedy search has not been implemented")
 
     def default_beam_search(
-        self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
+        self, encoder_outputs: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
     ) -> List[Hypothesis]:
-        """Beam search implementation for TDT models.
+        """Default Beam search implementation for TDT models.
 
         Args:
-            encoder_output: encoder outputs (batch, features, timesteps).
-            encoded_lengths: lengths of the outputs from the encoder.
- 
+            encoder_outputs: encoder outputs (batch, features, timesteps).
+            encoded_lengths: lengths of the encoder outputs.
+            
         Returns:
             nbest_hyps: N-best decoding results
         """
-        debug_mode=True
-        if debug_mode:
-            print(f"encoded lengths={encoded_lengths}")
-        
         # Initialize states
         beam = min(self.beam_size, self.vocab_size)
         beam_k = min(beam, (self.vocab_size - 1))
-        blank_tensor = torch.tensor([self.blank], device=encoder_output.device, dtype=torch.long)
+        durations_beam_k = min(beam, len(self.durations))
 
-        # Precompute some constants for blank position
-        ids = list(range(self.vocab_size + 1))
-        ids.remove(self.blank)
-
-        # Used when blank token is first vs last token
-        index_incr = 1 if self.blank == 0 else 0
-
-        # Initialize zero vector states
-        dec_state = self.decoder.initialize_state(encoder_output)
-
-        # Initialize first hypothesis for the beam (blank)
+        # Initialize zero vector states.
+        decoder_state = self.decoder.initialize_state(encoder_outputs)
+        # Cache decoder results to avoid duplicate computations.
         cache = {}
         
-        kept_hyps = []
+        # Initialize array hypothesis blank hypothesis.
+        start_hyp = Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=decoder_state, timestep=[-1], length=0, last_frame=0)
+        kept_hyps = [start_hyp]
         
-        start_hyp = Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=0, last_frame=0)
-        kept_hyps.append(start_hyp)
-        
-        frame_idx = 0
-        for frame_idx in range(int(encoded_lengths)):
-            hyps = [hyp for hyp in kept_hyps if hyp.last_frame==frame_idx]
-            kept_hyps = [hyp for hyp in kept_hyps if hyp.last_frame>frame_idx]
+        time_idx = 0
+        for time_idx in range(int(encoded_lengths)):
+            # Retrieve hypotheses for current and future frames
+            hyps = [hyp for hyp in kept_hyps if hyp.last_frame==time_idx]      # hypotheses for current frame
+            kept_hyps = [hyp for hyp in kept_hyps if hyp.last_frame>time_idx]  # hypothesis for future frames
             
+            # Loop over hypotheses of current frame
             while len(hyps) > 0:
                 max_hyp = max(hyps, key=lambda x: x.score)
                 hyps.remove(max_hyp)
+
+                # Update decoder state and get probability distribution over vocabulary and durations.
+                encoder_output = encoder_outputs[:, time_idx : time_idx + 1, :]                         # [1, 1, D]
+                decoder_output, decoder_state, _ = self.decoder.score_hypothesis(max_hyp, cache)        # [1, 1, D]
+                logits = self.joint.joint(encoder_output, decoder_output) / self.softmax_temperature    # [1, 1, 1, V + NUM_DURATIONS + 1]
+                logp = torch.log_softmax(logits[0, 0, 0, : -len(self.durations)], dim=-1)               # [V + 1]
+                durations_logp = torch.log_softmax(logits[0, 0, 0, -len(self.durations) :], dim=-1)     # [NUM_DURATIONS]
                 
-                if debug_mode:
-                    print(f"frame_idx={frame_idx}, score={max_hyp.score}, sequence={max_hyp.y_sequence}, timesteps={max_hyp.timestep}, last_frame={max_hyp.last_frame}")
-
-                # update decoder state and get next score
-                hi = encoder_output[:, frame_idx : frame_idx + 1, :]  # [1, 1, D]
-                y, state, _ = self.decoder.score_hypothesis(max_hyp, cache)  # [1, 1, D]
-
-                # get next token
-                logits = self.joint.joint(hi, y) / self.softmax_temperature
-                logp = torch.log_softmax(logits[0, 0, 0, : -len(self.durations)], dim=-1)  # [1, 1, 1, V + 1]
-                durations_logp = torch.log_softmax(logits[0, 0, 0, -len(self.durations) :], dim=-1)
-
-                # remove blank token before top k
-                top_k = logp[ids].topk(beam_k, dim=-1)
-
-                # Two possible steps - blank token or non-blank token predicted
-                logp = (torch.cat((top_k[0], logp[self.blank].unsqueeze(0))), torch.cat((top_k[1] + index_incr, blank_tensor)))
+                # Proccess non-blank tokens 
+                # Retrieve the top `beam_k` most probable tokens and the top `duration_beam_k` most probable durations.
+                # Then, select the top `beam_k` pairs of (token, duration) based on the highest combined probabilities.
+                logp_topks, logp_topk_idxs = logp[:-1].topk(beam_k, dim=-1)     # topk of tokens without blank token
+                durations_logp_topks, durations_logp_topk_idxs = durations_logp.topk(durations_beam_k, dim=-1)
+                sum_logp_topks, sum_logp_topk_idxs = (
+                    torch.cartesian_prod(durations_logp_topks, logp_topks)
+                    .sum(dim=-1)
+                    .topk(beam_k, dim=-1)
+                )
                 
-                # for each possible step
-                for logp, k in zip(*logp):
-                    for duration_idx, duration in enumerate(self.durations):
-                        if k == self.blank and duration == 0:
+                # Loop over pairs of (token, duration) with highest combined log prob
+                for sum_logp_topk, sum_logp_topk_idx in zip(sum_logp_topks, sum_logp_topk_idxs):
+                    token_idx = sum_logp_topk_idx % beam_k
+                    duration_idx = sum_logp_topk_idx // beam_k
+                    
+                    duration = self.durations[int(durations_logp_topk_idxs[duration_idx])]
+                    # construct hypothesis for non-blank token
+                    new_hyp = Hypothesis(
+                        score=float(max_hyp.score + sum_logp_topk),                         # update score
+                        y_sequence=max_hyp.y_sequence + [int(logp_topk_idxs[token_idx])],   # update hypothesis sequence
+                        dec_state=decoder_state,                                            # update decoder state
+                        timestep=max_hyp.timestep + [time_idx + duration],                  # update timesteps
+                        length=encoded_lengths,
+                        last_frame=max_hyp.last_frame + duration)                           # update frame idx where last token appeared
+                    
+                    # update current frame hypotheses if duration is zero and future frame hypotheses otherwise
+                    if duration == 0:
+                        hyps.append(new_hyp)
+                    else:
+                        kept_hyps.append(new_hyp)
+                        
+                # updating future frames with blank tokens
+                # Note: blank token can have only non-zero duration
+                for duration_idx in durations_logp_topk_idxs:
+                    # If zero is the only duration in topk, switch to closest non-zero duration to continue 
+                    if duration_idx == self.zero_duration_idx:
+                        if durations_logp_topk_idxs.shape[0] == 1:
+                            duration_idx = self.min_non_zero_duration_idx
+                        else:
                             continue
                         
-                        duration_logp = durations_logp[duration_idx]
-                        # construct hypothesis for step
-                        new_hyp = Hypothesis(
-                            score=float(max_hyp.score + logp + duration_logp),
-                            y_sequence=max_hyp.y_sequence[:],
-                            dec_state=max_hyp.dec_state,
-                            lm_state=max_hyp.lm_state,
-                            timestep=max_hyp.timestep[:],
+                    duration  = self.durations[int(duration_idx)]
+                    new_hyp = Hypothesis(
+                            score = float(max_hyp.score + logp[self.blank] + durations_logp[duration_idx]),   # updating score
+                            y_sequence=max_hyp.y_sequence[:],                                               # no need to update sequence
+                            dec_state=max_hyp.dec_state,                                                    # no need to update decoder state
+                            timestep=max_hyp.timestep[:],                                                   # no need to update timesteps
                             length=encoded_lengths,
-                            last_frame=max_hyp.last_frame)
-
-                        # if current token is blank, don't update sequence, just store the current hypothesis
-                        if k == self.blank:
-                            new_hyp.last_frame += duration
-                            hyps_to_update = kept_hyps
-                        elif k != self.blank:
-                            new_hyp.dec_state = state
-                            new_hyp.y_sequence.append(int(k))
-                            new_hyp.timestep.append(frame_idx + duration)
-                            new_hyp.last_frame += duration
-                            
-                            hyps_to_update = hyps if duration == 0 else kept_hyps
-                        hyps_to_update.append(new_hyp)
+                            last_frame=max_hyp.last_frame + duration)                                       # update frame idx where last token appeared
+                    kept_hyps.append(new_hyp)
                 
-                # removing duplicate hypothesis.
+                # Remove duplicate hypotheses.
+                # If two consecutive blank tokens are predicted and their duration values sum up to the same number,
+                # it will produce two hypotheses with the same token sequence but different scores.
                 kept_hyps = self.remove_duplicate_hypotheses(kept_hyps)
                 
                 if (len(hyps) > 0):
                     # keep those hypothesis that have scores greater than next search generation
                     hyps_max = float(max(hyps, key=lambda x: x.score).score)
                     kept_most_prob = sorted([hyp for hyp in kept_hyps if hyp.score > hyps_max], key=lambda x: x.score,)
-                    # If enough hypothesis have scores greater than next search generation,
+                    # If enough hypotheses have scores greater than next search generation,
                     # stop beam search.
                     if len(kept_most_prob) >= beam:
                         kept_hyps = kept_most_prob
                         break
-       
-        if debug_mode:
-            print(f"{len(kept_hyps)}, {beam}")
-            assert(len(kept_hyps) >= beam )
+                else:
+                    # If there are no hypotheses in a current frame, keep only `beam` best hypotheses for the next search generation.
+                    kept_hyps = sorted(kept_hyps, key=lambda x: x.score, reverse=True)[:beam]
         return self.sort_nbest(kept_hyps)
 
     def modified_adaptive_expansion_search(
@@ -463,23 +470,13 @@ class BeamTDTInfer(Typing):
             from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 
             self.token_offset = DEFAULT_TOKEN_OFFSET
-            
-            
-    def sort_nbest(self, hyps: List[Hypothesis]) -> List[Hypothesis]:
-        """Sort hypotheses by score or score given sequence length.
-
-        Args:
-            hyps: list of hypotheses
-
-        Return:
-            hyps: sorted list of hypotheses
-        """
-        if self.score_norm:
-            return sorted(hyps, key=lambda x: x.score / len(x.y_sequence), reverse=True)
-        else:
-            return sorted(hyps, key=lambda x: x.score, reverse=True)
 
     def remove_duplicate_hypotheses(self, hyps):
+        """
+        Removes hypotheses that have identical token sequences and lengths.
+        Duplicate hypotheses occur when two consecutive blank tokens are predicted,
+        and their duration values sum up to the same number.
+        """
         sorted_hyps = sorted(hyps, key=lambda x: x.score, reverse=True)
         kept_hyps = []
         for hyp in sorted_hyps:

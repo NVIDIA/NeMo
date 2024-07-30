@@ -2505,6 +2505,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
     def _greedy_decode(
         self, x: torch.Tensor, out_len: torch.Tensor, partial_hypotheses: Optional[rnnt_utils.Hypothesis] = None
     ):
+        self.preserve_frame_confidence = True
         # x: [T, 1, D]
         # out_len: [seq_len]
 
@@ -2542,6 +2543,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
             need_loop = True
             # While blank is not predicted, or we dont run out of max symbols per timestep
             while need_loop and (self.max_symbols is None or symbols_added < self.max_symbols):
+                print(f"frame_idx={time_idx}, score={hypothesis.score}, sequence={hypothesis.y_sequence}, timesteps={hypothesis.timestep}")
                 # In the first timestep, we initialize the network with RNNT Blank
                 # In later timesteps, we provide previous predicted label as input.
                 if hypothesis.last_token is None and hypothesis.dec_state is None:
