@@ -328,9 +328,9 @@ class TensorRTLLM(ITritonDeployable):
                     rank = model_config.mapping.tp_rank
                     for k, v in weight_dict.items():
                         weight_dict[k] = numpy_to_torch(v)
-                        safetensors.torch.save_file(
-                            weight_dict, os.path.join(self.model_dir, f'rank{rank}.safetensors')
-                        )
+                    safetensors.torch.save_file(
+                        weight_dict, os.path.join(self.model_dir, f'rank{rank}.safetensors')
+                    )
 
                     # build_and_save_engine(
                     #     max_input_len=max_input_len,
@@ -357,8 +357,8 @@ class TensorRTLLM(ITritonDeployable):
                     #     gemm_plugin=gemm_plugin,
                     # )
 
-                with open(os.path.join(self.model_dir, 'config.json'), 'w') as f:
-                    json.dump(model_configs[0], f, indent=4)
+                model_configs[0].to_json_file(os.path.join(self.model_dir, 'config.json'))
+                return
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
             if os.path.exists(tokenizer_path):
