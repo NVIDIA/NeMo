@@ -58,9 +58,9 @@ try:
         get_t5_encoder_with_transformer_engine_block_spec,
     )
     from megatron.core.num_microbatches_calculator import (
+        configure_global_num_microbatches_calculator,
         get_micro_batch_size,
         get_num_microbatches,
-        configure_global_num_microbatches_calculator,
     )
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
@@ -74,9 +74,9 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import (
+        configure_global_num_microbatches_calculator,
         get_micro_batch_size,
         get_num_microbatches,
-        configure_global_num_microbatches_calculator,
     )
 
 except (ImportError, ModuleNotFoundError):
