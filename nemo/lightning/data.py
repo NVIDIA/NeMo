@@ -8,6 +8,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 
 
+## TODO: remove? unused
 def create_dataloader(
     dataset: "Dataset", drop_last: bool = True, pad_samples_to_global_batch_size=False, **kwargs
 ) -> DataLoader:
@@ -85,10 +86,13 @@ def add_megatron_sampler(
     rampup_batch_size: Optional[List[int]] = None,
     consumed_samples: int = 0,
     dataloader_type: Literal["single", "cyclic"] = "single",
+    drop_last: bool = True,
+    pad_samples_to_global_batch_size: bool = False,
     # data_sharding: bool = False
 ) -> DataLoader:
     from megatron.core import parallel_state
 
+    ## TODO: expose drop_last and pad_samples_to_global_batch_size args
     if dataloader_type == 'single':
         batch_sampler = MegatronPretrainingSampler(
             total_samples=len(dataloader.dataset),
@@ -98,8 +102,8 @@ def add_megatron_sampler(
             rampup_batch_size=rampup_batch_size,
             data_parallel_rank=parallel_state.get_data_parallel_rank(),
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            drop_last=getattr(dataloader, "_drop_last", False),
-            pad_samples_to_global_batch_size=getattr(dataloader, "_pad_samples_to_global_batch_size", False),
+            drop_last=drop_last,
+            pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
         )
     elif dataloader_type == 'cyclic':
         batch_sampler = MegatronPretrainingRandomSampler(
@@ -108,7 +112,7 @@ def add_megatron_sampler(
             micro_batch_size=micro_batch_size,
             data_parallel_rank=parallel_state.get_data_parallel_rank(),
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            pad_samples_to_global_batch_size=getattr(dataloader, "_pad_samples_to_global_batch_size", False),
+            drop_last=drop_last,
             # data_sharding=data_sharding
         )
     else:
@@ -122,6 +126,14 @@ def add_megatron_sampler(
         persistent_workers=dataloader.persistent_workers,
         collate_fn=dataloader.collate_fn,
     )
+
+
+class WrappedDataLoader(DataLoader):
+    """Wrapper around torch DataLoader which stores the dataloader mode"""
+
+    def __init__(self, mode="train", **dataloader_kwargs):
+        super().__init__(**dataloader_kwargs)
+        self.mode = mode
 
 
 # TODO: Replace this with megatron.core.data.data_samplers after we upgrade
