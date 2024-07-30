@@ -218,8 +218,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 raise ValueError("blank_id must equal len(non_blank_vocabs) for TDT models")
             if self.big_blank_durations is not None and self.big_blank_durations != []:
                 raise ValueError("duration and big_blank_durations can't both be not None")
-            if self.cfg.strategy not in ['greedy', 'greedy_batch', 'beam']:
-                raise ValueError("currently only greedy and greedy_batch inference is supported for TDT models")
+            if self.cfg.strategy not in ['greedy', 'greedy_batch', 'beam', 'maes']:
+                raise ValueError("currently only greedy, greedy_batch, beam and maes inference is supported for TDT models")
 
         if (
             self.big_blank_durations is not None and self.big_blank_durations != []
@@ -453,9 +453,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
                         preserve_alignments=self.preserve_alignments,
                         ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
-                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
-                        hat_subtract_ilm=self.cfg.beam.get('hat_subtract_ilm', False),
-                        hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.3),
                     )
         else:
 
