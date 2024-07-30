@@ -286,6 +286,6 @@ def convert(args):
 
 
 if __name__ == '__main__':
-    os.environ['NVTE_FLASH_ATTN'] = '0' #Bert doesn't support FLASH_ATTN
+    os.environ['NVTE_FLASH_ATTN'] = '0'  # Bert doesn't support FLASH_ATTN
     args = get_args()
     convert(args)
