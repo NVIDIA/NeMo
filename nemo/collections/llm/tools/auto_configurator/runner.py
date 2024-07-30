@@ -56,6 +56,7 @@ class AutoConfigurator:
         vocab_size: Optional[int] = 51200,
         model_args: Optional[dict] = {},
         custom_model: Optional[bool] = False,
+        nemo_sdk: Optional[bool] = False,
     ):
         """
         :param str model_type: model type to be used for training.
@@ -84,6 +85,7 @@ class AutoConfigurator:
         :param Optional[int] vocab_size: size of tokenizer vocabulary.
         :param Optional[dict] model_args: additional args to add to mdoel config.
         :param Optional[bool] custom_model: set to True if you want to use custom model.
+        :param Optional[bool] nemo_sdk: set to True if you want to run Auto Configurator with nemo-sdk.
         """
 
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {SUPPORTED_MODELS}."

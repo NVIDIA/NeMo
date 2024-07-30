@@ -47,6 +47,7 @@ class Basic:
         self.global_batch_size = cfg.get("global_batch_size")
         self.tokenizer_path = cfg.get("tokenizer_path")
         self.data_paths = cfg.get("data_paths")
+        self.nemo_sdk = cfg.get("nemo_sdk")
 
     def model_config(self):
         """Function that returns model config."""
@@ -64,17 +65,25 @@ class Basic:
         :return: optim config.
         :rtype: OptimizerConfig.
         """
+        optim_params = {
+            "optimizer": "adam",
+            "lr": 1e-4,
+            "min_lr": 1e-5,
+            "use_distributed_optimizer": True,
+            "bf16": True,
+            "adam_beta1": 0.9,
+            "adam_beta2": 0.95,
+        }
 
-        optim_config = Config(
-            OptimizerConfig,
-            optimizer='adam',
-            lr=1e-4,
-            min_lr=1e-5,
-            use_distributed_optimizer=True,
-            bf16=True,
-            adam_beta1=0.9,
-            adam_beta2=0.95,
-        )
+        if self.nemo_sdk:
+            optim_config = Config(
+                OptimizerConfig,
+                **optim_params,
+            )
+        else:
+            optim_config = OptimizerConfig(
+                **optim_params,
+            )
 
         return optim_config
 
@@ -116,7 +125,7 @@ class Basic:
             "seq_length": self.seq_length,
             "global_batch_size": self.global_batch_size,
             "num_workers": 2,
-            "split": "99990,8,2",
+            #"split": "99990,8,2",
             "index_mapping_dir": None,
         }
 

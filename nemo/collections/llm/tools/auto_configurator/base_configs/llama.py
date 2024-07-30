@@ -52,7 +52,11 @@ class Llama(Basic):
 
         model_class = getattr(llm, self.config_name)
         kwargs = self.cfg.get("model_args", {})
-        model_config = Config(model_class, **kwargs)
+        
+        if self.nemo_sdk:
+            model_config = Config(model_class, **kwargs)
+        else:
+            model_config = model_class(**kwargs)
 
         model_config.global_batch_size = self.global_batch_size
         model_config.seq_length = self.seq_length
