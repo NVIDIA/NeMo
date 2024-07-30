@@ -135,9 +135,11 @@ def save_nemo_weights(state_dict, output_dir, config, save_nemo_model=True):
         nemo_model_name = f"{output_dir}.nemo"
         nemo_path = os.path.join(output_dir, nemo_model_name)
         # tar model_config.yaml and model_weights.ckpt
-        os.system(f"tar -cvf {nemo_path} {config_file} {weight_file}")
+        os.system(f"tar -C {output_dir} -cvf {nemo_path} model_config.yaml model_weights.ckpt")
         # remove model_config.yaml and model_weights.ckpt
         os.system(f"rm {config_file} {weight_file}")
+        # remove the empty directory
+        os.system(f"rmdir {output_dir}")
 
 def separate_speechllm_model(model_file_path, output_dir, map_location="cuda:0"):
     if not os.path.exists(output_dir):
