@@ -30,7 +30,12 @@ class NeMoLogger(IOMixin):
         log_local_rank_0_only (bool): Log only on local rank 0.
         log_global_rank_0_only (bool): Log only on global rank 0.
         files_to_copy (Optional[List[str]]): List of files to copy to log directory.
-        update_logger_directory (bool): Whether to update logger directory.
+        update_logger_directory (bool): Whether to update logger directory to write to `exp_dir`.
+            If True, the `save_dir` passed to the logger will be treated as a relative path and
+            the logger will be reconfigured to write to `exp_dir / save_dir`. This ensures that
+            all output from an experiment is written to a common directory. If False, the logger's
+            save_dir will not be overwritten. This argument applies only to TensorBoardLogger and
+            WandbLogger instances.
         ckpt (Optional[ModelCheckpoint]): Model checkpoint callback.
     """
 
