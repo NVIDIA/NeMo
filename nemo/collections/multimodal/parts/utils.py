@@ -541,7 +541,7 @@ def create_image_processor(mm_cfg):
         from transformers import AutoConfig
 
         config = AutoConfig.from_pretrained(mm_cfg.vision_encoder.from_pretrained)
-        if config.architectures[0] == "CLIPVisionModel":
+        if config.architectures[0] == "CLIPVisionModel" or config.architectures[0] == "CLIPModel":
             image_processor = CLIPImageProcessor.from_pretrained(
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )
