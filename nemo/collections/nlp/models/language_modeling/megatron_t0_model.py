@@ -36,10 +36,10 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
+    from megatron.core.num_microbatches_calculator import configure_global_num_microbatches_calculator
 
 except (ImportError, ModuleNotFoundError):
-    import apex.transformer.pipeline_parallel.utils.reconfigure_num_microbatches_calculator as reconfigure_num_microbatches_calculator
+    import apex.transformer.pipeline_parallel.utils.configure_global_num_microbatches_calculator as configure_global_num_microbatches_calculator
 
 __all__ = ['MegatronT0Model']
 
@@ -158,7 +158,7 @@ class MegatronT0Model(MegatronT5SFTModel):
         # This should happen only on the last batch of the validation/test dataset with drop_last=False.
         if global_batch_per_gpu != self.cfg.data.validation_ds.global_batch_size:
             app_state = AppState()
-            reconfigure_num_microbatches_calculator(
+            configure_global_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),

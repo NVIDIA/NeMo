@@ -39,11 +39,11 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
+    from megatron.core.num_microbatches_calculator import configure_global_num_microbatches_calculator
 
 except (ImportError, ModuleNotFoundError):
     from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
+        _reconfigure_microbatch_calculator as configure_global_num_microbatches_calculator,
     )
 
 __all__ = [
@@ -519,7 +519,7 @@ def sample_sequence_batch(
 ):
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
-    reconfigure_num_microbatches_calculator(
+    configure_global_num_microbatches_calculator(
         rank=app_state.global_rank,
         rampup_batch_size=None,
         global_batch_size=micro_batch_size,
