@@ -1,1 +1,0 @@
-Model Name,Model Size,Seq Length,TP,PP,CP,EP,MBS,Act Ckpt Layers,Act Ckpt Micro Bathes,Act Ckpt Layers per Pipeline,Num Layers,Hidden Size,FFN Hidden Size,GBS,Nodes,GPUs per Node,Error Message
