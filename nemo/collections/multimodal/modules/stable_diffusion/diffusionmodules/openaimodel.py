@@ -1245,10 +1245,13 @@ class UNetModel(nn.Module):
         ):
             # GroupNormOpt fuses activation function to one layer, thus the indexing of weights are shifted for following
             for key_ in missing_keys:
-                s = key_.split('.')
-                idx = int(s[-2])
-                new_key_ = ".".join(s[:-2] + [str(int(idx + 1))] + [s[-1]])
-                state_dict[key_] = state_dict[new_key_]
+                try:
+                    s = key_.split('.')
+                    idx = int(s[-2])
+                    new_key_ = ".".join(s[:-2] + [str(int(idx + 1))] + [s[-1]])
+                    state_dict[key_] = state_dict[new_key_]
+                except:
+                    continue
 
         loaded_keys = list(state_dict.keys())
         missing_keys = list(set(expected_keys) - set(loaded_keys))
