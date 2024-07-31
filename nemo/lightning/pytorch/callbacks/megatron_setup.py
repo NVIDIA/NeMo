@@ -19,6 +19,7 @@ class MegatronSetup(Callback, IOMixin):
     """
 
     def setup(self, trainer, pl_module, stage):
+        trainer.strategy.trainer = trainer
         self._setup_nemo(trainer)
         self._setup_mcore(pl_module)
         self._setup_data_sampler(trainer)
