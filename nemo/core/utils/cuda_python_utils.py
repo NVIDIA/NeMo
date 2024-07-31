@@ -18,7 +18,7 @@ import numpy as np
 import torch
 from packaging.version import Version
 
-__CUDA_PYTHON_MINIMUM_VERSION_CUDA_GRAPH_CONDITIONAL_NODES_SUPPORTED__ = (12, 3)  # 12030
+__CUDA_PYTHON_MINIMUM_VERSION_CUDA_GRAPH_CONDITIONAL_NODES_SUPPORTED__ = (12, 6)  # 12030
 
 
 def check_cuda_python_cuda_graphs_conditional_nodes_supported():

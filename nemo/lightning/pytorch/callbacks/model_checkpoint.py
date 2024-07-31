@@ -26,14 +26,33 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLM
 from pytorch_lightning.callbacks.model_checkpoint import _is_local_file_protocol
 from pytorch_lightning.utilities import rank_zero_info
 
-from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import TrainerContext
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import ckpt_to_dir
 
 
-class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
+class ModelCheckpoint(PTLModelCheckpoint):
+    """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
+    Adds support for asyncronous checkpointing and provides some additional logic to clean up invalid checkpoints
+    Args:
+        monitor: Metric to monitor when saving top-k checkpoints.
+        verbose: Verbosity mode.
+        save_last: When ``True``, saves a `*-last` copy whenever a checkpoint file gets saved.
+        save_top_k: When ``True``, saves the top-k checkpoints according to ``monitor``.
+        save_weights_only:  if ``True``, then only the model's weights will be saved.
+        mode: One of {min, max}. Whether the objective is to minimize or maximize the monitored quantity.
+        every_n_epochs: Number of epochs between checkpoints.
+        every_n_train_steps: Number of train steps between checkpoints.
+        train_time_interval: After each interval, monitor checkpoints. Not to be used with
+            ``every_n_epochs`` or ``every_n_train_steps``.
+        save_best_model: When ``True``, reloads and saves the best checkpoint.
+        save_on_train_epoch_end: Whether to run checkpointing at the end of the training epoch
+        enable_nemo_ckpt_io: Whether to dump the current model model state, including the
+            config file, to allow for reproducibility of experiments.
+        async_save: Whether to enable asynchronous checkpointing.
+        try_restore_best_ckpt: Whether to restore the best model path.
+    """
 
     UNFINISHED_CHECKPOINT_SUFFIX = "-unfinished"
 
@@ -51,14 +70,12 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
         save_best_model: bool = False,
         save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
         enable_nemo_ckpt_io: bool = True,
-        async_save: bool = False,
         try_restore_best_ckpt: bool = True,
         **kwargs,
     ):
         self.save_best_model = save_best_model
         self.previous_best_path = ""
         self.enable_nemo_ckpt_io = enable_nemo_ckpt_io
-        self.async_save = async_save
         # Checkpoints which removal is deferred until async save is done.
         # Each element of `deferred_ckpts_to_remove` is a growing list
         # that `self._remove_checkpoint` adds to. Once `self._save_checkpoint`
@@ -221,7 +238,7 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
         super().load_state_dict(state_dict)
         self._remove_invalid_entries_from_topk()
 
-    def setup(self, *args, **kwargs) -> None:
+    def setup(self, trainer, *args, **kwargs) -> None:
         from nemo.utils.get_rank import is_global_rank_zero
 
         if is_global_rank_zero():
@@ -230,7 +247,9 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
         # Ensure that all ranks continue with unfinished checkpoints removed
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
-        super().setup(*args, **kwargs)
+
+        self.async_save = getattr(trainer.strategy, "async_save", False)
+        super().setup(trainer, *args, **kwargs)
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
@@ -380,6 +399,8 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
         ema_callback = self._ema_callback(trainer)
 
+        self._last_global_step_saved = trainer.global_step
+
         if ema_callback is not None:
             if self.async_save:
                 raise ValueError('async_save with EMA not supported')
@@ -410,6 +431,12 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
             else:
                 storage_options = None
             trainer.save_checkpoint(filepath, self.save_weights_only, storage_options=storage_options)
+
+            ## NOTE: saving context happens synchronously always
+            from nemo.utils.get_rank import is_global_rank_zero
+
+            if self.enable_nemo_ckpt_io and is_global_rank_zero():
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath))
             if self.async_save:
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:
@@ -422,13 +449,7 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
 
         def _cb():
             logging.debug(f'Finalize callback called for step {global_step}, filepath {filepath}')
-            self._last_global_step_saved = global_step
             self._last_checkpoint_saved = filepath
-
-            from nemo.utils.get_rank import is_global_rank_zero
-
-            if self.enable_nemo_ckpt_io and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath))
 
             # notify loggers
             if trainer.is_global_zero:

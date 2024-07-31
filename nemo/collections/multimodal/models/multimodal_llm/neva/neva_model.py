@@ -395,8 +395,8 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
                 t_token_start, t_token_end = start, start + T
                 s_token_start, s_token_end = start + T, start + T + M
                 assert s_token_end == end + 1, "Token replacement error"
-                inputs_embeds[idx, t_token_start:t_token_end] = temporal_tokens[idx]
-                inputs_embeds[idx, s_token_start:s_token_end] = spatial_tokens[idx]
+                inputs_embeds[idx, t_token_start:t_token_end] = t_tokens[idx]
+                inputs_embeds[idx, s_token_start:s_token_end] = s_tokens[idx]
             elif self.visual_token_format == 'im_vid_start_end':  # v1.5 lita
                 if not self.use_media_start_end:
                     # replace the media start and media end embedding with
@@ -478,11 +478,10 @@ class NevaBaseModel:
     def create_vision_encoder_and_processor(self, mm_cfg):
         # Initialize vision encoder and freeze it
         if mm_cfg.vision_encoder.get("from_hf", False):
-            if (
-                "clip" in mm_cfg.vision_encoder.from_pretrained
-                or "vit" in mm_cfg.vision_encoder.from_pretrained
-                or "clip" in mm_cfg.vision_encoder.get("model_type", "")
-            ):
+            from transformers import AutoConfig
+
+            config = AutoConfig.from_pretrained(mm_cfg.vision_encoder.from_pretrained)
+            if config.architectures[0] == "CLIPVisionModel" or config.architectures[0] == "CLIPModel":
                 vision_encoder = CLIPVisionModel.from_pretrained(
                     mm_cfg.vision_encoder.from_pretrained,
                     torch_dtype=torch.bfloat16,
@@ -492,9 +491,7 @@ class NevaBaseModel:
                     for param in vision_encoder.parameters():
                         param.requires_grad = False
                     vision_encoder = vision_encoder.eval()
-            elif "siglip" in mm_cfg.vision_encoder.from_pretrained or "siglip" in mm_cfg.vision_encoder.get(
-                "model_type", ""
-            ):
+            elif config.architectures[0] == "SiglipVisionModel" or config.architectures[0] == "SiglipModel":
                 vision_encoder = SiglipVisionModel.from_pretrained(
                     mm_cfg.vision_encoder.from_pretrained,
                     torch_dtype=torch.bfloat16,
@@ -1080,9 +1077,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 inference_max_sequence_len,
             ) = batch
             tokens = tokens.cuda()
-            attention_mask = attention_mask.cuda()
             position_ids = position_ids.cuda()
-            attention_mask = attention_mask[0:1]
+            if attention_mask != None:
+                attention_mask = attention_mask.cuda()
+                attention_mask = attention_mask[0:1]
             if media is not None:
                 media = media.cuda()
             labels = None

@@ -19,7 +19,6 @@ Example to run this conversion script:
      --input_name_or_path "thenlper/gte-large" \
      --output_path /path/to/output/nemo/file.nemo \
      --mcore True \
-     --post_process False \
      --precision 32
 ```
 """
@@ -36,8 +35,9 @@ from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 
 
-def adjust_nemo_config(model_config, ref_config, mcore_bert=True):
-    model_config.tokenizer["type"] = "intfloat/e5-large-unsupervised"  # ref_config["_input_name_or_path"]
+def adjust_nemo_config(model_config, ref_config, args, mcore_bert=True):
+    model_config.tokenizer["type"] = args.input_name_or_path
+    model_config["max_position_embeddings"] = ref_config['max_position_embeddings']
     model_config["num_layers"] = ref_config["num_hidden_layers"]
     model_config["hidden_size"] = ref_config["hidden_size"]
     model_config["ffn_hidden_size"] = ref_config["intermediate_size"]
@@ -79,14 +79,19 @@ def convert(args):
     hf_model = AutoModel.from_pretrained(args.input_name_or_path)
 
     nemo_config = OmegaConf.load(args.hparams_file)
-    nemo_config.model = adjust_nemo_config(nemo_config.model, hf_model.config.to_dict(), mcore_bert=args.mcore)
+    nemo_config.model = adjust_nemo_config(nemo_config.model, hf_model.config.to_dict(), args, mcore_bert=args.mcore)
 
     nemo_config.trainer["precision"] = args.precision
     trainer = MegatronTrainerBuilder(nemo_config).create_trainer()
     model = MegatronBertModel(nemo_config.model, trainer)
 
     if not args.post_process:
-        model.model.lm_head, model.model.encoder.final_layernorm, model.model.binary_head, model.model.output_layer = (
+        (
+            model.model.module.lm_head,
+            model.model.module.encoder.final_layernorm,
+            model.model.module.binary_head,
+            model.model.module.output_layer,
+        ) = (
             None,
             None,
             None,
@@ -262,6 +267,16 @@ def convert(args):
             nemo_state_dict['model.embedding.word_embeddings.weight'] = padded_embedding
         else:
             nemo_state_dict['model.language_model.embedding.word_embeddings.weight'] = padded_embedding
+
+    modified_dict = {}
+    for key, value in nemo_state_dict.items():
+        if key.startswith('model.'):
+            new_key = 'model.module.' + key[len('model.') :]
+            modified_dict[new_key] = value
+        else:
+            modified_dict[key] = value
+
+    nemo_state_dict = modified_dict
 
     model.load_state_dict(nemo_state_dict, strict=True)
     dtype = torch_dtype_from_precision(args.precision)
