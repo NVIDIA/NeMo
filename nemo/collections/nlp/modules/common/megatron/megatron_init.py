@@ -52,10 +52,10 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core.num_microbatches_calculator import (
         ConstantNumMicroBatchesCalculator,
-        configure_global_num_microbatches_calculator,
         get_current_global_batch_size,
         get_micro_batch_size,
         get_num_microbatches,
+        init_num_microbatches_calculator,
     )
 
     MCORE_MB_CALCULATOR = True
@@ -69,7 +69,7 @@ except (ImportError, ModuleNotFoundError):
         get_num_microbatches,
     )
     from apex.transformer.pipeline_parallel.utils import (
-        setup_microbatch_calculator as configure_global_num_microbatches_calculator,
+        setup_microbatch_calculator as init_num_microbatches_calculator,
     )
 
     MCORE_MB_CALCULATOR = False
@@ -167,13 +167,12 @@ def initialize_model_parallel_for_nemo(
             from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
             if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
-                configure_global_num_microbatches_calculator(
+                init_num_microbatches_calculator(
                     rank=global_rank,
                     global_batch_size=global_batch_size,
                     micro_batch_size=micro_batch_size,
                     data_parallel_size=app_state.data_parallel_size,
                     rampup_batch_size=rampup_batch_size,
-                    init=True,
                 )
             else:
                 if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
@@ -188,7 +187,7 @@ def initialize_model_parallel_for_nemo(
             from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
             if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
-                configure_global_num_microbatches_calculator(
+                init_num_microbatches_calculator(
                     rank=global_rank,
                     global_batch_size=global_batch_size,
                     micro_batch_size=micro_batch_size,

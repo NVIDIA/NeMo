@@ -63,15 +63,15 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import (
-        configure_global_num_microbatches_calculator,
         get_micro_batch_size,
         get_num_microbatches,
+        reconfigure_num_microbatches_calculator,
     )
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
     from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator as configure_global_num_microbatches_calculator,
+        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
     )
     from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
@@ -333,7 +333,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
         # Eval step requires text datasets so we need to reconfigure MBS on each batch.
         app_state = AppState()
-        configure_global_num_microbatches_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=batch['text_enc'].size(0) * parallel_state.get_data_parallel_world_size(),
@@ -554,7 +554,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
         app_state = AppState()
         if hasattr(self, "_train_ds"):
-            configure_global_num_microbatches_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=self._cfg.train_ds.global_batch_size,
@@ -825,7 +825,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
     def on_validation_epoch_start(self):
         app_state = AppState()
-        configure_global_num_microbatches_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=parallel_state.get_data_parallel_world_size(),

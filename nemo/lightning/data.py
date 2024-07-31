@@ -50,11 +50,10 @@ def setup_microbatch_calculator(
     try:
         from megatron.core.num_microbatches_calculator import (
             ConstantNumMicroBatchesCalculator,
-            configure_global_num_microbatches_calculator,
             get_current_global_batch_size,
             get_micro_batch_size,
             get_num_microbatches,
-            get_num_microbatches_calculator,
+            init_num_microbatches_calculator,
         )
 
         MCORE_MB_CALCULATOR = True
@@ -68,7 +67,7 @@ def setup_microbatch_calculator(
             get_num_microbatches,
         )
         from apex.transformer.pipeline_parallel.utils import (
-            setup_microbatch_calculator as configure_global_num_microbatches_calculator,
+            setup_microbatch_calculator as init_num_microbatches_calculator,
         )
 
         MCORE_MB_CALCULATOR = False
@@ -80,17 +79,18 @@ def setup_microbatch_calculator(
     else:
         init_global_rank = global_rank
     if MCORE_MB_CALCULATOR:
-        if get_num_microbatches_calculator() is None:
-            configure_global_num_microbatches_calculator(
+        from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
+        if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
+            init_num_microbatches_calculator(
                 rank=init_global_rank,
                 global_batch_size=global_batch_size,
                 micro_batch_size=micro_batch_size,
                 data_parallel_size=app_state.data_parallel_size,
                 rampup_batch_size=rampup_batch_size,
-                init=True,
             )
         else:
-            if isinstance(get_num_microbatches_calculator(), ConstantNumMicroBatchesCalculator):
+            if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
                 assert get_current_global_batch_size() == global_batch_size
                 assert get_micro_batch_size() == micro_batch_size
                 assert get_num_microbatches() == global_batch_size // (micro_batch_size * app_state.data_parallel_size)
@@ -100,7 +100,7 @@ def setup_microbatch_calculator(
         from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
         if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
-            configure_global_num_microbatches_calculator(
+            init_num_microbatches_calculator(
                 rank=init_global_rank,
                 global_batch_size=global_batch_size,
                 micro_batch_size=micro_batch_size,
