@@ -34,6 +34,7 @@ from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
+from nemo.lightning.pytorch.strategies.utils import ckpt_to_dir
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
@@ -192,7 +193,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def setup(self, trainer: pl.Trainer) -> None:
         assert self.accelerator is not None
         self.accelerator.setup(trainer)
-        self.trainer = trainer
 
         # move the model to the correct device
         # self.model_to_device()
@@ -634,19 +634,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             moe_extended_tp=self.moe_extended_tp,
             pipeline_dtype=self.pipeline_dtype,
         )
-
-
-def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
-    """PTL considers checkpoints as .ckpt files.
-    This method removes the extension and returns a path
-    to be used as a directory for distributed checkpoints.
-    """
-    filepath = Path(filepath)
-
-    if filepath.suffix == ".ckpt":
-        return filepath.with_name(filepath.stem)
-
-    return filepath
 
 
 def _data_fetcher_wrapper(fn):
