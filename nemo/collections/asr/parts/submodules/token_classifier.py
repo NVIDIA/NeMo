@@ -15,12 +15,13 @@
 from dataclasses import dataclass
 from typing import Dict, Optional
 
+import torch
 from torch import nn as nn
 
 from nemo.collections.asr.parts.submodules.classifier import Classifier
 from nemo.collections.common.parts import MultiLayerPerceptron
 from nemo.core.classes import typecheck
-from nemo.core.neural_types import LogitsType, LogprobsType, NeuralType
+from nemo.core.neural_types import ChannelType, FloatType, LogitsType, LogprobsType, NeuralType
 
 __all__ = ['BertPretrainingTokenClassifier', 'TokenClassifier']
 
@@ -42,7 +43,14 @@ class TokenClassifier(Classifier):
     """
 
     @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+    def input_types(self) -> Dict[str, NeuralType]:
+        return {
+            "hidden_states": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "temperature": NeuralType(None, FloatType(), optional=True),
+        }
+
+    @property
+    def output_types(self) -> Dict[str, NeuralType]:
         """
         Returns definitions of module output ports.
         """
@@ -61,7 +69,6 @@ class TokenClassifier(Classifier):
         dropout: float = 0.0,
         use_transformer_init: bool = True,
     ) -> None:
-
         """
         Initializes the Token Classifier module.
 
@@ -81,8 +88,12 @@ class TokenClassifier(Classifier):
         )
         self.post_init(use_transformer_init=use_transformer_init)
 
+    def set_log_softmax_enabled(self, value: bool) -> "TokenClassifier":
+        self.log_softmax = value
+        return self
+
     @typecheck()
-    def forward(self, hidden_states):
+    def forward(self, hidden_states: torch.Tensor, temperature: float | None = None) -> torch.Tensor:
         """
         Performs the forward step of the module.
         Args:
@@ -91,7 +102,7 @@ class TokenClassifier(Classifier):
         Returns: logits value for each class [BATCH_SIZE x SEQ_LENGTH x NUM_CLASSES]
         """
         hidden_states = self.dropout(hidden_states)
-        logits = self.mlp(hidden_states)
+        logits = self.mlp(hidden_states, temperature=temperature)
         return logits
 
 
@@ -99,6 +110,13 @@ class BertPretrainingTokenClassifier(Classifier):
     """
     A module to perform token level classification tasks for Bert pretraining.
     """
+
+    @property
+    def input_types(self) -> Dict[str, NeuralType]:
+        return {
+            "hidden_states": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "temperature": NeuralType(None, FloatType(), optional=True),
+        }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -120,7 +138,6 @@ class BertPretrainingTokenClassifier(Classifier):
         dropout: float = 0.0,
         use_transformer_init: bool = True,
     ) -> None:
-
         """
         Initializes the Token Classifier module.
 
@@ -147,8 +164,12 @@ class BertPretrainingTokenClassifier(Classifier):
         )
         self.post_init(use_transformer_init=use_transformer_init)
 
+    def set_log_softmax_enabled(self, value: bool) -> "BertPretrainingTokenClassifier":
+        self.log_softmax = value
+        return self
+
     @typecheck()
-    def forward(self, hidden_states):
+    def forward(self, hidden_states: torch.Tensor, temperature: float | None = None) -> torch.Tensor:
         """
         Performs the forward step of the module.
         Args:
@@ -160,5 +181,5 @@ class BertPretrainingTokenClassifier(Classifier):
         hidden_states = self.dense(hidden_states)
         hidden_states = self.act(hidden_states)
         transform = self.norm(hidden_states)
-        logits = self.mlp(transform)
+        logits = self.mlp(transform, temperature=temperature)
         return logits

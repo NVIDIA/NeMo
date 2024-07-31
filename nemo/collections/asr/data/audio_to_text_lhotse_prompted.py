@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from dataclasses import dataclass
 from typing import Callable, Sequence
 
 import torch.utils.data
@@ -23,6 +24,18 @@ from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.prompts.canary import CanaryPromptFormatter
 from nemo.collections.common.tokenizers import CanaryTokenizer, TokenizerSpec
 from nemo.collections.common.tokenizers.canary_tokenizer import CANARY_SPECIAL_TOKENIZER
+
+
+@dataclass
+class PromptedAudioToTextMiniBatch:
+    audio: torch.Tensor
+    audio_lens: torch.Tensor
+    transcript: torch.Tensor
+    transcript_lens: torch.Tensor
+    prompt: torch.Tensor
+    prompt_lens: torch.Tensor
+    prompted_transcript: torch.Tensor
+    prompted_transcript_lens: torch.Tensor
 
 
 class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
@@ -46,33 +59,40 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         self,
         tokenizer: TokenizerSpec,
         prompt_format_fn: Callable[[CutSet, TokenizerWrapper, bool], Sequence[Sequence[int]]],
-        inference: bool = False,
     ):
         super().__init__()
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
         self.padding_value = self.tokenizer._tokenizer.pad_id
         self.prompt_format_fn = prompt_format_fn
-        self.inference = inference
 
-    def __getitem__(self, cuts: CutSet) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
-        prompts_with_answers, prompts = self.prompt_format_fn(cuts, self.tokenizer, inference=self.inference)
+        prompts_with_answers, prompts = self.prompt_format_fn(cuts, self.tokenizer)
 
-        prompts_with_answers = [torch.as_tensor(t) for t in prompts_with_answers]
-        prompts_with_answers_lens = torch.tensor([t.size(0) for t in prompts_with_answers], dtype=torch.long)
-        prompts_with_answers = collate_vectors(prompts_with_answers, padding_value=self.padding_value)
+        transcript = [pa[len(p) :] for pa, p in zip(prompts_with_answers, prompts)]
+        transcript, transcript_lens = self._collate_tokens(transcript)
+        prompts_with_answers, prompts_with_answers_lens = self._collate_tokens(prompts_with_answers)
+        prompts, prompt_lens = self._collate_tokens(prompts)
 
-        if self.inference:
-            prompts = [torch.as_tensor(t) for t in prompts]
-            prompts_lens = torch.tensor([t.size(0) for t in prompts], dtype=torch.long)
-            prompts = collate_vectors(prompts, padding_value=self.padding_value)
-        else:
-            prompts = None
-            prompts_lens = None
+        # return audio, audio_lens, prompts_with_answers, prompts_with_answers_lens, prompts, prompts_lens
+        return PromptedAudioToTextMiniBatch(
+            audio=audio,
+            audio_lens=audio_lens,
+            transcript=transcript,
+            transcript_lens=transcript_lens,
+            prompt=prompts,
+            prompt_lens=prompt_lens,
+            prompted_transcript=prompts_with_answers,
+            prompted_transcript_lens=prompts_with_answers_lens,
+        )
 
-        return audio, audio_lens, prompts_with_answers, prompts_with_answers_lens, prompts, prompts_lens
+    def _collate_tokens(self, tokens: list[list[int]]) -> tuple[torch.Tensor, torch.Tensor]:
+        tokens = [torch.as_tensor(t) for t in tokens]
+        token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
+        tokens = collate_vectors(tokens, padding_value=self.padding_value)
+        return tokens, token_lens
 
 
 # Mapping from a string name to a known prompt formatter function.
@@ -97,7 +117,7 @@ def registered_prompt_format_fn(prompt_fn: Callable[[CutSet, TokenizerWrapper, b
     return prompt_fn
 
 
-def get_prompt_format_fn(name: str) -> Callable[[CutSet, TokenizerWrapper, bool], Sequence[Sequence[int]]]:
+def get_prompt_format_fn(name: str) -> Callable[[CutSet, TokenizerWrapper], Sequence[Sequence[int]]]:
     if name not in PROMPT_FORMAT_FNS:
         raise ValueError(
             f"Unknown prompt format function name: {name} " f"(must be one of: {list(PROMPT_FORMAT_FNS.keys())}"
@@ -106,9 +126,7 @@ def get_prompt_format_fn(name: str) -> Callable[[CutSet, TokenizerWrapper, bool]
 
 
 @registered_prompt_format_fn
-def canary(
-    cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False
-) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
+def canary(cuts: CutSet, tokenizer: TokenizerWrapper) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
     """
     Prepend and append control tokens to the token sequence as per Canary format.
 
