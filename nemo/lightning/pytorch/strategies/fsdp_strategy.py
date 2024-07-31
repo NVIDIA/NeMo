@@ -19,7 +19,9 @@ from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.strategies.fsdp import _get_sharded_state_dict_context
 
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.lightning.io.pl import MegatronCheckpointIO
+from nemo.lightning.megatron_parallel import masked_token_loss
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
 
 from nemo.lightning.pytorch.strategies.utils import (
@@ -33,6 +35,33 @@ class FSDPStrategy(PLFSDPStrategy):
     def __init__(self, *args,  ckpt_include_optimizer=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.ckpt_include_optimizer = ckpt_include_optimizer
+
+    @override
+    def training_step(self, batch, batch_idx=None) -> Any:
+        with self.precision_plugin.train_step_context():
+            if self.model != self.lightning_module:
+                loss = self._forward_redirection(self.model, self.lightning_module, "training_step", batch, batch_idx)
+            else:
+                loss = self.lightning_module.training_step(batch, batch_idx)
+
+            loss = masked_token_loss(loss, batch['loss_mask'])
+
+            reduced_loss = average_losses_across_data_parallel_group([loss])
+            self.lightning_module.log(
+                'global_step',
+                self.trainer.global_step,
+                prog_bar=True,
+                rank_zero_only=True,
+                batch_size=1,
+            )
+
+            self.lightning_module.log(
+                'step',
+                self.trainer.global_step,
+            )
+            self.lightning_module.log('reduced_train_loss', reduced_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+
+            return loss
 
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
