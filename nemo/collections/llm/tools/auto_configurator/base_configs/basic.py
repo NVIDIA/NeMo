@@ -54,11 +54,6 @@ class Basic:
 
         None
 
-    def tokenizer_config(self):
-        """Function that returns tokenizer config."""
-
-        None
-
     def get_optim_config(self) -> OptimizerConfig:
         """
         Function that returns optimizer config.

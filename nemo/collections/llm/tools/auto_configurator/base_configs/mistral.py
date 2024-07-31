@@ -61,17 +61,3 @@ class Mistral(Basic):
         model_config.seq_length = self.seq_length
 
         return model_config
-
-    def get_tokenizer_config(self) -> dict:
-        """
-        Function that returns tokenizer config.
-        :return: tokenizer config.
-        :rtype: dict.
-        """
-
-        tokenizer_config = {
-            "class": AutoTokenizer,
-            "name": "mistralai/Mistral-7B-v0.1",
-        }
-
-        return tokenizer_config

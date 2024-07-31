@@ -352,7 +352,6 @@ def generic_base_config(
     base_cfg = {
         "model": model.get_model_config(),
         "optim": model.get_optim_config(),
-        "tokenizer": model.get_tokenizer_config(),
         "trainer": model.get_trainer_config(),
         "data": model.get_data_config(),
         "run": model.get_run_config(),

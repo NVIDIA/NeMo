@@ -64,17 +64,3 @@ class Llama(Basic):
         model_config.pipeline_dtype = torch.bfloat16
 
         return model_config
-
-    def get_tokenizer_config(self) -> dict:
-        """
-        Function that returns tokenizer config.
-        :return: tokenizer config.
-        :rtype: dict.
-        """
-
-        tokenizer_config = {
-            "class": SentencePieceTokenizer,
-            "path": self.tokenizer_path,
-        }
-
-        return tokenizer_config
