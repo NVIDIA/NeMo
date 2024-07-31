@@ -1229,7 +1229,7 @@ class DataCollatorForSupervisedDataset(object):
     tokenizer: transformers.PreTrainedTokenizer
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        packed_sequence = "cu_seqlens" in instances[0]
+        packed_sequence = "cu_seqlens" in instances[0]  
         max_len = max(instance['tokens'].shape[0] for instance in instances)
         max_len = (max_len - 1) // 64 * 64 + 64
         for instance in instances:
@@ -1310,7 +1310,7 @@ class DataCollatorForSupervisedDataset(object):
         return batch
 
 
-def make_supervised_data_module(tokenizer, image_processor, model_cfg, data_file) -> Dict:
+def make_supervised_data_module(tokenizer, image_processor, model_cfg, data_file=None) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     data_cfg = model_cfg.data
     mm_cfg = model_cfg.mm_cfg
@@ -1318,11 +1318,7 @@ def make_supervised_data_module(tokenizer, image_processor, model_cfg, data_file
     if getattr(model_cfg, 'no_seqlen_plus_one_input_tokens', False):
         add_extra_token = 0
     crop_size = mm_cfg.vision_encoder.get("crop_size", (224, 224))
-    if not data_cfg.get("data_path"):
-        data_path = data_file
-    else:
-        data_path = data_cfg.data_path
-        # use blend
+    data_path = data_file if data_file is not None else data_cfg.data_path
     train_dataset = NevaDataset(
         tokenizer=tokenizer,
         data_path=data_path,

@@ -25,7 +25,6 @@ from nemo.utils.app_state import AppState
 
 class BlendableDataset(torch.utils.data.Dataset):
     def __init__(self, datasets, weights, size):
-
         self.datasets = datasets
         num_datasets = len(datasets)
         assert num_datasets == len(weights)
@@ -43,6 +42,7 @@ class BlendableDataset(torch.utils.data.Dataset):
         assert num_datasets < 255
         self.dataset_index = np.zeros(self.size, dtype=np.uint8)
         self.dataset_sample_index = np.zeros(self.size, dtype=np.int64)
+        
         app_state = AppState()
         try:
             if app_state.local_rank == 0:
@@ -74,7 +74,13 @@ class BlendableDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         dataset_idx = self.dataset_index[idx]
         sample_idx = self.dataset_sample_index[idx]
-        return self.datasets[dataset_idx][sample_idx]
+        # Ensure the sample index doesn't exceed the dataset size
+        # original build_index function does not handle the extreme case properly
+        sample_idx = sample_idx % len(self.datasets[dataset_idx])
+        data = self.datasets[dataset_idx][sample_idx]
+    
+        return data
+    
 
     def create_data_mmap(self):
         for dataset in self.datasets:

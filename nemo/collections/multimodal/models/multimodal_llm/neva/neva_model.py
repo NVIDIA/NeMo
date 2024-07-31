@@ -1210,8 +1210,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         else:
             # TODO: consider adding a ModelPT guard to check if model is being restored.
             # allowing restored models to optionally setup datasets
-            #self.build_train_valid_test_datasets()
-            self.build_train_valid_test_datasets_blend()
+            self.build_train_valid_test_datasets()
             self.setup_training_data(self.cfg.data)
             self.setup_validation_data(self.cfg.data)
             self.setup_test_data(self.cfg.data)
@@ -1247,15 +1246,15 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         if data_cfg.get('concat_sampling_probabilities') is None or not isinstance(
             data_cfg.concat_sampling_probabilities, ListConfig
         ):
-            raise ValueError("concat_sampling_probabilities must be a ListConfig with the same number of entries as data_file_names.")
+            raise ValueError("concat_sampling_probabilities must be a ListConfig with the same number of entries as data_path.")
 
-        if len(data_cfg.concat_sampling_probabilities) != len(data_cfg.data_file_names):
+        if len(data_cfg.concat_sampling_probabilities) != len(data_cfg.data_path):
             raise ValueError(
                 f"concat_sampling_probabilities must be of the same size as data_file_names. "
-                f"Provided size {len(data_cfg.concat_sampling_probabilities)}, number of datasets {len(data_cfg.data_file_names)}"
+                f"Provided size {len(data_cfg.concat_sampling_probabilities)}, number of datasets {len(data_cfg.data_path)}"
             )
 
-        for data_file in data_cfg.data_file_names:
+        for data_file in data_cfg.data_path:
             if is_packed_sequence:
                 train_dataset = NevaPackedSeqDatatset(
                     data_file, self.cfg.mm_cfg.vision_encoder.get("crop_size")
@@ -1277,22 +1276,24 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
             train_datasets.append(train_dataset)
             valid_datasets.append(valid_dataset)
-
+        
         # Create BlendableDataset for training
         if self.trainer.max_steps is None or self.trainer.max_steps <= 0:
             raise ValueError(f'Trainer max_steps must be set to a positive integer. Found {self.trainer.max_steps}')
 
         num_train_samples = self.trainer.max_steps * data_cfg.global_batch_size
         _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(
-            data_prefix=[weight for pair in zip(data_cfg.concat_sampling_probabilities, data_cfg.data_file_names) for weight in pair],
+            data_prefix=[weight for pair in zip(data_cfg.concat_sampling_probabilities, data_cfg.data_path) for weight in pair],
             num_samples=[num_train_samples]
         )
         num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
         
         logging.info(f"Number of train datasets: {len(train_datasets)}")
         logging.info(f"Lengths of train datasets: {[len(ds) for ds in train_datasets]}")
-        logging.info(f"concat_sampling_probabilities: {data_cfg.concat_sampling_probabilities}")
-        logging.info(f"num_train_samples_after_blend: {num_train_samples_after_blend}")
+        logging.info(f"Number of train datasets after blending: {num_train_samples_after_blend}")
+        
+        if is_packed_sequence:
+            num_train_samples_after_blend = sum([len(ds) for ds in train_datasets])
         
         self._train_ds = BlendableDataset(
             datasets=train_datasets,
@@ -1306,20 +1307,16 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             size=num_train_samples_after_blend
             )
         
-        
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of validation dataset: {len(self._validation_ds)}')
-
-        
-        ######### Use ConcatDataset instead of BlendableDataset##########
-        # self._train_ds = ConcatDataset(train_datasets)
-        # self._validation_ds = ConcatDataset(valid_datasets)
-        ##################################################################
 
         return self._train_ds, self._validation_ds
 
     def build_train_valid_test_datasets(self):
         logging.info('Building Neva datasets.')
+        if isinstance(self.cfg.data.data_path, ListConfig) and self.cfg.data.get('concat_sampling_probabilities'):
+            return self.build_train_valid_test_datasets_blend()
+        
         if self.cfg.data.get("packed_sequence", False):
             assert self.cfg.micro_batch_size == 1, "Micro batch size must be 1 if using packed sequence"
             self._train_ds = NevaPackedSeqDatatset(

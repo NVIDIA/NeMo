@@ -60,6 +60,7 @@ model:
 
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
+  context_parallel_size: 1 # kqv model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
 
   restore_from_path: null # used in fine-tuning
@@ -186,12 +187,23 @@ model:
     num_workers: 8
     dataloader_type: cyclic
     data_path:
+      # could be a path to a single file or a list of files for data blending like below
+      # - /path/to/json
+      # - /path/to/json
+    global_batch_size: ${model.global_batch_size}
+    micro_batch_size: ${model.micro_batch_size}
+    concat_sampling_probabilities: null
+      # - 0.5
+      # - 0.5
     lazy_preprocess: True
     is_multimodal: True
     media_type: image # currently supported: image
+    num_frames: -1
     sep_image_conv_front: False
     conv_template: ${model.mm_cfg.llm.model_type} # check `nemo/collections/multimodal/data/neva/conversation.py`
+    image_token_len: 576
     image_folder: null
+    video_folder: null
     image_aspect_ratio: 'square'
 
   # Nsys profiling options
