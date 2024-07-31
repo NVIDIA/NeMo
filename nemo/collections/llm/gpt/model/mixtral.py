@@ -79,7 +79,7 @@ class MixtralConfig8x22B(GPTConfig):
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
     # rotary
-    rotary_percent: float = 0
+    rotary_percent: float = 0  # TODO: @akoumparouli: is this correct?
     rotary_base: float = 1000000
     bf16: bool = True
     params_dtype: torch.dtype = torch.bfloat16
