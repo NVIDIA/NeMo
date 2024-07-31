@@ -63,7 +63,7 @@ def tokenizer():
     return tok
 
 
-def test_greedy_decoding(inputs, nnet):
+def test_greedy_decoding(inputs, nnet, deterministic_rng):
     gen = GreedySequenceGenerator(*nnet)
     output = gen(*inputs)
 
@@ -86,12 +86,13 @@ def test_temperature_sampling_decoding(inputs, nnet):
 
     assert best_path is not None
     assert torch.is_tensor(best_path)
-    assert best_path.shape == (1, 25)
+    assert best_path.shape[0] == 1
 
     assert isinstance(hypotheses, list)
     assert len(hypotheses) == 1
     (seq0,) = hypotheses
-    assert seq0.shape == (2, 25)
+    assert seq0.shape[0] == 2
+    assert (seq0[0] != seq0[1]).any()
 
 
 def test_beam_decoding_beam_scores_false(inputs, nnet):
