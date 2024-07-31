@@ -90,7 +90,7 @@ def tokenize_dataset(cfg: 'DictConfig'):
     data_cfg = cfg.model.data.train_ds
     if os.path.isdir(cfg.tokenizer_path):
         # pass in a Hugging Face folder which contains tokenizer.json
-        tokenizer = get_nmt_tokenizer(library="huggingface", model_name=cfg.tokenizer_path)
+        tokenizer = get_nmt_tokenizer(library="huggingface", model_name=cfg.tokenizer_path, use_fast=True)
     else:
         tokenizer = get_nmt_tokenizer(library="sentencepiece", tokenizer_model=cfg.tokenizer_path)
 
