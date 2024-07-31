@@ -246,9 +246,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         logging.warning("kenlm_path " + str(kenlm_path))
         if kenlm_path:
             try:
-                self.tmpdir, self.kenlm_encoding_level, self.kenlm_path, self.flashlight_cfg.lexicon_path = get_nemolm(
-                    kenlm_path
-                )
+                self.tmpdir, self.kenlm_encoding_level, self.kenlm_path, lexicon_path = get_nemolm(kenlm_path)
+                if not self.flashlight_cfg.lexicon_path:
+                    self.flashlight_cfg.lexicon_path = lexicon_path
                 self.kenlm_type = "nemolm"
             except tarfile.ReadError:
                 self.kenlm_type, self.kenlm_path, self.tmpdir, self.kenlm_encoding_level = (

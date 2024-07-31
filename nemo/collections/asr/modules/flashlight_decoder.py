@@ -149,7 +149,7 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
         self.blank = self.tokenizer_wrapper.blank
         self.silence = self.tokenizer_wrapper.unk_id
         if lexicon_path is not None:
-            if lexicon_path == "DEFAULT":
+            if lexicon_path == "DEFAULT_SUBWORDS":
                 self.lexicon = create_lexicon(tokenizer)
             else:
                 self.lexicon = load_words(lexicon_path)

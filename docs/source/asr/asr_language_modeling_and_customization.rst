@@ -118,7 +118,6 @@ You may evaluate an ASR model as the following:
            dataset_manifest=<path to the evaluation JSON manifest file> \
            ctc_decoding.strategy=<Beam library such as beam, pyctcdecode or flashlight> \
            ctc_decoding.beam.kenlm_path=<path to the binary KenLM model> \
-           ctc_decoding.beam.kenlm_type=<type of KenLM model> \
            ctc_decoding.beam.beam_size=[<list of the beam widths, separated with commas>] \
            ctc_decoding.beam.beam_alpha=[<list of the beam alphas, separated with commas>] \
            ctc_decoding.beam.beam_beta=[<list of the beam betas, separated with commas>] \
@@ -126,14 +125,7 @@ You may evaluate an ASR model as the following:
            preds_output_folder=<optional folder to store the predictions> \
            probs_cache_file=null \
 
-It can evaluate a model in the three following modes by setting the argument `ctc_decoding.strategy`:
 
-*  greedy: Just greedy decoding is done, and no beam search decoding is performed.
-*  "" (empty string): The beam search decoding is done but without using the N-gram language model, final results would be equivalent to setting the weight of LM (beam_beta) to zero.
-*  pyctcdecode: The beam search decoding is done with N-gram LM and pyctcdecode Python library.
-*  flashlight: The beam search decoding is done with N-gram LM and flashlight C++ library.
-
-With empty string the script would evaluate by flashlight beam search decoding without any language model.
 It would report the performances in terms of Word Error Rate (WER) and Character Error Rate (CER). Moreover,
 the WER/CER of the model when the best candidate is selected among the candidates is also reported as the best WER/CER.
 It can be an indicator of how good the predicted candidates are.
@@ -174,13 +166,13 @@ The following is the list of the important arguments for the evaluation script:
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | ctc_decoding.beam.beam_size          | float    | Required         | List of the width or list of the widths of the beam search decoding.    |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| ctc_decoding.beam.kenlm_path         | str      | Required         | The path to store the KenLM binary model file created by ``train_kenlm.py`` or ``lmplz``.|
-+--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| ctc_decoding.beam.kenlm_type         | str      | Required         | Type of KenLM binary model:  ``nemolm`` or ``lmplz``                    |
+| ctc_decoding.beam.kenlm_path         | str      | Required         | The path to store the KenLM model file created by ``train_kenlm.py`` or ``lmplz``.|
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | ctc_decoding.beam.beam_alpha         | float    | Required         | List of the alpha parameter for the beam search decoding.               |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | ctc_decoding.beam.beam_beta          | float    | Required         | List of the beta parameter for the beam search decoding.                |
++--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
+| ctc_decoding.beam.flashlight_cfg.lexicon_path | str | None         | Path to flashlight lexicon or ``DEFAULT_SUBWORDS``                      |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | beam_batch_size                      | int      | 1                | The batch size to be used for beam search decoding.                     |
 |                                      |          |                  | Larger batch size can be a little faster, but uses larger memory.       |
@@ -198,38 +190,25 @@ would search for. Larger beams result in more accurate but slower predictions.
     Therefore it is possible to forward arguments for various beam search libraries such as ``flashlight``
     and ``pyctcdecode`` via the ``ctc_decoding.strategy`` subconfig.
 
+It can evaluate a model in the following modes by setting the argument `ctc_decoding.strategy` and `ctc_decoding.beam.kenlm_path`:
+
+*  `ctc_decoding.strategy=greedy`: Just greedy decoding is done, and no beam search decoding is performed.
+*  `ctc_decoding.strategy=flashlight ctc_decoding.beam.kenlm_path=null`: The beam search decoding is 
+done using flashlight C++ library without the N-gram language model, final results would be equivalent to setting 
+the weight of LM (beam_beta) to zero.
+*  `ctc_decoding.strategy=flashlight ctc_decoding.beam.kenlm_path=/path/to/kenlm`: The beam search decoding 
+is done with N-gram LM and flashlight C++ library.
+*  `ctc_decoding.strategy=pyctcdecode ctc_decoding.beam.kenlm_path=/path/to/kenlm`: The beam search decoding 
+is done with N-gram LM and pyctcdecode Python library.
+
 There is also a tutorial to learn more about evaluating the ASR models with N-gram LM here:
 `Offline ASR Inference with Beam Search and External Language Model Rescoring <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Offline_ASR.ipynb>`_
 
 CTC Beam Search Decoding Engines
 --------------------------------
 
-NeMo ASR CTC supports multiple beam search engines for decoding. The default engine is ``beam`` which is the pyctcdecode
+NeMo ASR CTC supports multiple beam search engines for decoding. The default engine is ``beam`` which is the ``pyctcdecode``
 decoding library.
-
-
-There is a table of supported values of ``ctc_decoding.strategy`` with different parameter combinations.
-V - means supported value and X - unsupported.
-
-+----------+-------------+--------------+--------+------------------------+-----------------------+-------------+
-| Decoding | kenlm_type  | greedy_batch | greedy | flashlight with lexicon| flashlight no lexicon | pyctcdecode |
-+==========+=============+==============+========+========================+=======================+=============+
-| subword  | nemolm      | V            | V      | V                      | X                     | X           |
-+----------+-------------+--------------+--------+------------------------+-----------------------+-------------+
-| subword  | lmplz       | V            | V      | V                      | X                     | V           |
-+----------+-------------+--------------+--------+------------------------+-----------------------+-------------+
-| char     | nemolm      | V            | V      | V                      | V                     | V           |
-+----------+-------------+--------------+--------+------------------------+-----------------------+-------------+
-| char     | lmplz       | V            | V      | V                      | V                     | V           |
-+----------+-------------+--------------+--------+------------------------+-----------------------+-------------+
-
-**Subword** decoding - applied with ASR model which predicts a sequence of subword units.
-
-**Char** decoding - applied with ASR model which predicts a sequence of characters.
-
-**lmplz** kenlm_type creates using pure ``lmplz`` from `KenLM Language Model Toolkit <https://kheafield.com/code/kenlm/>`_
-
-**nemolm** kenlm_type and **flashlight lexicon** creates using `NeMo script train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/ngram_lm/train_kenlm.py>`_
 
 
 Flashlight (``flashlight``)
@@ -238,11 +217,16 @@ Flashlight (``flashlight``)
 Flashlight is a C++ library for ASR decoding provided at `https://github.com/flashlight/flashlight <https://github.com/flashlight/flashlight>`_. It is a CPU and CUDA-based beam search engine that is quite efficient and supports
 char and subword models. It requires an ARPA KenLM file.
 
-It supports several advanced features such as lexicon based / lexicon free decoding, beam pruning threshold, and more.
+It supports several advanced features such as lexicon based / lexicon free decoding, ZeroLM, beam pruning threshold, and more.
+Lexicon is created by using script `train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/train_kenlm.py>`_
+and packed together with KemLM model file.
 
-Subword based ASR model requires lexicon based decoding. 
-Lexicon for **nemolm** kenlm_type is created by using script `train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/train_kenlm.py>`_
-and for **lmplz** kenlm_type by using script `create_lexicon_from_arpa.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/ngram_lm/create_lexicon_from_arpa.py>`_.
+If you create Kenlm by using pure ``lmplz`` from `KenLM Language Model Toolkit <https://kheafield.com/code/kenlm/>`_
+, then for lexicon based decoding you need to provide `ctc_decoding.beam.flashlight_cfg.lexicon_path`. Lexicon could be created using 
+`NeMo script create_lexicon_from_arpa.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/ngram_lm/create_lexicon_from_arpa.py>`_
+
+If you didn't use `train_kenlm.py` the special value ``DEFAULT_SUBWORDS`` allows you to create and apply on the fly subword lexicon 
+with subword acoustic model.
 
 .. code-block:: python
 
