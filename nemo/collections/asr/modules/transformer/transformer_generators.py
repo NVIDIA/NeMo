@@ -85,7 +85,7 @@ class GreedySequenceGenerator:
         encoder_input_mask=None,
         decoder_mems_list=None,
         pos=0,
-        need_scores: bool = True,
+        return_scores: bool = True,
     ):
         """
         One step of autoregressive output generation.
@@ -118,7 +118,7 @@ class GreedySequenceGenerator:
             decoder_mems_list = self.decoder.forward(
                 decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
-        with self.classifier.with_log_softmax_enabled(need_scores) as clf:
+        with self.classifier.with_log_softmax_enabled(return_scores) as clf:
             logits = clf.forward(hidden_states=decoder_mems_list[-1][:, -1:])
         return logits, decoder_mems_list
 
@@ -186,7 +186,7 @@ class GreedySequenceGenerator:
                 encoder_input_mask,
                 decoder_mems_list,
                 i,
-                need_scores=return_beam_scores,
+                return_scores=return_beam_scores,
             )
 
             if self.temperature is None:  # Greedy decoding
@@ -291,7 +291,7 @@ class TopKSequenceGenerator(GreedySequenceGenerator):
         encoder_input_mask=None,
         decoder_mems_list=None,
         pos=0,
-        need_scores: bool = True,
+        return_scores: bool = True,
     ):
         log_probs, decoder_mems_list = super()._one_step_forward(
             decoder_input_ids,
@@ -299,7 +299,7 @@ class TopKSequenceGenerator(GreedySequenceGenerator):
             encoder_input_mask,
             decoder_mems_list,
             pos,
-            need_scores=need_scores,
+            return_scores=return_scores,
         )
 
         batch_size, seq_len, vocab_size = log_probs.size()
