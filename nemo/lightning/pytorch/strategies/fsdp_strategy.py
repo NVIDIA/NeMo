@@ -42,12 +42,13 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         This strategy is designed to work with NVIDIA's Megatron-LM framework and requires
         specific model implementations that are compatible with Megatron's parallelism techniques.
     Note:
-        Due to the different optimizer structure (FSDP only uses torch native optimizers), 
+        Due to the different optimizer structure (FSDP only uses torch native optimizers),
         MegatronStrategy cannot resume training from checkpoints saved by FSDPStrategy, and vice
         versa. However, the model weights structure is made compatible, so switching strategy is
         possible if users only need the weights not the optimizer states. (E.g. run pretrain with
         megatron 4D parallelism and run SFT with FSDP.)
     """
+
     def __init__(self, *args, ckpt_include_optimizer=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.ckpt_include_optimizer = ckpt_include_optimizer

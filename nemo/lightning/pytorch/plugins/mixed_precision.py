@@ -160,6 +160,7 @@ class MegatronMixedPrecision(MixedPrecision, IOMixin):
 
 class FSDPPrecision(PLFSDPPrecision, IOMixin):
     """Lightning's mixed precision plugin for FSDP. Need to add IOMixin for checkpointing."""
+
     pass
 
 
