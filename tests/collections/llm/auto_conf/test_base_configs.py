@@ -21,7 +21,7 @@ class TestBaseConfigs:
         model_cls = getattr(base_configs, "GPT")
 
         # GPT3 126M
-        model_126m = model_cls(size=126, measure="M")
+        model_126m = model_cls(size=126, measure="M", cfg={"nemo_sdk": True})
         config_cls = model_126m.get_model_config()
         config_cls_name = get_class_name(config_cls)
         assert (
@@ -31,13 +31,12 @@ class TestBaseConfigs:
         # GPT3 5B
         model_5b = model_cls(size=5)
         config_cls = model_5b.get_model_config()
-        config_cls_name = get_class_name(config_cls)
         assert (
-            config_cls_name == "GPTConfig5B"
+            config_cls.__class__.__name__ == "GPTConfig5B"
         ), "the name of the config class for the GPT3 5B model should be 'GPTConfig5B'."
 
         # GPT3 7B
-        model_7b = model_cls(size=7)
+        model_7b = model_cls(size=7, cfg={"nemo_sdk": True})
         config_cls = model_7b.get_model_config()
         config_cls_name = get_class_name(config_cls)
         assert (
@@ -47,21 +46,19 @@ class TestBaseConfigs:
         # GPT3 20B
         model_20b = model_cls(size=20)
         config_cls = model_20b.get_model_config()
-        config_cls_name = get_class_name(config_cls)
         assert (
-            config_cls_name == "GPTConfig20B"
+            config_cls.__class__.__name__ == "GPTConfig20B"
         ), "the name of the config class for the GPT3 20B model should be 'GPTConfig20B'."
 
         # GPT3 40B
         model_40b = model_cls(size=40)
         config_cls = model_40b.get_model_config()
-        config_cls_name = get_class_name(config_cls)
         assert (
-            config_cls_name == "GPTConfig40B"
+            config_cls.__class__.__name__ == "GPTConfig40B"
         ), "the name of the config class for the GPT3 40B model should be 'GPTConfig40B'."
 
         # GPT3 175B
-        model_175b = model_cls(size=175)
+        model_175b = model_cls(size=175, cfg={"nemo_sdk": True})
         config_cls = model_175b.get_model_config()
         config_cls_name = get_class_name(config_cls)
         assert (
@@ -82,7 +79,7 @@ class TestBaseConfigs:
         model_cls = getattr(base_configs, "Llama")
 
         # Llama2_7B
-        model_7b = model_cls(size=7)
+        model_7b = model_cls(size=7, cfg={"nemo_sdk": True})
         config_cls = model_7b.get_model_config()
         config_cls_name = get_class_name(config_cls)
         assert (
@@ -92,29 +89,26 @@ class TestBaseConfigs:
         # Llama2_13B
         model_13b = model_cls(size=13)
         config_cls = model_13b.get_model_config()
-        config_cls_name = get_class_name(config_cls)
         assert (
-            config_cls_name == "Llama2Config13B"
+            config_cls.__class__.__name__ == "Llama2Config13B"
         ), "the name of the config class for the Llama2 13B model should be 'Llama2Config13B'."
 
         # Llama2_70B
         model_70b = model_cls(size=70)
         config_cls = model_70b.get_model_config()
-        config_cls_name = get_class_name(config_cls)
         assert (
-            config_cls_name == "Llama2Config70B"
+            config_cls.__class__.__name__ == "Llama2Config70B"
         ), "the name of the config class for the Llama2 70B model should be 'Llama2Config70B'."
 
         # Llama3_70B
         model_70b = model_cls(size=70, version=3)
         config_cls = model_70b.get_model_config()
-        config_cls_name = get_class_name(config_cls)
         assert (
-            config_cls_name == "Llama3Config70B"
+            config_cls.__class__.__name__ == "Llama3Config70B"
         ), "the name of the config class for the Llama3 70B model should be 'Llama3Config70B'."
 
         # Llama3_8B
-        model_8b = model_cls(size=8, version=3)
+        model_8b = model_cls(size=8, version=3, cfg={"nemo_sdk": True})
         config_cls = model_8b.get_model_config()
         config_cls_name = get_class_name(config_cls)
         assert (
@@ -127,16 +121,15 @@ class TestBaseConfigs:
         # Mixtral 8x7B
         model_7b = model_cls(size=7)
         config_cls = model_7b.get_model_config()
-        config_cls_name = get_class_name(config_cls)
         assert (
-            config_cls_name == "MixtralConfig8x7B"
+            config_cls.__class__.__name__ == "MixtralConfig8x7B"
         ), "the name of the config class for the Mixtral 8x7B model should be 'MixtralConfig8x7B'."
 
     def test_mistral_base_config(self):
         model_cls = getattr(base_configs, "Mistral")
 
         # Mistral 7B
-        model_7b = model_cls(size=7)
+        model_7b = model_cls(size=7, cfg={"nemo_sdk": True})
         config_cls = model_7b.get_model_config()
         config_cls_name = get_class_name(config_cls)
         assert (
@@ -199,7 +192,6 @@ class TestBaseConfigs:
 
         data_config_target = {
             "paths": None,
-            "weights": None,
             "seq_length": None,
             "global_batch_size": None,
             "num_workers": 2,
@@ -215,6 +207,28 @@ class TestBaseConfigs:
         model_cls = getattr(base_configs, "Mixtral")
 
         model_7b = model_cls(size=7)
+        optim_config_source = model_7b.get_optim_config()
+
+        optim_config_target = OptimizerConfig(
+            optimizer='adam',
+            lr=1e-4,
+            min_lr=1e-5,
+            use_distributed_optimizer=True,
+            bf16=True,
+            adam_beta1=0.9,
+            adam_beta2=0.95,
+            overlap_grad_reduce=False,
+            overlap_param_gather=True,
+        )
+
+        assert (
+            optim_config_target == optim_config_source
+        ), f"{optim_config_target} is expected optim config but got {optim_config_source}"
+
+    def test_optim_config_nemo_sdk(self):
+        model_cls = getattr(base_configs, "Mixtral")
+
+        model_7b = model_cls(size=7, cfg={"nemo_sdk": True})
         optim_config_source = model_7b.get_optim_config()
 
         optim_config_target = Config(

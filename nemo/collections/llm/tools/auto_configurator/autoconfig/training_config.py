@@ -972,7 +972,6 @@ def _calculate_tp_pp_mbs_grid(
     gbs_size = train_cfg.get("global_batch_size")
     gpu_memory_gb = train_cfg.get("gpu_memory_gb")
     model_measure = train_cfg.get("model_measure")
-
     multiplier = (
         1 if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"] else 2
     )
@@ -1079,7 +1078,7 @@ def _calculate_tp_pp_mbs_grid(
         ep = ep_sizes
     if mbs_sizes is not None and mbs_sizes != "auto":
         mbs = mbs_sizes
-    if gbs_size is not None and mbs_sizes != "auto":
+    if gbs_size is not None and gbs_size != "auto":
         gbs = gbs_size
     if min_model_parallel_size is not None and min_model_parallel_size != "auto":
         min_model_parallel = min_model_parallel_size

@@ -15,33 +15,48 @@
 import csv
 import os
 import re
-import sys
 from shutil import copyfile
+from typing import Optional
 
 import pandas as pd
 from tensorboard.backend.event_processing import event_accumulator
 from nemo.collections.llm.tools.auto_configurator.autoconfig.utils import generic_base_config
 
 
-def main(
-    training_logs="/home/llama3_8b",
-    seq_length=8192,
-    global_batch_size=1024,
-    model_measure="B",
-    model_name="llama",
-    model_version=3,
-    model_size=8,
-    num_nodes=16,
-    gpus_per_node=8,
-    configs=None,
-    vocab_size=32000,
-    max_training_days=2,
-    tflops_per_gpu=150,
-    num_tokens_in_b=2400,
-    custom_model=None,
-    output_top_n=10,
+def get_results(
+    training_logs: str = None,
+    model_name: str = None,
+    model_size: int = None,
+    num_nodes: int = None,
+    model_version: int = None,
+    seq_length: int = None,
+    vocab_size: int = 32000,
+    model_measure: Optional[str] = "B",
+    global_batch_size: Optional[int] = None,
+    gpus_per_node: Optional[int] = 8,
+    max_training_days: Optional[int] = 2,
+    tflops_per_gpu: Optional[int] = 140,
+    num_tokens_in_b: Optional[int] = 300,
+    custom_model: Optional[bool] = False,
+    output_top_n: Optional[int] = 10,
 ):
-
+    """
+    :param str training_logs: path to the dicrectory with training logs.
+    :param str model_name: model name to be used for training.
+    :param int model_size: size of trained model.
+    :param int num_nodes: number of nodes to be used for training.
+    :param int model_version: version of model. 3 for GPT3, 2 for Llama2.
+    :param Optional[str] model_measure: "M" if model_size is specified in millions. "B" if in billions.
+    :param Optional[int] gpus_per_node: number of GPUs per node to be used.
+    :param Optional[int] gpu_memory_gb: memory per GPU, in GB. Currently 40GB and 80GB A100s/H100s supported.
+    :param Optional[int] seq_length: model sequence length. Available seq_length list for GPT-based models: [2048, 4096, 8192, 16384, 32768].
+    :param Optional[int] global_batch_size: model global batch size. Set to "auto" if you want auto configurator to find optimal gbs.
+    :param Optional[int] num_tokens_in_b: number of tokens in billions in train dataset.
+    :param Optional[int] tflops_per_gpu: estimated tflops per GPU.
+    :param Optional[int] max_training_days: number of days expected model to be trained.
+    :param Optional[int] vocab_size: size of tokenizer vocabulary.
+    :param Optional[bool] custom_model: set to True if you want to use custom model.
+    """
     # Get model architecture
     cfg = locals()
     cfg["gpu_count"] = num_nodes * gpus_per_node

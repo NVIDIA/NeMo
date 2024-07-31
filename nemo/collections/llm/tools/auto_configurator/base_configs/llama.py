@@ -59,6 +59,7 @@ class Llama(Basic):
             model_config = model_class(**kwargs)
 
         model_config.global_batch_size = self.global_batch_size
+        print(self.global_batch_size)
         model_config.seq_length = self.seq_length
         model_config.pipeline_dtype = torch.bfloat16
 
