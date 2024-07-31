@@ -165,6 +165,7 @@ def initialize_model_parallel_for_nemo(
         # TODO: add rampup_batch_size here when we have it implemented
         if MCORE_MB_CALCULATOR:
             from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
             if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
                 configure_global_num_microbatches_calculator(
                     rank=global_rank,
