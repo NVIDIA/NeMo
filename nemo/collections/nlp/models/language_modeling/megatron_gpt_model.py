@@ -1665,7 +1665,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_dl, 'train')
             # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
             self._reconfigure_limit_batches(self.trainer.limit_val_batches, self._validation_dl, 'val')
-        
+
         # Data cache generation only
         # Stops script execution after creating a data cache
         if self.cfg.data.get('data_cache_generation_only', False):
