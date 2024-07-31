@@ -192,11 +192,23 @@ def load_noise_audio(
     return noise, noise_len
 
 
-def sample_noise(noise_data: List[Dict], featurizer: WaveformFeaturizer | Any, max_audio_len: int | None = None):
+def sample_noise(
+    noise_data: List[Dict], featurizer: WaveformFeaturizer | Any, max_audio_len: int | None = None, max_trial: int = 20
+):
     if len(noise_data) == 0:
         return torch.zeros(max_audio_len).float(), torch.zeros(1).long()
-    noise_sample = noise_data[np.random.randint(len(noise_data))]
-    noise_audio, noise_len = load_noise_audio(noise_sample, featurizer, max_audio_len)
+    cnt = 0
+    while cnt < max_trial:
+        try:
+            noise_sample = noise_data[np.random.randint(len(noise_data))]
+            noise_audio, noise_len = load_noise_audio(noise_sample, featurizer, max_audio_len)
+            break
+        except Exception as e:
+            logging.warning(f"Error loading noise audio with config {noise_sample} and exception: {e}, retrying.")
+            cnt += 1
+            if cnt == max_trial:
+                logging.warning(f"Failed to load noise audio after {max_trial} attempts, returning zero noise.")
+                return torch.zeros(max_audio_len).float(), torch.zeros(1).long()
     return noise_audio, noise_len
 
 
@@ -275,16 +287,21 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
         if offset is None:
             offset = 0
 
-        # Convert audio bytes to IO stream for processing (for SoundFile to read)
-        audio_filestream = io.BytesIO(audio_bytes)
-        audio = self.featurizer.process(
-            audio_filestream,
-            offset=offset,
-            duration=manifest_entry.duration,
-            trim=self.trim,
-            orig_sr=manifest_entry.orig_sr,
-        )
-        audio_filestream.close()
+        try:
+            # Convert audio bytes to IO stream for processing (for SoundFile to read)
+            audio_filestream = io.BytesIO(audio_bytes)
+            audio = self.featurizer.process(
+                audio_filestream,
+                offset=offset,
+                duration=manifest_entry.duration,
+                trim=self.trim,
+                orig_sr=manifest_entry.orig_sr,
+            )
+            audio_filestream.close()
+        except Exception as e:
+            logging.error(f"Error reading audio sample: {manifest_entry} with exception {e}, returning empty audio.")
+            audio = torch.zeros(self.featurizer.sample_rate, dtype=torch.float32)
+            raise e
 
         audio_len = torch.tensor(audio.shape[0]).long()
         noise, noise_len = sample_noise(self.noise_data, self.featurizer, audio_len.item())
