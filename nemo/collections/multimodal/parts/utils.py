@@ -11,17 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import numpy as np
 import os
 import tempfile
-from typing import Any, Callable, Tuple
-
-import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
 from PIL import Image
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from transformers import CLIPImageProcessor, SiglipImageProcessor
+from typing import Any, Callable, Tuple
 
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.data.neva.neva_dataset import process_image
@@ -303,41 +302,41 @@ def setup_trainer_and_model_for_inference(
 
     # Create the NLPSaveRestoreConnector object for model saving and restoring.
     save_restore_connector = NLPSaveRestoreConnector()
+    if cfg.model.restore_from_path is not None:
+        if cfg.model.restore_from_path.endswith(".nemo") or os.path.isdir(cfg.model.restore_from_path):
+            # Set the model_extracted_dir attribute if the restore path is a directory.
+            if os.path.isdir(cfg.model.restore_from_path):
+                save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
 
-    if cfg.model.restore_from_path.endswith(".nemo") or os.path.isdir(cfg.model.restore_from_path):
-        # Set the model_extracted_dir attribute if the restore path is a directory.
-        if os.path.isdir(cfg.model.restore_from_path):
-            save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+            # Restore the model configuration from the specified path and modify it for inference.
+            model_cfg = model_provider.restore_from(
+                restore_path=cfg.model.restore_from_path,
+                trainer=trainer,
+                save_restore_connector=save_restore_connector,
+                return_config=True,
+            )
+            with open_dict(model_cfg):
+                model_cfg_modifier(model_cfg)  # modify the configuration for inference
 
-        # Restore the model configuration from the specified path and modify it for inference.
-        model_cfg = model_provider.restore_from(
-            restore_path=cfg.model.restore_from_path,
-            trainer=trainer,
-            save_restore_connector=save_restore_connector,
-            return_config=True,
-        )
-        with open_dict(model_cfg):
-            model_cfg_modifier(model_cfg)  # modify the configuration for inference
+            # Restore the model from the specified path and configuration, and set it up for inference.
+            model = model_provider.restore_from(
+                restore_path=cfg.model.restore_from_path,
+                trainer=trainer,
+                override_config_path=model_cfg,
+                save_restore_connector=save_restore_connector,
+                strict=True,
+            )
 
-        # Restore the model from the specified path and configuration, and set it up for inference.
-        model = model_provider.restore_from(
-            restore_path=cfg.model.restore_from_path,
-            trainer=trainer,
-            override_config_path=model_cfg,
-            save_restore_connector=save_restore_connector,
-            strict=True,
-        )
+        elif cfg.model.restore_from_path.endswith(".ckpt"):
+            logging.warning(
+                "Loading from .ckpt checkpoint for inference is experimental! It doesn't support models with model parallelism!"
+            )
 
-    elif cfg.model.restore_from_path.endswith(".ckpt"):
-        logging.warning(
-            "Loading from .ckpt checkpoint for inference is experimental! It doesn't support models with model parallelism!"
-        )
-
-        model = model_provider.load_from_checkpoint(
-            cfg.model.restore_from_path,
-            hparams_file=cfg.model.get("hparams_file"),
-            trainer=trainer,
-        )
+            model = model_provider.load_from_checkpoint(
+                cfg.model.restore_from_path,
+                hparams_file=cfg.model.get("hparams_file"),
+                trainer=trainer,
+            )
 
     else:
         # load a model from scratch
