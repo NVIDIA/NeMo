@@ -30,57 +30,56 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 
 
 def get_config_and_state_dict_from_nemo(filepath, map_location, output_dir, sharded_state_dict=None):
-        cwd = os.getcwd()
-        save_restore_connector = NLPSaveRestoreConnector()
+    cwd = os.getcwd()
+    save_restore_connector = NLPSaveRestoreConnector()
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            try:
-                if os.path.isfile(filepath):
-                    save_restore_connector._unpack_nemo_file(path2file=filepath, out_folder=tmpdir)
-                else:
-                    tmpdir = filepath
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            if os.path.isfile(filepath):
+                save_restore_connector._unpack_nemo_file(path2file=filepath, out_folder=tmpdir)
+            else:
+                tmpdir = filepath
 
-                os.chdir(tmpdir)
-                config_yaml = "model_config.yaml"
-                model_weights_ckpt = "model_weights.ckpt"
-                
-                # find file in tmpdir that endswith "tokenizer.model"
-                for file in os.listdir(tmpdir):
-                    if file.endswith("tokenizer.model"):
-                        tokenizer = file
-                        break
-                tokenizer_path = os.path.join(tmpdir, tokenizer)
-                # copy tokenizer_path to current directory
-                os.system(f"cp {tokenizer_path} {output_dir}")
-                tokenizer_path = os.path.join(output_dir, tokenizer)
+            os.chdir(tmpdir)
+            config_yaml = "model_config.yaml"
+            model_weights_ckpt = "model_weights.ckpt"
 
-                # load conf
-                with open(config_yaml) as f:
-                    conf = OmegaConf.load(f)
-                
-                os.chdir(cwd)
-                model_weights = os.path.join(tmpdir, model_weights_ckpt)
-                model_weights = inject_model_parallel_rank(model_weights)
-                state_dict = save_restore_connector._load_state_dict_from_disk(
-                    model_weights, map_location=map_location
+            # find file in tmpdir that endswith "tokenizer.model"
+            for file in os.listdir(tmpdir):
+                if file.endswith("tokenizer.model"):
+                    tokenizer = file
+                    break
+            tokenizer_path = os.path.join(tmpdir, tokenizer)
+            # copy tokenizer_path to current directory
+            os.system(f"cp {tokenizer_path} {output_dir}")
+            tokenizer_path = os.path.join(output_dir, tokenizer)
+
+            # load conf
+            with open(config_yaml) as f:
+                conf = OmegaConf.load(f)
+
+            os.chdir(cwd)
+            model_weights = os.path.join(tmpdir, model_weights_ckpt)
+            model_weights = inject_model_parallel_rank(model_weights)
+            state_dict = save_restore_connector._load_state_dict_from_disk(model_weights, map_location=map_location)
+
+            # distributed checkpointing
+            if state_dict is None and sharded_state_dict is not None:
+                checkpoint = dict(state_dict=sharded_state_dict)
+                tmp_model_weights_ckpt = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
+                tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
+                assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
+                checkpoint = dist_checkpointing.load(
+                    sharded_state_dict=checkpoint,
+                    checkpoint_dir=tmp_model_weights_dir,
                 )
+                state_dict = checkpoint["state_dict"]
 
-                # distributed checkpointing
-                if state_dict is None and sharded_state_dict is not None:
-                    checkpoint = dict(state_dict=sharded_state_dict)
-                    tmp_model_weights_ckpt = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
-                    tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
-                    assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
-                    checkpoint = dist_checkpointing.load(
-                        sharded_state_dict=checkpoint,
-                        checkpoint_dir=tmp_model_weights_dir,
-                    )
-                    state_dict = checkpoint["state_dict"]
+            conf.tokenizer.model = tokenizer_path
+            return conf, state_dict
+        finally:
+            os.chdir(cwd)
 
-                conf.tokenizer.model = tokenizer_path
-                return conf, state_dict
-            finally:
-                os.chdir(cwd)
 
 def get_llm_model_state_dict(state_dict, lora_model_state_dict):
     llm_model_state_dict = {}
@@ -90,12 +89,14 @@ def get_llm_model_state_dict(state_dict, lora_model_state_dict):
                 llm_model_state_dict[key] = value
     return llm_model_state_dict
 
+
 def get_lora_state_dict(state_dict):
     lora_model_state_dict = {}
     for key, value in state_dict.items():
         if "adapter_layer.lora" in key and value != None:
             lora_model_state_dict[key] = value
     return lora_model_state_dict
+
 
 def get_perception_state_dict(state_dict):
     perception_state_dict = {}
@@ -104,14 +105,14 @@ def get_perception_state_dict(state_dict):
             key = key.replace("perception.", "", 1)
             perception_state_dict[key] = value
     return perception_state_dict
-    
+
 
 def save_llm_model(state_dict, nemo_config, output_path):
     if nemo_config.get('megatron_amp_O2', False):
         keys = list(state_dict.keys())
         for key in keys:
             checkpoint[key.replace('model.', 'model.module.', 1)] = checkpoint['state_dict'].pop(key)
- 
+
     trainer = Trainer(accelerator='cpu', strategy=NLPDDPStrategy())
     model = load_state_dict_helper(MegatronGPTModel, nemo_config, trainer, state_dict)
     model._save_restore_connector = NLPSaveRestoreConnector()
@@ -120,16 +121,17 @@ def save_llm_model(state_dict, nemo_config, output_path):
     model.save_to(output_path)
     logging.info(f'llm model saved to: {output_path}')
 
+
 def save_nemo_weights(state_dict, output_dir, config, save_nemo_model=True):
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
-    weight_file = os.path.join(output_dir,"model_weights.ckpt")
+    weight_file = os.path.join(output_dir, "model_weights.ckpt")
     torch.save(state_dict, weight_file)
     # convert config to yaml
     config_file = os.path.join(output_dir, "model_config.yaml")
     with open(config_file, "w") as f:
         f.write(OmegaConf.to_yaml(config))
-    
+
     if save_nemo_model:
         # create nemo file
         nemo_model_name = f"{output_dir}.nemo"
@@ -141,30 +143,31 @@ def save_nemo_weights(state_dict, output_dir, config, save_nemo_model=True):
         # remove the empty directory
         os.system(f"rmdir {output_dir}")
 
+
 def separate_speechllm_model(model_file_path, output_dir, map_location="cuda:0"):
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
     output_dir = os.path.abspath(output_dir)
-        
+
     logging.info(f"Separating {model_file_path} into perception, lora, and llm model")
     filepath = model_file_path
     conf, state_dict = get_config_and_state_dict_from_nemo(filepath, map_location, output_dir)
 
     base_model_name = os.path.basename(filepath).split(".")[0]
-    
+
     perception_state_dict = get_perception_state_dict(state_dict)
     perception_model_dir = None
     if perception_state_dict:
         perception_model_dir = f"{base_model_name}_perception"
         perception_model_dir = os.path.join(output_dir, perception_model_dir)
         save_nemo_weights(perception_state_dict, perception_model_dir, conf.perception, save_nemo_model=False)
-    
+
         # verify if the exported perception model is correct
         perception = AudioPerceptionModule(cfg=conf.perception)
         perception.load_state_dict(perception_state_dict)
         perception.eval()
         print(perception)
-        print(perception(input_signal = torch.randn(1, 1000), input_signal_length = torch.tensor([1000])))
+        print(perception(input_signal=torch.randn(1, 1000), input_signal_length=torch.tensor([1000])))
     # absolute path of perception model
     logging.info(f"Perception model saved to:  {perception_model_dir}")
 
@@ -183,6 +186,7 @@ def separate_speechllm_model(model_file_path, output_dir, map_location="cuda:0")
         conf.target = "nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTModel"
         save_llm_model(llm_model_weights, conf, llm_model)
         logging.info(f"LLM model saved to: {llm_model}")
+
 
 # filepath = "/ws/speechllm_fc_llama2_7b.nemo"
 # output_dir = "/ws/speechllm_fc_llama2_7b_separated"
