@@ -245,7 +245,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                 tokenizer = build_tokenizer(tokenizer_config)
         else:
             raise Exception(
-                "Not a supported nemo file format. " "Only distributed mcore nemo checkpoints are support."
+                "Not a supported NeMo file format: only distributed MCore NeMo checkpoints are supported."
             )
     finally:
         if isinstance(nemo_dir, TarPath):
