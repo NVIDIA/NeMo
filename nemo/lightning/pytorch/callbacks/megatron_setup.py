@@ -1,7 +1,6 @@
 from typing import List, cast
 
 import pytorch_lightning as pl
-import torch
 from lightning_fabric.plugins import ClusterEnvironment
 from pytorch_lightning.callbacks import Callback, TQDMProgressBar
 
