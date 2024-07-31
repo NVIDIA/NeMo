@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional, Union
 
 import torch
 import torch.nn.functional as F
@@ -88,7 +88,7 @@ class MixtralConfig8x22B(GPTConfig):
 class MixtralModel(GPTModel):
     def __init__(
         self,
-        config: Optional[MixtralConfig8x7B, MixtralConfig8x22B] = None,
+        config: Optional[Union[MixtralConfig8x7B, MixtralConfig8x22B]] = None,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
