@@ -13,22 +13,21 @@
 # limitations under the License.
 
 import argparse
-import torch
-import shutil
 import os
+import shutil
 
+import torch
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.api import train
 from nemo.collections.llm.gpt.data import PreTrainingDataModule
+from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, get_results
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.collections.llm.tools.auto_configurator import AutoConfigurator
-from nemo.collections.llm.tools.auto_configurator import get_results
 from nemo.utils.exp_manager import TimingCallback
 
 
@@ -40,6 +39,7 @@ def get_args():
     parser.add_argument("--get_results", action="store_true")
 
     return parser.parse_args()
+
 
 def train_config(args):
     # GPT-3 126M
@@ -132,12 +132,13 @@ def train_config(args):
         optim=opt,
     )
 
+
 def main():
     args = get_args()
 
     if not args.get_results:
         train_config(args)
-    
+
     else:
         # Get Auto Configurator results
         candidates = [d for d in os.listdir(args.logs_dir) if os.path.isdir(os.path.join(args.logs_dir, d))]
@@ -150,7 +151,7 @@ def main():
                     shutil.move(s, d)
 
                 os.rmdir(default_dir)
-        
+
         get_results(
             training_logs=args.logs_dir,
             path_to_save=args.logs_dir,
@@ -166,8 +167,9 @@ def main():
             num_tokens_in_b=10,
             vocab_size=51200,
         )
-        
+
         print(f"The results were successfully saved to {args.logs_dir}.")
+
 
 if __name__ == '__main__':
     main()
