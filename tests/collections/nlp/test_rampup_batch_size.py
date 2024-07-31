@@ -24,11 +24,11 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
 
 try:
-    from megatron.core.num_microbatches_calculator import get_num_microbatches, update_num_microbatches_calculator
+    from megatron.core.num_microbatches_calculator import get_num_microbatches, update_num_microbatches
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches, update_num_microbatches_calculator
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches, update_num_microbatches
 
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
@@ -37,13 +37,13 @@ if torch.cuda.is_available():
 
 def reset_microbatch_calculator():
     try:
-        from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        import megatron.core.num_microbatches_calculator as mb
 
     except (ImportError, ModuleNotFoundError):
         logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-        from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        import apex.transformer.pipeline_parallel.utils as mb
 
-    _GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
+    mb._GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
 
 
 @pytest.fixture()
@@ -187,7 +187,7 @@ class TestRampupBatchSize:
             step += 1
             current_global_batch_size = get_num_microbatches() * micro_batch_size * num_devices * num_nodes
             consumed_samples += current_global_batch_size
-            update_num_microbatches_calculator(consumed_samples=consumed_samples, consistency_check=True)
+            update_num_microbatches(consumed_samples=consumed_samples, consistency_check=True)
 
             if current_global_batch_size not in global_batch_size_schedule:
                 global_batch_size_schedule.append(current_global_batch_size)

@@ -56,7 +56,6 @@ try:
         get_current_global_batch_size,
         get_micro_batch_size,
         get_num_microbatches,
-        get_num_microbatches_calculator,
     )
 
     MCORE_MB_CALCULATOR = True
@@ -165,7 +164,8 @@ def initialize_model_parallel_for_nemo(
     if global_batch_size and micro_batch_size is not None:
         # TODO: add rampup_batch_size here when we have it implemented
         if MCORE_MB_CALCULATOR:
-            if get_num_microbatches_calculator() is None:
+            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
                 configure_global_num_microbatches_calculator(
                     rank=global_rank,
                     global_batch_size=global_batch_size,
@@ -175,7 +175,7 @@ def initialize_model_parallel_for_nemo(
                     init=True,
                 )
             else:
-                if isinstance(get_num_microbatches_calculator(), ConstantNumMicroBatchesCalculator):
+                if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
                     assert get_current_global_batch_size() == global_batch_size
                     assert get_micro_batch_size() == micro_batch_size
                     assert get_num_microbatches() == global_batch_size // (

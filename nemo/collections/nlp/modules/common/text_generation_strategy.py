@@ -26,6 +26,7 @@ from nemo.collections.common.tokenizers.chat_template_mixin import explode_chat_
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.utils import logging
 
 try:
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
