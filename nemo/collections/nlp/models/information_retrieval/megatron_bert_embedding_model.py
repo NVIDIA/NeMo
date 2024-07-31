@@ -71,7 +71,6 @@ except (ImportError, ModuleNotFoundError):
 def listify(tensor):
     l_tensor = []
     for t in tensor:
-        # for rid in range(t.shape[0]):
         r = t[:].unsqueeze(0).cpu()
         l_tensor.append(r)
     return l_tensor
@@ -404,8 +403,6 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds[0])}, {len(self._test_ds[1])}'
             )
             self._test_dl = self.setup_eval_dataloader(self._test_ds)
-            # breakpoint()
-            # self._test_dl = None
             return
 
     def training_step(self, dataloader_iter):
@@ -550,14 +547,6 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
         return fwd_output_and_loss_func
 
     def validation_step(self, dataloader_iter):
-        # dataloader_idx = None
-        # try:
-        #     next_item_dataloader = next(dataloader_iter)
-        #     dataloader_idx = next_item_dataloader[2]
-        #     dataloader_iter = itertools.chain([next_item_dataloader], dataloader_iter)
-        # except Exception as e:
-        #     print("in exception")
-
         prefix = "test" if self.trainer.testing else "val"
         if self.cfg.data.dataloader_type == "LDDL":
             seq_length = dataloader_iter.iterator.get_seqlen()
@@ -594,11 +583,6 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
 
     def on_test_epoch_end(self):
         for dataloader_idx, output in enumerate(self.test_step_outputs):
-            # output = {key: [i[key] for i in output] for key in output[0]}
-            # output['metadata'] = torch.vstack(output['metadata'])
-            # output['q_hs'] = torch.vstack(output['q_hs'])
-            # output['d_hs'] = torch.vstack(output['d_hs'])
-
             self.gather_and_maybe_write_predictions(output, self.cfg.data.data_test, 'test', dataloader_idx)
 
     def gather_and_maybe_write_predictions(self, output, data_cfg, mode, dataloader_idx=0):
