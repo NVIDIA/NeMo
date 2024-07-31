@@ -21,7 +21,7 @@ class TestGenerateConfgis:
             model_size=126,
             model_measure="M",
             num_nodes=8,
-            seq_length=2048,
+            seq_length=512,
             global_batch_size=256,
             tensor_parallel_sizes=[4],
             pipeline_parallel_sizes=[2],
@@ -35,6 +35,11 @@ class TestGenerateConfgis:
 
         configs = runner.generate_configs()
         auto_configs, global_batch_size, seq_length = get_auto_config(configs)
+
+        for run_name, config in configs.items():
+            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
+            assert config['data']['seq_length'] == 512
+            assert config['data']['global_batch_size'] == 256
 
         assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated but 2 were expected."
 
@@ -56,7 +61,7 @@ class TestGenerateConfgis:
 
         assert global_batch_size == 256, f"expected global_batch_size is 256 but got {global_batch_size}."
 
-        assert seq_length == 2048, f"expected seq_length is 2048 but got {seq_length}."
+        assert seq_length == 512, f"expected seq_length is 512 but got {seq_length}."
 
         # GPT3 20B
         runner = AutoConfigurator(
@@ -76,6 +81,11 @@ class TestGenerateConfgis:
 
         configs = runner.generate_configs()
         auto_configs, _, _ = get_auto_config(configs)
+
+        for run_name, config in configs.items():
+            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
+            assert config['data']['seq_length'] == 2048
+            assert config['data']['global_batch_size'] == 2048
 
         assert len(auto_configs) == 1, f"{len(auto_configs)} configurations were generated but 1 were expected."
 
@@ -105,6 +115,11 @@ class TestGenerateConfgis:
 
         configs = runner.generate_configs()
         auto_configs, _, _ = get_auto_config(configs)
+        
+        for run_name, config in configs.items():
+            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
+            assert config['data']['seq_length'] == 2048
+            assert config['data']['global_batch_size'] == 2048
 
         assert len(auto_configs) == 3, f"{len(auto_configs)} configurations were generated but 3 were expected."
 
@@ -158,6 +173,11 @@ class TestGenerateConfgis:
         configs = runner.generate_configs()
         auto_configs, _, _ = get_auto_config(configs)
 
+        for run_name, config in configs.items():
+            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
+            assert config['data']['seq_length'] == 4096
+            assert config['data']['global_batch_size'] == 2048
+
         assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated but 2 were expected."
 
         assert auto_configs[0] == [
@@ -198,6 +218,11 @@ class TestGenerateConfgis:
         configs = runner.generate_configs()
         auto_configs, _, _ = get_auto_config(configs)
 
+        for run_name, config in configs.items():
+            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
+            assert config['data']['seq_length'] == 8192
+            assert config['data']['global_batch_size'] == 2048
+
         assert len(auto_configs) == 1, f"{len(auto_configs)} configurations were generated but 1 were expected."
 
         assert auto_configs[0] == [
@@ -229,6 +254,11 @@ class TestGenerateConfgis:
 
         configs = runner.generate_configs()
         auto_configs, global_batch_size, seq_length = get_auto_config(configs)
+        
+        for run_name, config in configs.items():
+            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
+            assert config['data']['seq_length'] == 8192
+            assert config['data']['global_batch_size'] == 2048
 
         assert len(auto_configs) == 3, f"{len(auto_configs)} configurations were generated but 3 were expected."
 
@@ -277,6 +307,11 @@ class TestGenerateConfgis:
 
         configs = runner.generate_configs()
         auto_configs, global_batch_size, seq_length = get_auto_config(configs)
+
+        for run_name, config in configs.items():
+            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
+            assert config['data']['seq_length'] == 4096
+            assert config['data']['global_batch_size'] == 2048
 
         assert len(auto_configs) == 4, f"{len(auto_configs)} configurations were generated but 4 were expected."
 
@@ -334,6 +369,11 @@ class TestGenerateConfgis:
         configs = runner.generate_configs()
         auto_configs, global_batch_size, seq_length = get_auto_config(configs)
 
+        for run_name, config in configs.items():
+            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
+            assert config['data']['seq_length'] == 16384
+            assert config['data']['global_batch_size'] == 2048
+
         assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated but 2 were expected."
 
         assert auto_configs[0] == [
@@ -362,7 +402,6 @@ class TestGenerateConfgis:
             model_type="llama",
             num_nodes=4,
             seq_length=512,
-            global_batch_size=1024,
             tensor_parallel_sizes=[1, 2],
             pipeline_parallel_sizes=[2, 4],
             micro_batch_sizes=[1, 256],
@@ -378,6 +417,11 @@ class TestGenerateConfgis:
 
         configs = runner.generate_configs()
         auto_configs, global_batch_size, seq_length = get_auto_config(configs)
+
+        for run_name, config in configs.items():
+            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
+            assert config['data']['seq_length'] == 512
+            assert config['data']['global_batch_size'] == 1024
 
         assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated but 2 were expected."
         print(auto_configs)
