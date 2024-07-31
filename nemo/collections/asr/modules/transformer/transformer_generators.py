@@ -70,14 +70,6 @@ class GreedySequenceGenerator:
         super().__init__()
         self.embedding = embedding
         self.decoder = decoder
-        if hasattr(classifier, "set_log_softmax_enabled"):
-            classifier = classifier.set_log_softmax_enabled(False)
-        else:
-            assert temperature is None, (
-                "The module passed as 'classifier' does not support disabling log-softmax, but we require it "
-                "for temperature sampling since 'temperature' was set. "
-                "Your model architecture may not support temperature sampling: we suggest disabling temperature."
-            )
         self.classifier = classifier
         self.pad, self.bos, self.eos = pad, bos, eos
         self.max_seq_length = max_sequence_length
@@ -93,6 +85,7 @@ class GreedySequenceGenerator:
         encoder_input_mask=None,
         decoder_mems_list=None,
         pos=0,
+        need_scores: bool = True,
     ):
         """
         One step of autoregressive output generation.
@@ -125,7 +118,8 @@ class GreedySequenceGenerator:
             decoder_mems_list = self.decoder.forward(
                 decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
-        logits = self.classifier.forward(hidden_states=decoder_mems_list[-1][:, -1:], temperature=self.temperature)
+        with self.classifier.with_log_softmax_enabled(need_scores) as clf:
+            logits = clf.forward(hidden_states=decoder_mems_list[-1][:, -1:])
         return logits, decoder_mems_list
 
     def _prepare_for_search(self, decoder_input_ids=None, encoder_hidden_states=None):
@@ -187,7 +181,12 @@ class GreedySequenceGenerator:
                 input_ids = tgt[:, -1:]
 
             logits, decoder_mems_list = self._one_step_forward(
-                input_ids, encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
+                input_ids,
+                encoder_hidden_states,
+                encoder_input_mask,
+                decoder_mems_list,
+                i,
+                need_scores=return_beam_scores,
             )
 
             if self.temperature is None:  # Greedy decoding
@@ -292,9 +291,15 @@ class TopKSequenceGenerator(GreedySequenceGenerator):
         encoder_input_mask=None,
         decoder_mems_list=None,
         pos=0,
+        need_scores: bool = True,
     ):
         log_probs, decoder_mems_list = super()._one_step_forward(
-            decoder_input_ids, encoder_hidden_states, encoder_input_mask, decoder_mems_list, pos
+            decoder_input_ids,
+            encoder_hidden_states,
+            encoder_input_mask,
+            decoder_mems_list,
+            pos,
+            need_scores=need_scores,
         )
 
         batch_size, seq_len, vocab_size = log_probs.size()

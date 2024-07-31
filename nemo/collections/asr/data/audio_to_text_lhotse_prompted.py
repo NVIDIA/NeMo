@@ -37,6 +37,14 @@ class PromptedAudioToTextMiniBatch:
     prompted_transcript: torch.Tensor
     prompted_transcript_lens: torch.Tensor
 
+    def get_decoder_inputs_outputs(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Returns the inputs and outputs of transformer decoder for training.
+        The input is ``prompted_transcript`` (minus last token),
+        and the output is ``prompted_transcript`` (minus first token).
+        """
+        return self.prompted_transcript[:, :-1], self.prompted_transcript[:, 1:]
+
 
 class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     """
@@ -75,7 +83,6 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         prompts_with_answers, prompts_with_answers_lens = self._collate_tokens(prompts_with_answers)
         prompts, prompt_lens = self._collate_tokens(prompts)
 
-        # return audio, audio_lens, prompts_with_answers, prompts_with_answers_lens, prompts, prompts_lens
         return PromptedAudioToTextMiniBatch(
             audio=audio,
             audio_lens=audio_lens,
@@ -195,6 +202,9 @@ def canary(
         )
         prompts_with_answers.append(encoded["input_ids"])
         prompts.append(encoded["context_ids"])
+        assert (
+            encoded["answer_ids"][-1].item() == formatter.tokenizer.eos
+        ), f"Expected the last token in answer_ids to be EOS, but we got {encoded['answer_ids']=}"
         answers.append(encoded["answer_ids"][:-1])  # Strip Canary's EOS
 
     return prompts_with_answers, prompts, answers
