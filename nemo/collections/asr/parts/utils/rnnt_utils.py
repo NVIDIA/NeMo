@@ -85,7 +85,7 @@ class Hypothesis:
     tokens: (Optional) A list of decoded tokens (can be characters or word-pieces.
 
     last_token (Optional): A token or batch of tokens which was predicted in the last step.
-    
+
     last_frame (Optional): Index of the last decoding step hypothesis was updated including blank token prediction.
     """
 
@@ -107,7 +107,7 @@ class Hypothesis:
     tokens: Optional[Union[List[int], torch.Tensor]] = None
     last_token: Optional[torch.Tensor] = None
     last_frame: Optional[int] = None
-    
+
     @property
     def non_blank_frame_confidence(self) -> List[float]:
         """Get per-frame confidence for non-blank tokens according to self.timestep
@@ -187,7 +187,11 @@ def is_prefix(x: List[int], pref: List[int]) -> bool:
 
 
 def select_k_expansions(
-    hyps: List[Hypothesis], topk_idxs: torch.Tensor, topk_logps: torch.Tensor, gamma: float, beta: int,
+    hyps: List[Hypothesis],
+    topk_idxs: torch.Tensor,
+    topk_logps: torch.Tensor,
+    gamma: float,
+    beta: int,
 ) -> List[Tuple[int, Hypothesis]]:
     """
     Obtained from https://github.com/espnet/espnet
@@ -215,7 +219,10 @@ def select_k_expansions(
         k_best_exp_idx = k_best_exp_val[0]
         k_best_exp = k_best_exp_val[1]
 
-        expansions = sorted(filter(lambda x: (k_best_exp - gamma) <= x[1], hyp_i), key=lambda x: x[1],)
+        expansions = sorted(
+            filter(lambda x: (k_best_exp - gamma) <= x[1], hyp_i),
+            key=lambda x: x[1],
+        )
 
         if len(expansions) > 0:
             k_expansions.append(expansions)
