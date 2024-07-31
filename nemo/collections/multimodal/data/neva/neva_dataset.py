@@ -1233,7 +1233,7 @@ class DataCollatorForSupervisedDataset(object):
     tokenizer: transformers.PreTrainedTokenizer
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        packed_sequence = "cu_seqlens" in instances[0]  
+        packed_sequence = "cu_seqlens" in instances[0]
         max_len = max(instance['tokens'].shape[0] for instance in instances)
         max_len = (max_len - 1) // 64 * 64 + 64
         for instance in instances:
@@ -1354,7 +1354,7 @@ def make_supervised_data_module(tokenizer, image_processor, model_cfg, data_file
     )
 
     return dict(train_dataset=train_dataset, eval_dataset=train_dataset)
-    
+
 
 class NevaPackedSeqDatatset(Dataset):
     def __init__(self, data_path: str, crop_size: Tuple[int, int] = (224, 224)):
