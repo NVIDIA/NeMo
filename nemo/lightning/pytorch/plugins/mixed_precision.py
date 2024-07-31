@@ -17,7 +17,10 @@ from typing import Any, Callable, Generator, List, Literal, Tuple, TypeVar, Unio
 
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.plugins.precision import MixedPrecision
+from pytorch_lightning.plugins.precision import (
+    FSDPPrecision as PLFSDPPrecision, 
+    MixedPrecision
+)
 from torch.nn import Module
 from torch.optim import Optimizer
 
@@ -155,6 +158,10 @@ class MegatronMixedPrecision(MixedPrecision, IOMixin):
             yield
         finally:
             pass
+
+
+class FSDPPrecision(PLFSDPPrecision, IOMixin):
+    pass
 
 
 __all__ = ["MegatronMixedPrecision"]

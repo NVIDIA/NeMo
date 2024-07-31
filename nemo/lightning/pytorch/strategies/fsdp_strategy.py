@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader
 from typing_extensions import override
 
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.lightning import io
 from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import masked_token_loss
 from nemo.lightning.pytorch.strategies.utils import (
@@ -28,7 +29,7 @@ from nemo.lightning.pytorch.strategies.utils import (
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
 
 
-class FSDPStrategy(PLFSDPStrategy):
+class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
     def __init__(self, *args, ckpt_include_optimizer=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.ckpt_include_optimizer = ckpt_include_optimizer
