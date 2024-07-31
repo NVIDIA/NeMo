@@ -1,7 +1,4 @@
-from nemo.collections.llm.tools.auto_configurator.core.base_config import (
-    _estimate_training_time,
-    calculate_model_size,
-)
+from nemo.collections.llm.tools.auto_configurator.core.base_config import _estimate_training_time, calculate_model_size
 from nemo.collections.llm.tools.auto_configurator.core.utils import calculate_model_size_params
 
 

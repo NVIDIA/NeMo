@@ -15,9 +15,9 @@
 import csv
 import os
 import re
-import pandas as pd
-
 from typing import Optional
+
+import pandas as pd
 from tensorboard.backend.event_processing import event_accumulator
 
 from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config
