@@ -88,7 +88,7 @@ class MixtralConfig8x22B(GPTConfig):
 class MixtralModel(GPTModel):
     def __init__(
         self,
-        config: Optional[MixtralConfig8x7B] = None,
+        config: Optional[MixtralConfig8x7B, MixtralConfig8x22B] = None,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
