@@ -1,16 +1,17 @@
 import sys
+from typing import Any
+
 import torch
 from megatron.core.num_microbatches_calculator import get_num_microbatches
 from pytorch_lightning.callbacks.progress import ProgressBar
 from pytorch_lightning.utilities.types import STEP_OUTPUT
-from typing import Any
 from typing_extensions import override
+
 
 ## helpers from megatron core
 def is_last_rank():
-    return torch.distributed.get_rank() == (
-        torch.distributed.get_world_size() - 1
-    )
+    return torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1)
+
 
 def print_rank_last(message):
     """If distributed is initialized, print only on last rank."""
@@ -29,7 +30,7 @@ class MegatronProgress(ProgressBar):
     def format_string(self, prefix, metrics):
         log_string = prefix
         for metric, val in metrics.items():
-            if val.is_integer(): 
+            if val.is_integer():
                 val = int(val)
                 log_string += f' | {metric}: {val}'
             else:
@@ -74,7 +75,7 @@ class MegatronProgress(ProgressBar):
         if not self.has_dataloader_changed(dataloader_idx):
             return
         self.total_validation_steps = int(self.total_val_batches_current_dataloader / get_num_microbatches())
-    
+
     @override
     def on_validation_batch_end(
         self,
