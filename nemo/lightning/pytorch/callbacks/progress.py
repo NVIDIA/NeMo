@@ -86,7 +86,7 @@ class MegatronProgress(ProgressBar):
         dataloader_idx: int = 0,
     ) -> None:
         n = int((batch_idx + 1) / get_num_microbatches())
-        print_rank_last(f"Validation: batch {n} / {self.total_validation_steps}")
+        print_rank_last(f"Validation: iteration {n}/{self.total_validation_steps}")
 
     @override
     def on_test_batch_start(
@@ -112,4 +112,4 @@ class MegatronProgress(ProgressBar):
         dataloader_idx: int = 0,
     ) -> None:
         n = int((batch_idx + 1) / get_num_microbatches())
-        print_rank_last(f"Test: batch {n} / {self.total_validation_steps}")
+        print_rank_last(f"Test: iteration {n}/{self.total_validation_steps}")
