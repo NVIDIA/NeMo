@@ -17,10 +17,8 @@ from typing import Any, Callable, Generator, List, Literal, Tuple, TypeVar, Unio
 
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.plugins.precision import (
-    FSDPPrecision as PLFSDPPrecision, 
-    MixedPrecision
-)
+from pytorch_lightning.plugins.precision import FSDPPrecision as PLFSDPPrecision
+from pytorch_lightning.plugins.precision import MixedPrecision
 from torch.nn import Module
 from torch.optim import Optimizer
 
