@@ -51,11 +51,15 @@ class MultiLayerPerceptron(torch.nn.Module):
     def last_linear_layer(self):
         return getattr(self, f'layer{self.layers - 1}')
 
-    def forward(self, hidden_states):
+    def forward(self, hidden_states, temperature: float | None = None):
         output_states = hidden_states[:]
         for i in range(self.layers):
             output_states = getattr(self, f'layer{i}')(output_states)
 
+        if temperature is not None:
+            output_states = output_states / temperature
+
         if self.log_softmax:
             output_states = torch.log_softmax(output_states, dim=-1)
+
         return output_states
