@@ -4,10 +4,10 @@ from typing import Any, Callable, Generic, TypeVar, Union, overload
 T = TypeVar("T", bound=Callable[..., Any])
 
 try:
-    import nemo_run as run
+    import nemo_sdk as sdk
 
-    Config = run.Config
-    Partial = run.Partial
+    Config = sdk.Config
+    Partial = sdk.Partial
 except ImportError:
     logging.warning(
         "Trying to use Config or Partial, but NeMo-Run is not installed. Please install NeMo-Run before proceeding."
@@ -24,10 +24,10 @@ except ImportError:
 
 def task(*args: Any, **kwargs: Any) -> Callable[[T], T]:
     try:
-        import nemo_run as run
+        import nemo_sdk as sdk
 
-        return run.task(*args, **kwargs)
-    except (ImportError, AttributeError):
+        return sdk.task(*args, **kwargs)
+    except ImportError:
         # Return a no-op function
         def noop_decorator(func: T) -> T:
             return func
@@ -45,14 +45,14 @@ def factory(*args: Any, **kwargs: Any) -> Callable[[T], T]: ...
 
 def factory(*args: Any, **kwargs: Any) -> Union[Callable[[T], T], T]:
     try:
-        import nemo_run as run
+        import nemo_sdk as sdk
 
         if not args:
-            return run.factory(**kwargs)
+            return sdk.factory(**kwargs)
         else:
             # Used as @factory(*args, **kwargs)
-            return run.factory(*args, **kwargs)
-    except (ImportError, AttributeError):
+            return sdk.factory(*args, **kwargs)
+    except ImportError:
         # Return a no-op function
         def noop_decorator(func: T) -> T:
             return func
