@@ -119,6 +119,7 @@ try:
     )
 
 except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
     from apex.transformer.pipeline_parallel.utils import (
         get_current_global_batch_size,
         get_num_microbatches,

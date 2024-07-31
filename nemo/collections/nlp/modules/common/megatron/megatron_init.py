@@ -62,6 +62,7 @@ try:
     MCORE_MB_CALCULATOR = True
 
 except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
     from apex.transformer.microbatches import ConstantNumMicroBatches as ConstantNumMicroBatchesCalculator
     from apex.transformer.pipeline_parallel.utils import (
         get_current_global_batch_size,

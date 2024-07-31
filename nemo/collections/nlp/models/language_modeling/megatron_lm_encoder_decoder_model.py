@@ -57,11 +57,6 @@ try:
         get_t5_encoder_with_local_block_spec,
         get_t5_encoder_with_transformer_engine_block_spec,
     )
-    from megatron.core.num_microbatches_calculator import (
-        configure_global_num_microbatches_calculator,
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -80,6 +75,7 @@ try:
     )
 
 except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator as configure_global_num_microbatches_calculator,
     )

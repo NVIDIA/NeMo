@@ -89,13 +89,8 @@ try:
     from megatron.core.num_microbatches_calculator import get_num_microbatches
 
 except (ImportError, ModuleNotFoundError):
-    try:
-        from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-        HAVE_APEX = True
-    except (ImportError, ModuleNotFoundError):
-
-        HAVE_APEX = False
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 
 __conditioning_keys__ = {'concat': 'c_concat', 'crossattn': 'c_crossattn', 'adm': 'y'}
@@ -1678,10 +1673,6 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
     """Megatron LatentDiffusion Model."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
         if not HAVE_MEGATRON_CORE:
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."

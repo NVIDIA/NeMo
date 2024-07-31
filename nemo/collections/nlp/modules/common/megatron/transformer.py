@@ -1529,6 +1529,7 @@ class ParallelTransformer(MegatronModule):
             from megatron.core.num_microbatches_calculator import get_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
             from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
         if get_num_microbatches() is not None:

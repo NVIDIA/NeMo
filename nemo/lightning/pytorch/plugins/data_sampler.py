@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, List, Literal, Optional
 
 import pytorch_lightning as pl
@@ -61,6 +62,7 @@ class MegatronDataSampler(DataSampler):
             from megatron.core.num_microbatches_calculator import get_current_global_batch_size
 
         except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
             from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size
 
         if not isinstance(self.trainer.strategy, MegatronStrategy):
@@ -100,6 +102,7 @@ class MegatronDataSampler(DataSampler):
             )
 
         except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
             from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size, update_num_microbatches
 
         if self.rampup_batch_size is None:
@@ -148,6 +151,7 @@ class MegatronDataSampler(DataSampler):
             from megatron.core.num_microbatches_calculator import get_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
             from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
         return get_num_microbatches()
@@ -158,6 +162,7 @@ class MegatronDataSampler(DataSampler):
             from megatron.core.num_microbatches_calculator import get_current_global_batch_size
 
         except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
             from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size
 
         return get_current_global_batch_size()

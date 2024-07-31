@@ -27,7 +27,7 @@ from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation
     model_inference_strategy_dispatcher,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import OutputType
-from nemo.utils import AppState
+from nemo.utils import AppState, logging
 
 try:
     from megatron.core import parallel_state, tensor_parallel
@@ -42,6 +42,7 @@ try:
     from megatron.core.num_microbatches_calculator import configure_global_num_microbatches_calculator
 
 except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")l
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator as configure_global_num_microbatches_calculator,
     )

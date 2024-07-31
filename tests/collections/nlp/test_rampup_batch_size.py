@@ -16,12 +16,19 @@ import os
 
 import pytest
 import torch
-from megatron.core.num_microbatches_calculator import get_num_microbatches, update_num_microbatches_calculator
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.utils import logging
+
+try:
+    from megatron.core.num_microbatches_calculator import get_num_microbatches, update_num_microbatches_calculator
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches, update_num_microbatches_calculator
 
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
@@ -29,9 +36,14 @@ if torch.cuda.is_available():
 
 
 def reset_microbatch_calculator():
-    import megatron.core.num_microbatches_calculator as mb
+    try:
+        from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
-    mb._GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
+    except (ImportError, ModuleNotFoundError):
+        logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+        from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
+    _GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
 
 
 @pytest.fixture()

@@ -1,3 +1,4 @@
+import logging
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -5,8 +6,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
-from nemo.lightning.data import WrappedDataLoader
 
+from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 if TYPE_CHECKING:
@@ -203,6 +204,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
             from megatron.core.num_microbatches_calculator import update_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
             from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 
         consumed_samples = state_dict['consumed_samples']
@@ -226,7 +228,12 @@ class PreTrainingDataModule(pl.LightningDataModule):
         Reconfigure trainer.limit_val_batches for pretraining
         """
         # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches num of global batches
-        from megatron.core.num_microbatches_calculator import get_num_microbatches
+        try:
+            from megatron.core.num_microbatches_calculator import get_num_microbatches
+
+        except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
         if isinstance(limit_batches, int):
             limit_batches *= get_num_microbatches()

@@ -39,6 +39,7 @@ try:
     from megatron.core.num_microbatches_calculator import configure_global_num_microbatches_calculator
 
 except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator as configure_global_num_microbatches_calculator,
     )
