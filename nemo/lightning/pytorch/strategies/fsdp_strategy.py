@@ -31,6 +31,23 @@ from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, Asyn
 
 
 class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
+    """Megatron plugin for Pytorch Lightning.
+
+    This strategy implements Fully-Sharded-Data-Parallel using PyTorch's native FSDP methods.
+    Comparing with MegatronStrategy, FSDPStrategy is designed to be more lightweight, with
+    minimal modifications over Lightning's FSDPStrategy but preserves necessary features to be
+    compatible with nemo and mcore.
+
+    Note:
+        This strategy is designed to work with NVIDIA's Megatron-LM framework and requires
+        specific model implementations that are compatible with Megatron's parallelism techniques.
+    Note:
+        Due to the different optimizer structure (FSDP only uses torch native optimizers), 
+        MegatronStrategy cannot resume training from checkpoints saved by FSDPStrategy, and vice
+        versa. However, the model weights structure is made compatible, so switching strategy is
+        possible if users only need the weights not the optimizer states. (E.g. run pretrain with
+        megatron 4D parallelism and run SFT with FSDP.)
+    """
     def __init__(self, *args, ckpt_include_optimizer=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.ckpt_include_optimizer = ckpt_include_optimizer
@@ -49,8 +66,8 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         assert self.model is not None
         with self.precision_plugin.train_step_context():
             loss = self._step_proxy("training_step", batch, batch_idx)
-
             reduced_loss = average_losses_across_data_parallel_group([loss])
+
             self.lightning_module.log(
                 'global_step',
                 self.trainer.global_step,
@@ -67,6 +84,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
                 'reduced_train_loss', reduced_loss, prog_bar=True, rank_zero_only=True, batch_size=1
             )
 
+            # returns unreduced loss for backward
             return loss
 
     @override
@@ -107,6 +125,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
+        # Taken from MegatronStrategy and made less configurable
         if self._checkpoint_io is None:
             checkpoint_callback = self.trainer.checkpoint_callback
             async_save = getattr(checkpoint_callback, "async_save", False)
@@ -127,6 +146,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
+        # Taken from MegatronStrategy
         if self.is_global_zero:
             shutil.rmtree(ckpt_to_dir(filepath))
 
@@ -134,6 +154,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
+        """Converts PyT checkpoints to MCore format and save using MCore dist ckpt library."""
         checkpoint["sharded_state_dict"] = pyt_to_mcore_state_dict(checkpoint.pop("state_dict"))
         checkpoint["state_dict"] = OrderedDict([])
 
@@ -149,10 +170,22 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def load_checkpoint(self, checkpoint_path: str | Path) -> Dict[str, Any]:
+        """PTL method which we override to integrate distributed checkpoints for FSDP models.
+        Different from MegatronStrategy, both model and optimizer states are restore within
+        this method.
+
+        The logic here is slightly more complicated:
+        1. Obtain PyT state dicts (sharded & unflattened) for model and optim -> torch::ShardedTensor
+        2. Convert to MCore state dicts -> mcore::ShardedTensor
+        3. Load from checkpoint using MCore dist ckpt API -> torch::Tensor
+        4. Convert to PyT state dicts (sharded & unflattened) -> torch::ShardedTensor
+        5. Load into model and optim using PyT dist ckpt API
+        6. Return the loaded checkpoint for lightning to load other metadata
+        """
         path = Path(self.broadcast(checkpoint_path))
         torch.cuda.empty_cache()
 
-        # TODO: the elegant way to load both state_dict. Need pytorch 2.3.1
+        # TODO: the elegant way to load both state dicts. Need pytorch 2.3.1
         # msd, osd = get_state_dict(self.model, self.optimizers, options=StateDictOptions(cpu_offload=True))
         sharded_state_dict = {}
         with _get_sharded_state_dict_context(self.model):

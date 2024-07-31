@@ -12,9 +12,9 @@ class MegatronSetup(Callback, IOMixin):
     """Callback that implements the setup hook for setting up common elements with or without MegatronStrategy.
 
     With MegatronStrategy, this callback will setup the requested parallelism.
-    Without MegatronStrategy (FSDP), this callback will setup the default parallelism (TP=1, PP=1, etc.)
+    With FSDPStrategy, this callback will setup the default parallelism (TP=1, PP=1, etc.)
 
-    This callback is injected into nemo lightning trainer by default.
+    This callback is injected into nemo lightning trainer automatically.
     """
 
     def setup(self, trainer, pl_module, stage):
