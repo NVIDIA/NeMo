@@ -39,11 +39,13 @@ class RandomBlockMasking(NeuralModule):
         feat_in: Optional[int] = None,
         freeze: bool = False,
         allow_overlap: bool = False,
+        max_mask_ratio: float = 0.8,
     ):
         super().__init__()
         self.block_size = block_size
         self.mask_prob = mask_prob
         self.allow_overlap = allow_overlap
+        self.max_mask_ratio = max_mask_ratio
 
         if mask_value is None:
             if feat_in is None:
@@ -101,6 +103,8 @@ class RandomBlockMasking(NeuralModule):
         masks = torch.zeros_like(input_feats)
         maksed_feats = input_feats.clone()
         for i in range(batch_size):
+            if self.block_size >= input_lengths[i] * self.max_mask_ratio:
+                continue
             num_patches = torch.ceil(input_lengths[i] * self.mask_prob / self.block_size).int()
             offset = torch.randint(0, self.block_size, (1,), device=input_feats.device)[0]
             block_size = self.block_size
@@ -132,6 +136,8 @@ class RandomBlockMasking(NeuralModule):
         # num_patches = np.random.binomial(input_lengths.detach().cpu().numpy(), self.mask_prob)  # (batch_size)
         # # TODO: change below code to batched operations if possible
         for i in range(batch_size):
+            if self.block_size >= input_lengths[i] * self.max_mask_ratio:
+                continue
             curr_len = input_lengths[i].detach().cpu().numpy()
             num_patches = np.random.binomial(curr_len, self.mask_prob)
             patch_idices = torch.randperm(max(0, curr_len - self.block_size), device=input_feats.device)[:num_patches]
