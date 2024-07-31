@@ -37,11 +37,10 @@ from nemo.collections.multimodal.data.neva.conversation import (
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
-from nemo.utils import AppState
+from nemo.utils import AppState, logging
 
 try:
     from megatron.core import parallel_state, tensor_parallel
-    from megatron.core.num_microbatches_calculator import configure_global_num_microbatches_calculator
 
     HAVE_MEGATRON_CORE = True
 
@@ -53,6 +52,7 @@ try:
     from megatron.core.num_microbatches_calculator import configure_global_num_microbatches_calculator
 
 except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator as configure_global_num_microbatches_calculator,
     )
