@@ -1,12 +1,40 @@
-from pytorch_lightning.callbacks.progress import TQDMProgressBar
-from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
+import sys
+import torch
+from megatron.core.num_microbatches_calculator import get_num_microbatches
+from pytorch_lightning.callbacks.progress import ProgressBar
+from pytorch_lightning.utilities.types import STEP_OUTPUT
+from typing import Any
+from typing_extensions import override
+
+## helpers from megatron core
+def is_last_rank():
+    return torch.distributed.get_rank() == (
+        torch.distributed.get_world_size() - 1
+    )
+
+def print_rank_last(message):
+    """If distributed is initialized, print only on last rank."""
+    if torch.distributed.is_initialized():
+        if is_last_rank():
+            print(message, flush=True)
+    else:
+        print(message, flush=True)
 
 
-class MegatronProgressBar(TQDMProgressBar):
+class MegatronProgress(ProgressBar):
     """
-    Add MegatronProgressBar to remove 's/it' and display progress per step instead of per microbatch
-    for megatron models.
+    Callback for logging progress in Megatron. Prints status in terms of global batches rather than microbatches.
     """
+
+    def format_string(self, prefix, metrics):
+        log_string = prefix
+        for metric, val in metrics.items():
+            if val.is_integer(): 
+                val = int(val)
+                log_string += f' | {metric}: {val}'
+            else:
+                log_string += f' | {metric}: {val:.4}'
+        return log_string
 
     def get_current_epoch_step(self, trainer) -> int:
         """
@@ -17,45 +45,71 @@ class MegatronProgressBar(TQDMProgressBar):
             trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
         )
 
-    def init_train_tqdm(self):
-        """
-        Override bar_format to not have 's/it'.
-        """
-        self.bar = super().init_train_tqdm()
-        self.bar.bar_format = "{desc} {n_fmt}/{total_fmt}{postfix}"
-        return self.bar
-
+    @override
     def on_train_epoch_start(self, trainer, *_):
-        if trainer.max_steps > 0:  # and (trainer.ckpt_path is not None):
+        if trainer.max_steps > 0:
             # while resuming from a ckpt use trainer.max_steps as the total for progress bar as trainer.num_training_batches
             # is truncated to max_steps - step being resumed at
-            num_training_batches = trainer.max_steps
+            self.total = trainer.max_steps
         else:
-            num_training_batches = trainer.num_training_batches
+            self.total = trainer.num_training_batches
 
-        self.train_progress_bar.reset(num_training_batches)
-        self.train_progress_bar.initial = 0
-        self.train_progress_bar.set_description(f"Epoch {trainer.current_epoch}")
-
+    @override
     def on_train_batch_end(self, trainer, pl_module, *_, **__):
-        """
-        Override parent class on_train_batch_end to update progress bar per global batch instead of per microbatch.
-        """
         n = self.get_current_epoch_step(trainer)
-        if self._should_update(n, self.train_progress_bar.total):
-            _update_n(self.train_progress_bar, n)
-            self.train_progress_bar.set_postfix(self.get_metrics(trainer, pl_module))
+        metrics = self.get_metrics(trainer, pl_module)
+        prefix = f"Epoch {trainer.current_epoch}, iteration {n}/{self.total}:"
+        log_string = self.format_string(prefix, metrics)
+        print_rank_last(log_string)
 
+    @override
+    def on_validation_batch_start(
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
+        if not self.has_dataloader_changed(dataloader_idx):
+            return
+        self.total_validation_steps = int(self.total_val_batches_current_dataloader / get_num_microbatches())
+    
+    @override
+    def on_validation_batch_end(
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        outputs: STEP_OUTPUT,
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
+        n = int((batch_idx + 1) / get_num_microbatches())
+        print_rank_last(f"Validation: batch {n} / {self.total_validation_steps}")
 
-def calculate_data_parallel_groups() -> int:
-    from nemo.utils import AppState
+    @override
+    def on_test_batch_start(
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
+        if not self.has_dataloader_changed(dataloader_idx):
+            return
+        self.total_test_steps = int(self.total_test_batches_current_dataloader / get_num_microbatches())
 
-    app_state = AppState()
-
-    pipeline_model_parallel_size = app_state.pipeline_model_parallel_size
-    tensor_model_parallel_size = app_state.tensor_model_parallel_size
-
-    world_size = app_state.world_size
-    data_parallel_group_len = world_size // (pipeline_model_parallel_size * tensor_model_parallel_size)
-
-    return world_size // data_parallel_group_len
+    @override
+    def on_test_batch_end(
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        outputs: STEP_OUTPUT,
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
+        n = int((batch_idx + 1) / get_num_microbatches())
+        print_rank_last(f"Test: batch {n} / {self.total_validation_steps}")

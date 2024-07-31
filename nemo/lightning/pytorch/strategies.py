@@ -33,7 +33,7 @@ from typing_extensions import override
 from nemo.lightning import _strategy_lib, io
 from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
-from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ModelTransform
+from nemo.lightning.pytorch.callbacks import MegatronProgress, ModelTransform
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
 
 if TYPE_CHECKING:
@@ -504,14 +504,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         callbacks: List[pl.Callback] = cast(List[pl.Callback], getattr(trainer, "callbacks"))
         contains_megatron_progress, contains_progress = False, False
         for callback in callbacks:
-            if isinstance(callback, MegatronProgressBar):
+            if isinstance(callback, MegatronProgress):
                 contains_megatron_progress = True
             if callback.__class__ == TQDMProgressBar:
                 contains_progress = True
         if not contains_megatron_progress and contains_progress:
             for callback in callbacks:
                 if isinstance(callback, TQDMProgressBar):
-                    callback.__class__ = MegatronProgressBar
+                    callback.__class__ = MegatronProgress
                     break
 
     def optimizer_sharded_state_dict(self, is_loading=False):
