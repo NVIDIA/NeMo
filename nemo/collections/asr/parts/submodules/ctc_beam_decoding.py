@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Union
 
 import torch
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
@@ -175,13 +176,17 @@ def get_nemolm(kenlm_path):
     tmpdir = tempfile.TemporaryDirectory()
     kenlm_model = SaveRestoreConnector._filtered_tar_info(kenlm_path, filter_fn=lambda name: 'kenlm_model.bin' in name)
     kenlm_model_path = os.path.join(tmpdir.name, kenlm_model[0].name)
+    config = SaveRestoreConnector._filtered_tar_info(kenlm_path, filter_fn=lambda name: 'config.yaml' in name)
+    config_path = os.path.join(tmpdir.name, config[0].name)
     lexicon = SaveRestoreConnector._filtered_tar_info(kenlm_path, filter_fn=lambda name: 'flashlight.lexicon' in name)
-    members = kenlm_model
+
+    members = kenlm_model + config
     if lexicon[0]:
         members.extend(lexicon)
         lexicon_path = os.path.join(tmpdir.name, lexicon[0].name)
     SaveRestoreConnector._unpack_nemo_file(path2file=kenlm_path, out_folder=tmpdir.name, members=members)
-    return tmpdir, "nemolm", kenlm_model_path, lexicon_path
+    cfg = OmegaConf.load(config_path)
+    return tmpdir, cfg.encoding_level, kenlm_model_path, lexicon_path
 
 
 class BeamCTCInfer(AbstractBeamCTCInfer):
@@ -241,15 +246,21 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         logging.warning("kenlm_path " + str(kenlm_path))
         if kenlm_path:
             try:
-                self.tmpdir, self.kenlm_type, self.kenlm_path, self.flashlight_cfg.lexicon_path = get_nemolm(
+                self.tmpdir, self.kenlm_encoding_level, self.kenlm_path, self.flashlight_cfg.lexicon_path = get_nemolm(
                     kenlm_path
                 )
-            except:
-                self.tmpdir, self.kenlm_type, self.kenlm_path = None, "lmplz", kenlm_path
+                self.kenlm_type = "nemolm"
+            except tarfile.ReadError:
+                self.kenlm_type, self.kenlm_path, self.tmpdir, self.kenlm_encoding_level = (
+                    "lmplz",
+                    kenlm_path,
+                    None,
+                    None,
+                )
 
         else:
-            self.kenlm_type, self.kenlm_path, self.tmpdir = "zerolm", None, None
-        # assert kenlm_path is not None and
+            self.kenlm_type, self.kenlm_path, self.tmpdir, self.kenlm_encoding_level = "zerolm", None, None, None
+
         logging.warning(
             "str(self.tmpdir)+ str(self.kenlm_type) "
             + str(self.tmpdir)
@@ -516,22 +527,23 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         if isinstance(self.tokenizer, AggregateTokenizer):
             raise NotImplementedError("model with AggregateTokenizer is not supported")
 
-        if self.decoding_type == 'subword':
-            if self.search_type == "flashlight":
-                if not self.kenlm_path:
-                    return  # Beamsearch without Kenlm (ZeroLM)
-                else:  # Beamsearch with Kenlm
-                    # if not self.flashlight_cfg.lexicon_path:
-                    #     raise NotImplementedError(
-                    #         self.search_type
-                    #         + " decoding with "
-                    #         + self.decoding_type
-                    #         + " acoustic model works only with lexicon_path"
-                    #     )
-                    # else:
+        if self.kenlm_path:  # Beamsearch with Kenlm
+            if self.decoding_type == 'subword':
+                if self.search_type == "pyctcdecode":
                     if self.kenlm_type == "nemolm":
+                        raise NotImplementedError(
+                            self.search_type
+                            + " decoding with "
+                            + self.decoding_type
+                            + " acoustic model is not implemented with kenlm created by train_kenlm.py"
+                        )
+                    if self.kenlm_type == "lmplz":
                         return
-                    elif self.kenlm_type == "lmplz":
+                    else:
+                        raise ValueError("Unknown kenlm_type: " + str(self.kenlm_type))
+                elif self.search_type == "flashlight":
+
+                    if self.kenlm_type == "lmplz" and not self.flashlight_cfg.lexicon_path:
                         raise NotImplementedError(
                             self.search_type
                             + " decoding with kenlm created by "
@@ -540,33 +552,20 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                             + self.decoding_type
                             + " acoustic model works only with lexicon_path"
                         )
-            elif self.search_type == "pyctcdecode":
-                if not self.kenlm_path:
-                    raise NotImplementedError(
-                        self.search_type
-                        + " decoding with "
-                        + self.decoding_type
-                        + " acoustic model is not implemented without kenlm_path "
-                    )
+                    else:
+                        return
                 else:
+                    raise ValueError("Unknown search_type: " + str(self.search_type))
+
+            elif self.decoding_type == 'char':
+                if self.search_type == "pyctcdecode":
                     if self.kenlm_type == "nemolm":
-                        raise NotImplementedError(
-                            self.search_type
-                            + " decoding with "
-                            + self.decoding_type
-                            + " acoustic model is not implemented with kenlm_type "
-                            + self.kenlm_type
-                        )
+                        return
                     elif self.kenlm_type == "lmplz":
                         return
                     else:
                         raise ValueError("Unknown kenlm_type: " + str(self.kenlm_type))
-
-        elif self.decoding_type == 'char':
-            if self.search_type == "flashlight":
-                if not self.kenlm_path:  # Beamsearch without Kenlm (ZeroLM)
-                    return
-                else:  # Beamsearch with Kenlm
+                elif self.search_type == "flashlight":
                     if self.flashlight_cfg.lexicon_path:
                         if self.kenlm_type == "nemolm" or self.kenlm_type == "lmplz":
                             return
@@ -574,21 +573,18 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                             raise ValueError("Unknown kenlm_type: " + str(self.kenlm_type))
                     else:
                         return
-            elif self.search_type == "pyctcdecode":
-                if not self.kenlm_path:
-                    raise NotImplementedError(
-                        self.search_type
-                        + " decoding with "
-                        + self.decoding_type
-                        + " acoustic model is not implemented without kenlm_path "
-                    )
-                else:  # Beamsearch with Kenlm
-                    if self.kenlm_type == "nemolm":
-                        return
-                    elif self.kenlm_type == "lmplz":
-                        return
-                    else:
-                        raise ValueError("Unknown kenlm_type: " + str(self.kenlm_type))
+        else:  # Beamsearch without Kenlm (ZeroLM)
+            if self.search_type == "pyctcdecode":
+                raise NotImplementedError(
+                    self.search_type
+                    + " decoding with "
+                    + self.decoding_type
+                    + " acoustic model is not implemented without kenlm_path "
+                )
+            elif self.search_type == "flashlight":
+                return
+            else:
+                raise ValueError("Unknown search_type: " + str(self.search_type))
 
         raise NotImplementedError("Wrong parameter combination")
 
