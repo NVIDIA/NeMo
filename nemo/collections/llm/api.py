@@ -21,6 +21,13 @@ except ImportError as error:
     logging.warning(f"TensorRTLLM could not be imported from nemo.export: {error}")
     trt_llm_supported = False
 
+uvicorn_supported = True
+try:
+    import uvicorn
+except ImportError as error:
+    logging.warning(f"uvicorn could not be imported: {error}")
+    uvicorn_supported = False
+
 TokenizerType = Any
 
 
@@ -366,7 +373,7 @@ def deploy(
 
     try:
         logging.info("Model serving on Triton is will be started.")
-        if start_rest_service:
+        if start_rest_service and uvicorn_supported:
             try:
                 logging.info("REST service will be started.")
                 uvicorn.run(
