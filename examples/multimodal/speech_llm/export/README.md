@@ -9,7 +9,7 @@ wget --content-disposition 'https://api.ngc.nvidia.com/v2/models/org/nvidia/team
 Then, we need to extract the different parts of SALM.
 ```
 output=$PWD/output
-python3 separate_salm_weights.py --model_file_path=speechllm_fc_llama2_7b.nemo --output_dir=$output
+python3 extract_salm_weights.py --model_file_path=speechllm_fc_llama2_7b.nemo --output_dir=$output
 ```
 It takes a while to run the above command.
 
@@ -31,7 +31,7 @@ python /opt/NeMo/scripts/nlp_language_modeling/merge_lora_weights/merge.py \
     tensor_model_parallel_size=1 \
     pipeline_model_parallel_size=1 \
     gpt_model_file=output/speechllm_fc_llama2_7b_llm.nemo \
-    lora_model_path=output/speechllm_fc_llama2_7b_lora/lora.nemo \
+    lora_model_path=output/speechllm_fc_llama2_7b_lora.nemo \
     merged_model_path=speechllm_fc_llama2_7b_llm_merged.nemo
 ```
 
