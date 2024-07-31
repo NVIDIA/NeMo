@@ -36,7 +36,6 @@ from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ModelTransform, ProgressPrinter
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
-from nemo.utils.exp_manager import TimingCallback
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
@@ -246,9 +245,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         assert self.accelerator is not None
         self.accelerator.setup(trainer)
         self.trainer = trainer
-        print("BEFORE INSERTION: {self.trainer.callbacks}")
-        self.trainer.callbacks.insert(0, TimingCallback())
-        print("AFTER INSERTION: {self.trainer.callbacks}")
 
         # move the model to the correct device
         # self.model_to_device()
