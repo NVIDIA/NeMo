@@ -1,18 +1,13 @@
 import io
-from typing import Any, Dict, Iterable, List, Tuple, Union
 from pathlib import Path
+from typing import Any, Dict, Iterable, List, Tuple, Union
 
 import torch
-from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
-
 from megatron.core import parallel_state
-from megatron.core.transformer.utils import _get_extra_state_offsets
-from megatron.core.dist_checkpointing.mapping import (
-    ShardedBase,
-    ShardedObject,
-    ShardedTensor,
-)
+from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
+from megatron.core.transformer.utils import _get_extra_state_offsets
+from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
@@ -39,9 +34,9 @@ def mcore_to_pyt_sharded_state_dict(
     ) -> TorchShardedTensor:
         for ten, sh_ten in zip(tens, sh_tens):
             # remove prepend axes and put in loaded tensor
-            sh_ten.global_shape = sh_ten.global_shape[sh_ten.prepend_axis_num:]
-            sh_ten.global_offset = sh_ten.global_offset[sh_ten.prepend_axis_num:]
-            sh_ten.axis_fragmentations = sh_ten.axis_fragmentations[sh_ten.prepend_axis_num:]
+            sh_ten.global_shape = sh_ten.global_shape[sh_ten.prepend_axis_num :]
+            sh_ten.global_offset = sh_ten.global_offset[sh_ten.prepend_axis_num :]
+            sh_ten.axis_fragmentations = sh_ten.axis_fragmentations[sh_ten.prepend_axis_num :]
             sh_ten.prepend_axis_num = 0
             sh_ten.data = ten
             sh_ten.validate_metadata_integrity()
@@ -56,35 +51,34 @@ def mcore_to_pyt_sharded_state_dict(
                 _convert(checkpoint[k], sharded_state_dict[k], kk)
         elif isinstance(sharded_state_dict[k], ShardedObject):
             """Do nothing. checkpoint[k] contains loaded io.BytesIO already."""
-        elif isinstance(sharded_state_dict[k], List):   # list of ShardedTensor
+        elif isinstance(sharded_state_dict[k], List):  # list of ShardedTensor
             checkpoint[k] = _mcore_to_pyt_sharded_tensor(checkpoint[k], sharded_state_dict[k])
-    
+
     for k in checkpoint:
         _convert(checkpoint, sharded_state_dict, k)
 
     return checkpoint
-                   
 
-def pyt_to_mcore_state_dict(
-    state_dict: Dict[str, Any],
-    prefix: str = ""
-) -> Dict[str, List[ShardedBase]]:
+
+def pyt_to_mcore_state_dict(state_dict: Dict[str, Any], prefix: str = "") -> Dict[str, List[ShardedBase]]:
 
     def _torch_to_mcore_sharded_tensor(
-        key: str, 
-        sh_ten: TorchShardedTensor, 
+        key: str,
+        sh_ten: TorchShardedTensor,
         prepend_offsets: Iterable[Tuple[int, int, int]] = (),
         prefix: str = "",
-        allow_shape_mismatch: bool = False
+        allow_shape_mismatch: bool = False,
     ) -> List[ShardedTensor]:
         prepend_axis_num = len(prepend_offsets)
-        
+
         assert isinstance(sh_ten, TorchShardedTensor), sh_ten
         sharded_meta = sh_ten.metadata()
         local_shards = sh_ten.local_shards()
 
         # DEBUG
-        assert all([ls.metadata.placement == local_shards[0].metadata.placement for ls in local_shards]), [ls.meta.placement for ls in local_shards]
+        assert all([ls.metadata.placement == local_shards[0].metadata.placement for ls in local_shards]), [
+            ls.meta.placement for ls in local_shards
+        ]
 
         global_shape = sharded_meta.size
 
@@ -103,7 +97,7 @@ def pyt_to_mcore_state_dict(
             local_shards[i] = ShardedTensor.from_rank_offsets(
                 f"{prefix}{key}",
                 ten,
-                *prepend_offsets, # prepend layer shards
+                *prepend_offsets,  # prepend layer shards
                 *rank_offsets,
                 replica_id=0,
                 prepend_axis_num=prepend_axis_num,
@@ -111,7 +105,7 @@ def pyt_to_mcore_state_dict(
             )
 
         return local_shards
-    
+
     def _torch_to_mcore_sharded_object(
         key: str,
         obj: io.BytesIO,
@@ -124,47 +118,37 @@ def pyt_to_mcore_state_dict(
             parallel_state.get_data_parallel_rank(with_context_parallel=True),
         )
 
-        return ShardedObject(
-            f"{prefix}{key}", 
-            obj, 
-            *_get_extra_state_offsets(sharded_offsets), 
-            replica_id
-        )
+        return ShardedObject(f"{prefix}{key}", obj, *_get_extra_state_offsets(sharded_offsets), replica_id)
 
     def _convert(state_dict, k, sh_key, v, prepend_offsets, prefix="", allow_shape_mismatch=False):
         if isinstance(v, Dict):
             for kk, vv in v.items():
                 _convert(
-                    v, 
-                    kk, 
-                    sh_key, 
-                    vv, 
-                    prepend_offsets, 
+                    v,
+                    kk,
+                    sh_key,
+                    vv,
+                    prepend_offsets,
                     prefix=f"{prefix}{kk}.",
-                    allow_shape_mismatch=allow_shape_mismatch
+                    allow_shape_mismatch=allow_shape_mismatch,
                 )
         elif isinstance(v, TorchShardedTensor):
             state_dict[k] = _torch_to_mcore_sharded_tensor(
-                sh_key, 
-                v, 
-                prepend_offsets, 
-                prefix=prefix, 
-                allow_shape_mismatch=allow_shape_mismatch
+                sh_key, v, prepend_offsets, prefix=prefix, allow_shape_mismatch=allow_shape_mismatch
             )
         elif isinstance(v, io.BytesIO):
             state_dict[k] = _torch_to_mcore_sharded_object(sh_key, v, prepend_offsets, prefix)
 
-
     num_layers = 0
     for k in state_dict:
         if k.startswith("module.decoder.layers."):
-                num_layers = max(num_layers, int(k.split('.')[3]) + 1)
+            num_layers = max(num_layers, int(k.split('.')[3]) + 1)
     assert num_layers != 0
 
     for k, v in state_dict.items():
         prepend_offsets = []
         sh_key = k
-        allow_shape_mismatch = k.endswith(".word_embeddings.weight")    # vocab size can be different
+        allow_shape_mismatch = k.endswith(".word_embeddings.weight")  # vocab size can be different
         if k.startswith("module.decoder.layers."):
             sh_key = k.split('.')
             global_layer_offset = int(sh_key.pop(3))
