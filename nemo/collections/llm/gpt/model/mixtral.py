@@ -38,6 +38,7 @@ class MixtralConfig8x7B(GPTConfig):
     ffn_hidden_size: int = 14336
     max_position_embeddings: int = 4096  # 32768
     seq_length: int = 4096  # 32768
+    kv_channels: int = 128
     # MoE
     num_moe_experts: int = 8
     moe_router_topk: int = 1
@@ -117,6 +118,7 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
             num_layers=config.num_hidden_layers,
             hidden_size=config.hidden_size,
             ffn_hidden_size=config.intermediate_size,
+            kv_channels=config.get('head_dim', config.hidden_size // config.num_attention_heads),
             max_position_embeddings=config.max_position_embeddings,  # TODO
             seq_length=config.max_position_embeddings,
             # RoPE
@@ -158,7 +160,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
     head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -281,7 +283,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
     head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
