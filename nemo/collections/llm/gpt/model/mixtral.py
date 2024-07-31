@@ -54,32 +54,6 @@ class MixtralConfig(GPTConfig):
     bf16: bool = True
     params_dtype: torch.dtype = torch.bfloat16
 
-@dataclass
-class MixtralConfig8x7B(MixtralConfig):
-    """
-    Config for Mixtral-8x7B model
-    Official announcement: https://mistral.ai/news/mixtral-of-experts/
-    """
-    num_layers: int = 32
-    hidden_size: int = 4096
-    ffn_hidden_size: int = 14336
-    max_position_embeddings: int = 32768
-    seq_length: int = 32768
-
-
-@dataclass
-class MixtralConfig8x3B(MixtralConfig):
-    """
-    NeMo's Mixtral-8x3B model variant
-    https://github.com/NVIDIA/NeMo-Framework-Launcher/blob/main/launcher_scripts/conf/training/mixtral/mixtral_8x3b.yaml
-    """
-    num_layers: int = 32
-    hidden_size: int = 2560
-    ffn_hidden_size: int = 8960
-    max_position_embeddings: int = 32768
-    seq_length: int = 32768
-
-
 
 @dataclass
 class MixtralConfig8x3B(MixtralConfig):
