@@ -699,7 +699,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
     def validation_pass(self, batch: PromptedAudioToTextMiniBatch, batch_idx, dataloader_idx=0, eval_mode="val"):
         # During inference, dataloader passes pure prompt without transcript text.
-        signal, signal_len, transcript, transcript_len, prompt, prompt_len = batch
         input_ids, labels = batch.prompted_transcript[:, :-1], batch.prompted_transcript[:, 1:]
 
         transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
