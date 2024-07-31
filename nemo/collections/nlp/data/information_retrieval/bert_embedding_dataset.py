@@ -289,7 +289,6 @@ class BertEmbeddingDataset(Dataset):
                 raise ValueError(f"Invalid data type: {self.data_type}")
 
         max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))
-        # max_length = self.max_seq_length
         assert max_length <= self.max_seq_length
 
         attention_mask = [self._create_attention_mask2(max_length, len) for len in lengths]
