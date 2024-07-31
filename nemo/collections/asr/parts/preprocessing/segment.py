@@ -241,24 +241,33 @@ class AudioSegment(object):
             )
 
         if not isinstance(audio_file, str) or os.path.splitext(audio_file)[-1] in sf_supported_formats:
-            try:
-                with sf.SoundFile(audio_file, 'r') as f:
-                    dtype = 'int32' if int_values else 'float32'
-                    sample_rate = f.samplerate
-                    if offset is not None and offset > 0:
-                        f.seek(int(offset * sample_rate))
-                    if duration is not None and duration > 0:
-                        samples = f.read(int(duration * sample_rate), dtype=dtype)
-                    else:
-                        samples = f.read(dtype=dtype)
-            except RuntimeError as e:
-                logging.error(
-                    f"Loading {audio_file} via SoundFile raised RuntimeError: `{e}`. "
-                    f"NeMo will fallback to loading via pydub."
-                )
+            with sf.SoundFile(audio_file, 'r') as f:
+                dtype = 'int32' if int_values else 'float32'
+                sample_rate = f.samplerate
+                if offset is not None and offset > 0:
+                    f.seek(int(offset * sample_rate))
+                if duration is not None and duration > 0:
+                    samples = f.read(int(duration * sample_rate), dtype=dtype)
+                else:
+                    samples = f.read(dtype=dtype)
+            # try:
+            #     with sf.SoundFile(audio_file, 'r') as f:
+            #         dtype = 'int32' if int_values else 'float32'
+            #         sample_rate = f.samplerate
+            #         if offset is not None and offset > 0:
+            #             f.seek(int(offset * sample_rate))
+            #         if duration is not None and duration > 0:
+            #             samples = f.read(int(duration * sample_rate), dtype=dtype)
+            #         else:
+            #             samples = f.read(dtype=dtype)
+            # except RuntimeError as e:
+            #     logging.error(
+            #         f"Loading {audio_file} via SoundFile raised RuntimeError: `{e}`. "
+            #         f"NeMo will fallback to loading via pydub."
+            #     )
 
-                if hasattr(audio_file, "seek"):
-                    audio_file.seek(0)
+            #     if hasattr(audio_file, "seek"):
+            #         audio_file.seek(0)
 
         if HAVE_PYDUB and samples is None:
             try:
