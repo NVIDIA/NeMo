@@ -132,8 +132,18 @@ def test_beam_decoding_beam_scores_true(inputs, nnet):
     assert best_path.shape == (1, 26)
 
 
-def test_transformer_aed_beam_infer_strips_prompt(inputs, decoder_nm, nnet, tokenizer):
-    decoder_input_ids, encoder_hidden_states, encoder_input_mask = inputs
+@pytest.fixture()
+def prompted_inputs():
+    B, T, C = 1, 5, 2
+    return (
+        torch.tensor([[1, 0, 2, 3, 4]], dtype=torch.long),  # prompt
+        torch.ones(B, T, C, dtype=torch.float),  # encoder_hidden_states
+        torch.ones(B, T, dtype=torch.float),  # encoder_input_mask
+    )
+
+
+def test_transformer_aed_beam_infer_strips_prompt(prompted_inputs, decoder_nm, nnet, tokenizer):
+    decoder_input_ids, encoder_hidden_states, encoder_input_mask = prompted_inputs
     *_, classifier = nnet
 
     # Run the actual top-level module used by MultiTask AED model for decoding.
@@ -149,16 +159,19 @@ def test_transformer_aed_beam_infer_strips_prompt(inputs, decoder_nm, nnet, toke
     assert torch.is_tensor(best_path)
 
     # Now run the underlying beam search generator that doesn't trim anything.
-    *_, (untrimmed,) = gen.beam_search(*inputs, return_beam_scores=True)
+    *_, (untrimmed,) = gen.beam_search(*prompted_inputs, return_beam_scores=True)
     assert untrimmed is not None
     assert torch.is_tensor(untrimmed)
 
     # Check that the expected trimming has indeed been done.
-    assert (untrimmed[decoder_input_ids.shape[1] :] == best_path).all()  # stripped the prompt [1,] from the beggining
+    torch.testing.assert_close(
+        untrimmed[decoder_input_ids.shape[1] :], best_path
+    )  # stripped the prompt from the beggining
 
 
-def test_transformer_aed_greedy_infer_strips_prompt(inputs, decoder_nm, nnet, tokenizer):
-    decoder_input_ids, encoder_hidden_states, encoder_input_mask = inputs
+def test_transformer_aed_greedy_infer_strips_prompt(prompted_inputs, decoder_nm, nnet, tokenizer):
+    decoder_input_ids, encoder_hidden_states, encoder_input_mask = prompted_inputs
+    decoder_input_ids = torch.tensor([[1, 0, 2, 3, 4]], dtype=torch.long)  # prompt
     *_, classifier = nnet
 
     # Run the actual top-level module used by MultiTask AED model for decoding.
@@ -174,9 +187,11 @@ def test_transformer_aed_greedy_infer_strips_prompt(inputs, decoder_nm, nnet, to
     assert torch.is_tensor(best_path)
 
     # Now run the underlying beam search generator that doesn't trim anything.
-    (untrimmed,), _ = gen.greedy_search(*inputs)
+    (untrimmed,), _ = gen.greedy_search(*prompted_inputs)
     assert untrimmed is not None
     assert torch.is_tensor(untrimmed)
 
     # Check that the expected trimming has indeed been done.
-    assert (untrimmed[decoder_input_ids.shape[1] :] == best_path).all()  # stripped the prompt [1,] from the beggining
+    torch.testing.assert_close(
+        untrimmed[decoder_input_ids.shape[1] :], best_path
+    )  # stripped the prompt from the beggining

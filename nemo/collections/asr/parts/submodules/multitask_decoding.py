@@ -130,7 +130,7 @@ class AbstractMultiTaskDecoding(ABC):
                 transformer_decoder=self.transformer_decoder,
                 log_softmax_module=self.log_softmax_module,
                 tokenizer=self.tokenizer,
-                max_generation_delta=self.cfg.greedy.get('max_generation_delta', 50),
+                max_generation_delta=self.cfg.greedy.get('max_generation_delta', -1),
                 preserve_alignments=self.preserve_alignments,
                 temperature=self.cfg.greedy.temperature,
                 n_samples=self.cfg.greedy.n_samples,
@@ -145,7 +145,7 @@ class AbstractMultiTaskDecoding(ABC):
                 search_type=self.cfg.beam.get('search_type', 'default'),
                 beam_size=self.cfg.beam.beam_size,
                 length_penalty=self.cfg.beam.get('length_penalty', 0.0),
-                max_generation_delta=self.cfg.beam.get('max_generation_delta', 50),
+                max_generation_delta=self.cfg.beam.get('max_generation_delta', -1),
                 return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                 preserve_alignments=self.preserve_alignments,
             )
