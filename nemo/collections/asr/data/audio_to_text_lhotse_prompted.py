@@ -58,7 +58,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         tokenizer: TokenizerSpec,
-        prompt_format_fn: Callable[[CutSet, TokenizerWrapper, bool], Sequence[Sequence[int]]],
+        prompt_format_fn: Callable[[CutSet, TokenizerWrapper], Sequence[Sequence[int]]],
     ):
         super().__init__()
         self.tokenizer = TokenizerWrapper(tokenizer)
@@ -69,10 +69,9 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
-        prompts_with_answers, prompts = self.prompt_format_fn(cuts, self.tokenizer)
+        prompts_with_answers, prompts, answers = self.prompt_format_fn(cuts, self.tokenizer)
 
-        transcript = [pa[len(p) :] for pa, p in zip(prompts_with_answers, prompts)]
-        transcript, transcript_lens = self._collate_tokens(transcript)
+        transcript, transcript_lens = self._collate_tokens(answers)
         prompts_with_answers, prompts_with_answers_lens = self._collate_tokens(prompts_with_answers)
         prompts, prompt_lens = self._collate_tokens(prompts)
 
@@ -99,7 +98,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
 PROMPT_FORMAT_FNS = {}
 
 
-def registered_prompt_format_fn(prompt_fn: Callable[[CutSet, TokenizerWrapper, bool], Sequence[Sequence[int]]]):
+def registered_prompt_format_fn(prompt_fn: Callable[[CutSet, TokenizerWrapper], Sequence[Sequence[int]]]):
     """
     Decorator for registering prompt functions under a name.
 
@@ -126,7 +125,9 @@ def get_prompt_format_fn(name: str) -> Callable[[CutSet, TokenizerWrapper], Sequ
 
 
 @registered_prompt_format_fn
-def canary(cuts: CutSet, tokenizer: TokenizerWrapper) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
+def canary(
+    cuts: CutSet, tokenizer: TokenizerWrapper
+) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]:
     """
     Prepend and append control tokens to the token sequence as per Canary format.
 
@@ -151,7 +152,7 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper) -> tuple[list[torch.Tensor
     """
     formatter = CanaryPromptFormatter(tokenizer._tokenizer)
 
-    prompts_with_answers, prompts = [], []
+    prompts_with_answers, prompts, answers = [], [], []
     for cut in cuts:
         if isinstance(cut, MixedCut):
             cut = cut._first_non_padding_cut
@@ -194,8 +195,9 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper) -> tuple[list[torch.Tensor
         )
         prompts_with_answers.append(encoded["input_ids"])
         prompts.append(encoded["context_ids"])
+        answers.append(encoded["answer_ids"][:-1])  # Strip Canary's EOS
 
-    return prompts_with_answers, prompts
+    return prompts_with_answers, prompts, answers
 
 
 class ProbablyIncorrectLanguageKeyError(RuntimeError):
