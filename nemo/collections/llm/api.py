@@ -9,10 +9,10 @@ import uvicorn
 from typing_extensions import Annotated
 
 from nemo.collections.llm.utils import Config, task
+from nemo.deploy import DeployPyTriton
 from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
-from nemo.deploy import DeployPyTriton
 
 trt_llm_supported = True
 try:
@@ -278,9 +278,9 @@ def get_trtllm_deployable(
     if not trt_llm_supported:
         raise ValueError("TensorRT-LLM engine is not supported in this environment.")
     trt_llm_exporter = TensorRTLLM(
-            model_dir=trt_llm_path,
-            load_model=(nemo_checkpoint is None),
-        )
+        model_dir=trt_llm_path,
+        load_model=(nemo_checkpoint is None),
+    )
 
     if nemo_checkpoint is not None:
         try:
