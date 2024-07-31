@@ -53,7 +53,6 @@ def get_results(
     :param Optional[int] model_size: size of model used for auto conf search.
     :param Optional[str] model_measure: "M" if model_size is specified in millions. "B" if in billions.
     :param Optional[int] gpus_per_node: number of GPUs per node used for auto conf search.
-    :param Optional[int] gpu_memory_gb: memory per GPU, in GB. Currently 40GB and 80GB A100s/H100s supported.
     :param Optional[int] max_training_days: number of days expected model to be trained.
     :param Optional[int] tflops_per_gpu: estimated tflops per GPU.
     :param Optional[int] num_tokens_in_b: number of tokens in billions in train dataset.
@@ -226,7 +225,6 @@ def get_results(
     top_config = f"{model_name}_{model_size}b_{num_nodes}nodes_tp_{result[0][3]}_pp_{result[0][4]}_cp_{result[0][5]}_ep_{result[0][6]}_mbs_{result[0][7]}_act_ckpt_{result[0][8]}_num_mbs_act_{result[0][9]}_act_per_pipe_{result[0][10]}"
     print("\n==================================================")
     print(f"Optimal config: {top_config} with {result[0][17]:.4f}s per global step.")
-    print(f"Saving config to {final_result_logs}/optimal_config_{model_size}b_{num_nodes}nodes.yaml.")
     print("==================================================\n")
 
     # Save results as a CSV file.

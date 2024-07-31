@@ -93,7 +93,6 @@ class Basic:
 
         trainer_config = {
             "accelerator": "gpu",
-            "logger": False,
             "enable_checkpointing": False,
             "use_distributed_sampler": False,
             "max_epochs": None,
