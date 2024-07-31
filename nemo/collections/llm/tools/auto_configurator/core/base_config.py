@@ -18,7 +18,7 @@ import math
 import os
 from typing import Tuple
 
-from nemo.collections.llm.tools.auto_configurator.autoconfig.utils import generic_base_config
+from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config
 
 
 def calculate_model_size(

@@ -15,8 +15,8 @@
 import os
 from typing import Optional
 
-from nemo.collections.llm.tools.auto_configurator.autoconfig.training_config import search_training_config
-from nemo.collections.llm.tools.auto_configurator.autoconfig.utils import generic_base_config
+from nemo.collections.llm.tools.auto_configurator.core.training_config import search_training_config
+from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config
 
 SUPPORTED_MODELS = [
     "gpt3",

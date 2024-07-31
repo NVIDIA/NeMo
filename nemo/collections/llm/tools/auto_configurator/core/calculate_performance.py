@@ -15,24 +15,25 @@
 import csv
 import os
 import re
-from shutil import copyfile
-from typing import Optional
-
 import pandas as pd
+
+from typing import Optional
 from tensorboard.backend.event_processing import event_accumulator
-from nemo.collections.llm.tools.auto_configurator.autoconfig.utils import generic_base_config
+
+from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config
 
 
 def get_results(
     training_logs: str = None,
+    path_to_save: str = None,
     model_name: str = None,
-    model_size: int = None,
     num_nodes: int = None,
     model_version: int = None,
     seq_length: int = None,
-    vocab_size: int = 32000,
+    global_batch_size: int = None,
+    vocab_size: int = None,
+    model_size: Optional[int] = None,
     model_measure: Optional[str] = "B",
-    global_batch_size: Optional[int] = None,
     gpus_per_node: Optional[int] = 8,
     max_training_days: Optional[int] = 2,
     tflops_per_gpu: Optional[int] = 140,
@@ -42,20 +43,22 @@ def get_results(
 ):
     """
     :param str training_logs: path to the dicrectory with training logs.
-    :param str model_name: model name to be used for training.
-    :param int model_size: size of trained model.
-    :param int num_nodes: number of nodes to be used for training.
+    :param str path_to_save: path where to save performance results.
+    :param str model_name: model name used for auto conf search.
+    :param int num_nodes: number of nodes used for auto conf search.
     :param int model_version: version of model. 3 for GPT3, 2 for Llama2.
+    :param int seq_length: model sequence length.
+    :param int global_batch_size: model global batch size.
+    :param int vocab_size: size of tokenizer vocabulary.
+    :param Optional[int] model_size: size of model used for auto conf search.
     :param Optional[str] model_measure: "M" if model_size is specified in millions. "B" if in billions.
-    :param Optional[int] gpus_per_node: number of GPUs per node to be used.
+    :param Optional[int] gpus_per_node: number of GPUs per node used for auto conf search.
     :param Optional[int] gpu_memory_gb: memory per GPU, in GB. Currently 40GB and 80GB A100s/H100s supported.
-    :param Optional[int] seq_length: model sequence length. Available seq_length list for GPT-based models: [2048, 4096, 8192, 16384, 32768].
-    :param Optional[int] global_batch_size: model global batch size. Set to "auto" if you want auto configurator to find optimal gbs.
-    :param Optional[int] num_tokens_in_b: number of tokens in billions in train dataset.
-    :param Optional[int] tflops_per_gpu: estimated tflops per GPU.
     :param Optional[int] max_training_days: number of days expected model to be trained.
-    :param Optional[int] vocab_size: size of tokenizer vocabulary.
-    :param Optional[bool] custom_model: set to True if you want to use custom model.
+    :param Optional[int] tflops_per_gpu: estimated tflops per GPU.
+    :param Optional[int] num_tokens_in_b: number of tokens in billions in train dataset.
+    :param Optional[bool] custom_model: set to True if custom model was used.
+    :param Optional[int] output_top_n: Number of configs to be printed out as best configs.
     """
     # Get model architecture
     cfg = locals()
@@ -73,7 +76,7 @@ def get_results(
     ffn_hs = base_cfg["model"].ffn_hidden_size
 
     training_logs = training_logs
-    final_result_logs = "."
+    final_result_logs = path_to_save
 
     result_columns = [
         "Model Name",
@@ -213,16 +216,16 @@ def get_results(
                     )
                 finally:
                     continue
-    result.sort(key=lambda x: x[15])
+    result.sort(key=lambda x: x[17])
     print(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
     for i, res in enumerate(result):
-        print(f"Config #{i+1}: {res[-1]} with {res[14]:.4f}s per global step.")
+        print(f"Config #{i+1}: {res[-1]} with {res[17]:.4f}s per global step.")
         if i + 1 == output_top_n:
             break
 
     top_config = f"{model_name}_{model_size}b_{num_nodes}nodes_tp_{result[0][3]}_pp_{result[0][4]}_cp_{result[0][5]}_ep_{result[0][6]}_mbs_{result[0][7]}_act_ckpt_{result[0][8]}_num_mbs_act_{result[0][9]}_act_per_pipe_{result[0][10]}"
     print("\n==================================================")
-    print(f"Optimal config: {top_config} with {result[0][14]:.4f}s per global step.")
+    print(f"Optimal config: {top_config} with {result[0][17]:.4f}s per global step.")
     print(f"Saving config to {final_result_logs}/optimal_config_{model_size}b_{num_nodes}nodes.yaml.")
     print("==================================================\n")
 

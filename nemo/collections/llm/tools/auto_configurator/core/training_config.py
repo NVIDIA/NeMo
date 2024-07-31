@@ -19,7 +19,7 @@ import shutil
 import subprocess
 from typing import List, Tuple
 
-from nemo.collections.llm.tools.auto_configurator.autoconfig import utils
+from nemo.collections.llm.tools.auto_configurator.core import utils
 
 
 def search_training_config(

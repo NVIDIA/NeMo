@@ -2,7 +2,6 @@ import re
 
 from megatron.core.optimizer import OptimizerConfig
 
-from nemo.collections.common.tokenizers import AutoTokenizer, SentencePieceTokenizer
 from nemo.collections.llm.tools.auto_configurator import base_configs
 from nemo.collections.llm.utils import Config
 

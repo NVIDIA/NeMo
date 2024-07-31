@@ -14,7 +14,7 @@
 
 from typing import List, Optional
 
-from nemo.collections.llm.tools.auto_configurator.autoconfig.search_config import search_configs
+from nemo.collections.llm.tools.auto_configurator.core.search_config import search_configs
 from nemo.utils import logging
 
 SUPPORTED_MODELS = [
