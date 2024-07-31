@@ -28,6 +28,7 @@ from nemo.deploy.utils import cast_output
 from nemo.export.vllm.engine import NemoLLMEngine
 from nemo.export.vllm.model_config import NemoModelConfig
 from nemo.export.vllm.model_loader import NemoModelLoader
+from nemo.utils.checkpoint_converters.lora import convert_lora_nemo_to_canonical
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -84,7 +85,6 @@ class vLLMExporter(ITritonDeployable):
         tensor_parallel_size: int = 1,
         pipeline_parallel_size: int = 1,
         max_model_len: int = None,
-        max_lora_rank=None,
         lora_checkpoints: List[str] = [],
         dtype: str = 'auto',
         seed: int = 0,
@@ -210,16 +210,12 @@ class vLLMExporter(ITritonDeployable):
             model_loader_extra_config=None,
         )
 
-        # max_lora_rank and max_loras must both be positive for LoRA to be enabled
-        if max_lora_rank is not None and max_lora_rank > 0 \
-            and len(lora_checkpoints) > 0:
-            lora_config = LoRAConfig(max_lora_rank=max_lora_rank,
-                                     max_loras=len(lora_checkpoints),
-                                     lora_dtype=model_config.dtype)
-            self.lora_checkpoints = lora_checkpoints
-        else:
-            lora_config = None
-            self.lora_checkpoints = []
+        # Convert the LoRA checkpoints to vLLM compatible format and derive the configuration structure
+        lora_config = self._prepare_lora_checkpoints(
+            model_dir=model_dir,
+            lora_checkpoints=lora_checkpoints,
+            dtype=model_config.dtype
+        )
 
         # Initialize the cluster and specify the executor class.
         if device_config.device_type == "neuron":
@@ -261,6 +257,37 @@ class vLLMExporter(ITritonDeployable):
             executor_class=executor_class,
             log_stats=log_stats,
         )
+
+    def _prepare_lora_checkpoints(
+        self,
+        model_dir: str,
+        lora_checkpoints: List[str],
+        dtype
+    ) -> LoRAConfig:
+        self.lora_checkpoints = []
+
+        if lora_checkpoints is None or len(lora_checkpoints) == 0:
+            return None
+        
+        index = 0
+        max_lora_rank = 0
+        for nemo_file in lora_checkpoints:
+            if not os.path.isfile(nemo_file):
+                raise FileNotFoundError(f"LoRA checkpoint file '{nemo_file} does not exist'")
+            
+            hf_lora_dir = os.path.join(model_dir, f'lora_{index}')
+            
+            LOGGER.info(f"Converting LoRA checkpoint '{nemo_file}' into '{hf_lora_dir}'...")
+
+            _, lora_config = convert_lora_nemo_to_canonical(nemo_file, hf_lora_dir, hf_format=True)
+            self.lora_checkpoints.append(hf_lora_dir)
+
+            rank = lora_config['peft']['lora_tuning']['adapter_dim']
+            max_lora_rank = max(max_lora_rank, rank)
+
+            index += 1
+
+        return LoRAConfig(max_lora_rank=max_lora_rank, max_loras=len(self.lora_checkpoints), lora_dtype=dtype)
 
     def _add_request_to_engine(
         self,

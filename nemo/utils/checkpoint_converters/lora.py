@@ -19,7 +19,6 @@ import tarfile
 import tempfile
 import torch
 import yaml
-from argparse import ArgumentParser
 from nemo.export.tarutils import TarPath
 from pathlib import Path
 from typing import Any, Dict, Tuple, List

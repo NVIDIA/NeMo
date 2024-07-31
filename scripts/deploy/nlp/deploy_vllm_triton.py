@@ -68,12 +68,6 @@ def get_args(argv):
     )
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
     parser.add_argument(
-        '--max_lora_rank',
-        type=int,
-        default=64,
-        help='Maximum rank for the LoRA modules used in this deployment',
-    )
-    parser.add_argument(
         "-lc", "--lora_ckpt", default=[], type=str, nargs="+", help="List of LoRA checkpoints in HF format"
     )
     parser.add_argument(
@@ -101,7 +95,40 @@ def get_args(argv):
     return args
 
 
-def get_vllm_deployable(args):
+def get_vllm_deployable(args, model_dir):
+
+    try:
+        exporter = vLLMExporter()
+        exporter.export(
+            nemo_checkpoint=args.nemo_checkpoint,
+            model_dir=model_dir,
+            model_type=args.model_type,
+            tensor_parallel_size=args.tensor_parallelism_size,
+            max_model_len=args.max_model_len,
+            lora_checkpoints=args.lora_ckpt,
+            dtype=args.dtype,
+            weight_storage=args.weight_storage,
+            gpu_memory_utilization=args.gpu_memory_utilization,
+        )
+        return exporter
+    except Exception as error:
+        raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))
+
+def nemo_deploy(argv):
+    args = get_args(argv)
+
+    if args.debug_mode:
+        loglevel = logging.DEBUG
+    else:
+        loglevel = logging.INFO
+
+    LOGGER.setLevel(loglevel)
+    LOGGER.info("Logging level set to {}".format(loglevel))
+    LOGGER.info(args)
+
+    # If no model_dir was supplied, create a temporary directory.
+    # This directory should persist while the model is being served, becaue it may contain
+    # converted LoRA checkpoints, and those are accessed by vLLM at request time.
     tempdir = None
     model_dir = args.triton_model_repository
     if model_dir is None:
@@ -116,42 +143,8 @@ def get_vllm_deployable(args):
         os.makedirs(model_dir)
 
     try:
-        exporter = vLLMExporter()
-        exporter.export(
-            nemo_checkpoint=args.nemo_checkpoint,
-            model_dir=model_dir,
-            model_type=args.model_type,
-            tensor_parallel_size=args.tensor_parallelism_size,
-            max_model_len=args.max_model_len,
-            max_lora_rank=args.max_lora_rank,
-            lora_checkpoints=args.lora_ckpt,
-            dtype=args.dtype,
-            weight_storage=args.weight_storage,
-            gpu_memory_utilization=args.gpu_memory_utilization,
-        )
-        return exporter
-    except Exception as error:
-        raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))
-    finally:
-        if tempdir is not None:
-            tempdir.cleanup()
+        triton_deployable = get_vllm_deployable(args, model_dir=model_dir)
 
-
-def nemo_deploy(argv):
-    args = get_args(argv)
-
-    if args.debug_mode:
-        loglevel = logging.DEBUG
-    else:
-        loglevel = logging.INFO
-
-    LOGGER.setLevel(loglevel)
-    LOGGER.info("Logging level set to {}".format(loglevel))
-    LOGGER.info(args)
-
-    triton_deployable = get_vllm_deployable(args)
-
-    try:
         nm = DeployPyTriton(
             model=triton_deployable,
             triton_model_name=args.triton_model_name,
@@ -162,21 +155,22 @@ def nemo_deploy(argv):
             streaming=args.enable_streaming,
         )
 
-        LOGGER.info("Triton deploy function will be called.")
+
+        LOGGER.info("Starting the Triton server...")
         nm.deploy()
-    except Exception as error:
-        LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
-        return
-
-    try:
-        LOGGER.info("Model serving on Triton is will be started.")
         nm.serve()
-    except Exception as error:
-        LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
-        return
 
-    LOGGER.info("Model serving will be stopped.")
-    nm.stop()
+        LOGGER.info("Stopping the Triton server...")
+        nm.stop()
+
+    except Exception as error:
+        LOGGER.error("An error has occurred while setting up or serving the model. Error message: " + str(error))
+        return
+    
+    # Clean up the temporary directory
+    finally:
+        if tempdir is not None:
+            tempdir.cleanup()
 
 
 if __name__ == '__main__':
