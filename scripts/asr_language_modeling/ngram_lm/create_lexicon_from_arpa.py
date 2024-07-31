@@ -53,7 +53,6 @@ def save(arpa, lexicon_file, lower, tokenizer, langid):
                     if isinstance(tokenizer, AggregateTokenizer):
                         if not langid:
                             raise ValueError("--langid must be set for model with AggregateTokenizer")
-                        w_ids = tokenizer.text_to_ids(word, lang_id=langid)
                         f.write(
                             "{w}\t{s}\n".format(w=word, s=" ".join(tokenizer.text_to_tokens(word, lang_id=langid)))
                         )
