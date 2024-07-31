@@ -115,7 +115,7 @@ class TestGenerateConfgis:
 
         configs = runner.generate_configs()
         auto_configs, _, _ = get_auto_config(configs)
-        
+
         for run_name, config in configs.items():
             assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
             assert config['data']['seq_length'] == 2048
@@ -254,7 +254,7 @@ class TestGenerateConfgis:
 
         configs = runner.generate_configs()
         auto_configs, global_batch_size, seq_length = get_auto_config(configs)
-        
+
         for run_name, config in configs.items():
             assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
             assert config['data']['seq_length'] == 8192
