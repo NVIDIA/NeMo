@@ -9,6 +9,7 @@ from lightning_fabric.strategies.fsdp import _get_sharded_state_dict_context
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
 from pytorch_lightning.trainer.states import TrainerFn
+from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch.distributed.checkpoint.state_dict import (  # get_state_dict,
     StateDictOptions,
     get_optimizer_state_dict,
@@ -34,15 +35,20 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         super().__init__(*args, **kwargs)
         self.ckpt_include_optimizer = ckpt_include_optimizer
 
-    @override
-    def training_step(self, batch, batch_idx=None) -> Any:
-        with self.precision_plugin.train_step_context():
-            if self.model != self.lightning_module:
-                loss = self._forward_redirection(self.model, self.lightning_module, "training_step", batch, batch_idx)
-            else:
-                loss = self.lightning_module.training_step(batch, batch_idx)
+    def _step_proxy(self, method_name, batch, batch_idx=None):
+        if self.model != self.lightning_module:
+            loss = self._forward_redirection(self.model, self.lightning_module, method_name, batch, batch_idx)
+        else:
+            loss = getattr(self.lightning_module, method_name)(batch, batch_idx)
 
-            loss = masked_token_loss(loss, batch['loss_mask'])
+        return masked_token_loss(loss, batch['loss_mask'])
+
+    @override
+    def training_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
+        assert self.lightning_module is not None
+        assert self.model is not None
+        with self.precision_plugin.train_step_context():
+            loss = self._step_proxy("training_step", batch, batch_idx)
 
             reduced_loss = average_losses_across_data_parallel_group([loss])
             self.lightning_module.log(
@@ -62,6 +68,34 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
             )
 
             return loss
+
+    @override
+    def validation_step(self, batch, batch_idx=None) -> Any:
+        assert self.lightning_module is not None
+        assert self.model is not None
+        with self.precision_plugin.val_step_context():
+            loss = self._step_proxy("validation_step", batch, batch_idx)
+            reduced_loss = average_losses_across_data_parallel_group([loss])
+            self.lightning_module.log('val_loss', reduced_loss, rank_zero_only=True, batch_size=1)
+            return reduced_loss
+
+    @override
+    def test_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
+        assert self.lightning_module is not None
+        assert self.model is not None
+        with self.precision_plugin.test_step_context():
+            loss = self._step_proxy("test_step", batch, batch_idx)
+            reduced_loss = average_losses_across_data_parallel_group([loss])
+            return reduced_loss
+
+    @override
+    def predict_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
+        assert self.lightning_module is not None
+        assert self.model is not None
+        with self.precision_plugin.predict_step_context():
+            loss = self._step_proxy("predict_step", batch, batch_idx)
+            reduced_loss = average_losses_across_data_parallel_group([loss])
+            return reduced_loss
 
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
