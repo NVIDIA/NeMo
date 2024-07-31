@@ -1500,3 +1500,7 @@ class BeamRNNTInferConfig:
     ngram_lm_alpha: Optional[float] = 0.0
     hat_subtract_ilm: bool = False
     hat_ilm_weight: float = 0.0
+    
+    # parameters for TDT decoding
+    durations_beam_size: Optional[int] = None
+    ngram_lm_blank_alpha: float = 4.0

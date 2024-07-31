@@ -37,7 +37,6 @@ from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import pack_hypoth
 from nemo.collections.asr.parts.utils.rnnt_utils import (
     Hypothesis,
     NBestHypotheses,
-    select_k_expansions,
     is_prefix
 )
 from nemo.core.classes import Typing, typecheck
@@ -65,17 +64,17 @@ class BeamTDTInfer(Typing):
 
         beam_size: number of beams for beam search. Must be a positive integer >= 1.
             If beam size is 1, defaults to stateful greedy search.
-            This greedy search might result in slightly different results than
-            the greedy results obtained by GreedyRNNTInfer due to implementation differences.
-
             For accurate greedy results, please use GreedyRNNTInfer or GreedyBatchedRNNTInfer.
+        
+        durations_beam_size: number of top durations in beams. Defaults to number of all durations.
+            Must be a positive integer >= 1.
 
         search_type: str representing the type of beam search to perform.
             Must be one of ['beam', 'maes'].
 
             Algoritm used:
 
-                `beam` - basic beam search strategy. Larger beams generally result in better decoding,
+                `default` - basic beam search strategy. Larger beams generally result in better decoding,
                     however the time required for the search also grows steadily.
 
                 `maes` = modified adaptive expansion search. Please refer to the paper:
@@ -96,7 +95,7 @@ class BeamTDTInfer(Typing):
             When set to False, returns a NBestHypotheses container, which contains a list of Hypothesis.
 
         # The following arguments are specific to the chosen `search_type`
-
+        
         # mAES flags
         maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient. int > 1.
 
@@ -131,11 +130,15 @@ class BeamTDTInfer(Typing):
             other than basic beam search.
 
         ngram_lm_model: str
-            The path to the N-gram LM
+            The path to the N-gram LM.
         ngram_lm_alpha: float
-            Alpha weight of N-gram LM
-        tokens_type: str
-            Tokenization type ['subword', 'char']
+            Alpha weight of N-gram LM.
+        ngram_lm_blank_alpha: float
+            Alpha weight blank token score.
+            Acoustic models provide a probability for blank token emission, while N-gram language models do not.
+            To account for this, the blank symbol's acoustic score is weighted. 
+            The total score for the blank symbol is calculated as:
+            `score(blank) = ac(blank) + ngram_lm_alpha * ngram_lm_blank_alpha * ac(blank)`
     """
 
     @property
@@ -158,6 +161,7 @@ class BeamTDTInfer(Typing):
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         durations: list,
         beam_size: int,
+        durations_beam_size: Optional[int] =  None,
         search_type: str = 'default',
         score_norm: bool = True,
         return_best_hypothesis: bool = True,
@@ -168,7 +172,8 @@ class BeamTDTInfer(Typing):
         softmax_temperature: float = 1.0,
         preserve_alignments: bool = False,
         ngram_lm_model: Optional[str] = None,
-        ngram_lm_alpha: float = 0.0,
+        ngram_lm_alpha: float = 0.3,
+        ngram_lm_blank_alpha: float = 4.0,
     ):
         self.joint = joint_model
         self.decoder = decoder_model
@@ -185,13 +190,18 @@ class BeamTDTInfer(Typing):
         self.max_candidates = beam_size
         self.softmax_temperature = softmax_temperature
         self.preserve_alignments = preserve_alignments
-        self.tdt_duration_beam_size = 2
+        self.durations_beam_size = durations_beam_size if durations_beam_size != None else len(self.durations)
         
         if preserve_alignments:
             raise ValueError("Alignment preservation has not been implemented.")
         if beam_size < 1:
             raise ValueError("Beam search size cannot be less than 1!")
-
+        if self.durations_beam_size < 1:
+            raise ValueError("Durations beam size cannot be less than 1!")
+        
+        if self.preserve_alignments:
+            raise NotImplementedError("Preserving alignments is not implemented.")
+        
         if self.beam_size == 1:
             logging.info("Beam size of 1 was used, switching to sample level `greedy_search`")
             self.search_algorithm = self.greedy_search
@@ -244,6 +254,7 @@ class BeamTDTInfer(Typing):
             if KENLM_AVAILABLE:
                 self.ngram_lm = kenlm.Model(ngram_lm_model)
                 self.ngram_lm_alpha = ngram_lm_alpha
+                self.ngram_lm_blank_alpha = ngram_lm_blank_alpha
             else:
                 raise ImportError("KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None.")
         else:
@@ -333,6 +344,8 @@ class BeamTDTInfer(Typing):
         Returns:
             hyp: 1-best decoding results
         """
+        logging.info("""If beam size is 1, defaults to stateful greedy search.
+                     For accurate greedy results, please use GreedyTDTInfer or GreedyBatchedTDTInfer.""")
         raise NotImplementedError("greedy search has not been implemented")
 
     def default_beam_search(
@@ -343,13 +356,17 @@ class BeamTDTInfer(Typing):
         Args:
             encoder_outputs: encoder outputs (batch, features, timesteps).
             encoded_lengths: lengths of the encoder outputs.
+            partial_hypotheses: partial hypoteses.
             
         Returns:
             nbest_hyps: N-best decoding results
         """
+        if partial_hypotheses is not None:
+            raise NotImplementedError("Support for `partial_hypotheses` is not implemented.")
+        
         beam = min(self.beam_size, self.vocab_size)
         beam_k = min(beam, (self.vocab_size - 1))
-        durations_beam_k = min(beam, len(self.durations))
+        durations_beam_k = min(beam, len(self.durations), self.durations_beam_size)
 
         # Initialize zero vector states.
         decoder_state = self.decoder.initialize_state(encoder_outputs)
@@ -381,25 +398,26 @@ class BeamTDTInfer(Typing):
                 # Proccess non-blank tokens 
                 # Retrieve the top `beam_k` most probable tokens and the top `duration_beam_k` most probable durations.
                 # Then, select the top `beam_k` pairs of (token, duration) based on the highest combined probabilities.
+                # Note that indices are obtained in the flattened array.
                 logp_topks, logp_topk_idxs = logp[:-1].topk(beam_k, dim=-1)     # topk of tokens without blank token
                 durations_logp_topks, durations_logp_topk_idxs = durations_logp.topk(durations_beam_k, dim=-1)
-                
-                sum_logp_topks, sum_logp_topk_idxs = (
+                total_logp_topks, total_logp_topk_idxs = (
                     torch.cartesian_prod(durations_logp_topks, logp_topks)
                     .sum(dim=-1)
                     .topk(beam_k, dim=-1)
                 )
                 
                 # Loop over pairs of (token, duration) with highest combined log prob
-                for sum_logp_topk, sum_logp_topk_idx in zip(sum_logp_topks, sum_logp_topk_idxs):
-                    token_idx = sum_logp_topk_idx % beam_k
-                    duration_idx = sum_logp_topk_idx // beam_k
+                for total_logp_topk, total_logp_topk_idx in zip(total_logp_topks, total_logp_topk_idxs):
+                    # Restore indices from flattened array indices
+                    token_idx = int(logp_topk_idxs[total_logp_topk_idx % beam_k])
+                    duration_idx = int(durations_logp_topk_idxs[total_logp_topk_idx // beam_k])
                     
-                    duration = self.durations[int(durations_logp_topk_idxs[duration_idx])]
+                    duration = self.durations[duration_idx]
                     # Construct hypothesis for non-blank token
                     new_hyp = Hypothesis(
-                        score=float(max_hyp.score + sum_logp_topk),                         # update score
-                        y_sequence=max_hyp.y_sequence + [int(logp_topk_idxs[token_idx])],   # update hypothesis sequence
+                        score=float(max_hyp.score + total_logp_topk),                         # update score
+                        y_sequence=max_hyp.y_sequence + [token_idx],                        # update hypothesis sequence
                         dec_state=decoder_state,                                            # update decoder state
                         timestep=max_hyp.timestep + [time_idx + duration],                  # update timesteps
                         length=encoded_lengths,
@@ -423,12 +441,12 @@ class BeamTDTInfer(Typing):
                         
                     duration  = self.durations[int(duration_idx)]
                     new_hyp = Hypothesis(
-                            score = float(max_hyp.score + logp[self.blank] + durations_logp[duration_idx]),   # updating score
-                            y_sequence=max_hyp.y_sequence[:],                                               # no need to update sequence
-                            dec_state=max_hyp.dec_state,                                                    # no need to update decoder state
-                            timestep=max_hyp.timestep[:],                                                   # no need to update timesteps
+                            score = float(max_hyp.score + logp[self.blank] + durations_logp[duration_idx]),     # update score
+                            y_sequence=max_hyp.y_sequence[:],                                                   # no need to update sequence
+                            dec_state=max_hyp.dec_state,                                                        # no need to update decoder state
+                            timestep=max_hyp.timestep[:],                                                       # no need to update timesteps
                             length=encoded_lengths,
-                            last_frame=max_hyp.last_frame + duration)                                       # update frame idx where last token appeared
+                            last_frame=max_hyp.last_frame + duration)                                           # update frame idx where last token appeared
                     kept_hyps.append(new_hyp)
                 
                 # Remove duplicate hypotheses.
@@ -461,14 +479,16 @@ class BeamTDTInfer(Typing):
         Args:
             encoder_outputs: encoder outputs (batch, features, timesteps).
             encoded_lengths: lengths of the encoder outputs.
+            partial_hypotheses: partial hypotheses.
             
         Returns:
             nbest_hyps: N-best decoding results
-        """
-        debug_mode=False
-        # Prepare batched beam states.
+        """ 
+        if partial_hypotheses is not None:
+            raise NotImplementedError("Support for `partial_hypotheses` is not implemented.")
+        
         beam = min(self.beam_size, self.vocab_size)
-        duration_beam = min(self.max_candidates, len(self.durations))
+        duration_beam = min(self.max_candidates, self.durations_beam_size, len(self.durations))
         beam_state = self.decoder.initialize_state(torch.zeros(beam, device=encoder_outputs.device, dtype=encoder_outputs.dtype))  # [L, B, H], [L, B, H] for LSTMS
 
         # Initialize first hypothesis for the beam (blank).
@@ -493,20 +513,15 @@ class BeamTDTInfer(Typing):
             start_hyp_kept.ngram_lm_state = init_lm_state
         kept_hyps = [start_hyp_kept]
 
-        for t in range(encoded_lengths):
+        for time_idx in range(encoded_lengths):
             # Select current iteration hypotheses
-            hyps = [x for x in kept_hyps if x.last_frame == t]
-            kept_hyps = [x for x in kept_hyps if x.last_frame > t]
+            hyps = [x for x in kept_hyps if x.last_frame == time_idx]
+            kept_hyps = [x for x in kept_hyps if x.last_frame > time_idx]
             
             if len(hyps) == 0:
                 continue
-            
-            if debug_mode:
-                print(f"frame_idx: {t}")
-                for x in hyps:
-                    print(f"score={x.score}, y_seq={x.y_sequence}, timestep={x.timestep}")
                     
-            beam_encoder_output = encoder_outputs[:, t : t + 1]     # [1, 1, D]
+            beam_encoder_output = encoder_outputs[:, time_idx : time_idx + 1]     # [1, 1, D]
             # Perform prefix search to update hypothesis scores.
             if self.zero_duration_idx != None:
                 hyps = self.prefix_search(sorted(hyps, key=lambda x: len(x.y_sequence), reverse=True), beam_encoder_output, prefix_alpha=self.maes_prefix_alpha)  # type: List[Hypothesis]
@@ -524,38 +539,42 @@ class BeamTDTInfer(Typing):
                 beam_logp = torch.log_softmax(beam_logits[:, 0, 0, : -len(self.durations)], dim=-1)
                 beam_duration_logp = torch.log_softmax(beam_logits[:, 0, 0, -len(self.durations) :], dim=-1)
                 
+                # Retrieve the top `max_candidades` most probable tokens and the top `duration_beam` most probable durations.
+                # Then, select the top `max_candidates` pairs of (token, duration) based on the highest combined probabilities.
+                # Note that indices are obtained in flattened array.
                 beam_logp_topks, beam_idx_topks = beam_logp.topk(self.max_candidates, dim=-1)
                 beam_duration_logp_topks, beam_duration_idx_topks = beam_duration_logp.topk(duration_beam, dim=-1)
-                beam_sum_logp = (beam_duration_logp_topks[:, :, None] + beam_logp_topks[:, None, :]).view(len(hyps), -1)
-                beam_sum_logp_topks, beam_sum_logp_topk_idxs = beam_sum_logp.topk(self.max_candidates, dim=-1)
+                beam_total_logp = (beam_duration_logp_topks[:, :, None] + beam_logp_topks[:, None, :]).view(len(hyps), -1)  # [B, MAX_CANDIDATES+DURATION_BEAM]
+                beam_total_logp_topks, beam_total_logp_topk_idxs = beam_total_logp.topk(self.max_candidates, dim=-1)        # [B, MAX_CANDIDATES]
 
-                beam_best_expansion_scores = beam_sum_logp_topks.max(dim=-1, keepdim=True).values
-                beam_masks = beam_sum_logp_topks >= beam_best_expansion_scores - self.maes_expansion_gamma
-                beam_kexpansions_idxs = [sum_logp_topk_idxs[mask] for sum_logp_topk_idxs, mask in zip(beam_sum_logp_topk_idxs, beam_masks)]
-                beam_kexpansions = []
-                for beam_idx in range(len(hyps)):
-                    beam_kexpansions.append([(int(beam_idx_topks[beam_idx][idx % self.max_candidates]), int(beam_duration_idx_topks[beam_idx][idx // self.max_candidates]), float(beam_sum_logp[beam_idx][idx])) for idx in beam_kexpansions_idxs[beam_idx]])
-                    # beam_kexpansions_sum_logps = [beam_sum_logp_topks[beam_kexpansions_idxs]]
-                    # beam_kexpansions_token_idxs = beam_idx_topks[:, beam_kexpansions_idxs // self.max_candidates]
-                    # beam_kexpansions_duration_idxs = beam_duration_idx_topks[:, beam_kexpansions_idxs % self.max_candidates]
+                # Prune hypothesis to obtain k expansions
+                beam_best_expansion_scores = beam_total_logp_topks.max(dim=-1, keepdim=True).values
+                beam_masks = beam_total_logp_topks >= beam_best_expansion_scores - self.maes_expansion_gamma
+                beam_kexpansions_idxs = [sum_logp_topk_idxs[mask] for sum_logp_topk_idxs, mask in zip(beam_total_logp_topk_idxs, beam_masks)]
                 
-                list_exp = []                                               # List that contains the hypothesis expansion
-                for i, hyp in enumerate(hyps):                              # For all hypotheses
-                    for k, duration_idx, new_score in beam_kexpansions[i]:  # For all expansion within these hypothesis
+                list_exp = []  # List that contains the hypothesis expansion
+                for hyp_idx, hyp in enumerate(hyps):  # For all hypothesis
+                    # Restore indices in logp and durations_logp arrays from flattened indices.
+                    hyp_expansions = [(
+                        int(beam_idx_topks[hyp_idx][idx % self.max_candidates]),
+                        int(beam_duration_idx_topks[hyp_idx][idx // self.max_candidates]),
+                        float(beam_total_logp[hyp_idx][idx]))
+                        for idx in beam_kexpansions_idxs[hyp_idx]]
+                    for k, duration_idx, total_logp in hyp_expansions:  # For all expansions within this hypothesis
                         # Forcing blank token to have non-zero duration
                         # Possible duplicates are removed further
-                        if k == self.blank and self.zero_duration_idx and duration_idx == self.zero_duration_idx:
-                            duration_idx = self.min_non_zero_duration_idx
+                        if k == self.blank and self.zero_duration_idx != None and duration_idx == self.zero_duration_idx:
+                            duration_idx = int(self.min_non_zero_duration_idx)
                             
                         duration = self.durations[duration_idx]
                         
                         new_hyp = Hypothesis(
-                            score = hyp.score + new_score,
+                            score = hyp.score + total_logp,
                             y_sequence=hyp.y_sequence[:],
                             dec_out=hyp.dec_out[:],
                             dec_state=hyp.dec_state,
                             timestep=hyp.timestep[:],
-                            length=t,
+                            length=time_idx,
                             last_frame=int(hyp.last_frame + duration))
                         
                         if self.ngram_lm:
@@ -563,38 +582,36 @@ class BeamTDTInfer(Typing):
 
                         # If the expansion was for blank
                         if k == self.blank:
+                            # Approximate LM score from blank from acoustic score
                             if self.ngram_lm:
-                                new_hyp.score += self.ngram_lm_alpha * (float(beam_logp[i, self.blank]) + float(beam_duration_logp[i, duration_idx]))
+                                new_hyp.score += self.ngram_lm_blank_alpha * self.ngram_lm_alpha * total_logp
                             list_b.append(new_hyp)
                         else:
                             new_hyp.y_sequence.append(int(k))
-                            new_hyp.timestep.append(t)
+                            new_hyp.timestep.append(time_idx)
                             
-                            # Setup ngram LM:
                             if self.ngram_lm:
                                 lm_score, new_hyp.ngram_lm_state = self.compute_ngram_score(hyp.ngram_lm_state, int(k))
                                 new_hyp.score += self.ngram_lm_alpha * lm_score
                             
-                            # if token duration is 0 adding to expansions list
+                            # If token duration is 0 adding to expansions list
                             if duration == 0 and (new_hyp.y_sequence + [int(k)]) not in duplication_check:
                                 list_exp.append(new_hyp)
                             else:
                                 list_nb.append(new_hyp)
                 
-                # updating states for hypothesis that do not end with blank
+                # Update states for hypothesis that do not end with blank
                 hyps_to_update = list_nb + list_exp
                 if len(hyps_to_update) > 0:
-                    if debug_mode:
-                        print("hyp to update", [(float(hyp.dec_state[0][0][0]), hyp.y_sequence, hyp.last_frame) for hyp in hyps_to_update])
                     # Initialize the beam states for the hypotheses in the expannsion list
                     beam_state = self.decoder.batch_initialize_states(beam_state, [hyp.dec_state for hyp in hyps_to_update])
 
                     # Decode a batch of beam states and scores
                     beam_decoder_output, beam_state, _ = self.decoder.batch_score_hypothesis(hyps_to_update, cache, beam_state,)
-                    for i, hyp in enumerate(hyps_to_update):
+                    for hyp_idx, hyp in enumerate(hyps_to_update):
                         # Preserve the decoder logits for the current beam
-                        hyp.dec_out.append(beam_decoder_output[i])
-                        hyp.dec_state = self.decoder.batch_select_state(beam_state, i)
+                        hyp.dec_out.append(beam_decoder_output[hyp_idx])
+                        hyp.dec_state = self.decoder.batch_select_state(beam_state, hyp_idx)
                 
                 # If there were no token expansions in any of the hypotheses,
                 # Early exit
@@ -616,30 +633,30 @@ class BeamTDTInfer(Typing):
                         beam_logits = self.joint.joint(beam_encoder_output, beam_decoder_output) / self.softmax_temperature
                         beam_logp = torch.log_softmax(beam_logits[:, 0, 0, : -len(self.durations)], dim=-1)
                         
+                        # Get most probable durations
                         beam_duration_logp = torch.log_softmax(beam_logits[:, 0, 0, -len(self.durations) :], dim=-1)
-                        beam_max_duration_logp, beam_max_duration_idx = torch.max(beam_duration_logp, dim=-1)
+                        _, beam_max_duration_idx = torch.max(beam_duration_logp, dim=-1)
                         
                         # For all expansions, add the score for the blank label
-                        for i, hyp in enumerate(list_exp):
-                            duration_idx = int(beam_max_duration_idx[i])
+                        for hyp_idx, hyp in enumerate(list_exp):
+                            # If zero duration was obtained, change to the closest non-zero duration
+                            duration_idx = int(beam_max_duration_idx[hyp_idx])
                             if duration_idx == self.zero_duration_idx:
                                 duration_idx = self.min_non_zero_duration_idx
-                            hyp.score += float(beam_logp[i, self.blank] + beam_duration_logp[i, duration_idx])
+                                
+                            total_logp = float(beam_logp[hyp_idx, self.blank] + beam_duration_logp[hyp_idx, duration_idx])
+                            hyp.score += total_logp
                             hyp.last_frame += self.durations[int(duration_idx)]
+                            
+                            if self.ngram_lm:
+                                hyp.score += self.ngram_lm_blank_alpha * self.ngram_lm_alpha * total_logp
+                                
                         # Finally, update the kept hypothesis of sorted top Beam candidates
                         kept_hyps = kept_hyps + list_b + list_exp + list_nb
                         kept_hyps = self.remove_duplicate_hypotheses(kept_hyps)
                         kept_hyps = sorted(kept_hyps, key=lambda x: x.score, reverse=True)[:beam]
                         
-            if debug_mode:
-                for x in kept_hyps:        
-                    print(f"kept score={x.score}, seq={x.y_sequence}, timestep={x.timestep}, last_frame={x.last_frame}, dec_state[0]={x.dec_state[0][0][0]}")
-
-        if debug_mode:
-            print("#"*20)
-            for x in kept_hyps:
-                print(f"score={x.score}, y_seq={x.y_sequence}, last_frame={x.last_frame}")
-            # Sort the hypothesis with best scores
+        # Sort the hypothesis with best scores
         return self.sort_nbest(kept_hyps)
 
     def remove_duplicate_hypotheses(self, hypotheses):
@@ -748,52 +765,6 @@ class BeamTDTInfer(Typing):
         lm_score *= 1.0 / np.log10(np.e)
 
         return lm_score, next_state
-    
-    def select_k_expansions_durations(
-        self,
-        hyps: List[Hypothesis],
-        topk_idxs: torch.Tensor,
-        topk_logps: torch.Tensor,
-        topk_duration_idxs: torch.Tensor,
-        topk_duration_logps: torch.Tensor,
-        gamma: float) -> List[Tuple[int, Hypothesis]]:
-        """
-        Obtained from https://github.com/espnet/espnet
-
-        Return K hypotheses candidates for expansion from a list of hypothesis.
-        K candidates are selected according to the extended hypotheses probabilities
-        and a prune-by-value method. Where K is equal to beam_size + beta.
-
-        Args:
-            hyps: Hypotheses.
-            topk_idxs: Indices of candidates hypothesis. Shape = [B, num_candidates]
-            topk_logps: Log-probabilities for hypotheses expansions. Shape = [B, V + 1]
-            gamma: Allowed logp difference for prune-by-value method.
-            beta: Number of additional candidates to store.
-
-        Return:
-            k_expansions: Best K expansion hypotheses candidates.
-        """
-        k_expansions = []
-
-        for i, hyp in enumerate(hyps):
-            hyp_i = [] # ith hypothesis expansions list
-            
-            # for each token in topk
-            for idx, logp in zip(topk_idxs[i], topk_logps[i]):
-                # for each duration in topk
-                for duration_idx, duration_logp in zip(topk_duration_idxs[i], topk_duration_logps[i]):
-                    hyp_i.append((int(idx), int(duration_idx), hyp.score + float(logp + duration_logp)))
-            
-            # best hypothesis (with lowest score)
-            best_hyp_i = max(hyp_i, key=lambda x: x[2])
-            best_score = best_hyp_i[2]
-
-            # list of hypothesis that have scores in range [best_score - gamma, best_score]
-            expansions = sorted(filter(lambda x: (best_score - gamma) <= x[2], hyp_i), key=lambda x: x[2])
-
-            k_expansions.append(expansions)
-        return k_expansions
     
     def sort_nbest(self, hyps: List[Hypothesis]) -> List[Hypothesis]:
         """Sort hypotheses by score or score given sequence length.

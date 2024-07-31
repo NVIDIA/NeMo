@@ -107,9 +107,6 @@ class Hypothesis:
     tokens: Optional[Union[List[int], torch.Tensor]] = None
     last_token: Optional[torch.Tensor] = None
     last_frame: Optional[int] = None
-    token_scores: Union[List[float], torch.Tensor] = None
-    blank_scores: Union[List[float], torch.Tensor] = None
-    lm_scores: Union[List[float], torch.Tensor] = None
     
     @property
     def non_blank_frame_confidence(self) -> List[float]:
