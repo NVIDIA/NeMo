@@ -11,7 +11,7 @@ import torch
 from lhotse import compute_num_samples
 from omegaconf import OmegaConf
 
-from nemo.core.classes.common import Model
+from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
 
@@ -128,6 +128,8 @@ class ProfilingBatchGenerator:
             names.append(item.get("name"))
         args = [elem for name, elem in zip(names, batch) if name is None]
         kwargs = {name: elem for name, elem in zip(names, batch) if name is not None}
+        if not kwargs and self.schema["cls"] == tuple:
+            return tuple(args)
         return self.schema["cls"](*args, **kwargs)
 
     @property
@@ -339,7 +341,7 @@ def oomptimizer(
             config_path is None and module_name is None
         ), "--pretrained-name cannot be used together with --module-name/--config-path"
         print(f"Intializing ASR model from pretrained checkpoint {pretrained_name}.")
-        model = Model.from_pretrained(pretrained_name, trainer=trainer).to(device)
+        model = ASRModel.from_pretrained(pretrained_name, trainer=trainer).to(device)
     else:
         assert config_path is not None, "--module-name requires --config-path to be specified as well."
         assert module_name is not None, "--config-path requires --module-name to be specified as well."
@@ -387,18 +389,21 @@ def oomptimizer(
             else:
                 input_len = bin
                 output_len = ratio * input_len
+            sampling_rate = getattr(
+                model, "sample_rate", 16000
+            )  # TODO: may need to extend schema for broader model coverage
             match modalities:
                 case "audio", "audio":
                     return (
-                        compute_num_samples(input_len, sampling_rate=model.sample_rate),
-                        compute_num_samples(output_len, sampling_rate=model.sample_rate),
+                        compute_num_samples(input_len, sampling_rate=sampling_rate),
+                        compute_num_samples(output_len, sampling_rate=sampling_rate),
                     )
                 case "audio", "text":
-                    return (compute_num_samples(input_len, sampling_rate=model.sample_rate), output_len)
+                    return (compute_num_samples(input_len, sampling_rate=sampling_rate), output_len)
                 case "text", "audio":
                     return (
                         input_len,
-                        compute_num_samples(output_len, sampling_rate=model.sample_rate),
+                        compute_num_samples(output_len, sampling_rate=sampling_rate),
                     )
                 case "text", "text":
                     return input_len, output_len
@@ -433,7 +438,7 @@ def oomptimizer(
                 print(f"\tCurrent gap: {gen.current_rel_gap}. {extra_msg}", end=" ")
                 optimizer.zero_grad()
                 out = model.training_step(batch, batch_idx)
-                out['loss'].backward()
+                out['loss'].sum().backward()
                 optimizer.step()
             except torch.cuda.OutOfMemoryError as e:
                 print(f"- OOM!")
