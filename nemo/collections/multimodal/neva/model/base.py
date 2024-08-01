@@ -283,13 +283,13 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             # TODO: Add transformer_layer_spec when we update mcore
             optim: Optional[OptimizerModule] = None,
             tokenizer: Optional["TokenizerSpec"] = None,
-            vision_processor: Optional = None,  # TODO(yuya): add class type
+            image_processor: Optional = None,  # TODO(yuya): add class type
             model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
-        self.vision_processor = vision_processor
+        self.image_processor = image_processor
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform

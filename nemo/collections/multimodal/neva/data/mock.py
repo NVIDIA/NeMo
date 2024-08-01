@@ -14,7 +14,8 @@ class MockDataModule(pl.LightningDataModule):
     def __init__(
         self,
         seq_length: int = 2048,
-        processor: Optional = None,
+        tokenizer: Optional = None,
+        image_processor: Optional = None,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         rampup_batch_size: Optional[List[int]] = None,
@@ -34,8 +35,11 @@ class MockDataModule(pl.LightningDataModule):
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
 
-        from transformers import AutoProcessor
-        self.processor = processor or AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
+        if tokenizer is None or image_processor is None:
+            from transformers import AutoProcessor
+            processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
+            self.tokenizer = tokenizer or processor.tokenizer
+            self.image_processor = image_processor or processor.image_processor
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             micro_batch_size=micro_batch_size,
@@ -44,9 +48,9 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
-        self._train_ds = _MockNevaDataset(self.processor, "train", self.num_train_samples, self.seq_length)
-        self._validation_ds = _MockNevaDataset(self.processor, "valid", self.num_val_samples, self.seq_length)
-        self._test_ds = _MockNevaDataset(self.processor, "test", self.num_test_samples, self.seq_length)
+        self._train_ds = _MockNevaDataset(self.tokenizer, self.image_processor, "train", self.num_train_samples, self.seq_length)
+        self._validation_ds = _MockNevaDataset(self.tokenizer, self.image_processor, "valid", self.num_val_samples, self.seq_length)
+        self._test_ds = _MockNevaDataset(self.tokenizer, self.image_processor, "test", self.num_test_samples, self.seq_length)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         if not hasattr(self, "_train_ds"):
@@ -77,7 +81,8 @@ class MockDataModule(pl.LightningDataModule):
 class _MockNevaDataset(Dataset):
     def __init__(
         self,
-        processor,
+        tokenizer,
+        image_processor,
         name: str,
         num_samples: int,
         seq_length: int,
@@ -87,12 +92,11 @@ class _MockNevaDataset(Dataset):
         self.name = name
         self.seq_length = seq_length
 
-        tokenizer = processor.tokenizer
         self.vocab_size = tokenizer.vocab_size
         if len(getattr(tokenizer, "added_tokens_encoder", {})):
             self.vocab_size = max(max(tokenizer.added_tokens_decoder) + 1, self.vocab_size)
 
-        crop_size = processor.image_processor.crop_size
+        crop_size = image_processor.crop_size
         self.image_height, self.image_width = crop_size["height"], crop_size["width"]
 
         self.length = num_samples
