@@ -2,8 +2,11 @@ from io import BytesIO
 from pathlib import Path
 
 import click
+import lhotse
+import torch.utils.data
 from lhotse import CutSet, MonoCut
 from lhotse.audio.backend import LibsndfileBackend
+from lhotse.dataset import DynamicCutSampler, IterableDatasetWrapper
 from lhotse.shar import JsonlShardWriter, TarWriter
 from omegaconf import OmegaConf
 
@@ -20,7 +23,7 @@ from nemo.collections.common.data.lhotse.dataloader import LhotseDataLoadingConf
     "-f",
     "--output-format",
     type=click.Choice(["lhotse_shar", "nemo_tarred"]),
-    default="lhotse_shar",
+    default="nemo_tarred",
     help="Which format should we use to save the filtered tarred data.",
 )
 @click.option("-s", "--shard-size", type=int, default=1000, help="Desired number of examples per output shard.")
@@ -41,10 +44,11 @@ def filter_tarred(
     This is useful if you want to "re-tar" an existing tarred dataset in order to efficiently
     read some subset of it.
     """
+    lhotse.set_dill_enabled(True)
     all_cuts = read_cutset(manifest_filepath, tarred_audio_filepaths)
     keep_cuts = read_cutset(filtered_manifest_filepath)
     keep_ids = frozenset(keep_cuts.ids)
-    filtered_cuts = all_cuts.filter(lambda c: c.id in keep_ids)
+    filtered_cuts = bg_load(all_cuts.filter(lambda c: c.id in keep_ids))
     if output_format == "lhotse_shar":
         filtered_cuts.to_shar(
             output_dir=output_dir, fields={"recording": "flac"}, shard_size=shard_size, num_jobs=num_jobs
@@ -98,8 +102,33 @@ def export_to_nemo_tarred(cuts: CutSet, output_dir: str, shard_size: int) -> Non
             if cut.custom is not None:
                 # Ensure if we export anything custom, these are only simple built-in types compatible with JSON.
                 ans.update({k: v for k, v in cut.custom.items() if isinstance(v, (int, float, str, list, dict))})
+            # Set the right shard_id.
+            shard_id = max(0, mw.num_shards - 1)
+            if mw.num_items > 0 and mw.num_items % mw.shard_size == 0:
+                shard_id += 1
+            ans["shard_id"] = shard_id
+            # Write both items.
             aw.write(audio_name, audio)
             mw.write(ans)
+
+
+class Identity(torch.utils.data.Dataset):
+    def __getitem__(self, x):
+        cut = x[0]
+        for k in ["dataloading_info", "shard_id"]:
+            cut.custom.pop(k, None)
+        return cut
+
+
+def bg_load(cuts: CutSet) -> CutSet:
+    return CutSet(
+        torch.utils.data.DataLoader(
+            IterableDatasetWrapper(Identity(), DynamicCutSampler(cuts, max_cuts=1)),
+            batch_size=None,
+            num_workers=1,
+            prefetch_factor=10,
+        )
+    )
 
 
 if __name__ == '__main__':
