@@ -1,9 +1,10 @@
-import torch
 from collections import defaultdict
+from typing import Any
+
+import torch
 from megatron.core.num_microbatches_calculator import get_num_microbatches
 from pytorch_lightning.callbacks.progress import ProgressBar
 from pytorch_lightning.utilities.types import STEP_OUTPUT
-from typing import Any
 from typing_extensions import override
 
 
@@ -34,7 +35,7 @@ class MegatronProgress(ProgressBar):
     # rather than averaging over last log_interval steps
     _skip_accumulate_metrics = ["global_step"]
 
-    total_metrics_dict = defaultdict(lambda: 0.)
+    total_metrics_dict = defaultdict(lambda: 0.0)
 
     def format_string(self, prefix, metrics):
         log_string = prefix
@@ -91,7 +92,7 @@ class MegatronProgress(ProgressBar):
 
     @skip_accumulate_metrics.setter
     def skip_accumulate_metrics(self, val):
-         self._skip_accumulate_metrics = val
+        self._skip_accumulate_metrics = val
 
     @override
     def on_sanity_check_start(self, *_: Any) -> None:
@@ -126,7 +127,7 @@ class MegatronProgress(ProgressBar):
             log_string = self.format_string(prefix, self.average_metrics_dict)
             print_rank_last(log_string)
 
-            self.total_metrics_dict = defaultdict(lambda: 0.)
+            self.total_metrics_dict = defaultdict(lambda: 0.0)
 
     @override
     def on_validation_batch_start(
