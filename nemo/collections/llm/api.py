@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Union
 
 import pytorch_lightning as pl
-import uvicorn
 from typing_extensions import Annotated
 
 from nemo.collections.llm.utils import Config, task
