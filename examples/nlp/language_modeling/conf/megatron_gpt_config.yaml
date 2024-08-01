@@ -86,7 +86,7 @@ model:
   expert_model_parallel_size: 1 # expert model parallelism
 
   # model architecture
-  encoder_seq_length: 8192
+  encoder_seq_length: 512
   max_position_embeddings: ${.encoder_seq_length}
   num_layers: 12
   hidden_size: 768
