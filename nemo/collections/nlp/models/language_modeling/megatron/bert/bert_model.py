@@ -353,7 +353,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
                 self.pooler = Pooler(
                     self.config.hidden_size, self.config.init_method, self.config, self.config.sequence_parallel
                 )
-                
+
             self.lm_head = MCoreBertLMHead(
                 self.config.hidden_size,
                 self.config,
