@@ -11,13 +11,14 @@ from fiddle._src.experimental import serialization
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
 from pytorch_lightning.loggers import Logger, TensorBoardLogger, WandbLogger
 
+from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
 
 @dataclass
-class NeMoLogger:
+class NeMoLogger(IOMixin):
     """Logger for NeMo runs.
 
     Args:
@@ -134,14 +135,14 @@ class NeMoLogger:
                 loggers = [trainer.logger] + loggers
             trainer._logger_connector.configure_logger(loggers)
 
-        if trainer.logger is not None and self.update_logger_directory:
-            logging.warning(
-                f'"update_logger_directory" is True. Overwriting logger "save_dir" to {dir} and "name" to {self.name}'
-            )
-            trainer.logger._root_dir = dir
-            trainer.logger._name = self.name
-
-        trainer.logger._version = version or ""
+        if trainer.logger is not None:
+            trainer.logger._version = version or ""
+            if self.update_logger_directory:
+                logging.warning(
+                    f'"update_logger_directory" is True. Overwriting logger "save_dir" to {dir} and "name" to {self.name}'
+                )
+                trainer.logger._root_dir = dir
+                trainer.logger._name = self.name
 
     def _setup_trainer_model_checkpoint(self, trainer, log_dir, ckpt=None):
         if ckpt:
@@ -219,6 +220,3 @@ class NeMoLogger:
 
         app_state.files_to_move = files_to_move
         app_state.files_to_copy = self.files_to_copy
-
-    def teardown(self):
-        pass

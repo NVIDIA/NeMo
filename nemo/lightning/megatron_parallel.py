@@ -24,9 +24,11 @@ from typing import (
 
 import torch
 import torch.distributed
+from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
+from pytorch_lightning.utilities import move_data_to_device
 from torch import Tensor, nn
 from typing_extensions import override
 
@@ -42,19 +44,53 @@ class PrecisionPluginProtocol(Protocol[DataT]):
 
 
 def default_data_step(dataloader_iter: Iterator[DataT]) -> DataT:
+    """
+    Moves the data to a device.
+
+    In this case we unpack the dataloader iterator. There may be a wrapper on the dataloader
+    iter from here: https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/fabric/strategies.py#L441.
+
+    This will not subset the data for your with context parallel so please override this function if you
+    want to use context parallel.
+
+    Examples:
+        If the dataloader_iter returns: [Tuple[<tensor>, <int>, <int>]] -> move to device
+        If the dataloader_iter returns: [<tensor>, <tensor>] -> move to device
+
+    Returns:
+        DataT: The data moved to the device.
+    """
+    if parallel_state.get_context_parallel_world_size() > 1:
+        raise ValueError(
+            "Default data step is being used in a context parallel environment."
+            "Please define your own data step that appropriately slices the data for context parallel."
+        )
+
     batch = next(dataloader_iter)
 
+    # If its wrapped in a tuple, unpack it.
     if isinstance(batch, tuple) and len(batch) == 3:
         batch = batch[0]
 
-    if isinstance(batch, dict):
-        batch = {k: v.cuda() for k, v in batch.items()}
-
-    return batch
+    return move_data_to_device(batch, torch.cuda.current_device())
 
 
 def default_forward_step(model: nn.Module, batch, *args, **kwargs) -> torch.Tensor:
     return model(batch, *args, **kwargs)
+
+
+def extract_ddp_funcs(ddp_config, pipeline):
+    no_sync_func, grad_sync_func = None, None
+
+    if getattr(ddp_config, "overlap_grad_reduce", False):
+        no_sync_func = [model_chunk.no_sync for model_chunk in pipeline]
+        no_sync_func = no_sync_func[0] if len(pipeline) == 1 else no_sync_func
+        # TODO(@akoumparouli): why is True default here?
+        if getattr(ddp_config, "delay_grad_reduce", True):
+            grad_sync_func = [model_chunk.start_grad_sync for model_chunk in pipeline]
+            grad_sync_func = grad_sync_func[0] if len(pipeline) == 1 else grad_sync_func
+
+    return no_sync_func, grad_sync_func
 
 
 class MegatronParallel(nn.ModuleList, Generic[ModelT]):
@@ -114,8 +150,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         cpu: bool = False,
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
-        from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
         from megatron.core import parallel_state
+        from megatron.core.tensor_parallel import set_defaults_if_not_set_tensor_model_parallel_attributes
 
         _pipeline: List[nn.Module]
         if isinstance(pipeline, nn.ModuleList):
@@ -137,61 +173,15 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                         _model.configure_model()
                     _pipeline.append(_model)
 
-        if convert_module_fn:
-            for i in range(len(_pipeline)):
-                _pipeline[i] = convert_module_fn(_pipeline[i])
-
-        if isinstance(ddp_config, DistributedDataParallelConfig):
-            for model_chunk_idx, model_chunk in enumerate(_pipeline):
-                module = model_chunk.module
-
-                ddp = DDP(
-                    module.config,
-                    ddp_config,
-                    module,
-                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
-                    # Turn off bucketing for model_chunk 2 onwards, since communication for these
-                    # model chunks is overlapped with compute anyway.
-                    disable_bucketing=(model_chunk_idx > 0),
-                )
-                model_chunk.module = ddp
-                model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
-                model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
-
-        for i, model_module in enumerate(_pipeline):
-            if not cpu:
-                model_module.cuda(torch.cuda.current_device())
-
-            for param in model_module.parameters():
-                set_defaults_if_not_set_tensor_model_parallel_attributes(param)
-
-            if hasattr(model_module, "configure_model"):
-                if not hasattr(model_module, "set_input_tensor"):
-                    if hasattr(model_module.module, "set_input_tensor"):
-                        model_module.set_input_tensor = model_module.module.set_input_tensor
-                    else:
-                        # TODO: What to do here?
-                        pass
-
-            # Print number of parameters.
-            if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
-                from nemo.utils import logging
-
-                msg = (
-                    f" > number of parameters on (tensor, pipeline) model parallel rank "
-                    f"({parallel_state.get_tensor_model_parallel_rank()}, {parallel_state.get_pipeline_model_parallel_rank()}): "
-                    f"{_calc_number_of_params(_pipeline)}"
-                )
-                logging.info(msg)
-
         super().__init__(_pipeline)
         self.precision_plugin = precision_plugin
+        self._cpu = cpu
         self.callbacks = callbacks or CallbackConnector()
         self.data_step = data_step or default_data_step
         self.forward_step = forward_step or default_forward_step
         self.loss_reduction: MegatronLossReduction = loss_reduction
         self.ddp_config = ddp_config
+        self.convert_module_fn = convert_module_fn
 
     def forward(
         self,
@@ -279,7 +269,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             if forward_only:
                 loss_mean = cast(torch.Tensor, [])
             else:
-                loss_mean = torch.tensor(0.0).cuda()
+                loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
 
         self.callbacks.event("on_megatron_log_step_end", **context)
         self.callbacks.event("on_megatron_step_end", **context)
@@ -454,6 +444,82 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         raise ValueError("Cannot infer `num_microbatches` from data, please specify it manually")
 
+    def init_model_parallel(self):
+        from megatron.core import parallel_state
+        from megatron.core.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
+
+        for model_module in self:
+            if not self._cpu:
+                model_module.cuda(torch.cuda.current_device())
+
+            for param in model_module.parameters():
+                set_defaults_if_not_set_tensor_model_parallel_attributes(param)
+
+            if hasattr(model_module, "configure_model"):
+                if not hasattr(model_module, "set_input_tensor"):
+                    if hasattr(model_module.module, "set_input_tensor"):
+                        model_module.set_input_tensor = model_module.module.set_input_tensor
+                    else:
+                        # TODO: What to do here?
+                        pass
+
+            # Print number of parameters.
+            if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
+                from nemo.utils import logging
+
+                num_params = _calc_number_of_params(list(self))
+                num_trainable_params = _calc_number_of_trainable_params(list(self))
+
+                msg = (
+                    f" > number of parameters on (tensor, pipeline) model parallel rank "
+                    f"({parallel_state.get_tensor_model_parallel_rank()}, {parallel_state.get_pipeline_model_parallel_rank()}): "
+                    f"{num_params}"
+                )
+                logging.info(msg)
+
+                if num_params != num_trainable_params:
+                    logging.info(
+                        f" > number of trainable parameters: {num_trainable_params} ({num_trainable_params / num_params:.2%} of total)"
+                    )
+
+        if self.convert_module_fn:
+            self.apply_convert_module_fn()
+
+        self.init_ddp()
+
+    def apply_convert_module_fn(self):
+        for i in range(len(self)):
+            self[i] = self.convert_module_fn(self[i])
+
+    def init_ddp(self):
+        if not isinstance(self.ddp_config, DistributedDataParallelConfig):
+            return
+
+        from megatron.core import parallel_state
+
+        for model_chunk_idx, model_chunk in enumerate(self):
+            module = model_chunk.module
+
+            ddp = DDP(
+                module.config,
+                self.ddp_config,
+                module,
+                data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                # Turn off bucketing for model_chunk 2 onwards, since communication for these
+                # model chunks is overlapped with compute anyway.
+                disable_bucketing=(model_chunk_idx > 0),
+            )
+            model_chunk.module = ddp
+            model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
+            model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
+
+        # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
+        no_sync_func, grad_sync_func = extract_ddp_funcs(self.ddp_config, self)
+        for module in self:
+            module.config.no_sync_func = no_sync_func
+            module.config.grad_sync_func = grad_sync_func
+
     def _build_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
         if "self" in context:
             del context["self"]
@@ -505,7 +571,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 # virtual pipline rank must be set so that GPTModel returns the correct sharded state dict
                 parallel_state.set_virtual_pipeline_model_parallel_rank(index)
                 module_sharded_state_dict = self._module_sharded_state_dict(module)
-                sharded_state_dict[f"megatron_module_{index}"] = module_sharded_state_dict
+                sharded_state_dict[f"model_{index}"] = module_sharded_state_dict
             else:
                 module_sharded_state_dict = self._module_sharded_state_dict(module)
                 sharded_state_dict.update(module_sharded_state_dict)
@@ -544,18 +610,21 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
     @override
     def __getattr__(self, item: Any) -> Any:
-        if len(self) == 0:
-            return super().__getattr__(item)
-
         try:
-            # __getattr__ gets called as a last resort if the attribute does not exist
-            # call nn.Module's implementation first
+            # First, try to get the attribute from the superclass (nn.ModuleList)
             return super().__getattr__(item)
         except AttributeError:
-            # If the attribute is not available on the _FabricModule wrapper, redirect to the wrapped nn.Module
-            attr = getattr(self._modules[self._get_abs_string_index(0)], item)
+            # If not found in superclass, check if we have any modules
+            if len(self) == 0:
+                raise AttributeError(
+                    f"'{self.__class__.__name__}' object has no attribute '{item}' and contains no modules"
+                )
 
-            return attr
+            # Try to get it from the first module
+            try:
+                return getattr(self._modules[self._get_abs_string_index(0)], item)
+            except AttributeError:
+                raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}'")
 
 
 class _ModuleStepFunction:
@@ -894,6 +963,12 @@ def _calc_number_of_params(model: List[nn.Module]) -> int:
     return sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
 
 
+def _calc_number_of_trainable_params(model: List[nn.Module]) -> int:
+    assert isinstance(model, list)
+
+    return sum([sum([p.numel() for p in model_module.parameters() if p.requires_grad]) for model_module in model])
+
+
 def is_list_of_iterators(var) -> bool:
     if not isinstance(var, list):
         return False
@@ -997,7 +1072,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
             loss_sum_and_ub_size_all_gpu = torch.cat(
                 [
                     loss_sum_for_ub.clone().detach().view(1),
-                    torch.tensor([num_valid_tokens_in_ub]).cuda().clone().detach(),
+                    torch.tensor([num_valid_tokens_in_ub], device=torch.cuda.current_device()).clone().detach(),
                 ]
             )
             torch.distributed.all_reduce(loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group())
@@ -1024,11 +1099,11 @@ class MaskedTokenLossReduction(MegatronLossReduction):
             loss_sum = (
                 torch.vstack(loss_sum_tensors_list).sum(dim=0)
                 if len(loss_sum_tensors_list) > 0
-                else torch.tensor([0.0, 0.0]).cuda()
+                else torch.tensor([0.0, 0.0], device=torch.cuda.current_device())
             )
             return loss_sum
 
-        return torch.tensor(0.0).cuda()
+        return torch.tensor(0.0, device=torch.cuda.current_device())
 
 
 def masked_token_loss(tensor: Tensor, mask: Tensor):

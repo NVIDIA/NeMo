@@ -789,6 +789,7 @@ class UNetModel(nn.Module):
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
                 self._feature_size += ch
                 input_block_chans.append(ch)
+
             if level != len(channel_mult) - 1:
                 out_ch = ch
                 self.input_blocks.append(
@@ -954,6 +955,7 @@ class UNetModel(nn.Module):
             )
 
         if from_pretrained is not None:
+            logging.info(f"Attempting to load pretrained unet from {from_pretrained}")
             if from_pretrained.endswith('safetensors'):
                 from safetensors.torch import load_file as load_safetensors
 
@@ -969,6 +971,8 @@ class UNetModel(nn.Module):
                 )
                 logging.info(f"Missing keys: {missing_key}")
                 logging.info(f"Unexpected keys: {unexpected_keys}")
+            else:
+                logging.info(f"There are no missing keys, model loaded properly!")
 
         if unet_precision == "fp16-mixed":  # AMP O2
             self.convert_to_fp16()
@@ -1021,6 +1025,16 @@ class UNetModel(nn.Module):
                     .replace('conv2', 'out_layers.3')
                     .replace('conv_shortcut', 'skip_connection')
                 )
+                ## Rohit: I've changed this to make sure it is compatible
+                # post_fix = (
+                #     key_[25:]
+                #     .replace('time_emb_proj', 'emb_layers.1')
+                #     .replace('norm1', 'in_layers.0')
+                #     .replace('norm2', 'out_layers.0')
+                #     .replace('conv1', 'in_layers.1')
+                #     .replace('conv2', 'out_layers.2')
+                #     .replace('conv_shortcut', 'skip_connection')
+                # )
                 res_dict["input_blocks." + str(target_id) + '.0.' + post_fix] = value_
             elif "attentions" in key_:
                 id_1 = int(key_[26])
@@ -1168,7 +1182,7 @@ class UNetModel(nn.Module):
         return new_state_dict
 
     def _state_key_mapping(self, state_dict: dict):
-
+        # state_dict is a HF model
         res_dict = {}
         input_dict = {}
         mid_dict = {}
@@ -1205,6 +1219,7 @@ class UNetModel(nn.Module):
     def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False, from_NeMo=False):
         state_dict = self._strip_unet_key_prefix(state_dict)
         if not from_NeMo:
+            logging.info("creating state key mapping from HF")
             state_dict = self._state_key_mapping(state_dict)
         state_dict = self._legacy_unet_ckpt_mapping(state_dict)
 

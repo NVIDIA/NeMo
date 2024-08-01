@@ -292,9 +292,10 @@ Timeouts for fault detection need to be adjusted for a given workload:
 checkpointing related operations should be taken into account.
 
 If ``calculate_timeouts: True`` timeouts will be automatically estimated based on observed intervals. 
-Estimated timeouts take precedence over timeouts defined in the config file. **Timeouts are estimated after 
-checkpoint loading and saving was observed**. For example, in multi-part training started from scratch, 
-estimated timeouts won't be available during the first run. Estimated timeouts are stored in the checkpoint. 
+Estimated timeouts take precedence over timeouts defined in the config file. **Timeouts are estimated 
+at the end of a training run, when checkpoint loading and saving were observed**. Hence, in a multi-part 
+training started from scratch, estimated timeouts won't be available during initial two runs. 
+Estimated timeouts are stored in a separate JSON file. 
 
 ``max_subsequent_job_failures`` allows for the automatic continuation of training on a SLURM cluster. 
 This feature requires SLURM job to be scheduled with ``NeMo-Framework-Launcher``. If ``max_subsequent_job_failures`` 
@@ -304,10 +305,12 @@ subsequent jobs failed (SLURM job exit code is `!= 0`) or the training is comple
 
 All FT configuration items summary:
     * ``workload_check_interval`` (float, default=5.0) Periodic workload check interval [seconds] in the workload monitor.
-    * ``initial_rank_heartbeat_timeout`` (Optional[float], default=60.0 * 60.0) Timeout for the first heartbeat from a rank. 
-    * ``rank_heartbeat_timeout`` (Optional[float], default=45.0 * 60.0) Timeout for subsequent heartbeats from a rank. 
+    * ``initial_rank_heartbeat_timeout`` (Optional[float], default=60.0 * 60.0) Timeout [seconds] for the first heartbeat from a rank. 
+    * ``rank_heartbeat_timeout`` (Optional[float], default=45.0 * 60.0) Timeout [seconds] for subsequent heartbeats from a rank. 
     * ``calculate_timeouts`` (bool, default=True) Try to calculate ``rank_heartbeat_timeout`` and ``initial_rank_heartbeat_timeout`` 
       based on the observed heartbeat intervals.
+    * ``safety_factor``: (float, default=5.0) When calculating the timeouts, multiply the maximum observed heartbeat interval 
+      by this factor to obtain the timeout estimate. Can be made smaller for stable environments and larger for unstable ones.  
     * ``rank_termination_signal`` (signal.Signals, default=signal.SIGKILL) Signal used to terminate the rank when failure is detected.
     * ``log_level`` (str, default='INFO') Log level for the FT client and server(rank monitor).
     * ``max_rank_restarts`` (int, default=0) Used by FT launcher. Max number of restarts for a rank. 

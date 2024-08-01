@@ -26,7 +26,7 @@ weights_dict = {}
 DECODER_MODEL_TYPE = {
     "gptj": 'GPTForCausalLM',
     "gptnext": 'GPTForCausalLM',
-    "llama": 'LLaMAForCausalLM',
+    "llama": 'LlamaForCausalLM',
     "gemma": 'GemmaForCausalLM',
     "falcon": 'FalconForCausalLM',
 }
@@ -388,6 +388,16 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
 
             # Split the QKV to separate variables.
             qkv = np.split(val, [q_num, q_num + 1], axis=2)
+
+            query_groups_shape = qkv[0].shape
+            if len(query_groups_shape) > 1:
+                if (query_groups_shape[1] % split_factor) != 0:
+                    raise Exception(
+                        "Number of query groups of the models is {0}. Please select tensor parallelism size "
+                        "that can split the number of query groups to equal number of query matrices in the "
+                        "each GPU.".format(query_groups_shape[1])
+                    )
+
             q_split = np.split(qkv[0], split_factor, axis=1)
             k_split = np.split(qkv[1], split_factor, axis=1)
             v_split = np.split(qkv[2], split_factor, axis=1)
@@ -439,14 +449,14 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         split_w3s = np.split(w3, split_factor, axis=1)
 
         split_vals = [np.concatenate(item, axis=1) for item in zip(split_w3s, split_w1s)]
-        key = f'{layer_prefix}.mlp.experts_weight_1'
+        key = f'{layer_prefix}.mlp.fc.weight'
         save_expert_split(split_vals, saved_dir, key, tp_rank, split_factor)
 
     elif "experts.linear_fc2.weight" in key:
         cat_dim = -1
         val = np.concatenate(vals, axis=cat_dim)
         split_vals = np.split(val, split_factor, axis=cat_dim)
-        key = f'{layer_prefix}.mlp.experts_weight_2'
+        key = f'{layer_prefix}.mlp.proj.weight'
         save_expert_split(split_vals, saved_dir, key, tp_rank, split_factor)
     else:
         print(f"[WARNING] {key} not handled by converter")
