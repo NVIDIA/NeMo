@@ -511,7 +511,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if not contains_megatron_progress and contains_progress:
             for callback in callbacks:
                 if isinstance(callback, TQDMProgressBar):
+                    log_interval = callback._refresh_rate
                     callback.__class__ = MegatronProgress
+                    MegatronProgress.log_interval = log_interval
                     break
 
     def optimizer_sharded_state_dict(self, is_loading=False):
