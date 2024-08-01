@@ -711,6 +711,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ParallelismConfig = namedtuple('ParallelismConfig', ', '.join(kwargs.keys()))
         return ParallelismConfig(**kwargs)
 
+
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     """PTL considers checkpoints as .ckpt files.
     This method removes the extension and returns a path
