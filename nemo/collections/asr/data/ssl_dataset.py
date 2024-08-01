@@ -267,14 +267,18 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
         return None
 
     def __init__(
-        self, noise_manifest: str | None = None, batch_augmentor: Any | None = None, **kwargs,
+        self,
+        noise_manifest: str | None = None,
+        batch_augmentor: Any | None = None,
+        max_audio_cache: int = 5,
+        **kwargs,
     ):
         super().__init__(bos_id=0, manifest_parse_func=_parse_manifest_item, **kwargs)
         self.noise_manifest = noise_manifest
         self.batch_augmentor = batch_augmentor
         self.noise_data = load_noise_manifest(noise_manifest)
         self._audio_cache = OrderedDict()
-        self._max_audio_cache = 5
+        self._max_audio_cache = max_audio_cache
 
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
@@ -301,11 +305,18 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
                 orig_sr=manifest_entry.orig_sr,
             )
             audio_filestream.close()
+            if len(self._audio_cache) >= self._max_audio_cache:
+                self._audio_cache.popitem(last=False)
+            self._audio_cache[manifest_idx] = audio
         except Exception as e:
-            logging.warning(f"Error reading audio sample: {manifest_entry} with exception {e}, returning empty audio.")
-            logging.info(f"Error reading audio sample: {manifest_entry} with exception {e}, returning empty audio.")
-            audio = torch.zeros(self.featurizer.sample_rate, dtype=torch.float32)
-            raise RuntimeError(f"Error reading audio sample: {manifest_entry} with exception {e}")
+            logging.warning(f"Error reading audio sample: {manifest_entry}, with exception: {e}.")
+            print(f"[E] Error reading audio sample: {manifest_entry}, with exception: {e}", flush=True)
+            if len(self._audio_cache) > 0:
+                idx, audio = self._audio_cache.popitem(last=False)
+                logging.warning(f"Returning audio from cache for sample: {self.manifest_processor.collection[idx]}")
+            else:
+                logging.warning(f"Returning zero audio for sample: {manifest_entry}")
+                audio = 0.1 * torch.zeros(self.featurizer.sample_rate, dtype=torch.float32)
 
         audio_len = torch.tensor(audio.shape[0]).long()
         noise, noise_len = sample_noise(self.noise_data, self.featurizer, audio_len.item())
