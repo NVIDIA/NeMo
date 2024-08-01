@@ -463,13 +463,15 @@ class K2WfstDecoder(AbstractWFSTDecoder):
             self._set_decoding_mode(value)
 
     @torch.inference_mode(False)
-    def _decode_lattice(self, emissions_fsas: 'k2.DenseFsaVec') -> 'k2.Fsa':
+    def _decode_lattice(self, emissions_fsas: 'k2.DenseFsaVec', order: torch.Tensor) -> 'k2.Fsa':
         """
         Decodes logprobs into k2-type lattices.
 
         Args:
           emissions_fsas:
             A k2.DenseFsaVec of the predicted log-probabilities.
+          order:
+            A torch.Tensor that stores the order of the emissions_fsas elements.
 
         Returns:
           k2-type FsaVec.
@@ -490,7 +492,7 @@ class K2WfstDecoder(AbstractWFSTDecoder):
             lats.scores = lats.am_scores + self._lm_weight * lats.lm_scores
         # just in case
         lats.__dict__["_properties"] = None
-        return lats
+        return k2.index_fsa(lats, invert_permutation(order).to(device=self._device))
 
     @torch.inference_mode(False)
     def decode(
@@ -509,31 +511,30 @@ class K2WfstDecoder(AbstractWFSTDecoder):
         Returns:
           List of recognition hypotheses.
         """
-        supervisions = create_supervision(log_probs_length).to(device=self._device)
+        supervisions = create_supervision(log_probs_length)
         order = supervisions[:, 0]
         emissions_fsas = k2.DenseFsaVec(log_probs.to(device=self._device), supervisions)
-        lats = self._decode_lattice(emissions_fsas)
-        hypotheses = [lats[i].to(device="cpu") for i in invert_permutation(order)]
-        hypotheses = self._post_decode(hypotheses)
+        lats = self._decode_lattice(emissions_fsas, order)
+        hypotheses = self._post_decode(lats)
         return hypotheses
 
     @torch.inference_mode(False)
-    def _post_decode(self, hypotheses: List['k2.Fsa']) -> Union[List[WfstNbestHypothesis], List['k2.Fsa']]:
+    def _post_decode(self, hypotheses: 'k2.Fsa') -> Union[List[WfstNbestHypothesis], List['k2.Fsa']]:
         """
         Does various post-processing of the recognition hypotheses.
 
         Args:
           hypotheses:
-            List of k2-type lattices.
+            FsaVec of k2-type lattices.
 
         Returns:
           List of processed recognition hypotheses.
         """
         if self._decoding_mode == 'nbest':
-            lats = k2.create_fsa_vec(hypotheses)
+            hypotheses_fsa = hypotheses
             hypotheses = []
             if self._nbest_size == 1:
-                shortest_path_fsas = k2.shortest_path(lats, True)
+                shortest_path_fsas = k2.shortest_path(hypotheses_fsa, True)
                 scores = shortest_path_fsas.get_tot_scores(True, False).tolist()
                 # direct iterating does not work as expected
                 for i in range(shortest_path_fsas.shape[0]):
@@ -559,8 +560,8 @@ class K2WfstDecoder(AbstractWFSTDecoder):
                         )
                     )
             else:
-                nbest_fsas = k2.Nbest.from_lattice(lats, self._nbest_size)
-                nbest_fsas.fsa.frame_idx = k2.index_select(lats.frame_idx, nbest_fsas.kept_path.values)
+                nbest_fsas = k2.Nbest.from_lattice(hypotheses_fsa, self._nbest_size)
+                nbest_fsas.fsa.frame_idx = k2.index_select(hypotheses_fsa.frame_idx, nbest_fsas.kept_path.values)
                 scores = nbest_fsas.fsa.get_tot_scores(True, False).tolist()
                 nbest_hypothesis_list = [[] for _ in range(nbest_fsas.shape.dim0)]
                 for i, j in enumerate(nbest_fsas.shape.row_ids(1)):
@@ -587,7 +588,7 @@ class K2WfstDecoder(AbstractWFSTDecoder):
                 else hypotheses
             )
         else:
-            return hypotheses
+            return [hypotheses[i].to(device="cpu") for i in range(len(hypotheses))]
 
     @torch.inference_mode(False)
     def calibrate_lm_weight(
@@ -658,7 +659,7 @@ class K2WfstDecoder(AbstractWFSTDecoder):
         counts = torch.tensor([len(wid) for wid in word_ids])
         decoding_mode_backup = self.decoding_mode
         self.decoding_mode = "lattice"
-        lattices = k2.create_fsa_vec(self.decode(log_probs, log_probs_length))
+        lattices = self.decode(log_probs, log_probs_length)
         oracle_disambig = max(self._id2word.keys()) + 1
         lattices.aux_labels[lattices.aux_labels == 0] = oracle_disambig
         lattices = lattices.invert()

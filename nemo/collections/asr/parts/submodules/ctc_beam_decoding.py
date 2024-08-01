@@ -698,7 +698,9 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
             raise RuntimeError("Please set the vocabulary with `set_vocabulary()` before calling this function.")
 
         if self.decoding_type != 'subword':
-            raise ValueError("`decoding_type` other than `subword` is not supported. Provided: `{self.decoding_type}`")
+            raise ValueError(
+                f"`decoding_type` other than `subword` is not supported. Provided: `{self.decoding_type}`"
+            )
         elif self.tokenizer is None:
             raise ValueError("Tokenizer must be provided for subword decoding. Use set_tokenizer().")
         if self.decoding_algorithm is None:
@@ -734,6 +736,14 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
         wfst_lm_path_exists = self.wfst_lm_path is not None and os.path.exists(self.wfst_lm_path)
         lm_fst = None
         if wfst_lm_path_exists:
+            if self.search_type == "riva" and not self.wfst_lm_path.endswith(".fst"):
+                raise ValueError(
+                    f"Search type `riva` expects WFSTs in the `.fst` format. Provided: `{self.wfst_lm_path}`"
+                )
+            if self.search_type == "k2" and not self.wfst_lm_path.endswith(".pt"):
+                raise ValueError(
+                    f"Search type `k2` expects WFSTs in the `.pt` format. Provided: `{self.wfst_lm_path}`"
+                )
             if arpa_lm_path_exists:
                 logging.warning(
                     "Both `arpa_lm_path` and `wfst_lm_path` are provided and not empty. The latter will be used."

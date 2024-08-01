@@ -596,13 +596,19 @@ Quick start example
 
 .. code-block::
 
-    wget https://www.openslr.org/resources/11/3-gram.pruned.1e-7.arpa.gz && \
-    gzip -d 3-gram.pruned.1e-7.arpa.gz && \
+    wget -O - https://www.openslr.org/resources/11/3-gram.pruned.1e-7.arpa.gz | \
+    gunzip -c | tr '[:upper:]' '[:lower:]' > 3-gram.pruned.1e-7.arpa && \
     python eval_wfst_decoding_ctc.py nemo_model_file="stt_en_conformer_ctc_small_ls" \
            input_manifest="<data_dir>/Librispeech/test_other.json" \
            arpa_model_file="3-gram.pruned.1e-7.arpa" \
-           beam_width=[8,] \
+           decoding_wfst_file="3-gram.pruned.1e-7.fst" \
+           beam_width=[8] \
            lm_weight=[0.5,0.6,0.7,0.8,0.9]
+
+.. note::
+
+    Building a decoding WFST is a long process, so it is better to provide a ``decoding_wfst_file`` path even if you don't have it.
+    This way, the decoding WFST will be buffered to the specified file path and there will be no need to re-build it on the next run.
 
 
 ***************************************************
