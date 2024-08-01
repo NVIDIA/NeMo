@@ -201,7 +201,6 @@ model:
     num_frames: -1
     sep_image_conv_front: False
     conv_template: ${model.mm_cfg.llm.model_type} # check `nemo/collections/multimodal/data/neva/conversation.py`
-    image_token_len: 576
     image_folder: null
     video_folder: null
     image_aspect_ratio: 'square'
