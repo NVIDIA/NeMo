@@ -34,7 +34,7 @@ class MegatronProgress(ProgressBar):
     # most recent "global_step" will be logged
     # rather than averaging over last log_interval steps
     _skip_accumulate_metrics = ["global_step"]
-    total_metrics_dict = defaultdict(lambda: 0.)
+    total_metrics_dict = defaultdict(lambda: 0.0)
 
     def __init__(
         self,
