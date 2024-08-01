@@ -18,6 +18,8 @@ from torch.distributed.checkpoint.state_dict import (  # get_state_dict,
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
+from megatron.core.transformer.transformer_layer import TransformerLayer
+
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.lightning import io
 from nemo.lightning.io.pl import MegatronCheckpointIO
@@ -37,6 +39,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
     Comparing with MegatronStrategy, FSDPStrategy is designed to be more lightweight, with
     minimal modifications over Lightning's FSDPStrategy but preserves necessary features to be
     compatible with nemo and mcore.
+    By default, this strategy wraps FSDP per TransformerLayer.
 
     Note:
         This strategy is designed to work with NVIDIA's Megatron-LM framework and requires
@@ -48,9 +51,20 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         possible if users only need the weights not the optimizer states. (E.g. run pretrain with
         megatron 4D parallelism and run SFT with FSDP.)
     """
-
-    def __init__(self, *args, ckpt_include_optimizer=False, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self, 
+        *args, 
+        auto_wrap_policy={TransformerLayer},
+        state_dict_type="sharded",
+        ckpt_include_optimizer=False, 
+        **kwargs
+    ):
+        super().__init__(
+            *args, 
+            auto_wrap_policy=auto_wrap_policy, 
+            state_dict_type=state_dict_type, 
+            **kwargs
+        )
         self.ckpt_include_optimizer = ckpt_include_optimizer
 
     def _step_proxy(self, method_name, batch, batch_idx=None):

@@ -15,10 +15,11 @@ from nemo.lightning.pytorch.callbacks import MegatronSetup
 class Trainer(pl.Trainer, IOMixin):
     def __init__(self, callbacks: Optional[Union[List[Callback], Callback]] = None, **kwargs):
         if callbacks is None:
-            callbacks = [MegatronSetup()]
+            callbacks = []
         elif isinstance(callbacks, Callback):
-            callbacks = [callbacks, MegatronSetup()]
-        else:
+            callbacks = [callbacks]
+
+        if all(not isinstance(cb, MegatronSetup) for cb in callbacks):
             callbacks.append(MegatronSetup())
 
         super().__init__(callbacks=callbacks, **kwargs)
