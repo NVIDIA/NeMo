@@ -151,7 +151,7 @@ def load_noise_audio(
     pad_to_max: bool = True,
     min_white_noise_db: int = -90,
     max_white_noise_db: int = -46,
-    max_trial: int = 20,
+    max_trial: int = 100,
 ):
     max_dur = None if max_audio_len is None else max_audio_len / featurizer.sample_rate
     duration = sample.get('duration', None)
@@ -159,9 +159,15 @@ def load_noise_audio(
 
     if max_dur is not None and duration is not None and duration > max_dur:
         cnt = 0
+        zones = np.random.permutation(max_trial)
         while cnt < max_trial:
             # randomly sample a segment of the noise
-            offset = np.random.uniform(0, duration - max_dur)
+            # offset = np.random.uniform(0, duration - max_dur)
+
+            # split split offset range into max_trials zones and randomly sample one
+            zone_length = (duration - max_dur) / max_trial
+            offset = np.random.uniform(zone_length) + zone_length * zones[cnt]
+
             audio_segment = AudioSegment.from_file(
                 audio_file=sample['audio_filepath'], offset=offset, duration=max_dur, target_sr=featurizer.sample_rate,
             )
@@ -311,7 +317,7 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
             self._audio_cache[manifest_idx] = audio
         except Exception as e:
             logging.warning(f"Error reading audio sample: {manifest_entry}, with exception: {e}.")
-            print(f"[E] Error reading audio sample: {manifest_entry}, with exception: {e}", flush=True)
+            print(f"\n[E] Error reading audio sample: {manifest_entry}, with exception: {e}\n", flush=True)
             failed = True
 
         if failed:
@@ -321,14 +327,12 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
                     f"[W] Error reading audio sample: {manifest_entry}, returning audio from cache for sample: {self.manifest_processor.collection[idx]}"
                 )
                 print(
-                    f"[Wp] Error reading audio sample: {manifest_entry}, returning audio from cache for sample: {self.manifest_processor.collection[idx]}",
+                    f"\n[Wp] Error reading audio sample: {manifest_entry}, returning audio from cache for sample: {self.manifest_processor.collection[idx]}\n",
                     flush=True,
                 )
             else:
-                logging.warning(
-                    f"[W] Error reading audio sample: {manifest_entry}, returning zero audio for sample: {manifest_entry}"
-                )
-                print(f"[Wp] Error reading audio sample: {manifest_entry}, returning dummy audio", flush=True)
+                logging.warning(f"[W] Error reading audio sample: {manifest_entry}, returning dummy audio for sample.")
+                print(f"\n[Wp] Error reading audio sample: {manifest_entry}, returning dummy audio\n", flush=True)
                 audio = 0.1 * torch.zeros(self.featurizer.sample_rate, dtype=torch.float32)
 
         audio_len = torch.tensor(audio.shape[0]).long()
