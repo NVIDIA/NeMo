@@ -35,6 +35,10 @@ class ProfilingBatchGenerator:
         ... solution = gen.max_batch_size  # The solution of the search problem.
         ... gen.reset()  # Can re-use for other sequence lengths now.
 
+    The search terminates once the difference between max working batch size and min OOM batch size
+    divided by the latter is smaller than ``rel_gap_thresh`` that difference amounts to a single element.
+    For example, a max working batch size is 96 and min OOM batch size is 100 indicates a gap of 0.04,
+    which would terminate the search with threshold of 0.05.
 
     In order to generate mini-batches compatible with a given model, the generator:
 
@@ -53,15 +57,22 @@ class ProfilingBatchGenerator:
     In addition, ``"seq_length"`` key is used to determine whether we should apply input or output sequence length
     to a given tensor, and "vocab_size" is required for ``LabelsType`` so that we can generate proper label values.
 
-    The search terminates once the difference between max working batch size and min OOM batch size
-    divided by the latter is smaller than ``rel_gap_thresh`` that difference amounts to a single element.
-    For example, a max working batch size is 96 and min OOM batch size is 100 indicates a gap of 0.04,
-    which would terminate the search with threshold of 0.05.
+    Alternatively, if the model expects the mini-batches to be of some other type than a tuple,
+    such as a NamedTuple or a dataclass, the user can provide the schema as a dict with the following structure::
+
+        >>> {
+        ...     "cls": MyBatchType,
+        ...     "kwargs": {
+        ...         "batch_elem_0": {"type": NeuralType(...), ...},  # regular schema
+        ...         "batch_elem_1": {"type": NeuralType(...), ...},
+        ...         ...,
+        ...     }
+        ... }
     """
 
     def __init__(
         self,
-        schema: list[dict],
+        schema: list[dict] | dict,
         start_batch_size: int = 1024,
         rel_gap_thresh: float = 0.05,
         device: str = "cuda",
@@ -76,7 +87,12 @@ class ProfilingBatchGenerator:
         B = self._current
         select_seq_length = {"input": input_seq_length, "output": output_seq_length}
         batch = []
-        for item in self.schema:
+
+        is_simple_schema = isinstance(self.schema, list)
+
+        schema = self.schema if is_simple_schema else self.schema["kwargs"].values()
+
+        for item in schema:
             nt = item["type"]
             if not isinstance(nt, NeuralType):  # placeholder
                 tnsr = torch.tensor([])
@@ -92,7 +108,11 @@ class ProfilingBatchGenerator:
             else:
                 raise RuntimeError("Unexpected item in oomptimizer schema: {item}")
             batch.append(tnsr)
-        return tuple(batch)
+
+        if is_simple_schema:
+            return tuple(batch)
+
+        return self.schema["cls"](**dict(zip(self.schema["kwargs"].keys(), batch)))
 
     @property
     def max_batch_size(self) -> int | None:

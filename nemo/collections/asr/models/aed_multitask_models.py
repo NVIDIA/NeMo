@@ -1074,24 +1074,29 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         return ['', 'encoder', 'transf_encoder', 'transf_decoder']
 
     @property
-    def oomptimizer_schema(self) -> list[dict]:
+    def oomptimizer_schema(self) -> dict:
         """
         Return a typing schema for optimal batch size calibration for various
         sequence lengths using OOMptimizer.
         """
         assert hasattr(self, "tokenizer"), "OOMptimizer currently supports only models that use tokenizers."
-        return [
-            {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
-            {"type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
-            {
-                "type": NeuralType(("B", "T"), LabelsType()),
-                "seq_length": "output",
-                "vocab_size": self.tokenizer.vocab_size,
+        return {
+            "cls": PromptedAudioToTextMiniBatch,
+            "kwargs": {
+                "audio": {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                "audio_lens": {"type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                "prompted_transcript": {
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": self.tokenizer.vocab_size,
+                },
+                "prompted_transcript_lens": {"type": NeuralType(("B",), LengthsType()), "seq_length": "output"},
+                "transcript": {"type": "dummy"},
+                "transcript_lens": {"type": "dummy"},
+                "prompt": {"type": "dummy"},
+                "prompt_lens": {"type": "dummy"},
             },
-            {"type": NeuralType(("B",), LengthsType()), "seq_length": "output"},
-            {"type": "dummy"},
-            {"type": "dummy"},
-        ]
+        }
 
 
 def parse_multitask_prompt(prompt: dict | None) -> list[dict]:
