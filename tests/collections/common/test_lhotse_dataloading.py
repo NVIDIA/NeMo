@@ -199,6 +199,7 @@ def test_dataloader_from_lhotse_cuts(cutset_path: Path):
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "drop_last": False,
             "batch_duration": 4.0,  # seconds
@@ -354,6 +355,7 @@ def test_dataloader_from_lhotse_shar_cuts(cutset_shar_path: Path):
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "drop_last": False,
             "batch_duration": 4.0,  # seconds
@@ -400,6 +402,7 @@ def test_dataloader_from_nemo_manifest(nemo_manifest_path: Path):
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "drop_last": False,
             "batch_duration": 4.0,  # seconds
@@ -477,6 +480,7 @@ def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: tuple[s
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "drop_last": False,
             "batch_duration": 4.0,  # seconds
@@ -524,6 +528,7 @@ def test_dataloader_from_tarred_nemo_manifest_weighted_combination(nemo_tarred_m
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "drop_last": False,
             "batch_duration": 4.0,  # seconds
@@ -556,6 +561,7 @@ def test_dataloader_from_tarred_nemo_manifest_multi(nemo_tarred_manifest_path_mu
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "drop_last": False,
             "batch_duration": 4.0,  # seconds
@@ -603,6 +609,7 @@ def test_dataloader_from_tarred_nemo_manifest_multi_max_open_streams(nemo_tarred
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "max_open_streams": 1,
             "drop_last": False,
