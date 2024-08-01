@@ -1,3 +1,4 @@
+from functools import partial
 from io import BytesIO
 from pathlib import Path
 
@@ -46,9 +47,10 @@ def filter_tarred(
     """
     lhotse.set_dill_enabled(True)
     all_cuts = read_cutset(manifest_filepath, tarred_audio_filepaths)
-    keep_cuts = read_cutset(filtered_manifest_filepath)
-    keep_ids = frozenset(keep_cuts.ids)
-    filtered_cuts = bg_load(all_cuts.filter(lambda c: c.id in keep_ids))
+    keep_cuts = {cut.id: cut for cut in read_cutset(filtered_manifest_filepath)}
+    filtered_cuts = bg_load(
+        all_cuts.filter(lambda c: c.id in keep_cuts).map(partial(attach_custom, cuts_with_custom=keep_cuts))
+    )
     if output_format == "lhotse_shar":
         filtered_cuts.to_shar(
             output_dir=output_dir, fields={"recording": "flac"}, shard_size=shard_size, num_jobs=num_jobs
@@ -110,6 +112,13 @@ def export_to_nemo_tarred(cuts: CutSet, output_dir: str, shard_size: int) -> Non
             # Write both items.
             aw.write(audio_name, audio)
             mw.write(ans)
+
+
+def attach_custom(cut, cuts_with_custom):
+    custom = cuts_with_custom[cut.id].custom
+    if custom is not None:
+        cut.custom.update(custom)
+    return cut
 
 
 class Identity(torch.utils.data.Dataset):
