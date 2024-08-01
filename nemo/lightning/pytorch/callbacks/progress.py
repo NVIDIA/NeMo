@@ -34,8 +34,15 @@ class MegatronProgress(ProgressBar):
     # most recent "global_step" will be logged
     # rather than averaging over last log_interval steps
     _skip_accumulate_metrics = ["global_step"]
+    total_metrics_dict = defaultdict(lambda: 0.)
 
-    total_metrics_dict = defaultdict(lambda: 0.0)
+    def __init__(
+        self,
+        log_interval: int = 1,
+        skip_accumulate_metrics: list[str] = ["global_step"],
+    ):
+        self._log_interval = log_interval
+        self._skip_accumulate_metrics = skip_accumulate_metrics
 
     def format_string(self, prefix, metrics):
         log_string = prefix
