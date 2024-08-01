@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional, Union
 import torch
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.strategies.fsdp import _get_sharded_state_dict_context
+from megatron.core.transformer.transformer_layer import TransformerLayer
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
 from pytorch_lightning.trainer.states import TrainerFn
@@ -17,8 +18,6 @@ from torch.distributed.checkpoint.state_dict import (  # get_state_dict,
 )
 from torch.utils.data import DataLoader
 from typing_extensions import override
-
-from megatron.core.transformer.transformer_layer import TransformerLayer
 
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.lightning import io
@@ -51,20 +50,16 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         possible if users only need the weights not the optimizer states. (E.g. run pretrain with
         megatron 4D parallelism and run SFT with FSDP.)
     """
+
     def __init__(
-        self, 
-        *args, 
+        self,
+        *args,
         auto_wrap_policy={TransformerLayer},
         state_dict_type="sharded",
-        ckpt_include_optimizer=False, 
-        **kwargs
+        ckpt_include_optimizer=False,
+        **kwargs,
     ):
-        super().__init__(
-            *args, 
-            auto_wrap_policy=auto_wrap_policy, 
-            state_dict_type=state_dict_type, 
-            **kwargs
-        )
+        super().__init__(*args, auto_wrap_policy=auto_wrap_policy, state_dict_type=state_dict_type, **kwargs)
         self.ckpt_include_optimizer = ckpt_include_optimizer
 
     def _step_proxy(self, method_name, batch, batch_idx=None):
