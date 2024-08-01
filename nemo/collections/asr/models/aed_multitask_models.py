@@ -681,14 +681,14 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         audio_loss = self.loss(log_probs=transf_log_probs, labels=labels)
 
-        num_frames = signal_len.sum()
-        num_tokens = transcript_len.sum()
-        tot_frames = signal.numel()
-        tot_tokens = transcript.numel()
+        num_frames = batch.audio_lens.sum()
+        num_tokens = batch.prompted_transcript_lens.sum()
+        tot_frames = batch.audio.numel()
+        tot_tokens = batch.prompted_transcript.numel()
         tensorboard_logs = {
             'train_loss': audio_loss,
             'learning_rate': self._optimizer.param_groups[0]['lr'],
-            'batch_size': signal.shape[0],
+            'batch_size': batch.audio.shape[0],
             'num_frames': num_frames,
             'num_tokens': num_tokens,
             'input_to_padding_ratio': num_frames / tot_frames,

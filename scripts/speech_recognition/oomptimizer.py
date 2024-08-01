@@ -3,7 +3,7 @@ import importlib
 import math
 import sys
 from numbers import Number
-from typing import Literal
+from typing import Iterable, Literal
 
 import click
 import pytorch_lightning as pl
@@ -426,7 +426,11 @@ def oomptimizer(
             batch = gen(seq_len_in, seq_len_out)
             oom = False
             try:
-                print(f"\tCurrent gap: {gen.current_rel_gap}. Attempting shapes: {[b.shape for b in batch]}", end=" ")
+                if isinstance(batch, Iterable):
+                    extra_msg = f"Attempting shapes: {[b.shape for b in batch]}"
+                else:
+                    extra_msg = ""
+                print(f"\tCurrent gap: {gen.current_rel_gap}. {extra_msg}", end=" ")
                 optimizer.zero_grad()
                 out = model.training_step(batch, batch_idx)
                 out['loss'].backward()
