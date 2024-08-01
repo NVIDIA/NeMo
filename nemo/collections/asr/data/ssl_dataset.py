@@ -303,7 +303,9 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
             audio_filestream.close()
         except Exception as e:
             logging.warning(f"Error reading audio sample: {manifest_entry} with exception {e}, returning empty audio.")
+            logging.info(f"Error reading audio sample: {manifest_entry} with exception {e}, returning empty audio.")
             audio = torch.zeros(self.featurizer.sample_rate, dtype=torch.float32)
+            raise RuntimeError(f"Error reading audio sample: {manifest_entry} with exception {e}")
 
         audio_len = torch.tensor(audio.shape[0]).long()
         noise, noise_len = sample_noise(self.noise_data, self.featurizer, audio_len.item())
