@@ -29,7 +29,7 @@ python scripts/checkpoint_converters/lora_converters/convert_nemo_to_canonical.p
     --hf_format --hf_config checkpoints/bin/adapter_config.json
 """
 
-from nemo.utils.checkpoint_converters.lora import convert_lora_nemo_to_canonical
+from nemo.export.utils.lora_converter import convert_lora_nemo_to_canonical
 from argparse import ArgumentParser
 
 def get_args():

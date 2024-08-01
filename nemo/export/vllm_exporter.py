@@ -28,7 +28,7 @@ from nemo.deploy.utils import cast_output
 from nemo.export.vllm.engine import NemoLLMEngine
 from nemo.export.vllm.model_config import NemoModelConfig
 from nemo.export.vllm.model_loader import NemoModelLoader
-from nemo.utils.checkpoint_converters.lora import convert_lora_nemo_to_canonical
+from nemo.export.utils.lora_converter import convert_lora_nemo_to_canonical
 
 LOGGER = logging.getLogger("NeMo")
 
