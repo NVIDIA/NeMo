@@ -91,7 +91,6 @@ class Conversation:
 
     def get_prompt(self):
         messages = self.messages
-        self.sep_style = SeparatorStyle.LLAMA_3
         messages = self.process_prompt_with_images(messages)
 
         if self.sep_style == SeparatorStyle.SINGLE:
@@ -426,6 +425,7 @@ conv_vicuna_v1 = Conversation(
     sep_style=SeparatorStyle.TWO,
     sep=" ",
     sep2="</s>",
+    stop_str=" </s>",
 )
 
 conv_llama_2 = Conversation(
@@ -439,6 +439,7 @@ If a question does not make any sense, or is not factually coherent, explain why
     sep_style=SeparatorStyle.LLAMA_2,
     sep="<s>",
     sep2="</s>",
+    stop_str=" </s>",
 )
 
 conv_llava_llama_2 = Conversation(
@@ -452,6 +453,7 @@ conv_llava_llama_2 = Conversation(
     sep_style=SeparatorStyle.LLAMA_2,
     sep="<s>",
     sep2="</s>",
+    stop_str=" </s>",
 )
 
 conv_llava_llama_3 = Conversation(
@@ -465,6 +467,7 @@ conv_llava_llama_3 = Conversation(
     sep="<|eot_id|>",
     sep_style=SeparatorStyle.LLAMA_3,
     tokenizer_name_or_path="meta-llama/Meta-Llama-3-8B-Instruct",
+    stop_str="<|eot_id|>",
 )
 
 conv_mistral_instruct = Conversation(
@@ -476,6 +479,7 @@ conv_mistral_instruct = Conversation(
     sep_style=SeparatorStyle.LLAMA_2,
     sep="",
     sep2="</s>",
+    stop_str=" </s>",
 )
 
 conv_llava_llama_2_simple = Conversation(
@@ -487,6 +491,7 @@ conv_llava_llama_2_simple = Conversation(
     sep_style=SeparatorStyle.LLAMA_2,
     sep="<s>",
     sep2="</s>",
+    stop_str=" </s>",
 )
 
 conv_llava_llama_2_mmtag = Conversation(
@@ -499,6 +504,7 @@ conv_llava_llama_2_mmtag = Conversation(
     sep_style=SeparatorStyle.LLAMA_2,
     sep="<s>",
     sep2="</s>",
+    stop_str=" </s>",
 )
 
 conv_mpt = Conversation(
@@ -531,7 +537,8 @@ conv_llava_plain = Conversation(
     messages=[],
     offset=0,
     sep_style=SeparatorStyle.PLAIN,
-    sep="\n",
+    sep="",
+    sep2="\n",
 )
 
 conv_llava_v0 = Conversation(
@@ -590,6 +597,7 @@ conv_mistral_vila = Conversation(
     sep_style=SeparatorStyle.MISTRAL,
     sep="",
     sep2="</s>",
+    stop_str="</s>"
 )
 
 
