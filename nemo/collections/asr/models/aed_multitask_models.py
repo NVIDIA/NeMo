@@ -1082,20 +1082,25 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         assert hasattr(self, "tokenizer"), "OOMptimizer currently supports only models that use tokenizers."
         return {
             "cls": PromptedAudioToTextMiniBatch,
-            "kwargs": {
-                "audio": {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
-                "audio_lens": {"type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
-                "prompted_transcript": {
+            "inputs": [
+                {"name": "audio", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"name": "audio_lens", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {
+                    "name": "prompted_transcript",
                     "type": NeuralType(("B", "T"), LabelsType()),
                     "seq_length": "output",
                     "vocab_size": self.tokenizer.vocab_size,
                 },
-                "prompted_transcript_lens": {"type": NeuralType(("B",), LengthsType()), "seq_length": "output"},
-                "transcript": {"type": "dummy"},
-                "transcript_lens": {"type": "dummy"},
-                "prompt": {"type": "dummy"},
-                "prompt_lens": {"type": "dummy"},
-            },
+                {
+                    "name": "prompted_transcript_lens",
+                    "type": NeuralType(("B",), LengthsType()),
+                    "seq_length": "output",
+                },
+                {"name": "transcript", "type": "dummy"},
+                {"name": "transcript_lens", "type": "dummy"},
+                {"name": "prompt", "type": "dummy"},
+                {"name": "prompt_lens", "type": "dummy"},
+            ],
         }
 
 

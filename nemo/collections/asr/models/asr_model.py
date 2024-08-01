@@ -220,22 +220,25 @@ class ASRModel(ModelPT, ABC):
         WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
 
     @property
-    def oomptimizer_schema(self) -> list[dict]:
+    def oomptimizer_schema(self) -> dict:
         """
         Return a typing schema for optimal batch size calibration for various
         sequence lengths using OOMptimizer.
         """
         assert hasattr(self, "tokenizer"), "OOMptimizer currently supports only models that use tokenizers."
-        return [
-            {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
-            {"type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
-            {
-                "type": NeuralType(("B", "T"), LabelsType()),
-                "seq_length": "output",
-                "vocab_size": self.tokenizer.vocab_size,
-            },
-            {"type": NeuralType(("B",), LengthsType()), "seq_length": "output"},
-        ]
+        return {
+            "cls": tuple,
+            "inputs": [
+                {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": self.tokenizer.vocab_size,
+                },
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "output"},
+            ],
+        }
 
 
 class ExportableEncDecModel(Exportable):

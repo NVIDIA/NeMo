@@ -3,6 +3,7 @@ import importlib
 import math
 import sys
 from numbers import Number
+from typing import Literal
 
 import click
 import pytorch_lightning as pl
@@ -48,31 +49,51 @@ class ProfilingBatchGenerator:
 
     ``schema`` has the following structure::
 
-        >>> [{"type": NeuralType(...) | str, "seq_length": "input|output", "vocab_size": int}, {...}, ...]
-
-    Each item in ``schema`` specifies a NeMo NeuralType which needs to have a defined ``elements_type``.
-    The supported types are ``AudioSignal``, ``LengthsType`` and ``LabelsType``.
-    If "type" is not a NeuralType, we interpret that as a placeholder tensor that's not relevant but expect by the model.
-
-    In addition, ``"seq_length"`` key is used to determine whether we should apply input or output sequence length
-    to a given tensor, and "vocab_size" is required for ``LabelsType`` so that we can generate proper label values.
-
-    Alternatively, if the model expects the mini-batches to be of some other type than a tuple,
-    such as a NamedTuple or a dataclass, the user can provide the schema as a dict with the following structure::
 
         >>> {
-        ...     "cls": MyBatchType,
-        ...     "kwargs": {
-        ...         "batch_elem_0": {"type": NeuralType(...), ...},  # regular schema
-        ...         "batch_elem_1": {"type": NeuralType(...), ...},
+        ...     "cls": tuple | MyBatchType,
+        ...     "inputs": [
+        ...         {
+        ...             "type": NeuralType(...) | Literal["dummy"],
+        ...             "seq_length": Literal["input", "output"],
+        ...             "vocab_size": int,  # optional, required only for LabelsType
+        ...             "name": str,  # optional, indicates kwarg
+        ...         },
         ...         ...,
-        ...     }
+        ...     ]
         ... }
+
+    ``cls`` indicates how we should construct the mini-batch. Typically you can just use ``tuple`` for most
+    batch schemas. However, if the model expects a specific, e.g., dataclass, you can tell ``ProfilingBatchGenerator``
+    to use it. The mini-batch object will be constructed using the items in ``inputs``.
+
+    Each element of ``inputs`` specifies a NeMo NeuralType which needs to have a defined ``elements_type``.
+    The supported types are ``AudioSignal``, ``LengthsType`` and ``LabelsType``.
+    If "type" is not a NeuralType, we interpret that as a placeholder tensor that's not relevant but expected
+    by the model/batch constructor. In addition, ``"seq_length"`` key is used to determine whether we should apply
+    input or output sequence length to a given tensor.
+
+    Optional keys:
+
+    * ``vocab_size`` is required for ``LabelsType`` so that we can generate proper label values.
+
+    * ``name`` is required if objects of ``cls`` have to be constructed using keyword arguments.
+
+    A simple schema example for a model using audio/lengths tensor pair (unsupervised/self-supervised)::
+
+        >>> {
+        ...     "cls": tuple,
+        ...     "inputs": [
+        ...         {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+        ...         {"type": NeuralType(("B"), LengthsType()), "seq_length": "input"},
+        ...     ]
+        ... }
+
     """
 
     def __init__(
         self,
-        schema: list[dict] | dict,
+        schema: dict,
         start_batch_size: int = 1024,
         rel_gap_thresh: float = 0.05,
         device: str = "cuda",
@@ -87,12 +108,8 @@ class ProfilingBatchGenerator:
         B = self._current
         select_seq_length = {"input": input_seq_length, "output": output_seq_length}
         batch = []
-
-        is_simple_schema = isinstance(self.schema, list)
-
-        schema = self.schema if is_simple_schema else self.schema["kwargs"].values()
-
-        for item in schema:
+        names = []
+        for item in self.schema["inputs"]:
             nt = item["type"]
             if not isinstance(nt, NeuralType):  # placeholder
                 tnsr = torch.tensor([])
@@ -108,11 +125,10 @@ class ProfilingBatchGenerator:
             else:
                 raise RuntimeError("Unexpected item in oomptimizer schema: {item}")
             batch.append(tnsr)
-
-        if is_simple_schema:
-            return tuple(batch)
-
-        return self.schema["cls"](**dict(zip(self.schema["kwargs"].keys(), batch)))
+            names.append(item.get("name"))
+        args = [elem for name, elem in zip(names, batch) if name is None]
+        kwargs = {name: elem for name, elem in zip(names, batch) if name is not None}
+        return self.schema["cls"](*args, **kwargs)
 
     @property
     def max_batch_size(self) -> int | None:
@@ -355,7 +371,7 @@ def oomptimizer(
             "text"
             if any(
                 isinstance(item["type"].elements_type, LabelsType) and item["seq_length"] == direction
-                for item in schema
+                for item in schema["inputs"]
                 if item["type"] != "dummy"
             )
             else "audio"
