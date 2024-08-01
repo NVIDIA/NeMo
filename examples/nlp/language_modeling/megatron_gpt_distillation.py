@@ -291,10 +291,9 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
             loss = torch.sum(tensor_parallel.gather_from_tensor_model_parallel_region(loss.reshape(1)))
         return loss
 
-    def setup_optimizer_param_groups(self):
-        super().setup_optimizer_param_groups()
-        for group in self._optimizer_param_groups:
-            group["params"] = [p for p in group["params"] if p.requires_grad]
+    def configure_optimizers(self):
+        with self.model.hide_teacher_model():
+            return super().configure_optimizers()
 
 
 ########################################################
