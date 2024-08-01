@@ -87,7 +87,9 @@ def get_args():
     parser.add_argument("--gpus_per_node", type=int, required=True, default=None)
     parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
     parser.add_argument("--pipeline_model_parallel_size", type=int, required=True, default=None)
-    parser.add_argument("--drop_layers", type=int, default=None, required=True, nargs="+", help="list of layer numbers to drop.")
+    parser.add_argument(
+        "--drop_layers", type=int, default=None, required=True, nargs="+", help="list of layer numbers to drop."
+    )
     parser.add_argument("--path_to_save", type=str, required=True, help="Path to output ckpt files.")
 
     args = parser.parse_args()
@@ -100,12 +102,12 @@ def trim_layers(model, layers_to_trim):
         if isinstance(module, TransformerBlock):
             print(f'Removing from {name} {len(layers_to_trim)} of {len(module.layers)} layers')
             for i in sorted(layers_to_trim, reverse=True):
-                assert (i > 0 and i < len(module.layers)), "Layers are numbered from 0 to num_layers"
-                del module.layers[i-1]
+                assert i > 0 and i < len(module.layers), "Layers are numbered from 0 to num_layers"
+                del module.layers[i - 1]
             module.config.num_layers = len(module.layers)
-            for i,layer in enumerate(module.layers):
-                layer.layer_number = ( i + 1 )
-        
+            for i, layer in enumerate(module.layers):
+                layer.layer_number = i + 1
+
     return model
 
 
@@ -122,7 +124,7 @@ def main(local_rank, rank, world_size, args):
             'precision': args.precision,
         },
         'model': {
-            'native_amp_init_scale': 2 ** 32,
+            'native_amp_init_scale': 2**32,
             'native_amp_growth_interval': 1000,
             'hysteresis': 2,
             'gradient_as_bucket_view': True,
