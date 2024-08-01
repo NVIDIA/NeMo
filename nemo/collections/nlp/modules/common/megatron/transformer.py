@@ -1526,16 +1526,13 @@ class ParallelTransformer(MegatronModule):
         If set, FP8 weights are cached and some minor optimizations are applied to fuse_wgrad_accumulation
         """
         try:
-            from megatron.core.num_microbatches_calculator import get_num_microbatches
+            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
         except (ImportError, ModuleNotFoundError):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
-        if get_num_microbatches() is not None:
-            num_micro_batches = get_num_microbatches()
-        else:
-            num_micro_batches = 1
+        num_micro_batches = getattr(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'num_micro_batches', 1)
 
         if self.sequence_parallel:
             rng_context = tensor_parallel.random.get_cuda_rng_tracker().fork()
