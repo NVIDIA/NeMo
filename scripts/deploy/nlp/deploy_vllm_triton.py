@@ -21,9 +21,7 @@ import tempfile
 from nemo.deploy import DeployPyTriton
 
 # Configure the NeMo logger to look the same as vLLM
-logging.basicConfig(
-    format="%(levelname)s %(asctime)s %(filename)s:%(lineno)d] %(message)s",
-    datefmt="%m-%d %H:%M:%S")
+logging.basicConfig(format="%(levelname)s %(asctime)s %(filename)s:%(lineno)d] %(message)s", datefmt="%m-%d %H:%M:%S")
 LOGGER = logging.getLogger("NeMo")
 
 try:
@@ -118,6 +116,7 @@ def get_vllm_deployable(args, model_dir):
     except Exception as error:
         raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))
 
+
 def nemo_deploy(argv):
     args = get_args(argv)
 
@@ -159,7 +158,6 @@ def nemo_deploy(argv):
             streaming=args.enable_streaming,
         )
 
-
         LOGGER.info("Starting the Triton server...")
         nm.deploy()
         nm.serve()
@@ -170,7 +168,7 @@ def nemo_deploy(argv):
     except Exception as error:
         LOGGER.error("An error has occurred while setting up or serving the model. Error message: " + str(error))
         return
-    
+
     # Clean up the temporary directory
     finally:
         if tempdir is not None:

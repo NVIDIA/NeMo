@@ -25,10 +25,10 @@ from vllm.lora.request import LoRARequest
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output
+from nemo.export.utils.lora_converter import convert_lora_nemo_to_canonical
 from nemo.export.vllm.engine import NemoLLMEngine
 from nemo.export.vllm.model_config import NemoModelConfig
 from nemo.export.vllm.model_loader import NemoModelLoader
-from nemo.export.utils.lora_converter import convert_lora_nemo_to_canonical
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -212,9 +212,7 @@ class vLLMExporter(ITritonDeployable):
 
         # Convert the LoRA checkpoints to vLLM compatible format and derive the configuration structure
         lora_config = self._prepare_lora_checkpoints(
-            model_dir=model_dir,
-            lora_checkpoints=lora_checkpoints,
-            dtype=model_config.dtype
+            model_dir=model_dir, lora_checkpoints=lora_checkpoints, dtype=model_config.dtype
         )
 
         # Initialize the cluster and specify the executor class.
@@ -258,25 +256,20 @@ class vLLMExporter(ITritonDeployable):
             log_stats=log_stats,
         )
 
-    def _prepare_lora_checkpoints(
-        self,
-        model_dir: str,
-        lora_checkpoints: List[str],
-        dtype
-    ) -> LoRAConfig:
+    def _prepare_lora_checkpoints(self, model_dir: str, lora_checkpoints: List[str], dtype) -> LoRAConfig:
         self.lora_checkpoints = []
 
         if lora_checkpoints is None or len(lora_checkpoints) == 0:
             return None
-        
+
         index = 0
         max_lora_rank = 0
         for nemo_file in lora_checkpoints:
             if not os.path.isfile(nemo_file):
                 raise FileNotFoundError(f"LoRA checkpoint file '{nemo_file} does not exist'")
-            
+
             hf_lora_dir = os.path.join(model_dir, f'lora_{index}')
-            
+
             LOGGER.info(f"Converting LoRA checkpoint '{nemo_file}' into '{hf_lora_dir}'...")
 
             _, lora_config = convert_lora_nemo_to_canonical(nemo_file, hf_lora_dir, hf_format=True)
@@ -296,7 +289,7 @@ class vLLMExporter(ITritonDeployable):
         temperature: float = 1.0,
         top_k: int = 1,
         top_p: float = 0.0,
-        lora_uid: Optional[int] = None
+        lora_uid: Optional[int] = None,
     ) -> str:
         if top_p <= 0.0:
             top_p = 1.0
@@ -305,9 +298,8 @@ class vLLMExporter(ITritonDeployable):
 
         if lora_uid is not None and lora_uid >= 0 and lora_uid < len(self.lora_checkpoints):
             lora_request = LoRARequest(
-                lora_name=f'LoRA_{lora_uid}',
-                lora_int_id=lora_uid + 1,
-                lora_local_path=self.lora_checkpoints[lora_uid])
+                lora_name=f'LoRA_{lora_uid}', lora_int_id=lora_uid + 1, lora_local_path=self.lora_checkpoints[lora_uid]
+            )
         else:
             lora_request = None
 
@@ -479,7 +471,7 @@ class vLLMExporter(ITritonDeployable):
                 temperature=temperature,
                 top_k=top_k,
                 top_p=top_p,
-                lora_uid=lora_uid
+                lora_uid=lora_uid,
             )
             request_ids.append(request_id)
 

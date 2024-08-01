@@ -29,8 +29,10 @@ python scripts/checkpoint_converters/lora_converters/convert_nemo_to_canonical.p
     --hf_format --hf_config checkpoints/bin/adapter_config.json
 """
 
-from nemo.export.utils.lora_converter import convert_lora_nemo_to_canonical
 from argparse import ArgumentParser
+
+from nemo.export.utils.lora_converter import convert_lora_nemo_to_canonical
+
 
 def get_args():
     parser = ArgumentParser()
@@ -57,4 +59,6 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
-    convert_lora_nemo_to_canonical(args.nemo_lora_path, args.output_path, args.hf_format, donor_hf_config=args.hf_config)
+    convert_lora_nemo_to_canonical(
+        args.nemo_lora_path, args.output_path, args.hf_format, donor_hf_config=args.hf_config
+    )

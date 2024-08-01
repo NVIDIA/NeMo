@@ -17,11 +17,13 @@ import os
 import re
 import tarfile
 import tempfile
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+
 import torch
 import yaml
+
 from nemo.export.tarutils import TarPath
-from pathlib import Path
-from typing import Any, Dict, Tuple, List
 
 
 def replace_number_add_offset(key, offset_value):
@@ -76,7 +78,7 @@ def reformat_module_names_to_hf(tensors: Dict[str, torch.Tensor]) -> Tuple[Dict[
         for kmn in known_module_names:
             if f'.{kmn}' in new_module_name:
                 module_names.add(kmn)
-        
+
     return (new_tensors, list(module_names))
 
 
@@ -159,7 +161,7 @@ def convert_lora_nemo_to_canonical(lora_nemo, save_path, hf_format=False, donor_
     with TarPath(lora_nemo) as archive:
         with (archive / "model_config.yaml").open("r") as config_file:
             lora_config = yaml.load(config_file, Loader=yaml.SafeLoader)
-        
+
         tp_size = lora_config.get('tensor_model_parallel_size', 1)
         pp_size = lora_config.get('pipeline_model_parallel_size', 1)
 
