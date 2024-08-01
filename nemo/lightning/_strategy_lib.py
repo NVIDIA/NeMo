@@ -128,12 +128,10 @@ def set_model_parallel_attributes(model, parallelism):
     # Given Lightning's structure it would be better if parallelism is a different object
     # Since then it can be passed to the Strategy
 
-    from megatron.core.model_parallel_config import ModelParallelConfig
     from megatron.core.transformer.transformer_config import TransformerConfig
 
-    assert isinstance(
-        parallelism, ModelParallelConfig
-    ), f"Expected parallelism config to be of type ModelParallelConfig, but got {type(parallelism)}"
+    assert type(parallelism).__name__ == 'ParallelismConfig', \
+    f"Expected parallelism config to be of type ParallelismConfig, but got {type(parallelism)}"
     has_mcore_config = isinstance(getattr(model, "config", None), TransformerConfig)
     if has_mcore_config and hasattr(model, "configure_model"):
         config: TransformerConfig = model.config

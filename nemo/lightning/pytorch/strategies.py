@@ -697,19 +697,19 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @property
     def parallelism(self):
-        from megatron.core.model_parallel_config import ModelParallelConfig
+        from collections import namedtuple
 
-        return ModelParallelConfig(
-            tensor_model_parallel_size=self.tensor_model_parallel_size,
-            pipeline_model_parallel_size=self.pipeline_model_parallel_size,
-            virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
-            context_parallel_size=self.context_parallel_size,
-            sequence_parallel=self.sequence_parallel,
-            expert_model_parallel_size=self.expert_model_parallel_size,
-            moe_extended_tp=self.moe_extended_tp,
-            pipeline_dtype=self.pipeline_dtype,
-        )
-
+        kwargs = {}
+        kwargs['tensor_model_parallel_size'] = self.tensor_model_parallel_size
+        kwargs['pipeline_model_parallel_size'] = self.pipeline_model_parallel_size
+        kwargs['virtual_pipeline_model_parallel_size'] = self.virtual_pipeline_model_parallel_size
+        kwargs['context_parallel_size'] = self.context_parallel_size
+        kwargs['sequence_parallel'] = self.sequence_parallel
+        kwargs['expert_model_parallel_size'] = self.expert_model_parallel_size
+        kwargs['moe_extended_tp'] = self.moe_extended_tp
+        kwargs['pipeline_dtype'] = self.pipeline_dtype
+        ParallelismConfig = namedtuple('ParallelismConfig', ', '.join(kwargs.keys()))
+        return ParallelismConfig(**kwargs)
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     """PTL considers checkpoints as .ckpt files.
