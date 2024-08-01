@@ -11,16 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import numpy as np
 import os
 import tempfile
+from typing import Any, Callable, Tuple
+
+import numpy as np
 import torch
-from PIL import Image
 from omegaconf import DictConfig, OmegaConf, open_dict
+from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from transformers import CLIPImageProcessor, SiglipImageProcessor
-from typing import Any, Callable, Tuple
 
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.data.neva.neva_dataset import process_image
