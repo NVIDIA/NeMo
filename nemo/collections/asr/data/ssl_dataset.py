@@ -294,6 +294,7 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
         if offset is None:
             offset = 0
 
+        failed = False
         try:
             # Convert audio bytes to IO stream for processing (for SoundFile to read)
             audio_filestream = io.BytesIO(audio_bytes)
@@ -311,11 +312,23 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
         except Exception as e:
             logging.warning(f"Error reading audio sample: {manifest_entry}, with exception: {e}.")
             print(f"[E] Error reading audio sample: {manifest_entry}, with exception: {e}", flush=True)
+            failed = True
+
+        if failed:
             if len(self._audio_cache) > 0:
                 idx, audio = self._audio_cache.popitem(last=False)
-                logging.warning(f"Returning audio from cache for sample: {self.manifest_processor.collection[idx]}")
+                logging.warning(
+                    f"[W] Error reading audio sample: {manifest_entry}, returning audio from cache for sample: {self.manifest_processor.collection[idx]}"
+                )
+                print(
+                    f"[Wp] Error reading audio sample: {manifest_entry}, returning audio from cache for sample: {self.manifest_processor.collection[idx]}",
+                    flush=True,
+                )
             else:
-                logging.warning(f"Returning zero audio for sample: {manifest_entry}")
+                logging.warning(
+                    f"[W] Error reading audio sample: {manifest_entry}, returning zero audio for sample: {manifest_entry}"
+                )
+                print(f"[Wp] Error reading audio sample: {manifest_entry}, returning dummy audio", flush=True)
                 audio = 0.1 * torch.zeros(self.featurizer.sample_rate, dtype=torch.float32)
 
         audio_len = torch.tensor(audio.shape[0]).long()
