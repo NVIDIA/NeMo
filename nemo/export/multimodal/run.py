@@ -16,7 +16,13 @@
 import json
 import os
 
-import decord
+try:
+    import decord
+except Exception:
+    import logging
+
+    logging.warning("The package `decord` was not installed in this environment.")
+
 import einops
 import numpy as np
 import tensorrt as trt
@@ -80,7 +86,6 @@ class MultimodalModelRunner:
 
             self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(llm_engine_dir, 'huggingface_tokenizer'))
             self.tokenizer.pad_token = self.tokenizer.eos_token
-
             if self.model_type == 'vita':
                 self.tokenizer.im_start_id = self.tokenizer.convert_tokens_to_ids("<extra_id_4>")
                 self.tokenizer.im_end_id = self.tokenizer.convert_tokens_to_ids("<extra_id_5>")
