@@ -20,6 +20,10 @@ import tempfile
 
 from nemo.deploy import DeployPyTriton
 
+# Configure the NeMo logger to look the same as vLLM
+logging.basicConfig(
+    format="%(levelname)s %(asctime)s %(filename)s:%(lineno)d] %(message)s",
+    datefmt="%m-%d %H:%M:%S")
 LOGGER = logging.getLogger("NeMo")
 
 try:
@@ -61,7 +65,7 @@ def get_args(argv):
         choices=["bfloat16", "float16", "fp8", "int8"],
         default="bfloat16",
         type=str,
-        help="dtype of the model on TensorRT-LLM or vLLM",
+        help="dtype of the model on vLLM",
     )
     parser.add_argument(
         "-mml", "--max_model_len", default=512, type=int, help="Max input + ouptut length of the model"
@@ -135,7 +139,7 @@ def nemo_deploy(argv):
         tempdir = tempfile.TemporaryDirectory()
         model_dir = tempdir.name
         LOGGER.info(
-            f"{model_dir} path will be used as the vLLM intermediate folder. "
+            f"{model_dir} will be used for the vLLM intermediate folder. "
             + "Please set the --triton_model_repository parameter if you'd like to use a path that already "
             + "includes the vLLM model files."
         )
