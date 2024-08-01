@@ -57,7 +57,7 @@ def filter_tarred(
 
 def read_cutset(src: str, tar: str | None = None) -> CutSet:
     inp_arg = ["force_finite=true"]
-    if tar is None:
+    if tar is not None:
         inp_arg += [f"manifest_filepath={src}", f"tarred_audio_filepaths={tar}"]
     else:
         inp_arg += ["metadata_only=true"]
