@@ -62,13 +62,12 @@ KALDIFST_INSTALLATION_MESSAGE = (
 
 
 GRAPHVIZ_INSTALLATION_MESSAGE = (
-    "graphviz is not installed.\n"
-    "please run `bash scripts/installers/install_graphviz.sh` to install."
+    "graphviz is not installed.\n" "please run `bash scripts/installers/install_graphviz.sh` to install."
 )
 
 
 KALDILM_INSTALLATION_MESSAGE = (
-    "kaldilm is not installed.\n" 
+    "kaldilm is not installed.\n"
     "please run `pip install kaldilm` or `bash scripts/installers/install_riva_decoder.sh` to install."
 )
 

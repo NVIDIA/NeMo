@@ -24,8 +24,7 @@ import torch
 from jiwer import wer as word_error_rate
 from omegaconf import DictConfig
 
-from nemo.collections.asr.parts.utils.wfst_utils import kaldifst_importer, TW_BREAK
-
+from nemo.collections.asr.parts.utils.wfst_utils import TW_BREAK, kaldifst_importer
 
 RIVA_DECODER_INSTALLATION_MESSAGE = (
     "riva decoder is not installed or is installed incorrectly.\n"
