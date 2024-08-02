@@ -431,25 +431,21 @@ def oomptimizer(
             batch = gen(seq_len_in, seq_len_out)
             oom = False
             try:
-                if isinstance(batch, Iterable):
-                    extra_msg = f"Attempting shapes: {[b.shape for b in batch]}"
-                else:
-                    extra_msg = ""
-                click.echo(f"\tCurrent gap: {gen.current_rel_gap}. {extra_msg}", nl=False)
+                click.echo(f"\tCurrent gap: {gen.current_rel_gap}... ", nl=False)
                 optimizer.zero_grad()
                 out = model.training_step(batch, batch_idx)
                 out['loss'].sum().backward()
                 optimizer.step()
             except torch.cuda.OutOfMemoryError as e:
-                click.secho(f"- OOM!", fg="yellow")
+                click.secho(f"OOM!", fg="yellow")
                 oom = True
             except RuntimeError as e:
                 if "cuFFT error: CUFFT_INTERNAL_ERROR" not in str(e):
                     raise
-                click.secho(f"- OOM!", fg="yellow")
+                click.secho(f"OOM!", fg="yellow")
                 oom = True
             else:
-                click.echo(f"- OK!")
+                click.secho(f"OK!", fg="green")
             finally:
                 click.echo(
                     f"\t[END step] [CUDA RAM CURRENT: {torch.cuda.memory_allocated() / (1024 * 1024):.1f}MB] [CUDA RAM MAX: {torch.cuda.max_memory_allocated() / (1024*1024):.1f}MB]"
