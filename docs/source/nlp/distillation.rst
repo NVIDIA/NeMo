@@ -8,14 +8,14 @@ Knowledge Distillation (KD)
 
 KD involves using information from an existing trained model to train a second (usually smaller, faster) model, thereby "distilling" knowledge from one to the other.
 
-Distillation has two primary benefits: potentially faster convergence and/or higher end accuracy than traditional training.
+Distillation has two primary benefits: faster convergence and higher end accuracy than traditional training.
 
 In NeMo, distillation is enabled by the `NVIDIA TensorRT Model Optimizer (ModelOpt) <https://github.com/NVIDIA/TensorRT-Model-Optimizer>`_ library -- a library to optimize deep-learning models for inference on GPUs.
 
 The logits-distillation process consists of the following steps:
 
-1. Loading both student and teacher model checkpoints using an appropriate parallelism strategy
-2. Training until convergence, where forward passes are run on both models, performing a specific loss function between the logits.
+1. Loading both student and teacher model checkpoints (must support same parallelism strategy, if any)
+2. Training until convergence, where forward passes are run on both models (and backward only on student), performing a specific loss function between the logits.
 3. Saving the final student model.
 
 
