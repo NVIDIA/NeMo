@@ -186,8 +186,15 @@ model:
     packed_sequence: False
     num_workers: 8
     dataloader_type: cyclic
-    data_path:
-      # could be a path to a single file or a list of files for data blending like below
+    data_path: 
+      # This configuration can either be a single string pointing to a data path, or a list of data paths for data blending.
+      # When using a blendable dataset, be aware of the following:
+      # - The sampling of data across datasets depends on both the relative sizes of the datasets and the concat_sampling_probabilities.
+      # - For example, if there are two datasets with lengths of 100 and 10, and the sampling probabilities are set to 0.5 for each,
+      #   then 55 samples would be taken from the dataset of length 100 and 55 from the dataset of length 10 (with repetition).
+      # - This means not all data might be seen in one epoch, and smaller datasets may need to be repeated to match the number of samples.
+      #   Please adjust your concat_sampling_probabilities accordingly to ensure balanced and effective training.
+      
       # - /path/to/json
       # - /path/to/json
     global_batch_size: ${model.global_batch_size}
@@ -198,11 +205,9 @@ model:
     lazy_preprocess: True
     is_multimodal: True
     media_type: image # currently supported: image
-    num_frames: -1
     sep_image_conv_front: False
     conv_template: ${model.mm_cfg.llm.model_type} # check `nemo/collections/multimodal/data/neva/conversation.py`
     image_folder: null
-    video_folder: null
     image_aspect_ratio: 'square'
 
   # Nsys profiling options

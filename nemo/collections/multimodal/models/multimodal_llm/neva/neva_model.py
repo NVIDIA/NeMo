@@ -1321,16 +1321,36 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def build_train_valid_test_datasets(self):
         logging.info('Building Neva datasets.')
-        if isinstance(self.cfg.data.data_path, ListConfig) and self.cfg.data.get('concat_sampling_probabilities'):
-            return self.build_train_valid_test_datasets_blend()
+        
+        if isinstance(self.cfg.data.data_path, (list, ListConfig)):
+            if len(self.cfg.data.data_path) > 1:
+                # Only consider data blending if there are multiple dataset paths
+                if self.cfg.data.get('concat_sampling_probabilities') is None:
+                    logging.warning("No sampling probabilities provided. Defaulting to uniform sampling.")
+                    self.cfg.data.concat_sampling_probabilities = [1 / len(self.cfg.data.data_path)] * len(self.cfg.data.data_path)
+                elif sum(self.cfg.data.concat_sampling_probabilities) != 1:
+                    raise ValueError("Concat_sampling_probabilities must sum up to 1.")
+                return self.build_train_valid_test_datasets_blend()
+            elif len(self.cfg.data.data_path) == 1: 
+                if self.cfg.data.concat_sampling_probabilities is not None:
+                    logging.warning("Using sampling probabilities with a single dataset has no effect. Defaulting to None and not using blend dataset.")
+                    self.cfg.data.concat_sampling_probabilities = None
+                self.cfg.data.data_path = self.cfg.data.data_path[0]
+            else:
+                raise ValueError("data_path must contain at least one valid path.")
+        elif isinstance(self.cfg.data.data_path, str):
+            pass
+        else:
+            raise TypeError("data_path must be a list of paths or a single string")
 
         if self.cfg.data.get("packed_sequence", False):
             assert self.cfg.micro_batch_size == 1, "Micro batch size must be 1 if using packed sequence"
+            
             self._train_ds = NevaPackedSeqDatatset(
-                self.cfg.data.data_prefix, self.cfg.mm_cfg.vision_encoder.get("crop_size")
+                self.cfg.data.data_path, self.cfg.mm_cfg.vision_encoder.get("crop_size")
             )
             self._validation_ds = NevaPackedSeqDatatset(
-                self.cfg.data.data_prefix, self.cfg.mm_cfg.vision_encoder.get("crop_size")
+                self.cfg.data.data_path, self.cfg.mm_cfg.vision_encoder.get("crop_size")
             )
         else:
             ds_dict = make_supervised_data_module(

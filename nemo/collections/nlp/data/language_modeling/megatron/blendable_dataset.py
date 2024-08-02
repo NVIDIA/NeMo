@@ -74,12 +74,14 @@ class BlendableDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         dataset_idx = self.dataset_index[idx]
         sample_idx = self.dataset_sample_index[idx]
+        dataset_size = len(self.datasets[dataset_idx])
         # Ensure the sample index doesn't exceed the dataset size
-        # original build_index function does not handle the extreme case properly
-        sample_idx = sample_idx % len(self.datasets[dataset_idx])
-        data = self.datasets[dataset_idx][sample_idx]
+        if sample_idx >= dataset_size:
+            logging.warning(f"Index {sample_idx} out of bounds for dataset {dataset_idx}. Reusing existing examples.")
+            sample_idx = sample_idx % dataset_size
+            logging.warning(f"Reusing index {sample_idx} for dataset {dataset_idx}.")
 
-        return data
+        return self.datasets[dataset_idx][sample_idx]
 
     def create_data_mmap(self):
         for dataset in self.datasets:
