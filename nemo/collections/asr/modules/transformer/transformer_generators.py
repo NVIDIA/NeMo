@@ -15,7 +15,9 @@
 from contextlib import contextmanager
 
 import torch
+from torch.distributions import Categorical
 
+from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 from nemo.collections.common.parts import NEG_INF, mask_padded_tokens
 
 __all__ = [
@@ -30,12 +32,13 @@ __all__ = [
 class GreedySequenceGenerator:
     """
     Greedy sequence generator based on the decoder followed by log_softmax.
+    Optionally supports temperature sampling with ``n_samples`` and ``temperature`` options.
 
     Args:
         embedding: nn.Module, transforms input_ids into vector embeddings
         decoder: nn.Module, takes embeddings and produces hidden_states
-        log_softmax: nn.Module, takes hidden_states and produces log_probs
-            which correspond to probability distribution of tokens (ids)
+        classifier: nn.Module, takes hidden_states and produces
+            logits or log-probability distribution of tokens (ids)
         pad: index of padding token in the vocabulary
         bos: index of beginning of sequence token in the vocabulary
         eos: index of end of sequence token in the vocabulary
@@ -45,28 +48,35 @@ class GreedySequenceGenerator:
             source sequences plus max_delta_length
         batch_size: size of the batch of generated sequences if neither
             source nor target starting sequences are provided
+        n_samples: number of sequences to generate (requires ``temperature`` to be set)
+        temperature: temperature for temperature sampling. Even with ``n_samples`` set to 1,
+            enabling temperature will sample hypotheses instead of returning the best ones.
     """
 
     def __init__(
         self,
         embedding,
         decoder,
-        log_softmax,
+        classifier: TokenClassifier,
         pad=0,
         bos=1,
         eos=2,
         max_sequence_length=512,
         max_delta_length=20,
         batch_size=1,
+        n_samples=1,
+        temperature=None,
     ):
         super().__init__()
         self.embedding = embedding
         self.decoder = decoder
-        self.log_softmax = log_softmax
+        self.classifier = classifier
         self.pad, self.bos, self.eos = pad, bos, eos
         self.max_seq_length = max_sequence_length
         self.max_delta_len = max_delta_length
         self.batch_size = batch_size
+        self.n_samples = n_samples
+        self.temperature = temperature
 
     def _one_step_forward(
         self,
@@ -75,6 +85,7 @@ class GreedySequenceGenerator:
         encoder_input_mask=None,
         decoder_mems_list=None,
         pos=0,
+        return_scores: bool = True,
     ):
         """
         One step of autoregressive output generation.
@@ -107,8 +118,9 @@ class GreedySequenceGenerator:
             decoder_mems_list = self.decoder.forward(
                 decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
-        log_probs = self.log_softmax.forward(hidden_states=decoder_mems_list[-1][:, -1:])
-        return log_probs, decoder_mems_list
+        with self.classifier.with_log_softmax_enabled(return_scores) as clf:
+            logits = clf.forward(hidden_states=decoder_mems_list[-1][:, -1:])
+        return logits, decoder_mems_list
 
     def _prepare_for_search(self, decoder_input_ids=None, encoder_hidden_states=None):
         """
@@ -145,35 +157,62 @@ class GreedySequenceGenerator:
         self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
     ):
         assert not return_beam_scores
+        is_sampling = self.temperature is not None and self.n_samples > 1
+
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
+        if is_sampling:
+            tgt = torch.repeat_interleave(tgt, self.n_samples, dim=0)
+            encoder_hidden_states = torch.repeat_interleave(encoder_hidden_states, self.n_samples, dim=0)
+            encoder_input_mask = torch.repeat_interleave(encoder_input_mask, self.n_samples, dim=0)
+            orig_batch_size = batch_size
+            batch_size = batch_size * self.n_samples
 
         # pad profile tracks sequences ending with <eos> token to replace
         # everything after <eos> with <pad> token
         decoder_parameter = next(self.decoder.parameters())
-        pad_profile = torch.zeros(batch_size, 1).long().to(decoder_parameter.device)
+        pad_profile = torch.zeros(batch_size).long().to(decoder_parameter.device)
 
         decoder_mems_list = None
         for i in range(max_generation_length):
 
-            log_probs, decoder_mems_list = self._one_step_forward(
-                tgt[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
+            if i == 0:
+                input_ids = tgt
+            else:
+                input_ids = tgt[:, -1:]
+
+            logits, decoder_mems_list = self._one_step_forward(
+                input_ids,
+                encoder_hidden_states,
+                encoder_input_mask,
+                decoder_mems_list,
+                i,
+                return_scores=return_beam_scores,
             )
 
-            next_tokens = torch.argmax(log_probs[:, -1], dim=-1, keepdim=True)
+            if self.temperature is None:  # Greedy decoding
+                next_tokens = torch.argmax(logits[:, -1], dim=-1)
+            else:  # Temperature sampling
+                next_tokens = Categorical(logits=logits[:, -1] / self.temperature).sample()
+
             next_tokens = self.pad * pad_profile + next_tokens * (1 - pad_profile)
             pad_profile = torch.max(pad_profile, (next_tokens == self.eos).long())
-            tgt = torch.cat((tgt, next_tokens), dim=-1)
+            tgt = torch.cat((tgt, next_tokens.unsqueeze(1)), dim=-1)
 
             # abort generation if all sequences end with <eos>
             if pad_profile.sum() == batch_size:
                 break
 
-        return tgt
+        samples = None
+        if is_sampling:
+            samples = list(tgt.view(orig_batch_size, self.n_samples, -1))
+            tgt = tgt[:: self.n_samples]
+
+        return tgt, samples
 
     def __call__(
         self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
     ):
-        with self.as_frozen():
+        with torch.inference_mode():
             results = self._forward(
                 decoder_input_ids, encoder_hidden_states, encoder_input_mask, return_beam_scores=return_beam_scores
             )
@@ -188,35 +227,33 @@ class GreedySequenceGenerator:
                 return prefixes, scores, tgt
 
     def freeze(self) -> None:
-        """Freeze weights of embedding, decoder, and classification layers to prevent memory leak.
-        """
+        """Freeze weights of embedding, decoder, and classification layers to prevent memory leak."""
         for param in self.embedding.parameters():
             param.requires_grad = False
         self.embedding.eval()
         for param in self.decoder.parameters():
             param.requires_grad = False
         self.decoder.eval()
-        for param in self.log_softmax.parameters():
+        for param in self.classifier.parameters():
             param.requires_grad = False
-        self.log_softmax.eval()
+        self.classifier.eval()
 
     def unfreeze(self) -> None:
-        """Unfreeze weights of embedding, decoder, and classification layers.
-        """
+        """Unfreeze weights of embedding, decoder, and classification layers."""
         for param in self.embedding.parameters():
             param.requires_grad = True
         self.embedding.train()
         for param in self.decoder.parameters():
             param.requires_grad = True
         self.decoder.train()
-        for param in self.log_softmax.parameters():
+        for param in self.classifier.parameters():
             param.requires_grad = True
-        self.log_softmax.train()
+        self.classifier.train()
 
     @contextmanager
     def as_frozen(self):
         """
-        Context manager which temporarily freezes embedding, decoder, and log_softmax modules,
+        Context manager which temporarily freezes embedding, decoder, and classifier modules,
         yields control and finally unfreezes the modules.
         """
         self.freeze()
@@ -254,9 +291,15 @@ class TopKSequenceGenerator(GreedySequenceGenerator):
         encoder_input_mask=None,
         decoder_mems_list=None,
         pos=0,
+        return_scores: bool = True,
     ):
         log_probs, decoder_mems_list = super()._one_step_forward(
-            decoder_input_ids, encoder_hidden_states, encoder_input_mask, decoder_mems_list, pos
+            decoder_input_ids,
+            encoder_hidden_states,
+            encoder_input_mask,
+            decoder_mems_list,
+            pos,
+            return_scores=return_scores,
         )
 
         batch_size, seq_len, vocab_size = log_probs.size()
@@ -357,13 +400,13 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
             # choose top-k hypotheses with length penalty applied
             len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
             scores = scores / len_penalties
-            scores, indices_i = torch.topk(scores.view(-1, self.beam_size ** 2), self.beam_size, dim=1)
+            scores, indices_i = torch.topk(scores.view(-1, self.beam_size**2), self.beam_size, dim=1)
             scores = scores.view(-1, 1) * len_penalties
 
             # select prefixes which correspond to the chosen hypotheses
             prefixes = prefixes.unsqueeze(1).repeat(1, self.beam_size, 1)
             prefixes = torch.cat((prefixes, prefixes_i.unsqueeze(2)), dim=2)
-            prefixes = prefixes.view(batch_size, self.beam_size ** 2, -1)
+            prefixes = prefixes.view(batch_size, self.beam_size**2, -1)
             p_len = prefixes.size(2)
             prefixes_ids = indices_i.unsqueeze(2).repeat(1, 1, p_len)
             prefixes = prefixes.gather(1, prefixes_ids).view(-1, p_len)
@@ -463,7 +506,10 @@ class EnsembleBeamSearchSequenceGenerator:
         input_mask = mask_padded_tokens(decoder_input_ids, self.pad).float()
         lm_hidden_states = self.language_model.encoder.embedding.forward(decoder_input_ids, start_pos=pos)
         lm_mems_list = self.language_model.encoder.encoder.forward(
-            lm_hidden_states, input_mask, lm_mems_list, return_mems=True,
+            lm_hidden_states,
+            input_mask,
+            lm_mems_list,
+            return_mems=True,
         )
         lm_log_probs = self.language_model.log_softmax.forward(hidden_states=lm_mems_list[-1][:, -1:])
         return lm_log_probs, lm_mems_list
@@ -639,13 +685,13 @@ class EnsembleBeamSearchSequenceGenerator:
             # choose top-k hypotheses with length penalty applied
             len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
             scores = scores / len_penalties
-            scores, indices_i = torch.topk(scores.view(-1, self.beam_size ** 2), self.beam_size, dim=1)
+            scores, indices_i = torch.topk(scores.view(-1, self.beam_size**2), self.beam_size, dim=1)
             scores = scores.view(-1, 1) * len_penalties
 
             # select prefixes which correspond to the chosen hypotheses
             prefixes = prefixes.unsqueeze(1).repeat(1, self.beam_size, 1)
             prefixes = torch.cat((prefixes, prefixes_i.unsqueeze(2)), dim=2)
-            prefixes = prefixes.view(batch_size, self.beam_size ** 2, -1)
+            prefixes = prefixes.view(batch_size, self.beam_size**2, -1)
             p_len = prefixes.size(2)
             prefixes_ids = indices_i.unsqueeze(2).repeat(1, 1, p_len)
             prefixes = prefixes.gather(1, prefixes_ids).view(-1, p_len)
@@ -697,12 +743,11 @@ class EnsembleBeamSearchSequenceGenerator:
             return tgt
 
     def __call__(self, src_ids, encoder_input_mask, decoder_input_ids=None, return_beam_scores=False):
-        with self.as_frozen():
+        with torch.inference_mode():
             return self._forward(src_ids, encoder_input_mask, decoder_input_ids, return_beam_scores)
 
     def freeze(self) -> None:
-        """Freeze weights of embedding, decoder, and classification layers to prevent memory leak.
-        """
+        """Freeze weights of embedding, decoder, and classification layers to prevent memory leak."""
         for model_num in range(self.num_models):
             for param in self.embeddings[model_num].parameters():
                 param.requires_grad = False
@@ -718,8 +763,7 @@ class EnsembleBeamSearchSequenceGenerator:
             self.encoders[model_num].eval()
 
     def unfreeze(self) -> None:
-        """Unfreeze weights of embedding, decoder, and classification layers.
-        """
+        """Unfreeze weights of embedding, decoder, and classification layers."""
         for model_num in range(self.num_models):
             for param in self.embeddings[model_num].parameters():
                 param.requires_grad = True
@@ -781,13 +825,20 @@ class BeamSearchSequenceGeneratorWithLanguageModel(GreedySequenceGenerator):
     ):
 
         nmt_log_probs, decoder_mems_list = super()._one_step_forward(
-            decoder_input_ids, encoder_hidden_states, encoder_input_mask, decoder_mems_list, pos,
+            decoder_input_ids,
+            encoder_hidden_states,
+            encoder_input_mask,
+            decoder_mems_list,
+            pos,
         )
         input_mask = mask_padded_tokens(decoder_input_ids, self.pad).float()
         lm_hidden_states = self.language_model.encoder.embedding.forward(decoder_input_ids, start_pos=pos)
 
         lm_mems_list = self.language_model.encoder.encoder.forward(
-            lm_hidden_states, input_mask, lm_mems_list, return_mems=True,
+            lm_hidden_states,
+            input_mask,
+            lm_mems_list,
+            return_mems=True,
         )
         lm_log_probs = self.language_model.log_softmax.forward(hidden_states=lm_mems_list[-1][:, -1:])
 
@@ -863,13 +914,13 @@ class BeamSearchSequenceGeneratorWithLanguageModel(GreedySequenceGenerator):
             # choose top-k hypotheses with length penalty applied
             len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
             scores = scores / len_penalties
-            scores, indices_i = torch.topk(scores.view(-1, self.beam_size ** 2), self.beam_size, dim=1)
+            scores, indices_i = torch.topk(scores.view(-1, self.beam_size**2), self.beam_size, dim=1)
             scores = scores.view(-1, 1) * len_penalties
 
             # select prefixes which correspond to the chosen hypotheses
             prefixes = prefixes.unsqueeze(1).repeat(1, self.beam_size, 1)
             prefixes = torch.cat((prefixes, prefixes_i.unsqueeze(2)), dim=2)
-            prefixes = prefixes.view(batch_size, self.beam_size ** 2, -1)
+            prefixes = prefixes.view(batch_size, self.beam_size**2, -1)
             p_len = prefixes.size(2)
             prefixes_ids = indices_i.unsqueeze(2).repeat(1, 1, p_len)
             prefixes = prefixes.gather(1, prefixes_ids).view(-1, p_len)

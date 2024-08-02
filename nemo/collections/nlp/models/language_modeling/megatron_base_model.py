@@ -48,16 +48,6 @@ from nemo.utils import AppState, logging, str_to_dtype
 from nemo.utils.get_rank import is_global_rank_zero
 
 try:
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-
-try:
     from megatron.core import ModelParallelConfig, parallel_state
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
@@ -71,6 +61,13 @@ except (ImportError, ModuleNotFoundError):
     ModelParallelConfig = TransformerConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import get_current_global_batch_size, get_num_microbatches
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size, get_num_microbatches
 
 try:
     from megatron.core import Timers
@@ -206,6 +203,7 @@ class MegatronBaseModel(NLPModel):
             init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
+            use_te_rng_tracker=self.cfg.get('use_te_rng_tracker', False),
         )
 
         # This must be called after initialize model parallel since it needs to know the data parallel size
@@ -289,7 +287,11 @@ class MegatronBaseModel(NLPModel):
         Returns:
             The wrapped model. Returns a list of wrapped modules or a single wrapped module.
         """
-        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
+        is_mcore_model = (
+            self.__dict__.get('mcore_gpt', False)
+            or self.__dict__.get('mcore_bert', False)
+            or self.__dict__.get('mcore_t5', False)
+        )
 
         Float16Wrapper = MCoreFloat16Module if is_mcore_model else Float16Module
 
@@ -298,33 +300,43 @@ class MegatronBaseModel(NLPModel):
         if type(self).__name__ == 'MegatronGPTModel':
             nemo_args['share_token_embeddings'] = self.cfg.get('share_embeddings_and_output_weights', True)
 
-        mcore_args = {
-            'config': self.transformer_config,
-        }
+        if is_mcore_model:
+            mcore_args = {
+                'config': self.transformer_config,
+            }
+        else:
+            mcore_args = None
 
         args = mcore_args if is_mcore_model else nemo_args
         # Model wrapper to convert both model and inputs to half precision
-        if isinstance(self.model, list):
+        if isinstance((self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model), list):
             converted_model = []
-            for module in self.model:
+            for module in self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model:
                 args['module'] = module
                 converted_model.append(Float16Wrapper(**args))
-            self.model = converted_model
+            if hasattr(self, "enc_dec_model"):
+                self.enc_dec_model = converted_model
+            else:
+                self.model = converted_model
         else:
-            args['module'] = self.model
-            self.model = Float16Wrapper(**args)
+            args['module'] = self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model
+            if hasattr(self, "enc_dec_model"):
+                self.enc_dec_model = Float16Wrapper(**args)
+            else:
+                self.model = Float16Wrapper(**args)
         args.pop('module')
 
     def get_model_module_list(self):
-        if isinstance(self.model, list):
-            return [
-                model.module if isinstance(model, (Float16Module, MCoreFloat16Module, McoreDDP)) else model
-                for model in self.model
-            ]
-        elif isinstance(self.model, (Float16Module, MCoreFloat16Module)):
-            return [self.model.module]
+        def extract_module(model):
+            if isinstance(model, (McoreDDP, Float16Module, MCoreFloat16Module)):
+                return extract_module(model.module)
+            else:
+                return model
+
+        if isinstance((self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model), list):
+            return list(map(extract_module, (self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model)))
         else:
-            return [self.model]
+            return [extract_module(self.enc_dec_model if hasattr(self, "enc_dec_model") else self.model)]
 
     def _reconfigure_limit_batches(self, limit_batches, dataloader, mode):
         """
@@ -373,8 +385,11 @@ class MegatronBaseModel(NLPModel):
         # NVIDIA container version check
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
 
-        # Support DLFW master container
-        if nvidia_torch_version == 'master':
+        def is_official_release_version(nvidia_torch_version):
+            return re.fullmatch("[0-9][0-9]\.[0-9][0-9].*", nvidia_torch_version)  # "YY.MM.*"
+
+        # Support DLFW dev container
+        if not is_official_release_version(nvidia_torch_version):
             nvidia_torch_version = datetime.now().strftime('%y.%m')
 
         if nvidia_torch_version is not None:
@@ -383,7 +398,7 @@ class MegatronBaseModel(NLPModel):
             except Exception:
                 NVIDIA_TORCH_MAJOR = 0
             try:
-                NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
+                NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1][:2])
             except Exception:
                 NVIDIA_TORCH_MINOR = 0
 
@@ -420,7 +435,7 @@ class MegatronBaseModel(NLPModel):
             legacy = True if self._cfg.tokenizer.library == 'sentencepiece' else False
         self.tokenizer = get_nmt_tokenizer(
             library=self._cfg.tokenizer.library,
-            model_name=self._cfg.tokenizer.type,
+            model_name=self._cfg.tokenizer.get("type", None),
             tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)),
             vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.get('vocab_file', None)),
             merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.get('merge_file', None)),
@@ -429,6 +444,7 @@ class MegatronBaseModel(NLPModel):
             special_tokens=self.cfg.tokenizer.get('special_tokens', None),
             trust_remote_code=self.cfg.tokenizer.get('trust_remote_code', False),
             legacy=legacy,
+            chat_template=getattr(self._cfg.tokenizer, "chat_template", None),
         )
 
         if self._cfg.tokenizer.get('additional_special_tokens', None) is not None:
@@ -471,7 +487,7 @@ class MegatronBaseModel(NLPModel):
         activation = self.cfg.get('activation', 'gelu')
         gated_linear_unit = activation.endswith('glu')
         # TODO: need to check which activation functions are supported in mcore
-        activation_func = activation_to_func(activation)
+        activation_func = activation_to_func(activation, openai_gelu=self.cfg.get("openai_gelu", False))
 
         normalization = self.cfg.get('normalization', 'LayerNorm')
 
@@ -579,8 +595,7 @@ class MegatronBaseModel(NLPModel):
 
         after = orig_vocab_size
         multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
-        while (after % multiple) != 0:
-            after += 1
+        after = ((after + multiple - 1) // multiple) * multiple
         logging.info(
             f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
         )
@@ -778,18 +793,21 @@ class MegatronBaseModel(NLPModel):
             model_dtype = torch.float32
             if self.megatron_amp_O2 and hasattr(self, 'autocast_dtype'):
                 model_dtype = self.autocast_dtype
-            optim_kwargs['param_sync_dtype'] = model_dtype
+            # Don't override user desired value
+            if 'param_sync_dtype' not in optim_config:
+                optim_kwargs['param_sync_dtype'] = model_dtype
 
             # Determine whether to store master params in optimizer
-            if self.cfg.get('fp8_params', False):
-                optim_kwargs['store_params'] = True
-            elif optim_dtype == model_dtype:
-                optim_kwargs['store_params'] = False
-            elif optim_dtype == torch.float32 and model_dtype == torch.bfloat16:
-                optim_kwargs['store_params'] = False
-                optim_kwargs['store_param_remainders'] = True
-            else:
-                optim_kwargs['store_params'] = True
+            if 'store_params' not in optim_config:
+                if self.cfg.get('fp8_params', False):
+                    optim_kwargs['store_params'] = True
+                elif optim_dtype == model_dtype:
+                    optim_kwargs['store_params'] = False
+                elif optim_dtype == torch.float32 and model_dtype == torch.bfloat16:
+                    optim_kwargs['store_params'] = False
+                    optim_kwargs['store_param_remainders'] = True
+                else:
+                    optim_kwargs['store_params'] = True
 
         return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
@@ -841,7 +859,9 @@ class MegatronBaseModel(NLPModel):
             if hasattr(self._cfg.optim, 'sched'):
                 sched_config = self._cfg.optim.sched
                 self._scheduler = prepare_lr_scheduler(
-                    optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
+                    optimizer=self._optimizer,
+                    scheduler_config=sched_config,
+                    train_dataloader=self._train_dl,
                 )
 
         if getattr(self._cfg.optim, 'sched', None) is not None and self._scheduler is None:
@@ -856,7 +876,15 @@ class MegatronBaseModel(NLPModel):
 
             # Initialize param buckets if explicitly provided
             if getattr(self, 'distributed_adam_buckets', None) is not None:
-                for bucket in self.distributed_adam_buckets:
+                buckets = self.distributed_adam_buckets
+                if self.cfg.get('distributed_adam_bucket_merge_size', 1) > 1:
+                    # Merge buckets if needed
+                    stride = self.cfg.get('distributed_adam_bucket_merge_size', 1)
+                    buckets = [
+                        list(itertools.chain.from_iterable(buckets[i : i + stride]))
+                        for i in range(0, len(buckets), stride)
+                    ]
+                for bucket in buckets:
                     self._optimizer.init_params_bucket(bucket)
                 self._optimizer.init_params_bucket(self.parameters())
             if hasattr(self, 'distributed_adam_buckets'):
@@ -889,9 +917,7 @@ class MegatronBaseModel(NLPModel):
         app_state = AppState()
 
         if self.cfg.get('rampup_batch_size', None):
-            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-
-            current_global_batch_size = getattr(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'current_global_batch_size', 1)
+            current_global_batch_size = get_current_global_batch_size() if get_current_global_batch_size() else 1
             consumed_samples = self.prev_consumed_samples + self.if_first_step * current_global_batch_size
         else:
             consumed_samples = (
@@ -1007,7 +1033,11 @@ class MegatronBaseModel(NLPModel):
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self):
         """Returns the total number of parameters across all model parallel groups."""
-        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
+        is_mcore_model = (
+            self.__dict__.get('mcore_gpt', False)
+            or self.__dict__.get('mcore_bert', False)
+            or self.__dict__.get('mcore_t5', False)
+        )
         # log number of parameters
         model = self.get_model_module_list()
         if isinstance(model, list):
@@ -1242,6 +1272,8 @@ class MegatronBaseModel(NLPModel):
             # TODO: Currently the main parameter data type is kept in fp32 (when O2=False). This needs to be
             # extended to support lower precision main parameters.
             frozen_submodule_names, frozen_submodules = find_frozen_submodules(self.model)
+            for submodule in frozen_submodule_names:
+                logging.debug(f"Ignoring state {submodule} in FSDP.")
             self.trainer.strategy.kwargs['ignored_states'] = frozen_submodules
             # FSDP requires uniform status of require_grads
             # Diffusion models like SD has frozen parts and needs to be added to 'ignored_states' from sharding for FSDP to work

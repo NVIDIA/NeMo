@@ -35,7 +35,9 @@ except (ImportError, ModuleNotFoundError) as e:
 
 try:
     from megatron.core import parallel_state, tensor_parallel
+    from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
     from megatron.core.transformer.spec_utils import ModuleSpec
+    from megatron.core.transformer.transformer_block import TransformerBlockSubmodules, get_num_layers_to_build
     from megatron.core.transformer.transformer_layer import BaseTransformerLayer
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
 
@@ -149,7 +151,7 @@ class AutocastTransformerLayer(TransformerLayer):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        attention_mask: torch.Tensor,
+        attention_mask: torch.Tensor = None,
         encoder_output: Optional[torch.Tensor] = None,
         enc_dec_attn_mask: Optional[torch.Tensor] = None,
         inference_params: Optional[Any] = None,
@@ -169,7 +171,7 @@ class AutocastTransformerLayer(TransformerLayer):
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
                 hidden_states,
-                attention_mask,
+                attention_mask=attention_mask,
                 encoder_output=encoder_output,
                 enc_dec_attn_mask=enc_dec_attn_mask,
                 inference_params=inference_params,
@@ -242,25 +244,30 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
     def forward(
         self,
         hidden_states,
-        attention_mask,
+        is_first_microbatch=None,
+        attention_mask=None,
         context=None,
         context_mask=None,
         rotary_pos_emb=None,
         inference_params=None,
         packed_seq_params=None,  # TODO: handle this
     ):
+        # Use is_first_microbatch argument during CUDA graph capture. Use self.is_first_microbatch otherwise.
         hidden_states = super().forward(
             hidden_states,
             attention_mask=attention_mask,
             encoder_output=context,
             enc_dec_attn_mask=context_mask,
             inference_params=inference_params,
-            is_first_microbatch=self.is_first_microbatch,
+            is_first_microbatch=is_first_microbatch if is_first_microbatch is not None else self.is_first_microbatch,
             # checkpoint_core_attention,
         )
         self.is_first_microbatch = False
         context = None
 
+        # CUDA graph requires returned values to be Tensors
+        if self.config.enable_cuda_graph and self.training:
+            return hidden_states
         return hidden_states, context
 
     def _get_layer_offset(self):
@@ -317,8 +324,10 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
 
 
 # Use this spec to use the full Transformer layer from Transformer Engine
-def get_gpt_full_te_layer_autocast_spec() -> ModuleSpec:
+def get_gpt_full_te_layer_autocast_spec(transformer_config) -> ModuleSpec:
     if not HAVE_MEGATRON_CORE or not HAVE_TE:
         raise ImportError(IMPORT_ERROR)
-
-    return ModuleSpec(module=TETransformerLayerAutocast)
+    num_layers = get_num_layers_to_build(transformer_config)
+    return TransformerBlockSubmodules(
+        layer_specs=[ModuleSpec(module=TETransformerLayerAutocast)] * num_layers, layer_norm=FusedLayerNorm
+    )

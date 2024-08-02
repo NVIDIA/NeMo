@@ -21,14 +21,21 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from transformers import CLIPImageProcessor
+from transformers import CLIPImageProcessor, SiglipImageProcessor
 
+from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
+from nemo.collections.multimodal.data.neva.neva_dataset import process_image
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPFSDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import AppState, logging
 from nemo.utils.model_utils import inject_model_parallel_rank
+
+try:
+    import decord
+except Exception:
+    logging.warning("The package `decord` was not installed in this environment.")
 
 try:
     from megatron.core import dist_checkpointing
@@ -132,8 +139,10 @@ def load_nemo_model_weights(nemo_path, sharded_state_dict=None):
 
             # distributed checkpointing
             if state_dict is None and sharded_state_dict is not None:
+
                 is_dist_ckpt = True
                 checkpoint = dict(state_dict=sharded_state_dict)
+
                 tmp_model_weights_ckpt = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
                 tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
                 assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
@@ -271,54 +280,69 @@ def setup_trainer_and_model_for_inference(
 
     # Use the NLPDDPStrategy for the distributed data parallel strategy.
     # We don't use DDP for async grad allreduce and don't find unused parameters.
-    strategy = NLPDDPStrategy(
-        no_ddp_communication_hook=True,
-        find_unused_parameters=False,
-    )
+    if not cfg.model.get('fsdp', False):
+        logging.info("FSDP is False, using DDP strategy.")
+        strategy = NLPDDPStrategy(
+            no_ddp_communication_hook=True,
+            find_unused_parameters=False,
+        )
+    else:
+        logging.info("Using FSDP strategy.")
+        strategy = NLPFSDPStrategy(
+            limit_all_gathers=cfg.model.get('fsdp_limit_all_gathers', True),
+            sharding_strategy=cfg.model.get('fsdp_sharding_strategy', 'full'),
+            cpu_offload=cfg.model.get('fsdp_cpu_offload', True),
+            grad_reduce_dtype=cfg.model.get('fsdp_grad_reduce_dtype', 32),
+            precision=cfg.trainer.precision,
+            # use_orig_params=cfg.model.inductor,
+            set_buffer_dtype=cfg.get('fsdp_set_buffer_dtype', None),
+        )
 
     # Set up the trainer with the specified plugins and strategy.
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
 
     # Create the NLPSaveRestoreConnector object for model saving and restoring.
     save_restore_connector = NLPSaveRestoreConnector()
+    if cfg.model.restore_from_path is not None:
+        if cfg.model.restore_from_path.endswith(".nemo") or os.path.isdir(cfg.model.restore_from_path):
+            # Set the model_extracted_dir attribute if the restore path is a directory.
+            if os.path.isdir(cfg.model.restore_from_path):
+                save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
 
-    if cfg.model.restore_from_path.endswith(".nemo") or os.path.isdir(cfg.model.restore_from_path):
-        # Set the model_extracted_dir attribute if the restore path is a directory.
-        if os.path.isdir(cfg.model.restore_from_path):
-            save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+            # Restore the model configuration from the specified path and modify it for inference.
+            model_cfg = model_provider.restore_from(
+                restore_path=cfg.model.restore_from_path,
+                trainer=trainer,
+                save_restore_connector=save_restore_connector,
+                return_config=True,
+            )
+            with open_dict(model_cfg):
+                model_cfg_modifier(model_cfg)  # modify the configuration for inference
 
-        # Restore the model configuration from the specified path and modify it for inference.
-        model_cfg = model_provider.restore_from(
-            restore_path=cfg.model.restore_from_path,
-            trainer=trainer,
-            save_restore_connector=save_restore_connector,
-            return_config=True,
-        )
-        with open_dict(model_cfg):
-            model_cfg_modifier(model_cfg)  # modify the configuration for inference
+            # Restore the model from the specified path and configuration, and set it up for inference.
+            model = model_provider.restore_from(
+                restore_path=cfg.model.restore_from_path,
+                trainer=trainer,
+                override_config_path=model_cfg,
+                save_restore_connector=save_restore_connector,
+                strict=True,
+            )
 
-        # Restore the model from the specified path and configuration, and set it up for inference.
-        model = model_provider.restore_from(
-            restore_path=cfg.model.restore_from_path,
-            trainer=trainer,
-            override_config_path=model_cfg,
-            save_restore_connector=save_restore_connector,
-            strict=True,
-        )
+        elif cfg.model.restore_from_path.endswith(".ckpt"):
+            logging.warning(
+                "Loading from .ckpt checkpoint for inference is experimental! It doesn't support models with model parallelism!"
+            )
 
-    elif cfg.model.restore_from_path.endswith(".ckpt"):
-        logging.warning(
-            "Loading from .ckpt checkpoint for inference is experimental! It doesn't support models with model parallelism!"
-        )
-
-        model = model_provider.load_from_checkpoint(
-            cfg.model.restore_from_path,
-            hparams_file=cfg.model.get("hparams_file"),
-            trainer=trainer,
-        )
+            model = model_provider.load_from_checkpoint(
+                cfg.model.restore_from_path,
+                hparams_file=cfg.model.get("hparams_file"),
+                trainer=trainer,
+            )
 
     else:
-        raise ValueError(f"Unrecognized checkpoint type: {cfg.model.restore_from_path}")
+        # load a model from scratch
+        logging.warning("Loading a model from scratch for inference. Tread carefully.")
+        model = model_provider(cfg=cfg.model, trainer=trainer)
 
     # initialize apex DDP strategy
     def dummy():
@@ -429,75 +453,53 @@ def create_neva_model_and_processor(cfg):
         else:
             image = maybe_image_path
 
-        if neva_cfg.mm_cfg.vision_encoder.from_hf:
-            processor = CLIPImageProcessor.from_pretrained(
-                neva_cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
-            )
+        processor = (
+            model.model.module.image_processor if hasattr(model.model, "module") else model.model.image_processor
+        )
+        image = process_image(processor, image, neva_cfg.data.image_aspect_ratio)
+        if neva_cfg.precision in [16, '16', '16-mixed']:
+            media = image.type(torch.float16)
+        elif neva_cfg.precision in [32, '32', '32-true']:
+            media = image.type(torch.float32)
         else:
-            processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14", torch_dtype=torch.bfloat16)
+            media = image.type(torch.bfloat16)
 
-        if neva_cfg.data.image_aspect_ratio == 'keep':
-            max_hw, min_hw = max(image.size), min(image.size)
-            aspect_ratio = max_hw / min_hw
-            max_len, min_len = 448, 224
-            shortest_edge = int(min(max_len / aspect_ratio, min_len))
-            image = processor.preprocess(
-                image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
-            )['pixel_values'][0]
-        elif neva_cfg.data.image_aspect_ratio == 'pad':
-
-            def expand2square(pil_img, background_color):
-                width, height = pil_img.size
-                if width == height:
-                    return pil_img
-                elif width > height:
-                    result = Image.new(pil_img.mode, (width, width), background_color)
-                    result.paste(pil_img, (0, (width - height) // 2))
-                    return result
-                else:
-                    result = Image.new(pil_img.mode, (height, height), background_color)
-                    result.paste(pil_img, ((height - width) // 2, 0))
-                    return result
-
-            image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-        else:
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-
-        media = image.type(torch_dtype_from_precision(neva_cfg.precision))
         return media.unsqueeze(dim=0).unsqueeze(dim=0).unsqueeze(dim=0)
 
     # add video processor for video neva
     def video_processor(maybe_video_path):
-        from decord import VideoReader
 
         if isinstance(maybe_video_path, str):
-            vr = VideoReader(maybe_video_path)
+            vr = decord.VideoReader(maybe_video_path)
             if neva_cfg.data.splice_single_frame == 'first':
-                frames = [Image.fromarray(vr[0].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[0].asnumpy()).convert('RGB')]
             elif neva_cfg.data.splice_single_frame == 'middle':
-                frames = [Image.fromarray(vr[len(vr) // 2].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[len(vr) // 2].asnumpy()).convert('RGB')]
             elif neva_cfg.data.splice_single_frame == 'last':
-                frames = [Image.fromarray(vr[-1].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[-1].asnumpy()).convert('RGB')]
             else:
                 if neva_cfg.data.num_frames == -1:
-                    frames = [Image.fromarray(frame.asnumpy()[:, :, ::-1]).convert('RGB') for frame in vr]
+                    frames = [Image.fromarray(frame.asnumpy()).convert('RGB') for frame in vr]
                 else:
                     num_frames = min(len(vr), neva_cfg.data.num_frames)
                     indices = np.linspace(0, len(vr) - 1, num_frames, dtype=int)
-                    frames = [Image.fromarray(vr[i].asnumpy()[:, :, ::-1]).convert('RGB') for i in indices]
-
+                    frames = [Image.fromarray(vr[i].asnumpy()).convert('RGB') for i in indices]
                     while len(frames) < neva_cfg.data.num_frames:
                         frames.append(frames[-1])
         else:
             frames = maybe_video_path
 
-        if neva_cfg.mm_cfg.vision_encoder.from_hf:
-            processor = CLIPImageProcessor.from_pretrained(
-                neva_cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
-            )
+        if neva_cfg.mm_cfg.vision_encoder.get("from_hf", False):
+            if (
+                "siglip" in neva_cfg.mm_cfg.vision_encoder.from_pretrained
+                or "siglip" in neva_cfg.mm_cfg.vision_encoder.get("model_type", "")
+            ):
+                processor = SiglipImageProcessor.from_pretrained(neva_cfg.mm_cfg.vision_encoder.from_pretrained)
+            else:
+                # for clip and vit model
+                processor = CLIPImageProcessor.from_pretrained(neva_cfg.mm_cfg.vision_encoder.from_pretrained)
         else:
-            processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14", torch_dtype=torch.bfloat16)
+            processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14")
 
         # support single video inference
         if neva_cfg.data.image_aspect_ratio == 'keep':
@@ -523,7 +525,7 @@ def create_neva_model_and_processor(cfg):
                     result.paste(pil_img, ((height - width) // 2, 0))
                     return result
 
-            frames = expand2square(frames, tuple(int(x * 255) for x in processor.image_mean))
+            frames = [expand2square(frame, tuple(int(x * 255) for x in processor.image_mean)) for frame in frames]
             frames = processor.preprocess(frames, return_tensors='pt')['pixel_values']
         else:
             frames = processor.preprocess(frames, return_tensors='pt')['pixel_values']
@@ -532,3 +534,38 @@ def create_neva_model_and_processor(cfg):
         return media_tensors.unsqueeze(dim=0).unsqueeze(dim=0)
 
     return model, image_processor, video_processor
+
+
+def create_image_processor(mm_cfg):
+    if mm_cfg.vision_encoder.get("from_hf", False):
+        from transformers import AutoConfig
+
+        config = AutoConfig.from_pretrained(mm_cfg.vision_encoder.from_pretrained)
+        if config.architectures[0] == "CLIPVisionModel":
+            image_processor = CLIPImageProcessor.from_pretrained(
+                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+            )
+        elif config.architectures[0] == "SiglipVisionModel":
+            image_processor = SiglipImageProcessor.from_pretrained(
+                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+            )
+        else:
+            raise (ValueError("Currently only support CLIPImageProcessor and SiglipImageProcessor from Huggingface"))
+
+        crop_size = mm_cfg.vision_encoder.get("crop_size")
+        if hasattr(image_processor, 'crop_size') and crop_size is not None:
+            assert crop_size == (
+                image_processor.crop_size['height'],
+                image_processor.crop_size['width'],
+            ), f"Crop size {crop_size} does not match the HuggingFace CLIP model's crop size {(image_processor.crop_size['height'], image_processor.crop_size['width'])}"
+
+    else:
+        # Corresponds to MegatronCLIPModel
+        crop_size = mm_cfg.get("crop_size", (224, 224))
+        image_processor = image_transform(
+            crop_size,
+            is_train=False,
+            mean=None,
+            std=None,
+        )
+    return image_processor

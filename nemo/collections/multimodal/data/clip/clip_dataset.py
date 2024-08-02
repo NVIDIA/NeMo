@@ -57,8 +57,9 @@ def tokenize(texts: Union[str, List[str]], tokenizer: Any, context_length: int =
 
     bos_id = tokenizer.bos_id
     eos_id = tokenizer.eos_id
-    all_tokens = [[bos_id] + tokenizer.text_to_ids(text) + [eos_id] for text in texts]
-    result = torch.zeros(len(all_tokens), context_length, dtype=torch.long)
+    pad_id = tokenizer.pad_id
+    all_tokens = [([bos_id] if bos_id is not None else []) + tokenizer.text_to_ids(text) + [eos_id] for text in texts]
+    result = torch.ones(len(all_tokens), context_length, dtype=torch.long) * pad_id
 
     for i, tokens in enumerate(all_tokens):
         if len(tokens) > context_length:
@@ -76,11 +77,18 @@ def get_preprocess_fns(model_cfg, tokenizer=None, is_train=True):
     img_size = (model_cfg.vision.get("img_h"), model_cfg.vision.get("img_w"))
     img_mean = model_cfg.vision.get("img_mean")
     img_std = model_cfg.vision.get("img_std")
-    img_transform = image_transform(img_size, is_train=is_train, mean=img_mean, std=img_std,)
+    img_transform = image_transform(
+        img_size,
+        is_train=is_train,
+        mean=img_mean,
+        std=img_std,
+    )
     text_transform = lambda x: x
     if tokenizer is not None:
         text_transform = partial(
-            tokenize, tokenizer=tokenizer, context_length=model_cfg.text.get("max_position_embeddings"),
+            tokenize,
+            tokenizer=tokenizer,
+            context_length=model_cfg.text.get("max_position_embeddings"),
         )
     return img_transform, text_transform
 
@@ -100,7 +108,9 @@ def transform_fn(sample, img_transform, text_transform):
 
 
 def build_train_valid_datasets(
-    model_cfg, consumed_samples, tokenizer=None,
+    model_cfg,
+    consumed_samples,
+    tokenizer=None,
 ):
     data_cfg = model_cfg.data
 
@@ -127,6 +137,13 @@ def build_train_valid_datasets(
     return train_data, val_data
 
 
+def custom_collate(batch):
+    if len(batch) == 0:
+        return None, None
+    else:
+        return default_collate(batch)
+
+
 # For zero-shot imagenet validation
 def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
     val_image_transform, text_transform = get_preprocess_fns(model_cfg, tokenizer, is_train=False)
@@ -138,7 +155,10 @@ def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
     if imagenet_path is None:
         return None
 
-    image_dataset = ImageFolder(root=imagenet_path, transform=val_image_transform,)
+    image_dataset = ImageFolder(
+        root=imagenet_path,
+        transform=val_image_transform,
+    )
 
     image_batch_sampler = MegatronPretrainingSampler(
         total_samples=len(image_dataset),
@@ -149,12 +169,6 @@ def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
         data_parallel_size=parallel_state.get_data_parallel_world_size(),
         drop_last=False,
     )
-
-    def custom_collate(batch):
-        if len(batch) == 0:
-            return None, None
-        else:
-            return default_collate(batch)
 
     imagenet_val["images"] = torch.utils.data.DataLoader(
         image_dataset,

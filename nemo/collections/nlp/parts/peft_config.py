@@ -23,6 +23,8 @@ try:
         MCoreGPTEmbeddingMixin,
         MCoreMLPMixin,
         MCoreSelfAttentionMixin,
+        MCoreSequentialMLPMixin,
+        MCoreTransformerBlockMixin,
         MCoreTransformerLayerMixin,
     )
 except (ImportError, ModuleNotFoundError):
@@ -36,8 +38,11 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraHto4HAdapterConfig,
     LoraKQVAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
+    LoraMoe4HtoHAdapterConfig,
+    LoraMoeHto4HAdapterConfig,
     LoraUnfusedHto4HAdapterConfig,
     LoraUnfusedKQVAdapterConfig,
+    MLPHeadAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
@@ -54,9 +59,16 @@ PEFT_MODULE_MAP = {
     "all": "all",
 }
 
+LORA_CONFIG_TO_MCORE_MAP = {
+    "attention_qkv": "linear_qkv",
+    "attention_dense": "linear_proj",
+    "mlp_fc1": "linear_fc1",
+    "mlp_fc2": "linear_fc2",
+}
 
-def get_target_modules(lora_cfg):
-    original_target_modules = lora_cfg.get("target_modules", ["attention_qkv"])
+
+def get_target_modules(lora_cfg, default=("attention_qkv",)):
+    original_target_modules = lora_cfg.get("target_modules", default)
     target_modules = []
 
     for module in original_target_modules:
@@ -117,6 +129,21 @@ class SelectivePEFTConfig(PEFTConfig):
         self.tunable_base_param_names = selective_cfg.get("tunable_base_param_names", [])
 
 
+class MLPHeadPEFTConfig(PEFTConfig):
+    def __init__(self, cfg):
+        config_args = {"in_features": cfg.hidden_size, "out_features": cfg.peft.mlp_head_tuning.out_features}
+        mlp_head_cfg = MLPHeadAdapterConfig(**config_args)
+
+        name_key_to_cfg = {
+            AdapterName.MLP_HEAD_ADAPTER: mlp_head_cfg,
+        }
+        self.name_key_to_mcore_mixins = {
+            AdapterName.MLP_HEAD_ADAPTER: [("decoder", MCoreTransformerBlockMixin)],
+        }
+
+        super().__init__(cfg.peft.mlp_head_tuning, name_key_to_cfg)
+
+
 class LoraPEFTConfig(PEFTConfig):
     def __init__(self, cfg):
         lora_cfg = cfg.peft.lora_tuning
@@ -160,7 +187,7 @@ class LoraPEFTConfig(PEFTConfig):
 
             elif module == PEFT_MODULE_MAP["dense_module"]:
                 adapter_cfg = self._create_lora_config(
-                    cfg, lora_cfg, cfg.hidden_size, cfg.hidden_size, LoraDenseAttentionAdapterConfig
+                    cfg, lora_cfg, projection_size, cfg.hidden_size, LoraDenseAttentionAdapterConfig
                 )
                 name_key_to_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER] = adapter_cfg
                 name_key_to_mcore_mixins[AdapterName.LORA_DENSE_ATTENTION_ADAPTER] = [
@@ -169,7 +196,10 @@ class LoraPEFTConfig(PEFTConfig):
 
             elif module == PEFT_MODULE_MAP["hto4h_module"]:
                 hto4h_projection_size = cfg.ffn_hidden_size * 2 if fast_glu_activation else cfg.ffn_hidden_size
-                if lora_cfg.get("variant", "nemo") == "canonical":
+                if cfg.get('num_moe_experts', None):
+                    _adapter_name = AdapterName.LORA_MOE_Hto4H_ADAPTER
+                    _adapter_cfg_cls = LoraMoeHto4HAdapterConfig
+                elif lora_cfg.get("variant", "nemo") == "canonical":
                     _adapter_name = AdapterName.LORA_UNFUSED_Hto4H_ADAPTER
                     _adapter_cfg_cls = LoraUnfusedHto4HAdapterConfig
                 else:
@@ -180,13 +210,35 @@ class LoraPEFTConfig(PEFTConfig):
                     cfg, lora_cfg, cfg.hidden_size, hto4h_projection_size, _adapter_cfg_cls
                 )
                 name_key_to_cfg[_adapter_name] = adapter_cfg
-                name_key_to_mcore_mixins[_adapter_name] = [("mlp", MCoreMLPMixin)]
+                if _adapter_name == AdapterName.LORA_MOE_Hto4H_ADAPTER:
+                    name_key_to_mcore_mixins[_adapter_name] = [("mlp.experts", MCoreSequentialMLPMixin)]
+                    for i in range(int(cfg.num_moe_experts)):
+                        name_key_to_mcore_mixins[_adapter_name].append(
+                            (f"mlp.experts.local_experts.{i}", MCoreMLPMixin)
+                        )
+                else:
+                    name_key_to_mcore_mixins[_adapter_name] = [("mlp", MCoreMLPMixin)]
+
             elif module == PEFT_MODULE_MAP["4htoh_module"]:
+                if cfg.get('num_moe_experts', None):
+                    _adapter_name = AdapterName.LORA_MOE_4HtoH_ADAPTER
+                    _adapter_cfg_cls = LoraMoe4HtoHAdapterConfig
+                else:
+                    _adapter_name = AdapterName.LORA_4HtoH_ADAPTER
+                    _adapter_cfg_cls = Lora4HtoHAdapterConfig
+
                 adapter_cfg = self._create_lora_config(
-                    cfg, lora_cfg, cfg.ffn_hidden_size, cfg.hidden_size, Lora4HtoHAdapterConfig
+                    cfg, lora_cfg, cfg.ffn_hidden_size, cfg.hidden_size, _adapter_cfg_cls
                 )
-                name_key_to_cfg[AdapterName.LORA_4HtoH_ADAPTER] = adapter_cfg
-                name_key_to_mcore_mixins[AdapterName.LORA_4HtoH_ADAPTER] = [("mlp", MCoreMLPMixin)]
+                name_key_to_cfg[_adapter_name] = adapter_cfg
+                if _adapter_name == AdapterName.LORA_MOE_4HtoH_ADAPTER:
+                    name_key_to_mcore_mixins[_adapter_name] = [("mlp.experts", MCoreSequentialMLPMixin)]
+                    for i in range(int(cfg.num_moe_experts)):
+                        name_key_to_mcore_mixins[_adapter_name].append(
+                            (f"mlp.experts.local_experts.{i}", MCoreMLPMixin)
+                        )
+                else:
+                    name_key_to_mcore_mixins[_adapter_name] = [("mlp", MCoreMLPMixin)]
             else:
                 logging.error(
                     f"Unrecognized target_module string: {module}.\n"
@@ -221,6 +273,8 @@ class LoraPEFTConfig(PEFTConfig):
             assert kv_channels is not None, "kv_channels must be provided for canonical Lora"
             config_args.update({"num_query_groups": num_query_groups, "kv_channels": kv_channels})
             config_args.pop("out_features")
+        elif adapter_cfg_cls in (LoraMoeHto4HAdapterConfig, LoraMoe4HtoHAdapterConfig):
+            config_args.update({'num_moe_experts': cfg.num_moe_experts})
 
         if lora_cfg.weight_tying:
             position_embedding_strategy = lora_cfg.get("position_embedding_strategy", None)
@@ -249,6 +303,10 @@ class LoraPEFTConfig(PEFTConfig):
         adapter_cfg = adapter_cfg_cls(**config_args)
 
         return adapter_cfg
+
+
+class QLoraPEFTConfig(LoraPEFTConfig):
+    pass
 
 
 class IA3PEFTConfig(PEFTConfig):
@@ -360,6 +418,8 @@ PEFT_CONFIG_MAP = {
     "ia3": IA3PEFTConfig,
     "ptuning": PtuningPEFTConfig,
     "lora": LoraPEFTConfig,
+    "mlp_head": MLPHeadPEFTConfig,
+    "qlora": QLoraPEFTConfig,
     "selective": SelectivePEFTConfig,
     'none': None,
     None: None,

@@ -28,8 +28,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
-from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment, ChannelSelectorType
 from nemo.utils import logging, logging_mode
 
 TranscriptionReturnType = Union[List[str], List['Hypothesis'], Tuple[List[str]], Tuple[List['Hypothesis']]]
@@ -181,7 +180,7 @@ class TranscriptionMixin(ABC):
 
     """
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def transcribe(
         self,
         audio: Union[str, List[str], np.ndarray, DataLoader],
@@ -381,7 +380,6 @@ class TranscriptionMixin(ABC):
                 for test_batch in tqdm(dataloader, desc="Transcribing", disable=not verbose):
                     # Move batch to device
                     test_batch = move_to_device(test_batch, transcribe_cfg._internal.device)
-
                     # Run forward pass
                     model_outputs = self._transcribe_forward(test_batch, transcribe_cfg)
                     processed_outputs = self._transcribe_output_processing(model_outputs, transcribe_cfg)
@@ -772,13 +770,13 @@ class ASRTranscriptionMixin(TranscriptionMixin):
 
         # Unfreeze the encoder and decoder modules
         if hasattr(self, 'encoder'):
-            self.encoder.unfreeze()
+            self.encoder.unfreeze(partial=True)
 
         if hasattr(self, 'decoder'):
-            self.decoder.unfreeze()
+            self.decoder.unfreeze(partial=True)
 
         if hasattr(self, 'joint'):
-            self.joint.unfreeze()
+            self.joint.unfreeze(partial=True)
 
     @classmethod
     def get_transcribe_config(cls) -> TranscribeConfig:

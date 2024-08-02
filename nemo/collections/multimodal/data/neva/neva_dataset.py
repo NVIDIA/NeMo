@@ -20,7 +20,6 @@ import tarfile
 from dataclasses import dataclass
 from typing import Any, Dict, List, Sequence, Tuple, Union
 
-import decord
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -29,22 +28,31 @@ from einops import rearrange
 from omegaconf import DictConfig
 from PIL import Image
 from torch.utils.data import Dataset, default_collate
-from transformers import CLIPImageProcessor
+from transformers import CLIPImageProcessor, SiglipImageProcessor
 
 import nemo.collections.multimodal.data.neva.conversation as conversation_lib
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.data.neva.conversation import (
+    DEFAULT_BOS_TOKEN,
+    DEFAULT_EOS_TOKEN,
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IMAGE_PATCH_TOKEN,
     DEFAULT_IMAGE_TOKEN,
     DEFAULT_LABELS_TOKEN,
+    DEFAULT_VID_END_TOKEN,
+    DEFAULT_VID_START_TOKEN,
     DEFAULT_VIDEO_TOKEN,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
 MAX_NUM_IMAGES = 1
 IGNORE_INDEX = -1
+
+try:
+    import decord
+except Exception:
+    logging.warning("The package `decord` was not installed in this environment.")
 
 try:
     from megatron.core.datasets.indexed_dataset import IndexedDataset
@@ -145,37 +153,33 @@ class TarOrFolderVideoLoader:
                     cap = decord.VideoReader(f)
                     return self.flatten_frames(cap)
         else:
+            # decord.bridge.set_bridge("torch")
             cap = decord.VideoReader(os.path.join(self.video_folder, file_name))
             return self.flatten_frames(cap)
         return None
 
     def flatten_frames(self, cap):
         if self.data_cfg['splice_single_frame'] == 'first':
-            frame = cap[0].asnumpy()[:, :, ::-1]
+            frame = cap[0].asnumpy()
             return Image.fromarray(frame).convert('RGB')
         elif self.data_cfg['splice_single_frame'] == 'middle':
-            frame = cap[len(cap) // 2].asnumpy()[:, :, ::-1]
+            frame = cap[len(cap) // 2].asnumpy()
             return Image.fromarray(frame).convert('RGB')
         elif self.data_cfg['splice_single_frame'] == 'last':
-            frame = cap[-1].asnumpy()[:, :, ::-1]
+            frame = cap[-1].asnumpy()
             return Image.fromarray(frame).convert('RGB')
         else:
             if self.data_cfg['num_frames'] == -1:
                 frames = []
                 for frame in cap:
-                    rgb_frame = frame.asnumpy()[:, :, ::-1]
+                    rgb_frame = frame.asnumpy()
                     img = Image.fromarray(rgb_frame).convert('RGB')
                     frames.append(img)
                 return frames
             else:
                 num_frames = min(len(cap), self.data_cfg['num_frames'])
                 indices = np.linspace(0, len(cap) - 1, num_frames, dtype=int)
-                frames = []
-                for i in indices:
-                    rgb_frame = cap[i].asnumpy()[:, :, ::-1]
-                    img = Image.fromarray(rgb_frame).convert('RGB')
-                    frames.append(img)
-
+                frames = [Image.fromarray(cap[i].asnumpy()).convert('RGB') for i in indices]
                 while len(frames) < self.data_cfg['num_frames']:
                     frames.append(frames[-1])
                 return frames
@@ -228,6 +232,25 @@ def tokenize(
     return result
 
 
+def get_tokens_ids(tokenizer, tokens):
+    """
+    Returns the token id for a given token.
+
+    Parameters
+    ----------
+    tokenizer : nemo tokenizer
+        A tokenizer to be used for tokenization.
+    tokens : list
+        A list of tokens to get the token id for.
+
+    Returns
+    -------
+    List
+        The token ids.
+    """
+    return [tokenizer.token_to_id(token) for token in tokens]
+
+
 def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: int, use_plain: bool = False) -> Dict:
     """
     Preprocesses multimodal sources based on the provided configuration.
@@ -261,15 +284,59 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     if not is_multimodal:
         return sources
 
+    num_frames = multimodal_cfg['num_frames']
+    # vila
+    if multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+        image_token_len //= 4
+
     num_patches = image_token_len
+    # TO DO: to support multiple images
     if media_type == 'video':
-        num_patches *= multimodal_cfg['num_frames']
+        num_patches *= num_frames
 
     if multimodal_cfg['use_im_start_end']:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * num_patches
     else:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * (num_patches - 2)
     replace_token = DEFAULT_IM_START_TOKEN[model_type] + replace_token + DEFAULT_IM_END_TOKEN[model_type]
+
+    if media_type == 'video' and multimodal_cfg.get("use_lita", False):
+        if not multimodal_cfg.get('lita', None):
+            raise ValueError("LITA config is missing")
+        lita_video_arch = multimodal_cfg['lita']['lita_video_arch']
+        num_temporal_tokens, num_spatial_tokens = num_frames, 0
+        if lita_video_arch == 'temporal_all_resolution':
+            sample_frames = min(multimodal_cfg['lita']['sample_frames'], num_frames)
+            # num_frames for temporal tokens, sample_frames * num_patches for spatial tokens
+            num_spatial_tokens = sample_frames * image_token_len
+        else:
+            # num_frames for temporal tokens and num_patches for spatial tokens
+            num_spatial_tokens = image_token_len
+        num_tokens = num_temporal_tokens + num_spatial_tokens
+
+        visual_token_format = multimodal_cfg['lita'].get('visual_token_format', 'v1')
+        media_start = DEFAULT_IM_START_TOKEN[model_type]
+        media_end = DEFAULT_IM_END_TOKEN[model_type]
+        image_patch = DEFAULT_IMAGE_PATCH_TOKEN[model_type]
+        if visual_token_format == 'im_vid_start_end':
+            image_start, image_end = DEFAULT_IM_START_TOKEN[model_type], DEFAULT_IM_END_TOKEN[model_type]
+            vid_start, vid_end = DEFAULT_VID_START_TOKEN, DEFAULT_VID_END_TOKEN
+            if multimodal_cfg['use_im_start_end']:
+                replace_token_list = [image_start + image_patch * image_token_len + image_end] * sample_frames
+                replace_token_list += [vid_start + image_patch * num_temporal_tokens + vid_end]
+                replace_token = "".join(replace_token_list)
+            else:
+                replace_token_list = [image_start + image_patch * (image_token_len - 1) + image_end]
+                replace_token_list += [image_start + image_patch * image_token_len + image_end] * (sample_frames - 1)
+                replace_token_list += [vid_start + image_patch * (num_temporal_tokens - 1) + vid_end]
+                replace_token = "".join(replace_token_list)
+            replace_token = media_start + replace_token + media_end
+        else:
+            if multimodal_cfg['use_im_start_end']:
+                replace_token = image_patch * num_tokens
+            else:
+                replace_token = image_patch * (num_tokens - 2)
+            replace_token = media_start + replace_token + media_end
 
     for source in sources:
         conversation = source['conversations']
@@ -288,8 +355,43 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
             conversation[0]['value'] = default_token
         for turn in conversation:
             turn["value"] = turn["value"].replace(default_token, replace_token)
-
     return sources
+
+
+def process_image(processor, image, image_aspect_ratio="square"):
+    if isinstance(processor, CLIPImageProcessor) or isinstance(processor, SiglipImageProcessor):
+        # image processor from HF
+        if image_aspect_ratio == 'keep':
+            max_hw, min_hw = max(image.size), min(image.size)
+            aspect_ratio = max_hw / min_hw
+            max_len, min_len = 448, 224
+            shortest_edge = int(min(max_len / aspect_ratio, min_len))
+            image = processor.preprocess(
+                image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
+            )['pixel_values'][0]
+        elif image_aspect_ratio == 'pad':
+
+            def expand2square(pil_img, background_color):
+                width, height = pil_img.size
+                if width == height:
+                    return pil_img
+                elif width > height:
+                    result = Image.new(pil_img.mode, (width, width), background_color)
+                    result.paste(pil_img, (0, (width - height) // 2))
+                    return result
+                else:
+                    result = Image.new(pil_img.mode, (height, height), background_color)
+                    result.paste(pil_img, ((height - width) // 2, 0))
+                    return result
+
+            image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
+            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+        else:
+            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+    else:
+        assert image_aspect_ratio == 'square', 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
+        image = processor(image)
+    return image
 
 
 def preprocess_llama_3(
@@ -388,6 +490,7 @@ def preprocess_llama_2(
     sources: dict,
     tokenizer,
     cfg,
+    is_mistral: bool = False,
 ) -> Dict:
     """
     Preprocesses sources for the LLaMA 2 model configuration.
@@ -404,7 +507,10 @@ def preprocess_llama_2(
     - Dict: A dictionary containing tokenized and labeled data suitable for the LLaMA 2 model.
       This includes tokens, labels, and any special processing as defined in the configuration.
     """
-    conv = conversation_lib.conv_llava_llama_2.copy()
+    if is_mistral:
+        conv = conversation_lib.conv_mistral.copy()
+    else:
+        conv = conversation_lib.conv_llava_llama_2.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
     # Apply prompt templates
@@ -433,13 +539,20 @@ def preprocess_llama_2(
     )
 
     # llama tricks
-    tokens[tokens == 32003] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
-    tokens[tokens == 32006] = 1  # <s>
-    tokens[tokens == 32007] = 2  # </s>
+    # 32003, 32006, 32007
+    image_patch_token = DEFAULT_IMAGE_PATCH_TOKEN["llama_2"]
+    DEFAULT_TOKENS = [image_patch_token, DEFAULT_BOS_TOKEN, DEFAULT_EOS_TOKEN]
+    img_patch_id, bos_id, eos_id = get_tokens_ids(tokenizer, DEFAULT_TOKENS)
+    tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
+    tokens[tokens == bos_id] = 1  # <s>
+    tokens[tokens == eos_id] = 2  # </s>
     labels = tokens.clone().detach()
 
     # Mask labels
-    sep = "[/INST] "
+    if is_mistral:
+        sep = "[/INST]"
+    else:
+        sep = "[/INST] "
     for conversation, target in zip(conversations, labels):
         rounds = conversation.split(conv.sep2)
         cur_len = 0
@@ -454,16 +567,23 @@ def preprocess_llama_2(
             parts[0] += sep
 
             round_len = len(tokenizer.text_to_ids(rou + conv.sep2))
+
+            if is_mistral:
+                instruction_len = len(tokenizer.text_to_ids(parts[0])) - 1
+            else:
+                instruction_len = len(tokenizer.text_to_ids(parts[0])) - 2
+
             if i > 0:
                 round_len -= 1  # Remove extra token added by sp tokenizer
-            instruction_len = len(tokenizer.text_to_ids(parts[0])) - 2
+            else:
+                instruction_len += 1
             target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
-
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
 
     # Check if masking working correctly
-    # print([x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())])
+    # masking_test =[x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())]
+    # print(masking_test)
 
     if add_extra_token:
         tokens = tokens[:, :-1].contiguous()
@@ -525,9 +645,14 @@ def preprocess_v1(
     )
 
     # llama tricks
-    tokens[tokens == 32003] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
-    tokens[tokens == 32006] = 1  # <s>
-    tokens[tokens == 32007] = 2  # </s>
+    # 32003, 32006, 32007
+    image_patch_token = DEFAULT_IMAGE_PATCH_TOKEN["llama_2"]
+    DEFAULT_TOKENS = [image_patch_token, DEFAULT_BOS_TOKEN, DEFAULT_EOS_TOKEN]
+    img_patch_id, bos_id, eos_id = get_tokens_ids(tokenizer, DEFAULT_TOKENS)
+    tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
+    tokens[tokens == bos_id] = 1  # <s>
+    tokens[tokens == eos_id] = 2  # </s>
+    # tokens = torch.concat((torch.tensor([[1]]), tokens), axis=1) #lita 1.5 legacy
     labels = tokens.clone().detach()
 
     # Mask labels
@@ -721,7 +846,11 @@ def preprocess_nv_dpo(
 
             if i % 2 == 1:
                 turn['from'] = conv.roles[1]
-                conv.append_message(turn['from'], turn['value'])
+                if "label" in turn:
+                    value = DEFAULT_LABELS_TOKEN + turn['label'] + '\n' + turn['value']
+                else:
+                    value = turn["value"]
+                conv.append_message(turn['from'], value)
                 if not turn["value"]:
                     strip_end_for_inference = (
                         True  # in inference, current turn is empty, thus end tokens need to striped.
@@ -763,7 +892,11 @@ def preprocess_nv_dpo(
             if len(parts) != 2:
                 break
 
-            instruction_len = len(tokenizer.text_to_ids(parts[0] + sep))
+            # handle label if exists
+            labels_match = re.search(rf"{re.escape(DEFAULT_LABELS_TOKEN)}.*?\n", parts[1])
+            instruction_len = len(
+                tokenizer.text_to_ids(parts[0] + sep + (parts[1][: labels_match.end()] if labels_match else ""))
+            )
             round_len = len(tokenizer.text_to_ids(rou + conv.sep))
             target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
 
@@ -884,47 +1017,24 @@ class LazySupervisedDataset(Dataset):
                 image = self.image_loader.open_image(image_file)
                 if image is None:
                     logging.warning(f"Image {image_file} could not be found!")
-                if isinstance(self.processor, CLIPImageProcessor):
-                    # image processor from HF
-                    if self.multimodal_cfg['image_aspect_ratio'] == 'keep':
-                        max_hw, min_hw = max(image.size), min(image.size)
-                        aspect_ratio = max_hw / min_hw
-                        max_len, min_len = 448, 224
-                        shortest_edge = int(min(max_len / aspect_ratio, min_len))
-                        image = self.processor.preprocess(
-                            image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
-                        )['pixel_values'][0]
-                    elif self.multimodal_cfg['image_aspect_ratio'] == 'pad':
-
-                        def expand2square(pil_img, background_color):
-                            width, height = pil_img.size
-                            if width == height:
-                                return pil_img
-                            elif width > height:
-                                result = Image.new(pil_img.mode, (width, width), background_color)
-                                result.paste(pil_img, (0, (width - height) // 2))
-                                return result
-                            else:
-                                result = Image.new(pil_img.mode, (height, height), background_color)
-                                result.paste(pil_img, ((height - width) // 2, 0))
-                                return result
-
-                        image = expand2square(image, tuple(int(x * 255) for x in self.processor.image_mean))
-                        image = self.processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-                    else:
-                        image = self.processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-                else:
-                    assert (
-                        self.multimodal_cfg['image_aspect_ratio'] == 'square'
-                    ), 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
-                    image = self.processor(image)
+                image = process_image(self.processor, image, self.multimodal_cfg['image_aspect_ratio'])
                 images.append(image)
             media_tensors = torch.tensor([])
             if images:
                 media_tensors = torch.stack(images)
-                cur_token_len = (media_tensors[0].shape[1] // 14) * (
-                    media_tensors[0].shape[2] // 14
-                )  # FIXME: 14 is hardcoded patch size
+                patch_dim = self.multimodal_cfg['patch_dim']
+
+                height_num_patches = media_tensors[0].shape[1] // patch_dim
+                width_num_patches = media_tensors[0].shape[2] // patch_dim
+
+                if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+                    if height_num_patches % 2 != 0:
+                        height_num_patches += 1
+                    if width_num_patches % 2 != 0:
+                        width_num_patches += 1
+
+                cur_token_len = height_num_patches * width_num_patches
+
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
                     self.multimodal_cfg,
@@ -940,7 +1050,7 @@ class LazySupervisedDataset(Dataset):
                 frames = self.video_loader.open_video(video_file)
                 if frames is None:
                     logging.warning(f"Video {video_file} could not be found!")
-                if isinstance(self.processor, CLIPImageProcessor):
+                if isinstance(self.processor, CLIPImageProcessor) or isinstance(self.processor, SiglipImageProcessor):
                     # image processor from HF
                     if self.multimodal_cfg['image_aspect_ratio'] == 'keep':
                         max_hw, min_hw = max(frames.size), min(frames.size)
@@ -965,7 +1075,10 @@ class LazySupervisedDataset(Dataset):
                                 result.paste(pil_img, ((height - width) // 2, 0))
                                 return result
 
-                        frames = expand2square(frames, tuple(int(x * 255) for x in self.processor.image_mean))
+                        frames = [
+                            expand2square(frame, tuple(int(x * 255) for x in self.processor.image_mean))
+                            for frame in frames
+                        ]
                         frames = self.processor.preprocess(frames, return_tensors='pt')['pixel_values']
                     else:
                         frames = self.processor.preprocess(frames, return_tensors='pt')['pixel_values']
@@ -978,9 +1091,19 @@ class LazySupervisedDataset(Dataset):
             media_tensors = frames
             if videos:
                 media_tensors = torch.stack(videos)
-                cur_token_len = (media_tensors[0].shape[-1] // 14) * (
-                    media_tensors[0].shape[-2] // 14
-                )  # FIXME: 14 is hardcoded patch size
+                patch_dim = self.multimodal_cfg['patch_dim']
+
+                height_num_patches = media_tensors[0].shape[-2] // patch_dim
+                width_num_patches = media_tensors[0].shape[-1] // patch_dim
+
+                if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+                    if height_num_patches % 2 != 0:
+                        height_num_patches += 1
+                    if width_num_patches % 2 != 0:
+                        width_num_patches += 1
+
+                cur_token_len = height_num_patches * width_num_patches
+
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
                     self.multimodal_cfg,
@@ -1021,6 +1144,13 @@ class LazySupervisedDataset(Dataset):
                 sources,
                 self.tokenizer,
                 self.multimodal_cfg,
+            )
+        elif self.conv_template == "mistral":
+            data_dict = preprocess_llama_2(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+                is_mistral=True,
             )
         elif self.conv_template == "plain":
             data_dict = preprocess_plain(
@@ -1183,26 +1313,14 @@ class DataCollatorForSupervisedDataset(object):
         return batch
 
 
-def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
+def make_supervised_data_module(tokenizer, image_processor, model_cfg) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     data_cfg = model_cfg.data
     mm_cfg = model_cfg.mm_cfg
     add_extra_token = 1
     if getattr(model_cfg, 'no_seqlen_plus_one_input_tokens', False):
         add_extra_token = 0
-    crop_size = data_cfg.get("crop_size", (224, 224))
-    if mm_cfg.vision_encoder.from_hf:
-        image_processor = CLIPImageProcessor.from_pretrained(
-            mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
-        )
-    else:
-        # TODO(yuya): Fix this hard-code for our own CLIP
-        image_processor = image_transform(
-            crop_size,
-            is_train=False,
-            mean=None,
-            std=None,
-        )
+    crop_size = mm_cfg.vision_encoder.get("crop_size", (224, 224))
 
     train_dataset = NevaDataset(
         tokenizer=tokenizer,
@@ -1212,8 +1330,8 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             sep_image_conv_front=data_cfg.sep_image_conv_front,
             model_type=mm_cfg.llm.get("model_type", "nvgpt"),
             conv_template=data_cfg.get("conv_template", "nvgpt"),
+            patch_dim=model_cfg.mm_cfg.vision_encoder.patch_dim,
             crop_size=crop_size,
-            image_token_len=data_cfg.image_token_len,
             image_folder=data_cfg.get('image_folder', None),
             video_folder=data_cfg.get('video_folder', None),
             image_aspect_ratio=data_cfg.image_aspect_ratio,
@@ -1223,6 +1341,9 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             context_length=model_cfg.encoder_seq_length,
             media_type=data_cfg.get('media_type', 'image'),
             num_frames=data_cfg.get('num_frames', -1),
+            use_lita=getattr(model_cfg.mm_cfg, 'use_lita', False),
+            lita=getattr(model_cfg.mm_cfg, 'lita', {}),
+            mm_mlp_adapter_type=model_cfg.mm_cfg.get('mm_mlp_adapter_type', 'linear'),
         ),
         data_cfg=dict(
             splice_single_frame=data_cfg.get('splice_single_frame', None),
