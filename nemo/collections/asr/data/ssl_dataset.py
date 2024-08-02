@@ -227,12 +227,19 @@ class AudioNoiseDataset(audio_to_text.AudioToCharDataset):
         return None
 
     def __init__(
-        self, noise_manifest: str | None = None, batch_augmentor: Any | None = None, **kwargs,
+        self,
+        noise_manifest: str | None = None,
+        batch_augmentor: Any | None = None,
+        min_audio_len_secs: float = 1.0,
+        pad_audio_mode: str = 'repeat',
+        **kwargs,
     ):
         super().__init__(bos_id=0, manifest_parse_func=_parse_manifest_item, **kwargs)
         self.noise_manifest = noise_manifest
         self.batch_augmentor = batch_augmentor
         self.noise_data = load_noise_manifest(noise_manifest)
+        self.min_audio_len_secs = min_audio_len_secs
+        self.pad_audio_mode = pad_audio_mode
 
     def __getitem__(self, index) -> AudioNoiseItem:
         sample = self.manifest_processor.collection[index]
@@ -249,6 +256,7 @@ class AudioNoiseDataset(audio_to_text.AudioToCharDataset):
             orig_sr=sample.orig_sr,
             channel_selector=self.channel_selector,
         )
+        audio = self._pad_audio(audio)
         audio_len = torch.tensor(audio.shape[0]).long()
         noise, noise_len = sample_noise(self.noise_data, self.featurizer, audio_len.item())
 
@@ -262,6 +270,18 @@ class AudioNoiseDataset(audio_to_text.AudioToCharDataset):
             noisy_audio_len=audio_len,
         )
         return item
+
+    def _pad_audio(self, audio: torch.Tensor) -> torch.Tensor:
+        min_len = int(self.min_audio_len_secs * self.featurizer.sample_rate)
+        if audio.size(0) < min_len:
+            if self.pad_audio_mode == 'repeat':
+                num_repeats = int(np.ceil(min_len / audio.size(0)))
+                audio = audio.repeat(num_repeats)[:min_len]
+            elif self.pad_audio_mode == 'zero':
+                audio = torch.nn.functional.pad(audio, (0, min_len - audio.size(0)))
+            else:
+                raise ValueError(f"Unsupported pad_audio_mode: {self.pad_audio_mode}")
+        return audio
 
     def _collate_fn(self, batch: List[AudioNoiseItem]) -> AudioNoiseBatch:
         return _audio_noise_collate_fn(batch, self.batch_augmentor)
