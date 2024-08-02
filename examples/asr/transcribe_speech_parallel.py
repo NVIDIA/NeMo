@@ -169,9 +169,13 @@ def main(cfg: ParallelTranscriptionConfig):
         OmegaConf.set_struct(cfg.predict_ds, False)
         cfg.predict_ds.use_lhotse = True
         cfg.predict_ds.lang_field = "target_lang"
-        OmegaConf.set_struct(cfg.predict_ds, True)
     
     trainer = ptl.Trainer(**cfg.trainer)
+
+    if isinstance(model, EncDecMultiTaskModel):
+        cfg.predict_ds.global_rank = trainer.global_rank
+        cfg.predict_ds.world_size = trainer.world_size
+        OmegaConf.set_struct(cfg.predict_ds, True)
 
     data_loader = model._setup_dataloader_from_config(cfg.predict_ds)
 
