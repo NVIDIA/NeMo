@@ -1,25 +1,25 @@
 # import os
 import gc
 import re
+from collections import OrderedDict
 
 # import tempfile
 from copy import deepcopy
 from typing import Dict
-from collections import OrderedDict
 
 import torch
 import torch.multiprocessing as mp
-from pytorch_lightning import Trainer
 from einops import rearrange, repeat
 from megatron.core import parallel_state
 from omegaconf import OmegaConf, open_dict
+from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector, init_model_parallel
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.core.config import hydra_runner
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
@@ -73,7 +73,9 @@ def modify_config_for_upcycling(gpt_cfg: OmegaConf, cfg: OmegaConf) -> OmegaConf
 #     print()
 
 
-def load_state_dict_from_nemo(cls, cfg: OmegaConf, save_restore_connector: SaveRestoreConnector, trainer: Trainer) -> OrderedDict:
+def load_state_dict_from_nemo(
+    cls, cfg: OmegaConf, save_restore_connector: SaveRestoreConnector, trainer: Trainer
+) -> OrderedDict:
     # cls = MegatronGPTModel
     gpt_cfg = cls.restore_from(
         restore_path=cfg.restore_from_path,
@@ -296,7 +298,9 @@ def main(cfg) -> None:
     # cfg = OmegaConf.load(args.config_path)
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
     save_restore_connector = NLPSaveRestoreConnector()
-    state_dict = load_state_dict_from_nemo(MegatronGPTModel, cfg, save_restore_connector=save_restore_connector, trainer=trainer)
+    state_dict = load_state_dict_from_nemo(
+        MegatronGPTModel, cfg, save_restore_connector=save_restore_connector, trainer=trainer
+    )
     # app_state = AppState()
     # print("app state1: ", app_state.expert_model_parallel_size)
     # exit()
@@ -312,8 +316,8 @@ def main(cfg) -> None:
 
     state_dict = upcycle_weights_for_moe(cfg=cfg, state_dict=state_dict)
     # if cfg.model.get('expert_model_parallel_size', 1) == 1:
-        # state_dict = modify_state_dict_for_ddp(state_dict)
-    
+    # state_dict = modify_state_dict_for_ddp(state_dict)
+
     state_dict = save_restore_connector.modify_state_dict(cfg, state_dict=state_dict)
 
     # trainer = MegatronTrainerBuilder(cfg).create_trainer()
