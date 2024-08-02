@@ -12,22 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
+import shutil
 from argparse import ArgumentParser
 from collections import OrderedDict
-import json
-import shutil
 
 import torch
-from omegaconf import open_dict
-from pytorch_lightning import Trainer
-from transformers import AutoModelForCausalLM, LlamaTokenizer, PreTrainedTokenizerFast, AutoTokenizer as HFAutoTokenizer
-from transformers.convert_slow_tokenizer import LlamaConverter
-
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
+from pytorch_lightning import Trainer
+
+from transformers import (
+    AutoTokenizer as HFAutoTokenizer,
+)
+from transformers import (
+    LlamaTokenizer,
+    PreTrainedTokenizerFast,
+)
+from transformers.convert_slow_tokenizer import LlamaConverter
+
 
 """
 Script to convert a nemotron checkpoint in nemo (mcore path) into a HuggingFace checkpoint.
@@ -38,7 +44,7 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
     python convert_nemotron_nemo_to_hf.py \
     --input_name_or_path /path/to/file.nemo or /path/to/extracted_folder \
     --output_path /path/to/pytorch_model.bin
-    
+
 2) Generate the full HF model folder
 
     python convert_nemotron_nemo_to_hf.py \
@@ -46,7 +52,7 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
     --hf_input_path /path/to/input_hf_folder \
     --hf_output_path /path/to/output_hf_folder \
 
-    Use the --cpu-only flag if the model cannot fit in the GPU (e.g. Nemotron4 340b). 
+    Use the --cpu-only flag if the model cannot fit in the GPU (e.g. Nemotron4 340b).
     However this option makes the conversion script significantly slower.
 """
 
@@ -54,14 +60,18 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, default=None, required=True, help="Path to .nemo file or extracted folder",
+        "--input_name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to .nemo file or extracted folder",
     )
     parser.add_argument("--output_path", type=str, default=None, required=False, help="Path to HF .bin file")
     parser.add_argument(
         "--hf_input_path",
         type=str,
         default=None,
-        help="A HF model path, " "e.g. a folder containing https://huggingface.co/nvidia/nemotron-3-8b-base-4k",
+        help="A HF model path, " "e.g. a folder containing https://huggingface.co/nvidia/nemotron-3-8b-base-4k-hf",
     )
     parser.add_argument(
         "--hf_output_path",
@@ -85,7 +95,8 @@ def get_args():
     args = parser.parse_args()
     return args
 
-def convert_hf_config(nemo_config, tokenizer, vocab_size, dtype, hf_output_path, hf_url='nvidia/nemotron3-8b-base'):
+
+def convert_hf_config(nemo_config, tokenizer, vocab_size, dtype, hf_output_path, hf_url="nvidia/nemotron3-8b-base"):
     """
     Convert NeMo config to HF config
     """
@@ -94,9 +105,9 @@ def convert_hf_config(nemo_config, tokenizer, vocab_size, dtype, hf_output_path,
         "fast-swiglu": "silu",
     }
     DTYPE2HF = {
-        torch.bfloat16: 'bfloat16',
-        torch.float16: 'float16',
-        torch.float32: 'float32',
+        torch.bfloat16: "bfloat16",
+        torch.float16: "float16",
+        torch.float32: "float32",
     }
     hf_config = {
         "_name_or_path": hf_url,
@@ -111,33 +122,33 @@ def convert_hf_config(nemo_config, tokenizer, vocab_size, dtype, hf_output_path,
         "model_type": "nemotron",
         "num_attention_heads": nemo_config.num_attention_heads,
         "num_hidden_layers": nemo_config.num_layers,
-        "num_key_value_heads": nemo_config.get('num_query_groups', nemo_config.num_attention_heads),
+        "num_key_value_heads": nemo_config.get("num_query_groups", nemo_config.num_attention_heads),
         "norm_eps": nemo_config.layernorm_epsilon,
-        "rope_theta": nemo_config.get('rotary_base', 10000),
-        "partial_rotary_factor": nemo_config.get('rotary_percentage', 1.),
+        "rope_theta": nemo_config.get("rotary_base", 10000),
+        "partial_rotary_factor": nemo_config.get("rotary_percentage", 1.0),
         "tie_word_embeddings": False,
         "torch_dtype": DTYPE2HF[dtype],
-        "transformers_version": "4.32.0.dev0", # TODO
+        "transformers_version": "4.32.0.dev0",  # TODO
         "use_cache": True,
-        "vocab_size": vocab_size
+        "vocab_size": vocab_size,
     }
     if nemo_config.kv_channels is not None:
-        hf_config['kv_channels'] = nemo_config.kv_channels
-    json.dump(hf_config, open(f'{hf_output_path}/config.json', 'w'), indent=2)
-    
+        hf_config["kv_channels"] = nemo_config.kv_channels
+    json.dump(hf_config, open(f"{hf_output_path}/config.json", "w"), indent=2)
+
 
 def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> None:
     """
     Convert NeMo weights to HF weights
     """
-    dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
+    dummy_trainer = Trainer(devices=1, accelerator="cpu", strategy=NLPDDPStrategy())
     model_config = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer, return_config=True)
     model_config.tensor_model_parallel_size = 1
     model_config.pipeline_model_parallel_size = 1
     model_config.sequence_parallel = False
     model_config.transformer_engine = True
     if cpu_only:
-        map_location = torch.device('cpu')
+        map_location = torch.device("cpu")
         model_config.use_cpu_initialization = True
         model_config.dist_ckpt_load_on_device = False
     else:
@@ -145,7 +156,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
 
     if cpu_only:
         logging.info("******** Loading model on CPU. This will take a significant amount of time.")
-    
+
     model = MegatronGPTModel.restore_from(
         input_nemo_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location
     )
@@ -165,7 +176,9 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         dtype = torch.float32  # fallback
     logging.info(f"Using precision {dtype}")
 
-    param_to_weights = lambda param: param.to(dtype)
+    def param_to_weights(param):
+        return param.to(dtype)
+
     checkpoint = OrderedDict()
 
     hidden_size = model.cfg.hidden_size
@@ -175,20 +188,18 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     num_query_groups = model.cfg.get("num_query_groups", head_num)  # different num_query_groups for 70B
     if num_query_groups is None:
         num_query_groups = head_num
-    head_size = hidden_size // head_num
     heads_per_group = head_num // num_query_groups
     qkv_total_dim = head_num + 2 * num_query_groups
 
     # Embedding
-    embed_weight = model.state_dict()[f'model.embedding.word_embeddings.weight']
-    embed_weights_base_name = f'model.embed_tokens.weight'
+    embed_weight = model.state_dict()["model.embedding.word_embeddings.weight"]
+    embed_weights_base_name = "model.embed_tokens.weight"
     checkpoint[embed_weights_base_name] = param_to_weights(embed_weight)
-
 
     for l in range(int(num_layers)):
         print(f"converting layer {l}")
 
-        qkv_weights = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_qkv.weight']
+        qkv_weights = model.state_dict()[f"model.decoder.layers.{l}.self_attention.linear_qkv.weight"]
         qkv_weights = qkv_weights.reshape([qkv_total_dim, -1, hidden_size])
 
         q_slice = torch.cat(
@@ -209,73 +220,78 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         ## k_slice = [8, 18, 28, ... 68, 78]
         ## v_slice = [9, 19, 29, ... 69, 79]
 
-        q_weights_base_name = f'model.layers.{l}.self_attn.q_proj.weight'
-        k_weights_base_name = f'model.layers.{l}.self_attn.k_proj.weight'
-        v_weights_base_name = f'model.layers.{l}.self_attn.v_proj.weight'
+        q_weights_base_name = f"model.layers.{l}.self_attn.q_proj.weight"
+        k_weights_base_name = f"model.layers.{l}.self_attn.k_proj.weight"
+        v_weights_base_name = f"model.layers.{l}.self_attn.v_proj.weight"
 
         checkpoint[q_weights_base_name] = param_to_weights(qkv_weights[q_slice].reshape(-1, hidden_size))
         checkpoint[k_weights_base_name] = param_to_weights(qkv_weights[k_slice].reshape(-1, hidden_size))
         checkpoint[v_weights_base_name] = param_to_weights(qkv_weights[v_slice].reshape(-1, hidden_size))
 
         # attention dense
-        o_weight = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_proj.weight']
-        o_weight_base_name = f'model.layers.{l}.self_attn.o_proj.weight'
+        o_weight = model.state_dict()[f"model.decoder.layers.{l}.self_attention.linear_proj.weight"]
+        o_weight_base_name = f"model.layers.{l}.self_attn.o_proj.weight"
         checkpoint[o_weight_base_name] = param_to_weights(o_weight)
 
         # mlp
-        mlp_weights = model.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc1.weight']
-        mlp_up_proj_weight = model.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc2.weight']
-        
+        mlp_weights = model.state_dict()[f"model.decoder.layers.{l}.mlp.linear_fc1.weight"]
+        mlp_up_proj_weight = model.state_dict()[f"model.decoder.layers.{l}.mlp.linear_fc2.weight"]
+
         if mlp_weights.shape[0] != mlp_up_proj_weight.shape[1]:
             # Has projection (used for swi-glu)
-            logging.warning('Gated projection layers detected in NeMo checkpoint. Currently Nemotron HF does not support gated MLP.')
+            logging.warning(
+                "Gated projection layers detected in NeMo checkpoint. Currently Nemotron HF does not support gated MLP."
+            )
             assert mlp_weights.shape[0] == 2 * mlp_up_proj_weight.shape[1]
-            
+
             mlp_down_proj_weight = mlp_weights[:ffn_hidden_size, :]
             mlp_gate_proj_weight = mlp_weights[ffn_hidden_size:, :]
-            
-            mlp_down_proj_base_name = f'model.layers.{l}.mlp.gate_proj.weight'
-            mlp_gate_proj_base_name = f'model.layers.{l}.mlp.up_proj.weight'
+
+            mlp_down_proj_base_name = f"model.layers.{l}.mlp.gate_proj.weight"
+            mlp_gate_proj_base_name = f"model.layers.{l}.mlp.up_proj.weight"
 
             checkpoint[mlp_down_proj_base_name] = param_to_weights(mlp_down_proj_weight)
             checkpoint[mlp_gate_proj_base_name] = param_to_weights(mlp_gate_proj_weight)
         else:
             mlp_down_proj_weight = mlp_weights
-            mlp_down_proj_base_name = f'model.layers.{l}.mlp.up_proj.weight'
+            mlp_down_proj_base_name = f"model.layers.{l}.mlp.up_proj.weight"
             checkpoint[mlp_down_proj_base_name] = param_to_weights(mlp_down_proj_weight)
-        
-        mlp_up_proj_base_name = f'model.layers.{l}.mlp.down_proj.weight'
+
+        mlp_up_proj_base_name = f"model.layers.{l}.mlp.down_proj.weight"
         checkpoint[mlp_up_proj_base_name] = param_to_weights(mlp_up_proj_weight)
 
         # layernorm
-        input_ln_weight = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight']
-        input_ln_base_name = f'model.layers.{l}.input_layernorm.weight'
+        input_ln_weight = model.state_dict()[f"model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight"]
+        input_ln_base_name = f"model.layers.{l}.input_layernorm.weight"
         checkpoint[input_ln_base_name] = param_to_weights(input_ln_weight)
-        if model.state_dict().get(f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_bias', None) is not None:
-            input_ln_bias = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_bias']
-            input_ln_bias_name = f'model.layers.{l}.input_layernorm.bias'
+        if (
+            model.state_dict().get(f"model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_bias", None)
+            is not None
+        ):
+            input_ln_bias = model.state_dict()[f"model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_bias"]
+            input_ln_bias_name = f"model.layers.{l}.input_layernorm.bias"
             checkpoint[input_ln_bias_name] = param_to_weights(input_ln_bias)
 
-        post_attn_ln_weight = model.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight']
-        post_attn_ln_base_name = f'model.layers.{l}.post_attention_layernorm.weight'
+        post_attn_ln_weight = model.state_dict()[f"model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight"]
+        post_attn_ln_base_name = f"model.layers.{l}.post_attention_layernorm.weight"
         checkpoint[post_attn_ln_base_name] = param_to_weights(post_attn_ln_weight)
-        if model.state_dict().get(f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_bias', None) is not None:
-            post_attn_ln_bias = model.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_bias']
-            post_attn_ln_bias_name = f'model.layers.{l}.post_attention_layernorm.bias'
+        if model.state_dict().get(f"model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_bias", None) is not None:
+            post_attn_ln_bias = model.state_dict()[f"model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_bias"]
+            post_attn_ln_bias_name = f"model.layers.{l}.post_attention_layernorm.bias"
             checkpoint[post_attn_ln_bias_name] = param_to_weights(post_attn_ln_bias)
 
         print(f"done layer {l}")
 
-    final_ln_weight = model.state_dict()[f'model.decoder.final_layernorm.weight']
-    final_ln_base_name = f'model.norm.weight'
+    final_ln_weight = model.state_dict()["model.decoder.final_layernorm.weight"]
+    final_ln_base_name = "model.norm.weight"
     checkpoint[final_ln_base_name] = param_to_weights(final_ln_weight)
-    if model.state_dict().get(f'model.decoder.final_layernorm.bias', None) is not None:
-        final_ln_bias = model.state_dict()[f'model.decoder.final_layernorm.bias']
-        final_ln_bias_name = f'model.norm.bias'
+    if model.state_dict().get("model.decoder.final_layernorm.bias", None) is not None:
+        final_ln_bias = model.state_dict()["model.decoder.final_layernorm.bias"]
+        final_ln_bias_name = "model.norm.bias"
         checkpoint[final_ln_bias_name] = param_to_weights(final_ln_bias)
 
-    output_layer_weight = model.state_dict()[f'model.output_layer.weight']
-    output_layer_base_name = f'lm_head.weight'
+    output_layer_weight = model.state_dict()["model.output_layer.weight"]
+    output_layer_base_name = "lm_head.weight"
     checkpoint[output_layer_base_name] = param_to_weights(output_layer_weight)
 
     os.makedirs(os.path.dirname(output_hf_file), exist_ok=True)
@@ -285,48 +301,50 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     return model_config, model.tokenizer, dtype, vocab_size
 
 
-def extract_nemotron_tokenizer(
-    nemo_file, model_config, output_hf_path, nemo_tokenizer
-):
+def extract_nemotron_tokenizer(nemo_file, model_config, output_hf_path, nemo_tokenizer):
     tokenizer_cfg = model_config.tokenizer
-    if tokenizer_cfg.library == 'sentencepiece':
+    if tokenizer_cfg.library == "sentencepiece":
         tokenizer_fn = tokenizer_cfg.model[5:]
-        output_tokenizer = f'{output_hf_path}/tokenizer.model'
-        if nemo_file.endswith('.nemo'):
+        output_tokenizer = f"{output_hf_path}/tokenizer.model"
+        if nemo_file.endswith(".nemo"):
             import tarfile
-            archive = tarfile.open(nemo_file, 'r')
-            tokenizer_filename = './' + tokenizer_fn # exclude 'nemo:' prefix
+
+            archive = tarfile.open(nemo_file, "r")
+            tokenizer_filename = "./" + tokenizer_fn  # exclude 'nemo:' prefix
             archive.extract(tokenizer_filename, output_hf_path)
             archive.close()
-            os.rename(f'{output_hf_path}/{tokenizer_fn}', output_tokenizer)
+            os.rename(f"{output_hf_path}/{tokenizer_fn}", output_tokenizer)
         elif os.path.isdir(nemo_file):
-            shutil.copy(f'{nemo_file}/{tokenizer_fn}', output_tokenizer)
+            shutil.copy(f"{nemo_file}/{tokenizer_fn}", output_tokenizer)
         # We use LlamaTokenizer for sentencepiece based tokenizer
         tokenizer = LlamaTokenizer.from_pretrained(output_hf_path)
         # Convert the LlamaTokenizer to a PreTrainedTokenizerFast instance
-        tokenizer = PreTrainedTokenizerFast(tokenizer_object=LlamaConverter(tokenizer).converted(), model_input_names=['input_ids', 'token_type_ids'])
+        tokenizer = PreTrainedTokenizerFast(
+            tokenizer_object=LlamaConverter(tokenizer).converted(), model_input_names=["input_ids", "token_type_ids"]
+        )
         tokenizer.save_pretrained(output_hf_path)
         # Make sure not use legacy mode
         tokenizer = HFAutoTokenizer.from_pretrained(output_hf_path, from_slow=False, legacy=False)
         tokenizer.save_pretrained(output_hf_path)
-        logging.info(f'Setencepiece tokenizer has been saved to {output_tokenizer}')
+        logging.info(f"Setencepiece tokenizer has been saved to {output_tokenizer}")
     elif isinstance(nemo_tokenizer, AutoTokenizer):
         nemo_tokenizer.tokenizer.save_pretrained(output_hf_path)
-        logging.info(f'HF AutoTokenizer has been saved to {output_hf_path}')
+        logging.info(f"HF AutoTokenizer has been saved to {output_hf_path}")
     else:
-        raise ValueError(f'Unsupported tokenizer type: library: {tokenizer_cfg.library}, type: {tokenizer_cfg.type}')
+        raise ValueError(f"Unsupported tokenizer type: library: {tokenizer_cfg.library}, type: {tokenizer_cfg.type}")
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_args()
     if not args.hf_output_path:
-        assert args.output_path is not None, 'Need to provide either provide output_path or hf_output_path'
+        assert args.output_path is not None, "Need to provide either provide output_path or hf_output_path"
     else:
-        args.output_path = f'{args.hf_output_path}/pytorch_model.bin'
-        logging.info(f'weight will be saved to {args.output_path}')
-    
-    nemo_config, nemo_tokenizer, dtype, vocab_size = convert(args.input_name_or_path, args.output_path, precision=args.precision, cpu_only=args.cpu_only)
+        args.output_path = f"{args.hf_output_path}/pytorch_model.bin"
+        logging.info(f"weight will be saved to {args.output_path}")
+
+    nemo_config, nemo_tokenizer, dtype, vocab_size = convert(
+        args.input_name_or_path, args.output_path, precision=args.precision, cpu_only=args.cpu_only
+    )
     if args.hf_input_path and args.hf_output_path:
         convert_hf_config(nemo_config, nemo_tokenizer, vocab_size, dtype, args.hf_output_path, args.hf_input_path)
         extract_nemotron_tokenizer(args.input_name_or_path, nemo_config, args.hf_output_path, nemo_tokenizer)
