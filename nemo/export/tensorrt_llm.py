@@ -27,6 +27,7 @@ import numpy as np
 import tensorrt_llm
 import torch
 import wrapt
+from megatron.core.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
@@ -39,7 +40,8 @@ from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
     is_nemo_file,
     load_nemo_model,
 )
-from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
+
+# from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_distributed, refit
 
 LOGGER = logging.getLogger("NeMo")
@@ -327,9 +329,9 @@ class TensorRTLLM(ITritonDeployable):
                         max_input_len=max_input_len,
                         max_output_len=max_output_len,
                         max_batch_size=max_batch_size,
-                        model_config=model_config,
-                        model_weights=weight_dict,
                         model_dir=self.model_dir,
+                        model_weights=weight_dict,
+                        model_config=model_config,
                         model_type=model_type,
                         lora_ckpt_list=self.lora_ckpt_list,
                         use_lora_plugin=use_lora_plugin,
@@ -340,9 +342,13 @@ class TensorRTLLM(ITritonDeployable):
                         paged_kv_cache=paged_kv_cache,
                         remove_input_padding=remove_input_padding,
                         paged_context_fmha=paged_context_fmha,
+                        use_custom_all_reduce=True,
+                        use_refit=False,
                         max_num_tokens=max_num_tokens,
-                        opt_num_tokens=opt_num_tokens,
                         max_seq_len=max_seq_len,
+                        opt_num_tokens=opt_num_tokens,
+                        max_beam_width=1,
+                        tokens_per_block=128,
                         multiple_profiles=multiple_profiles,
                         gpt_attention_plugin=gpt_attention_plugin,
                         gemm_plugin=gemm_plugin,
