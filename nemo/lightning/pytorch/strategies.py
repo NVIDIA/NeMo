@@ -138,6 +138,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_directly_on_device: bool = True,
         setup_optimizers: bool = True,
         init_model_parallel: bool = True,
+        broadcast_loss_with_pipeline_parallel: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -174,6 +175,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.parallel_load = ckpt_parallel_load
         self.parallel_save_optim = ckpt_parallel_save_optim
         self.load_directly_on_device = ckpt_load_directly_on_device
+        self.broadcast_loss_with_pipeline_parallel = broadcast_loss_with_pipeline_parallel
 
         self._ddp = ddp
         if ddp == "megatron":
@@ -452,19 +454,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 )
 
             if self.log_train_loss:
-                from megatron.core import parallel_state
-
-                from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-
-                # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
-                # it should be casted to other pipeline stages for logging.
-                # we can avoid this broadcast by updating the PTL log function to accept specific ranks
-                if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                    if torch.distributed.get_rank() == get_last_rank():
-                        torch.distributed.send(out, 0)
-                    elif torch.distributed.get_rank() == 0:
-                        torch.distributed.recv(out, get_last_rank())
-                self.lightning_module.log('reduced_train_loss', out, prog_bar=True, rank_zero_only=True, batch_size=1)
+                _log_loss(
+                    self.lightning_module,
+                    'reduced_train_loss',
+                    out,
+                    broadcast=self.broadcast_loss_with_pipeline_parallel,
+                )
 
             return out
 
@@ -476,7 +471,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         with self.precision_plugin.val_step_context():  # TODO: Do we need this?
             out = self.model(dataloader_iter, forward_only=True, *args, **kwargs)
-            self.lightning_module.log('val_loss', out, rank_zero_only=True, batch_size=1)
+            _log_loss(self.lightning_module, 'val_loss', out, broadcast=self.broadcast_loss_with_pipeline_parallel)
             return out
 
     @override
@@ -728,6 +723,30 @@ def _data_fetcher_wrapper(fn):
             return _DataLoaderIterDataFetcher()
 
     return wrapped
+
+
+def _log_loss(lightning_module, name, value, broadcast=True):  # TODO add type annotation
+    from megatron.core import parallel_state
+
+    if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+        src_rank = parallel_state.get_pipeline_model_parallel_last_rank()
+
+        if not broadcast:
+            if torch.distributed.get_rank() == src_rank:
+                torch.distributed.send(value, 0)
+            elif torch.distributed.get_rank() == 0:
+                torch.distributed.recv(value, src_rank)
+                lightning_module.log(name, value, prog_bar=True, rank_zero_only=True, batch_size=1)
+            return
+
+        else:
+            torch.distributed.broadcast(
+                value,
+                src_rank,
+                group=parallel_state.get_pipeline_model_parallel_group(),
+            )
+
+    lightning_module.log(name, value, prog_bar=True, batch_size=1)
 
 
 class _MegatronAutomaticOptimization(_AutomaticOptimization):
