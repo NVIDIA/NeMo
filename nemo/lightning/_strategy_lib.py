@@ -524,3 +524,22 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
                 _state_dict[key] = value
 
         module.load_state_dict(_state_dict, strict=strict)
+
+
+def _sync_from_last_pipeline_stage(value, broadcast=False):  # TODO add type annotation
+    from megatron.core import parallel_state
+
+    if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+        src_rank = parallel_state.get_pipeline_model_parallel_last_rank()
+
+        if not broadcast:
+            if torch.distributed.get_rank() == src_rank:
+                torch.distributed.send(value, 0)
+            elif torch.distributed.get_rank() == 0:
+                torch.distributed.recv(value, src_rank)
+        else:
+            torch.distributed.broadcast(
+                value,
+                src_rank,
+                group=parallel_state.get_pipeline_model_parallel_group(),
+            )
