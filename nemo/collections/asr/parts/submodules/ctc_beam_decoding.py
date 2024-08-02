@@ -797,19 +797,14 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
             A list of WfstNbestHypothesis objects, one for each sequence in the batch.
         """
         if self.riva_decoder is None:
-            try:
-                from riva.asrlib.decoder.python_decoder import BatchedMappedDecoderCuda
-            except (ImportError, ModuleNotFoundError) as e:
-                logging.warning(
-                    "Problem loading Riva decoder. Please (re-) install using `pip install riva-asrlib-decoder`."
-                )
-                raise e
-
             lm_fst = self._prepare_decoding_lm_wfst()
             if self.open_vocabulary_decoding and self._tokenword_disambig_id == -1:
+                # trying to extract tokenword_disambig_id from the lm_fst
                 if isinstance(lm_fst, str):
-                    import kaldifst
+                    # use importer instead of direct import to possibly get an installation message
+                    from nemo.collections.asr.parts.utils.wfst_utils import kaldifst_importer
 
+                    kaldifst = kaldifst_importer()
                     lm_fst = kaldifst.StdVectorFst.read(self.wfst_lm_path)
                 tokenword_disambig_id = lm_fst.output_symbols.find("#1")
                 if tokenword_disambig_id == -1:

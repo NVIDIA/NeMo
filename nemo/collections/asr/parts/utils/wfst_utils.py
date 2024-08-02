@@ -28,11 +28,15 @@ from nemo.utils import logging
 TW_BREAK = "‡"
 
 
-# almost every function/method uses kaldifst
 try:
     import kaldifst
-except (ImportError, ModuleNotFoundError):
-    raise ImportError("kaldifst is not installed.\n" "please run `pip install kaldifst` to install.")
+
+    # check that kaldifst package is not empty
+    # Note: pytorch_lightning.utilities.imports.package_available may not help here
+    kaldifst.StdVectorFst()
+    _KALDIFST_AVAILABLE = True
+except (ImportError, ModuleNotFoundError, AttributeError):
+    _KALDIFST_AVAILABLE = False
 
 
 try:
@@ -51,16 +55,55 @@ except (ImportError, ModuleNotFoundError):
     _KALDILM_AVAILABLE = False
 
 
+KALDIFST_INSTALLATION_MESSAGE = (
+    "kaldifst is not installed or is installed incorrectly.\n"
+    "please run `pip install kaldifst` or `bash scripts/installers/install_riva_decoder.sh` to install."
+)
+
+
+GRAPHVIZ_INSTALLATION_MESSAGE = (
+    "graphviz is not installed.\n"
+    "please run `bash scripts/installers/install_graphviz.sh` to install."
+)
+
+
+KALDILM_INSTALLATION_MESSAGE = (
+    "kaldilm is not installed.\n" 
+    "please run `pip install kaldilm` or `bash scripts/installers/install_riva_decoder.sh` to install."
+)
+
+
+def _kaldifst_maybe_raise():
+    if _KALDIFST_AVAILABLE is False:
+        raise ImportError(KALDIFST_INSTALLATION_MESSAGE)
+
+
+def kaldifst_importer():
+    """Import helper function that returns kaldifst package or raises ImportError exception."""
+    _kaldifst_maybe_raise()
+    return kaldifst
+
+
 def _graphviz_maybe_raise():
     if _GRAPHVIZ_AVAILABLE is False:
-        raise ImportError(
-            "graphviz is not installed.\n" "please run `bash scripts/installers/install_graphviz.sh` to install."
-        )
+        raise ImportError(GRAPHVIZ_INSTALLATION_MESSAGE)
+
+
+def graphviz_importer():
+    """Import helper function that returns graphviz package or raises ImportError exception."""
+    _graphviz_maybe_raise()
+    return graphviz
 
 
 def _kaldilm_maybe_raise():
     if _KALDILM_AVAILABLE is False:
-        raise ImportError("kaldilm is not installed.\n" "please run `pip install kaldilm` to install.")
+        raise ImportError(KALDILM_INSTALLATION_MESSAGE)
+
+
+def kaldilm_importer():
+    """Import helper function that returns kaldifst package or raises ImportError exception."""
+    _kaldilm_maybe_raise()
+    return kaldilm
 
 
 @dataclass
@@ -172,6 +215,7 @@ def arpa2fst(lm_path: str, attach_symbol_table: bool = True) -> 'kaldifst.StdVec
     Returns:
       Kaldi-type grammar WFST.
     """
+    _kaldifst_maybe_raise()
     _kaldilm_maybe_raise()
 
     with tempfile.TemporaryDirectory() as tempdirname:
@@ -230,6 +274,8 @@ def add_tokenwords_(
     Returns:
         The id of the tokenword disambiguation token.
     """
+    _kaldifst_maybe_raise()
+
     unigram_state = 0
     # check if 0 is the unigram state (has no outgoing epsilon arcs)
     assert kaldifst.ArcIterator(g_fst, unigram_state).value.ilabel not in (0, g_fst.output_symbols.find("#0"))
@@ -458,6 +504,8 @@ def make_lexicon_fst_no_silence(
     Returns:
       Kaldi-type lexicon WFST.
     """
+    _kaldifst_maybe_raise()
+
     backoff_disambig = "#0"
     tokenword_disambig = "#1"
     tokenword_mode = tokenword_disambig in lexicon.word2id
@@ -605,6 +653,8 @@ def build_topo(
     Returns:
       Kaldi-type topology WFST.
     """
+    _kaldifst_maybe_raise()
+
     if name == "default":
         fst = build_default_topo(token2id, with_self_loops)
     elif name == "compact":
@@ -625,6 +675,8 @@ def build_topo(
 
 def build_default_topo(token2id: Dict[str, int], with_self_loops: bool = True) -> 'kaldifst.StdVectorFst':
     """Build the default (correct) CTC topology."""
+    _kaldifst_maybe_raise()
+
     disambig_pattern = re.compile(r"^#\d+$")
     blank_id = token2id["<blk>"]
     fst = kaldifst.StdVectorFst()
@@ -711,6 +763,8 @@ def build_default_topo(token2id: Dict[str, int], with_self_loops: bool = True) -
 
 def build_compact_topo(token2id: Dict[str, int], with_self_loops: bool = True) -> 'kaldifst.StdVectorFst':
     """Build the Compact CTC topology."""
+    _kaldifst_maybe_raise()
+
     disambig_pattern = re.compile(r"^#\d+$")
     blank_id = token2id["<blk>"]
     fst = kaldifst.StdVectorFst()
@@ -776,6 +830,8 @@ def build_compact_topo(token2id: Dict[str, int], with_self_loops: bool = True) -
 
 def build_minimal_topo(token2id: Dict[str, int]) -> 'kaldifst.StdVectorFst':
     """Build the Minimal CTC topology."""
+    _kaldifst_maybe_raise()
+
     disambig_pattern = re.compile(r"^#\d+$")
     blank_id = token2id["<blk>"]
     fst = kaldifst.StdVectorFst()
@@ -858,6 +914,8 @@ def mkgraph_ctc_ov(
     Returns:
       A pair of kaldi- or k2-type decoding WFST and its id of the tokenword disambiguation token.
     """
+    _kaldifst_maybe_raise()
+
     logging.info("Compiling G.fst ...")
     G = arpa2fst(lm_path)
     if open_vocabulary:
@@ -1045,6 +1103,8 @@ class KaldiWordLattice(AbstractLattice):
         symbol_table: Optional[Dict[int, str]] = None,
         auxiliary_tables: Optional[Dict[str, Any]] = None,
     ):
+        _kaldifst_maybe_raise()
+
         if not isinstance(lattice, kaldifst.Lattice):
             raise ValueError(f"Wrong lattice type: `{type(lattice)}`")
         super().__init__(lattice)
@@ -1143,6 +1203,8 @@ class KaldiWordLattice(AbstractLattice):
         Returns:
           Number of edits.
         """
+        _kaldifst_maybe_raise()
+
         if not self.properties.InputEpsilonFree:
             logging.warning(f"Lattice contains input epsilons. Edit distance calculations may not be accurate.")
         if not all(reference_sequence):
@@ -1180,6 +1242,7 @@ class KaldiWordLattice(AbstractLattice):
         Returns:
           graphviz.Digraph or IPython.display.HTML
         """
+        _kaldifst_maybe_raise()
         _graphviz_maybe_raise()
 
         isym, osym = None, None
@@ -1286,6 +1349,8 @@ def levenshtein_graph_kaldi(
     Returns:
       Kaldi-type levenshtein WFST.
     """
+    _kaldifst_maybe_raise()
+
     if fst.properties(KaldiFstMask.Acceptor.value, True) != KaldiFstMask.Acceptor.value:
         logging.warning(
             "Levenshtein graph construction is not safe for WFSTs with different input and output symbols."
@@ -1349,6 +1414,8 @@ def load_word_lattice(
     Returns:
       Dictionary with lattice names and corresponding lattices in KaldiWordLattice format.
     """
+    _kaldifst_maybe_raise()
+
     lattice_dict = {}
     lattice = None
     max_state = 0

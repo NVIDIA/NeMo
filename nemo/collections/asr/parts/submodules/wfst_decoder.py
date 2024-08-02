@@ -24,7 +24,22 @@ import torch
 from jiwer import wer as word_error_rate
 from omegaconf import DictConfig
 
-from nemo.collections.asr.parts.utils.wfst_utils import TW_BREAK
+from nemo.collections.asr.parts.utils.wfst_utils import kaldifst_importer, TW_BREAK
+
+
+RIVA_DECODER_INSTALLATION_MESSAGE = (
+    "riva decoder is not installed or is installed incorrectly.\n"
+    "please run `bash scripts/installers/install_riva_decoder.sh` or `pip install riva-asrlib-decoder` to install."
+)
+
+
+def riva_decoder_importer():
+    """Import helper function that returns Riva asrlib decoder package or raises ImportError exception."""
+    try:
+        import riva.asrlib.decoder.python_decoder as riva_decoder
+    except (ImportError, ModuleNotFoundError):
+        raise ImportError(RIVA_DECODER_INSTALLATION_MESSAGE)
+    return riva_decoder
 
 
 def _riva_config_to_dict(conf: Any) -> Dict[str, Any]:
@@ -76,9 +91,9 @@ class RivaDecoderConfig(DictConfig):
 
     def __init__(self):
         try:
-            from riva.asrlib.decoder.python_decoder import BatchedMappedDecoderCudaConfig
+            riva_decoder = riva_decoder_importer()
 
-            config = BatchedMappedDecoderCudaConfig()
+            config = riva_decoder.BatchedMappedDecoderCudaConfig()
             config.online_opts.lattice_postprocessor_opts.acoustic_scale = 10.0
             config.n_input_per_chunk = 50
             config.online_opts.decoder_opts.default_beam = 20.0
@@ -90,7 +105,7 @@ class RivaDecoderConfig(DictConfig):
             config.online_opts.lattice_postprocessor_opts.word_ins_penalty = 0.0
 
             content = _riva_config_to_dict(config)
-        except (ImportError, ModuleNotFoundError):
+        except ImportError:
             content = {}
         super().__init__(content)
 
@@ -456,6 +471,12 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
     def _set_decoder_config(self, config: Optional['RivaDecoderConfig'] = None):
         if config is None or len(config) == 0:
             config = RivaDecoderConfig()
+        if not hasattr(config, "online_opts"):
+            # most likely empty config
+            # call importer to raise the exception + installation message
+            riva_decoder_importer()
+            # just in case
+            raise RuntimeError("Unexpected config error. Please debug manually.")
         config.online_opts.decoder_opts.lattice_beam = self._beam_size
         config.online_opts.lattice_postprocessor_opts.lm_scale = (
             self._lm_weight * config.online_opts.lattice_postprocessor_opts.acoustic_scale
@@ -464,8 +485,10 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
         self._config = config
 
     def _init_decoder(self):
-        import kaldifst
-        from riva.asrlib.decoder.python_decoder import BatchedMappedDecoderCuda, BatchedMappedDecoderCudaConfig
+
+        # use importers instead of direct import to possibly get an installation message
+        kaldifst = kaldifst_importer()
+        riva_decoder = riva_decoder_importer()
 
         from nemo.collections.asr.parts.utils.wfst_utils import load_word_lattice
 
@@ -510,9 +533,11 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
                 self._token2id[k] = v
         with tempfile.NamedTemporaryFile(mode='w+t') as words_tmp:
             tmp_fst.output_symbols.write_text(words_tmp.name)
-            config = BatchedMappedDecoderCudaConfig()
+            config = riva_decoder.BatchedMappedDecoderCudaConfig()
             _fill_inner_riva_config_(config, self._config)
-            self._decoder = BatchedMappedDecoderCuda(config, lm_fst, words_tmp.name, num_tokens_with_blank)
+            self._decoder = riva_decoder.BatchedMappedDecoderCuda(
+                config, lm_fst, words_tmp.name, num_tokens_with_blank
+            )
         if tmp_fst_file:
             tmp_fst_file.close()
 
@@ -759,6 +784,7 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
         try:
             del self._decoder
         except Exception:
+            # apparently self._decoder was previously deleted, do nothing
             pass
         gc.collect()
 

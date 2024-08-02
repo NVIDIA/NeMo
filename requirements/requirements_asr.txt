@@ -4,9 +4,7 @@ einops
 g2p_en
 jiwer
 kaldi-python-io
-kaldifst
 kaldiio
-kaldilm
 lhotse>=1.24.2
 librosa>=0.10.0
 marshmallow
@@ -16,7 +14,6 @@ pyannote.metrics
 pydub
 pyloudnorm
 resampy
-riva-asrlib-decoder
 ruamel.yaml
 scipy>=0.14
 soundfile

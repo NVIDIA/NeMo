@@ -188,8 +188,8 @@ def beam_search_eval(
             packed_batch = torch.zeros(len(probs_batch), max(probs_lens), probs_batch[0].shape[-1], device='cpu')
 
             for prob_index in range(len(probs_batch)):
-                packed_batch[prob_index, : probs_lens[prob_index], :] = torch.tensor(
-                    probs_batch[prob_index], device=packed_batch.device, dtype=packed_batch.dtype
+                packed_batch[prob_index, : probs_lens[prob_index], :] = probs_batch[prob_index].to(
+                    device=packed_batch.device, dtype=packed_batch.dtype
                 )
 
             _, beams_batch = decoding.ctc_decoder_predictions_tensor(
@@ -228,7 +228,7 @@ def beam_search_eval(
 
                 score = candidate.score
                 if preds_output_file:
-                    out_file.write('{}\t{}\n'.format(pred_text, score))
+                    out_file.write(f'{pred_text}\t{score}\n')
             wer_dist_best += wer_dist_min
             cer_dist_best += cer_dist_min
         sample_idx += len(probs_batch)
@@ -337,7 +337,7 @@ def main(cfg: EvalWFSTNGramConfig):
     chars_count = 0
     for batch_idx, probs in enumerate(all_probs):
         preds = np.argmax(probs, axis=1)
-        preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
+        preds_tensor = preds.to(device='cpu').unsqueeze(0)
         preds_lens = torch.tensor([preds_tensor.shape[1]], device='cpu')
         if isinstance(asr_model, EncDecHybridRNNTCTCModel):
             pred_text = asr_model.ctc_decoding.ctc_decoder_predictions_tensor(preds_tensor, preds_lens)[0][0]
@@ -375,8 +375,6 @@ def main(cfg: EvalWFSTNGramConfig):
             f"Could not find both the ARPA model file `{cfg.arpa_model_file}` "
             f"and the decoding WFST file `{cfg.decoding_wfst_file}`."
         )
-    lm_path = cfg.arpa_model_file
-    wfst_path = cfg.decoding_wfst_file
 
     if cfg.beam_width is None or cfg.lm_weight is None:
         raise ValueError("beam_width and lm_weight are needed to perform WFST decoding.")
