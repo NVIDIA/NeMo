@@ -14,15 +14,12 @@
 
 import torch
 import torch.nn.functional as F
-from numpy import log2
-from omegaconf import DictConfig, ListConfig
-
-
 from megatron.core import parallel_state
 from megatron.core.models.mamba import MambaEmbeddingModel, MambaModel
 from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
 from megatron.core.tensor_parallel.mappings import gather_from_sequence_parallel_region
-
+from numpy import log2
+from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.distributed import all_gather as all_gather_no_backprop
 from torch.distributed.nn.functional import all_gather as all_gather_with_backprop
@@ -257,16 +254,16 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
             return [query_dataset, doc_dataset]
 
     def constrastive_scores(
-            self, 
-            pos_doc_hs, 
-            neg_doc_hs, 
-            query_hs, 
-            bs, 
-            temperature,
-            num_hard_negatives,
-            use_all_possible_negatives=False, 
-            use_inbatch_negatives=True
-            ):
+        self,
+        pos_doc_hs,
+        neg_doc_hs,
+        query_hs,
+        bs,
+        temperature,
+        num_hard_negatives,
+        use_all_possible_negatives=False,
+        use_inbatch_negatives=True,
+    ):
         all_doc_hs = torch.cat([pos_doc_hs, neg_doc_hs], dim=0)  # ((hn+1)bs) x hidden_size
         cs = torch.mm(query_hs, all_doc_hs.transpose(0, 1))  # (bs) x ((hn+1)bs)
         pos_cs = cs[:, :bs]
@@ -275,16 +272,16 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
             labels = torch.arange(bs, device=cs.device).long()
         else:
             neg_cs = neg_cs[
-                torch.arange(bs).unsqueeze(1).repeat(1,num_hard_negatives), 
-                torch.arange(bs*num_hard_negatives).reshape(bs, num_hard_negatives)
-                ]
+                torch.arange(bs).unsqueeze(1).repeat(1, num_hard_negatives),
+                torch.arange(bs * num_hard_negatives).reshape(bs, num_hard_negatives),
+            ]
             if use_inbatch_negatives:
-                labels = torch.arange(bs, device=cs.device).long()      
+                labels = torch.arange(bs, device=cs.device).long()
                 cs = torch.cat([pos_cs, neg_cs], dim=1)
             else:
                 labels = torch.zeros(bs, device=cs.device).long()
                 cs = torch.cat([pos_cs.diag().unsqueeze(1), neg_cs], dim=1)
-        
+
         pos_cs = pos_cs.diag().clone().detach().mean()
         neg_cs = neg_cs.clone().detach().mean()
 
@@ -327,7 +324,7 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
 
     def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
         # if self.cfg.get('sequence_parallel', False):
-            # output_tensor = gather_from_sequence_parallel_region(output_tensor)
+        # output_tensor = gather_from_sequence_parallel_region(output_tensor)
 
         output_tensor = output_tensor.permute(1, 0, 2)
         if self.output_head_type == "eos_only":
@@ -368,7 +365,7 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         query_hs = torch.stack([item[0] for item in chunks])
         pos_doc_hs = torch.stack([item[1] for item in chunks])
         # neg_doc_hs = [torch.stack([item[i + 2] for item in chunks]) for i in range(self.hard_negatives_to_train)]
-        neg_doc_hs = torch.stack([item[i + 2]  for item in chunks for i in range(self.hard_negatives_to_train)])
+        neg_doc_hs = torch.stack([item[i + 2] for item in chunks for i in range(self.hard_negatives_to_train)])
 
         query_hs = F.normalize(query_hs, dim=1)
         pos_doc_hs = F.normalize(pos_doc_hs, dim=1)

@@ -27,8 +27,8 @@ def main(cfg) -> None:
 
     model_cfg = MegatronMambaEmbeddingModel.merge_cfg_with(cfg.restore_from_path, cfg)
     assert (
-        model_cfg.micro_batch_size * cfg.trainer.devices * cfg.trainer.num_nodes / model_cfg.tensor_model_parallel_size == \
-            model_cfg.global_batch_size
+        model_cfg.micro_batch_size * cfg.trainer.devices * cfg.trainer.num_nodes / model_cfg.tensor_model_parallel_size
+        == model_cfg.global_batch_size
     ), f"Gradiant accumulation is not supported for contrastive learning yet."
 
     logging.info(f"Loading model from {cfg.restore_from_path}")
