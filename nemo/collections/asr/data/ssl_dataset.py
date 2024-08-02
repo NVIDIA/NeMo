@@ -162,15 +162,16 @@ def load_noise_audio(
         zones = np.random.permutation(max_trial)
         while cnt < max_trial:
             # randomly sample a segment of the noise
-            # offset = np.random.uniform(0, duration - max_dur)
+            offset = np.random.uniform(0, duration - max_dur)
 
-            # split split offset range into max_trials zones and randomly sample one
-            zone_length = (duration - max_dur) / max_trial
-            offset = np.random.uniform(zone_length) + zone_length * zones[cnt]
+            # # split split offset range into max_trials zones and randomly sample one
+            # zone_length = (duration - max_dur) / max_trial
+            # offset = np.random.uniform(zone_length) + zone_length * zones[cnt]
 
             audio_segment = AudioSegment.from_file(
                 audio_file=sample['audio_filepath'], offset=offset, duration=max_dur, target_sr=featurizer.sample_rate,
             )
+
             if sum(audio_segment.samples) > 0:
                 # break if the segment is not empty
                 break
@@ -203,7 +204,7 @@ def sample_noise(
     noise_data: List[Dict], featurizer: WaveformFeaturizer | Any, max_audio_len: int | None = None, max_trial: int = 20
 ):
     if len(noise_data) == 0:
-        return torch.zeros(max_audio_len).float(), torch.zeros(1).long()
+        return torch.zeros(max_audio_len).float(), torch.tensor(max_audio_len).long()
     cnt = 0
     while cnt < max_trial:
         try:
@@ -215,7 +216,7 @@ def sample_noise(
             cnt += 1
             if cnt == max_trial:
                 logging.warning(f"Failed to load noise audio after {max_trial} attempts, returning zero noise.")
-                return torch.zeros(max_audio_len).float(), torch.zeros(1).long()
+                return torch.zeros(max_audio_len).float(), torch.tensor(max_audio_len).long()
     return noise_audio, noise_len
 
 
@@ -277,6 +278,8 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
         noise_manifest: str | None = None,
         batch_augmentor: Any | None = None,
         max_audio_cache: int = 5,
+        min_audio_len_secs: float = 1.0,
+        pad_audio_mode: str = 'repeat',
         **kwargs,
     ):
         super().__init__(bos_id=0, manifest_parse_func=_parse_manifest_item, **kwargs)
@@ -285,6 +288,8 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
         self.noise_data = load_noise_manifest(noise_manifest)
         self._audio_cache = OrderedDict()
         self._max_audio_cache = max_audio_cache
+        self.min_audio_len_secs = min_audio_len_secs
+        self.pad_audio_mode = pad_audio_mode
 
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
@@ -333,8 +338,9 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
             else:
                 logging.warning(f"[W] Error reading audio sample: {manifest_entry}, returning dummy audio for sample.")
                 print(f"\n[Wp] Error reading audio sample: {manifest_entry}, returning dummy audio\n", flush=True)
-                audio = 0.1 * torch.zeros(self.featurizer.sample_rate, dtype=torch.float32)
+                audio = 0.1 * torch.ones(self.featurizer.sample_rate, dtype=torch.float32)
 
+        audio = self._pad_audio(audio)
         audio_len = torch.tensor(audio.shape[0]).long()
         noise, noise_len = sample_noise(self.noise_data, self.featurizer, audio_len.item())
 
@@ -348,6 +354,18 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
             noisy_audio_len=audio_len,
         )
         return item
+
+    def _pad_audio(self, audio: torch.Tensor) -> torch.Tensor:
+        min_len = int(self.min_audio_len_secs * self.featurizer.sample_rate)
+        if audio.size(0) < min_len:
+            if self.pad_audio_mode == 'repeat':
+                num_repeats = int(np.ceil(min_len / audio.size(0)))
+                audio = audio.repeat(num_repeats)[:min_len]
+            elif self.pad_audio_mode == 'zero':
+                audio = torch.nn.functional.pad(audio, (0, min_len - audio.size(0)))
+            else:
+                raise ValueError(f"Unsupported pad_audio_mode: {self.pad_audio_mode}")
+        return audio
 
     def _collate_fn(self, batch: List[AudioNoiseItem]) -> AudioNoiseBatch:
         return _audio_noise_collate_fn(batch, self.batch_augmentor)
