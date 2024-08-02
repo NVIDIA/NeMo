@@ -6,12 +6,13 @@ from typing import Optional, Tuple
 import pytest
 import pytorch_lightning as pl
 import torch
+from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
 
 import nemo.lightning as nl
 from nemo.collections import llm
 from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
-from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
+
 
 def _get_strategy():
     strategy = nl.MegatronStrategy(
