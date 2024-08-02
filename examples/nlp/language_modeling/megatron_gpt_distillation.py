@@ -203,40 +203,35 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
                 'loss_mask': batch['loss_mask'],
             }
 
-            if not self.mcore_gpt:
-                forward_args['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
-                if not self.use_loss_mask:
-                    forward_args.pop('loss_mask')
-            else:
-                # TODO: @eharper can we add this to mcore?
-                forward_args.pop('loss_mask')
+            # TODO: @eharper can we add this to mcore?
+            forward_args.pop('loss_mask')
 
-                if 'cu_seqlens' in batch:  # packed sequence from GPTSFTPackedDataset
-                    # these args are passed eventually into TEDotProductAttention.forward()
-                    cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
-                    # remove -1 "paddings" added in collate_fn
-                    if cu_seqlens_argmin is not None:
-                        cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
-                    else:
-                        cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
+            if 'cu_seqlens' in batch:  # packed sequence from GPTSFTPackedDataset
+                # these args are passed eventually into TEDotProductAttention.forward()
+                cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
+                # remove -1 "paddings" added in collate_fn
+                if cu_seqlens_argmin is not None:
+                    cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
+                else:
+                    cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
 
-                    try:
-                        from megatron.core.packed_seq_params import PackedSeqParams
-                    except (ImportError, ModuleNotFoundError) as e:
-                        mcore_version = packaging.version.Version(version('megatron-core'))
-                        logging.error(
-                            f"megatron-core v{mcore_version} does not support training with packed sequence. "
-                            "Please use megatron-core >= 0.5.0, or set model.data.train_ds.packed_sequence=False"
-                        )
-                        raise e
-
-                    forward_args['packed_seq_params'] = PackedSeqParams(
-                        cu_seqlens_q=cu_seqlens,
-                        cu_seqlens_kv=cu_seqlens,
-                        max_seqlen_q=max_seqlen,
-                        max_seqlen_kv=max_seqlen,
-                        qkv_format='thd',
+                try:
+                    from megatron.core.packed_seq_params import PackedSeqParams
+                except (ImportError, ModuleNotFoundError) as e:
+                    mcore_version = packaging.version.Version(version('megatron-core'))
+                    logging.error(
+                        f"megatron-core v{mcore_version} does not support training with packed sequence. "
+                        "Please use megatron-core >= 0.5.0, or set model.data.train_ds.packed_sequence=False"
                     )
+                    raise e
+
+                forward_args['packed_seq_params'] = PackedSeqParams(
+                    cu_seqlens_q=cu_seqlens,
+                    cu_seqlens_kv=cu_seqlens,
+                    max_seqlen_q=max_seqlen,
+                    max_seqlen_kv=max_seqlen,
+                    qkv_format='thd',
+                )
 
             output_tensor = model(**forward_args)
 
