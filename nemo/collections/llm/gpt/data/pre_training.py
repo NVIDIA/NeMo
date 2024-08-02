@@ -1,3 +1,4 @@
+import logging
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -5,8 +6,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
-from nemo.lightning.data import WrappedDataLoader
 
+from nemo.lightning.data import WrappedDataLoader
+from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 if TYPE_CHECKING:
@@ -15,7 +17,7 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
-class PreTrainingDataModule(pl.LightningDataModule):
+class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
     def __init__(
         self,
         paths: Path | List | Dict[str, List],
@@ -199,18 +201,21 @@ class PreTrainingDataModule(pl.LightningDataModule):
             state_dict: the datamodule state returned by ``state_dict``.
 
         """
-        from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        try:
+            from megatron.core.num_microbatches_calculator import update_num_microbatches
+
+        except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 
         consumed_samples = state_dict['consumed_samples']
         self.data_sampler.init_consumed_samples = consumed_samples
         self.data_sampler.prev_consumed_samples = consumed_samples
-        num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR  # noqa: SLF001
 
-        num_microbatch_calculator.update(
+        update_num_microbatches(
             consumed_samples=consumed_samples,
             consistency_check=False,
         )
-        current_global_batch_size = num_microbatch_calculator.current_global_batch_size
         self.data_sampler.if_first_step = 1
 
     def reconfigure_limit_batches(self):
@@ -224,7 +229,12 @@ class PreTrainingDataModule(pl.LightningDataModule):
         Reconfigure trainer.limit_val_batches for pretraining
         """
         # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches num of global batches
-        from megatron.core.num_microbatches_calculator import get_num_microbatches
+        try:
+            from megatron.core.num_microbatches_calculator import get_num_microbatches
+
+        except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
         if isinstance(limit_batches, int):
             limit_batches *= get_num_microbatches()
