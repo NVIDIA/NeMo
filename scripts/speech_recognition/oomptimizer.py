@@ -451,7 +451,11 @@ def oomptimizer(
                     f"\t[END step] [CUDA RAM CURRENT: {torch.cuda.memory_allocated() / (1024 * 1024):.1f}MB] [CUDA RAM MAX: {torch.cuda.max_memory_allocated() / (1024*1024):.1f}MB]"
                 )
                 del batch
-                torch.cuda.memory.empty_cache()
+                # Note: We could call empty_cache() to free up some more memory on the GPU,
+                #       but we have found out empirically that this causes a mismatched condition
+                #       between OOMptimizer and the actual training. During training, there is some
+                #       degree of memory fragmentation and it's better to simulate that in OOMptimizer.
+                # torch.cuda.memory.empty_cache()
                 torch.cuda.reset_max_memory_allocated()
             return oom
 
