@@ -440,7 +440,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 'global_step',
                 self.trainer.global_step,
                 prog_bar=True,
-                rank_zero_only=True,
                 batch_size=1,
             )
 
@@ -456,14 +455,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     "peak_memory_usage",
                     max_memory_reserved,
                     prog_bar=True,
-                    rank_zero_only=True,
                     batch_size=1,
                 )
                 self.lightning_module.log(
                     "memory_allocated",
                     memory_allocated,
                     prog_bar=True,
-                    rank_zero_only=True,
                     batch_size=1,
                 )
 
