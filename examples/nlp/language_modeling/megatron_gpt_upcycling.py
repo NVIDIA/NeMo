@@ -5,9 +5,11 @@ import re
 # import tempfile
 from copy import deepcopy
 from typing import Dict
+from collections import OrderedDict
 
 import torch
 import torch.multiprocessing as mp
+from pytorch_lightning import Trainer
 from einops import rearrange, repeat
 from megatron.core import parallel_state
 from omegaconf import OmegaConf, open_dict
@@ -15,6 +17,7 @@ from omegaconf import OmegaConf, open_dict
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector, init_model_parallel
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -37,28 +40,27 @@ def modify_state_dict_for_ddp(state_dict):
     return state_dict
 
 
-def modify_config(gpt_cfg, cfg):
+def modify_config_for_upcycling(gpt_cfg: OmegaConf, cfg: OmegaConf) -> OmegaConf:
     OmegaConf.set_struct(gpt_cfg, True)
     with open_dict(gpt_cfg):
-        gpt_cfg.tensor_model_parallel_size = cfg.model.tensor_model_parallel_size
+        gpt_cfg.tensor_model_parallel_size = cfg.model.get('tensor_model_parallel_size', 1)
         # gpt_cfg.expert_model_parallel_size=cfg.model.expert_model_parallel_size
-        gpt_cfg.pipeline_model_parallel_size = cfg.model.pipeline_model_parallel_size
-        gpt_cfg.virtual_pipeline_model_parallel_size = cfg.model.virtual_pipeline_model_parallel_size
+        gpt_cfg.pipeline_model_parallel_size = cfg.model.get('pipeline_model_parallel_size', 1)
+        gpt_cfg.virtual_pipeline_model_parallel_size = cfg.model.get('virtual_pipeline_model_parallel_size', None)
         gpt_cfg.sequence_parallel = cfg.model.get('sequence_parallel', False)
         gpt_cfg.pipeline_model_parallel_split_rank = cfg.model.get('pipeline_model_parallel_split_rank', 0)
         gpt_cfg.use_tp_pp_dp_mapping = cfg.model.get('use_tp_pp_dp_mapping', False)
         gpt_cfg.context_parallel_size = cfg.model.get('context_parallel_size', 1)
         gpt_cfg.micro_batch_size = cfg.model.get('micro_batch_size')
         gpt_cfg.global_batch_size = cfg.model.get('global_batch_size')
-        gpt_cfg.rampup_batch_size = cfg.model.get('rampup_batch_size', None)
+        # gpt_cfg.rampup_batch_size = cfg.model.get('rampup_batch_size', None)
         gpt_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', True)
         gpt_cfg.use_fp8 = cfg.model.get('fp8', False)
         gpt_cfg.init_mpi_proc_group = cfg.model.get('ub_tp_comm_overlap', False)
         gpt_cfg.seed = cfg.model.get('seed', 1234)
-        gpt_cfg.apex_transformer_log_level = cfg.model.get('apex_transformer_log_level', 30)
+        # gpt_cfg.apex_transformer_log_level = cfg.model.get('apex_transformer_log_level', 30)
         gpt_cfg.tokenizer = cfg.model.get('tokenizer', gpt_cfg.tokenizer)
         gpt_cfg.precision = cfg.model.get('precision', gpt_cfg.precision)
-        # gpt_cfg.num_moe_experts = cfg.model.num_moe_experts
 
     return gpt_cfg
 
@@ -71,14 +73,14 @@ def modify_config(gpt_cfg, cfg):
 #     print()
 
 
-def load_state_dict_from_nemo(cfg: OmegaConf, save_restore_connector, trainer):
-    cls = MegatronGPTModel
+def load_state_dict_from_nemo(cls, cfg: OmegaConf, save_restore_connector: SaveRestoreConnector, trainer: Trainer) -> OrderedDict:
+    # cls = MegatronGPTModel
     gpt_cfg = cls.restore_from(
         restore_path=cfg.restore_from_path,
         return_config=True,
         save_restore_connector=save_restore_connector,
     )
-    gpt_cfg = modify_config(gpt_cfg, cfg)
+    gpt_cfg = modify_config_for_upcycling(gpt_cfg, cfg)
     # trainer = MegatronTrainerBuilder(cfg).create_trainer()
     instance = cls.restore_from(
         restore_path=cfg.restore_from_path,
@@ -93,7 +95,7 @@ def load_state_dict_from_nemo(cfg: OmegaConf, save_restore_connector, trainer):
     return state_dict
 
 
-def upcycle_weights_for_moe(state_dict: Dict, cfg: OmegaConf):
+def upcycle_weights_for_moe(cfg: OmegaConf, state_dict: OrderedDict) -> OrderedDict:
     transformer_impl = "grouped_gemm" if cfg.model.get('moe_grouped_gemm', False) else "local"
     num_moe_experts = cfg.model.num_moe_experts
     if cfg.model.expert_model_parallel_size > 0:
@@ -280,18 +282,21 @@ def upcycle_weights_for_moe(state_dict: Dict, cfg: OmegaConf):
         # print('removing '+old_key)
         del state_dict[old_key]
 
-    gc.collect()
-    torch.cuda.empty_cache()
+    # gc.collect()
+    # torch.cuda.empty_cache()
 
     return state_dict
 
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
 def main(cfg) -> None:
+    logging.info("\n\n************** Experiment configuration ***********")
+    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+
     # cfg = OmegaConf.load(args.config_path)
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
     save_restore_connector = NLPSaveRestoreConnector()
-    state_dict = load_state_dict_from_nemo(cfg, save_restore_connector=save_restore_connector, trainer=trainer)
+    state_dict = load_state_dict_from_nemo(MegatronGPTModel, cfg, save_restore_connector=save_restore_connector, trainer=trainer)
     # app_state = AppState()
     # print("app state1: ", app_state.expert_model_parallel_size)
     # exit()
@@ -300,27 +305,25 @@ def main(cfg) -> None:
     trainer.strategy.setup_environment()
     # trainer.strategy.setup_distributed()
 
-    model = MegatronGPTModel(cfg.model, trainer)
+    model_instance = MegatronGPTModel(cfg.model, trainer)
     init_model_parallel(False)
 
     # print("app state2: ", app_state.expert_model_parallel_size)
 
-    state_dict = upcycle_weights_for_moe(state_dict, cfg)
-    if cfg.model.get('expert_model_parallel_size', 1) == 1:
-        state_dict = modify_state_dict_for_ddp(state_dict)
-
-    logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    state_dict = upcycle_weights_for_moe(cfg=cfg, state_dict=state_dict)
+    # if cfg.model.get('expert_model_parallel_size', 1) == 1:
+        # state_dict = modify_state_dict_for_ddp(state_dict)
+    
+    state_dict = save_restore_connector.modify_state_dict(cfg, state_dict=state_dict)
 
     # trainer = MegatronTrainerBuilder(cfg).create_trainer()
-    exp_manager(trainer, cfg.exp_manager)
 
     # print("HERE!!!!!!!")
     # print("model: ", model)
     # print("model.model: ", model.model)
     # print("model.model[0].state_dict: ", model.model[0].state_dict())
     # exit()
-    model.model[0].load_state_dict(state_dict, strict=False)
+    # model.model[0].load_state_dict(state_dict, strict=True)
     # s1 = set(list(model.model[0].state_dict().keys()))
     # s2 = set(list(state_dict.keys()))
     # print("Intersection: ", s1.intersection(s2))
@@ -330,10 +333,15 @@ def main(cfg) -> None:
     # print("s1: ", s1)
     # print("s2: ", s2)
 
-    # save_restore_connector.load_instance_with_state_dict(model, state_dict, strict=False)
+    # save_restore_connector.load_instance_with_state_dict(model_instance, state_dict, strict=True)
+    if isinstance(model_instance.model, list):
+        model_instance.model[0].load_state_dict(state_dict=state_dict, strict=True)
+    else:
+        model_instance.model.load_state_dict(state_dict=state_dict, strict=True)
     logging.info(f"Loaded upcycled model weights from {cfg.restore_from_path} for MoE training.")
 
-    trainer.fit(model)
+    exp_manager(trainer, cfg.exp_manager)
+    trainer.fit(model_instance)
 
 
 if __name__ == "__main__":
