@@ -167,7 +167,7 @@ def convert(local_rank, rank, world_size, args):
         )
 
     with open_dict(model.cfg):
-        model.cfg.torch_distributed_checkpoint = True
+        model.cfg.dist_ckpt_format = 'torch_dist'
 
     model._save_restore_connector = NLPSaveRestoreConnector()
     save_file_path = args.path_to_save
