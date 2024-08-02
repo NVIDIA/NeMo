@@ -1,5 +1,5 @@
 import torch.multiprocessing as mp
-from omegaconf.omegaconf import OmegaConf, open_dict
+from omegaconf.omegaconf import OmegaConf
 
 from nemo.collections.nlp.models.information_retrieval.megatron_mamba_embedding_model import (
     MegatronMambaEmbeddingModel,
@@ -20,18 +20,20 @@ def main(cfg) -> None:
 
     precision = cfg.trainer.precision
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
+
     # Restore the precision value after Trainer is built.
     cfg.trainer.precision = precision
     exp_manager(trainer, cfg.exp_manager)
 
     model_cfg = MegatronMambaEmbeddingModel.merge_cfg_with(cfg.restore_from_path, cfg)
     assert (
-        model_cfg.micro_batch_size * cfg.trainer.devices * cfg.trainer.num_nodes == model_cfg.global_batch_size
+        model_cfg.micro_batch_size * cfg.trainer.devices * cfg.trainer.num_nodes / model_cfg.tensor_model_parallel_size == \
+            model_cfg.global_batch_size
     ), f"Gradiant accumulation is not supported for contrastive learning yet."
 
     logging.info(f"Loading model from {cfg.restore_from_path}")
     model = MegatronMambaEmbeddingModel.restore_from(
-        restore_path=cfg.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=False
+        restore_path=cfg.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=True
     )
     model._save_restore_connector = SaveRestoreConnector()
 
