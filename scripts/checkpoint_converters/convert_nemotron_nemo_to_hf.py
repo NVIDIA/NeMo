@@ -21,7 +21,8 @@ import shutil
 import torch
 from omegaconf import open_dict
 from pytorch_lightning import Trainer
-from transformers import AutoModelForCausalLM, LlamaTokenizer
+from transformers import AutoModelForCausalLM, LlamaTokenizer, PreTrainedTokenizerFast, AutoTokenizer as HFAutoTokenizer
+from transformers.convert_slow_tokenizer import LlamaConverter
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -97,13 +98,6 @@ def convert_hf_config(nemo_config, tokenizer, vocab_size, dtype, hf_output_path,
         torch.float16: 'float16',
         torch.float32: 'float32',
     }
-    if nemo_config.get('seq_len_interpolation_factor', None) is None:
-        rope_scaling = None
-    else:
-        rope_scaling = {
-            'type': 'linear',
-            'factor': nemo_config.seq_len_interpolation_factor
-        }
     hf_config = {
         "_name_or_path": hf_url,
         "architectures": ["NemotronForCausalLM"],
@@ -120,8 +114,7 @@ def convert_hf_config(nemo_config, tokenizer, vocab_size, dtype, hf_output_path,
         "num_key_value_heads": nemo_config.get('num_query_groups', nemo_config.num_attention_heads),
         "norm_eps": nemo_config.layernorm_epsilon,
         "rope_theta": nemo_config.get('rotary_base', 10000),
-        "rope_percent": nemo_config.get('rotary_percentage', 1.),
-        "rope_scaling": rope_scaling,
+        "partial_rotary_factor": nemo_config.get('rotary_percentage', 1.),
         "tie_word_embeddings": False,
         "torch_dtype": DTYPE2HF[dtype],
         "transformers_version": "4.32.0.dev0", # TODO
@@ -306,14 +299,16 @@ def extract_nemotron_tokenizer(
             archive.extract(tokenizer_filename, output_hf_path)
             archive.close()
             os.rename(f'{output_hf_path}/{tokenizer_fn}', output_tokenizer)
-            # We use LlamaTokenizer for sentencepiece based tokenizer
-            tokenizer = LlamaTokenizer.from_pretrained(output_hf_path)
-            tokenizer.save_pretrained(output_hf_path)
         elif os.path.isdir(nemo_file):
             shutil.copy(f'{nemo_file}/{tokenizer_fn}', output_tokenizer)
-            # We use LlamaTokenizer for sentencepiece based tokenizer
-            tokenizer = LlamaTokenizer.from_pretrained(output_hf_path)
-            tokenizer.save_pretrained(output_hf_path)
+        # We use LlamaTokenizer for sentencepiece based tokenizer
+        tokenizer = LlamaTokenizer.from_pretrained(output_hf_path)
+        # Convert the LlamaTokenizer to a PreTrainedTokenizerFast instance
+        tokenizer = PreTrainedTokenizerFast(tokenizer_object=LlamaConverter(tokenizer).converted(), model_input_names=['input_ids', 'token_type_ids'])
+        tokenizer.save_pretrained(output_hf_path)
+        # Make sure not use legacy mode
+        tokenizer = HFAutoTokenizer.from_pretrained(output_hf_path, from_slow=False, legacy=False)
+        tokenizer.save_pretrained(output_hf_path)
         logging.info(f'Setencepiece tokenizer has been saved to {output_tokenizer}')
     elif isinstance(nemo_tokenizer, AutoTokenizer):
         nemo_tokenizer.tokenizer.save_pretrained(output_hf_path)
