@@ -45,6 +45,7 @@ def main(cfg) -> None:
         # Option 1: Restore only the model weights from a .nemo file
         logging.info(f"Continual training: loading weights from {cfg.model.restore_from_path}")
         from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+
         model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.model.restore_from_path,
