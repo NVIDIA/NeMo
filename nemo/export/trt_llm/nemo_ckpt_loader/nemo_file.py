@@ -209,6 +209,12 @@ def build_tokenizer(tokenizer):
 
             model_name = get_megatron_tokenizer(model_name)
 
+            if merges_file is None:
+                return AutoTokenizer.from_pretrained(
+                    pretrained_model_name_or_path=model_name,
+                    vocab_file=vocab_file,
+                )
+
             return AutoTokenizer.from_pretrained(
                 pretrained_model_name_or_path=model_name,
                 vocab_file=vocab_file,
