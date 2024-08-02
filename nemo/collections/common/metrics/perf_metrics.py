@@ -65,8 +65,8 @@ class FLOPsMeasurementCallback(Callback):
         self.query_groups = self.model_cfg.get('num_query_groups', None)
         if self.query_groups is None:
             self.query_groups = self.attention_heads
-
-        self.model = self.model.lower()
+        
+        self.model = self.model.lower() if self.model is not None else self.model
 
     def on_train_end(self, trainer, pl_module):
         """
