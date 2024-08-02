@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Literal, Optional
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
+from nemo.utils import logging
+
 
 class DataSampler:
     def connect(self, trainer: pl.Trainer):
@@ -58,24 +60,12 @@ class MegatronDataSampler(DataSampler):
         from nemo.lightning.pytorch.strategies import MegatronStrategy
         from nemo.utils import AppState
 
-        try:
-            from megatron.core.num_microbatches_calculator import get_current_global_batch_size
-
-        except (ImportError, ModuleNotFoundError):
-            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size
-
         if not isinstance(self.trainer.strategy, MegatronStrategy):
             return 0
 
         app_state = AppState()
-
         if self.rampup_batch_size is not None:
-            if get_current_global_batch_size():
-                current_global_batch_size = get_current_global_batch_size()
-            else:
-                current_global_batch_size = 1
-            consumed_samples = self.prev_consumed_samples + self.if_first_step * current_global_batch_size
+            consumed_samples = self.prev_consumed_samples + self.if_first_step * self.current_global_batch_size
         else:
             consumed_samples = (
                 self.init_consumed_samples
@@ -97,21 +87,19 @@ class MegatronDataSampler(DataSampler):
     def on_megatron_step_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         try:
             from megatron.core.num_microbatches_calculator import (
-                get_current_global_batch_size,
                 update_num_microbatches,
             )
 
         except (ImportError, ModuleNotFoundError):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size, update_num_microbatches
-
-        if self.rampup_batch_size is None:
-            return
+            from apex.transformer.pipeline_parallel.utils import (
+                update_num_microbatches,
+            )
 
         self.prev_global_batch_size = self.current_global_batch_size
 
         # TODO: Add consumed samples
-        consumed_samples = self.compute_consumed_samples(trainer.global_step + 1 - self.init_global_step)
+        consumed_samples = self.compute_consumed_samples(trainer.global_step + 1 - self.init_consumed_samples)
 
         pl_module.log(
             'consumed_samples',
@@ -127,10 +115,9 @@ class MegatronDataSampler(DataSampler):
             consumed_samples=consumed_samples,
             consistency_check=False,
         )
-        current_global_batch_size = get_current_global_batch_size()
         pl_module.log(
             "global_batch_size",
-            current_global_batch_size,
+            self.current_global_batch_size,
             prog_bar=True,
             rank_zero_only=True,
             batch_size=1,
@@ -159,10 +146,19 @@ class MegatronDataSampler(DataSampler):
     @property
     def current_global_batch_size(self) -> int:
         try:
-            from megatron.core.num_microbatches_calculator import get_current_global_batch_size
+            from megatron.core.num_microbatches_calculator import (
+                get_current_global_batch_size,
+            )
 
         except (ImportError, ModuleNotFoundError):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size
+            from apex.transformer.pipeline_parallel.utils import (
+                get_current_global_batch_size,
+            )
 
-        return get_current_global_batch_size()
+        if get_current_global_batch_size():
+            current_global_batch_size = get_current_global_batch_size()
+        else:
+            current_global_batch_size = 1
+
+        return current_global_batch_size
