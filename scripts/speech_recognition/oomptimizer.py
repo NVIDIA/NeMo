@@ -94,7 +94,7 @@ class ProfilingBatchGenerator:
     def __init__(
         self,
         schema: dict,
-        start_batch_size: int = 1024,
+        start_batch_size: int = 32,
         rel_gap_thresh: float = 0.05,
         device: str = "cuda",
     ):
@@ -247,7 +247,7 @@ class FloatList(click.Option):
     default=0.05,
     help="Search stopping criterion in range [0, 1], lower is more precise. Interpret as the uncerainty gap, i.e. (min_oom_batch_size - max_ok_batch_size) / min_oom_batch_size.",
 )
-@click.option("-s", "--start-batch-size", type=int, default=1024, help="Initial batch size to start the search from.")
+@click.option("-s", "--start-batch-size", type=int, default=32, help="Initial batch size to start the search from.")
 @click.option(
     "-r",
     "--ratio",
@@ -466,7 +466,7 @@ def oomptimizer(
             fg="green",
         )
         profile[(tuple(bucket), seq_len_in, seq_len_out)] = gen.max_batch_size
-        gen.start_batch_size = gen.max_batch_size
+        gen.start_batch_size = gen.max_batch_size * 2
 
     # Reverse the profile to be ascendingly sorted again.
     profile = dict(reversed(list(profile.items())))
