@@ -1,62 +1,67 @@
 # import os
-import re
 import gc
+import re
+
 # import tempfile
 from copy import deepcopy
 from typing import Dict
-from omegaconf import OmegaConf, open_dict
 
 import torch
+import torch.multiprocessing as mp
 from einops import rearrange, repeat
+from megatron.core import parallel_state
+from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector, init_model_parallel
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
-
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+
 # from nemo.utils.app_state import AppState
 
-from megatron.core import parallel_state
 
 # import argparse
 
-import torch.multiprocessing as mp
+
 mp.set_start_method("spawn", force=True)
+
 
 def modify_state_dict_for_ddp(state_dict):
     ddp_prefix = 'model.module.'
     for k in list(state_dict.keys()):
-        state_dict[ddp_prefix+k] = state_dict.pop(k)
-    
+        state_dict[ddp_prefix + k] = state_dict.pop(k)
+
     return state_dict
+
 
 def modify_config(gpt_cfg, cfg):
     OmegaConf.set_struct(gpt_cfg, True)
     with open_dict(gpt_cfg):
-        gpt_cfg.tensor_model_parallel_size=cfg.model.tensor_model_parallel_size
+        gpt_cfg.tensor_model_parallel_size = cfg.model.tensor_model_parallel_size
         # gpt_cfg.expert_model_parallel_size=cfg.model.expert_model_parallel_size
-        gpt_cfg.pipeline_model_parallel_size=cfg.model.pipeline_model_parallel_size
-        gpt_cfg.virtual_pipeline_model_parallel_size=cfg.model.virtual_pipeline_model_parallel_size
-        gpt_cfg.sequence_parallel=cfg.model.get('sequence_parallel', False)
-        gpt_cfg.pipeline_model_parallel_split_rank=cfg.model.get('pipeline_model_parallel_split_rank', 0)
-        gpt_cfg.use_tp_pp_dp_mapping=cfg.model.get('use_tp_pp_dp_mapping', False)
-        gpt_cfg.context_parallel_size=cfg.model.get('context_parallel_size', 1)
-        gpt_cfg.micro_batch_size=cfg.model.get('micro_batch_size')
-        gpt_cfg.global_batch_size=cfg.model.get('global_batch_size')
-        gpt_cfg.rampup_batch_size=cfg.model.get('rampup_batch_size', None)
+        gpt_cfg.pipeline_model_parallel_size = cfg.model.pipeline_model_parallel_size
+        gpt_cfg.virtual_pipeline_model_parallel_size = cfg.model.virtual_pipeline_model_parallel_size
+        gpt_cfg.sequence_parallel = cfg.model.get('sequence_parallel', False)
+        gpt_cfg.pipeline_model_parallel_split_rank = cfg.model.get('pipeline_model_parallel_split_rank', 0)
+        gpt_cfg.use_tp_pp_dp_mapping = cfg.model.get('use_tp_pp_dp_mapping', False)
+        gpt_cfg.context_parallel_size = cfg.model.get('context_parallel_size', 1)
+        gpt_cfg.micro_batch_size = cfg.model.get('micro_batch_size')
+        gpt_cfg.global_batch_size = cfg.model.get('global_batch_size')
+        gpt_cfg.rampup_batch_size = cfg.model.get('rampup_batch_size', None)
         gpt_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', True)
-        gpt_cfg.use_fp8=cfg.model.get('fp8', False)
-        gpt_cfg.init_mpi_proc_group=cfg.model.get('ub_tp_comm_overlap', False)
-        gpt_cfg.seed=cfg.model.get('seed', 1234)
-        gpt_cfg.apex_transformer_log_level=cfg.model.get('apex_transformer_log_level', 30)
+        gpt_cfg.use_fp8 = cfg.model.get('fp8', False)
+        gpt_cfg.init_mpi_proc_group = cfg.model.get('ub_tp_comm_overlap', False)
+        gpt_cfg.seed = cfg.model.get('seed', 1234)
+        gpt_cfg.apex_transformer_log_level = cfg.model.get('apex_transformer_log_level', 30)
         gpt_cfg.tokenizer = cfg.model.get('tokenizer', gpt_cfg.tokenizer)
         gpt_cfg.precision = cfg.model.get('precision', gpt_cfg.precision)
         # gpt_cfg.num_moe_experts = cfg.model.num_moe_experts
 
     return gpt_cfg
+
 
 # def print_mem_usage():
 #     print()
@@ -64,6 +69,7 @@ def modify_config(gpt_cfg, cfg):
 #     print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
 #     print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
 #     print()
+
 
 def load_state_dict_from_nemo(cfg: OmegaConf, save_restore_connector, trainer):
     cls = MegatronGPTModel
@@ -92,8 +98,9 @@ def upcycle_weights_for_moe(state_dict: Dict, cfg: OmegaConf):
     num_moe_experts = cfg.model.num_moe_experts
     if cfg.model.expert_model_parallel_size > 0:
         # print("Using Expert Parallel "+str(cfg.model.expert_model_parallel_size))
-        assert num_moe_experts % cfg.model.expert_model_parallel_size == 0, \
-              "num_moe_experts must be divisible by expert_model_parallel_size"
+        assert (
+            num_moe_experts % cfg.model.expert_model_parallel_size == 0
+        ), "num_moe_experts must be divisible by expert_model_parallel_size"
         num_moe_experts = num_moe_experts // cfg.model.expert_model_parallel_size
 
     router_std = cfg.model.get('router_std', 0)
@@ -106,44 +113,44 @@ def upcycle_weights_for_moe(state_dict: Dict, cfg: OmegaConf):
     # gated_linear_unit = cfg.model.get('gated_linear_unit', False) or cfg.model.get('activation', '').endswith('glu')
     # assert v.shape[0] % cfg.model.ffn_hidden_size == 0, "ffn_hidden_size must either be equal to the original model's ffn_hidden_size for simple MoE or ffn_hidden_size/granularity for fine-grained MoE"
     # granularity = v.shape[0]//cfg.model.ffn_hidden_size
-    
+
     router_key_values = []
     new_key_values = []
     old_keys = []
 
     # for k in list(state_dict.keys()):
-        # print_mem_usage()
-        # try:
-        #     device = state_dict[k].device
-        #     v = state_dict[k].detach().cpu()
-        # except:
-        #     device = 'cpu'
-        #     v = state_dict[k]
-        
-        # if torch.is_tensor(state_dict[k]):
-            # device = state_dict[k].device
-        # else:
-            # device = None
-            
-        # v = state_dict[k]
+    # print_mem_usage()
+    # try:
+    #     device = state_dict[k].device
+    #     v = state_dict[k].detach().cpu()
+    # except:
+    #     device = 'cpu'
+    #     v = state_dict[k]
+
+    # if torch.is_tensor(state_dict[k]):
+    # device = state_dict[k].device
+    # else:
+    # device = None
+
+    # v = state_dict[k]
 
     for k, v in state_dict.items():
         # Turn layer_norm_weight into pre_mlp_layernorm
         m = re.match('^decoder\.layers\.(\d+)\.mlp\.linear_fc1\.layer_norm_weight', k)
         if m:
             # del state_dict[k]
-            new_key = 'decoder.layers.'+m.group(1)+'.pre_mlp_layernorm.weight'
-            new_key_values.append((new_key, v.detach().clone()))#.to(device)))
+            new_key = 'decoder.layers.' + m.group(1) + '.pre_mlp_layernorm.weight'
+            new_key_values.append((new_key, v.detach().clone()))  # .to(device)))
             old_keys.append(k)
             # del v
             continue
-        
+
         # Turn layer_norm_bias into pre_mlp_layernorm bias
         m = re.match('^decoder\.layers\.(\d+)\.mlp\.linear_fc1\.layer_norm_bias', k)
         if m:
             # del state_dict[k]
-            new_key = 'decoder.layers.'+m.group(1)+'.pre_mlp_layernorm.bias'
-            new_key_values.append((new_key, v.detach().clone()))#.to(device)))
+            new_key = 'decoder.layers.' + m.group(1) + '.pre_mlp_layernorm.bias'
+            new_key_values.append((new_key, v.detach().clone()))  # .to(device)))
             old_keys.append(k)
             # del v
             continue
@@ -152,53 +159,55 @@ def upcycle_weights_for_moe(state_dict: Dict, cfg: OmegaConf):
         m = re.match('^decoder\.layers\.(\d+)\.mlp\.linear_fc1.weight', k)
         if m:
             # del state_dict[k]
-            # check if granularity is correct based on weight shape and cfg.model.ffn_hidden_size 
+            # check if granularity is correct based on weight shape and cfg.model.ffn_hidden_size
             # if gated_linear_unit:
-                # assert cfg.model.ffn_hidden_size*granularity*2 == v.size(0), "granularity is incorrect based on weight shape and cfg.model.ffn_hidden_size"
+            # assert cfg.model.ffn_hidden_size*granularity*2 == v.size(0), "granularity is incorrect based on weight shape and cfg.model.ffn_hidden_size"
             # else:
-                # assert cfg.model.ffn_hidden_size*granularity == v.size(0), "granularity is incorrect based on weight shape and cfg.model.ffn_hidden_size"
-            
-            new_key = 'decoder.layers.'+m.group(1)+'.mlp.router.weight'
+            # assert cfg.model.ffn_hidden_size*granularity == v.size(0), "granularity is incorrect based on weight shape and cfg.model.ffn_hidden_size"
+
+            new_key = 'decoder.layers.' + m.group(1) + '.mlp.router.weight'
             # Create a router for each fc1
             print('creating new router', new_key, 'layer', m.group(1))
-            router = torch.nn.Linear(v.size(1), cfg.model.num_moe_experts)# num_moe_experts)
+            router = torch.nn.Linear(v.size(1), cfg.model.num_moe_experts)  # num_moe_experts)
             # low init value helps upcycling
             if router_std > 0:
                 torch.nn.init.normal_(router.weight, mean=0.0, std=router_std)
             # same router weights across virtual groups
             if granularity > 1:
-                router = repeat(router.weight[:num_moe_experts // granularity], 'e h -> (e g) h', g=granularity)
+                router = repeat(router.weight[: num_moe_experts // granularity], 'e h -> (e g) h', g=granularity)
             else:
                 router = router.weight
-                
-            router_weight = router.to(v)#.to(device)
+
+            router_weight = router.to(v)  # .to(device)
             router_key_values.append((new_key, router_weight))
-            
+
             if transformer_impl == 'local':
                 for i in range(num_moe_experts):
-                    #new_key = 'decoder.layers.'+m.group(1)+'.mlp.local_experts.'+str(i)+'.linear_fc1.weight'  #works for TE
-                    new_key = 'decoder.layers.'+m.group(1)+'.mlp.experts.local_experts.'+str(i)+'.linear_fc1.weight'  #works with local
+                    # new_key = 'decoder.layers.'+m.group(1)+'.mlp.local_experts.'+str(i)+'.linear_fc1.weight'  #works for TE
+                    new_key = (
+                        'decoder.layers.' + m.group(1) + '.mlp.experts.local_experts.' + str(i) + '.linear_fc1.weight'
+                    )  # works with local
                     if expert_uniform != 0:
-                        t = v.detach().clone()#.to(device)
+                        t = v.detach().clone()  # .to(device)
                         t += expert_uniform * (torch.rand(t) * 2 - 1)
                         new_key_values.append((new_key, scale_st_w1 * t))
                     elif expert_std != 0:
-                        t = v.detach().clone()#.to(device)
+                        t = v.detach().clone()  # .to(device)
                         t += expert_std * torch.randn_like(t)
                         new_key_values.append((new_key, scale_st_w1 * t))
                     else:
-                        new_key_values.append((new_key, scale_st_w1 * v.detach().clone()))#.to(device)))
+                        new_key_values.append((new_key, scale_st_w1 * v.detach().clone()))  # .to(device)))
             else:
-                new_key = 'decoder.layers.'+m.group(1)+'.mlp.experts.weight1'
+                new_key = 'decoder.layers.' + m.group(1) + '.mlp.experts.weight1'
                 if transformer_impl == 'scattermoe':
-                    w1 = v.detach().clone()#.to(device)
+                    w1 = v.detach().clone()  # .to(device)
                     print(w1.shape)
                     w1 = repeat(w1, 'f h -> e f h', e=num_moe_experts // granularity)
                     w1 = rearrange(w1, 'e (f g) h -> (e g) f h', g=granularity).contiguous()
                     print(w1.shape)
                     new_key_values.append((new_key, scale_st_w1 * w1))
                 else:
-                    w1 = v.detach().clone().t()#.to(device)
+                    w1 = v.detach().clone().t()  # .to(device)
                     # print('w1 shape', w1.shape) #torch.Size([6144, 3072])
                     w1 = repeat(w1, 'h f -> e h f', e=num_moe_experts // granularity)
                     w1 = rearrange(w1, 'e h (f g) -> (e g) h f', g=granularity).contiguous()
@@ -206,39 +215,41 @@ def upcycle_weights_for_moe(state_dict: Dict, cfg: OmegaConf):
             old_keys.append(k)
             # del v
             continue
-        
+
         # Turn linear_fc2.weight into local_experts.?.linear_fc2.weight
         m = re.match('^decoder\.layers\.(\d+)\.mlp\.linear_fc2.weight', k)
         if m:
             # del state_dict[k]
-            # check if granularity is correct based on weight shape and cfg.model.ffn_hidden_size 
+            # check if granularity is correct based on weight shape and cfg.model.ffn_hidden_size
             # assert cfg.model.ffn_hidden_size*granularity == v.size(1), "granularity is incorrect based on weight shape and cfg.model.ffn_hidden_size"
-            
+
             if transformer_impl == 'local':
                 for i in range(num_moe_experts):
-                    #new_key = 'decoder.layers.'+m.group(1)+'.mlp.local_experts.'+str(i)+'.linear_fc2.weight'  #works for TE
-                    new_key = 'decoder.layers.'+m.group(1)+'.mlp.experts.local_experts.'+str(i)+'.linear_fc2.weight'  #works with local
+                    # new_key = 'decoder.layers.'+m.group(1)+'.mlp.local_experts.'+str(i)+'.linear_fc2.weight'  #works for TE
+                    new_key = (
+                        'decoder.layers.' + m.group(1) + '.mlp.experts.local_experts.' + str(i) + '.linear_fc2.weight'
+                    )  # works with local
                     if expert_uniform != 0:
-                        t = v.detach().clone()#.to(device)
+                        t = v.detach().clone()  # .to(device)
                         t += expert_uniform * (torch.rand(t) * 2 - 1)
                         new_key_values.append((new_key, t))
                     elif expert_std != 0:
-                        t = v.detach().clone()#.to(device)
+                        t = v.detach().clone()  # .to(device)
                         t += expert_std * torch.randn_like(t)
                         new_key_values.append((new_key, t))
                     else:
-                        new_key_values.append((new_key, v.detach().clone()))#.to(device)))
+                        new_key_values.append((new_key, v.detach().clone()))  # .to(device)))
             else:
-                new_key = 'decoder.layers.'+m.group(1)+'.mlp.experts.weight2' 
+                new_key = 'decoder.layers.' + m.group(1) + '.mlp.experts.weight2'
                 if transformer_impl == 'scattermoe':
-                    w2 =  scale_st * v.detach().clone()#.to(device)
+                    w2 = scale_st * v.detach().clone()  # .to(device)
                     print(w2.shape)
                     w2 = repeat(w2, 'h f -> e h f', e=num_moe_experts // granularity)
                     w2 = rearrange(w2, 'e h (f g) -> (e g) h f', g=granularity).contiguous()
                     print(w2.shape)
                     new_key_values.append((new_key, w2))
                 else:
-                    w2 =  scale_st * v.detach().clone().t()#.to(device)
+                    w2 = scale_st * v.detach().clone().t()  # .to(device)
                     # print('w2 shape', w2.shape) # torch.Size([3072, 6144])
                     w2 = repeat(w2, 'f h -> e f h', e=num_moe_experts // granularity)
                     w2 = rearrange(w2, 'e (f g) h -> (e g) f h', g=granularity).contiguous()
@@ -247,7 +258,7 @@ def upcycle_weights_for_moe(state_dict: Dict, cfg: OmegaConf):
             old_keys.append(k)
             # del v
             continue
-    
+
         # Remove the "_extra_state"
         m = re.match('^decoder\.layers\.(\d+)\.mlp\.linear_fc\d._extra_state', k)
         if m:
@@ -259,7 +270,6 @@ def upcycle_weights_for_moe(state_dict: Dict, cfg: OmegaConf):
         # gc.collect()
         # torch.cuda.empty_cache()
 
-
     for new_key, value in new_key_values:
         # print('adding '+new_key)
         state_dict[new_key] = value
@@ -269,7 +279,7 @@ def upcycle_weights_for_moe(state_dict: Dict, cfg: OmegaConf):
     for old_key in old_keys:
         # print('removing '+old_key)
         del state_dict[old_key]
-    
+
     gc.collect()
     torch.cuda.empty_cache()
 
@@ -333,4 +343,3 @@ if __name__ == "__main__":
     # args = parser.parse_args()
     # main(args)
     main()
-    
