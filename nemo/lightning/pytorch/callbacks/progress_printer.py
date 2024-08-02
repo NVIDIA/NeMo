@@ -7,42 +7,28 @@ from pytorch_lightning.callbacks.progress import ProgressBar
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from typing_extensions import override
 
-
-## helpers from megatron core
-def is_last_rank():
-    return torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1)
-
-
-def print_rank_last(message):
-    """If distributed is initialized, print only on last rank."""
-    if torch.distributed.is_initialized():
-        if is_last_rank():
-            print(message, flush=True)
-    else:
-        print(message, flush=True)
-
-
-class MegatronProgress(ProgressBar):
+class MegatronProgressPrinter(ProgressBar):
     """
     Callback for logging progress in Megatron. Prints status in terms of global batches rather than microbatches.
+    Recommended over MegatronProgressBar for non-interactive settings
     """
-
-    _train_description = "Training"
-    _validation_description = "Validation"
-    _test_description = "Testing"
-    _log_interval = 1
-    # most recent "global_step" will be logged
-    # rather than averaging over last log_interval steps
-    _skip_accumulate_metrics = ["global_step"]
-    total_metrics_dict = defaultdict(lambda: 0.)
 
     def __init__(
         self,
-        log_interval: int = 1,
-        skip_accumulate_metrics: list[str] = ["global_step"],
+        log_interval: int = 100,
+        skip_accumulate_metrics: list[str] = ["global_step"]
     ):
-        self._log_interval = log_interval
+        self._train_description = "Training"
+        self._validation_description = "Validation"
+        self._test_description = "Testing"
+        self._log_interval = int(log_interval)
+        # most recent "global_step" will be logged
+        # rather than averaging over last log_interval steps
         self._skip_accumulate_metrics = skip_accumulate_metrics
+        self.total_metrics_dict = defaultdict(lambda: 0.)
+        self._is_disabled = (log_interval <= 0)
+
+        super().__init__()
 
     def format_string(self, prefix, metrics):
         log_string = prefix
@@ -62,6 +48,16 @@ class MegatronProgress(ProgressBar):
             trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed,
             trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
         )
+    
+    def disable(self):
+        self._is_disabled = True
+    
+    def enable(self):
+        self._is_disabled = False
+
+    @property
+    def is_disabled(self) -> bool:
+        return self._is_disabled 
 
     @property
     def average_metrics_dict(self):
@@ -121,6 +117,8 @@ class MegatronProgress(ProgressBar):
     ## TODO: handle nan losses!
     @override
     def on_train_batch_end(self, trainer, pl_module, *_, **__):
+        if self.is_disabled:
+            return
         n = self.get_current_epoch_step(trainer)
         metrics = self.get_metrics(trainer, pl_module)
         for key in metrics:
@@ -132,7 +130,7 @@ class MegatronProgress(ProgressBar):
         if n % self.log_interval == 0:
             prefix = self.train_description + f" epoch {trainer.current_epoch}, iteration {n}/{self.total}:"
             log_string = self.format_string(prefix, self.average_metrics_dict)
-            print_rank_last(log_string)
+            print(log_string)
 
             self.total_metrics_dict = defaultdict(lambda: 0.0)
 
@@ -159,8 +157,10 @@ class MegatronProgress(ProgressBar):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
+        if self.is_disabled:
+            return
         n = int((batch_idx + 1) / get_num_microbatches())
-        print_rank_last(self.validation_description + f": iteration {n}/{self.total_validation_steps}")
+        print(self.validation_description + f": iteration {n}/{self.total_validation_steps}")
 
     @override
     def on_test_batch_start(
@@ -185,5 +185,7 @@ class MegatronProgress(ProgressBar):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
+        if self.is_disabled:
+            return
         n = int((batch_idx + 1) / get_num_microbatches())
-        print_rank_last(self.test_description + f": iteration {n}/{self.total_validation_steps}")
+        print(self.test_description + f": iteration {n}/{self.total_validation_steps}")
