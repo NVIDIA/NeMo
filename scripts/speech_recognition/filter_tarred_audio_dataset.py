@@ -24,11 +24,10 @@ from nemo.collections.common.data.lhotse.dataloader import LhotseDataLoadingConf
     "-f",
     "--output-format",
     type=click.Choice(["lhotse_shar", "nemo_tarred"]),
-    default="nemo_tarred",
+    default="lhotse_shar",
     help="Which format should we use to save the filtered tarred data.",
 )
 @click.option("-s", "--shard-size", type=int, default=1000, help="Desired number of examples per output shard.")
-@click.option("-j", "--num-jobs", type=int, default=4, help="Number of parallel exporter jobs (lhotse_shar only).")
 def filter_tarred(
     manifest_filepath: str,
     tarred_audio_filepaths: str,
@@ -36,7 +35,6 @@ def filter_tarred(
     output_dir: str,
     output_format: str,
     shard_size: int,
-    num_jobs: int,
 ):
     """
     Given an existing tarred dataset and manifests that point to a subset of examples,
@@ -51,10 +49,10 @@ def filter_tarred(
     filtered_cuts = bg_load(
         all_cuts.filter(lambda c: c.id in keep_cuts).map(partial(attach_custom, cuts_with_custom=keep_cuts))
     )
+    if not '://' in output_dir:  # we support object store writing too
+        Path(output_dir).mkdir(exist_ok=True, parents=True)
     if output_format == "lhotse_shar":
-        filtered_cuts.to_shar(
-            output_dir=output_dir, fields={"recording": "flac"}, shard_size=shard_size, num_jobs=num_jobs
-        )
+        filtered_cuts.to_shar(output_dir=output_dir, fields={"recording": "flac"}, shard_size=shard_size)
     elif output_format == "nemo_tarred":
         export_to_nemo_tarred(cuts=filtered_cuts, output_dir=output_dir, shard_size=shard_size)
     else:
@@ -82,8 +80,6 @@ def read_cutset(src: str, tar: str | None = None) -> CutSet:
 
 
 def export_to_nemo_tarred(cuts: CutSet, output_dir: str, shard_size: int) -> None:
-    if not '://' in output_dir:  # we support object store writing too
-        Path(output_dir).mkdir(exist_ok=True, parents=True)
     with (
         TarWriter(pattern=f"{output_dir}/audio_%d.tar", shard_size=shard_size) as aw,
         JsonlShardWriter(pattern=f"{output_dir}/manifest_%d.jsonl", shard_size=shard_size) as mw,
