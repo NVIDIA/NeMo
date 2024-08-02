@@ -27,6 +27,7 @@ import numpy as np
 import tensorrt_llm
 import torch
 import wrapt
+import safetensors
 from tensorrt_llm._utils import numpy_to_torch
 
 from nemo.deploy import ITritonDeployable
@@ -422,13 +423,13 @@ class TensorRTLLM(ITritonDeployable):
             )
 
             for weight_dict, model_config in zip(weights_dicts, model_configs):
-                import safetensors
-
                 rank = model_config.mapping.tp_rank
                 for k, v in weight_dict.items():
                     weight_dict[k] = numpy_to_torch(v)
 
                 safetensors.torch.save_file(weight_dict, os.path.join(self.model_dir, f'rank{rank}.safetensors'))
+
+            model_configs[0].to_json_file(os.path.join(self.model_dir, 'config.json'))
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
             if os.path.exists(tokenizer_path):
