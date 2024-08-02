@@ -9,6 +9,10 @@ from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_
 from megatron.core.transformer.utils import _get_extra_state_offsets
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 
+from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
+from nemo.lightning.io.pl import MegatronCheckpointIO
+from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
+
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     """PTL considers checkpoints as .ckpt files.
@@ -21,6 +25,17 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
         return filepath.with_name(filepath.stem)
 
     return filepath
+
+
+def get_checkpoint_io(checkpoint_io,  **kwargs):
+    if checkpoint_io is None:
+        checkpoint_io = MegatronCheckpointIO(**kwargs)
+        if kwargs.get("async_save", False):
+            checkpoint_io = AsyncFinalizableCheckpointIO(checkpoint_io)
+    elif isinstance(checkpoint_io, _WrappingCheckpointIO):
+        checkpoint_io.checkpoint_io = MegatronCheckpointIO()
+
+    return checkpoint_io
 
 
 def mcore_to_pyt_sharded_state_dict(

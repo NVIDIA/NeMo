@@ -19,7 +19,6 @@ from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
 from pytorch_lightning.loops.fetchers import _DataLoaderIterDataFetcher
 from pytorch_lightning.overrides.distributed import _sync_module_states
-from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.trainer.states import RunningStage, TrainerFn
 from pytorch_lightning.utilities.types import STEP_OUTPUT
@@ -30,11 +29,10 @@ from torch.utils.data import DataLoader
 from typing_extensions import override
 
 from nemo.lightning import _strategy_lib, io
-from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import ModelTransform
-from nemo.lightning.pytorch.strategies.utils import ckpt_to_dir
-from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
+from nemo.lightning.pytorch.strategies.utils import ckpt_to_dir, get_checkpoint_io
+from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizerCallback
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
@@ -537,23 +535,17 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
-        if self._checkpoint_io is None:
-            self._checkpoint_io = MegatronCheckpointIO(
-                save_ckpt_format=self.save_ckpt_format,
-                async_save=self.async_save,
-                torch_dist_multiproc=self.torch_dist_multiproc,
-                assume_constant_structure=self.assume_constant_structure,
-                parallel_save=self.parallel_save,
-                parallel_save_within_dp=self.parallel_save_within_dp,
-                parallel_load=self.parallel_load,
-                load_directly_on_device=self.load_directly_on_device,
-            )
-            if self.async_save:
-                self._checkpoint_io = AsyncFinalizableCheckpointIO(self._checkpoint_io)
-        elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
-            self._checkpoint_io.checkpoint_io = MegatronCheckpointIO()
-
-        return self._checkpoint_io
+        return get_checkpoint_io(
+            self._checkpoint_io,
+            save_ckpt_format=self.save_ckpt_format,
+            async_save=self.async_save,
+            torch_dist_multiproc=self.torch_dist_multiproc,
+            assume_constant_structure=self.assume_constant_structure,
+            parallel_save=self.parallel_save,
+            parallel_save_within_dp=self.parallel_save_within_dp,
+            parallel_load=self.parallel_load,
+            load_directly_on_device=self.load_directly_on_device,
+        )
 
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:

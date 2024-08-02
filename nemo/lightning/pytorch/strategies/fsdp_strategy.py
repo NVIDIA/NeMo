@@ -25,6 +25,7 @@ from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import masked_token_loss
 from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
+    get_checkpoint_io,
     mcore_to_pyt_sharded_state_dict,
     pyt_to_mcore_state_dict,
 )
@@ -135,24 +136,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
-        # Taken from MegatronStrategy and made less configurable
-        if self._checkpoint_io is None:
-            checkpoint_callback = self.trainer.checkpoint_callback
-            async_save = getattr(checkpoint_callback, "async_save", False)
-            self._checkpoint_io = MegatronCheckpointIO(async_save=async_save)
-            if async_save:
-                self._checkpoint_io = AsyncFinalizableCheckpointIO(self._checkpoint_io)
-                have_async_callback = False
-                for callback in self.trainer.callbacks:
-                    if isinstance(callback, AsyncFinalizerCallback):
-                        have_async_callback = True
-                        break
-                if not have_async_callback:
-                    self.trainer.callbacks.append(AsyncFinalizerCallback())
-        elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
-            self._checkpoint_io.checkpoint_io = MegatronCheckpointIO()
-
-        return self._checkpoint_io
+        return get_checkpoint_io(self._checkpoint_io)
 
     @override
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
