@@ -41,6 +41,7 @@ For quick guides and tutorials, see the "Getting started" section below.
    :titlesonly:
 
    starthere/intro
+   starthere/fundamentals
    starthere/tutorials
 
 For more information, browse the developer docs for your area of interest in the contents section below or on the left sidebar.
@@ -58,10 +59,10 @@ For more information, browse the developer docs for your area of interest in the
 
 .. toctree::
    :maxdepth: 1
-   :caption: Community Model Converters
-   :name: CheckpointConverters
+   :caption: Model Checkpoints
+   :name: Checkpoints
 
-   ckpt_converters/intro
+   checkpoints/intro
 
 .. toctree::
    :maxdepth: 1
