@@ -1,7 +1,5 @@
 import os
-import types
 from pathlib import Path
-from typing import Optional, Tuple
 
 import pytest
 import pytorch_lightning as pl
