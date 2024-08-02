@@ -457,12 +457,14 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         if not self.trainer.training:
             return self.inference_loss_func(loss_mask, num_valid_tokens_in_ub, eos_tensors)
 
-        num_tensors_per_example = 2 + self.hard_negatives_to_train # query, pos_doc and 'n' hard neg_docs
-        bs = output_tensor.shape[0] // num_tensors_per_example 
-        chunks = output_tensor.chunk(bs) # chunk to get tensors for each example
-        query_hs = torch.stack([item[0] for item in chunks]) # first item in every chunk is the query
-        pos_doc_hs = torch.stack([item[1] for item in chunks]) # second item is the pos_doc
-        neg_doc_hs = torch.stack([item[i + 2] for item in chunks for i in range(self.hard_negatives_to_train)]) # rest are hard negatives
+        num_tensors_per_example = 2 + self.hard_negatives_to_train  # query, pos_doc and 'n' hard neg_docs
+        bs = output_tensor.shape[0] // num_tensors_per_example
+        chunks = output_tensor.chunk(bs)  # chunk to get tensors for each example
+        query_hs = torch.stack([item[0] for item in chunks])  # first item in every chunk is the query
+        pos_doc_hs = torch.stack([item[1] for item in chunks])  # second item is the pos_doc
+        neg_doc_hs = torch.stack(
+            [item[i + 2] for item in chunks for i in range(self.hard_negatives_to_train)]
+        )  # rest are hard negatives
 
         query_hs = torch.nn.functional.normalize(query_hs, dim=1)
         pos_doc_hs = torch.nn.functional.normalize(pos_doc_hs, dim=1)

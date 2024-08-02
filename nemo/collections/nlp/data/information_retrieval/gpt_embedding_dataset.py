@@ -48,7 +48,7 @@ class GPTEmbeddingDataset(Dataset):
         truncation_method: str = 'right',
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
         data_type: str = 'train',  # train, query or doc
-        num_hard_negatives: int = 4, # number of hard negatives to use per query during training
+        num_hard_negatives: int = 4,  # number of hard negatives to use per query during training
     ):
         """
         file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format.
