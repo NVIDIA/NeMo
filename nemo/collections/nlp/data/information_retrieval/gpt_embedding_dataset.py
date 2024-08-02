@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from random import choices, sample
 from typing import Mapping, Optional
 
 import datasets
@@ -47,6 +48,7 @@ class GPTEmbeddingDataset(Dataset):
         truncation_method: str = 'right',
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
         data_type: str = 'train',  # train, query or doc
+        num_hard_negatives: int = 4, # number of hard negatives to use per query during training
     ):
         """
         file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format.
@@ -73,6 +75,7 @@ class GPTEmbeddingDataset(Dataset):
         self.index_mapping_dir = index_mapping_dir
         self.virtual_tokens = virtual_tokens
         self.truncation_method = truncation_method
+        self.num_hard_negatives = num_hard_negatives
         if special_tokens is None:
             self.special_tokens = {
                 "system_turn_start": "<extra_id_0>",
@@ -157,7 +160,16 @@ class GPTEmbeddingDataset(Dataset):
         if self.data_type == 'train':
             q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
             d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
-            nd = self.tokenizer.text_to_ids("passage: " + example['neg_doc'].strip())
+            # handle cases where the required number of hard negatives are not present
+            if len(example['neg_doc']) < self.num_hard_negatives:
+                nd = example['neg_doc']
+                # sample rest with replacement
+                nd = nd + choices(example['neg_doc'], k=self.num_hard_negatives - len(example['neg_doc']))
+            else:
+                # sample without replacement
+                nd = sample(example['neg_doc'], k=self.num_hard_negatives)
+            assert len(nd) == self.num_hard_negatives, "Error in sampling required number of hard negatives"
+            nd = [self.tokenizer.text_to_ids("passage: " + ex.strip()) for ex in nd]
         elif self.data_type == 'query':
             q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
             d, nd = None, None
@@ -179,22 +191,22 @@ class GPTEmbeddingDataset(Dataset):
             # these pad/eos tokens are placeholders for virtual tokens for ptuning (if used)
             q = [self.tokenizer.eos_id] * self.virtual_tokens + q  # type: ignore
             d = [self.tokenizer.eos_id] * self.virtual_tokens + d  # type: ignore
-            nd = [self.tokenizer.eos_id] * self.virtual_tokens + nd  # type: ignore
+            nd = [[self.tokenizer.eos_id] * self.virtual_tokens + n for n in nd]  # type: ignore
 
         if self.add_bos:
             q = [self.tokenizer.bos_id] + q  # type: ignore
             d = [self.tokenizer.bos_id] + d  # type: ignore
-            nd = [self.tokenizer.bos_id] + nd  # type: ignore
+            nd = [[self.tokenizer.bos_id] + n for n in nd]  # type: ignore
 
         # TODO: (@adithyare) should probably add a warning before truncation
         q = q[: self.max_seq_length - 1]
         d = d[: self.max_seq_length - 1]
-        nd = nd[: self.max_seq_length - 1]
+        nd = [n[: self.max_seq_length - 1] for n in nd]
 
         if self.add_eos:
             q = q + [self.tokenizer.eos_id]  # type: ignore
             d = d + [self.tokenizer.eos_id]  # type: ignore
-            nd = nd + [self.tokenizer.eos_id]  # type: ignore
+            nd = [n + [self.tokenizer.eos_id] for n in nd]  # type: ignore
 
         processed_example = {
             'query': q,
@@ -244,9 +256,12 @@ class GPTEmbeddingDataset(Dataset):
                 lengths.append(len(item['query']))
                 input_ids.append(item['pos_doc'])
                 lengths.append(len(item['pos_doc']))
-                input_ids.append(item['neg_doc'])
-                lengths.append(len(item['neg_doc']))
-                max_length = max(max_length, len(item['query']), len(item['pos_doc']), len(item['neg_doc']))
+                for nd in item['neg_doc']:
+                    input_ids.append(nd)
+                    lengths.append(len(nd))
+                max_length = max(
+                    max_length, len(item['query']), len(item['pos_doc']), *(len(nd) for nd in item['neg_doc'])
+                )
             elif self.data_type == 'query':
                 input_ids.append(item['query'])
                 lengths.append(len(item['query']))

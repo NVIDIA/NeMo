@@ -62,8 +62,10 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
         self.temperature = self.cfg.get('temperature', 0.02)
-        self.use_all_possible_negatives = self.cfg.get("use_all_possible_negatives", True)
+        self.hard_negatives_to_train = self.cfg.data.train_ds.get("hard_negatives_to_train", 4)
+        self.use_all_possible_negatives = self.cfg.get("use_all_possible_negatives", False)
         self.global_inbatch_negatives = self.cfg.get("global_inbatch_negatives", True)
+        self.use_inbatch_negatives = self.cfg.get("use_inbatch_negatives", True)
         if self.cfg.get("do_mrl", False):
             min_mrl = self.cfg.get("min_mrl_dim", int(np.log2(32))) - 1
             max_mrl = int(np.log2(self.cfg.hidden_size // 2))
@@ -398,17 +400,36 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
 
         return loss, non_loss_tensors
 
-    def constrastive_scores(self, pos_doc_hs, neg_doc_hs, query_hs, bs, temperature, use_all_possible_negatives=False):
-        all_doc_hs = torch.cat([pos_doc_hs, neg_doc_hs], dim=0)  # (2bs) x hidden_size
-        cs = torch.mm(query_hs, all_doc_hs.transpose(0, 1))  # (bs) x (2bs)
-        pos_cs = cs[:, :bs].diag()
-        neg_cs = cs[:, bs:].diag()
+    def constrastive_scores(
+        self,
+        pos_doc_hs,
+        neg_doc_hs,
+        query_hs,
+        bs,
+        temperature,
+        num_hard_negatives,
+        use_all_possible_negatives,
+        use_inbatch_negatives,
+    ):
+        all_doc_hs = torch.cat([pos_doc_hs, neg_doc_hs], dim=0)  # ((hn+1)bs) x hidden_size
+        cs = torch.mm(query_hs, all_doc_hs.transpose(0, 1))  # (bs) x ((hn+1)bs)
+        pos_cs = cs[:, :bs]
+        neg_cs = cs[:, bs:]
         if use_all_possible_negatives:
             labels = torch.arange(bs, device=cs.device).long()
         else:
-            labels = torch.zeros(bs, device=cs.device).long()
-            cs = torch.cat([pos_cs.unsqueeze(1), neg_cs.unsqueeze(1)], dim=1)
-        pos_cs = pos_cs.clone().detach().mean()
+            neg_cs = neg_cs[
+                torch.arange(bs).unsqueeze(1).repeat(1, num_hard_negatives),
+                torch.arange(bs * num_hard_negatives).reshape(bs, num_hard_negatives),
+            ]
+            if use_inbatch_negatives:
+                labels = torch.arange(bs, device=cs.device).long()
+                cs = torch.cat([pos_cs, neg_cs], dim=1)
+            else:
+                labels = torch.zeros(bs, device=cs.device).long()
+                cs = torch.cat([pos_cs.diag().unsqueeze(1), neg_cs], dim=1)
+
+        pos_cs = pos_cs.diag().clone().detach().mean()
         neg_cs = neg_cs.clone().detach().mean()
         cs = cs.clamp(-1.0, 1.0)
         cs = cs / temperature
@@ -434,17 +455,27 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
             eos_tensors = _gather_global_inbatch_representations(eos_tensors)
         if not self.trainer.training:
             return self.inference_loss_func(loss_mask, num_valid_tokens_in_ub, eos_tensors)
-        bs = eos_tensors.shape[0] // 3
-        query_hs = eos_tensors[::3, :]  # every third tensor is a query (bs x hidden_size)
-        pos_doc_hs = eos_tensors[1::3, :]  # every third tensor is a positive doc (bs x hidden_size)
-        neg_doc_hs = eos_tensors[2::3, :]  # every third tensor is a negative doc (bs x hidden_size)
+
+        num_tensors_per_example = 2 + self.hard_negatives_to_train # query, pos_doc and 'n' hard neg_docs
+        bs = output_tensor.shape[0] // num_tensors_per_example 
+        chunks = output_tensor.chunk(bs) # chunk to get tensors for each example
+        query_hs = torch.stack([item[0] for item in chunks]) # first item in every chunk is the query
+        pos_doc_hs = torch.stack([item[1] for item in chunks]) # second item is the pos_doc
+        neg_doc_hs = torch.stack([item[i + 2] for item in chunks for i in range(self.hard_negatives_to_train)]) # rest are hard negatives
 
         query_hs = torch.nn.functional.normalize(query_hs, dim=1)
         pos_doc_hs = torch.nn.functional.normalize(pos_doc_hs, dim=1)
         neg_doc_hs = torch.nn.functional.normalize(neg_doc_hs, dim=1)
 
         cs, pos_cs, neg_cs, labels = self.constrastive_scores(
-            pos_doc_hs, neg_doc_hs, query_hs, bs, self.temperature, self.use_all_possible_negatives
+            pos_doc_hs,
+            neg_doc_hs,
+            query_hs,
+            bs,
+            self.temperature,
+            self.hard_negatives_to_train,
+            self.use_all_possible_negatives,
+            self.use_inbatch_negatives,
         )
         loss = torch.nn.functional.cross_entropy(cs, labels)
         if self.mrl_dims:
@@ -455,7 +486,9 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
                     query_hs[:, :dim],
                     bs,
                     self.temperature,
+                    self.hard_negatives_to_train,
                     self.use_all_possible_negatives,
+                    self.use_inbatch_negatives,
                 )
                 loss += torch.nn.functional.cross_entropy(cs_dim, labels)
 
