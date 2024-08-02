@@ -7,11 +7,11 @@ from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
 from megatron.core.transformer.utils import _get_extra_state_offsets
+from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 
-from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.lightning.io.pl import MegatronCheckpointIO
-from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
+from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
@@ -27,7 +27,7 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     return filepath
 
 
-def get_checkpoint_io(checkpoint_io,  **kwargs):
+def get_checkpoint_io(checkpoint_io, **kwargs):
     if checkpoint_io is None:
         checkpoint_io = MegatronCheckpointIO(**kwargs)
         if kwargs.get("async_save", False):
