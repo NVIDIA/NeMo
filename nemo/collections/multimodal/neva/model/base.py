@@ -39,7 +39,7 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     required_keys = set()
     required_keys.add("attention_mask")
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("images", "tokens", "position_ids"))
+        required_keys.update(("media", "tokens", "position_ids"))
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
 
@@ -52,7 +52,7 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
 def neva_forward_step(model, batch) -> torch.Tensor:
     forward_args = {
-        "images": batch["images"],
+        "media": batch["media"],
         "input_ids": batch["tokens"],
         "position_ids": batch["position_ids"],
         "attention_mask": batch["attention_mask"],
@@ -82,11 +82,11 @@ from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 
 @dataclass
 class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
+    projector_type: str
+    input_size: int
+    layer_spec: ModuleSpec = MLPSubmodules
 
     def configure_model(self) -> "MCoreMultimodalProjector":
-        layer_spec: ModuleSpec = MLPSubmodules
-        projector_type: str
-        input_size: int
         return MCoreMultimodalProjector(
             self,
             self.layer_spec,
@@ -205,7 +205,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
     def forward(
         self,
-        images: torch.Tensor,
+        media: torch.Tensor,
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
         attention_mask: torch.Tensor,
@@ -220,7 +220,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         if use_inference_kv_cache:
             image_embeddings = None
         elif self.vision_model is not None:
-            image_embeddings = self.vision_model(images)  # [b, img_seq_len, h_vision]
+            image_embeddings = self.vision_model(media)  # [b, img_seq_len, h_vision]
             if self._drop_vision_class_token:
                 image_embeddings = image_embeddings[:, self.vision_model.class_token_len :, :]
             # contiguous() call required as `permute` can sparsify the tensor and this breaks pipelining
@@ -300,7 +300,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def forward(
             self,
-            images: torch.Tensor,
+            media: torch.Tensor,
             input_ids: torch.Tensor,
             position_ids: torch.Tensor,
             attention_mask: torch.Tensor,
@@ -308,7 +308,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             inference_params: InferenceParams = None,
     ) -> torch.Tensor:
         output_tensor = self.module(
-            images,
+            media,
             input_ids,
             position_ids,
             attention_mask,
