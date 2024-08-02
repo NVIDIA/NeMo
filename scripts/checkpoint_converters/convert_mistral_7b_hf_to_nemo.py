@@ -168,18 +168,20 @@ def load_config(mistral_config, tokenizer, config_path):
     return nemo_config
 
 
-
 class LazyStateDict:
     def __init__(self, ckpt_index, root):
         self.map = ckpt_index
         self.root = root
+
     def __getitem__(self, key):
         from safetensors import safe_open
+
         assert key in self.map, f'Got unknown key: {key}'
         ckpt_part_path = os.path.join(self.root, self.map[key])
         assert os.path.exists(ckpt_part_path), f'Expected ckpt-part to exist {ckpt_part_path}'
         with safe_open(ckpt_part_path, framework="pt", device="cpu") as fp:
             return fp.get_tensor(key)
+
 
 def load_mistral_ckpt(in_dir, load_model=True):
     params_file = os.path.join(in_dir, 'config.json')
@@ -206,7 +208,6 @@ def load_mistral_ckpt(in_dir, load_model=True):
     return model_args, ckpt, tokenizer
 
 
-
 def parse_precision(precision):
     if precision in ["32", "16"]:
         return int(float(precision))
@@ -218,6 +219,7 @@ def parse_precision(precision):
             return precision[2:]  # prune bf in string
     else:
         return precision
+
 
 def make_trainer(args, nemo_config):
     model_args, ckpt, tokenizer = load_mistral_ckpt(args.input_name_or_path, load_model=False)
@@ -297,7 +299,6 @@ def convert(args):
         assert head_num % num_query_groups == 0, 'head_num must be divisible by num_query_groups'
     if mcore_gpt:
         assert nemo_config.activation.startswith('fast-'), 'mcore only supports fast version of gated linear unit.'
-
 
     yield checkpoint
     checkpoint = OrderedDict()
