@@ -31,8 +31,15 @@ from transformers import AutoTokenizer, PreTrainedTokenizer
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.export.tarutils import TarPath, ZarrPathStore
 
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_vocab_file, get_megatron_merges_file, get_megatron_tokenizer
+
 LOGGER = logging.getLogger("NeMo")
 
+megatron_tokenizer_model_map = {
+    'BertWordPieceLowerCase': 'megatron-bert-345m-uncased',
+    'BertWordPieceCase': 'megatron-bert-345m-cased',
+    'GPT2BPETokenizer': 'megatron-gpt-345m',
+}
 
 def is_nemo_file(path):
     flag = False
@@ -185,6 +192,28 @@ def build_tokenizer(tokenizer):
             return SentencePieceTokenizer(model_path=tokenizer_config["model"])
         elif "GPT2" in tokenizer_config["type"]:
             tokenizer = GPT2Tokenizer(tokenizer_config["vocab_file"], tokenizer_config["merge_file"])
+        elif tokenizer_config["library"] == "megatron":
+            model_name = tokenizer_config["type"]
+            if model_name == 'GPTSentencePieceTokenizer':
+                return SentencePieceTokenizer(model_path=tokenizer_config["model"])
+
+            if model_name in megatron_tokenizer_model_map:
+                model_name = megatron_tokenizer_model_map[model_name]
+
+            vocab_file = tokenizer_config["vocab_file"]
+            merges_file = tokenizer_config["merge_file"]
+
+            if vocab_file is None:
+                vocab_file = get_megatron_vocab_file(model_name)
+                merges_file = get_megatron_merges_file(model_name)
+
+            model_name = get_megatron_tokenizer(model_name)
+
+            return AutoTokenizer.from_pretrained(
+                pretrained_model_name_or_path=model_name,
+                vocab_file=vocab_file,
+                merges_file=merges_file,
+            )
         else:
             raise ValueError(f'Tokenizer type {tokenizer_config["library"]} not handled')
 
