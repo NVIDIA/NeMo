@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import re
 from typing import List, Mapping, Optional
 
@@ -56,10 +57,13 @@ class GPTSFTDataset(Dataset):
         tokens_to_generate: int = 0,
         memmap_workers: Optional[int] = None,
         hf_dataset: bool = False,
+        global_sample_mapping: bool = False,
         truncation_method: str = 'right',
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
         is_test: bool = False,
         output_original_text: bool = False,
+        ceil_to_power_2: bool = False,
+        get_attention_mask_from_fusion: bool = False,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -80,6 +84,7 @@ class GPTSFTDataset(Dataset):
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
         hf_dataset: Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
+        global_sample_mapping: Whether to shuffle all data together, or shuffle the dataset within each epoch
         truncation_method: Truncation from which position. Options: ['left', 'right']
         special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
         is_test: Whether this dataset is the test split.
@@ -98,7 +103,7 @@ class GPTSFTDataset(Dataset):
         self.seed = seed
         self.label_key = label_key
         self.answer_only_loss = answer_only_loss
-        self.truncation_fields = truncation_field.split(',')
+        self.truncation_fields = truncation_field.split(',') if truncation_field is not None else []
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
         self.prompt_template = prompt_template
@@ -106,9 +111,13 @@ class GPTSFTDataset(Dataset):
         self.tokens_to_generate = tokens_to_generate
         self.memmap_workers = memmap_workers
         self.hf_dataset = hf_dataset
+        self.global_sample_mapping = global_sample_mapping
         self.truncation_method = truncation_method
         self.is_test = is_test
         self.output_original_text = output_original_text
+        self.ceil_to_power_2 = ceil_to_power_2
+        self.get_attention_mask_from_fusion = get_attention_mask_from_fusion
+
         if special_tokens is None:
             self.special_tokens = {
                 "system_turn_start": "<extra_id_0>",
@@ -160,8 +169,9 @@ class GPTSFTDataset(Dataset):
         ), f'{label_placeholder} must be at the end of prompt_template.'
 
         # Legacy checkpoints has self.truncation_fields = ['context'] and self.prompt_template_keys = ['input', 'output']
-        if self.prompt_template_keys[0] == 'input' and self.truncation_fields[0] == 'context':
-            self.truncation_fields[0] = self.prompt_template_keys[0]
+        if len(self.truncation_fields) > 0:
+            if self.prompt_template_keys[0] == 'input' and self.truncation_fields[0] == 'context':
+                self.truncation_fields[0] = self.prompt_template_keys[0]
 
         assert set(self.truncation_fields).issubset(
             self.prompt_template_keys
@@ -169,7 +179,11 @@ class GPTSFTDataset(Dataset):
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
-            osm = OnlineSampleMapping(dataset_size=len(self.indexed_dataset), num_samples=self.max_num_samples)
+            osm = (
+                OnlineSampleMapping(dataset_size=len(self.indexed_dataset), num_samples=self.max_num_samples)
+                if not self.global_sample_mapping
+                else None
+            )
             self.samples_mapping = get_samples_mapping(
                 indexed_dataset=self.indexed_dataset,
                 data_prefix=self.file_path,
@@ -299,36 +313,62 @@ class GPTSFTDataset(Dataset):
         if total_ids > self.max_seq_length:
             truncation_length_total = total_ids - self.max_seq_length
             num_fields = len(self.truncation_fields)
-            # sorted equal divide length to each field
-            # examples:
-            #   truncation_length_total = 3
-            #   num_fields = 11
-            #   truncation_length_list = [3,4,4]
-            truncation_length_list = [
-                truncation_length_total // num_fields + (1 if i < truncation_length_total % num_fields else 0)
-                for i in range(num_fields)[::-1]
-            ]
+            if num_fields > 0:
+                # sorted equal divide length to each field
+                # examples:
+                #   truncation_length_total = 3
+                #   num_fields = 11
+                #   truncation_length_list = [3,4,4]
+                truncation_length_list = [
+                    truncation_length_total // num_fields + (1 if i < truncation_length_total % num_fields else 0)
+                    for i in range(num_fields)[::-1]
+                ]
 
-            for i, (ids, key) in enumerate(zip(template_ids, template_ids_keys)):
-                if key in self.truncation_fields:
-                    truncation_length = truncation_length_list.pop()
-                    if len(ids) < truncation_length:
-                        logging.warning(f'{key} is not long enough to truncate.')
-                        truncation_length = len(ids)
+                for i, (ids, key) in enumerate(zip(template_ids, template_ids_keys)):
+                    if key in self.truncation_fields:
+                        truncation_length = truncation_length_list.pop()
+                        if len(ids) < truncation_length:
+                            logging.warning(f'{key} is not long enough to truncate.')
+                            truncation_length = len(ids)
 
-                    if self.truncation_method == 'left':
-                        window_offset = truncation_length
-                    elif self.truncation_method == 'right':
-                        window_offset = 0
+                        truncation_length_total -= truncation_length
+                        template_ids[i] = self._truncation(ids, len(ids) - truncation_length)
+
+            if truncation_length_total > 0:
+                template_ids_lengths = [len(ids) for ids in template_ids]
+                if self.truncation_method == 'left':
+                    iters = range(0, len(template_ids_lengths), 1)
+                elif self.truncation_method == 'right':
+                    iters = range(len(template_ids_lengths) - 1, -1, -1)
+                    # We need to truncate more to let context_ids + tokens_to_generate < self.max_seq_length
+                    truncation_length_total += min(len(label_ids), self.tokens_to_generate)
+                else:
+                    raise ValueError(f'{self.truncation_method} is not supported')
+
+                # Iterate all lengths of template_ids.
+                for i in iters:
+                    if template_ids_lengths[i] >= truncation_length_total:
+                        template_ids_lengths[i] -= truncation_length_total
+                        template_ids[i] = self._truncation(template_ids[i], template_ids_lengths[i])
+                        break
                     else:
-                        raise ValueError(f'{self.truncation_method} is not supported')
-
-                    window_length = len(ids) - truncation_length
-                    template_ids[i] = ids[window_offset : window_offset + window_length]
+                        truncation_length_total -= template_ids_lengths[i]
+                        template_ids_lengths[i] = 0
+                        template_ids[i] = self._truncation(template_ids[i], template_ids_lengths[i])
 
         context_ids = [i for ids in template_ids[:-1] for i in ids]
         label_ids = template_ids[-1]
         return context_ids, label_ids
+
+    def _truncation(self, ids, expect_length):
+        if expect_length == 0:
+            return []
+        elif self.truncation_method == 'left':
+            return ids[-expect_length:]
+        elif self.truncation_method == 'right':
+            return ids[:expect_length]
+        else:
+            raise ValueError(f'{self.truncation_method} is not supported')
 
     def _process_example(self, example):
         """
@@ -356,31 +396,19 @@ class GPTSFTDataset(Dataset):
             # these pad/eos tokens are placeholders for virtual tokens
             context_ids = [self.tokenizer.eos_id] * self.virtual_tokens + context_ids
 
-        input_ids = context_ids
-        answer_start_idx = len(input_ids)
-
         # Adds bos token in the start
         if self.add_bos:
             context_ids = [self.tokenizer.bos_id] + context_ids
-            input_ids = [self.tokenizer.bos_id] + input_ids
-            answer_start_idx += 1
 
         # Adds sep token between text/prompt and answer
         if self.add_sep:
             context_ids = context_ids + [self.sep_id]
-            input_ids = input_ids + [self.sep_id]
-            answer_start_idx += 1
 
-        input_ids = input_ids + answer_ids
+        input_ids = context_ids + answer_ids
 
         # Only training need to consider eos token
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
-
-        if len(input_ids) > self.max_seq_length:
-            logging.warning(f'Input ids length {len(input_ids)} exceed max sequence length {self.max_seq_length}')
-            input_ids = input_ids[: self.max_seq_length]
-            answer_ids = input_ids[answer_start_idx:]
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in self.prompt_template_keys}
@@ -390,7 +418,7 @@ class GPTSFTDataset(Dataset):
 
         processed_example = {
             'input_ids': input_ids,
-            'answer_start_idx': answer_start_idx,
+            'answer_start_idx': len(context_ids),
             'context_ids': context_ids,
             'context_length': len(context_ids),
             'answer_ids': answer_ids,
@@ -406,7 +434,11 @@ class GPTSFTDataset(Dataset):
         return x
 
     def _ceil_to_nearest(self, n, m):
-        return (n + m - 1) // m * m
+        if self.ceil_to_power_2:
+            # Reccurent Gemma (AKA Griffin) requires seq length to be a power of 2 for parallel scan
+            return 2 ** math.ceil(math.log2(n))
+        else:
+            return (n + m - 1) // m * m
 
     def _collate_item(self, item, max_length, pad_id):
         item = self._maybe_cast_to_list(item)
@@ -416,7 +448,7 @@ class GPTSFTDataset(Dataset):
         return item
 
     def _build_loss_mask(self, processed_example):
-        """ Pad input_ids in batch to max batch length while building loss mask """
+        """Pad input_ids in batch to max batch length while building loss mask"""
         input_ids = processed_example['input_ids']
         answer_start_idx = processed_example['answer_start_idx']
         if self.answer_only_loss:
@@ -456,8 +488,9 @@ class GPTSFTDataset(Dataset):
             max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, self.pad_seq_length_to_mult))
         assert max_length <= self.max_seq_length
 
-        attention_mask = [self._create_attention_mask(max_length) for _ in batch]
-        attention_mask = torch.stack(attention_mask)
+        if not self.get_attention_mask_from_fusion:
+            attention_mask = [self._create_attention_mask(max_length) for _ in batch]
+            attention_mask = torch.stack(attention_mask)
         position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
         input_ids = torch.LongTensor(
@@ -471,7 +504,6 @@ class GPTSFTDataset(Dataset):
         processed_batch = {
             'tokens': input_ids,
             'labels': labels,
-            'attention_mask': attention_mask,
             'loss_mask': loss_mask,
             'position_ids': position_ids,
             'contexts': contexts,
@@ -481,18 +513,20 @@ class GPTSFTDataset(Dataset):
             'token_count': token_count,
         }
 
+        if not self.get_attention_mask_from_fusion:
+            processed_batch['attention_mask'] = attention_mask
+
         return processed_batch
 
 
 class GPTSFTPackedDataset(GPTSFTDataset):
     def __init__(self, file_path: str, tokenizer: TokenizerSpec, return_cu_seqlen: bool = True, **kwargs):
+        np.random.seed(kwargs.get('seed', 1234))
         super().__init__(file_path, tokenizer, **kwargs)
         assert self.virtual_tokens == 0, "P-Tuning with packed sequence is not supported."
 
         # Whether to return `cu_seqlen` to pass to model. This should be true for almost all use cases.
         self.return_cu_seqlen = return_cu_seqlen
-
-        np.random.seed(self.seed)
 
     def __getitem__(self, idx):
         if self.samples_mapping is not None:
@@ -502,6 +536,8 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         input_ids = self.indexed_dataset[idx]['input_ids']
         seq_boundaries = self.indexed_dataset[idx]['seq_start_id'] + [len(input_ids)]
         loss_mask = self.indexed_dataset[idx]['loss_mask']
+        if idx < 0:
+            loss_mask = [0] * len(loss_mask)
         return {'input_ids': input_ids, 'seq_boundaries': seq_boundaries, 'loss_mask': loss_mask}
 
     def _load_dataset(self):
@@ -627,7 +663,9 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         else:
             attention_mask = [self._create_attention_mask(max_length) for _ in batch]
             processed_batch.update(
-                {'attention_mask': torch.stack(attention_mask),}
+                {
+                    'attention_mask': torch.stack(attention_mask),
+                }
             )
 
         return processed_batch

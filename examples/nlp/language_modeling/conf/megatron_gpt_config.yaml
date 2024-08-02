@@ -3,13 +3,12 @@ defaults:
   - optional tp_overlap@model.ub_tp_comm_overlap_cfg:
 
 name: megatron_gpt
-restore_from_path: null # used when starting from a .nemo file
 
 trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 16
+  precision: bf16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
@@ -23,6 +22,16 @@ trainer:
   gradient_clip_val: 1.0
   benchmark: False
   enable_model_summary: False # default PTL callback for this does not support model parallelism, instead we log manually
+
+# Used for S3 Checkpointing
+s3_checkpointing:
+  # write_concurrency * tp * pp * 1.15 (buffer) should be within 3500 S3 TPS limit per partition
+  max_write_concurrency: 10
+  # read_concurrency * tp * pp * 1.15 (buffer) should be within 5500 S3 TPS limit per partition
+  max_read_concurrency: 15
+  chunk_size_MB: 64
+  # enables asynchronous checkpoint writing to S3 dirpath. the feature is experimental and currently does not check if the past save succeeded. Therefore, use in conjunction with save_top_k. 
+  enable_async_checkpointing: False
 
 exp_manager:
   explicit_log_dir: null
@@ -45,6 +54,7 @@ exp_manager:
   resume_from_checkpoint: ${model.resume_from_checkpoint}
   create_checkpoint_callback: True
   checkpoint_callback_params:
+    dirpath: null # to use S3 checkpointing, set the dirpath in format s3://bucket/key
     monitor: val_loss
     save_top_k: 10
     mode: min
@@ -52,10 +62,15 @@ exp_manager:
     save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
     filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
+    async_save: False # Set to True to enable async checkpoint save. Currently works only with distributed checkpoints
 
 model:
+  # The following two settings are used for continual training:
+  restore_from_path: null # Set this to a .nemo file path to restore only the model weights
+  restore_from_ckpt: null # Set this to a training ckpt path to restore both model weights and optimizer states
+
   # use GPTModel from megatron.core
-  mcore_gpt: False
+  mcore_gpt: True
 
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
@@ -103,6 +118,14 @@ model:
   seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE ex: https://arxiv.org/abs/2306.15595.
   num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used.
 
+  ## Reset learning rate schedule.
+  # 1. reset_lr=True, reset_lr_steps=False. When pre-training an existing checkpoint "from scratch" on a different dataset.
+  # 2. reset_lr=True, reset_lr_steps=True. When continuing training from an existing checkpoint with the same configuration.
+  #    Learning rate's max_steps and decay_steps will be recalculated as follows: max_steps -= completed_steps, decay_steps -= completed_steps where completed_steps is the number of steps already completed at the checkpoint.
+  #    This will help to reach the min_lr value by the end of training without changing trainer.max_steps.
+  reset_lr: False # Set to True to reset learning rate to initial learning rate. Only supported with distributed optmizer and megatron_amp_O2.
+  reset_lr_steps: False # Set to True to adjust learning rate's max_steps and decay_steps by subtracting number of steps already completed at the checkpoint.
+
   tokenizer:
     library: 'megatron'
     type: 'GPT2BPETokenizer'
@@ -120,7 +143,7 @@ model:
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
   # Megatron O2-style half-precision
-  megatron_amp_O2: False # Enable O2-level automatic mixed precision using main parameters
+  megatron_amp_O2: True # Enable O2-level automatic mixed precision using main parameters
   grad_allreduce_chunk_size_mb: 125
 
   # Fusion
@@ -142,6 +165,7 @@ model:
   gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   sync_batch_comm: False # Enable stream synchronization after each p2p communication between pipeline stages
   nccl_communicator_config_path: null # Path to the yaml file with NCCL communicator options (min_ctas, max_ctas, and cga_cluster_size)
+  validation_param_sync_overlap: False # Overlap parameter AllGather with validation step.
 
   # FSDP
   fsdp: False # Enable training with torch FSDP.
@@ -149,8 +173,16 @@ model:
   fsdp_grad_reduce_dtype: 32 # Gradient reduction data type.
   fsdp_sharded_checkpoint: False # Store and load FSDP shared checkpoint.
 
-  # PyTorch distributed checkpoint
-  torch_distributed_checkpoint: False # Set to True to use PyTorch distributed checkpoint format.
+  # Distributed checkpoint setup
+  dist_ckpt_format: 'zarr' # Set to 'torch_dist' to use PyTorch distributed checkpoint format.
+  dist_ckpt_load_on_device: True # whether to load checkpoint weights directly on GPU or to CPU
+  dist_ckpt_parallel_save: True # if true, each worker will write its own part of the dist checkpoint
+  dist_ckpt_parallel_save_within_dp: False # if true, save will be parallelized only within a DP group (whole world otherwise), which might slightly reduce the save overhead
+  dist_ckpt_parallel_load: False # if true, each worker will load part of the dist checkpoint and exchange with NCCL. Might use some extra GPU memory
+  dist_ckpt_torch_dist_multiproc: 2 # number of extra processes per rank used during ckpt save with PyTorch distributed format
+  dist_ckpt_assume_constant_structure: False # set to True only if the state dict structure doesn't change within a single job. Allows caching some computation across checkpoint saves.
+  dist_ckpt_parallel_dist_opt: True # parallel save/load of a DistributedOptimizer. 'True' allows performant save and reshardable checkpoints. Set to 'False' only in order to minimize the number of checkpoint files.
+  dist_ckpt_load_strictness: null # defines checkpoint keys mismatch behavior (only during dist-ckpt load). Choices: assume_ok_unexpected (default - try loading without any check), log_all (log mismatches), raise_all (raise mismatches)
 
   ## Activation Checkpointing
   # NeMo Megatron supports 'selective' activation checkpointing where only the memory intensive part of attention is checkpointed.
@@ -244,6 +276,7 @@ model:
     seq_length: ${model.encoder_seq_length}
     skip_warmup: True
     num_workers: 2
+    num_dataset_builder_threads: 1
     dataloader_type: single # cyclic
     reset_position_ids: False # Reset position ids after end-of-document token
     reset_attention_mask: False # Reset attention mask after end-of-document token
@@ -252,7 +285,8 @@ model:
     no_seqlen_plus_one_input_tokens: False # Set to True to disable fetching (sequence length + 1) input tokens, instead get (sequence length) input tokens and mask the last token
     pad_samples_to_global_batch_size: False # Set to True if you want to pad the last partial batch with -1's to equal global batch size
     shuffle_documents: True # Set to False to disable documents shuffling. Sample index will still be shuffled
-    exchange_indices_distributed: False # Set to True to exchange indices via torch.distributed instead of filesystem 
+    exchange_indices_distributed: False # Set to True to exchange indices via torch.distributed instead of filesystem
+    data_cache_generation_only: False # Set to True to generate only the data cache and stop the training script
 
   # Nsys profiling options
   nsys_profile:

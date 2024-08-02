@@ -1,8 +1,9 @@
-black==19.10b0
-click==8.0.2
+black~=24.3
+click>=8.1
 isort>5.1.0,<6.0.0
 parameterized
 pytest
+pytest-mock
 pytest-runner
 ruamel.yaml
 sphinx

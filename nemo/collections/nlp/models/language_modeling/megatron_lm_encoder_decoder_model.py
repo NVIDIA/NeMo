@@ -32,11 +32,12 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_model import Me
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
+    AttnMaskType,
     MegatronTokenLevelEncoderDecoderModule,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
     average_losses_across_data_parallel_group,
+    build_attention_mask_3d,
     get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
@@ -47,28 +48,38 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator,
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
+    from megatron.core.models.T5 import T5Model as MCoreT5Model
+    from megatron.core.models.T5.t5_spec import (
+        get_t5_decoder_with_local_block_spec,
+        get_t5_decoder_with_transformer_engine_block_spec,
+        get_t5_encoder_with_local_block_spec,
+        get_t5_encoder_with_transformer_engine_block_spec,
+    )
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+    from megatron.core.transformer.transformer_config import TransformerConfig
 
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import (
+        get_micro_batch_size,
+        get_num_microbatches,
+        reconfigure_num_microbatches_calculator,
+    )
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
+    )
+    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
 __all__ = ["MegatronLMEncoderDecoderModel"]
 
@@ -96,6 +107,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Make sure trainer.accumulate_grad_batches is 1.
         self._validate_trainer()
 
+        self.mcore_t5 = cfg.get('mcore_t5', False)
+
+        if self.mcore_t5:
+            self.transformer_config = self.build_transformer_config()
+
+        self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
+
         # TODO: Currently does not support interleaved pipeline parallelism.
         # This means we can only use pipeline parallelism without the interleaved schedule.
         if isinstance(self.trainer.accelerator, CPUAccelerator):
@@ -116,18 +134,18 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # We don't need to call it explicitly? Since it is a pytorch lightning hook function
         # self.setup_optimizer_param_groups()
 
-        self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
-
         if self.megatron_amp_O2:
 
             if not self.with_distributed_adam:
                 # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-                self.enc_dec_model.cuda(torch.cuda.current_device())
+                if isinstance(self.enc_dec_model, list):
+                    for module in self.enc_dec_model:
+                        module.cuda(torch.cuda.current_device())
+                else:
+                    self.enc_dec_model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
-            self.enc_dec_model = Float16Module(
-                config=self.model_parallel_config, module=self.enc_dec_model, precision=self.cfg.precision
-            )
+            self._wrap_model_for_O2()
 
         self.enable_autocast = (
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
@@ -189,6 +207,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 param._disable_greedy_grad_copy = not self.megatron_amp_O2
                 param._disable_overlap_grad_sync = True
 
+            # Make sure embedding grads are reduced in FP32
+            with_fp32_embedding_grads = self.cfg.get('with_fp32_embedding_grads', True)
+            for name, param in self.named_parameters():
+                if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
+                    param._with_fp32_optimizer = with_fp32_embedding_grads
+
         return super().configure_optimizers()
 
     def _handle_bias_activation_fusion_args(self, cfg):
@@ -244,38 +268,84 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder.arch == 'perceiver':
             raise ValueError(f"Perceivers with pipeline parallel > 1 is not supported yet.")
 
-        if not hasattr(self.cfg, 'embedding_init_method_std'):
-            embedding_init_method_std = self.cfg.encoder.init_method_std
-        else:
-            embedding_init_method_std = self.cfg.embedding_init_method_std
+        if getattr(self, 'mcore_t5', False):
+            assert HAVE_MEGATRON_CORE, "Cannot use MCore T5 since Megatron Core is not found"
+            assert self.cfg.get(
+                'share_token_embeddings', True
+            ), "share_token_embeddings must be True if using MCore T5 model"
+            if self.cfg.get('transformer_engine', False):
+                enc_dec_spec_fns = (
+                    get_t5_encoder_with_transformer_engine_block_spec,
+                    get_t5_decoder_with_transformer_engine_block_spec,
+                )
+            else:
+                enc_dec_spec_fns = (
+                    get_t5_encoder_with_local_block_spec,
+                    get_t5_decoder_with_local_block_spec,
+                )
 
-        if not hasattr(self.cfg, 'embedding_dropout'):
-            embedding_dropout = self.cfg.encoder.hidden_dropout
-        else:
-            embedding_dropout = self.cfg.embedding_dropout
+            en_block_spec = enc_dec_spec_fns[0](self.cfg.encoder.num_layers)
+            de_block_spec = enc_dec_spec_fns[1](self.cfg.decoder.num_layers)
 
-        model = MegatronTokenLevelEncoderDecoderModule(
-            config=self.model_parallel_config,
-            encoder_cfg=self.cfg.encoder,
-            decoder_cfg=self.cfg.decoder,
-            vocab_size=self.padded_vocab_size,
-            max_position_embeddings=self.cfg.max_position_embeddings,
-            num_tokentypes=0,
-            parallel_output=True,
-            pre_process=pre_process,
-            post_process=post_process,
-            fp16_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
-            precision=self.cfg.get('precision', 16),
-            embedding_init_method_std=embedding_init_method_std,
-            embedding_dropout=embedding_dropout,
-            label_smoothing=self.cfg.get('label_smoothing', 0.0),
-            add_encoder=add_encoder,
-            add_decoder=add_decoder,
-            share_token_embeddings=self.cfg.get('share_token_embeddings', True),
-            share_decoder_tokens_head_embeddings=self.cfg.get('share_decoder_tokens_head_embeddings', True),
-            tokens_head_bias=self.cfg.get('tokens_head_bias', True),
-            hiddens_cfg=self.cfg.get('hiddens', None),
-        )
+            encoder_config = copy.deepcopy(self.transformer_config)
+            encoder_config.num_layers = self.cfg.encoder.num_layers
+            if self.cfg.pipeline_model_parallel_size > 1:
+                assert (
+                    self.cfg.pipeline_model_parallel_split_rank is not None
+                ), "Need to know how to shard the encoder & decoder."
+                encoder_config.pipeline_model_parallel_size = self.cfg.pipeline_model_parallel_split_rank
+
+            model = MCoreT5Model(
+                config=self.transformer_config,
+                encoder_config=encoder_config,
+                transformer_encoder_layer_spec=en_block_spec,
+                transformer_decoder_layer_spec=de_block_spec,
+                vocab_size=self.padded_vocab_size,
+                max_sequence_length=self.cfg.max_position_embeddings,
+                pre_process=pre_process,
+                post_process=post_process,
+                fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
+                parallel_output=True,
+                share_embeddings_and_output_weights=self.cfg.get('share_decoder_tokens_head_embeddings', True),
+                position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
+                rotary_percent=self.cfg.get('rotary_percentage', 1.0),
+                seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
+            )
+
+        else:
+            if not hasattr(self.cfg, 'embedding_init_method_std'):
+                embedding_init_method_std = self.cfg.encoder.init_method_std
+            else:
+                embedding_init_method_std = self.cfg.embedding_init_method_std
+
+            if not hasattr(self.cfg, 'embedding_dropout'):
+                embedding_dropout = self.cfg.encoder.hidden_dropout
+            else:
+                embedding_dropout = self.cfg.embedding_dropout
+
+            model = MegatronTokenLevelEncoderDecoderModule(
+                config=self.model_parallel_config,
+                encoder_cfg=self.cfg.encoder,
+                decoder_cfg=self.cfg.decoder,
+                vocab_size=self.padded_vocab_size,
+                max_position_embeddings=self.cfg.max_position_embeddings,
+                num_tokentypes=0,
+                parallel_output=True,
+                pre_process=pre_process,
+                post_process=post_process,
+                fp16_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
+                precision=self.cfg.get('precision', 16),
+                embedding_init_method_std=embedding_init_method_std,
+                embedding_dropout=embedding_dropout,
+                label_smoothing=self.cfg.get('label_smoothing', 0.0),
+                add_encoder=add_encoder,
+                add_decoder=add_decoder,
+                share_token_embeddings=self.cfg.get('share_token_embeddings', True),
+                share_decoder_tokens_head_embeddings=self.cfg.get('share_decoder_tokens_head_embeddings', True),
+                tokens_head_bias=self.cfg.get('tokens_head_bias', True),
+                hiddens_cfg=self.cfg.get('hiddens', None),
+            )
+
         return model
 
     def forward(
@@ -341,8 +411,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def fwd_bwd_step(self, dataloader_iter, forward_only):
         """
-            Dataloader produces a global batch which is turned into a list of microbatches.
-            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
+        Dataloader produces a global batch which is turned into a list of microbatches.
+        The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # Get seq length of batch
         tensor_shape = [self.max_encoder_seq_length, self.cfg.micro_batch_size, self.cfg.encoder.hidden_size]
@@ -356,15 +426,32 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def training_step(self, dataloader_iter):
         """
-            Our dataloaders produce a micro-batch and then we fetch
-            a number of microbatches depending on the global batch size and model parallel size
-            from the dataloader to produce a list of microbatches.
-            Batch should be a list of microbatches and those microbatches should on CPU.
-            Microbatches are then moved to GPU during the pipeline.
-            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
+        Our dataloaders produce a micro-batch and then we fetch
+        a number of microbatches depending on the global batch size and model parallel size
+        from the dataloader to produce a list of microbatches.
+        Batch should be a list of microbatches and those microbatches should on CPU.
+        Microbatches are then moved to GPU during the pipeline.
+        The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # we zero grads here because we also call backward in the megatron fwd/bwd functions
         self._optimizer.zero_grad()
+
+        if self.with_distributed_adam:
+            # hack to enable overlapping param sync and forward compute
+            # note: the distributed optimizer monkey-patches each
+            # parameter's __getattribute__ function so that it can
+            # launch parameter all-gathers the first time the
+            # parameter is accessed after the optimizer step. However,
+            # PyTorch directly passes embedding parameters into a C++,
+            # bypassing this process. A quick-and-dirty hack is to
+            # manually interact with the parameter.
+            modules = self.enc_dec_model if isinstance(self.enc_dec_model, list) else [self.enc_dec_model]
+            for module in modules:
+                if isinstance(module, (Float16Module, MCoreFloat16Module)):
+                    module = module.module
+                if hasattr(module, 'embedding'):
+                    for param in module.embedding.parameters():
+                        param.data_ptr()
 
         loss_dict = self.fwd_bwd_step(dataloader_iter, False)
 
@@ -374,8 +461,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # from multiple simultaneous NCCL calls
             self._optimizer._finish_bucket_grad_sync()
         elif self.megatron_amp_O2:
-            # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
-            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
+            if (
+                self.cfg.get('pipeline_model_parallel_size', 1) > 1
+                or self.cfg.get('sequence_parallel', False)
+                or not self.cfg.get('async_grad_allreduce', True)
+            ):
                 # main grads are stored in the MainParamsOptimizer wrapper
                 self._optimizer.allreduce_main_grads()
         else:
@@ -403,7 +494,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True, batch_size=1)
         self.log(
-            'global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1,
+            'global_step',
+            self.trainer.global_step,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
         )
         # TODO: make sure compute_consumed_samples works for pipeline parallelism
         self.log(
@@ -427,21 +522,21 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return self.cfg.seq_length
 
     def backward(self, *args, **kwargs):
-        """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from megatron-core.
-            No need to call it here.
+        """LightningModule hook to do backward.
+        We want this to do nothing since we run backward in the fwd/bwd functions from megatron-core.
+        No need to call it here.
         """
         return
 
     def optimizer_zero_grad(self, *args, **kwargs):
-        """ LightningModule hook to zero grad.
-            We want this to do nothing as we are zeroing grads during the training_step.
+        """LightningModule hook to zero grad.
+        We want this to do nothing as we are zeroing grads during the training_step.
         """
         return
 
     def allreduce_gradients(self):
         """Reduce gradients across data parallel ranks.
-           Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
+        Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
         """
         # Bucketize and all-reduce
         buckets = {}
@@ -586,15 +681,37 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 batch_data,
             ) = batch
 
-            output = model(
-                encoder_input_ids,  # enc_input_ids
-                encoder_attn_mask,  # enc_attn_mask
-                decoder_input_ids,  # dec_input_ids
-                decoder_attn_mask,  # dec_attn_mask
-                None,  # token_type_ids
-                lm_labels,  # labels
-                batch_data,  # batch_data
-            )
+            if self.mcore_t5:
+                # attn mask logic follows megatron.data.t5_dataset.py in Megatron-LM
+                encoder_attn_mask_3d = build_attention_mask_3d(
+                    encoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
+                )
+                decoder_attn_mask_3d = build_attention_mask_3d(
+                    decoder_attn_mask, decoder_attn_mask, AttnMaskType.causal
+                )
+                enc_dec_attn_mask_3d = build_attention_mask_3d(
+                    decoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
+                )
+
+                output = model(  # model is MCoreT5Model
+                    encoder_input_ids,  # encoder_input_ids
+                    decoder_input_ids,  # decoder_input_ids
+                    encoder_attn_mask_3d,  # encoder_attn_mask
+                    decoder_attn_mask_3d,  # decoder_attn_mask
+                    enc_dec_attn_mask_3d,  # encoder_decoder_attn_mask
+                    lm_labels,  # lm_labels
+                )
+
+            else:
+                output = model(
+                    encoder_input_ids,  # enc_input_ids
+                    encoder_attn_mask,  # enc_attn_mask
+                    decoder_input_ids,  # dec_input_ids
+                    decoder_attn_mask,  # dec_attn_mask
+                    None,  # token_type_ids
+                    lm_labels,  # labels
+                    batch_data,  # batch_data
+                )
 
             def loss_func(output_tensor):
                 if isinstance(output_tensor, dict):
@@ -690,9 +807,76 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) if torch.is_tensor(x) else x for x in batch]
 
-            # map batch and shared args into forward args
-            args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
-            output = model(*args).contiguous()
+            # processing forward args for mcore T5
+            if self.mcore_t5:
+                # when run encoding
+                if output_name == "hiddens":
+                    (
+                        encoder_input_ids,
+                        encoder_attn_mask,
+                    ) = batch
+
+                    # attn mask logic follows megatron.data.t5_dataset.py in Megatron-LM
+                    encoder_attn_mask_3d = build_attention_mask_3d(
+                        encoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
+                    )
+
+                    output = model(
+                        encoder_input_ids=encoder_input_ids,
+                        decoder_input_ids=None,
+                        encoder_attn_mask=encoder_attn_mask_3d,
+                        decoder_attn_mask=None,
+                        encoder_decoder_attn_mask=None,
+                        lm_labels=None,
+                        encoder_hidden_states=None,
+                        output_encoder_hidden_only=True,
+                    ).contiguous()
+
+                # when run decoding
+                elif output_name == "logits":
+                    (
+                        encoder_hidden_states,
+                        encoder_attn_mask,
+                        decoder_input_ids,
+                        decoder_attn_mask,
+                    ) = batch
+
+                    # attn mask logic follows megatron.data.t5_dataset.py in Megatron-LM
+                    encoder_attn_mask_3d = build_attention_mask_3d(
+                        encoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
+                    )
+                    decoder_attn_mask_3d = build_attention_mask_3d(
+                        decoder_attn_mask, decoder_attn_mask, AttnMaskType.causal
+                    )
+                    enc_dec_attn_mask_3d = build_attention_mask_3d(
+                        decoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
+                    )
+
+                    # re-transpose encoder_hidden_states from [batch, seq_len, hidden] to [seq_len, batch, hidden]
+                    encoder_hidden_states = encoder_hidden_states.transpose(1, 0)
+
+                    output = model(
+                        encoder_input_ids=None,
+                        decoder_input_ids=decoder_input_ids,
+                        encoder_attn_mask=encoder_attn_mask_3d,
+                        decoder_attn_mask=decoder_attn_mask_3d,
+                        encoder_decoder_attn_mask=enc_dec_attn_mask_3d,
+                        lm_labels=None,
+                        encoder_hidden_states=encoder_hidden_states,
+                        output_encoder_hidden_only=False,
+                    ).contiguous()
+
+                else:
+                    assert output_name in [
+                        "hiddens",
+                        "logits",
+                    ], "output_name argument must be either 'hiddens' or 'logits'"
+
+            else:
+                # map batch and shared args into forward args
+                args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
+
+                output = model(*args).contiguous()
 
             def id_func(output_tensor):
                 if isinstance(output_tensor, dict):
@@ -763,10 +947,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def on_validation_epoch_end(self):
         # FIXME: do we need this? 'global_step' is logged in training_step
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
-        return self._test_validation_epoch_end(step_outputs=self.validation_step_outputs, prefix="val",)
+        return self._test_validation_epoch_end(
+            step_outputs=self.validation_step_outputs,
+            prefix="val",
+        )
 
     def on_test_epoch_end(self):
-        return self._test_validation_epoch_end(step_outputs=self.test_step_outputs, prefix="test",)
+        return self._test_validation_epoch_end(
+            step_outputs=self.test_step_outputs,
+            prefix="test",
+        )
 
     def loss_func(self, loss_mask, tokens_loss):
         """
@@ -779,7 +969,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return loss
 
     def process_micro_batch(self, micro_batch):
-        """ Micro batch returned by MegatronT5 dataloader"""
+        """Micro batch returned by MegatronT5 dataloader"""
 
         data_b = micro_batch
 
@@ -795,8 +985,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask
 
     def _process_global_batch_without_megatron_batch_sampler(self, global_batch, tokenizer=None):
-        """ Prepares the global batch for megatron-core fwd/bwd functions.
-            Global batch is a list of micro batches.
+        """Prepares the global batch for megatron-core fwd/bwd functions.
+        Global batch is a list of micro batches.
         """
         tokenizer = self.tokenizer if tokenizer is None else tokenizer
         text_enc_list = []
@@ -906,9 +1096,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
     def setup(self, stage=None):
-        """ PTL hook that is executed after DDP spawns.
-            We setup datasets here as megatron datasets require DDP to instantiate.
-            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        """
+        PTL hook that is executed after DDP spawns.
+        We setup datasets here as megatron datasets require DDP to instantiate.
+        See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
@@ -965,6 +1157,36 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 ) == 'relative' and not self.cfg.decoder.get('relative_position_bias_self_attention_only', True):
                     self.enc_dec_model.sync_initial_decoder_cross_attention_relative_position_embeddings()
 
+        if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_t5', False):
+            self.setup_transformer_engine_tp_groups()
+
+    def setup_transformer_engine_tp_groups(self):
+        """This should be called after model parallel groups have been initialized
+        and only needs to be called when using Transformer Engine.
+        """
+        for module in self.get_t5_module_list():
+            """Set TP group
+            Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
+            """
+            # Deep iterate but skip self to avoid infinite recursion.
+            for index, child in enumerate(module.modules()):
+                if index == 0:
+                    continue
+                if hasattr(child, "set_tensor_parallel_group"):
+                    tp_group = parallel_state.get_tensor_model_parallel_group()
+                    child.set_tensor_parallel_group(tp_group)
+
+    def get_t5_module_list(self):
+        if isinstance(self.enc_dec_model, list):
+            return [
+                model.module if isinstance(model, (Float16Module, MCoreFloat16Module)) else model
+                for model in self.enc_dec_model
+            ]
+        elif isinstance(self.enc_dec_model, (Float16Module, MCoreFloat16Module)):
+            return [self.enc_dec_model.module]
+        else:
+            return [self.enc_dec_model]
+
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
             consumed_samples = self.compute_consumed_samples(0)
@@ -1001,7 +1223,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 Format is not defined and should match the expected format of the used hiddens modules.
         """
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
-        if parallel_state.is_unitialized():
+        if not parallel_state.is_initialized():
 
             def dummy():
                 return
@@ -1012,7 +1234,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # Reconfigure microbatch sizes here because on model restore, this will contain the micro/global batch configuration used while training.
             if reconfigure_microbatch:
-                _reconfigure_microbatch_calculator(
+                reconfigure_num_microbatches_calculator(
                     rank=0,  # This doesn't matter since it is only used for logging
                     rampup_batch_size=None,
                     global_batch_size=1,
@@ -1033,7 +1255,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
         # reconfigure back to how things were before encode
         if reconfigure_microbatch:
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -1044,8 +1266,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # build input arguments description
         if tokens_enc is not None:
-            batch_for_pipeline = [tokens_enc, enc_mask, batch_data]
-            arg_names = ['enc_input_ids', 'enc_attn_mask', 'batch_data']
+            if self.mcore_t5 is True:
+                batch_for_pipeline = [tokens_enc, enc_mask]
+                arg_names = []
+            else:
+                batch_for_pipeline = [tokens_enc, enc_mask, batch_data]
+                arg_names = ['enc_input_ids', 'enc_attn_mask', 'batch_data']
         else:
             if encoder_input is None:
                 raise ValueError("At least one of tokens_enc and encoder_input must be provided with not None value")
@@ -1057,10 +1283,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch_for_pipeline.append(encoder_input)
             arg_names.append('enc_input')
 
-        forward_step_func = self._get_forward_output_only_func(
-            arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True
-        )
-
+        if self.mcore_t5:
+            forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="hiddens")
+        else:
+            forward_step_func = self._get_forward_output_only_func(
+                arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True
+            )
         fwd_bwd_func = get_forward_backward_func()
 
         # Counter intuitively, we need to set decoder_sequence_length=encoder_seq_length
@@ -1069,7 +1297,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Setting it to anything else will cause hanging due to tensor shape mismatches.
         output_tensor = fwd_bwd_func(
             forward_step_func=forward_step_func,
-            data_iterator=iter([batch_for_pipeline,]),
+            data_iterator=iter(
+                [
+                    batch_for_pipeline,
+                ]
+            ),
             model=[self.enc_dec_model],
             forward_only=True,
             num_microbatches=1,
@@ -1093,7 +1325,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # Reset microbatch calculator to what it was before decoding.
         if reconfigure_microbatch:
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -1169,7 +1401,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             self.trainer.strategy.setup_environment()
 
             # Reconfigure microbatch sizes here because on model restore, this will contain the micro/global batch configuration used while training.
-            _reconfigure_microbatch_calculator(
+            reconfigure_num_microbatches_calculator(
                 rank=0,  # This doesn't matter since it is only used for logging
                 rampup_batch_size=None,
                 global_batch_size=1,
@@ -1184,6 +1416,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             global_batch_per_gpu = tokens_enc.size(0)
             device = tokens_enc.device
             encoder_seq_length = tokens_enc.size(1)
+        elif encoder_input is not None:
+            global_batch_per_gpu = encoder_input.size(0)
+            device = encoder_input.device
+            encoder_seq_length = encoder_input.size(1)
         else:
             global_batch_per_gpu = enc_output.size(0)
             device = enc_output.device
@@ -1193,7 +1429,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
         # reconfigure back to how things were before decode
         # TODO: Check if the user is trying to do gradient acc and maybe throw error
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -1227,15 +1463,23 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             dec_mask = predicted_tokens_dec != tokenizer.pad_id
             dec_mask[:, 0] = 1  # Make sure you never mask the first token even if it is <pad>.
 
-            batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, batch_data]
-            arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'batch_data']
+            if self.mcore_t5:
+                batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
+                arg_names = []
+            else:
+                batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, batch_data]
+                arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'batch_data']
 
             forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
             fwd_bwd_func = get_forward_backward_func()
 
             output_tensor = fwd_bwd_func(
                 forward_step_func=forward_step_func,
-                data_iterator=iter([batch_for_pipeline,]),
+                data_iterator=iter(
+                    [
+                        batch_for_pipeline,
+                    ]
+                ),
                 model=[self.enc_dec_model],
                 forward_only=True,
                 num_microbatches=1,
@@ -1278,10 +1522,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         pad_profile = torch.zeros_like(scores).long()
                         decoder_seq_lengths = torch.zeros_like(scores).fill_(predicted_tokens_dec.size(1) + 1)
 
-                        # reconfigure batch size for apex since the tensor have been augmented with beam size
+                        # reconfigure batch size since the tensor have been augmented with beam size
                         global_batch_per_gpu = token_ids.shape[0]
                         tensor_shape[1] = global_batch_per_gpu
-                        _reconfigure_microbatch_calculator(
+                        reconfigure_num_microbatches_calculator(
                             rank=app_state.global_rank,
                             rampup_batch_size=None,
                             global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -1315,13 +1559,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         # choose top-k hypotheses with length penalty applied
                         len_penalties = compute_beam_search_len_penalty(decoder_seq_lengths, beam_alpha)
                         scores = scores / len_penalties
-                        scores, indices = sample_token_fn(scores.view(-1, beam_size ** 2), dim=1, log_softmax=False)
+                        scores, indices = sample_token_fn(scores.view(-1, beam_size**2), dim=1, log_softmax=False)
                         scores = scores.view(-1, 1) * len_penalties
 
                         # select predicted sequences which correspond to the chosen hypotheses
                         predicted_tokens_dec = predicted_tokens_dec.unsqueeze(1).repeat(1, beam_size, 1)
                         predicted_tokens_dec = torch.cat((predicted_tokens_dec, token_ids.unsqueeze(2)), dim=2)
-                        predicted_tokens_dec = predicted_tokens_dec.view(batch_size, beam_size ** 2, -1)
+                        predicted_tokens_dec = predicted_tokens_dec.view(batch_size, beam_size**2, -1)
                         p_len = predicted_tokens_dec.size(2)
                         predicted_tokens_dec_ids = indices.unsqueeze(2).repeat(1, 1, p_len)
                         predicted_tokens_dec = predicted_tokens_dec.gather(1, predicted_tokens_dec_ids).view(-1, p_len)
@@ -1329,7 +1573,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         # select logits which correspond to the chosen hypotheses
                         predicted_log_probs = predicted_log_probs.unsqueeze(1).repeat(1, beam_size, 1)
                         predicted_log_probs = torch.cat((predicted_log_probs, log_probs.unsqueeze(2)), dim=2)
-                        predicted_log_probs = predicted_log_probs.view(batch_size, beam_size ** 2, -1)
+                        predicted_log_probs = predicted_log_probs.view(batch_size, beam_size**2, -1)
                         predicted_log_probs = predicted_log_probs.gather(1, predicted_tokens_dec_ids[:, :, 1:]).view(
                             -1, p_len - 1
                         )
@@ -1372,7 +1616,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 )
 
         # Reset microbatch calculator to what it was before decoding.
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -1408,11 +1652,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def complete(self, request: Dict):
         """
-            Autoregressively invokes language model in the inference mode
+        Autoregressively invokes language model in the inference mode
+
         Args:
             request: Dictionary with the following fields
                 * prompt: a string which text the model should complete.
                 * tokens_to_generate: how many tokens to generate while doing prompt completion.
+
         Returns:
             response: A python dictionary with the following fields
                 * prompt: original text of the prompt
@@ -1425,7 +1671,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         app_state = AppState()
 
         # The complete method only works with global batch = micro batch size = data parallel size = 1.
-        _reconfigure_microbatch_calculator(
+        reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=1,
@@ -1473,16 +1719,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return response
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
-        """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
-            When using pipeline parallelism, we need the global batch to remain on the CPU,
-            since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline.
+        """PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
+        When using pipeline parallelism, we need the global batch to remain on the CPU,
+        since the memory overhead will be too high when using a large number of microbatches.
+        Microbatches are transferred from CPU to GPU inside the pipeline.
         """
         return batch
 
     def _validate_trainer(self):
-        """ Certain trainer configurations can break training.
-            Here we try to catch them and raise an error.
+        """Certain trainer configurations can break training.
+        Here we try to catch them and raise an error.
         """
         if self.trainer.accumulate_grad_batches > 1:
             raise ValueError(
@@ -1493,8 +1739,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         pass
 
     def build_model_parallel_config(self):
-        """ Hidden size needs to be set from the cfg.encoder for the pipeline schedule.
-        """
+        """Hidden size needs to be set from the cfg.encoder for the pipeline schedule."""
 
         model_parallel_config = super().build_model_parallel_config()
         try:
@@ -1505,3 +1750,152 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 f'encoder.hidden_size not found in {self.cfg}. Set this in model_parallel_config if using pipeline parallelism.'
             )
         return model_parallel_config
+
+    def sharded_state_dict(self, prefix: str = '') -> Dict[str, Any]:
+        """
+        Creates the sharded state dict which is used by dist_checkpoint to save the sharded tensors to disk.
+        When given the sharded_stated_dict, dist_checkpoint.load will load the tensors corresponding to
+        self.state_dict().
+        The sharded tensor mapping is defined in the GPTModel class from mcore.
+        """
+        if self.mcore_t5:
+            module_prefix = f'{prefix}model.'
+            sharded_state_dict = {}
+            for index, module in enumerate(self.get_model_module_list()):
+                if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                    # virtual pipline rank must be set so that GPTModel returns the correct sharded state dict
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(index)
+                    module_sharded_state_dict = module.sharded_state_dict(prefix=module_prefix)
+                    sharded_state_dict[f'model_{index}'] = module_sharded_state_dict
+                else:
+                    module_sharded_state_dict = module.sharded_state_dict(prefix=module_prefix)
+                    sharded_state_dict.update(module_sharded_state_dict)
+
+            # reset vp rank
+            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+
+            return sharded_state_dict
+
+    def on_save_checkpoint(self, checkpoint) -> None:
+        """LightningModule hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-save-checkpoint
+        """
+        if self.mcore_t5:
+            checkpoint['sharded_state_dict'] = self.sharded_state_dict()
+        else:
+            if isinstance(self.enc_dec_model, list):
+                for i in range(len(self.enc_dec_model)):
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                    checkpoint[f'model{i}'] = self.enc_dec_model[i].module.state_dict_for_save_checkpoint()
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+
+    def on_load_checkpoint(self, checkpoint) -> None:
+        """LightningModule hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
+        """
+        if self.mcore_t5:
+            if 'state_dict' in checkpoint and checkpoint['state_dict']:
+                for index, module in enumerate(self.get_model_module_list()):
+                    if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                        checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
+                    else:
+                        checkpoint_state_dict = checkpoint['state_dict']
+                    # checkpoint_state_dict has "model." but module does not so we need to remove it when loading
+                    checkpoint_state_dict = {
+                        key.replace('model.', ''): checkpoint_state_dict.pop(key)
+                        for key in list(checkpoint_state_dict.keys())
+                    }
+
+                    # addressing the current T5 mcore version's implementation of sharded_state_dict
+                    checkpoint_state_dict['lm_head.output_layer.bias'] = checkpoint_state_dict['output_layer.bias']
+                    checkpoint_state_dict['position_embeddings.weight'] = checkpoint_state_dict[
+                        'embedding.position_embeddings.weight'
+                    ]
+
+                    module.load_state_dict(checkpoint_state_dict, strict=True)
+            else:
+                checkpoint['state_dict'] = {}
+        else:
+            if isinstance(self.enc_dec_model, list):
+                for i in range(len(self.enc_dec_model)):
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                    self.enc_dec_model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+
+    def build_transformer_config(self) -> TransformerConfig:
+        """Builds the megatron core gpt transformer config for the model.
+        For attributes in the nemo model config that are the same
+        as the megatron core TransformerConfig, we will use the value from the nemo model config.
+        For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
+        """
+
+        # for T5 model, transformers hyperparameters are stored in self.cfg.encoder/self.cfg.decoder
+        with open_dict(self.cfg):
+            for key in self.cfg.encoder:
+                print("{}: {}".format(key, self.cfg.encoder.get(key)))
+                OmegaConf.update(self.cfg, key, self.cfg.encoder.get(key))
+
+        normalization = self.cfg.get('normalization', 'layernorm')
+
+        layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
+        if normalization == 'layernorm':
+            normalization = 'LayerNorm'
+        elif normalization == 'rmsnorm':
+            normalization = 'RMSNorm'
+        elif normalization == 'layernorm1p':
+            normalization = 'LayerNorm'
+            layernorm_zero_centered_gamma = True
+        else:
+            logging.warning(
+                f"The normalization type: {normalization} might not be supported in megatron core."
+                f"Supported types are LayerNorm and RMSNorm."
+            )
+
+        # any configs that are not in the nemo model config will be added here
+        model_specific_configs = {
+            'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
+            'normalization': normalization,
+        }
+
+        transformer_config = super().build_transformer_config()
+
+        for key, value in model_specific_configs.items():
+            setattr(transformer_config, key, value)
+
+        # pass mcore customization configs directly to mcore
+        mcore_customization_config_dict = self.cfg.get('mcore_customization_config', {})
+        for key, value in mcore_customization_config_dict.items():
+            setattr(transformer_config, key, value)
+
+        return transformer_config
+
+    def setup_mcore_distributed_parallel(self):
+        """Set up mcore distributed data parallel"""
+        if self.with_distributed_adam and self.use_mcore_dist_optim:
+            config = get_model_config(self.enc_dec_model[0])
+            ddp_config = DistributedDataParallelConfig(
+                grad_reduce_in_fp32=(self.cfg.optim.get('grad_sync_dtype', 'fp32') == 'fp32'),
+                overlap_grad_reduce=self.cfg.optim.get('overlap_grad_sync', False),
+                use_distributed_optimizer=True,
+                check_for_nan_in_grad=self.cfg.optim.get('check_for_nan_in_grad', False),
+                # mcore bucket_size is based on num of parameters, therefore not
+                # using bucket_cap_mb to configure bucket_size here
+                bucket_size=self.cfg.optim.get('ddp_bucket_size', None),
+            )
+            self.enc_dec_model = [
+                McoreDDP(
+                    config,
+                    ddp_config,
+                    model_chunk,
+                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                    # Turn off bucketing for model_chunk 2 onwards, since communication for these
+                    # model chunks is overlapped with compute anyway.
+                    disable_bucketing=(model_chunk_idx > 0),
+                )
+                for (model_chunk_idx, model_chunk) in enumerate(self.enc_dec_model)
+            ]
+
+            # (TODO) Broadcast params from data parallel src rank to other data parallel ranks.
+            # by calling model_module.broadcast_params() if the model is randomly initialized.

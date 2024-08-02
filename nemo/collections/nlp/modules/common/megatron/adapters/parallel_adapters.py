@@ -24,6 +24,7 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 
+from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
@@ -47,6 +48,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import ModelParallelConfig
+    from megatron.core.parallel_state import get_tensor_model_parallel_group, get_tensor_model_parallel_world_size
     from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
     from megatron.core.tensor_parallel.mappings import (
         gather_from_sequence_parallel_region,
@@ -74,12 +76,17 @@ class AdapterName(str, enum.Enum):
     POST_ATTN_ADAPTER = 'adapter_2'
     PTUNING_ADAPTER = "ptuning_adapter"
     LORA_KQV_ADAPTER = "lora_kqv_adapter"
+    LORA_UNFUSED_KQV_ADAPTER = "lora_unfused_kqv_adapter"
+    MLP_HEAD_ADAPTER = "mlp_head_adapter"
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
     MM_LINEAR_ADAPTER = "mm_linear_adapter"
     LORA_DENSE_ATTENTION_ADAPTER = "lora_dense_attention_adapter"
     LORA_Hto4H_ADAPTER = "lora_hto4h_adapter"
+    LORA_UNFUSED_Hto4H_ADAPTER = "lora_unfused_hto4h_adapter"
     LORA_4HtoH_ADAPTER = "lora_4htoh_adapter"
+    LORA_MOE_Hto4H_ADAPTER = "lora_moe_hto4h_adapter"
+    LORA_MOE_4HtoH_ADAPTER = "lora_moe_4htoh_adapter"
     MULTIMODAL_PROJECTOR_ADAPTER = "mm_projector_adapter"
     PARALLEL_LINEAR_ADAPTER = "parallel_linear_adapter"
 
@@ -146,6 +153,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         model_parallel_config: Optional[ModelParallelConfig] = None,
         alpha: float | None = None,
         dropout_position: str = 'post',
+        a2a_experimental: bool = False,  # TODO: should rename this or make it a default feature
         **kwargs,
     ):
         super().__init__()
@@ -161,6 +169,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         self.alpha = alpha if alpha is not None else self.dim
         self.input_is_parallel = input_is_parallel
         self.dropout_position = dropout_position
+        self.use_a2a = a2a_experimental
 
         # megatron_gpt_peft_models will provide this arg, but deprecated ones do not.
         # in case this arg is not provided, use the dummy default config.
@@ -187,6 +196,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
                 bias=False,
                 gather_output=True,
                 init_method=self._get_init_fn(column_init_method),
+                disable_grad_reduce=self._sequence_parallel,
             )
         if gather_output:
             self.linear_out = RowParallelLinear(
@@ -201,12 +211,15 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         else:
             # (@adithyare) we use this option to mirror the behavior a column parallel layer with two low-rank column parallel layers
             # if the original column parallel layer uses gather_output=False, then we will use the self.liner_out layer defined below.
+            lin_out_gather_output = True if input_is_parallel else False
+            if self.use_a2a and input_is_parallel and self._sequence_parallel:
+                lin_out_gather_output = False
             self.linear_out = ColumnParallelLinear(
                 dim,
                 out_features,
                 config=model_parallel_config,
                 bias=False,
-                gather_output=True if input_is_parallel else False,
+                gather_output=lin_out_gather_output,
                 init_method=self._get_init_fn(row_init_method),
             )
 
@@ -243,9 +256,12 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             from pkg_resources import packaging
 
             te_version = packaging.version.Version(version("transformer-engine"))
-            if te_version >= packaging.version.Version("1.5.0dev"):
+            if te_version >= packaging.version.Version("1.5.0dev") and (
+                not self.input_is_parallel and getattr(model_parallel_config, "tp_comm_overlap_disable_qkv", False)
+            ):
                 # TE 1.5 introduces the option `return_layernorm_output_gathered`, so the all gather
                 # in the forward method is not needed, so set self._sequence_parallel to False
+                # unless TP communication overlap is used
                 self._sequence_parallel = False
 
     def _get_init_fn(self, init_method: str):
@@ -261,7 +277,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             raise NotImplementedError("out_init_method should be zero, normal, kaiming or xavier")
         return init_fn
 
-    def adapter_unfreeze(self,):
+    def adapter_unfreeze(
+        self,
+    ):
         """
         Can be customized to allow for selective training of only some params in the PEFT.
         """
@@ -289,7 +307,11 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             # layernorm after lora is impacted by sequence parallel,
             # hence seq dim need to be scattered right after lora linear layers
             # this function also handles the backward pass correctly
-            x = scatter_to_sequence_parallel_region(x)
+            if self.use_a2a:
+                # all2all hidden_size / TP to seq_len / TP
+                x = all2all_hp2sp(x)
+            else:
+                x = scatter_to_sequence_parallel_region(x)
 
         if self.norm_position == 'post':
             x = self.layer_norm(x)
@@ -301,6 +323,50 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         x = x * (self.alpha / self.dim)
 
         return x
+
+    def sharded_state_dict(
+        self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
+    ) -> ShardedStateDict:
+        sharded_state_dict = {}
+        sharded_state_dict.update(self.linear_in.sharded_state_dict(f"{prefix}linear_in.", sharded_offsets, metadata))
+        sharded_state_dict.update(
+            self.linear_out.sharded_state_dict(f"{prefix}linear_out.", sharded_offsets, metadata)
+        )
+        return sharded_state_dict
+
+
+class _All2AllHp2Sp(torch.autograd.Function):
+    """
+    All-2-All from Hidden Parallel to Sequence Parallel
+    This is a temporary workaround and can be updated in the future
+    TODO: Move the functionality to MCore
+    """
+
+    @staticmethod
+    def forward(ctx, input_):
+        world_size = get_tensor_model_parallel_world_size()
+        group = get_tensor_model_parallel_group()
+        send_list = list(input_.chunk(world_size, dim=0))
+        send_list = [tensor.contiguous() for tensor in send_list]
+        receive_list = [torch.empty_like(send_list[0]) for _ in range(world_size)]
+        torch.distributed.all_to_all(receive_list, send_list, group=group)
+        x = torch.cat(receive_list, dim=-1)
+        return x
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        world_size = get_tensor_model_parallel_world_size()
+        group = get_tensor_model_parallel_group()
+        send_list = list(grad_output.chunk(world_size, dim=-1))
+        send_list = [tensor.contiguous() for tensor in send_list]
+        receive_list = [torch.empty_like(send_list[0]) for _ in range(world_size)]
+        torch.distributed.all_to_all(receive_list, send_list, group=group)
+        x = torch.cat(receive_list, dim=0)
+        return x
+
+
+def all2all_hp2sp(input_):
+    return _All2AllHp2Sp.apply(input_)
 
 
 @dataclass
@@ -319,7 +385,59 @@ class ParallelLinearAdapterConfig(AdapterConfig):
     dropout_position: str = 'post'
     alpha: float | None = None
     network_alpha: int | None = None
+    a2a_experimental: bool = False
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
+
+
+class MLPHeadAdapter(nn.Module, AdapterModuleUtil):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        input_is_parallel: bool = False,
+        model_parallel_config: Optional[ModelParallelConfig] = None,
+        **kwargs,
+    ):
+        super().__init__()
+        if model_parallel_config is None:
+            model_parallel_config = ModelParallelConfig()
+        self._sequence_parallel = model_parallel_config.sequence_parallel
+        model_parallel_config.sequence_parallel = False  # SP is irrelevant for the lora linear layer
+
+        if input_is_parallel:
+            self.linear = RowParallelLinear(
+                in_features,
+                out_features,
+                config=model_parallel_config,
+                input_is_parallel=True,
+                skip_bias_add=True,
+                bias=False,
+                init_method=init.xavier_normal_,
+            )
+        else:
+            self.linear = ColumnParallelLinear(
+                in_features,
+                out_features,
+                config=model_parallel_config,
+                bias=False,
+                gather_output=True,
+                init_method=init.xavier_normal_,
+                disable_grad_reduce=self._sequence_parallel,
+            )
+
+        # Setup adapter strategy
+        self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
+
+    def forward(self, x):
+        x, _ = self.linear(x)
+        return x
+
+
+@dataclass
+class MLPHeadAdapterConfig(AdapterConfig):
+    in_features: int
+    out_features: int
+    _target_: str = "{0}.{1}".format(MLPHeadAdapter.__module__, MLPHeadAdapter.__name__)
 
 
 class LoraKQVAdapter(ParallelLinearAdapter):
@@ -351,7 +469,7 @@ class LoraQAdapter(ParallelLinearAdapter):
 
 class LoraDenseAttentionAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -360,7 +478,7 @@ class LoraDenseAttentionAdapter(ParallelLinearAdapter):
 
 class LoraHto4HAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -369,7 +487,7 @@ class LoraHto4HAdapter(ParallelLinearAdapter):
 
 class Lora4HtoHAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -405,6 +523,230 @@ class LoraHto4HAdapterConfig(ParallelLinearAdapterConfig):
 @dataclass
 class Lora4HtoHAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(Lora4HtoHAdapter.__module__, Lora4HtoHAdapter.__name__)
+    input_is_parallel: bool = True
+
+
+class LoraUnfusedHto4HAdapter(nn.Module, AdapterModuleUtil):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        dim: int,
+        activation: str = 'swish',
+        norm_position: Optional[str] = 'post',
+        norm_type: Optional[str] = 'mixedfusedlayernorm',
+        column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
+        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
+        gather_output: bool = True,
+        input_is_parallel: bool = False,  # NOTE: (@ertkonuk) we need this for LoRA adapters that are applied to RowParallelLinear layers
+        dropout: float = 0.0,
+        model_parallel_config: Optional[ModelParallelConfig] = None,
+        alpha: float | None = None,
+        dropout_position: str = 'post',
+        a2a_experimental: bool = False,  # TODO: should rename this or make it a default feature
+        **kwargs,
+    ):
+        super().__init__()
+        self.gate_adapter = ParallelLinearAdapter(
+            in_features,
+            out_features // 2,
+            dim,
+            activation,
+            norm_position,
+            norm_type,
+            column_init_method,
+            row_init_method,
+            gather_output,
+            input_is_parallel,
+            dropout,
+            model_parallel_config,
+            alpha,
+            dropout_position,
+            a2a_experimental,
+        )
+        self.up_adapter = ParallelLinearAdapter(
+            in_features,
+            out_features // 2,
+            dim,
+            activation,
+            norm_position,
+            norm_type,
+            column_init_method,
+            row_init_method,
+            gather_output,
+            input_is_parallel,
+            dropout,
+            model_parallel_config,
+            alpha,
+            dropout_position,
+            a2a_experimental,
+        )
+
+    def forward(self, x):
+        gate_x = self.gate_adapter(x)
+        up_x = self.up_adapter(x)
+        x = torch.concat([gate_x, up_x], dim=2)
+        return x
+
+
+@dataclass
+class LoraUnfusedHto4HAdapterConfig(ParallelLinearAdapterConfig):
+    _target_: str = "{0}.{1}".format(LoraUnfusedHto4HAdapter.__module__, LoraUnfusedHto4HAdapter.__name__)
+
+
+class LoraUnfusedKQVAdapter(nn.Module, AdapterModuleUtil):
+    def __init__(
+        self,
+        in_features: int,
+        dim: int,
+        num_query_groups: int,
+        kv_channels: int,
+        activation: str = 'swish',
+        norm_position: Optional[str] = 'post',
+        norm_type: Optional[str] = 'mixedfusedlayernorm',
+        column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
+        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
+        gather_output: bool = True,
+        input_is_parallel: bool = False,  # NOTE: (@ertkonuk) we need this for LoRA adapters that are applied to RowParallelLinear layers
+        dropout: float = 0.0,
+        model_parallel_config: Optional[ModelParallelConfig] = None,
+        alpha: float | None = None,
+        dropout_position: str = 'post',
+        a2a_experimental: bool = False,  # TODO: should rename this or make it a default feature
+        **kwargs,
+    ):
+        super().__init__()
+        if num_query_groups is not None and kv_channels is not None:
+            out_features = kv_channels * num_query_groups
+        else:
+            out_features = in_features
+
+        self.kv_channels = kv_channels
+        adapter_args = {
+            "in_features": in_features,
+            "out_features": in_features,
+            "dim": dim,
+            "activation": activation,
+            "norm_position": norm_position,
+            "norm_type": norm_type,
+            "column_init_method": column_init_method,
+            "row_init_method": row_init_method,
+            "gather_output": gather_output,
+            "input_is_parallel": input_is_parallel,
+            "dropout": dropout,
+            "model_parallel_config": model_parallel_config,
+            "alpha": alpha,
+            "dropout_position": dropout_position,
+            "a2a_experimental": a2a_experimental,
+        }
+
+        self.q_adapter = ParallelLinearAdapter(**adapter_args)
+        adapter_args["out_features"] = out_features
+        self.k_adapter = ParallelLinearAdapter(**adapter_args)
+        self.v_adapter = ParallelLinearAdapter(**adapter_args)
+
+    def forward(self, x):
+        qx = self.q_adapter(x)
+        kx = self.k_adapter(x)
+        vx = self.v_adapter(x)
+        qx = qx.reshape(qx.shape[0], qx.shape[1], -1, self.kv_channels)
+        kx = kx.reshape(kx.shape[0], kx.shape[1], -1, self.kv_channels)
+        vx = vx.reshape(vx.shape[0], vx.shape[1], -1, self.kv_channels)
+        return qx, kx, vx
+
+
+@dataclass
+class LoraUnfusedKQVAdapterConfig(AdapterConfig):
+    in_features: int
+    dim: int
+    num_query_groups: int
+    kv_channels: int
+    activation: str = 'swish'
+    norm_position: Optional[str] = 'post'
+    norm_type: Optional[str] = 'mixedfusedlayernorm'
+    column_init_method: str = 'xavier'
+    row_init_method: str = 'zero'
+    gather_output: bool = True
+    input_is_parallel: bool = False
+    dropout: float = 0.0
+    dropout_position: str = 'post'
+    alpha: float | None = None
+    network_alpha: int | None = None
+    a2a_experimental: bool = False
+    _target_: str = "{0}.{1}".format(LoraUnfusedKQVAdapter.__module__, LoraUnfusedKQVAdapter.__name__)
+
+
+class LoraMoeAdapter(nn.Module, AdapterModuleUtil):
+    def __init__(
+        self,
+        num_moe_experts: int,
+        in_features: int,
+        out_features: int,
+        dim: int,
+        activation: str = 'identity',
+        norm_position: Optional[str] = None,
+        norm_type: Optional[str] = None,
+        column_init_method: str = 'xavier',
+        row_init_method: str = 'zero',
+        gather_output: bool = False,
+        input_is_parallel: bool = False,
+        dropout: float = 0.0,
+        model_parallel_config: Optional[ModelParallelConfig] = None,
+        alpha: float | None = None,
+        dropout_position: str = 'post',
+        a2a_experimental: bool = False,
+        **kwargs,
+    ):
+        super().__init__()
+
+        self.num_moe_experts = num_moe_experts
+        adapter_args = {
+            "in_features": in_features,
+            "out_features": out_features,
+            "dim": dim,
+            "activation": activation,
+            "norm_position": norm_position,
+            "norm_type": norm_type,
+            "column_init_method": column_init_method,
+            "row_init_method": row_init_method,
+            "gather_output": gather_output,
+            "input_is_parallel": input_is_parallel,
+            "dropout": dropout,
+            "model_parallel_config": model_parallel_config,
+            "alpha": alpha,
+            "dropout_position": dropout_position,
+            "a2a_experimental": a2a_experimental,
+        }
+        self.expert_adapters = nn.ModuleList()
+        for i in range(num_moe_experts):
+            self.expert_adapters.append(ParallelLinearAdapter(**adapter_args))
+
+    def forward(self, x, expert_idx):
+        return self.expert_adapters[expert_idx](x)
+
+
+@dataclass
+class LoraMoeHto4HAdapterConfig(AdapterConfig):
+    num_moe_experts: int
+    in_features: int
+    out_features: int
+    dim: int
+    activation: str = 'identity'
+    norm_position: Optional[str] = None
+    norm_type: Optional[str] = None
+    column_init_method: str = 'xavier'
+    row_init_method: str = 'zero'
+    gather_output: bool = False
+    input_is_parallel: bool = False
+    dropout: float = 0.0
+    dropout_position: str = 'post'
+    alpha: float | None = None
+    a2a_experimental: bool = False
+    _target_: str = "{0}.{1}".format(LoraMoeAdapter.__module__, LoraMoeAdapter.__name__)
+
+
+@dataclass
+class LoraMoe4HtoHAdapterConfig(LoraMoeHto4HAdapterConfig):
     input_is_parallel: bool = True
 
 
@@ -487,14 +829,21 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         self.is_inference_ready = True
         return True
 
-    def clear_inference_table(self,):
+    def clear_inference_table(
+        self,
+    ):
         self.inference_table.fill_(0.0)
         self.is_inference_ready = False
 
-    def get_inference_table(self,):
+    def get_inference_table(
+        self,
+    ):
         return self.inference_table.data
 
-    def inner_forward(self,):
+    def inner_forward(
+        self,
+    ):
+
         input_embeds = self.embedding(self.indices).unsqueeze(0)
         intermediate_parallel, bias_parallel = self.first(input_embeds)
         intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
@@ -689,6 +1038,29 @@ class LoraKQVAdapterWeightTyingConfig(ParallelLinearAdapterWeightTyingConfig):
     _target_: str = "{0}.{1}".format(LoraKQVAdapterWeightTying.__module__, LoraKQVAdapterWeightTying.__name__)
 
 
+class DownSampleBlock(nn.Module):
+    def forward(self, x):
+        vit_embeds = x
+        h = w = int(vit_embeds.shape[3] ** 0.5)
+        vit_embeds = vit_embeds.reshape(*vit_embeds.shape[:3], h, w, -1)
+        vit_embeds = self.flat_square(vit_embeds)
+        vit_embeds = vit_embeds.reshape(*vit_embeds.shape[:3], -1, vit_embeds.shape[-1])
+        return vit_embeds
+
+    def flat_square(self, x):
+        b, T, F, h, w, c = x.size()
+        if w % 2 == 1:
+            x = torch.cat([x, torch.zeros((b, T, F, h, 1, c), dtype=x.dtype).to(x.device)], dim=4)
+            b, T, F, h, w, c = x.size()
+        if h % 2 == 1:
+            x = torch.cat([x, torch.zeros((b, T, F, 1, w, c), dtype=x.dtype).to(x.device)], dim=3)
+            b, T, F, h, w, c = x.size()
+        x = x.view(b, T, F, h, int(w / 2), int(c * 2))
+        x = x.permute(0, 1, 2, 4, 3, 5).contiguous()
+        x = x.view(b, T, F, int(h / 2), int(w / 2), int(c * 4))
+        return x
+
+
 class MultimodalProjectorAdapter(nn.Module, AdapterModuleUtil):
     def __init__(self, adapter_type: str, in_features: int, out_features: int, bias: bool, **kwargs) -> None:
         super().__init__()
@@ -697,6 +1069,14 @@ class MultimodalProjectorAdapter(nn.Module, AdapterModuleUtil):
             self.mm_projector = torch.nn.Linear(in_features, out_features, bias)
         elif adapter_type == 'identity':
             self.mm_projector = lambda x: x
+        elif adapter_type == 'mlp_downsample':
+            self.mm_projector = torch.nn.Sequential(
+                DownSampleBlock(),
+                torch.nn.LayerNorm(in_features * 4),
+                torch.nn.Linear(in_features * 4, out_features, bias),
+                torch.nn.GELU(),
+                torch.nn.Linear(out_features, out_features, bias),
+            )
         else:
             mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', adapter_type)
             if mlp_gelu_match:

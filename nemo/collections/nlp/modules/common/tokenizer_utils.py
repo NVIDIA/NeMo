@@ -22,6 +22,7 @@ from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
+from nemo.collections.common.tokenizers.tiktoken_tokenizer import TiktokenTokenizer
 from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.lm_utils import get_pretrained_lm_models_list
@@ -78,6 +79,7 @@ def get_tokenizer(
     special_tokens: Optional[Dict[str, str]] = None,
     use_fast: Optional[bool] = False,
     bpe_dropout: Optional[float] = 0.0,
+    chat_template: Optional[Dict] = None,
 ):
     """
     Args:
@@ -91,7 +93,7 @@ def get_tokenizer(
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
         bpe_dropout: (experimental) BPE dropout tries to corrupt the standard segmentation
             procedure of BPE to help
-            model better learn word compositionality and become robust to segmentation errors. 
+            model better learn word compositionality and become robust to segmentation errors.
             It has emperically been shown to improve inference time BLEU scores.
     """
     if special_tokens is None:
@@ -114,9 +116,15 @@ def get_tokenizer(
         tokenizer_name = get_megatron_tokenizer(tokenizer_name)
 
     if tokenizer_name == 'sentencepiece':
+        logging.info("tokenizer_model: " + str(tokenizer_model))
         return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
-            model_path=tokenizer_model, special_tokens=special_tokens, legacy=True
+            model_path=tokenizer_model,
+            special_tokens=special_tokens,
+            legacy=True,
+            chat_template=chat_template,
         )
+    elif tokenizer_name == 'tiktoken':
+        return nemo.collections.common.tokenizers.tiktoken_tokenizer.TiktokenTokenizer(vocab_file=vocab_file)
     elif tokenizer_name == 'word':
         return WordTokenizer(vocab_file=vocab_file, **special_tokens_dict)
     elif tokenizer_name == 'char':
@@ -150,6 +158,7 @@ def get_nmt_tokenizer(
     legacy: Optional[bool] = False,
     delimiter: Optional[str] = None,
     trust_remote_code: Optional[bool] = False,
+    chat_template: Optional[Dict] = None,
 ):
     """
     Args:
@@ -186,7 +195,9 @@ def get_nmt_tokenizer(
     elif library == 'sentencepiece':
         logging.info(f'Getting SentencePiece with model: {tokenizer_model}')
         return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
-            model_path=tokenizer_model, legacy=legacy
+            model_path=tokenizer_model,
+            legacy=legacy,
+            chat_template=chat_template,
         )
     elif library == 'byte-level':
         logging.info(f'Using byte-level tokenization')
@@ -195,14 +206,26 @@ def get_nmt_tokenizer(
         logging.info(f'Using regex tokenization')
         return RegExTokenizer().load_tokenizer(regex_file=tokenizer_model, vocab_file=vocab_file)
     elif library == 'megatron':
+
+        if model_name == 'GPTSentencePieceTokenizer':
+            logging.info("tokenizer_model: ")
+            logging.info(tokenizer_model)
+            return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
+                model_path=tokenizer_model, legacy=legacy
+            )
+
         if model_name in megatron_tokenizer_model_map:
             model_name = megatron_tokenizer_model_map[model_name]
         logging.info(
             f'Getting Megatron tokenizer for pretrained model name: {model_name}, custom vocab file: {vocab_file}, and merges file: {merges_file}'
         )
-        return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file, merges_file=merges_file)
+        return get_tokenizer(
+            tokenizer_name=model_name, vocab_file=vocab_file, merges_file=merges_file, chat_template=chat_template
+        )
     elif library == 'tabular':
         return TabularTokenizer(vocab_file, delimiter=delimiter)
+    elif library == 'tiktoken':
+        return TiktokenTokenizer(vocab_file=vocab_file)
     else:
         raise NotImplementedError(
             'Currently we only support "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer'

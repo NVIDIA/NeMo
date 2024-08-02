@@ -20,7 +20,6 @@ from pytorch_lightning import Trainer
 from torch._inductor import config as inductor_config
 
 from nemo.collections.multimodal.data.dreambooth.dreambooth_dataset import DreamBoothDataset
-from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
 from nemo.collections.multimodal.modules.stable_diffusion.distributions.distributions import (
     DiagonalGaussianDistribution,
 )
@@ -38,7 +37,6 @@ from nemo.utils import logging
 try:
     from apex import amp
     from apex.transformer.enums import AttnMaskType
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -53,6 +51,13 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 
 def disabled_train(self, mode=True):
@@ -100,7 +105,9 @@ class DreamBooth(torch.nn.Module, Serialization):
         self.get_noise_scheduler(self.cfg.noise_scheduler)
 
         self.model_type = None
-        self.rng = torch.Generator(device=torch.cuda.current_device(),)
+        self.rng = torch.Generator(
+            device=torch.cuda.current_device(),
+        )
 
         self.use_cached_latents = self.cfg.use_cached_latents
 
@@ -247,7 +254,10 @@ class MegatronDreamBooth(NLPAdapterModelMixin, MegatronBaseModel):
         # handle asynchronous grad reduction
         no_sync_func = None
         if not forward_only and self.with_distributed_adam:
-            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+            no_sync_func = partial(
+                self._optimizer.no_sync,
+                greedy_grad_copy=self.megatron_amp_O2,
+            )
 
         # pipeline schedules will get these from self.model.config
         for module in self.get_module_list():
@@ -292,12 +302,12 @@ class MegatronDreamBooth(NLPAdapterModelMixin, MegatronBaseModel):
 
     def training_step(self, dataloader_iter):
         """
-            Our dataloaders produce a micro-batch and then we fetch
-            a number of microbatches depending on the global batch size and model parallel size
-            from the dataloader to produce a list of microbatches.
-            Batch should be a list of microbatches and those microbatches should on CPU.
-            Microbatches are then moved to GPU during the pipeline.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        Our dataloaders produce a micro-batch and then we fetch
+        a number of microbatches depending on the global batch size and model parallel size
+        from the dataloader to produce a list of microbatches.
+        Batch should be a list of microbatches and those microbatches should on CPU.
+        Microbatches are then moved to GPU during the pipeline.
+        The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
 
         # we zero grads here because we also call backward in the apex fwd/bwd functions
@@ -352,20 +362,20 @@ class MegatronDreamBooth(NLPAdapterModelMixin, MegatronBaseModel):
         return loss
 
     def backward(self, *args, **kwargs):
-        """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
-            No need to call it here.
+        """LightningModule hook to do backward.
+        We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+        No need to call it here.
         """
         pass
 
     def optimizer_zero_grad(self, *args, **kwargs):
-        """ LightningModule hook to zero grad.
-            We want this to do nothing as we are zeroing grads during the training_step.
+        """LightningModule hook to zero grad.
+        We want this to do nothing as we are zeroing grads during the training_step.
         """
         pass
 
     def _append_sequence_parallel_module_grads(self, module, grads):
-        """ Helper method for allreduce_sequence_parallel_gradients"""
+        """Helper method for allreduce_sequence_parallel_gradients"""
 
         for param in module.parameters():
             sequence_parallel_param = getattr(param, 'sequence_parallel', False)
@@ -382,7 +392,8 @@ class MegatronDreamBooth(NLPAdapterModelMixin, MegatronBaseModel):
             prompts, images = batch
             # DB has more dedicated structure for encoding, so we enable autocasting here as well
             with torch.cuda.amp.autocast(
-                self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
+                self.autocast_dtype in (torch.half, torch.bfloat16),
+                dtype=self.autocast_dtype,
             ):
                 images = images.cuda(non_blocking=True)
 
@@ -413,7 +424,7 @@ class MegatronDreamBooth(NLPAdapterModelMixin, MegatronBaseModel):
         return fwd_output_only_func
 
     def setup(self, stage=None):
-        """ PTL hook that is executed after DDP spawns.
+        """PTL hook that is executed after DDP spawns.
             We setup datasets here as megatron datasets require DDP to instantiate.
             See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
         Args:
@@ -473,9 +484,9 @@ class MegatronDreamBooth(NLPAdapterModelMixin, MegatronBaseModel):
             center_crop=cfg.center_crop,
             load_cache_latents=self.model.use_cached_latents,
             cached_instance_data_root=self.cfg.data.get("cached_instance_dir", None),
-            cached_reg_data_root=self.cfg.data.get("cached_reg_dir", None)
-            if self.cfg.with_prior_preservation
-            else None,
+            cached_reg_data_root=(
+                self.cfg.data.get("cached_reg_dir", None) if self.cfg.with_prior_preservation else None
+            ),
             vae=self.model.vae,
             text_encoder=self.model.text_encoder,
         )
@@ -506,16 +517,16 @@ class MegatronDreamBooth(NLPAdapterModelMixin, MegatronBaseModel):
         pass
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
-        """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
-            When using pipeline parallelism, we need the global batch to remain on the CPU,
-            since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline.
+        """PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
+        When using pipeline parallelism, we need the global batch to remain on the CPU,
+        since the memory overhead will be too high when using a large number of microbatches.
+        Microbatches are transferred from CPU to GPU inside the pipeline.
         """
         return batch
 
     def _validate_trainer(self):
-        """ Certain trainer configurations can break training.
-            Here we try to catch them and raise an error.
+        """Certain trainer configurations can break training.
+        Here we try to catch them and raise an error.
         """
         if self.trainer.accumulate_grad_batches > 1:
             raise ValueError(
@@ -647,6 +658,8 @@ class MegatronDreamBooth(NLPAdapterModelMixin, MegatronBaseModel):
         return checkpoint
 
     def _check_and_add_adapter(self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None):
+        from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
+
         if isinstance(module, AdapterModuleMixin):
             if isinstance(module, LinearWrapper):
                 peft_cfg.in_features, peft_cfg.out_features = module.in_features, module.out_features
