@@ -16,7 +16,7 @@ class Trainer(pl.Trainer, IOMixin):
         self,
         enable_progress_bar: bool = False,
         callbacks: Optional[Union[List[pl.Callback], pl.Callback]] = None,
-        **kwargs
+        **kwargs,
     ):
         if callbacks is None:
             callbacks = []
@@ -34,7 +34,7 @@ class Trainer(pl.Trainer, IOMixin):
             has_megatron_progress_bar = True
         if has_megatron_progress_bar:
             enable_progress_bar = True
-    
+
         super().__init__(enable_progress_bar=enable_progress_bar, callbacks=callbacks, **kwargs)
 
     def io_init(self, **kwargs) -> fdl.Config[Self]:

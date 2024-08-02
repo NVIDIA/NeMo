@@ -7,17 +7,14 @@ from pytorch_lightning.callbacks.progress import ProgressBar
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from typing_extensions import override
 
+
 class MegatronProgressPrinter(ProgressBar):
     """
     Callback for logging progress in Megatron. Prints status in terms of global batches rather than microbatches.
     Recommended over MegatronProgressBar for non-interactive settings
     """
 
-    def __init__(
-        self,
-        log_interval: int = 100,
-        skip_accumulate_metrics: list[str] = ["global_step"]
-    ):
+    def __init__(self, log_interval: int = 100, skip_accumulate_metrics: list[str] = ["global_step"]):
         self._train_description = "Training"
         self._validation_description = "Validation"
         self._test_description = "Testing"
@@ -25,8 +22,8 @@ class MegatronProgressPrinter(ProgressBar):
         # most recent "global_step" will be logged
         # rather than averaging over last log_interval steps
         self._skip_accumulate_metrics = skip_accumulate_metrics
-        self.total_metrics_dict = defaultdict(lambda: 0.)
-        self._is_disabled = (log_interval <= 0)
+        self.total_metrics_dict = defaultdict(lambda: 0.0)
+        self._is_disabled = log_interval <= 0
 
         super().__init__()
 
@@ -48,16 +45,16 @@ class MegatronProgressPrinter(ProgressBar):
             trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed,
             trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
         )
-    
+
     def disable(self):
         self._is_disabled = True
-    
+
     def enable(self):
         self._is_disabled = False
 
     @property
     def is_disabled(self) -> bool:
-        return self._is_disabled 
+        return self._is_disabled
 
     @property
     def average_metrics_dict(self):
