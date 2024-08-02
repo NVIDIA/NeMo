@@ -33,7 +33,7 @@ Script to trim model layers.
      --path_to_save <path_to_output_.nemo_model> \
      --tensor_model_parallel_size <tensor_model_parallel_size> \
      --pipeline_model_parallel_size <pipeline_model_parallel_size> \
-     --gpus_per_node <gpus_per_node>
+     --gpus_per_node <gpus_per_node> \
      --drop_layers <layer_numbers_to_drop>
 """
 
