@@ -82,6 +82,8 @@ def read_cutset(src: str, tar: str | None = None) -> CutSet:
 
 
 def export_to_nemo_tarred(cuts: CutSet, output_dir: str, shard_size: int) -> None:
+    if not '://' in output_dir:  # we support object store writing too
+        Path(output_dir).mkdir(exist_ok=True, parents=True)
     with (
         TarWriter(pattern=f"{output_dir}/audio_%d.tar", shard_size=shard_size) as aw,
         JsonlShardWriter(pattern=f"{output_dir}/manifest_%d.jsonl", shard_size=shard_size) as mw,
