@@ -24,10 +24,10 @@ from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
+import safetensors
 import tensorrt_llm
 import torch
 import wrapt
-import safetensors
 from tensorrt_llm._utils import numpy_to_torch
 
 from nemo.deploy import ITritonDeployable
