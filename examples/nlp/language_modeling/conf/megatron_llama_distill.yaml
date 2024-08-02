@@ -22,7 +22,7 @@ trainer:
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: megatron_llama_distill
+  name: ${name}
   create_wandb_logger: False
   wandb_logger_kwargs:
     project: null
