@@ -10,9 +10,8 @@ import torch
 import nemo.lightning as nl
 from nemo.collections import llm
 from nemo.lightning.io.pl import MegatronCheckpointIO
-from nemo.utils.apex_utils import _reconfigure_microbatch_calculator
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
-
+from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
 
 def _get_strategy():
     strategy = nl.MegatronStrategy(
@@ -41,7 +40,7 @@ def get_model_and_data():
         seq_length=seq_length,
         apply_query_key_layer_scaling=1,
     )
-    _reconfigure_microbatch_calculator(
+    reconfigure_num_microbatches_calculator(
         0,
         None,
         global_batch_size,
