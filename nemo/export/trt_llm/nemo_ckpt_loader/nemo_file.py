@@ -167,12 +167,15 @@ def copy_tokenizer_files(config, out_dir):
             continue
 
         dst_path = out_dir / f"{basenames[key]}{path.suffix}"
+        config[key] = str(dst_path)
         LOGGER.debug(f"Copy tokenizer {key}: {path}->{dst_path}")
 
         # Copy 'path' to 'dst_path' without shutil.copy(...) because 'path' may be a TarPath
         with path.open('rb') as infile:
             with open(dst_path, 'wb') as outfile:
                 outfile.write(infile.read())
+
+        return config
 
 
 def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
@@ -208,12 +211,6 @@ def build_tokenizer(tokenizer):
                 merges_file = get_megatron_merges_file(model_name)
 
             model_name = get_megatron_tokenizer(model_name)
-
-            if merges_file is None:
-                return AutoTokenizer.from_pretrained(
-                    pretrained_model_name_or_path=model_name,
-                    vocab_file=vocab_file,
-                )
 
             return AutoTokenizer.from_pretrained(
                 pretrained_model_name_or_path=model_name,
@@ -274,9 +271,8 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                 )
             else:
                 tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoint_dir)
-                copy_tokenizer_files(tokenizer_config, nemo_export_dir)
+                tokenizer_config = copy_tokenizer_files(tokenizer_config, nemo_export_dir)
 
-                tokenizer_config["model"] = os.path.join(nemo_export_dir, "tokenizer.model")
                 tokenizer = build_tokenizer(tokenizer_config)
         else:
             raise Exception(
