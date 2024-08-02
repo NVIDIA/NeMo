@@ -160,19 +160,20 @@ def main(cfg: ParallelTranscriptionConfig):
     if isinstance(model, EncDecHybridRNNTCTCModel) and cfg.decoder_type is not None:
         model.change_decoding_strategy(decoder_type=cfg.decoder_type)
 
-    trainer = ptl.Trainer(**cfg.trainer)
 
     cfg.predict_ds.return_sample_id = True
     cfg.predict_ds = match_train_config(predict_ds=cfg.predict_ds, train_ds=model.cfg.train_ds)
 
     if isinstance(model, EncDecMultiTaskModel):
+        cfg.trainer.use_distributed_sampler=False
         OmegaConf.set_struct(cfg.predict_ds, False)
         cfg.predict_ds.use_lhotse = True
         cfg.predict_ds.lang_field = "target_lang"
-        data_loader = model._setup_dataloader_from_config(cfg.predict_ds, inference=True)
         OmegaConf.set_struct(cfg.predict_ds, True)
-    else:
-        data_loader = model._setup_dataloader_from_config(cfg.predict_ds)
+    
+    trainer = ptl.Trainer(**cfg.trainer)
+
+    data_loader = model._setup_dataloader_from_config(cfg.predict_ds)
 
     os.makedirs(cfg.output_path, exist_ok=True)
     # trainer.global_rank is not valid before predict() is called. Need this hack to find the correct global_rank.
