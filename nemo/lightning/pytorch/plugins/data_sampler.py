@@ -4,8 +4,6 @@ from typing import Any, Dict, List, Literal, Optional
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
-from nemo.utils import logging
-
 
 class DataSampler:
     def connect(self, trainer: pl.Trainer):
