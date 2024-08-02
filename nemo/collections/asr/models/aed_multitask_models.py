@@ -1079,7 +1079,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         Return a typing schema for optimal batch size calibration for various
         sequence lengths using OOMptimizer.
         """
-        assert hasattr(self, "tokenizer"), "OOMptimizer currently supports only models that use tokenizers."
         return {
             "cls": PromptedAudioToTextMiniBatch,
             "inputs": [

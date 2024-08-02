@@ -340,7 +340,7 @@ def oomptimizer(
         assert (
             config_path is None and module_name is None
         ), "--pretrained-name cannot be used together with --module-name/--config-path"
-        print(f"Intializing ASR model from pretrained checkpoint {pretrained_name}.")
+        click.echo(f"Intializing ASR model from pretrained checkpoint {pretrained_name}.")
         model = ASRModel.from_pretrained(pretrained_name, trainer=trainer).to(device)
     else:
         assert config_path is not None, "--module-name requires --config-path to be specified as well."
@@ -360,7 +360,7 @@ def oomptimizer(
 
     schema = model.oomptimizer_schema
 
-    print("Setting up the optimizers.")
+    click.echo("Setting up the optimizers.")
     optimizer, _ = model.setup_optimization({"name": optimizer_name, "lr": 1e-7, "weight_decay": 0.0})
 
     is_2d_bucketing = all(
@@ -412,7 +412,7 @@ def oomptimizer(
 
         return [_determine_lens_for_bucket(bin) for bin in buckets]
 
-    print("Starting profiling.")
+    click.echo("Starting profiling.")
     max_seq_lens = get_max_seq_lens(buckets)
     gen = ProfilingBatchGenerator(schema=schema, start_batch_size=start_batch_size, rel_gap_thresh=threshold)
     profile = {}
@@ -420,12 +420,12 @@ def oomptimizer(
     # Iterate buckets from the largest to the smallest sequences. This usually ends up creating
     # a tiny bit smaller batches, likely due to worse memory fragmentation.
     for bucket, (seq_len_in, seq_len_out) in reversed(list(zip(buckets, max_seq_lens))):
-        print(f"The current sequence lengths are: input={seq_len_in} output={seq_len_out}.")
+        click.echo(f"The current sequence lengths are: input={seq_len_in} output={seq_len_out}.")
         gen.reset()
         batch_idx = 0
 
         def step():
-            print(
+            click.echo(
                 f"\t[BEGIN step] [CUDA RAM CURRENT: {torch.cuda.memory_allocated() / (1024 * 1024):.1f}MB] [CUDA RAM MAX: {torch.cuda.max_memory_allocated() / (1024*1024):.1f}MB]"
             )
             batch = gen(seq_len_in, seq_len_out)
@@ -435,23 +435,23 @@ def oomptimizer(
                     extra_msg = f"Attempting shapes: {[b.shape for b in batch]}"
                 else:
                     extra_msg = ""
-                print(f"\tCurrent gap: {gen.current_rel_gap}. {extra_msg}", end=" ")
+                click.echo(f"\tCurrent gap: {gen.current_rel_gap}. {extra_msg}", nl=False)
                 optimizer.zero_grad()
                 out = model.training_step(batch, batch_idx)
                 out['loss'].sum().backward()
                 optimizer.step()
             except torch.cuda.OutOfMemoryError as e:
-                print(f"- OOM!")
+                click.secho(f"- OOM!", fg="yellow")
                 oom = True
             except RuntimeError as e:
                 if "cuFFT error: CUFFT_INTERNAL_ERROR" not in str(e):
                     raise
-                print(f"- OOM!")
+                click.secho(f"- OOM!", fg="yellow")
                 oom = True
             else:
-                print(f"- OK!")
+                click.echo(f"- OK!")
             finally:
-                print(
+                click.echo(
                     f"\t[END step] [CUDA RAM CURRENT: {torch.cuda.memory_allocated() / (1024 * 1024):.1f}MB] [CUDA RAM MAX: {torch.cuda.max_memory_allocated() / (1024*1024):.1f}MB]"
                 )
                 del batch
@@ -462,11 +462,12 @@ def oomptimizer(
         with torch.autocast("cuda", getattr(torch, dtype)):
             oom = step()
             while not (finished := gen.advance(oom)):
-                print("\t" + "=" * 80)
+                click.echo("\t" + "=" * 80)
                 oom = step()
 
-        print(
-            f"=> Optimal setting for bucket={bucket} (input={seq_len_in} output={seq_len_out}) is max_batch_size={gen.max_batch_size}"
+        click.secho(
+            f"=> Optimal setting for bucket={bucket} (input={seq_len_in} output={seq_len_out}) is max_batch_size={gen.max_batch_size}",
+            fg="green",
         )
         profile[(tuple(bucket), seq_len_in, seq_len_out)] = gen.max_batch_size
         gen.start_batch_size = gen.max_batch_size
@@ -474,9 +475,9 @@ def oomptimizer(
     # Reverse the profile to be ascendingly sorted again.
     profile = dict(reversed(list(profile.items())))
 
-    print("The 1st stage profile is:")
+    click.echo("The 1st stage profile is:")
     for (bucket, seq_len_in, seq_len_out), bs in profile.items():
-        print(f"Bucket={bucket} (input={seq_len_in} output={seq_len_out}) => max_batch_size={bs}")
+        click.echo(f"Bucket={bucket} (input={seq_len_in} output={seq_len_out}) => max_batch_size={bs}")
 
     if is_2d_bucketing:
         # 2D bucketing doesn't support bucket merging.
@@ -484,25 +485,25 @@ def oomptimizer(
         max_input_len, max_output_len = buckets[-1]
         ratio = max_output_len / max_input_len
     else:
-        print("Bucket merging stage...")
+        click.echo("Bucket merging stage...")
         final_profile = []
         for idx, ((bucket, seq_len_in, seq_len_out), bs) in enumerate(profile.items()):
             if idx == 0:
                 final_profile.append([bucket, bs])
                 continue
             if bs == final_profile[-1][1]:
-                print(f"Merging bucket {idx} with bucket {idx-1} due to identical batch sizes.")
+                click.echo(f"Merging bucket {idx} with bucket {idx-1} due to identical batch sizes.")
                 final_profile[-1][0] = bucket
                 continue
             final_profile.append([bucket, bs])
         max_input_len = final_profile[-1][0]
 
-    print("The final profile is:")
-    print("\tbucket_duration_bins=[", ",".join(str(seqlen) for seqlen, bs in final_profile), "]", sep="")
-    print("\tbucket_batch_size=[", ",".join(str(bs) for seqlen, bs in final_profile), "]", sep="")
-    print("\t(The following flags are suitable for ASR/speech-to-text models):")
-    print(f"\tmax_tps={ratio}")
-    print(f"\tmax_duration={max_input_len}")
+    click.secho("The final profile is:", bold=True)
+    click.secho("\tbucket_duration_bins=[" + ",".join(str(seqlen) for seqlen, bs in final_profile) + "]", bold=True)
+    click.secho("\tbucket_batch_size=[" + ",".join(str(bs) for seqlen, bs in final_profile) + "]", bold=True)
+    click.secho("\t(The following flags are suitable for ASR/speech-to-text models):")
+    click.secho(f"\tmax_tps={ratio}", bold=True)
+    click.secho(f"\tmax_duration={max_input_len}", bold=True)
 
 
 if __name__ == "__main__":
