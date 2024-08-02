@@ -73,6 +73,7 @@ class FLOPsMeasurementCallback(Callback):
         PyTorch Lightning callback hook to calculate TFLOPs per sec per GPU after training
         """
         tflops_per_sec_per_gpu = -1
+
         try:
             if "peft" in self.cfg["model"]:
                 raise NotImplementedError("FLOPs measurement not supported for finetuning jobs")
