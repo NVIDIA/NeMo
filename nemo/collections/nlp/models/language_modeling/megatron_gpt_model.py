@@ -93,7 +93,6 @@ try:
         get_gpt_layer_local_spec,
         get_gpt_layer_with_transformer_engine_spec,
     )
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -111,6 +110,21 @@ except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import (
+        get_current_global_batch_size,
+        get_num_microbatches,
+        update_num_microbatches,
+    )
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import (
+        get_current_global_batch_size,
+        get_num_microbatches,
+        update_num_microbatches,
+    )
 
 try:
     import transformer_engine
@@ -138,7 +152,11 @@ def mcore_supports_moe() -> bool:
 
 
 ## TODO: This function will not work if TE is not installed
-def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, hyena_cfg: Dict = None):
+def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict = None):
+    # else cases for backwards compatibility with neva
+    num_experts = transformer_config.num_moe_experts if transformer_config else None
+    moe_grouped_gemm = transformer_config.moe_grouped_gemm if transformer_config else False
+
     if num_experts is not None:
         assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
 
@@ -148,7 +166,7 @@ def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, 
         "": get_gpt_layer_local_spec(num_experts, moe_grouped_gemm),
         "te_gpt": get_gpt_layer_with_transformer_engine_spec(num_experts, moe_grouped_gemm),
         "megatron_falcon_gpt": get_falcon_layer_spec(),
-        "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(),
+        "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(transformer_config),
         "modelopt": get_gpt_layer_modelopt_spec(num_experts),
         "te_gpt_hyena": get_gpt_layer_with_te_and_hyena_spec(hyena_cfg),
     }
@@ -415,8 +433,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 config=self.transformer_config,
                 transformer_layer_spec=get_specs(
                     self.spec_name,
-                    self.transformer_config.num_moe_experts,
-                    self.transformer_config.moe_grouped_gemm,
+                    self.transformer_config,
                     self.transformer_engine,
                     self.cfg.get('hyena', None),
                 ),
@@ -613,11 +630,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
                 # Initialize a bucket for each virtual pipeline stage
                 for module in self.model:
-                    if isinstance(module, (Float16Module, MCoreFloat16Module)):
-                        module = module.module
-                    stage_bucket = []
-                    layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
-                    buckets.extend(make_parameter_bucket(layer) for layer in layers)
+                    buckets.append(make_parameter_bucket(module))
             else:
                 # Initialize a bucket for each Transformer layer
                 modules = self.model if isinstance(self.model, list) else [self.model]
@@ -777,10 +790,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.if_init_step = False
 
         if self.rampup_batch_size:
-            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-
-            num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-            current_global_batch_size = num_microbatch_calculator.current_global_batch_size
+            current_global_batch_size = get_current_global_batch_size()
             # do validation and save the checkpoint when gbs is changed
             if self.prev_global_batch_size != current_global_batch_size and self.prev_global_batch_size:
                 self.trainer.should_stop = True
@@ -816,7 +826,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ignore_virtual=True
         ):
             if (
-                self.cfg.get('defer_embedding_wgrad_compute', False) and self.mcore_gpt
+                self.cfg.get('defer_embedding_wgrad_compute', False)
+                and self.mcore_gpt
+                and not self.use_mcore_dist_optim
             ):  # Silently ignore the optimization if MCORE is not used
                 module_list = self.get_model_module_list()
                 if len(module_list) > 1:
@@ -839,7 +851,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ignore_virtual=True
         ):
             if (
-                self.cfg.get('defer_embedding_wgrad_compute', False) and self.mcore_gpt
+                self.cfg.get('defer_embedding_wgrad_compute', False)
+                and self.mcore_gpt
+                and not self.use_mcore_dist_optim
             ):  # Silently ignore the optimization if MCORE is not used
                 module_list = self.get_model_module_list()
                 if len(module_list) > 1:
@@ -1549,6 +1563,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "create_attention_mask": not self.get_attention_mask_from_fusion,
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
                 "drop_last_partial_validation_sequence": self.cfg.data.get("validation_drop_last", True),
+                "num_dataset_builder_threads": self.cfg.data.get("num_dataset_builder_threads", 1),
                 "add_extra_token_to_sequence": add_extra_token,
             }
 
@@ -1663,10 +1678,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.init_global_step = self.trainer.global_step
 
         if self.rampup_batch_size:
-            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-
-            num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-            num_microbatch_calculator.update(self.init_consumed_samples, consistency_check=False)
+            update_num_microbatches(self.init_consumed_samples, consistency_check=False)
             self.prev_consumed_samples = self.init_consumed_samples
 
         if stage == 'predict':
@@ -1682,6 +1694,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_dl, 'train')
             # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
             self._reconfigure_limit_batches(self.trainer.limit_val_batches, self._validation_dl, 'val')
+
+        # Data cache generation only
+        # Stops script execution after creating a data cache
+        if self.cfg.data.get('data_cache_generation_only', False):
+            self.trainer.num_sanity_val_steps = 0
+            self.trainer.should_stop = True
 
         if stage == 'fit':
             self.initialize_last_rank_embeddings()
