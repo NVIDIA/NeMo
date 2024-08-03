@@ -329,9 +329,17 @@ class LazyNeMoTarredIterator:
         # Propagate the random seed
         extra_fields = [ExtraField.from_dict({"seed": seed, **field_cfg}) for field_cfg in self.extra_fields or ()]
 
+        # Handle NeMo tarred manifests with offsets.
+        # They have multiple JSONL entries where audio paths end with '-sub1', '-sub2', etc. for each offset.
+        offset_pattern = re.compile(r'.+-sub\d+')
+
         for sid in shard_ids:
             manifest_path = self.paths[sid] if len(self.paths) > 1 else self.paths[0]
-            shard_manifest = {data["audio_filepath"]: data for data in self.shard_id_to_manifest[sid]}
+
+            def basename(d: dict) -> str:
+                return k[:-4] if offset_pattern.match(k := d["audio_filepath"]) is not None else k
+
+            shard_manifest: dict[str, list[dict]] = groupby(basename, self.shard_id_to_manifest[sid])
             tar_path = self.shard_id_to_tar_path[sid]
             with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
                 for tar_info in tar:
@@ -339,7 +347,6 @@ class LazyNeMoTarredIterator:
                         f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
                         f"Cannot locate JSON entry for tar file '{tar_info.name}'"
                     )
-                    data = shard_manifest[tar_info.name]
                     raw_audio = tar.extractfile(tar_info).read()
                     # Note: Lhotse has a Recording.from_bytes() utility that we won't use here because
                     #       the profiling indicated significant overhead in torchaudio ffmpeg integration
@@ -353,21 +360,26 @@ class LazyNeMoTarredIterator:
                         num_samples=meta.frames,
                         duration=meta.duration,
                     )
-                    cut = recording.to_cut()
-                    cut.supervisions.append(
-                        SupervisionSegment(
-                            id=cut.id,
-                            recording_id=cut.recording_id,
-                            start=0,
-                            duration=cut.duration,
-                            text=data.get(self.text_field),
-                            language=data.get(self.lang_field),
+                    for data in sorted(shard_manifest[tar_info.name], key=lambda d: d["audio_filepath"]):
+                        cut = recording.to_cut().truncate(
+                            offset=data.get("offset", 0.0),
+                            duration=data.get("duration"),
+                            preserve_id=True,
                         )
-                    )
-                    cut.custom = _to_custom_attr_dict(data)
-                    for extra_field in extra_fields:
-                        extra_field.attach_to(cut)
-                    yield cut
+                        cut.supervisions.append(
+                            SupervisionSegment(
+                                id=cut.id,
+                                recording_id=cut.recording_id,
+                                start=0,
+                                duration=cut.duration,
+                                text=data.get(self.text_field),
+                                language=data.get(self.lang_field),
+                            )
+                        )
+                        cut.custom = _to_custom_attr_dict(data)
+                        for extra_field in extra_fields:
+                            extra_field.attach_to(cut)
+                        yield cut
 
     def __len__(self) -> int:
         return len(self.source)
