@@ -526,7 +526,7 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
         module.load_state_dict(_state_dict, strict=strict)
 
 
-def _sync_from_last_pipeline_stage(value, broadcast=False):  # TODO add type annotation
+def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False):
     from megatron.core import parallel_state
 
     if parallel_state.get_pipeline_model_parallel_world_size() > 1:
