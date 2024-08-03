@@ -96,7 +96,6 @@ class TestDistCkptIO:
         )
         dummy_trainer.fit(model, data)
         strategy = _get_strategy()
-        tmp_path = strategy.broadcast(tmp_path)
 
         ## reset the model and data and train with sync checkpointing
         model, data = get_model_and_data()
@@ -150,10 +149,6 @@ class TestDistCkptIO:
             ckpt_parallel_save=True,
             ckpt_load_directly_on_device=False,
             ckpt_async_save=True,
-        )
-        trainer = nl.Trainer(
-            callbacks=[model_checkpoint],
-            strategy=strategy,
         )
 
         assert isinstance(strategy.checkpoint_io, AsyncFinalizableCheckpointIO)
