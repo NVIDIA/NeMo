@@ -276,6 +276,7 @@ class EMAOptimizer(torch.optim.Optimizer):
             )
             self.thread.start()
 
+    @torch.no_grad()
     def swap_tensors(self, tensor1, tensor2):
         tmp = torch.empty_like(tensor1)
         tmp.copy_(tensor1)
