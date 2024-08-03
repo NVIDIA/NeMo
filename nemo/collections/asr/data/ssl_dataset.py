@@ -349,7 +349,7 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
             audio_filestream.close()
             if len(self._audio_cache) >= self._max_audio_cache:
                 self._audio_cache.popitem(last=False)
-            self._audio_cache[manifest_idx] = audio
+            self._audio_cache[manifest_idx] = audio.clone()
         except Exception as e:
             logging.warning(f"Error reading audio sample: {manifest_entry}, with exception: {e}.")
             print(f"\n[E] Error reading audio sample: {manifest_entry}, with exception: {e}\n", flush=True)
