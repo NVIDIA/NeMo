@@ -24,14 +24,21 @@ class Trainer(pl.Trainer, IOMixin):
 
         super().__init__(callbacks=callbacks, **kwargs)
 
+    def add_io(self, obj):
+    """Recurse to the leaves of a container and add io functionality to non-serializable leaves"""
+        if not isinstance(obj, (dict, list)):
+            if not serialization.find_node_traverser(type(obj)):
+                track_io(type(obj))
+            return
+        if isinstance(obj, dict):
+            obj = obj.values()
+        for item in obj:
+            self.add_io(item)
+
     def io_init(self, **kwargs) -> fdl.Config[Self]:
         # Each argument of the trainer can be stateful so we copy them
         cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items()}
-
-        for val in cfg_kwargs.values():
-            if not serialization.find_node_traverser(type(val)):
-                track_io(type(val))
-
+        self.add_io(cfg_kwargs)
         return fdl.Config(type(self), **cfg_kwargs)
 
     def to_fabric(self, callbacks=None, loggers=None) -> Fabric:

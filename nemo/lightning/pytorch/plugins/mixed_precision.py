@@ -157,11 +157,4 @@ class MegatronMixedPrecision(MixedPrecision, IOMixin):
         finally:
             pass
 
-
-class FSDPPrecision(PLFSDPPrecision, IOMixin):
-    """Lightning's mixed precision plugin for FSDP. Need to add IOMixin for checkpointing."""
-
-    pass
-
-
 __all__ = ["MegatronMixedPrecision"]
