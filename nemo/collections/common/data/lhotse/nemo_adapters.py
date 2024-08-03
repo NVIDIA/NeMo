@@ -337,7 +337,7 @@ class LazyNeMoTarredIterator:
             manifest_path = self.paths[sid] if len(self.paths) > 1 else self.paths[0]
 
             def basename(d: dict) -> str:
-                return k[:-4] if offset_pattern.match(k := d["audio_filepath"]) is not None else k
+                return k[:-5] if offset_pattern.match(k := d["audio_filepath"]) is not None else k
 
             shard_manifest: dict[str, list[dict]] = groupby(basename, self.shard_id_to_manifest[sid])
             tar_path = self.shard_id_to_tar_path[sid]
