@@ -50,9 +50,11 @@ When doing supervised fine-tuning from unsupervised pre-trained encoder, set fla
 """
 
 
-@hydra_runner(config_path="./configs", config_name="conformer_large_ssl_rq")
+@hydra_runner(config_path="./configs", config_name="fastconformer_large_ssl_rq_dns")
 def main(cfg):
     logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
+
+    print('HERE')
 
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))

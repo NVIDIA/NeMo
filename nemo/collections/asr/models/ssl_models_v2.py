@@ -19,12 +19,15 @@ import torch
 import torch.nn as nn
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
+from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 
 from nemo.collections.asr.data import audio_to_text_dataset, ssl_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.data.dataclasses import AudioNoiseBatch
 from nemo.collections.asr.models.ssl_models import SpeechEncDecSelfSupervisedModel
 from nemo.collections.asr.modules.ssl_modules.masking import ConvFeatureMaksingWrapper
+from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
+from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.common.data.utils import move_data_to_device
 from nemo.core.classes import ModelPT
@@ -248,6 +251,17 @@ class EncDecSpeechDenoiseMLMModel(EncDecSpeechSSLModel):
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
+
+        if config.get("use_lhotse"):
+            return get_lhotse_dataloader_from_config(
+                config,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+                dataset=ssl_dataset.LhotseAudioNoiseDataset(
+                    noise_manifest=config.get('noise_manifest', None),
+                    batch_augmentor_cfg=config.get('batch_augmentor', None)
+                )
+            )
 
         dataset = ssl_dataset.get_audio_noise_dataset_from_config(
             config, global_rank=self.global_rank, world_size=self.world_size,

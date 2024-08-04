@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
-from omegaconf import ListConfig, open_dict
+from omegaconf import ListConfig, open_dict, DictConfig
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dataset
 from nemo.collections.asr.data.dataclasses import AudioNoiseBatch, AudioNoiseItem
@@ -300,6 +300,40 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
         )
         return item
 
+    def _collate_fn(self, batch: List[AudioNoiseItem]) -> AudioNoiseBatch:
+        return _audio_noise_collate_fn(batch, self.batch_augmentor)
+    
+class LhotseAudioNoiseDataset(torch.utils.data.Dataset):
+    from lhotse.dataset import AudioSamples
+
+    def __init__(self, noise_manifest: str | None = None, batch_augmentor_cfg: DictConfig = None):
+        super().__init__()
+
+        if batch_augmentor_cfg:
+            batch_augmentor = Serialization.from_config_dict(batch_augmentor_cfg)
+        else:
+            batch_augmentor = None
+
+        self.batch_augmentor = batch_augmentor
+        self.noise_data = load_noise_manifest(noise_manifest)
+        self.load_audio = AudioSamples(fault_tolerant=True)
+
+    def __getitem__(self, cuts):
+        
+        audio, audio_lens, cuts = self.load_audio(cuts)
+        noise, noise_len = sample_noise(self.noise_data, self.featurizer, audio_lens.item())
+
+        item = AudioNoiseItem(
+            sample_id=str(cuts.id),
+            audio=audio[0],
+            audio_len=audio_lens[0],
+            noise=noise,
+            noise_len=noise_len,
+            noisy_audio=audio + noise,
+            noisy_audio_len=audio_lens,
+        )
+        return item
+    
     def _collate_fn(self, batch: List[AudioNoiseItem]) -> AudioNoiseBatch:
         return _audio_noise_collate_fn(batch, self.batch_augmentor)
 
