@@ -40,8 +40,8 @@ from nemo.utils import AppState, logging
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.distributed import finalize_model_grads
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
