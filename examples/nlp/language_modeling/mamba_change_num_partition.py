@@ -41,16 +41,16 @@ Usage:
 
 # Megatron Mamba
 python /opt/NeMo/examples/nlp/language_modeling/mamba_change_num_partition.py \
-    --model_file=<path to source .nemo model> \
-    --target_file=<path to target .nemo model> \
+    --model_file=/home/ataghibakhsh/mamba2_ckpts/tiny_hybrid.nemo \
+    --target_file=/home/ataghibakhsh/mamba2_ckpts/tiny_hybrid_TP8/tiny_hybrid_TP8.nemo \
     --tensor_model_parallel_size=1 \
-    --target_tensor_model_parallel_size=4 \
+    --target_tensor_model_parallel_size=8 \
     --precision=bf16 \
-    --d-model=4096 \
+    --d-model=2048 \
     --mamba-version=2 \
     --mamba2-n-groups=8 \
     --mamba2-head-dim=64 \
-    --tokenizer_path=<path to tokenizer.model>
+    --tokenizer_path=/home/ataghibakhsh/tokenizers/mamba/mamba_hybrid_tokenizer.model
 """
 
 tp_split_dim = {

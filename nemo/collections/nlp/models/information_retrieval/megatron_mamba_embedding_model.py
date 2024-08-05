@@ -15,7 +15,7 @@
 import torch
 import torch.nn.functional as F
 from megatron.core import parallel_state
-from megatron.core.models.mamba import MambaEmbeddingModel, MambaModel
+from megatron.core.models.mamba import MambaModel #MambaEmbeddingModel, 
 from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
 from megatron.core.tensor_parallel.mappings import gather_from_sequence_parallel_region
 from numpy import log2

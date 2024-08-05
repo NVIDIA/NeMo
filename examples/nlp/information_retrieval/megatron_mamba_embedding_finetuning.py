@@ -25,15 +25,15 @@ def main(cfg) -> None:
     cfg.trainer.precision = precision
     exp_manager(trainer, cfg.exp_manager)
 
-    model_cfg = MegatronMambaEmbeddingModel.merge_cfg_with(cfg.restore_from_path, cfg)
+    model_cfg = MegatronMambaEmbeddingModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
     assert (
         model_cfg.micro_batch_size * cfg.trainer.devices * cfg.trainer.num_nodes / model_cfg.tensor_model_parallel_size
         == model_cfg.global_batch_size
     ), f"Gradiant accumulation is not supported for contrastive learning yet."
 
-    logging.info(f"Loading model from {cfg.restore_from_path}")
+    logging.info(f"Loading model from {cfg.model.restore_from_path}")
     model = MegatronMambaEmbeddingModel.restore_from(
-        restore_path=cfg.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=True
+        restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=False
     )
     model._save_restore_connector = SaveRestoreConnector()
 
