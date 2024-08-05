@@ -91,6 +91,7 @@ def get_args():
         "--drop_layers", type=int, default=None, required=True, nargs="+", help="list of layer numbers to drop."
     )
     parser.add_argument("--path_to_save", type=str, required=True, help="Path to output ckpt files.")
+    parser.add_argument("--zarr", action="store_true", help="zarr ckpt strategy usage.")
 
     args = parser.parse_args()
     return args
@@ -118,8 +119,8 @@ def main(local_rank, rank, world_size, args):
 
     cfg = {
         'trainer': {
-            'devices': 1,
-            'num_nodes': 1,
+            'devices': args.gpus_per_node,
+            'num_nodes': num_nodes,
             'accelerator': 'gpu',
             'precision': args.precision,
         },
@@ -171,6 +172,10 @@ def main(local_rank, rank, world_size, args):
         # restore model from the .nemo file
         model = MegatronGPTModel.restore_from(model_path, trainer=trainer)
     model._save_restore_connector = NLPSaveRestoreConnector()
+
+    if args.zarr:
+        with open_dict(model.cfg):
+            model.cfg.dist_ckpt_format = 'zarr'
 
     save_file_path = args.path_to_save
     if not args.path_to_nemo:
