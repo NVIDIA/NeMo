@@ -86,7 +86,7 @@ def _audio_noise_collate_fn(batch: List[AudioNoiseItem], batch_augmentor: Any = 
     noise_signal_list = []
     noisy_audio_signal_list = []
     for i, audio in enumerate(audios):
-        audio_len = audio_lengths[i].item()
+        audio_len = audio.size(0)
         if audio_len < max_audio_len:
             pad = (0, max_audio_len - audio_len)
             audio = torch.nn.functional.pad(audio, pad)
@@ -105,6 +105,7 @@ def _audio_noise_collate_fn(batch: List[AudioNoiseItem], batch_augmentor: Any = 
             pad = (0, max_audio_len - noisy_audio_len)
             noisy_audio = torch.nn.functional.pad(noisy_audio, pad)
         noisy_audio_signal_list.append(noisy_audio[:max_audio_len])
+
 
     audio_signal = torch.stack(audio_signal_list).float()
     audio_lengths = torch.stack(audio_lengths).long()
@@ -321,11 +322,9 @@ class LhotseAudioNoiseDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts):
         
         audios, audio_lens, cuts = self.load_audio(cuts)
-        print(cuts)
-        print(cuts[0].__dict__)
         sampled_noises = [
-            sample_noise(self.noise_data, 16000, audio_len.item())
-            for audio_len in audio_lens]
+            sample_noise(self.noise_data, cut.sampling_rate, cut.num_samples)
+            for cut in cuts]
 
         items = [
             AudioNoiseItem(
