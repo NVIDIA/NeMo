@@ -73,7 +73,7 @@ model:
   mcore_gpt: True
 
   # Skip training and do only validation step
-  skip_train: True
+  skip_train: False
 
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
