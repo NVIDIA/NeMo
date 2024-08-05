@@ -199,7 +199,8 @@ def convert_lora_nemo_to_canonical(lora_nemo, save_path, hf_format=False, donor_
             Path(save_path).mkdir(parents=True, exist_ok=True)
             torch.save(lora_state_dict, f"{save_path}/adapter_model.bin")
             if donor_hf_config is not None:
-                adapter_config = json.load(open(donor_hf_config))
+                with open(donor_hf_config) as hf_config_file:
+                    adapter_config = json.load(hf_config_file)
             else:
                 adapter_config = {}
             adapter_config['peft_type'] = "LORA"
