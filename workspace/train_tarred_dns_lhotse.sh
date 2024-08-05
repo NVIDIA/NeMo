@@ -1,5 +1,5 @@
 
-NEMO_BASEPATH="/home/heh/codes/nemo-ssl"
+NEMO_BASEPATH="/home/heh/codes/nemo-ssl-lhotse"
 export PYTHONPATH=$NEMO_BASEPATH:$PYTHONPATH
 
 data_dir="/media/data3/datasets/librispeech_origin"
@@ -16,7 +16,7 @@ TRAIN_MANIFEST='/media/data3/datasets/librispeech_tarred/tarred_audio_manifest.j
 TRAIN_FILEPATHS="/media/data3/datasets/librispeech_tarred/audio__OP_0..511_CL_.tar"
 noise_manifest="[/media/data3/datasets/noise_data/musan/musan_nonspeech_manifest.json,/media/data3/datasets/noise_data/freesound/freesound_noise_manifest_filtered.json]"
 
-exp_name=ssl_fastconformer_large_rq_ls_dns_debug_r2
+exp_name=ssl_fastconformer_large_rq_ls_dns_v2_debug_lhotse_r1
 
 CUDA_VISIBLE_DEVICES="1" python speech_pretrain_denoise.py \
     --config-path="configs" \
@@ -25,6 +25,7 @@ CUDA_VISIBLE_DEVICES="1" python speech_pretrain_denoise.py \
     model.train_ds.is_tarred=${TRAIN_IS_TARRED} \
     model.train_ds.tarred_audio_filepaths=${TRAIN_FILEPATHS} \
     model.train_ds.noise_manifest=$noise_manifest \
+    ++model.train_ds.use_lhotse=True \
     model.validation_ds.manifest_filepath=$dev_manifests \
     ++model.validation_ds.name=$dev_names \
     model.validation_ds.noise_manifest=$noise_manifest \
@@ -38,5 +39,15 @@ CUDA_VISIBLE_DEVICES="1" python speech_pretrain_denoise.py \
     exp_manager.name=$exp_name \
     exp_manager.create_wandb_logger=False \
     exp_manager.wandb_logger_kwargs.name=$exp_name \
-    exp_manager.wandb_logger_kwargs.project="ssl_WavLM"
+    exp_manager.wandb_logger_kwargs.project="ssl_WavLM" \
+    ++model.train_ds.batch_duration=120 \
+    ++model.train_ds.quadratic_duration=30 \
+    ++model.train_ds.num_buckets=30 \
+    ++model.train_ds.num_cuts_for_bins_estimate=10000 \
+    ++model.train_ds.bucket_buffer_size=10000 \
+    ++model.train_ds.shuffle_buffer_size=10000 \
+    ++trainer.use_distributed_sampler=false \
+    ++trainer.limit_train_batches=1000 \
+    trainer.val_check_interval=1000 \
+    trainer.max_steps=300000
 

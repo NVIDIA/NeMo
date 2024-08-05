@@ -26,20 +26,12 @@ from nemo.collections.asr.data.dataclasses import AudioNoiseBatch
 from nemo.collections.asr.models.ssl_models import SpeechEncDecSelfSupervisedModel
 from nemo.collections.asr.modules.ssl_modules.masking import ConvFeatureMaksingWrapper
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
+from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.data.utils import move_data_to_device
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.classes.mixins import AccessMixin, set_access_cfg
-from nemo.core.neural_types import (
-    AcousticEncodedRepresentation,
-    AudioSignal,
-    BoolType,
-    LabelsType,
-    LengthsType,
-    LogprobsType,
-    NeuralType,
-    SpectrogramType,
-)
+from nemo.core.classes.mixins import AccessMixin
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
 
@@ -109,10 +101,10 @@ class EncDecSpeechSSLModel(SpeechEncDecSelfSupervisedModel):
         }
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
-        """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
-            When using pipeline parallelism, we need the global batch to remain on the CPU,
-            since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline.
+        """PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
+        When using pipeline parallelism, we need the global batch to remain on the CPU,
+        since the memory overhead will be too high when using a large number of microbatches.
+        Microbatches are transferred from CPU to GPU inside the pipeline.
         """
         batch = move_data_to_device(batch, device)
         return batch
@@ -136,7 +128,8 @@ class EncDecSpeechSSLModel(SpeechEncDecSelfSupervisedModel):
 
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
 
         if self.pre_encoder is not None:
@@ -249,8 +242,21 @@ class EncDecSpeechDenoiseMLMModel(EncDecSpeechSSLModel):
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
 
+        if config.get("use_lhotse"):
+            return get_lhotse_dataloader_from_config(
+                config,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+                dataset=ssl_dataset.LhotseAudioNoiseDataset(
+                    noise_manifest=config.get('noise_manifest', None),
+                    batch_augmentor_cfg=config.get('batch_augmentor', None),
+                ),
+            )
+
         dataset = ssl_dataset.get_audio_noise_dataset_from_config(
-            config, global_rank=self.global_rank, world_size=self.world_size,
+            config,
+            global_rank=self.global_rank,
+            world_size=self.world_size,
         )
 
         shuffle = config['shuffle']
@@ -314,7 +320,7 @@ class EncDecSpeechDenoiseMLMModel(EncDecSpeechSSLModel):
         }
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
-        """ 
+        """
         PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
         """
         batch = move_data_to_device(batch, device)
@@ -346,7 +352,8 @@ class EncDecSpeechDenoiseMLMModel(EncDecSpeechSSLModel):
             )
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
 
         has_noise_signal = noise_signal is not None and noise_signal_length is not None
@@ -358,7 +365,8 @@ class EncDecSpeechDenoiseMLMModel(EncDecSpeechSSLModel):
             )
         if not has_processed_noise_signal:
             processed_noise_signal, processed_noise_signal_length = self.preprocessor(
-                input_signal=noise_signal, length=noise_signal_length,
+                input_signal=noise_signal,
+                length=noise_signal_length,
             )
 
         has_noisy_input_signal = noisy_input_signal is not None and noisy_input_signal_length is not None
@@ -372,7 +380,8 @@ class EncDecSpeechDenoiseMLMModel(EncDecSpeechSSLModel):
             )
         if not has_processed_noisy_input_signal:
             processed_noisy_input_signal, processed_noisy_input_signal_length = self.preprocessor(
-                input_signal=noisy_input_signal, length=noisy_input_signal_length,
+                input_signal=noisy_input_signal,
+                length=noisy_input_signal_length,
             )
 
         if self.pre_encoder is not None:
@@ -472,7 +481,7 @@ class SemiSupervisedSpeechMAEModel(ModelPT, ASRModuleMixin, AccessMixin):
             self.encoder.pre_encode = self.pre_encoder
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
-        """ 
+        """
         PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
         """
         batch = move_data_to_device(batch, device)
@@ -482,7 +491,9 @@ class SemiSupervisedSpeechMAEModel(ModelPT, ASRModuleMixin, AccessMixin):
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
 
         dataset = ssl_dataset.get_audio_noise_dataset_from_config(
-            config, global_rank=self.global_rank, world_size=self.world_size,
+            config,
+            global_rank=self.global_rank,
+            world_size=self.world_size,
         )
 
         shuffle = config['shuffle']
@@ -525,7 +536,8 @@ class SemiSupervisedSpeechMAEModel(ModelPT, ASRModuleMixin, AccessMixin):
             )
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
 
         if apply_mask:
@@ -539,7 +551,9 @@ class SemiSupervisedSpeechMAEModel(ModelPT, ASRModuleMixin, AccessMixin):
         encoded, encoded_len = self.encoder(audio_signal=masked_signal, length=processed_signal_length)
 
     def forward_speaker_and_content(
-        self, processed_signal=None, processed_signal_length=None,
+        self,
+        processed_signal=None,
+        processed_signal_length=None,
     ):
         content_feats = None
         speaker_feats = None

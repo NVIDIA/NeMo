@@ -139,7 +139,7 @@ class RandomBlockMasking(NeuralModule):
             if self.block_size >= input_lengths[i] * self.max_mask_ratio:
                 continue
             curr_len = input_lengths[i].detach().cpu().numpy()
-            num_patches = np.random.binomial(curr_len, self.mask_prob)
+            num_patches = np.random.binomial(max(0, curr_len - self.block_size), self.mask_prob)
             patch_idices = torch.randperm(max(0, curr_len - self.block_size), device=input_feats.device)[:num_patches]
             for j in range(num_patches):
                 start = patch_idices[j]

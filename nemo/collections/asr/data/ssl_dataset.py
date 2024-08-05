@@ -22,11 +22,11 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
-from omegaconf import ListConfig, open_dict
+from omegaconf import ListConfig, open_dict, DictConfig
+from lhotse.dataset import AudioSamples
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dataset
 from nemo.collections.asr.data.dataclasses import AudioNoiseBatch, AudioNoiseItem
-from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import WhiteNoisePerturbation, process_augmentations
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
@@ -86,7 +86,7 @@ def _audio_noise_collate_fn(batch: List[AudioNoiseItem], batch_augmentor: Any = 
     noise_signal_list = []
     noisy_audio_signal_list = []
     for i, audio in enumerate(audios):
-        audio_len = audio_lengths[i].item()
+        audio_len = audio.size(0)
         if audio_len < max_audio_len:
             pad = (0, max_audio_len - audio_len)
             audio = torch.nn.functional.pad(audio, pad)
@@ -105,6 +105,7 @@ def _audio_noise_collate_fn(batch: List[AudioNoiseItem], batch_augmentor: Any = 
             pad = (0, max_audio_len - noisy_audio_len)
             noisy_audio = torch.nn.functional.pad(noisy_audio, pad)
         noisy_audio_signal_list.append(noisy_audio[:max_audio_len])
+
 
     audio_signal = torch.stack(audio_signal_list).float()
     audio_lengths = torch.stack(audio_lengths).long()
@@ -146,33 +147,25 @@ def load_noise_manifest(noise_manifest: str | ListConfig | None):
 
 def load_noise_audio(
     sample: Dict[str, Any],
-    featurizer: WaveformFeaturizer | Any,
+    sample_rate: int,
     max_audio_len: Optional[int] = None,
     pad_to_max: bool = True,
     min_white_noise_db: int = -90,
     max_white_noise_db: int = -46,
     max_trial: int = 100,
 ):
-    max_dur = None if max_audio_len is None else max_audio_len / featurizer.sample_rate
+    max_dur = None if max_audio_len is None else max_audio_len / sample_rate
     duration = sample.get('duration', None)
     offset = sample.get('offset', 0.0)
 
     if max_dur is not None and duration is not None and duration > max_dur:
         cnt = 0
-        zones = np.random.permutation(max_trial)
         while cnt < max_trial:
             # randomly sample a segment of the noise
             offset = np.random.uniform(0, duration - max_dur)
 
-            # # split split offset range into max_trials zones and randomly sample one
-            # zone_length = (duration - max_dur) / max_trial
-            # offset = np.random.uniform(zone_length) + zone_length * zones[cnt]
-
             audio_segment = AudioSegment.from_file(
-                audio_file=sample['audio_filepath'],
-                offset=offset,
-                duration=max_dur,
-                target_sr=featurizer.sample_rate,
+                audio_file=sample['audio_filepath'], offset=offset, duration=max_dur, target_sr=sample_rate,
             )
 
             if sum(audio_segment.samples) > 0:
@@ -181,10 +174,7 @@ def load_noise_audio(
             cnt += 1
     else:
         audio_segment = AudioSegment.from_file(
-            audio_file=sample['audio_filepath'],
-            offset=offset,
-            duration=duration,
-            target_sr=featurizer.sample_rate,
+            audio_file=sample['audio_filepath'], offset=offset, duration=duration, target_sr=sample_rate,
         )
 
     if sum(audio_segment.samples) == 0:
@@ -207,7 +197,7 @@ def load_noise_audio(
 
 
 def sample_noise(
-    noise_data: List[Dict], featurizer: WaveformFeaturizer | Any, max_audio_len: int | None = None, max_trial: int = 20
+    noise_data: List[Dict],  sample_rate: int, max_audio_len: int | None = None, max_trial: int = 20
 ):
     if len(noise_data) == 0:
         return torch.zeros(max_audio_len).float(), torch.tensor(max_audio_len).long()
@@ -215,7 +205,7 @@ def sample_noise(
     while cnt < max_trial:
         try:
             noise_sample = noise_data[np.random.randint(len(noise_data))]
-            noise_audio, noise_len = load_noise_audio(noise_sample, featurizer, max_audio_len)
+            noise_audio, noise_len = load_noise_audio(noise_sample, sample_rate, max_audio_len)
             break
         except Exception as e:
             logging.warning(f"Error loading noise audio with config {noise_sample} and exception: {e}, retrying.")
@@ -281,7 +271,7 @@ class AudioNoiseDataset(audio_to_text.AudioToCharDataset):
         min_len = int(self.min_audio_len_secs * self.featurizer.sample_rate)
         audio = pad_audio(audio, min_len, self.pad_audio_mode)
         audio_len = torch.tensor(audio.shape[0]).long()
-        noise, noise_len = sample_noise(self.noise_data, self.featurizer, audio_len.item())
+        noise, noise_len = sample_noise(self.noise_data, self.featurizer.sample_rate, audio_len.item())
 
         item = AudioNoiseItem(
             sample_id=str(index),
@@ -375,7 +365,7 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
         min_len = int(self.min_audio_len_secs * self.featurizer.sample_rate)
         audio = pad_audio(audio, min_len, self.pad_audio_mode)
         audio_len = torch.tensor(audio.shape[0]).long()
-        noise, noise_len = sample_noise(self.noise_data, self.featurizer, audio_len.item())
+        noise, noise_len = sample_noise(self.noise_data, self.featurizer.sample_rate, audio_len.item())
 
         item = AudioNoiseItem(
             sample_id=str(manifest_idx),
@@ -402,6 +392,41 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
 
     def _collate_fn(self, batch: List[AudioNoiseItem]) -> AudioNoiseBatch:
         return _audio_noise_collate_fn(batch, self.batch_augmentor)
+
+
+class LhotseAudioNoiseDataset(torch.utils.data.Dataset):
+    def __init__(self, noise_manifest: str | None = None, batch_augmentor_cfg: DictConfig = None):
+        super().__init__()
+
+        if batch_augmentor_cfg:
+            batch_augmentor = Serialization.from_config_dict(batch_augmentor_cfg)
+        else:
+            batch_augmentor = None
+
+        self.batch_augmentor = batch_augmentor
+        self.noise_data = load_noise_manifest(noise_manifest)
+        self.load_audio = AudioSamples(fault_tolerant=True)
+
+    def __getitem__(self, cuts):
+        
+        audios, audio_lens, cuts = self.load_audio(cuts)
+        sampled_noises = [
+            sample_noise(self.noise_data, cut.sampling_rate, cut.num_samples)
+            for cut in cuts]
+
+        items = [
+            AudioNoiseItem(
+            sample_id=str(cuts[i].id),
+            audio=audios[i],
+            audio_len=audio_lens[i],
+            noise=sampled_noises[i][0],
+            noise_len=sampled_noises[i][1],
+            noisy_audio=audios[i] + sampled_noises[i][0],
+            noisy_audio_len=audio_lens[i],
+            )
+            for i in range(len(cuts))
+        ]
+        return _audio_noise_collate_fn(items, self.batch_augmentor)
 
 
 def get_audio_noise_dataset(
