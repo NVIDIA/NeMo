@@ -344,7 +344,7 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
                     raise ValueError(
                         f"Number of names ({len(ds_names)}) does not match number of datasets ({len(ds_values)}). Got {ds_names} and {ds_values}"
                     )
-                model._validation_names = [n for n in ds_names]
+                model._validation_names = [parse_dataset_as_name(n) for n in ds_names]
             else:
                 model._validation_names = [parse_dataset_as_name(ds) for ds in ds_values]
         unique_names_check(name_list=model._validation_names)
@@ -357,7 +357,7 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
         if ds_names is not None:
             if not isinstance(ds_names, str):
                 raise ValueError(f"`name` must be a string for single manifest, got {ds_names}")
-            model._validation_names = [ds_names]
+            model._validation_names = [parse_dataset_as_name(ds_names)]
         else:
             model._validation_names = [parse_dataset_as_name(ds_values)]
         unique_names_check(name_list=model._validation_names)
@@ -438,7 +438,7 @@ def resolve_test_dataloaders(model: 'ModelPT'):
                     raise ValueError(
                         f"Number of names ({len(ds_names)}) does not match number of datasets ({len(ds_values)}). Got {ds_names} and {ds_values}"
                     )
-                model._test_names = [n for n in ds_names]
+                model._test_names = [parse_dataset_as_name(n) for n in ds_names]
             else:
                 model._test_names = [parse_dataset_as_name(ds) for ds in ds_values]
 
@@ -451,7 +451,7 @@ def resolve_test_dataloaders(model: 'ModelPT'):
         if ds_names is not None:
             if not isinstance(ds_names, str):
                 raise ValueError(f"`name` must be a string for single manifest, got {ds_names}")
-            model._test_names = [ds_names]
+            model._test_names = [parse_dataset_as_name(ds_names)]
         else:
             model._test_names = [parse_dataset_as_name(ds_values)]
 
