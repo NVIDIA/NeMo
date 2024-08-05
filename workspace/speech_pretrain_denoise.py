@@ -54,8 +54,6 @@ When doing supervised fine-tuning from unsupervised pre-trained encoder, set fla
 def main(cfg):
     logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 
-    print('HERE')
-
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecSpeechDenoiseMLMModel(cfg=cfg.model, trainer=trainer)
