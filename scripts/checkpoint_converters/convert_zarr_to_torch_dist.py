@@ -83,7 +83,7 @@ def get_args():
         default=None,
         help="If pipeline parallel size > 1, this is the rank at which the encoder ends and the decoder begins.",
     )
-    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
+    parser.add_argument("--local-rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
     parser.add_argument("--cluster_type", required=False, default=None, help="Whether on BCP platform")
     parser.add_argument(
         "--precision",
