@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import torch
 from omegaconf import ListConfig, open_dict, DictConfig
+from lhotse.dataset import AudioSamples
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dataset
 from nemo.collections.asr.data.dataclasses import AudioNoiseBatch, AudioNoiseItem
@@ -145,14 +146,14 @@ def load_noise_manifest(noise_manifest: str | ListConfig | None):
 
 def load_noise_audio(
     sample: Dict[str, Any],
-    featurizer: WaveformFeaturizer | Any,
+    sample_rate: int,
     max_audio_len: Optional[int] = None,
     pad_to_max: bool = True,
     min_white_noise_db: int = -90,
     max_white_noise_db: int = -46,
     max_trial: int = 20,
 ):
-    max_dur = None if max_audio_len is None else max_audio_len / featurizer.sample_rate
+    max_dur = None if max_audio_len is None else max_audio_len / sample_rate
     duration = sample.get('duration', None)
     offset = sample.get('offset', 0.0)
 
@@ -162,7 +163,7 @@ def load_noise_audio(
             # randomly sample a segment of the noise
             offset = np.random.uniform(0, duration - max_dur)
             audio_segment = AudioSegment.from_file(
-                audio_file=sample['audio_filepath'], offset=offset, duration=max_dur, target_sr=featurizer.sample_rate,
+                audio_file=sample['audio_filepath'], offset=offset, duration=max_dur, target_sr=sample_rate,
             )
             if sum(audio_segment.samples) > 0:
                 # break if the segment is not empty
@@ -170,7 +171,7 @@ def load_noise_audio(
             cnt += 1
     else:
         audio_segment = AudioSegment.from_file(
-            audio_file=sample['audio_filepath'], offset=offset, duration=duration, target_sr=featurizer.sample_rate,
+            audio_file=sample['audio_filepath'], offset=offset, duration=duration, target_sr=sample_rate,
         )
 
     if sum(audio_segment.samples) == 0:
@@ -192,15 +193,15 @@ def load_noise_audio(
     return noise, noise_len
 
 
-def sample_noise(noise_data: List[Dict], featurizer: WaveformFeaturizer | Any, max_audio_len: int | None = None):
+def sample_noise(noise_data: List[Dict], sample_rate: int, max_audio_len: int | None = None):
     if len(noise_data) == 0:
         return torch.zeros(max_audio_len).float(), torch.zeros(1).long()
     noise_sample = noise_data[np.random.randint(len(noise_data))]
-    noise_audio, noise_len = load_noise_audio(noise_sample, featurizer, max_audio_len)
+    noise_audio, noise_len = load_noise_audio(noise_sample, sample_rate, max_audio_len)
     return noise_audio, noise_len
 
 
-class AudioNoiseDataset(audio_to_text.AudioToCharDataset):
+class AudioNoiseDataset(audio_to_text.AudioxToCharDataset):
     @property
     def output_types(self):
         # disable type checking for now
@@ -230,7 +231,7 @@ class AudioNoiseDataset(audio_to_text.AudioToCharDataset):
             channel_selector=self.channel_selector,
         )
         audio_len = torch.tensor(audio.shape[0]).long()
-        noise, noise_len = sample_noise(self.noise_data, self.featurizer, audio_len.item())
+        noise, noise_len = sample_noise(self.noise_data, self.featurizer.sample_rate, audio_len.item())
 
         item = AudioNoiseItem(
             sample_id=str(index),
@@ -287,7 +288,7 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
         audio_filestream.close()
 
         audio_len = torch.tensor(audio.shape[0]).long()
-        noise, noise_len = sample_noise(self.noise_data, self.featurizer, audio_len.item())
+        noise, noise_len = sample_noise(self.noise_data, self.featurizer.sample_rate, audio_len.item())
 
         item = AudioNoiseItem(
             sample_id=str(manifest_idx),
@@ -302,10 +303,9 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
 
     def _collate_fn(self, batch: List[AudioNoiseItem]) -> AudioNoiseBatch:
         return _audio_noise_collate_fn(batch, self.batch_augmentor)
-    
-class LhotseAudioNoiseDataset(torch.utils.data.Dataset):
-    from lhotse.dataset import AudioSamples
 
+
+class LhotseAudioNoiseDataset(torch.utils.data.Dataset):
     def __init__(self, noise_manifest: str | None = None, batch_augmentor_cfg: DictConfig = None):
         super().__init__()
 
@@ -321,7 +321,8 @@ class LhotseAudioNoiseDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts):
         
         audio, audio_lens, cuts = self.load_audio(cuts)
-        noise, noise_len = sample_noise(self.noise_data, self.featurizer, audio_lens.item())
+        print(cuts)
+        noise, noise_len = sample_noise(self.noise_data, cuts.recording.sampling_rate, audio_lens.item())
 
         item = AudioNoiseItem(
             sample_id=str(cuts.id),
