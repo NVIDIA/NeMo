@@ -173,10 +173,6 @@ def main(local_rank, rank, world_size, args):
         model = MegatronGPTModel.restore_from(model_path, trainer=trainer)
     model._save_restore_connector = NLPSaveRestoreConnector()
 
-    if args.zarr:
-        with open_dict(model.cfg):
-            model.cfg.dist_ckpt_format = 'zarr'
-
     save_file_path = args.path_to_save
     if not args.path_to_nemo:
         # Without --path_to_nemo, path_to_save is expected to be a directory.
@@ -185,6 +181,10 @@ def main(local_rank, rank, world_size, args):
         save_file_path = os.path.join(save_file_path, 'model.nemo')
 
     model = trim_layers(model, args.drop_layers)
+
+    OmegaConf.set_struct(model.cfg, False)
+    model.cfg.dist_ckpt_format = 'zarr' if args.zarr else 'torch_dist'
+    OmegaConf.set_struct(model.cfg, True)
     model.cfg.num_layers -= len(args.drop_layers)
 
     if torch.distributed.is_initialized():
