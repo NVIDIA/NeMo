@@ -84,6 +84,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             self.prefix = ""
 
         # Call the parent class constructor with the remaining kwargs.
+        kwargs["enable_version_counter"] = False
         super().__init__(**kwargs)
 
         if self.save_top_k != -1 and n_resume:
@@ -520,7 +521,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             return
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during removal, we should be able to detect that data is incomplete.
-        self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
+        self.set_checkpoint_unfinished_marker(filepath, barrier_after=False)
         super()._remove_checkpoint(trainer, filepath)
         ema_callback = self._ema_callback(trainer)
         if ema_callback is not None:
@@ -529,7 +530,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             super()._remove_checkpoint(trainer, filepath)
         # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
         # we don't want to remove the marker until the checkpoint is actually removed.
-        self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
+        self.remove_checkpoint_unfinished_marker(filepath, barrier_before=False)
 
     def _ema_format_filepath(self, filepath: str) -> str:
         return filepath.replace(self.FILE_EXTENSION, f'-EMA{self.FILE_EXTENSION}')
