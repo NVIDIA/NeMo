@@ -484,6 +484,35 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             self._grad_copy(p)
         self._try_start_bucket_grad_sync(params=params)
 
+    def try_param_sync(self, params: Iterable[torch.nn.Parameter]) -> None:
+
+        # Maybe launch param all-gathers
+        self._try_start_bucket_param_sync(params=params)
+
+        # Find params that are ready to be updated
+        def param_is_ready(param: torch.nn.Parameter) -> bool:
+            for fragment in self.state[param]["fragments"]:
+                if fragment.bucket_id in self._params_buckets:
+                    bucket = self._params_buckets[fragment.bucket_id]
+                    if bucket.status != self.ParameterStatus.READY:
+                        return False
+                    if param in bucket.params_updated:
+                        return False
+            return True
+
+        ready_params = collections.OrderedDict()
+        for bucket_id, param_bucket in self._params_buckets.items():
+            if param_bucket.status == self.ParameterStatus.READY:
+                for fragment in self.state["buckets"][bucket_id].fragments:
+                    ready_params[self.parameter(fragment)] = None
+        ready_params = filter(param_is_ready, ready_params.keys())
+
+        # Update param values
+        for param in ready_params:
+            param.data_ptr()  # Trigger pre-forward hook
+            if is_float8tensor(param):
+                param.transpose_2d(force_compute=True, fill_cache=True)
+
     def zero_grad(self, *args, **kwargs) -> None:
         super().zero_grad(*args, **kwargs)
 
