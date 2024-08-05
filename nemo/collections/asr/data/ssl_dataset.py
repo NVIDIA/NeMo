@@ -201,7 +201,7 @@ def sample_noise(noise_data: List[Dict], sample_rate: int, max_audio_len: int | 
     return noise_audio, noise_len
 
 
-class AudioNoiseDataset(audio_to_text.AudioxToCharDataset):
+class AudioNoiseDataset(audio_to_text.AudioToCharDataset):
     @property
     def output_types(self):
         # disable type checking for now
@@ -320,23 +320,26 @@ class LhotseAudioNoiseDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, cuts):
         
-        audio, audio_lens, cuts = self.load_audio(cuts)
+        audios, audio_lens, cuts = self.load_audio(cuts)
         print(cuts)
-        noise, noise_len = sample_noise(self.noise_data, cuts.recording.sampling_rate, audio_lens.item())
+        print(cuts[0].__dict__)
+        sampled_noises = [
+            sample_noise(self.noise_data, 16000, audio_len.item())
+            for audio_len in audio_lens]
 
-        item = AudioNoiseItem(
-            sample_id=str(cuts.id),
-            audio=audio[0],
-            audio_len=audio_lens[0],
-            noise=noise,
-            noise_len=noise_len,
-            noisy_audio=audio + noise,
-            noisy_audio_len=audio_lens,
-        )
-        return item
-    
-    def _collate_fn(self, batch: List[AudioNoiseItem]) -> AudioNoiseBatch:
-        return _audio_noise_collate_fn(batch, self.batch_augmentor)
+        items = [
+            AudioNoiseItem(
+            sample_id=str(cuts[i].id),
+            audio=audios[i],
+            audio_len=audio_lens[i],
+            noise=sampled_noises[i][0],
+            noise_len=sampled_noises[i][1],
+            noisy_audio=audios[i] + sampled_noises[i][0],
+            noisy_audio_len=audio_lens[i],
+            )
+            for i in range(len(cuts))
+        ]
+        return _audio_noise_collate_fn(items, self.batch_augmentor)
 
 
 def get_audio_noise_dataset(
