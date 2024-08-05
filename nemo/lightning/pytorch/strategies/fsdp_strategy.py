@@ -7,7 +7,6 @@ import torch
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.strategies.fsdp import _get_sharded_state_dict_context
 from megatron.core.transformer.transformer_layer import TransformerLayer
-from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from pytorch_lightning.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
 from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.utilities.types import STEP_OUTPUT
@@ -21,7 +20,6 @@ from typing_extensions import override
 
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.lightning import io
-from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import masked_token_loss
 from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
@@ -29,7 +27,6 @@ from nemo.lightning.pytorch.strategies.utils import (
     mcore_to_pyt_sharded_state_dict,
     pyt_to_mcore_state_dict,
 )
-from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
 
 
 class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
