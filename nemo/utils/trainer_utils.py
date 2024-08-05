@@ -13,7 +13,6 @@ except ModuleNotFoundError:
 def resolve_trainer_cfg(trainer_cfg: DictConfig) -> DictConfig:
     if not _HAS_HYDRA:
         return trainer_cfg
-    if (strategy := trainer_cfg.pop("strategy", None)) is not None and isinstance(strategy, Mapping):
-        strategy = hydra.utils.instantiate(strategy)
-        trainer_cfg["strategy"] = strategy
+    if (strategy := trainer_cfg.get("strategy", None)) is not None and isinstance(strategy, Mapping):
+        trainer_cfg["strategy"] = hydra.utils.instantiate(strategy)
     return trainer_cfg
