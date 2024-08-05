@@ -27,7 +27,7 @@ class Trainer(pl.Trainer, IOMixin):
 
         ## add log statements that print every 100 steps
         ## to disable: add MegatronProgressPrinter(log_interval=-1) to list of callbacks
-        ## to enable TQDM progress bar: set enable_checkpointing=True and do not add
+        ## to enable TQDM progress bar: set enable_progress_bar=True and do not add
         ## a MegatronProgressPrinter to list of callbacks
         if not enable_progress_bar and not has_megatron_progress_bar:
             callbacks.append(MegatronProgressPrinter(log_interval=100))
