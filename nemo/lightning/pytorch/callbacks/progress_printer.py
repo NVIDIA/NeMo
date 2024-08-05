@@ -30,7 +30,7 @@ class MegatronProgressPrinter(ProgressBar):
     def format_string(self, prefix, metrics):
         log_string = prefix
         for metric, val in metrics.items():
-            if val.is_integer():
+            if isinstance(val, (float)) and val.is_integer():
                 val = int(val)
                 log_string += f' | {metric}: {val}'
             else:
@@ -60,7 +60,7 @@ class MegatronProgressPrinter(ProgressBar):
     def average_metrics_dict(self):
         average_dict = {}
         for key in self.total_metrics_dict:
-            if key in self.skip_accumulate_metrics:
+            if key in self.skip_accumulate_metrics or not isinstance(self.total_metrics_dict[key], (int, float)):
                 average_dict[key] = self.total_metrics_dict[key]
             else:
                 average_dict[key] = self.total_metrics_dict[key] / self.log_interval
@@ -119,7 +119,7 @@ class MegatronProgressPrinter(ProgressBar):
         n = self.get_current_epoch_step(trainer)
         metrics = self.get_metrics(trainer, pl_module)
         for key in metrics:
-            if key in self.skip_accumulate_metrics:
+            if key in self.skip_accumulate_metrics or not isinstance(metrics[key], (int, float)):
                 self.total_metrics_dict[key] = metrics[key]
             else:
                 self.total_metrics_dict[key] += metrics[key]
