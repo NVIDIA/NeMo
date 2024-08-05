@@ -768,10 +768,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         The input batch to each micro-batch is fetched using the dataloader function
         in the micro-batch fwd function.
         """
-        # Make a dummy train step if skip_train
-        if self.cfg.get("skip_train", False):
-            return None
-
         # Initialize userbuffer communicators.
         if self.initialize_ub:
             self.initialize_ub_func()
