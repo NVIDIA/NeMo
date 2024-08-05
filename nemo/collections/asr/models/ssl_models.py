@@ -261,10 +261,15 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
-            if isinstance(self._trainer.limit_train_batches, float):
+            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
                 self._trainer.limit_train_batches = int(
                     self._trainer.limit_train_batches
                     * ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "training batches will be used. Please set the trainer and rebuild the dataset."
                 )
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
@@ -333,7 +338,11 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
 
     @typecheck()
     def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
     ):
         """
         Forward pass of the model.
@@ -390,7 +399,8 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
 
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
 
         if self.pen_factor:
@@ -509,11 +519,13 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
         signal, signal_len, targets, target_lengths = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             spectrograms, spec_masks, encoded, encoded_len = self.forward(
-                processed_signal=signal, processed_signal_length=signal_len,
+                processed_signal=signal,
+                processed_signal_length=signal_len,
             )
         else:
             spectrograms, spec_masks, encoded, encoded_len = self.forward(
-                input_signal=signal, input_signal_length=signal_len,
+                input_signal=signal,
+                input_signal_length=signal_len,
             )
 
         if self.decoder_losses is not None:
@@ -553,11 +565,13 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
         signal, signal_len, targets, target_lengths = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             spectrograms, spec_masks, encoded, encoded_len = self.forward(
-                processed_signal=signal, processed_signal_length=signal_len,
+                processed_signal=signal,
+                processed_signal_length=signal_len,
             )
         else:
             spectrograms, spec_masks, encoded, encoded_len = self.forward(
-                input_signal=signal, input_signal_length=signal_len,
+                input_signal=signal,
+                input_signal_length=signal_len,
             )
 
         if self.decoder_losses is not None:
