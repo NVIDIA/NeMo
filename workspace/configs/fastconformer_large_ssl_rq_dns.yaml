@@ -66,7 +66,7 @@ model:
 
   validation_ds:
     manifest_filepath: ???
-    noise_manifest: null
+    noise_manifest: ???
     sample_rate: ${model.sample_rate}
     batch_size: 8 # you may increase batch_size if your memory allows
     shuffle: false
@@ -204,7 +204,7 @@ model:
       min_lr: 1e-6
 
 trainer:
-  devices: [0] # number of GPUs, -1 would use all available GPUs
+  devices: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
   max_epochs: 1000
   max_steps: -1 # computed at runtime if not set

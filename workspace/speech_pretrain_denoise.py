@@ -50,7 +50,7 @@ When doing supervised fine-tuning from unsupervised pre-trained encoder, set fla
 """
 
 
-@hydra_runner(config_path="./configs", config_name="fastconformer_large_ssl_rq_dns")
+@hydra_runner(config_path="./configs", config_name="conformer_large_ssl_rq")
 def main(cfg):
     logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 

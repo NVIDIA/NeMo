@@ -167,7 +167,7 @@ model:
       min_lr: 1e-6
 
 trainer:
-  devices: [0] # number of GPUs, -1 would use all available GPUs
+  devices: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
   max_epochs: 1000
   max_steps: -1 # computed at runtime if not set
