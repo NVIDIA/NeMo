@@ -22,8 +22,7 @@ import torch.nn.functional as F
 from einops import rearrange
 
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
-from nemo.collections.asr.parts.utils.activations import Snake
-from nemo.collections.common.parts.utils import mask_sequence_tensor
+from nemo.collections.common.parts.utils import ClampActivation, HalfSnake, Snake, mask_sequence_tensor
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types.elements import (
@@ -75,6 +74,8 @@ class CodecActivation(nn.Module):
             self.activation = torch.nn.LeakyReLU()
         elif activation == "snake":
             self.activation = Snake(channels)
+        elif activation == "half_snake":
+            self.activation = HalfSnake(channels)
         else:
             raise ValueError(f"Unknown activation {activation}")
 
@@ -318,6 +319,166 @@ class MultiPeriodDiscriminator(NeuralModule):
             fmaps_real.append(fmap_real)
             scores_gen.append(score_gen)
             fmaps_gen.append(fmap_gen)
+
+        return scores_real, scores_gen, fmaps_real, fmaps_gen
+
+
+class DiscriminatorSTFT(NeuralModule):
+    """
+    Discriminator network from EnCodec for Complex STFT input, but without dilations.
+    """
+
+    def __init__(self, lrelu_slope=0.1, filters=32):
+        super().__init__()
+
+        self.activation = nn.LeakyReLU(lrelu_slope)
+        self.conv_layers = nn.ModuleList(
+            [
+                Conv2dNorm(2, filters, kernel_size=(3, 9)),
+                Conv2dNorm(filters, filters, kernel_size=(3, 9), stride=(1, 2)),
+                Conv2dNorm(filters, filters, kernel_size=(3, 9), stride=(1, 2)),
+                Conv2dNorm(filters, filters, kernel_size=(3, 9), stride=(1, 2)),
+                Conv2dNorm(filters, filters, kernel_size=(3, 3)),
+            ]
+        )
+        self.conv_post = Conv2dNorm(filters, 1, kernel_size=(3, 3))
+
+    @property
+    def input_types(self):
+        return {
+            "spec": NeuralType(('B', 'C', 'T_spec', 'D'), VoidType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "scores": NeuralType(('B', 'C', 'T_spec'), VoidType()),
+            "fmap": [NeuralType(('B', 'D', 'T_spec', 'C'), VoidType())],
+        }
+
+    @typecheck()
+    def forward(self, spec):
+        fmap = []
+
+        # [batch, 2, T_spec, fft]
+        out = spec
+        for conv in self.conv_layers:
+            # [batch, filters, T_spec, fft // strides]
+            out = conv(inputs=out)
+            out = self.activation(out)
+            fmap.append(out)
+        # [batch, 1, T_spec, fft // 8]
+        scores = self.conv_post(inputs=out)
+        fmap.append(scores)
+        scores = rearrange(scores, "B 1 T C -> B C T")
+
+        return scores, fmap
+
+
+class MultiBandDiscriminatorSTFT(NeuralModule):
+    """
+    Multi-band STFT discriminator proposed in DAC (https://arxiv.org/abs/2306.06546).
+
+    Computes the complex STFT for a given resolution and splits it into sub-bands,
+    which are given to separate discriminator networks.
+    """
+
+    def __init__(self, resolution, stft_bands):
+        super().__init__()
+
+        self.n_fft, self.hop_length, self.win_length = resolution
+        self.register_buffer("window", torch.hann_window(self.win_length, periodic=False))
+        self.discriminators = nn.ModuleList([DiscriminatorSTFT() for _ in stft_bands])
+        n_stft = self.n_fft // 2 + 1
+        self.stft_bands = [(int(band[0] * n_stft), int(band[1] * n_stft)) for band in stft_bands]
+
+    def compute_stft(self, audio):
+        # [B, fft, T_spec]
+        fft = torch.stft(
+            audio,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            win_length=self.win_length,
+            window=self.window,
+            normalized=True,
+            center=True,
+            return_complex=True,
+        )
+        fft = rearrange(fft, "B fft T -> B T fft")
+        # [batch, 2, T_spec, fft]
+        out = torch.stack([fft.real, fft.imag], dim=1)
+        return out
+
+    @property
+    def input_types(self):
+        return {
+            "audio": NeuralType(('B', 'T_audio'), AudioSignal()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "scores_list": [NeuralType(('B', 'C', 'T_spec'), VoidType())],
+            "fmaps_list": [[NeuralType(('B', 'D', 'T_spec', 'C'), VoidType())]],
+        }
+
+    @typecheck()
+    def forward(self, audio):
+        scores_list = []
+        fmap_list = []
+        spec = self.compute_stft(audio)
+        for band, disc in zip(self.stft_bands, self.discriminators):
+            spec_band = spec[:, :, :, band[0]:band[1]]
+            score, fmap = disc(spec=spec_band)
+            scores_list.append(score)
+            fmap_list.append(fmap)
+
+        return scores_list, fmap_list
+
+
+class MultiResolutionDiscriminatorSTFT(NeuralModule):
+    """
+    Multi-resolution discriminator which creates a multi-band discriminator for each input resolution.
+    """
+
+    def __init__(self, resolutions, stft_bands):
+        super().__init__()
+        self.discriminators = nn.ModuleList([
+            MultiBandDiscriminatorSTFT(resolution=resolution, stft_bands=stft_bands)
+            for resolution in resolutions
+        ])
+
+    @property
+    def input_types(self):
+        return {
+            "audio_real": NeuralType(('B', 'T_audio'), AudioSignal()),
+            "audio_gen": NeuralType(('B', 'T_audio'), AudioSignal()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "scores_real": [NeuralType(('B', 'C', 'T_spec'), VoidType())],
+            "scores_gen": [NeuralType(('B', 'C', 'T_spec'), VoidType())],
+            "fmaps_real": [[NeuralType(('B', 'D', 'T_spec', 'C'), VoidType())]],
+            "fmaps_gen": [[NeuralType(('B', 'D', 'T_spec', 'C'), VoidType())]],
+        }
+
+    @typecheck()
+    def forward(self, audio_real, audio_gen):
+        scores_real = []
+        scores_gen = []
+        fmaps_real = []
+        fmaps_gen = []
+
+        for disc in self.discriminators:
+            score_real_i, fmap_real_i = disc(audio=audio_real)
+            scores_real = scores_real + score_real_i
+            fmaps_real = fmaps_real + fmap_real_i
+
+            score_gen_i, fmap_gen_i = disc(audio=audio_gen)
+            scores_gen = scores_gen + score_gen_i
+            fmaps_gen = fmaps_gen + fmap_gen_i
 
         return scores_real, scores_gen, fmaps_real, fmaps_gen
 
@@ -868,6 +1029,108 @@ class HiFiGANResLayer(NeuralModule):
         return out
 
 
+class HiFiGANEncoder(NeuralModule):
+    """
+    Encoder created by inverting the HiFi-GAN decoder
+    """
+
+    def __init__(
+        self,
+        encoded_dim: int,
+        down_sample_rates: Iterable[int] = (2, 2, 8, 8),
+        base_channels: int = 32,
+        in_kernel_size: int = 7,
+        out_kernel_size: int = 7,
+        resblock_kernel_sizes: Iterable[int] = (3, 7, 11),
+        resblock_dilation_sizes: Iterable[int] = (1, 3, 5),
+        activation: str = "lrelu",
+    ):
+        assert in_kernel_size > 0
+        assert out_kernel_size > 0
+
+        super().__init__()
+
+        self.down_sample_rates = down_sample_rates
+        self.pre_conv = Conv1dNorm(in_channels=1, out_channels=base_channels, kernel_size=in_kernel_size)
+
+        in_channels = base_channels
+        self.activations = nn.ModuleList([])
+        self.down_sample_conv_layers = nn.ModuleList([])
+        self.res_layers = nn.ModuleList([])
+        for i, down_sample_rate in enumerate(self.down_sample_rates):
+            res_layer = HiFiGANResLayer(
+                channels=in_channels,
+                kernel_sizes=resblock_kernel_sizes,
+                dilations=resblock_dilation_sizes,
+                activation=activation,
+            )
+            self.res_layers.append(res_layer)
+
+            act = CodecActivation(activation, channels=in_channels)
+            self.activations.append(act)
+
+            out_channels = 2 * in_channels
+            kernel_size = 2 * down_sample_rate
+
+            padding = get_down_sample_padding(kernel_size=kernel_size, stride=down_sample_rate)
+            down_sample_conv = Conv1dNorm(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=down_sample_rate,
+                padding=padding
+            )
+            in_channels = out_channels
+            self.down_sample_conv_layers.append(down_sample_conv)
+
+        self.post_activation = CodecActivation(activation, channels=in_channels)
+        self.post_conv = Conv1dNorm(in_channels=in_channels, out_channels=encoded_dim, kernel_size=out_kernel_size)
+
+    @property
+    def input_types(self):
+        return {
+            "audio": NeuralType(('B', 'T_audio'), AudioSignal()),
+            "audio_len": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "encoded": NeuralType(('B', 'D', 'T_encoded'), EncodedRepresentation()),
+            "encoded_len": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    def remove_weight_norm(self):
+        self.pre_conv.remove_weight_norm()
+        self.post_conv.remove_weight_norm()
+        for res_layer in self.res_layers:
+            res_layer.remove_weight_norm()
+        for down_sample_conv in self.down_sample_conv_layers:
+            down_sample_conv.remove_weight_norm()
+
+    @typecheck()
+    def forward(self, audio, audio_len):
+        encoded_len = audio_len
+        audio = rearrange(audio, "B T -> B 1 T")
+        # [B, C, T_audio]
+        out = self.pre_conv(inputs=audio, input_len=encoded_len)
+        for act, res_layer, down_sample_conv, down_sample_rate in zip(
+            self.activations, self.res_layers, self.down_sample_conv_layers, self.down_sample_rates
+        ):
+            # [B, C, T]
+            out = res_layer(inputs=out, input_len=encoded_len)
+            out = act(out)
+
+            encoded_len = encoded_len // down_sample_rate
+            # [B, 2 * C, T / down_sample_rate]
+            out = down_sample_conv(inputs=out, input_len=encoded_len)
+
+        out = self.post_activation(out)
+        # [B, encoded_dim, T_encoded]
+        encoded = self.post_conv(inputs=out, input_len=encoded_len)
+        return encoded, encoded_len
+
+
 class HiFiGANDecoder(NeuralModule):
     """
     Codec decoder using the HiFi-GAN generator architecture.
@@ -897,6 +1160,7 @@ class HiFiGANDecoder(NeuralModule):
         resblock_kernel_sizes: Iterable[int] = (3, 7, 11),
         resblock_dilation_sizes: Iterable[int] = (1, 3, 5),
         activation: str = "lrelu",
+        output_activation: str = "tanh"
     ):
         assert in_kernel_size > 0
         assert out_kernel_size > 0
@@ -933,7 +1197,12 @@ class HiFiGANDecoder(NeuralModule):
 
         self.post_activation = CodecActivation(activation, channels=in_channels)
         self.post_conv = Conv1dNorm(in_channels=in_channels, out_channels=1, kernel_size=out_kernel_size)
-        self.out_activation = nn.Tanh()
+        if output_activation == "tanh":
+            self.out_activation = nn.Tanh()
+        elif output_activation == "clamp":
+            self.out_activation = ClampActivation()
+        else:
+            raise ValueError(f"Invalid audio output activation {output_activation}")
 
     @property
     def input_types(self):
