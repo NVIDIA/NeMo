@@ -17,9 +17,8 @@ import math
 import os
 from typing import Iterable, List
 
-import torch.nn as nn
-
 import torch
+import torch.nn as nn
 
 logger = logging.getLogger(__name__)
 
