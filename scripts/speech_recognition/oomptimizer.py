@@ -284,6 +284,12 @@ class FloatList(click.Option):
     default="bfloat16",
     help="Float precision to use for computation (used together with autocast).",
 )
+@click.option(
+    "--ddp/--no-ddp",
+    type=bool,
+    default=True,
+    help="Whether we should simulate DDP GPU RAM usage. Stores an extra copy of the model in GPU memory. Enabled by default.",
+)
 def oomptimizer(
     pretrained_name: str | None,
     module_name: str | None,
@@ -296,6 +302,7 @@ def oomptimizer(
     memory_fraction: float,
     device: str,
     dtype: str,
+    ddp: bool,
 ):
     """
     OOMptimizer finds the optimal batch sizes for training your model with bucketing dataloading.
@@ -336,19 +343,23 @@ def oomptimizer(
 
     trainer = pl.Trainer(barebones=True)
     trainer.log_every_n_steps = 1000000
-    if pretrained_name is not None:
-        assert (
-            config_path is None and module_name is None
-        ), "--pretrained-name cannot be used together with --module-name/--config-path"
-        click.echo(f"Intializing ASR model from pretrained checkpoint {pretrained_name}.")
-        model = ASRModel.from_pretrained(pretrained_name, trainer=trainer).to(device)
-    else:
-        assert config_path is not None, "--module-name requires --config-path to be specified as well."
-        assert module_name is not None, "--config-path requires --module-name to be specified as well."
-        cfg = OmegaConf.load(config_path)
-        namespace, name = module_name.rsplit('.', maxsplit=1)
-        model_cls = getattr(importlib.import_module(namespace), name)
-        model = model_cls(cfg=cfg.model, trainer=trainer).to(device)
+    model_clones = []
+    for _ in range(2 if ddp else 1):
+        if pretrained_name is not None:
+            assert (
+                config_path is None and module_name is None
+            ), "--pretrained-name cannot be used together with --module-name/--config-path"
+            click.echo(f"Intializing ASR model from pretrained checkpoint {pretrained_name}.")
+            model = ASRModel.from_pretrained(pretrained_name, trainer=trainer).to(device)
+        else:
+            assert config_path is not None, "--module-name requires --config-path to be specified as well."
+            assert module_name is not None, "--config-path requires --module-name to be specified as well."
+            cfg = OmegaConf.load(config_path)
+            namespace, name = module_name.rsplit('.', maxsplit=1)
+            model_cls = getattr(importlib.import_module(namespace), name)
+            model = model_cls(cfg=cfg.model, trainer=trainer).to(device)
+        model_clones.append(model)
+    model = model_clones[-1]
 
     if not hasattr(model, "oomptimizer_schema"):
         click.secho(
@@ -498,6 +509,10 @@ def oomptimizer(
             final_profile.append([bucket, bs])
         max_input_len = final_profile[-1][0]
 
+    click.secho(f"The profile was created with the following settings:")
+    click.secho(f"* using {memory_fraction:.1%} of available GPU RAM.")
+    click.secho(f"* {'' if ddp else 'not '}simulating DDP memory overhead.")
+    click.secho(f"* using AMP with dtype={dtype}.")
     click.secho("The final profile is:", bold=True)
     click.secho("\tbucket_duration_bins=[" + ",".join(str(seqlen) for seqlen, bs in final_profile) + "]", bold=True)
     click.secho("\tbucket_batch_size=[" + ",".join(str(bs) for seqlen, bs in final_profile) + "]", bold=True)
