@@ -687,8 +687,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             module.config.no_sync_func = no_sync_func
             module.config.grad_sync_func = grad_sync_func
             module.config.param_sync_func = param_sync_func
-            if self.use_mcore_dist_optim:
-                module.config.finalize_model_grads_func = finalize_model_grads
 
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
@@ -713,6 +711,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
                 loss_tensor = torch.concat(loss_tensors_list)
                 loss_mean = loss_tensor.mean()
+                if self.cfg.get('calculate_per_token_loss', False):
+                    num_tokens_list = [loss_reduced['num_tokens'] for loss_reduced in losses_reduced_per_micro_batch]
+                    num_tokens_mean = torch.concat(num_tokens_list).mean()
+                    loss_mean = loss_mean / num_tokens_mean
             else:
                 # Get the total loss since micro batches sizes are not uniform
                 loss_sum_tensors_list = [
@@ -984,6 +986,88 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.if_first_step = 1
 
         return loss_mean
+
+    def finalize_model_grads(self, model: List[torch.nn.Module], num_tokens: Optional[torch.Tensor] = None):
+        # normalize gradients for per-token loss normalization.
+        # if we are using by the number of tokens, then we use that as a divisor. this number
+        # will be the total number of non-padded tokens in the global batch.
+        if num_tokens is not None:
+            # the number of tokens is only present on the last stage, so broadcast it
+            # to the other ranks in the pipeline parallel group.
+            torch.distributed.broadcast(
+                num_tokens,
+                src=parallel_state.get_pipeline_model_parallel_last_rank(),
+                group=parallel_state.get_pipeline_model_parallel_group(),
+            )
+            # all-reduce across DP ranks.
+            torch.distributed.all_reduce(num_tokens, group=parallel_state.get_data_parallel_group())
+            scaling = 1.0 * parallel_state.get_data_parallel_world_size() / num_tokens
+            # print(num_tokens, scaling)
+        else:
+            scaling = None
+
+        # Optimization: Defer the embedding GEMM Wgrads of the last PP stage to pipeline flush waiting time
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage(
+            ignore_virtual=True
+        ):
+            if (
+                self.cfg.get('defer_embedding_wgrad_compute', False) and self.mcore_gpt
+            ):  # Silently ignore the optimization if MCORE is not used
+                module_list = self.get_model_module_list()
+                if len(module_list) > 1:
+                    embedding_module = module_list[-1]
+                else:
+                    embedding_module = module_list[0]
+
+                embedding_activation_buffer = embedding_module.embedding_activation_buffer
+                grad_output_buffer = embedding_module.grad_output_buffer
+                if self.cfg.get('share_embeddings_and_output_weights', True):
+                    weight = embedding_module.shared_embedding_or_output_weight()
+                else:
+                    weight = embedding_module.output_layer.weight
+
+                drain_embedding_wgrad_compute(
+                    embedding_module.config, embedding_activation_buffer, grad_output_buffer, weight
+                )
+
+        # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
+        if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
+            self.megatron_timer_start('allreduce_sequence_parallel_gradients', log_level=1)
+            self.allreduce_sequence_parallel_gradients()
+            self.megatron_timer_stop('allreduce_sequence_parallel_gradients')
+
+        self.megatron_timer_start('gradient_allreduce', log_level=1)
+        if self.use_fsdp:
+            # Reduce the gradients omitted from FSDP-sharding
+            self.allreduce_fsdp_sharding_omitted_gradients()
+        elif self.with_distributed_adam:
+            if not self.use_mcore_dist_optim:
+                # synchronize asynchronous grad reductions
+                # note: not necessary, but reduces performance degradation
+                # from multiple simultaneous NCCL calls
+                self._optimizer._finish_bucket_grad_sync()
+            # else: Mcore distributed optim calls finalize_model_grads to finish grad sync
+        elif self.megatron_amp_O2:
+            # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
+            if (
+                self.cfg.get('pipeline_model_parallel_size', 1) > 1
+                or self.cfg.get('sequence_parallel', False)
+                or not self.cfg.get('async_grad_allreduce', True)
+            ):
+                # main grads are stored in the MainParamsOptimizer wrapper
+                self._optimizer.allreduce_main_grads(scaling_factor=scaling)
+        else:
+            # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
+            # so we all-reduce gradients after the pipeline
+            self.allreduce_gradients(
+                scaling_factor=scaling
+            )  # @sangkug we think this is causing memory to blow up (hurts perf)
+        self.megatron_timer_stop('gradient_allreduce')
+
+        # Additionally call finalize_model_grads from MCore
+        # https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/distributed/finalize_model_grads.py#L100
+        if self.use_mcore_dist_optim:
+            finalize_model_grads(model, num_tokens)
 
     def backward(self, *args, **kwargs):
         """LightningModule hook to do backward.

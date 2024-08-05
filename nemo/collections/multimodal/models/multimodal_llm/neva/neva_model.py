@@ -23,6 +23,7 @@ import torch.nn.functional as F
 from einops import rearrange, reduce, repeat
 from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
+from pytorch_lightning import LightningModule
 from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel, SiglipVisionModel
 
@@ -708,7 +709,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             out_features=self.cfg.hidden_size,
             bias=True,  # self.cfg.get("bias", False),
         )
-        for name, module in self.named_modules():
+        for name, module in self._unwrap_model().named_modules(prefix="model"):
             self._check_and_add_adapter(
                 name,
                 module,
@@ -893,75 +894,107 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
         if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-            return MegatronGPTModel.fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step)
+            num_batches = get_num_microbatches()
+            batch_iter = []
+            for _ in range(num_batches):
+                try:
+                    batch_iter.append(next(dataloader_iter))
+                except StopIteration:
+                    break
+
+            num_batches = len(batch_iter)
+            batch_iter = iter(batch_iter)
+            seq_length = self.cfg.encoder_seq_length
         else:
             batch, _, _ = next(dataloader_iter)
             _, seq_length = batch['tokens'].shape
             batch_iter = get_iterator_k_split(batch, get_num_microbatches())
+            num_batches = get_num_microbatches()
 
-            # handle asynchronous grad reduction
-            no_sync_func = None
-            grad_sync_func = None
-            param_sync_func = None
-            if not forward_only and self.with_distributed_adam:
+        # handle asynchronous grad reduction
+        no_sync_func = None
+        grad_sync_func = None
+        param_sync_func = None
+        if self.with_distributed_adam:
+            if forward_only:
+                if self.validation_param_sync_overlap:
+                    param_sync_func = self.sync_overlap_parameters
+            elif not self.use_mcore_dist_optim:
                 no_sync_func = partial(
                     self._optimizer.no_sync,
                     greedy_grad_copy=self.megatron_amp_O2,
                 )
                 grad_sync_func = self.reduce_overlap_gradients
                 param_sync_func = self.sync_overlap_parameters
-
-            # pipeline schedules will get these from self.model.config
-            for module in self.get_model_module_list():
-                module.config.no_sync_func = no_sync_func
-                module.config.grad_sync_func = grad_sync_func
-                module.config.param_sync_func = param_sync_func
-
-            # run forward and backwards passes for an entire global batch
-            # we do this inside training_step to support pipeline parallelism
-            fwd_bwd_function = get_forward_backward_func()
-            # print(f"{torch.distributed.get_rank()}: {parallel_state.is_pipeline_last_stage()} {fwd_bwd_function}")
-
-            # TODO @akhattar: add num_micro_batches_with_partial_activation_checkpoints when ready
-            losses_reduced_per_micro_batch = fwd_bwd_function(
-                forward_step_func=self.get_forward_output_and_loss_func(forward_only),
-                data_iterator=self._make_data_iterator_list(batch_iter),
-                model=self.model,
-                num_microbatches=get_num_microbatches(),
-                forward_only=forward_only,
-                seq_length=seq_length,
-                micro_batch_size=self.cfg.micro_batch_size,
-                first_val_step=first_val_step,
-            )
-
-            # only the last stages of the pipeline return losses
-            if losses_reduced_per_micro_batch:
-                if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
-                    # average loss across micro batches
-                    loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-                    loss_tensor = torch.concat(loss_tensors_list)
-                    loss_mean = loss_tensor.mean()
-                else:
-                    # Get the total loss since micro batches sizes are not uniform
-                    loss_sum_tensors_list = [
-                        loss_sum['loss_sum_and_ub_size']
-                        for loss_sum in losses_reduced_per_micro_batch
-                        if loss_sum['loss_sum_and_ub_size'][1] > 0
-                    ]
-                    loss_sum = (
-                        torch.vstack(loss_sum_tensors_list).sum(axis=0)
-                        if len(loss_sum_tensors_list) > 0
-                        else torch.tensor([0.0, 0.0]).cuda()
-                    )
-                    return loss_sum
             else:
-                # we're not on the last pipeline stage so no losses
-                if forward_only:
-                    loss_mean = []
-                else:
-                    loss_mean = torch.tensor(0.0).cuda()
+                if self.cfg.optim.get("overlap_grad_sync", False):
+                    no_sync_func = [model_chunk.no_sync for model_chunk in self.model]
+                    no_sync_func = no_sync_func[0] if len(self.model) == 1 else no_sync_func
+                    if self.cfg.optim.get("delay_grad_reduce", True):
+                        grad_sync_func = [model_chunk.start_grad_sync for model_chunk in self.model]
+                        grad_sync_func = grad_sync_func[0] if len(self.model) == 1 else grad_sync_func
+                if self.cfg.optim.get("overlap_param_sync", False) and self.cfg.optim.get("delay_param_gather", False):
+                    param_sync_func = [
+                        lambda x, model_index=model_index: self._optimizer.finish_param_sync(model_index, x)
+                        for model_index in range(len(self.model))
+                    ]
+                    param_sync_func = param_sync_func[0] if len(self.model) == 1 else param_sync_func
 
-            return loss_mean
+        # pipeline schedules will get these from self.model.config
+        for module in self.get_model_module_list():
+            module.config.no_sync_func = no_sync_func
+            module.config.grad_sync_func = grad_sync_func
+            module.config.param_sync_func = param_sync_func
+
+        # run forward and backwards passes for an entire global batch
+        # we do this inside training_step to support pipeline parallelism
+        fwd_bwd_function = get_forward_backward_func()
+        # print(f"{torch.distributed.get_rank()}: {parallel_state.is_pipeline_last_stage()} {fwd_bwd_function}")
+
+        # TODO @akhattar: add num_micro_batches_with_partial_activation_checkpoints when ready
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(forward_only),
+            data_iterator=self._make_data_iterator_list(batch_iter),
+            model=self.model,
+            num_microbatches=num_batches,
+            forward_only=forward_only,
+            seq_length=seq_length,
+            micro_batch_size=self.cfg.micro_batch_size,
+            first_val_step=first_val_step,
+        )
+
+        # only the last stages of the pipeline return losses
+        if losses_reduced_per_micro_batch:
+            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+                # average loss across micro batches
+                loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+                loss_tensor = torch.concat(loss_tensors_list)
+                loss_mean = loss_tensor.mean()
+                if self.cfg.get('calculate_per_token_loss', False):
+                    num_tokens_list = [loss_reduced['num_tokens'] for loss_reduced in losses_reduced_per_micro_batch]
+                    num_tokens_mean = torch.concat(num_tokens_list).mean()
+                    loss_mean = loss_mean / num_tokens_mean
+            else:
+                # Get the total loss since micro batches sizes are not uniform
+                loss_sum_tensors_list = [
+                    loss_sum['loss_sum_and_ub_size']
+                    for loss_sum in losses_reduced_per_micro_batch
+                    if loss_sum['loss_sum_and_ub_size'][1] > 0
+                ]
+                loss_sum = (
+                    torch.vstack(loss_sum_tensors_list).sum(axis=0)
+                    if len(loss_sum_tensors_list) > 0
+                    else torch.tensor([0.0, 0.0]).cuda()
+                )
+                return loss_sum
+        else:
+            # we're not on the last pipeline stage so no losses
+            if forward_only:
+                loss_mean = []
+            else:
+                loss_mean = torch.tensor(0.0).cuda()
+
+        return loss_mean
 
     def training_step(self, dataloader_iter):
         """
@@ -971,19 +1004,25 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         """
         return MegatronGPTModel.training_step(self, dataloader_iter)
 
+    def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
+        losses = output_tensor.float()
+        loss_mask = loss_mask.view(-1).float()
+        # TODO: add nemo version here
+        loss = torch.sum(losses.view(-1) * loss_mask)  # no longer do any averaging her
+        if parallel_state.get_context_parallel_world_size() > 1:
+            torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
+        return loss
+
     def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
-        def loss_func(output_tensor, loss_mask):
-            loss_for_ub = self.loss_func(loss_mask, output_tensor)
-            if validation_step and not self.cfg.data.get('validation_drop_last', True):
-                raise NotImplementedError(f"`validation_drop_last=False` is not implemented in Neva!")
-            else:
-                reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-                return loss_for_ub, dict(avg=reduced_loss[0].unsqueeze(0))
 
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
+
+            # Get data batch
             batch = next(dataloader_iter)
             if isinstance(batch, tuple):
                 batch = batch[0]
+
+            # Transfer needed data to GPU
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 for k in batch.keys():
                     if self.get_attention_mask_from_fusion:
@@ -1027,13 +1066,16 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                         k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels', 'media', 'loss_mask']
                     }
 
+            batch = self.get_batch_on_this_context_parallel_rank(batch)
+
             forward_args = {
                 'input_ids': batch['tokens'],
                 'position_ids': batch['position_ids'],
-                'attention_mask': batch['attention_mask'],
-                'labels': batch['labels'],
+                'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
+                'labels': batch.get('labels', None),
                 'media': batch.get('media', None),
             }
+
             if not self.mcore_gpt:
                 if self.use_loss_mask:
                     forward_args['loss_mask'] = batch['loss_mask']
@@ -1053,6 +1095,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                             "Please use megatron-core >= 0.5.0, or set model.data.train_ds.packed_sequence=False"
                         )
                         raise e
+
                     forward_args['packed_seq_params'] = PackedSeqParams(
                         cu_seqlens_q=cu_seqlens,
                         cu_seqlens_kv=cu_seqlens,
@@ -1063,7 +1106,88 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
             output_tensor = model(**forward_args)
 
-            return output_tensor, partial(loss_func, loss_mask=batch.get('loss_mask'))
+            def loss_func(output_tensor):
+                # Loss for a micro-batch (ub)
+                loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
+                cp_size = parallel_state.get_context_parallel_world_size()
+                num_tokens = batch['num_valid_tokens_in_ub'].to(torch.int32)
+
+                if self.return_output_tensors:
+                    # TODO: need a better way to check if loss_func is returning more stuff than just loss... (@adithyare)
+                    loss_for_ub, q_hs, d_hs, pos_cs, neg_cs, diff_cs = loss_for_ub
+                    if self.cfg.get('calculate_per_token_loss', False):
+                        reduced_loss, reduced_num_tokens = average_losses_across_data_parallel_group(
+                            [loss_for_ub, num_tokens]
+                        )
+                    else:
+                        reduced_loss, reduced_num_tokens = average_losses_across_data_parallel_group(
+                            [loss_for_ub / num_tokens, num_tokens]
+                        )
+                    pos_cs = average_losses_across_data_parallel_group([pos_cs])
+                    neg_cs = average_losses_across_data_parallel_group([neg_cs])
+                    diff_cs = average_losses_across_data_parallel_group([diff_cs])
+                    return (
+                        loss_for_ub * cp_size,
+                        num_tokens,
+                        {
+                            'avg': reduced_loss.unsqueeze(0),
+                            'num_tokens': reduced_num_tokens.unsqueeze(0),
+                            'query_hs': q_hs,
+                            'doc_hs': d_hs,
+                            'avg_pos_cs': pos_cs,
+                            'avg_neg_cs': neg_cs,
+                            'diff_cs': diff_cs,
+                        },
+                    )
+                elif validation_step and not self.validation_drop_last:
+                    num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
+                    if loss_for_ub.isnan():
+                        assert batch['loss_mask'].count_nonzero() == 0, 'Got NaN loss with non-empty input'
+                        loss_sum_for_ub = torch.zeros_like(loss_for_ub)
+                        num_valid_tokens_in_ub = 0
+                    else:
+                        if self.sample_weight == 'constant':
+                            num_valid_tokens_in_ub = 1
+                        loss_sum_for_ub = num_valid_tokens_in_ub * loss_for_ub
+
+                    loss_sum_and_ub_size_all_gpu = torch.cat(
+                        [
+                            loss_sum_for_ub.clone().detach().view(1),
+                            torch.tensor([num_valid_tokens_in_ub]).cuda().clone().detach(),
+                        ]
+                    )
+                    # Could potentially reduce num_valid_samples_in_microbatch and use that to aggregate instead of len(self._validation_ds)
+                    torch.distributed.all_reduce(
+                        loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group()
+                    )
+                    return (
+                        loss_for_ub * cp_size,
+                        num_tokens,
+                        {
+                            'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu,
+                            'num_tokens': num_tokens,
+                        },
+                    )
+                else:
+                    if self.cfg.get('calculate_per_token_loss', False):
+                        reduced_loss, reduced_num_tokens = average_losses_across_data_parallel_group(
+                            [loss_for_ub, num_tokens]
+                        )
+                    else:
+                        reduced_loss, reduced_num_tokens = average_losses_across_data_parallel_group(
+                            [loss_for_ub / num_tokens, num_tokens]
+                        )
+                    # total_num_tokens = average_losses_across_data_parallel_group([num_tokens]) * parallel_state.get_data_parallel_world_size()
+                    return (
+                        loss_for_ub * cp_size,
+                        num_tokens,
+                        {
+                            'avg': reduced_loss.unsqueeze(0),
+                            'num_tokens': reduced_num_tokens.unsqueeze(0),
+                        },
+                    )
+
+            return output_tensor, loss_func
 
         return fwd_output_and_loss_func
 
@@ -1125,8 +1249,8 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
         return fwd_output_only_func
 
-    def validation_step(self, dataloader_iter):
-        return MegatronGPTModel.validation_step(self, dataloader_iter)
+    def validation_step(self, dataloader_iter, dataloader_idx=0):
+        return MegatronGPTModel.validation_step(self, dataloader_iter, dataloader_idx)
 
     def on_validation_epoch_end(self):
         if not self.validation_step_outputs:
@@ -1145,8 +1269,17 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         else:
             averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
 
-        # we can only log on one rank if it is rank zero so we broadcast from last rank
-        torch.distributed.broadcast(averaged_loss, get_last_rank())
+        # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
+        # it should be casted to other pipeline stages for logging.
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            if self.loss_broadcast_src_rank is None:
+                self.loss_broadcast_src_rank = parallel_state.get_pipeline_model_parallel_last_rank()
+            torch.distributed.broadcast(
+                averaged_loss,
+                self.loss_broadcast_src_rank,
+                group=parallel_state.get_pipeline_model_parallel_group(),
+            )
+
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.validation_step_outputs.clear()  # free memory
 
@@ -1161,13 +1294,6 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
     def test_epoch_end(self, outputs):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
-
-    def loss_func(self, loss_mask, output_tensor):
-        losses = output_tensor.float()
-        loss_mask = loss_mask.view(-1).float()
-        # TODO: add nemo version here
-        loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
-        return loss
 
     def setup(self, stage=None):
         """PTL hook that is executed after DDP spawns.
@@ -1252,11 +1378,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 self.cfg.data.data_prefix, self.cfg.mm_cfg.vision_encoder.get("crop_size")
             )
         else:
+            model = self._unwrap_model()
             ds_dict = make_supervised_data_module(
                 tokenizer=self.tokenizer,
-                image_processor=(
-                    self.model.module.image_processor if hasattr(self.model, "module") else self.model.image_processor
-                ),
+                image_processor=(model.module.image_processor if hasattr(model, "module") else model.image_processor),
                 model_cfg=self.cfg,
             )
             self._train_ds = ds_dict["train_dataset"]
@@ -1345,7 +1470,8 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def load_state_dict(self, state_dict, strict=False):
         logging.warning('Loading state dict for MegatronNevaModel...')
-        missing_keys, unexpected_keys = NLPModel.load_state_dict(self, state_dict, strict=False)
+        state_dict = {k.removeprefix('model.'): v for k, v in state_dict.items()}
+        missing_keys, unexpected_keys = LightningModule.load_state_dict(self._unwrap_model(), state_dict, strict=False)
 
         if len(missing_keys) > 0:
             logging.warning('Missing keys were detected during the load. Please double check.')
