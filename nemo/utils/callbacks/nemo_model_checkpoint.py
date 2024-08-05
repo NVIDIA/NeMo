@@ -21,19 +21,23 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import pytorch_lightning
 import torch
+from _weakref import proxy
+
+from lightning_fabric.utilities.cloud_io import get_filesystem
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint, _is_local_file_protocol
 from pytorch_lightning.utilities import rank_zero_info
 
 from nemo.collections.common.callbacks import EMA
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
+from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
 
 class NeMoModelCheckpoint(ModelCheckpoint):
-    """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
-    Extends Lightning's on_save_checkpoint func to save the .nemo file. Saves the .nemo file based 
+    """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
+    Extends Lightning's on_save_checkpoint func to save the .nemo file. Saves the .nemo file based
     on the best checkpoint saved (according to the monitor value).
     Also contains func to save the EMA copy of the model.
     """
@@ -48,6 +52,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         postfix: str = ".nemo",
         n_resume: bool = False,
         model_parallel_size: int = None,
+        async_save: bool = False,  # controls only finalize callbacks
         **kwargs,
     ):
         # Parse and store "extended" parameters: save_best model and postfix.
@@ -64,6 +69,13 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.postfix = postfix
         self.previous_best_path = ""
         self.model_parallel_size = model_parallel_size
+        self.async_save = async_save
+        self.async_finalize_cb = None
+        # Checkpoints which removal is deferred until async save is done.
+        # Each element of `deferred_ckpts_to_remove` is a growing list
+        # that `self._remove_checkpoint` adds to. Once `self._save_checkpoint`
+        # is called, the last element is frozen and a new element is added.
+        self.deferred_ckpts_to_remove: List[List[str]] = []
 
         # `prefix` is deprecated
         if 'prefix' in kwargs:
@@ -170,14 +182,20 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         super().load_state_dict(state_dict)
         self._remove_invalid_entries_from_topk()
 
-    def setup(self, *args, **kwargs) -> None:
+    def setup(self, trainer, pl_module, stage: str) -> None:
         if is_global_rank_zero():
             logging.debug("Removing unfinished checkpoints if any...")
             NeMoModelCheckpoint._remove_unfinished_checkpoints(self.dirpath)
         # Ensure that all ranks continue with unfinished checkpoints removed
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
-        super().setup(*args, **kwargs)
+        super().setup(trainer, pl_module, stage)
+        # When using S3 checkpointing, only Rank 0 has the checkpoint and model path set in exp_manager.
+        # Sync the values across all ranks to ensure consistency.
+        path = trainer.strategy.broadcast(trainer.ckpt_path)
+        trainer.ckpt_path = path
+
+        self.last_model_path = trainer.strategy.broadcast(self.last_model_path)
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
@@ -188,9 +206,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             logging.warning(f'always_save_nemo will slow down training for model_parallel > 1.')
         # since we are creating tarfile artifacts we need to update .nemo path
-        app_state.model_restore_path = os.path.abspath(
-            os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
-        )
+        app_state.model_restore_path = self._format_nemo_checkpoint_name()
         if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             maybe_injected_best_model_path = inject_model_parallel_rank(self.best_model_path)
         else:
@@ -213,14 +229,19 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             pl_module.load_state_dict(checkpoint, strict=True)
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
+            backup_path = self._backup_existing_nemo_ckpt(trainer)
             pl_module.save_to(save_path=app_state.model_restore_path)
             logging.info(f"New best .nemo model saved to: {app_state.model_restore_path}")
             pl_module.load_state_dict(old_state_dict, strict=True)
         else:
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
+            backup_path = self._backup_existing_nemo_ckpt(trainer)
             pl_module.save_to(save_path=app_state.model_restore_path)
             logging.info(f"New .nemo model saved to: {app_state.model_restore_path}")
+        if backup_path is not None and is_global_rank_zero():
+            logging.info(f'Removing old .nemo backup {backup_path}')
+            get_filesystem(backup_path).rm(backup_path)
         return output
 
     def on_train_end(self, trainer, pl_module):
@@ -236,7 +257,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 should_save_last_checkpoint = True
             if should_save_last_checkpoint:
                 monitor_candidates = self._monitor_candidates(trainer)
-                super()._save_last_checkpoint(trainer, monitor_candidates)
+                if self.last_model_path == self.format_checkpoint_name(monitor_candidates, self.CHECKPOINT_NAME_LAST):
+                    logging.debug(f'Last checkpoint {self.last_model_path} already saved')
+                else:
+                    super()._save_last_checkpoint(trainer, monitor_candidates)
         # Call parent on_train_end() to save the -last checkpoint
         super().on_train_end(trainer, pl_module)
 
@@ -256,7 +280,47 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 trainer._checkpoint_connector.restore(self.best_model_path)
 
         if self.save_nemo_on_train_end:
-            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+            backup_path = self._backup_existing_nemo_ckpt(trainer)
+            pl_module.save_to(save_path=self._format_nemo_checkpoint_name())
+            if backup_path is not None and is_global_rank_zero():
+                logging.info(f'Removing old .nemo backup {backup_path}')
+                get_filesystem(backup_path).rm(backup_path)
+
+    def _backup_existing_nemo_ckpt(self, trainer) -> Optional[str]:
+        """Search for an available name with version infix and rename existing checkpoint.
+
+        NOTE: this behavior is slightly different from regular checkpoints.
+        PTL creates new regular checkpoint with the first available name.
+        Here, for backward compatibility, we create .nemo checkpoint as before
+        and create a backup under the first available name.
+
+        Args:
+            trainer (Trainer): trainer instance.
+
+        Returns:
+            Path to the backup checkpoint or None, if no backup was created
+        """
+        base_path = self._format_nemo_checkpoint_name()
+        available_path = base_path
+        if self._enable_version_counter:
+            version_cnt = self.STARTING_VERSION
+            while self.file_exists(available_path, trainer, check_dist_ckpt=False):
+                available_path = self._format_nemo_checkpoint_name(version_cnt)
+                version_cnt += 1
+        if available_path == base_path:
+            # no existing ckpt, no need to backup
+            return None
+        if trainer.is_global_zero:
+            logging.info(f'{base_path} already exists, moving existing checkpoint to {available_path}')
+            shutil.move(base_path, available_path)
+        trainer.strategy.barrier()
+        return available_path
+
+    def _format_nemo_checkpoint_name(self, ver: Optional[int] = None) -> str:
+        version_infix = '' if ver is None else f'{self.CHECKPOINT_JOIN_CHAR}v{ver}'
+        return os.path.abspath(
+            os.path.expanduser(os.path.join(self.dirpath, self.prefix + version_infix + self.postfix))
+        )
 
     def _del_model_without_trainer(self, filepath: str) -> None:
 
@@ -299,15 +363,15 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def format_checkpoint_unfinished_marker_path(checkpoint_path: Union[Path, str]) -> Path:
-        """ Format the path to the unfinished checkpoint marker file.
-        
+        """Format the path to the unfinished checkpoint marker file.
+
         If the marker file exists, corresponding checkpoint is considered unfinished/incomplete.
         NOTE: Marker path for the EMA checkpoint part is the same as for the original checkpoint.
-        
+
         Args:
             checkpoint_path: Path to the checkpoint file or dir.
               Does not need to exist.
-            
+
         Returns:
             Path to the unfinished checkpoint marker file.
         """
@@ -319,7 +383,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def is_checkpoint_unfinished(checkpoint_path: Union[Path, str]) -> bool:
-        """ Check if the checkpoint is unfinished.
+        """Check if the checkpoint is unfinished.
 
         Args:
             checkpoint_path: Path to the checkpoint file or dir.
@@ -332,7 +396,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def set_checkpoint_unfinished_marker(checkpoint_path: Union[Path, str], barrier_after=False) -> None:
-        """ Marks given checkpoint as unfinished.
+        """Marks given checkpoint as unfinished.
 
         Args:
             checkpoint_filepath: Path to the checkpoint file or dir.
@@ -357,12 +421,20 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             barrier_before: Synchronize ranks before removing the marker file.
               Defaults to False.
         """
-        if barrier_before and torch.distributed.is_initialized():
-            torch.distributed.barrier()
-        if is_global_rank_zero():
-            marker_path = NeMoModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_path)
-            if marker_path.exists():
-                marker_path.unlink()
+        try:
+            if barrier_before and torch.distributed.is_initialized():
+                torch.distributed.barrier()
+            if is_global_rank_zero():
+                marker_path = NeMoModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_path)
+                if marker_path.exists():
+                    marker_path.unlink()
+        except:
+            return
+
+    def file_exists(self, filepath: str, trainer: "pytorch_lightning.Trainer", check_dist_ckpt: bool = True) -> bool:
+        """Checks if a file or a file without a suffix (distributed checkpoint) exists."""
+        exists = self._fs.exists(filepath) or (check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath)))
+        return trainer.strategy.broadcast(exists)
 
     def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
@@ -370,6 +442,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
         ema_callback = self._ema_callback(trainer)
         if ema_callback is not None:
+            if self.async_save:
+                raise ValueError('async_save with EMA not supported')
             with ema_callback.save_original_optimizer_state(trainer):
                 super()._save_checkpoint(trainer, filepath)
 
@@ -379,13 +453,71 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 if self.verbose:
                     rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
                 super()._save_checkpoint(trainer, filepath)
+            self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
-            super()._save_checkpoint(trainer, filepath)
-        # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
-        # we don't want to remove the marker until all checkpointing is done.
-        self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
+            # Async save passed the finalization function to checkpoint_io,
+            # sync save calls the finalization function immediately after save.
+            finalize_fn = self._get_finalize_save_checkpoint_callback(trainer, filepath, trainer.global_step)
+            if self.async_save:
+                checkpoint_io = trainer.strategy.checkpoint_io
+                if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
+                    raise ValueError('Async save requires async compatible CheckpointIO')
+                storage_options = dict(finalize_fn=finalize_fn)
+                # Each upcoming ckpt removal request will be executed as part of this save finalization
+                self.deferred_ckpts_to_remove.append([])
+            else:
+                storage_options = None
+            trainer.save_checkpoint(filepath, self.save_weights_only, storage_options=storage_options)
+            if self.async_save:
+                logging.info(f'Scheduled async checkpoint save for {filepath}')
+            else:
+                finalize_fn()
 
-    def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str) -> None:
+    def _get_finalize_save_checkpoint_callback(
+        self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
+    ):
+        """Creates a callback that can be used to finalize async (and sync) ckpt saves."""
+
+        def _cb():
+            logging.debug(f'Finalize callback called for step {global_step}, filepath {filepath}')
+            self._last_global_step_saved = global_step
+            self._last_checkpoint_saved = filepath
+
+            # notify loggers
+            if trainer.is_global_zero:
+                for logger in trainer.loggers:
+                    logger.after_save_checkpoint(proxy(self))
+
+            # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
+            # we don't want to remove the marker until all checkpointing is done.
+            self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
+
+            if not self.async_save:
+                return
+
+            logging.info(f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully.')
+
+            # Remove checkpoints marked for removal by `self._remove_checkpoint`
+            # For each finalization there is exactly one entry in self.deferred_ckpts_to_remove
+            assert self.deferred_ckpts_to_remove
+            ckpts_to_remove = self.deferred_ckpts_to_remove.pop(0)
+            logging.debug(f'Checkpoints to remove: {ckpts_to_remove}')
+            for ckpt_to_remove in ckpts_to_remove:
+                self._remove_checkpoint(trainer, ckpt_to_remove, override_async=True)
+
+        return _cb
+
+    def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str, override_async=False) -> None:
+        """Performs checkpoint removal or deferred removal.
+
+        With async save, `self._remove_checkpoint` is called before the checkpoint
+        is actually finished so we can't remove it. Instead we add it to
+        `self.deferred_ckpts_to_remove` for future removal.
+        """
+        if self.async_save and not override_async:
+            # Register checkpoint removal in the last (active) checkpoint removal list
+            self.deferred_ckpts_to_remove[-1].append(filepath)
+            return
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during removal, we should be able to detect that data is incomplete.
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
@@ -460,7 +592,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         A checkpoint won't be deleted if any of the cases apply:
         - The previous checkpoint is the same as the current checkpoint (means the old was already overwritten by new)
         - The previous checkpoint is not in the current checkpoint directory and the filesystem is local
-        - The previous checkpoint is the checkpoint the Trainer resumed from and the filesystem is local 
+        - The previous checkpoint is the checkpoint the Trainer resumed from and the filesystem is local
             and the resumed from checkpoint is not the last checkpoint
         """
         if previous == current:

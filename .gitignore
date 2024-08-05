@@ -3,6 +3,7 @@
 *.pkl
 #*.ipynb
 output
+output_2048
 result
 *.pt
 tests/data/asr
@@ -183,3 +184,5 @@ draco*
 nemo_debug/
 oci_scripts/
 local_files/
+cs_scripts/
+slurm*.out

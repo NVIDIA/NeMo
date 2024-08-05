@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
+from collections import defaultdict
 from enum import Enum, auto
 from typing import List
 
@@ -20,12 +21,22 @@ DEFAULT_BOS_TOKEN = "<extra_id_6>"
 DEFAULT_EOS_TOKEN = "<extra_id_7>"
 DEFAULT_UNK_TOKEN = "<unk>"
 DEFAULT_IMAGE_TOKEN = "<image>"
+DEFAULT_VIDEO_TOKEN = "<video>"
 DEFAULT_SYSTEM_TOKEN = "<extra_id_0>"
 DEFAULT_SEPARATOR_TOKEN = "<extra_id_1>"
 DEFAULT_LABELS_TOKEN = "<extra_id_2>"
-DEFAULT_IMAGE_PATCH_TOKEN = "<extra_id_3>"
-DEFAULT_IM_START_TOKEN = "<extra_id_4>"
-DEFAULT_IM_END_TOKEN = "<extra_id_5>"
+DEFAULT_IMAGE_PATCH_TOKEN = defaultdict(lambda: "<extra_id_3>")
+DEFAULT_IM_START_TOKEN = defaultdict(lambda: "<extra_id_4>")
+DEFAULT_IM_END_TOKEN = defaultdict(lambda: "<extra_id_5>")
+
+# Update llama3 default
+DEFAULT_IMAGE_PATCH_TOKEN["llama_3"] = "<|reserved_special_token_3|>"
+DEFAULT_IM_START_TOKEN["llama_3"] = "<|reserved_special_token_4|>"
+DEFAULT_IM_END_TOKEN["llama_3"] = "<|reserved_special_token_5|>"
+
+DEFAULT_VID_START_TOKEN = "<extra_id_8>"
+DEFAULT_VID_END_TOKEN = "<extra_id_9>"
+TIME_TOKEN_TEMPLATE = "<t{t}>"
 
 
 class SeparatorStyle(Enum):
@@ -35,6 +46,8 @@ class SeparatorStyle(Enum):
     TWO = auto()
     PLAIN = auto()
     LLAMA_2 = auto()
+    LLAMA_3 = auto()
+    MISTRAL = auto()
     NVGPT = auto()
 
 
@@ -86,11 +99,15 @@ class Conversation:
                         ret += " "
                 else:
                     ret += role + ":"
-        elif self.sep_style == SeparatorStyle.LLAMA_2:
-            wrap_sys = lambda msg: f"<<SYS>>\n{msg}\n<</SYS>>\n\n"
+        elif self.sep_style == SeparatorStyle.LLAMA_2 or self.sep_style == SeparatorStyle.MISTRAL:
+            if self.sep_style == SeparatorStyle.LLAMA_2:
+                wrap_sys = lambda msg: f"<<SYS>>\n{msg}\n<</SYS>>\n\n"
+            else:
+                wrap_sys = lambda msg: f"{msg}" + ("\n" if msg else "")
             wrap_inst = lambda msg: f"[INST] {msg} [/INST]"
             ret = ""
-
+            if self.sep_style == SeparatorStyle.MISTRAL:
+                ret += DEFAULT_BOS_TOKEN
             for i, (role, message) in enumerate(messages):
                 if i == 0:
                     assert message, "first message should not be none"
@@ -104,10 +121,41 @@ class Conversation:
                         message = wrap_inst(message)
                         ret += self.sep + " " + message
                     else:
-                        ret += " " + message + " " + self.sep2
+                        if self.sep_style == SeparatorStyle.LLAMA_2:
+                            ret += " " + message + " " + self.sep2
+                        else:
+                            ret += message + self.sep2
                 else:
                     ret += ""
             ret = ret.lstrip(self.sep)
+        elif self.sep_style == SeparatorStyle.LLAMA_3:
+            """
+            <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+            {{ system_prompt }}<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+            {{ user_message_1 }}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+            {{ model_answer_1 }}<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+            {{ user_message_2 }}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+            """
+            wrap_sys = lambda msg: f"<|start_header_id|>system<|end_header_id|>\n\n{msg}"
+            wrap_user = lambda msg: f"<|start_header_id|>user<|end_header_id|>\n\n{msg}"
+            wrap_assistant = lambda msg: f"<|start_header_id|>assistant<|end_header_id|>\n\n{msg}"
+
+            ret = "<|begin_of_text|>" + wrap_sys(self.system) + self.sep
+            for i, (role, message) in enumerate(messages):
+                if i == 0:
+                    assert message, "first message should not be none"
+                    assert role == self.roles[0], "first message should come from user"
+                if type(message) is tuple:
+                    message, _, _ = message
+                elif i % 2 == 0:
+                    ret += wrap_user(message) + self.sep
+                else:
+                    ret += wrap_assistant(message) + (self.sep if message else "")
+
         elif self.sep_style == SeparatorStyle.PLAIN:
             seps = [self.sep, self.sep2]
             ret = self.system
@@ -345,8 +393,25 @@ conv_llava_llama_2 = Conversation(
     sep2=DEFAULT_EOS_TOKEN,
 )
 
+conv_llava_llama_3 = Conversation(
+    system="You are a helpful language and vision assistant. "
+    "You are able to understand the visual content that the user provides, "
+    "and assist the user with a variety of tasks using natural language.",
+    roles=("user", "assistant"),
+    version="llama_v3",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.LLAMA_3,
+    sep="<|eot_id|>",
+)
+
 conv_llava_plain = Conversation(
-    system="", roles=("", ""), messages=(), offset=0, sep_style=SeparatorStyle.PLAIN, sep="\n",
+    system="",
+    roles=("", ""),
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.PLAIN,
+    sep="\n",
 )
 
 conv_llava_v0 = Conversation(
@@ -396,6 +461,17 @@ conv_llava_v1_mmtag = Conversation(
     version="v1_mmtag",
 )
 
+conv_mistral = Conversation(
+    system="",
+    roles=("USER", "ASSISTANT"),
+    version="mistral",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.MISTRAL,
+    sep="",
+    sep2=DEFAULT_EOS_TOKEN,
+)
+
 default_conversation = conv_vicuna_v1
 conv_templates = {
     "default": conv_vicuna_v0,
@@ -413,8 +489,8 @@ conv_templates = {
     "nvgpt": conv_nvgpt,
     "nv_steerlm": conv_nvgpt,
     "nv_dpo": conv_nv_dpo,
+    "mistral": conv_mistral,
 }
-
 
 if __name__ == "__main__":
     print(default_conversation.get_prompt())

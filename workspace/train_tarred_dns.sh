@@ -7,16 +7,16 @@ data_dir="/media/data3/datasets/librispeech_origin"
 # train_manifests="[${data_dir}/test_clean.json]"
 # dev_manifests="[${data_dir}/dev_clean_cleaned.json,${data_dir}/dev_other.json]"
 dev_manifests="[${data_dir}/debug_12.json,${data_dir}/debug_12.json]"
-
+dev_names="[dev-clean,dev-other]"
 batch_size=4
-num_workers=4
+num_workers=0
 
 TRAIN_IS_TARRED=True
 TRAIN_MANIFEST='/media/data3/datasets/librispeech_tarred/tarred_audio_manifest.json'
 TRAIN_FILEPATHS="/media/data3/datasets/librispeech_tarred/audio__OP_0..511_CL_.tar"
 noise_manifest="[/media/data3/datasets/noise_data/musan/musan_nonspeech_manifest.json,/media/data3/datasets/noise_data/freesound/freesound_noise_manifest_filtered.json]"
 
-exp_name=ssl_fastconformer_large_rq_ls_dns_v2_debug_r1
+exp_name=ssl_fastconformer_large_rq_ls_dns_v2_debug_r2
 
 CUDA_VISIBLE_DEVICES="1" python speech_pretrain_denoise.py \
     --config-path="configs" \
@@ -26,6 +26,7 @@ CUDA_VISIBLE_DEVICES="1" python speech_pretrain_denoise.py \
     model.train_ds.tarred_audio_filepaths=${TRAIN_FILEPATHS} \
     model.train_ds.noise_manifest=$noise_manifest \
     model.validation_ds.manifest_filepath=$dev_manifests \
+    ++model.validation_ds.name=$dev_names \
     model.validation_ds.noise_manifest=$noise_manifest \
     model.train_ds.batch_size=$batch_size \
     model.validation_ds.batch_size=$batch_size \

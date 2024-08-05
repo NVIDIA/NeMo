@@ -15,12 +15,13 @@
 """Utilities for models."""
 import itertools
 import math
-from typing import Dict, Iterator, List, Tuple, Union
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-
 from torch import Tensor
+
+from nemo.utils import logging, logging_mode
 
 try:
     from apex.normalization import MixedFusedRMSNorm
@@ -175,6 +176,13 @@ def openai_gelu(x):
     return gelu_impl(x)
 
 
+try:
+    jit_fuser = torch.compile
+except:
+    jit_fuser = torch.jit.script
+
+
+@jit_fuser
 def squared_relu(x):
     return torch.pow(torch.nn.functional.relu(x), 2)
 
@@ -303,9 +311,7 @@ def make_inference_attention_mask_3d(source_block, target_block, pad_id):
 def make_inference_history_mask_3d(block):
     batch, length = block.shape
     arange = torch.arange(length, device=block.device)
-    history_mask = (arange[None,] <= arange[:, None])[
-        None,
-    ]
+    history_mask = (arange[None,] <= arange[:, None])[None,]
     history_mask = history_mask.expand(batch, length, length)
     return history_mask
 
@@ -366,17 +372,25 @@ def get_params_for_weight_decay_optimization(
     is_expert = lambda param: not getattr(param, 'allreduce', True)
     # Do the actual param classification
     for module in modules:
-        for name, param in module.named_parameters():
-            if param is None:
-                continue
-            if name.endswith('.bias'):
-                no_weight_decay_params['params'].extend([param])
+        for module_ in module.modules():
+            if isinstance(module_, (FusedLayerNorm, FastLayerNorm, MixedFusedRMSNorm)):
+                no_weight_decay_params['params'].extend(
+                    list(filter(lambda p: p is not None, module_._parameters.values()))
+                )
             else:
-                if is_expert(param):
-                    weight_decay_expert_params['params'].extend([param])
-                else:
-                    weight_decay_params['params'].extend([param])
-    return weight_decay_params, weight_decay_expert_params, no_weight_decay_params
+                for name, param in module_._parameters.items():
+                    if param is None:
+                        continue
+                    if name.endswith('bias'):
+                        no_weight_decay_params['params'].extend([param])
+                    else:
+                        if is_expert(param):
+                            weight_decay_expert_params['params'].extend([param])
+                        else:
+                            weight_decay_params['params'].extend([param])
+
+    param_groups = [weight_decay_params, weight_decay_expert_params, no_weight_decay_params]
+    return tuple(filter(lambda g: len(g['params']) > 0, param_groups))
 
 
 def get_all_params_for_weight_decay_optimization(
@@ -394,17 +408,71 @@ def get_all_params_for_weight_decay_optimization(
         weight_decay_params['params'] += list(filter(lambda x: not is_expert(x), module.parameters()))
         weight_decay_expert_params['params'] += list(filter(is_expert, module.parameters()))
 
-    return weight_decay_params, weight_decay_expert_params
+    param_groups = [weight_decay_params, weight_decay_expert_params]
+    return tuple(filter(lambda g: len(g['params']) > 0, param_groups))
 
 
-def get_iterator_k_split(batch: List[torch.Tensor], num_microbatches: int) -> Iterator:
+def split_list(inputs, num_chunks, enforce_divisible_batch: Optional[bool] = True):
+    """
+    Split a list into equal sized chunks
+    """
+    chunk_size = len(inputs) // num_chunks
+    if enforce_divisible_batch:
+        assert len(inputs) % chunk_size == 0, "Issue with batch size configuration!"
+    return [inputs[i : i + chunk_size] for i in range(0, len(inputs), chunk_size)]
+
+
+def get_iterator_k_split(
+    batch: Union[Dict, List[torch.Tensor]], num_microbatches: int, enforce_divisible_batch: Optional[bool] = True
+) -> Iterator:
+    """
+    Split a batch into k microbatches, where the batch size is divisible by k. Batch could be
+    a dictionary of tensors or a list of tensors. A dictionary batch could also have items of List type,
+    as long as the length of that list is the same as the batch size.
+    """
     if isinstance(batch, dict):
-        items = list(batch.items())
-        assert items[0][1].shape[0] % num_microbatches == 0, "Issue with batch size configuration!"
+        discard_items = [k for k, v in batch.items() if not isinstance(v, (torch.Tensor, list))]
+        if len(discard_items) > 0:
+            logging.warning(
+                f"Only support splitting torch.Tensor and List[torch.Tensor]. Discarding the following keys from the batch: {discard_items}",
+                mode=logging_mode.ONCE,
+            )
+
+        batch = {k: v for k, v in batch.items() if isinstance(v, (torch.Tensor, list))}
+        tensor_items = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
+        list_items = {k: v for k, v in batch.items() if isinstance(v, list)}
+
+        # Split tensor items
+        items = list(tensor_items.items())
+        if enforce_divisible_batch:
+            assert items[0][1].shape[0] % num_microbatches == 0, "Issue with batch size configuration!"
         split_batch = [torch.tensor_split(item[1], num_microbatches, dim=0) for item in items]
-        microbatches = [[(items[i][0], split_batch[i][j]) for i in range(len(items))] for j in range(num_microbatches)]
+        # handle the case where the batch size from dynamic bucketting is not divisible
+        if items[0][1].shape[0] % num_microbatches != 0:
+            chunk_size = split_batch[0][-1].shape[0]
+            split_batch = [[j[:chunk_size] for j in i] for i in split_batch]
+
+        if len(list_items) == 0:
+            # Only have tensor items
+            microbatches = [
+                [(items[i][0], split_batch[i][j]) for i in range(len(items))] for j in range(num_microbatches)
+            ]
+        else:
+            # Split list items
+            list_items = list(list_items.items())
+            split_list_batch = [
+                split_list(item[1], num_microbatches, enforce_divisible_batch=enforce_divisible_batch)
+                for item in list_items
+            ]
+            # Merge tensor and list items
+            all_keys = [item[0] for item in items] + [item[0] for item in list_items]
+            all_split_batch = split_batch + split_list_batch
+            microbatches = [
+                [(all_keys[i], all_split_batch[i][j]) for i in range(len(all_keys))] for j in range(num_microbatches)
+            ]
         microbatches = [dict(elem) for elem in microbatches]
     else:
+        # Split a list of torch tensors
         assert batch[0].shape[0] % num_microbatches == 0, "Issue with batch size configuration!"
         split_batch = [
             torch.tensor_split(item, num_microbatches, dim=0) if torch.is_tensor(item) else item for item in batch

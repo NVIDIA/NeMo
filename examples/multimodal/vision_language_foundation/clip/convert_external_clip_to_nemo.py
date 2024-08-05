@@ -25,6 +25,18 @@ If converting from OpenCLIP, specify the architecture (`arch`) and version (`ver
 If converting from Hugging Face, set the version to `huggingface` and the architecture (`arch`) to the Hugging Face model name (e.g., `yuvalkirstain/PickScore_v1`).
 
 Additionally, provide a NeMo hparams file with the correct model architecture arguments. Refer to examples/multimodal/foundation/clip/conf/megatron_clip_config.yaml.
+
+After conversion, you can verify with the following command:
+
+  wget https://upload.wikimedia.org/wikipedia/commons/0/0f/1665_Girl_with_a_Pearl_Earring.jpg
+  python /opt/NeMo/examples/multimodal/vision_language_foundation/clip/megatron_clip_infer.py \
+    model.restore_from_path=./open_clip.nemo \
+    image_path=./1665_Girl_with_a_Pearl_Earring.jpg \
+    texts='["a dog", "a boy", "a girl"]'
+
+It should generate a high probability for "a girl" tag, e.g.
+Given image's CLIP text probability:  [('a dog', 0.0049710185), ('a boy', 0.002258187), ('a girl', 0.99277073)]
+
 """
 
 import os
@@ -55,8 +67,8 @@ except (ImportError, ModuleNotFoundError):
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--arch", type=str, default="ViT-H-14")
-    parser.add_argument("--version", type=str, default="laion2b_s32b_b79k")
+    parser.add_argument("--arch", type=str, default="openai/clip-vit-base-patch32")
+    parser.add_argument("--version", type=str, default="huggingface")
 
     parser.add_argument(
         "--hparams_file",
@@ -112,7 +124,6 @@ def mapping_openclip_state_dict(open_model):
         ".positional_embedding": ".position_embeddings",
         ".backbone.proj": ".head.weight",
         ".class_embedding": ".cls_token",
-        ".backbone.conv1.weight": ".backbone.linear_encoder.weight",
     }
 
     nemo_state_dict = {}
@@ -139,9 +150,6 @@ def mapping_openclip_state_dict(open_model):
     nemo_state_dict["vision_encoder.backbone.cls_token"] = nemo_state_dict[
         "vision_encoder.backbone.cls_token"
     ].reshape(1, 1, -1)
-    w = nemo_state_dict["vision_encoder.backbone.linear_encoder.weight"]
-    nemo_state_dict["vision_encoder.backbone.linear_encoder.weight"] = einops.rearrange(w, "b c p1 p2 -> b (p1 p2 c)",)
-    nemo_state_dict["vision_encoder.backbone.linear_encoder.bias"] = torch.zeros(w.shape[0])
 
     return nemo_state_dict
 
@@ -171,7 +179,7 @@ def mapping_hf_state_dict(hf_model):
         ".backbone.embeddings.position_embedding.weight": ".backbone.position_embeddings",
         ".language_model.embeddings.position_embedding.weight": ".language_model.embedding.position_embeddings",
         ".embeddings.class_embedding": ".cls_token",
-        ".backbone.embeddings.patch_embedding.weight": ".backbone.linear_encoder.weight",
+        ".backbone.embeddings.patch_embedding.weight": ".backbone.conv1.weight",
         ".final_layer_norm.weight": ".encoder.final_layernorm.weight",
         ".final_layer_norm.bias": ".encoder.final_layernorm.bias",
         ".embeddings.token_embedding.weight": ".embedding.word_embeddings.weight",
@@ -208,9 +216,6 @@ def mapping_hf_state_dict(hf_model):
     nemo_state_dict["vision_encoder.backbone.cls_token"] = nemo_state_dict[
         "vision_encoder.backbone.cls_token"
     ].reshape(1, 1, -1)
-    w = nemo_state_dict["vision_encoder.backbone.linear_encoder.weight"]
-    nemo_state_dict["vision_encoder.backbone.linear_encoder.weight"] = einops.rearrange(w, "b c p1 p2 -> b (p1 p2 c)",)
-    nemo_state_dict["vision_encoder.backbone.linear_encoder.bias"] = torch.zeros(w.shape[0])
 
     return nemo_state_dict
 
@@ -278,6 +283,10 @@ def convert(local_rank, rank, world_size, args):
 
 
 if __name__ == '__main__':
+    logging.warning(
+        "This script is going to be deprecated soon. Please use "
+        "`scripts/checkpoint_converters/convert_clip_hf_to_nemo.py`"
+    )
     args = get_args()
     local_rank, rank, world_size = initialize_distributed(args)
     convert(local_rank, rank, world_size, args)
