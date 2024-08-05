@@ -378,6 +378,20 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             )
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
+        elif not forward_only and self.use_mcore_dist_optim:
+            if self.cfg.optim.get("overlap_grad_sync", False):
+                no_sync_func = [model_chunk.no_sync for model_chunk in self.model]
+                no_sync_func = no_sync_func[0] if len(self.model) == 1 else no_sync_func
+
+                if self.cfg.optim.get("delay_grad_reduce", True):
+                    grad_sync_func = [model_chunk.start_grad_sync for model_chunk in self.model]
+                    grad_sync_func = grad_sync_func[0] if len(self.model) == 1 else grad_sync_func
+            if self.cfg.optim.get("overlap_param_sync", False) and self.cfg.optim.get("delay_param_gather", False):
+                param_sync_func = [
+                    lambda x, model_index=model_index: self._optimizer.finish_param_sync(model_index, x)
+                    for model_index in range(len(self.model))
+                ]
+                param_sync_func = param_sync_func[0] if len(self.model) == 1 else param_sync_func
 
         for module in self.get_model_module_list():
             module.config.no_sync_func = no_sync_func
