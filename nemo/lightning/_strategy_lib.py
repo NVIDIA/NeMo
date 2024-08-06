@@ -526,6 +526,16 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
 
 
 def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False):
+    """
+    When pipeline parallelism is enabled, casts a tensor defined on the last pipeline stage to other ranks.
+
+        Args:
+            value (torch.Tensor): A tensor to be casted from the final pipeline stage of a pipeline parallelism group (e.g. loss).
+                Note that this tensor should already be defined on the target rank(s) to fill with received data.
+            broadcast (bool): When True, broadcasts value from the final pipeline stage rank to all ranks in its group.
+                When False, only rank zero receives value from the final pipeline stage rank in its group.
+                This mode exists to avoid slow one-to-many communication when not necessary. Defaults to False.
+    """
     from megatron.core import parallel_state
 
     if parallel_state.get_pipeline_model_parallel_world_size() > 1:
