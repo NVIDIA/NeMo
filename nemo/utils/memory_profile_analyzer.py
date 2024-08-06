@@ -53,7 +53,7 @@ def get_printed_frames(alive_memory):
     prune_frames to get rid of '??' in the filename. 
     Add `\n` in between each frame for the readability. 
     """
-    # Prune Frames
+    # Prune Frames. x: [addr, start_time_us, size, alloc_frames]. x[3]: alloc_frames. 
     after_prune_frames = [prune_frames(x[3]) for x in alive_memory]
     # add `\n` to each frame. Connect them together.
     printed_frames = ['\n'.join([str(frame) for frame in frames]) for frames in after_prune_frames]
@@ -80,7 +80,10 @@ def first_py_frame(alloc_frames):
             return frame
     return None
 
-def alloc_memory_timeline(trace):
+def find_max_min_alloc_memory(trace):
+    """
+    Given a trace, find the maximum/minimum alloc memory and the corresponding idx and timestamps. 
+    """
     alloc_memory_history = np.zeros(len(trace)) # record the curr_alloc_memory at each timepoint
     time_us_history = np.zeros(len(trace)) # record the time_us at each timepoint
 
@@ -95,11 +98,11 @@ def alloc_memory_timeline(trace):
     idx_max = None
     
     for idx, timepoint in enumerate(trace):
-        (time_us, addr, action, size, frames, stream) = read_tp(timepoint)
+        time_us, addr, action, size, frames, stream = read_tp(timepoint)
 
-        if (action == "alloc"):
+        if action == "alloc":
             curr_alloc_memory += size
-        elif (action == "free_completed"):
+        elif action == "free_completed":
             curr_alloc_memory -= size
 
         alloc_memory_history[idx] = curr_alloc_memory
@@ -114,51 +117,6 @@ def alloc_memory_timeline(trace):
             min_alloc_memory = curr_alloc_memory
             time_min_alloc = time_us
             idx_min = idx
-
-
-    return (alloc_memory_history, time_us_history), (idx_min, time_min_alloc, min_alloc_memory), (idx_max, time_max_alloc, max_alloc_memory)
-
-
-
-def record_alloc_memory_timeline(trace):
-    alloc_memory_history = np.zeros(len(trace)) # record the curr_alloc_memory at each timepoint
-    time_us_history = np.zeros(len(trace)) # record the time_us at each timepoint
-    
-    curr_alloc_memory = 0 # in GB
-
-    min_alloc_memory = float('inf')
-    max_alloc_memory = float('-inf')
-    
-    time_min_alloc = None
-    time_max_alloc = None
-    idx_min = None
-    idx_max = None
-    
-    for idx, timepoint in enumerate(trace):
-        (time_us, addr, action, size, frames, stream) = read_tp(timepoint)
-
-        if (action == "alloc"):
-            curr_alloc_memory += size
-        elif (action == "free_completed"):
-            curr_alloc_memory -= size
-
-        alloc_memory_history[idx] = curr_alloc_memory
-        time_us_history[idx] = time_us
-        
-        
-        if curr_alloc_memory > max_alloc_memory:
-            max_alloc_memory = curr_alloc_memory
-            time_max_alloc = time_us
-            idx_max = idx
-
-        if curr_alloc_memory < min_alloc_memory:
-            min_alloc_memory = curr_alloc_memory
-            time_min_alloc = time_us
-            idx_min = idx
-            
-        # logging.info(f"curr_alloc_memory: {curr_alloc_memory} MB")
-        # logging.info(f"max_alloc_memory: {max_alloc_memory} MB")
-        # logging.info(f"min_alloc_memory: {min_alloc_memory} MB")
 
     return (alloc_memory_history, time_us_history), (idx_min, time_min_alloc, min_alloc_memory), (idx_max, time_max_alloc, max_alloc_memory)
 
@@ -256,7 +214,7 @@ class MemoryTracker:
         for addr, memory_info in self.data.items():
             info = memory_info.get_info_if_alive(time_us) # info = (start_time_us, size, alloc_frames)
             if info is not None:
-                alive_memory.append((addr, info[0], info[1], info[2]))
+                alive_memory.append((addr, info[0], info[1], info[2])) # alive_memory: (addr, start_time_us, size, alloc_frames)
         alive_memory.sort(key=lambda x: x[1]) # sort by start time
         return alive_memory
 
@@ -426,7 +384,7 @@ def peak_memory_analysis(mem_snapshot_filepath, mem_snapshot_csv_dir, name_suffi
     # change all the global time_us to the relative time (starting from 0)
     trace = to_relative_time(trace, TIME_OFFSET)
 
-    (alloc_memory_history, time_us_history), (idx_min, time_min_alloc, min_alloc_memory), (idx_max, time_max_alloc, max_alloc_memory) = alloc_memory_timeline(trace)
+    (alloc_memory_history, time_us_history), (idx_min, time_min_alloc, min_alloc_memory), (idx_max, time_max_alloc, max_alloc_memory) = find_max_min_alloc_memory(trace)
     logging.info(f"===== Global Max and Min Memory =====")
     logging.info(f"idx_min: {idx_min}, relative_idx_min: {idx_min/len(trace):.5f}, time_min_alloc: {time_min_alloc}, min_alloc_memory: {min_alloc_memory:.5f} GB")
     logging.info(f"idx_max: {idx_max}, relative_idx_max: {idx_max/len(trace):.5f}, time_max_alloc: {time_max_alloc}, max_alloc_memory: {max_alloc_memory:.5f} GB")
