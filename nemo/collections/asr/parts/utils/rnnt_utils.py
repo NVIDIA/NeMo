@@ -586,11 +586,15 @@ def batched_hyps_to_hypotheses(
     """
     assert batch_size is None or batch_size <= batched_hyps.scores.shape[0]
     num_hyps = batched_hyps.scores.shape[0] if batch_size is None else batch_size
+    scores = batched_hyps.scores.cpu()
+    current_lengths = batched_hyps.current_lengths.cpu()
+    transcript = batched_hyps.transcript.cpu()
+    timesteps = batched_hyps.timesteps.cpu()
     hypotheses = [
         Hypothesis(
-            score=batched_hyps.scores[i].item(),
-            y_sequence=batched_hyps.transcript[i, : batched_hyps.current_lengths[i]],
-            timestep=batched_hyps.timesteps[i, : batched_hyps.current_lengths[i]],
+            score=scores[i].item(),
+            y_sequence=transcript[i, : current_lengths[i]],
+            timestep=timesteps[i, : current_lengths[i]],
             alignments=None,
             dec_state=None,
         )
