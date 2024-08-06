@@ -8,35 +8,9 @@ from typing_extensions import Self
 from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.fabric.fabric import Fabric
 from nemo.lightning.io.mixin import IOMixin, serialization, track_io
-from nemo.lightning.pytorch.callbacks import MegatronProgressPrinter
 
 
 class Trainer(pl.Trainer, IOMixin):
-    def __init__(
-        self,
-        enable_progress_bar: bool = False,
-        callbacks: Optional[Union[List[pl.Callback], pl.Callback]] = None,
-        **kwargs,
-    ):
-        if callbacks is None:
-            callbacks = []
-        elif isinstance(callbacks, pl.Callback):
-            callbacks = [callbacks]
-
-        has_megatron_progress_bar = any(isinstance(cb, MegatronProgressPrinter) for cb in callbacks)
-
-        ## add log statements that print every 100 steps
-        ## to disable: add MegatronProgressPrinter(log_interval=-1) to list of callbacks
-        ## to enable TQDM progress bar: set enable_progress_bar=True and do not add
-        ## a MegatronProgressPrinter to list of callbacks
-        if not enable_progress_bar and not has_megatron_progress_bar:
-            callbacks.append(MegatronProgressPrinter(log_interval=100))
-            has_megatron_progress_bar = True
-        if has_megatron_progress_bar:
-            enable_progress_bar = True
-
-        super().__init__(enable_progress_bar=enable_progress_bar, callbacks=callbacks, **kwargs)
-
     def io_init(self, **kwargs) -> fdl.Config[Self]:
         # Each argument of the trainer can be stateful so we copy them
         cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items()}

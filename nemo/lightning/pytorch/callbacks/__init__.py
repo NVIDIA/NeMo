@@ -4,7 +4,7 @@ from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
 from nemo.lightning.pytorch.callbacks.peft import PEFT
 from nemo.lightning.pytorch.callbacks.preemption import PreemptionCallback
 from nemo.lightning.pytorch.callbacks.progress_bar import MegatronProgressBar
-from nemo.lightning.pytorch.callbacks.progress_printer import MegatronProgressPrinter
+from nemo.lightning.pytorch.callbacks.progress_printer import ProgressPrinter
 
 
 __all__ = [
@@ -13,6 +13,6 @@ __all__ = [
     "PEFT",
     "NsysCallback",
     "MegatronProgressBar",
-    "MegatronProgressPrinter",
+    "ProgressPrinter",
     "PreemptionCallback",
 ]

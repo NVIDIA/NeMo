@@ -8,7 +8,7 @@ from pytorch_lightning.utilities.types import STEP_OUTPUT
 from typing_extensions import override
 
 
-class MegatronProgressPrinter(ProgressBar):
+class ProgressPrinter(ProgressBar):
     """
     Callback for logging progress in Megatron. Prints status in terms of global batches rather than microbatches.
     Recommended over MegatronProgressBar for non-interactive settings
