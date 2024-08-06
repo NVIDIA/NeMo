@@ -123,7 +123,7 @@ class ProgressPrinter(ProgressBar):
             else:
                 self.total_metrics_dict[key] += metrics[key]
 
-        if n % self.log_interval == 0:
+        if self.should_log(n):
             prefix = self.train_description + f" epoch {trainer.current_epoch}, iteration {n}/{self.total}:"
             log_string = self.format_string(prefix, self.average_metrics_dict)
             print(log_string)
@@ -156,7 +156,8 @@ class ProgressPrinter(ProgressBar):
         if self.is_disabled:
             return
         n = int((batch_idx + 1) / get_num_microbatches())
-        print(self.validation_description + f": iteration {n}/{self.total_validation_steps}")
+        if self.should_log(n):
+            print(self.validation_description + f": iteration {n}/{self.total_validation_steps}")
 
     @override
     def on_test_batch_start(
@@ -184,4 +185,8 @@ class ProgressPrinter(ProgressBar):
         if self.is_disabled:
             return
         n = int((batch_idx + 1) / get_num_microbatches())
-        print(self.test_description + f": iteration {n}/{self.total_validation_steps}")
+        if self.should_log(n):
+            print(self.test_description + f": iteration {n}/{self.total_validation_steps}")
+
+    def should_log(self, n):
+        return n % self.log_interval == 0
