@@ -49,6 +49,7 @@ def is_nemo_file(path):
 
     return flag
 
+
 def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
     fs_reader = FileSystemReader(checkpoint_dir)
     # Forces the fs_reader to use TarPath instead of self-initialized Path derived from it
