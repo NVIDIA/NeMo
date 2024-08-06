@@ -1659,6 +1659,49 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         results.append(model)
         return results
 
+    def configure_sharded_model(self):
+        """Modified version from MegatronBaseModel.
+
+        1. exclude self.model.embedding
+        2. include speech encoder and modality adapter.
+        """
+
+        def find_frozen_submodules(model):
+            frozen_submodules = []
+            frozen_submodule_names = []
+            for name, module in model.named_modules():
+                if (
+                    isinstance(module, torch.nn.Module)
+                    and list(module.parameters())
+                    and all(not param.requires_grad for param in module.parameters())
+                ):
+                    frozen_submodule_names.append(name)
+                    frozen_submodules.append(module)
+            return frozen_submodule_names, frozen_submodules
+
+        if self.use_fsdp:
+            """Top-evel FSDP model sharding"""
+            # Shard the top-level model hierarchically. We shard the strategy-unwrapped model not
+            # to lose the structure of non-FSDP wrapped parameters (e.g, embedding)
+            # TODO: Currently the main parameter data type is kept in fp32 (when O2=False). This needs to be
+            # extended to support lower precision main parameters.
+            frozen_submodule_names, frozen_submodules = find_frozen_submodules(self.model)
+            self.trainer.strategy.kwargs['ignored_states'] = frozen_submodules
+            # Exclude embedding layer to avoid errors in inject_perception_input
+            self.trainer.strategy.kwargs['ignored_states'].append(self.model.embedding)
+            # FSDP requires uniform status of require_grads
+            # Diffusion models like SD has frozen parts and needs to be added to 'ignored_states' from sharding for FSDP to work
+            self.model = self.trainer.strategy._setup_model(self.model)
+            # Move the CPU-initialized model (with `use_cpu_initialization=True`) to GPU, which is to avoid
+            # out-of-memory carash before sharding. In case of GPU-initialized model, this is no-op.
+            self.model = self.model.cuda(torch.cuda.current_device())
+
+            # Shard perception module
+            frozen_submodule_names, frozen_submodules = find_frozen_submodules(self.perception)
+            self.trainer.strategy.kwargs['ignored_states'].extend(frozen_submodules)
+            self.perception = self.trainer.strategy._setup_model(self.perception)
+            self.perception = self.perception.cuda(torch.cuda.current_device())
+
 
 class CrossAttendModularAudioGPTModel(ModularAudioGPTModel):
     """Modularized speech GPT model."""
@@ -1731,3 +1774,15 @@ class CrossAttendModularAudioGPTModel(ModularAudioGPTModel):
             return return_state_dict
         else:
             return super().state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
+
+    def configure_sharded_model(self):
+        """Modified version from MegatronBaseModel.
+
+        1. exclude self.model.embedding
+        2. include speech encoder and modality adapter.
+        """
+        super().configure_sharded_model()
+
+        if self.use_fsdp:
+            self.perception_cross_attn = self.trainer.strategy._setup_model(self.perception_cross_attn)
+            self.perception_cross_attn = self.perception_cross_attn.cuda(torch.cuda.current_device())
