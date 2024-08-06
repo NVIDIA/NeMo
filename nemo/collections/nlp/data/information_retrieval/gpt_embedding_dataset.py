@@ -256,12 +256,11 @@ class GPTEmbeddingDataset(Dataset):
                 lengths.append(len(item['query']))
                 input_ids.append(item['pos_doc'])
                 lengths.append(len(item['pos_doc']))
+                max_length = max(len(item['query']), len(item['pos_doc']))
                 for nd in item['neg_doc']:
                     input_ids.append(nd)
                     lengths.append(len(nd))
-                max_length = max(
-                    max_length, len(item['query']), len(item['pos_doc']), *(len(nd) for nd in item['neg_doc'])
-                )
+                    max_length = max(max_length, len(nd))
             elif self.data_type == 'query':
                 input_ids.append(item['query'])
                 lengths.append(len(item['query']))
