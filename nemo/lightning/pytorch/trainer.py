@@ -1,5 +1,4 @@
 from copy import deepcopy
-from typing import List, Optional, Union
 
 import fiddle as fdl
 import pytorch_lightning as pl
