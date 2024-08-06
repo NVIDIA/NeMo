@@ -1086,9 +1086,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 inference_max_sequence_len,
             ) = batch
             tokens = tokens.cuda()
-            attention_mask = attention_mask.cuda()
             position_ids = position_ids.cuda()
-            attention_mask = attention_mask[0:1]
+            if attention_mask != None:
+                attention_mask = attention_mask.cuda()
+                attention_mask = attention_mask[0:1]
             if media is not None:
                 media = media.cuda()
             labels = None
