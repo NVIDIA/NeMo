@@ -1,53 +1,35 @@
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Optional
 
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 from torch.utils.data import DataLoader
 
-from nemo.collections.multimodal.neva.data.config import ImageDataConfig, DataConfig
-from nemo.collections.multimodal.neva.data.conversation import conv_templates as supported_conv_templates
+from nemo.collections.vlm.neva.data.config import ImageDataConfig, DataConfig
+from nemo.collections.vlm.neva.data.conversation import conv_templates as supported_conv_templates
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 if TYPE_CHECKING:
-    from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
+    pass
 
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-
-import copy
 import json
 import logging
 import os
 import re
 import tarfile
-from dataclasses import dataclass
-from typing import Any, Dict, List, Sequence, Tuple, Union
+from typing import Any, Dict, List, Sequence
 
 import decord
 import numpy as np
 import torch
 import torch.nn.functional as F
-import transformers
 from einops import rearrange
-from omegaconf import DictConfig
 from PIL import Image
 from torch.utils.data import Dataset, default_collate
 from transformers import CLIPImageProcessor, SiglipImageProcessor
 
-import nemo.collections.multimodal.data.neva.conversation as conversation_lib
-from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.data.neva.conversation import (
-    DEFAULT_BOS_TOKEN,
-    DEFAULT_EOS_TOKEN,
-    DEFAULT_IM_END_TOKEN,
-    DEFAULT_IM_START_TOKEN,
-    DEFAULT_IMAGE_PATCH_TOKEN,
     DEFAULT_IMAGE_TOKEN,
-    DEFAULT_LABELS_TOKEN,
-    DEFAULT_VID_END_TOKEN,
-    DEFAULT_VID_START_TOKEN,
-    DEFAULT_VIDEO_TOKEN,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
