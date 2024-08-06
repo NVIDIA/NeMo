@@ -136,6 +136,7 @@ def apply_rope_scaling(freqs):
             new_freqs.append((1 - smooth) * freq / scale_factor + smooth * freq)
     return torch.tensor(new_freqs, dtype=freqs.dtype, device=freqs.device)
 
+
 def mask_sequence_tensor(tensor: torch.Tensor, lengths: torch.Tensor):
     """
     For tensors containing sequences, zero out out-of-bound elements given lengths of every element in the batch.
