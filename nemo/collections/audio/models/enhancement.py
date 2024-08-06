@@ -21,7 +21,6 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.audio.models.audio_to_audio import AudioToAudioModel
-from nemo.collections.audio.parts.submodules.flow import OptimalTransportFlow
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, LossType, NeuralType
 from nemo.utils import logging
