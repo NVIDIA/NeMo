@@ -400,7 +400,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         from nemo.lightning._strategy_lib import _sync_from_last_pipeline_stage
 
         keys = re.findall(r"[\{](.*?)[:\}]", self.filename)
-        for loss_name in ['reduced_train_loss', 'val_loss']:
+        for loss_name in ['reduced_train_loss']:
             if loss_name in keys or loss_name == self.monitor:
                 if loss_name not in monitor_candidates:
                     monitor_candidates[loss_name] = torch.tensor(0.0, device=torch.cuda.current_device())
