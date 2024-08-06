@@ -393,6 +393,21 @@ class ModelCheckpoint(PTLModelCheckpoint):
         exists = self._fs.exists(filepath) or (check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath)))
         return trainer.strategy.broadcast(exists)
 
+    def format_checkpoint_name(
+        self, metrics: Dict[str, torch.Tensor], filename: Optional[str] = None, ver: Optional[int] = None
+    ) -> str:
+        """Broadcast loss from last pipeline stage."""
+
+        from nemo.lightning._strategy_lib import _sync_from_last_pipeline_stage
+
+        keys = re.findall(r"[\{](.*?)[:\}]", filename)
+        if 'reduced_train_loss' in keys:
+            _sync_from_last_pipeline_stage(metrics['reduced_train_loss'], broadcast=True)
+        if 'val_loss' in keys:
+            _sync_from_last_pipeline_stage(metrics['val_loss'], broadcast=True)
+
+        return super().format_checkpoint_name(metrics, filename, ver)
+
     def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
