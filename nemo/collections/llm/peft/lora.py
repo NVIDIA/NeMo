@@ -96,6 +96,11 @@ class LoRA(PEFT):
                 input_is_parallel = False
                 in_features = m.in_features
                 out_features = m.out_features * tp_size
+                # LoRA is applied after layernorm, so layernorm output must be returned
+                m.return_layernorm_output = True
+                # perf optimization for LoRA + SP
+                if m.config.sequence_parallel and not m.ub_overlap_ag:
+                    m.return_layernorm_output_gathered = True
             else:  # name in ['linear_proj', 'linear_fc2']
                 # Row Parallel Linear
                 input_is_parallel = True
@@ -110,7 +115,7 @@ class LoRA(PEFT):
                 activation='identity',
                 norm_position=None,
                 norm_type=None,
-                column_init_method="normal",
+                column_init_method="xavier",
                 row_init_method="zero",
                 gather_output=False,
                 input_is_parallel=input_is_parallel,
