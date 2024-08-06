@@ -28,11 +28,11 @@ def test_transcription_move_to_device(batch):
     assert type(batch) == type(cuda_batch)
     if isinstance(batch, _Batch):
         assert cuda_batch.data.is_cuda
-    if isinstance(batch, dict):
+    elif isinstance(batch, dict):
         assert cuda_batch["data"].is_cuda
-    if isinstance(batch, (list, tuple)):
+    elif isinstance(batch, (list, tuple)):
         assert cuda_batch[0].is_cuda
-    if isinstance(batch, torch.Tensor):
+    elif isinstance(batch, torch.Tensor):
         assert cuda_batch.is_cuda
     else:
         assert cuda_batch == batch
