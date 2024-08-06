@@ -393,21 +393,20 @@ class ModelCheckpoint(PTLModelCheckpoint):
         exists = self._fs.exists(filepath) or (check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath)))
         return trainer.strategy.broadcast(exists)
 
-    def format_checkpoint_name(
-        self, metrics: Dict[str, torch.Tensor], filename: Optional[str] = None, ver: Optional[int] = None
-    ) -> str:
+    def _monitor_candidates(self, trainer: "pl.Trainer") -> Dict[str, torch.Tensor]:
         """Broadcast loss from last pipeline stage."""
+        monitor_candidates = super().monitor_candidates(trainer)
 
         from nemo.lightning._strategy_lib import _sync_from_last_pipeline_stage
 
-        keys = re.findall(r"[\{](.*?)[:\}]", filename)
-        for loss in ['reduced_train_loss', 'val_loss']:
-            if loss in keys:
-                if loss not in metrics:
-                    metrics[loss] = torch.tensor(0.0, device=torch.cuda.current_device())
-                _sync_from_last_pipeline_stage(metrics[loss], broadcast=True)
+        keys = re.findall(r"[\{](.*?)[:\}]", self.filename)
+        for loss_name in ['reduced_train_loss', 'val_loss']:
+            if loss_name in keys or loss_name == self.monitor:
+                if loss_name not in monitor_candidates:
+                    monitor_candidates[loss_name] = torch.tensor(0.0, device=torch.cuda.current_device())
+                _sync_from_last_pipeline_stage(monitor_candidates[loss_name], broadcast=True)
 
-        return super().format_checkpoint_name(metrics, filename, ver)
+        return monitor_candidates
 
     def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
