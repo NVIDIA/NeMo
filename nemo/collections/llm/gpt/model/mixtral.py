@@ -38,7 +38,6 @@ class MixtralConfig8x7B(GPTConfig):
     ffn_hidden_size: int = 14336
     max_position_embeddings: int = 4096  # 32768
     seq_length: int = 4096  # 32768
-    kv_channels: int = 128
     # MoE
     num_moe_experts: int = 8
     moe_router_topk: int = 1
