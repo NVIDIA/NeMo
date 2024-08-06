@@ -25,6 +25,7 @@ import lhotse.serialization
 import soundfile
 from cytoolz import groupby
 from lhotse import AudioSource, Recording, SupervisionSegment
+from lhotse.audio.backend import LibsndfileBackend
 from lhotse.cut import Cut
 from lhotse.dataset.dataloading import resolve_seed
 from lhotse.lazy import LazyIteratorChain, LazyJsonlIterator
@@ -331,7 +332,7 @@ class LazyNeMoTarredIterator:
 
         # Handle NeMo tarred manifests with offsets.
         # They have multiple JSONL entries where audio paths end with '-sub1', '-sub2', etc. for each offset.
-        offset_pattern = re.compile(r'.+-sub(\d+)')
+        offset_pattern = re.compile(r'^.+(-sub\d+)$')
 
         for sid in shard_ids:
             manifest_path = self.paths[sid] if len(self.paths) > 1 else self.paths[0]
@@ -365,14 +366,8 @@ class LazyNeMoTarredIterator:
                     cuts_for_recording = []
                     for data in sorted(shard_manifest[tar_info.name], key=lambda d: d["audio_filepath"]):
                         # Cut the recording into corresponding segment and discard audio data outside the segment.
-                        cut = (
-                            recording.to_cut()
-                            .truncate(
-                                offset=data.get("offset", 0.0),
-                                duration=data.get("duration"),
-                                preserve_id=True,
-                            )
-                            .move_to_memory(audio_format="wav")
+                        cut = make_cut_with_subset_inmemory_recording(
+                            recording, offset=data.get("offset", 0.0), duration=data.get("duration")
                         )
                         cut.supervisions.append(
                             SupervisionSegment(
@@ -397,6 +392,45 @@ class LazyNeMoTarredIterator:
 
     def __add__(self, other):
         return LazyIteratorChain(self, other)
+
+
+def make_cut_with_subset_inmemory_recording(
+    recording: Recording, offset: float = 0.0, duration: float | None = None
+) -> Cut:
+    """
+    This method is built specifically to optimize CPU memory usage during dataloading
+    when reading tarfiles containing very long recordings (1h+).
+    Normally each cut would hold a reference to the long in-memory recording and load
+    the necessary subset of audio (there wouldn't be a separate copy of the long recording for each cut).
+    This is fairly efficient already, but we don't actually need to hold the unused full recording in memory.
+    Instead, we re-create each cut so that it only holds a reference to the subset of recording necessary.
+    This allows us to discard unused data which would otherwise be held in memory as part of sampling buffering.
+    """
+
+    # Fast path: no offset and (almost) matching duration (within 200ms; leeway for different audio codec behavior).
+    cut = recording.to_cut()
+    if offset == 0.0 and duration is None or abs(duration - recording.duration) < 0.2:
+        return cut
+
+    # Otherwise, apply the memory optimization.
+    cut = cut.truncate(offset=offset, duration=duration, preserve_id=True)
+    audiobytes = BytesIO()
+    LibsndfileBackend().save_audio(audiobytes, cut.load_audio(), sampling_rate=cut.sampling_rate, format="wav")
+    audiobytes.seek(0)
+    new_recording = Recording(
+        id=recording.id,
+        sampling_rate=recording.sampling_rate,
+        num_samples=cut.num_samples,
+        duration=cut.duration,
+        sources=[
+            AudioSource(
+                type="memory",
+                channels=recording.channel_ids,
+                source=audiobytes.getvalue(),
+            )
+        ],
+    )
+    return new_recording.to_cut()
 
 
 class ExtraField:
