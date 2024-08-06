@@ -49,7 +49,6 @@ from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import get_rank, is_global_rank_zero
-# from nemo.utils.memory_profile_analyzer import peak_memory_analysis_activation, peak_memory_analysis_weight, peak_memory_analysis_oom
 from nemo.utils.memory_profile_analyzer import peak_memory_analysis
 
 __all__ = ['ModelPT']
