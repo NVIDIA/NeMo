@@ -542,7 +542,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if callback.__class__ == TQDMProgressBar:
                 contains_progress = True
         if not contains_megatron_progress and contains_progress:
-            for (i, callback) in enumerate(callbacks):
+            for i, callback in enumerate(callbacks):
                 if isinstance(callback, TQDMProgressBar):
                     if self.replace_progress_bar:
                         printer = ProgressPrinter(log_interval=self.progress_interval)
