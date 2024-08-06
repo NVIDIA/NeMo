@@ -253,7 +253,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             # For validation mainly
             "contexts": contexts,
             "context_lengths": context_lengths,
-            "speaker_contexts": answers[:, :speaker_context.shape[1], :],
+            "speaker_contexts": answers[:, :speaker_context.shape[1]+1, :],
             "answers": answers[:, speaker_context.shape[1]+1:, :],
             "loss_mask": loss_mask,
         }

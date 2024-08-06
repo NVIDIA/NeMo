@@ -1771,7 +1771,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
                 dim=1,
             ),
         )
-        predicted_token_ids = predicted_token_ids[:, batch['contexts'].shape[1] + batch['speaker_contexts'].shape[1] :, :]
+        predicted_token_ids = predicted_token_ids[:, batch['contexts'].shape[1] + batch['speaker_contexts'].shape[1] - 1 :, :]
 
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
         input_text = batch['contexts'][:, :, 0]
