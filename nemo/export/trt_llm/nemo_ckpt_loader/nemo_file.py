@@ -26,6 +26,8 @@ import torch
 import yaml
 import zarr
 from torch.distributed.checkpoint import FileSystemReader
+from torch.distributed.checkpoint.metadata import TensorStorageMetadata
+from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
@@ -47,24 +49,12 @@ def is_nemo_file(path):
 
     return flag
 
-
-class TarFileSystemReader(FileSystemReader):
-    """Reader that accepts both Path and TarPath checkpoint directory.
-
-    The FileSystemReader works with TarPath, but expects a pure Path.
-    It's enough to skip the Path check in __init__.
-    """
-
-    def __init__(self, path: Union[Path, TarPath]) -> None:
-        """No call to super().__init__ because it expects pure Path."""
-        self.path = path
-        self.storage_data = dict()
-
-
 def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
-    fs_reader = TarFileSystemReader(checkpoint_dir)
-    metadata = fs_reader.read_metadata()
+    fs_reader = FileSystemReader(checkpoint_dir)
+    # Forces the fs_reader to use TarPath instead of self-initialized Path derived from it
+    fs_reader.path = checkpoint_dir
 
+    metadata = fs_reader.read_metadata()
     state_dict = {
         k: torch.empty(tp.size, dtype=tp.properties.dtype)
         for k, tp in metadata.state_dict_metadata.items()
