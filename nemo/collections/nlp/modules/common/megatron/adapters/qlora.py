@@ -103,6 +103,10 @@ class _LinearNF4(torch.autograd.Function):
         return grad_output @ weight.dequantize().to(grad_output.device), None
 
 
+def nf4_quantize(x: torch.Tensor):
+    return NF4Weight(x).cuda()
+
+
 class NF4LinearWrapper(nn.Module):
     """
     NF4 Linear Layer for QLoRA as introduced in `QLORA: Efficient Finetuning of Quantized LLMs <https://arxiv.org/abs/2305.14314>`_.
@@ -117,7 +121,7 @@ class NF4LinearWrapper(nn.Module):
         super().__init__()
 
         # quantize the weight upon initialization
-        self.weight = NF4Weight(bf16_linear_weight).cuda()
+        self.weight = nf4_quantize(bf16_linear_weight)
 
     def forward(self, x: torch.Tensor):
         """
@@ -224,12 +228,12 @@ def qlora_load_model(model: 'MCoreGPTModel', model_cfg: 'DictConfig', checkpoint
     def replace_linear(module: nn.Module, prefix=""):
         for name, child in module.named_children():
             if name in qlora_targets:
-                bf16_weight = checkpoint[f"{prefix}.{name}.weight"]
+                bf16_weight = checkpoint[f"{prefix}.{name}.weight"].to(torch.bfloat16)
                 logging.info(f'QLoRA: Quantizing linear layer: {prefix}.{name}')
-                if name in ['linear_proj', 'linear_fc2']:
+                layer_norm_weight = checkpoint.get(f"{prefix}.{name}.layer_norm_weight", None)
+                if layer_norm_weight is None:
                     setattr(module, name, NF4LinearWrapper(bf16_weight))
-                else:  # name in ['linear_qkv', 'linear_fc1']
-                    layer_norm_weight = checkpoint[f"{prefix}.{name}.layer_norm_weight"]
+                else:
                     layer_norm_bias = checkpoint.get(f"{prefix}.{name}.layer_norm_bias", None)
                     normalization = module.config.normalization
                     zero_centered_gamma = module.config.layernorm_zero_centered_gamma

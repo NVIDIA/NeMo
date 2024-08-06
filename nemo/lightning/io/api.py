@@ -1,12 +1,14 @@
-import pickle
+import json
 from pathlib import Path
+from pydoc import locate
 from typing import Any, Callable, Optional, Type, TypeVar
 
 import fiddle as fdl
 import pytorch_lightning as pl
+from fiddle._src.experimental import serialization
 
-from nemo.lightning.io.mixin import ConnectorMixin, ConnT, ModelConnector
-from nemo.lightning.io.pl import TrainerCheckpoint
+from nemo.lightning.io.mixin import ConnectorMixin, ConnT, ModelConnector, track_io
+from nemo.lightning.io.pl import TrainerContext
 
 CkptType = TypeVar("CkptType")
 
@@ -34,34 +36,42 @@ def load(path: Path, output_type: Type[CkptType] = Any) -> CkptType:
 
     _path = Path(path)
     if hasattr(_path, 'is_dir') and _path.is_dir():
-        _path = Path(_path) / "io.pkl"
+        _path = Path(_path) / "io.json"
     elif hasattr(_path, 'isdir') and _path.isdir:
-        _path = Path(_path) / "io.pkl"
+        _path = Path(_path) / "io.json"
 
     if not _path.is_file():
         raise FileNotFoundError(f"No such file: '{_path}'")
 
+    ## add IO functionality to custom objects present in the json file
+    with open(_path) as f:
+        j = json.load(f)
+        for obj, val in j["objects"].items():
+            clss = ".".join([val["type"]["module"], val["type"]["name"]])
+            if not serialization.find_node_traverser(locate(clss)):
+                track_io(locate(clss))
+
     with open(_path, "rb") as f:
-        config = pickle.load(f)
+        config = serialization.load_json(f.read())
 
     return fdl.build(config)
 
 
-def load_ckpt(path: Path) -> TrainerCheckpoint:
+def load_context(path: Path) -> TrainerContext:
     """
-    Loads a TrainerCheckpoint from a pickle file or directory.
+    Loads a TrainerContext from a json-file or directory.
 
     Args:
-        path (Path): The path to the pickle file or directory containing 'io.pkl'.
+        path (Path): The path to the json-file or directory containing 'io.json'.
 
     Returns
     -------
-        TrainerCheckpoint: The loaded TrainerCheckpoint instance.
+        TrainerContext: The loaded TrainerContext instance.
 
     Example:
-        checkpoint: TrainerCheckpoint = load_ckpt("/path/to/checkpoint")
+        checkpoint: TrainerContext = load_ckpt("/path/to/checkpoint")
     """
-    return load(path, output_type=TrainerCheckpoint)
+    return load(path, output_type=TrainerContext)
 
 
 def model_importer(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[ConnT]], Type[ConnT]]:
@@ -167,7 +177,7 @@ def import_ckpt(
 
 
 def load_connector_from_trainer_ckpt(path: Path, target: str) -> ModelConnector:
-    model: pl.LightningModule = load_ckpt(path).model
+    model: pl.LightningModule = load_context(path).model
 
     if not isinstance(model, ConnectorMixin):
         raise ValueError("Model must be an instance of ConnectorMixin")
