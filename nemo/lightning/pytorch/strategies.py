@@ -5,6 +5,7 @@ import os
 import shutil
 from collections import OrderedDict
 from contextlib import ExitStack
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ContextManager, Dict, List, Literal, Mapping, Optional, TypeVar, Union, cast
 
@@ -43,6 +44,18 @@ ConfigT = TypeVar("ConfigT")
 
 
 DDPLiteral = Literal["megatron", "pytorch"]
+
+
+@dataclass
+class ParallelismConfig:
+    tensor_model_parallel_size: int
+    pipeline_model_parallel_size: int
+    virtual_pipeline_model_parallel_size: int
+    context_parallel_size: int
+    sequence_parallel: bool
+    expert_model_parallel_size: int
+    moe_extended_tp: bool
+    pipeline_dtype: torch.dtype
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -696,20 +709,17 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         return True
 
     @property
-    def parallelism(self):
-        from collections import namedtuple
-
-        kwargs = {}
-        kwargs['tensor_model_parallel_size'] = self.tensor_model_parallel_size
-        kwargs['pipeline_model_parallel_size'] = self.pipeline_model_parallel_size
-        kwargs['virtual_pipeline_model_parallel_size'] = self.virtual_pipeline_model_parallel_size
-        kwargs['context_parallel_size'] = self.context_parallel_size
-        kwargs['sequence_parallel'] = self.sequence_parallel
-        kwargs['expert_model_parallel_size'] = self.expert_model_parallel_size
-        kwargs['moe_extended_tp'] = self.moe_extended_tp
-        kwargs['pipeline_dtype'] = self.pipeline_dtype
-        ParallelismConfig = namedtuple('ParallelismConfig', ', '.join(kwargs.keys()))
-        return ParallelismConfig(**kwargs)
+    def parallelism(self) -> ParallelismConfig:
+        return ParallelismConfig(
+            tensor_model_parallel_size=self.tensor_model_parallel_size,
+            pipeline_model_parallel_size=self.pipeline_model_parallel_size,
+            virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
+            context_parallel_size=self.context_parallel_size,
+            sequence_parallel=self.sequence_parallel,
+            expert_model_parallel_size=self.expert_model_parallel_size,
+            moe_extended_tp=self.moe_extended_tp,
+            pipeline_dtype=self.pipeline_dtype,
+        )
 
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
