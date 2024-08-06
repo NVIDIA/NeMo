@@ -21,11 +21,6 @@ Example to run this conversion script:
      --mcore True \
      --precision bf16
 
-python /opt/NeMo/scripts/checkpoint_converters/convert_bert_hf_to_nemo.py \
-    --input_name_or_path /home/ataghibakhsh/hf_models/routellm-bert \
-    --output_path /path/to/output/nemo/file.nemo \
-    --mcore True \
-    --precision bf16
 ```
 """
 
