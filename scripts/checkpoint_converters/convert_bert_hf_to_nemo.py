@@ -39,6 +39,7 @@ def adjust_nemo_config(model_config, ref_config, mcore_bert=True):
     model_config.tokenizer["type"] = ref_config["_name_or_path"]
     model_config.tokenizer["library"] = "huggingface"
     model_config.tokenizer["use_fast"] = True
+    model_config["num_tokentypes"] = ref_config['type_vocab_size']
     model_config["max_position_embeddings"] = ref_config['max_position_embeddings']
     model_config["num_layers"] = ref_config["num_hidden_layers"]
     model_config["hidden_size"] = ref_config["hidden_size"]

@@ -147,7 +147,7 @@ class MegatronBertModel(MegatronBaseModel):
 
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
-        num_tokentypes = 2 if cfg.bert_binary_head else 0
+        num_tokentypes = self.cfg.get('num_tokentypes', 2)
         transformer_block_type = cfg.get('transformer_block_type', 'pre_ln')
         if self.mcore_bert:
             if transformer_block_type == 'pre_ln':
