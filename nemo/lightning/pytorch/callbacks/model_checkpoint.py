@@ -401,10 +401,11 @@ class ModelCheckpoint(PTLModelCheckpoint):
         from nemo.lightning._strategy_lib import _sync_from_last_pipeline_stage
 
         keys = re.findall(r"[\{](.*?)[:\}]", filename)
-        if 'reduced_train_loss' in keys:
-            _sync_from_last_pipeline_stage(metrics['reduced_train_loss'], broadcast=True)
-        if 'val_loss' in keys:
-            _sync_from_last_pipeline_stage(metrics['val_loss'], broadcast=True)
+        for loss in ['reduced_train_loss', 'val_loss']:
+            if loss in keys:
+                if loss not in metrics:
+                    metrics[loss] = torch.tensor(0.0, device=torch.cuda.current_device())
+                _sync_from_last_pipeline_stage(metrics[loss], broadcast=True)
 
         return super().format_checkpoint_name(metrics, filename, ver)
 
