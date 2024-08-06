@@ -7,7 +7,6 @@ from typing import List, Optional, Union
 
 import lightning_fabric as fl
 import pytorch_lightning as pl
-from fiddle._src.experimental import serialization
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
 from pytorch_lightning.loggers import Logger, TensorBoardLogger, WandbLogger
 
@@ -30,7 +29,12 @@ class NeMoLogger(IOMixin):
         log_local_rank_0_only (bool): Log only on local rank 0.
         log_global_rank_0_only (bool): Log only on global rank 0.
         files_to_copy (Optional[List[str]]): List of files to copy to log directory.
-        update_logger_directory (bool): Whether to update logger directory.
+        update_logger_directory (bool): Whether to update logger directory to write to `exp_dir`.
+            If True, the `save_dir` passed to the logger will be treated as a relative path and
+            the logger will be reconfigured to write to `exp_dir / save_dir`. This ensures that
+            all output from an experiment is written to a common directory. If False, the logger's
+            save_dir will not be overwritten. This argument applies only to TensorBoardLogger and
+            WandbLogger instances.
         ckpt (Optional[ModelCheckpoint]): Model checkpoint callback.
     """
 
@@ -139,25 +143,29 @@ class NeMoLogger(IOMixin):
         loggers = [self.tensorboard, self.wandb, *self.extra_loggers]
         loggers = [logger for logger in loggers if logger is not None]
 
-        if self.update_logger_directory and self.wandb:
-            self.wandb._save_dir = dir
-            self.wandb._wandb_init["dir"] = dir
-            self.wandb._wandb_init["name"] = self.name
-            self.wandb._name = self.name
-
         if loggers:
             if trainer.logger is not None and not self.tensorboard:
                 loggers = [trainer.logger] + loggers
             trainer._logger_connector.configure_logger(loggers)
 
-        if trainer.logger is not None:
-            trainer.logger._version = version or ""
-            if self.update_logger_directory:
-                logging.warning(
-                    f'"update_logger_directory" is True. Overwriting logger "save_dir" to {dir} and "name" to {self.name}'
-                )
-                trainer.logger._root_dir = dir
-                trainer.logger._name = self.name
+        if self.update_logger_directory:
+            for logger in trainer.loggers:
+                if isinstance(logger, TensorBoardLogger):
+                    logger._version = version or ""
+                    logger._root_dir = Path(dir) / logger.save_dir
+                    trainer.logger._name = self.name
+                    logging.warning(
+                        f'"update_logger_directory" is True. Overwriting tensorboard logger "save_dir" to {logger._root_dir}'
+                    )
+                elif isinstance(logger, WandbLogger):
+                    logger._id = version or ""
+                    logger._save_dir = Path(dir) / logger.save_dir
+                    logger._wandb_init["dir"] = Path(dir) / logger.save_dir
+                    logger._wandb_init["name"] = self.name
+                    logger._name = self.name
+                    logging.warning(
+                        f'"update_logger_directory" is True. Overwriting wandb logger "save_dir" to {logger._save_dir}'
+                    )
 
     def _setup_trainer_model_checkpoint(self, trainer, log_dir, ckpt=None):
         if ckpt:
@@ -202,10 +210,15 @@ class NeMoLogger(IOMixin):
                 ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + '-last'
 
     def _handle_task_config(self, task_config, log_dir):
-        task_config.save_config_img(log_dir / "task.png")
-        task_json = serialization.dump_json(task_config)
-        with open(log_dir / "task.json", "w") as f:
-            f.write(task_json)
+        try:
+            from fiddle._src.experimental import serialization
+
+            task_config.save_config_img(log_dir / "task.png")
+            task_json = serialization.dump_json(task_config)
+            with open(log_dir / "task.json", "w") as f:
+                f.write(task_json)
+        except Exception as e:
+            logging.warning(f'Saving task config failed: {e}. Skipping saving')
 
     def _setup_file_logging(self, log_dir):
         """Set up file logging based on rank settings."""
