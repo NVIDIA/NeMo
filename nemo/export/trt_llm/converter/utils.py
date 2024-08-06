@@ -177,16 +177,20 @@ def write_int8(vals, dir, base_key, split_dim, tp_rank, split_factor, kv_cache_o
 def get_suffix(key):
     return '.' + key.split('.')[-1]
 
+
 def get_layer_prefix(key):
     layer_num = key.split(".")[1]
     return f'transformer.layers.{layer_num}'
 
+
 def get_new_keyname(key):
     layer_prefix = get_layer_prefix(key)
 
-    if ("post_attention_layernorm.weight" in key
+    if (
+        "post_attention_layernorm.weight" in key
         or "post_attention_layernorm.bias" in key
-        or "post_self_attn_layernorm.weight" in key):
+        or "post_self_attn_layernorm.weight" in key
+    ):
         return f'{layer_prefix}.post_layernorm' + get_suffix(key)
 
     if "mlp.linear_fc2.bias" in key or "mlp.dense_4h_to_h.bias" in key:
@@ -234,6 +238,7 @@ def get_new_keyname(key):
         return f'{layer_prefix}.mlp.proj.weight'
 
     return key
+
 
 # Note: in multi_query_mode, only query heads are split between multiple GPUs, while key/value head
 # are not split as there is only one head per key/value.
