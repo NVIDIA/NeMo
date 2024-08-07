@@ -53,15 +53,6 @@ class NsysCallback(Callback):
             f'and end_step: {self._nsys_profile_end_step}'
         )
 
-    def get_current_epoch_step(self, trainer) -> int:
-        """
-        Get the value of step within an epoch.
-        """
-        return max(
-            trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed,
-            trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
-        )
-
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx: int) -> Optional[int]:
         """PyTorch Lightning hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
@@ -69,7 +60,7 @@ class NsysCallback(Callback):
         """
 
         device = trainer.strategy.root_device
-        current_step = self.get_current_epoch_step(trainer)
+        current_step = trainer.strategy.current_epoch_step
         if device.type == 'cuda':
             if current_step == self._nsys_profile_start_step and get_rank() in self._nsys_profile_ranks:
                 logging.info("====== Start nsys profiling ======")
@@ -86,7 +77,7 @@ class NsysCallback(Callback):
         """
 
         device = trainer.strategy.root_device
-        current_step = self.get_current_epoch_step(trainer)
+        current_step = trainer.strategy.current_epoch_step
         if device.type == 'cuda':
             if current_step == self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
                 logging.info("====== End nsys profiling ======")
