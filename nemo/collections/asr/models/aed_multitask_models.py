@@ -504,10 +504,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             "Multi-task model only supports dataloading with Lhotse. "
             "Please set config.{train,validation,test}_ds.use_lhotse=True"
         )
+        global_rank = config.get("global_rank", self.global_rank)
+        world_size = config.get("world_size", self.world_size)
         return get_lhotse_dataloader_from_config(
             config,
-            global_rank=self.global_rank,
-            world_size=self.world_size,
+            global_rank=global_rank,
+            world_size=world_size,
             dataset=PromptedAudioToTextLhotseDataset(
                 tokenizer=self.tokenizer,
                 prompt_format_fn=get_prompt_format_fn(self.prompt_format),
@@ -836,9 +838,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         """
         if isinstance(batch, PromptedAudioToTextMiniBatch):
             # Handling regular Canary DataLoader
-            audio = batch.audio
-            audio_lens = batch.audio_lens
-            decoder_input_ids = batch.prompted_transcript
+            audio = batch.audio.to(trcfg._internal.device)
+            audio_lens = batch.audio_lens.to(trcfg._internal.device)
+            decoder_input_ids = batch.prompted_transcript.to(trcfg._internal.device)
         else:
             # Handling TensorDataset / external DataLoader
             audio, audio_lens = batch[0], batch[1]
@@ -1030,6 +1032,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
     def predict_step(
         self, batch: PromptedAudioToTextMiniBatch, batch_idx=0, dataloader_idx=0, has_processed_signal=False
     ):
+        cuts = batch.cuts
         if has_processed_signal:
             processed_signal = batch.audio
             processed_signal_length = batch.audio_lens
@@ -1057,7 +1060,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             return_hypotheses=False,
         )[0]
 
-        return text
+        return (text, cuts)
 
     @property
     def adapter_module_names(self) -> List[str]:
