@@ -12,7 +12,7 @@ jobs:
   test-asr-imports:
     runs-on: ubuntu-latest
     container:
-      image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+      image: pytorch/pytorch:2.4.0-cuda11.8-cudnn9-runtime
     steps:
     - name: Checkout repo
       uses: actions/checkout@v2
@@ -24,7 +24,6 @@ jobs:
       id: nemo-wheel
       run:  |
         pip install Cython
-        sed -i "/torch/d" requirements/requirements.txt
         # install test requirements
         pip install -r requirements/requirements_test.txt
         # Build nemo as a wheel
@@ -44,7 +43,7 @@ jobs:
   test-tts-imports:
     runs-on: ubuntu-latest
     container:
-      image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+      image: pytorch/pytorch:2.4.0-cuda11.8-cudnn9-runtime
     steps:
     - name: Checkout repo
       uses: actions/checkout@v2
@@ -56,7 +55,6 @@ jobs:
       id: nemo-wheel
       run:  |
         pip install Cython
-        sed -i "/torch/d" requirements/requirements.txt
         # install test requirements
         pip install -r requirements/requirements_test.txt
         # Build nemo as a wheel
