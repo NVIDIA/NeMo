@@ -17,7 +17,8 @@ Conversion script to convert Huggingface Mixtral checkpoints into NeMo checkpoin
   Example to run this conversion script:
     python3 convert_mixtral_hf_to_nemo.py \
      --input_name_or_path <path_to_mixtral_checkpoints_folder> \
-     --output_path <path_to_output_nemo_file> 
+     --output_path <path_to_output_nemo_file> \
+     --precision=bf16
 """
 
 import json
@@ -132,6 +133,7 @@ def load_config(mixtral_config, tokenizer_path):
     assert nemo_config.num_moe_experts > 0, "num_experts must be greater than zero."
     nemo_config.moe_router_topk = int(mixtral_config['num_experts_per_tok'])
     assert nemo_config.moe_router_topk > 0, "moe_router_topk must be greater than zero."
+    nemo_config.moe_router_pre_softmax = True
     nemo_config.use_cpu_initialization = True
     # Mixtral uses SiLU, but it is the same as swish with beta = 1.
     nemo_config.activation = 'fast-swiglu'

@@ -66,7 +66,6 @@ try:
     from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.vision.clip_vit_model import CLIPViTModel
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.attention import CrossAttention, CrossAttentionSubmodules
     from megatron.core.transformer.custom_layers.transformer_engine import (
@@ -95,6 +94,13 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 try:
     import transformer_engine
@@ -501,8 +507,7 @@ class CLIPModel(MegatronModule):
                 add_class_token = True
             vision_layer_spec = get_specs(
                 model_cfg.text.get('name', ''),
-                vision_transformer_config.num_moe_experts,
-                vision_transformer_config.moe_grouped_gemm,
+                vision_transformer_config,
                 model_cfg.get('transformer_engine', True),
             )
             vision_layer_spec.submodules.self_attention.params['attn_mask_type'] = MCoreAttnMaskType.no_mask
@@ -527,8 +532,7 @@ class CLIPModel(MegatronModule):
                 config=text_transformer_config,
                 transformer_layer_spec=get_specs(
                     model_cfg.text.get('name', ''),
-                    text_transformer_config.num_moe_experts,
-                    text_transformer_config.moe_grouped_gemm,
+                    text_transformer_config,
                     model_cfg.get('transformer_engine', True),
                 ),
                 vocab_size=model_cfg.text.get('override_vocab_size', padded_vocab_size),
