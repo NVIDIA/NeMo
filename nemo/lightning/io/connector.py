@@ -90,7 +90,7 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
         except Exception as e:
             logging.error(f"An error occurred: {e}")
             raise
-        
+
         finally:
             # Delete the lock file if it exists
             if lock_path.exists():
@@ -173,10 +173,10 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         trainer.strategy._init_model_parallel = False
         trainer.strategy.setup(trainer)
         trainer.save_checkpoint(output_path)
-        
-        from nemo.utils.get_rank import is_global_rank_zero
+
         from nemo.lightning.io.pl import TrainerContext
-        
+        from nemo.utils.get_rank import is_global_rank_zero
+
         if is_global_rank_zero() and dump_io:
             TrainerContext.from_trainer(trainer).io_dump(output_path)
 
