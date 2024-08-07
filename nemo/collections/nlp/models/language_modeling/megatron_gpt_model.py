@@ -45,7 +45,6 @@ from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_au
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -94,6 +93,8 @@ try:
         get_gpt_layer_local_spec,
         get_gpt_layer_with_transformer_engine_spec,
     )
+    from megatron.core.models.mamba import MambaModel
+    from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -103,8 +104,6 @@ try:
         init_method_normal,
         scaled_init_method_normal,
     )
-    from megatron.core.models.mamba import MambaModel
-    from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
 
     HAVE_MEGATRON_CORE = True
 
@@ -436,7 +435,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """Model depends on pipeline paralellism."""
         if self.mamba_model:
             self.hybrid_override_pattern = self.cfg.get(
-            'hybrid_override_pattern', "M" * self.transformer_config.num_layers
+                'hybrid_override_pattern', "M" * self.transformer_config.num_layers
             )
             self.transformer_config.add_bias_linear = self.cfg.get('add_bias_linear', False)
             self.transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', False)
