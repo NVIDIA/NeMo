@@ -484,8 +484,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 _translations = []
                 _ground_truths = []
                 for rank in range(0, self.world_size):
-                    _translations += [t for (t, g) in tr_and_gt[rank]]
-                    _ground_truths += [g for (t, g) in tr_and_gt[rank]]
+                    if tr_and_gt[rank] is not None:
+                        _translations += [t for (t, g) in tr_and_gt[rank]]
+                        _ground_truths += [g for (t, g) in tr_and_gt[rank]]
 
                 if self.multilingual and isinstance(self.tgt_language, ListConfig):
                     tgt_language = self.tgt_language[dataloader_idx]
