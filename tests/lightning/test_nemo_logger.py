@@ -21,7 +21,7 @@ class TestNeMoLogger:
         trainer = nl.Trainer(accelerator="cpu")
         logger = nl.NeMoLogger(
             update_logger_directory=True,
-            wandb=WandbLogger(save_dir="test", offline=True),
+            wandb=WandbLogger(save_dir="wandb_logs", offline=True),
         )
 
         logger.setup(trainer)
@@ -29,7 +29,7 @@ class TestNeMoLogger:
         assert len(logger.extra_loggers) == 0
         assert len(trainer.loggers) == 2
         assert isinstance(trainer.loggers[1], WandbLogger)
-        assert str(trainer.loggers[1].save_dir).endswith("nemo_experiments")
+        assert str(trainer.loggers[1].save_dir).endswith("nemo_experiments/wandb_logs")
         assert trainer.loggers[1]._name == "default"
 
     def test_explicit_log_dir(self, trainer):
@@ -84,7 +84,7 @@ class TestNeMoLogger:
             nl.AutoResume(
                 dirpath=str(tmp_path / "test_resume"),
                 resume_if_exists=True,
-            ).setup(model=None, trainer=trainer)
+            ).setup(trainer)
 
         # Error because checkpoints folder does not exist
         with pytest.raises(NotFoundError):
@@ -92,14 +92,14 @@ class TestNeMoLogger:
                 dirpath=str(tmp_path / "test_resume" / "does_not_exist"),
                 path="does_not_exist",
                 resume_if_exists=True,
-            ).setup(None, trainer)
+            ).setup(trainer)
 
         # No error because we tell autoresume to ignore notfounderror
         nl.AutoResume(
             dirpath=str(tmp_path / "test_resume" / "does_not_exist"),
             resume_if_exists=True,
             resume_ignore_no_checkpoint=True,
-        ).setup(None, trainer)
+        ).setup(trainer)
 
         path = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints").mkdir(parents=True)
         # Error because checkpoints do not exist in folder
@@ -107,7 +107,7 @@ class TestNeMoLogger:
             nl.AutoResume(
                 dirpath=path,
                 resume_if_exists=True,
-            ).setup(None, trainer)
+            ).setup(trainer)
 
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end").mkdir()
         # Error because *end.ckpt is in folder indicating that training has already finished
@@ -115,7 +115,7 @@ class TestNeMoLogger:
             nl.AutoResume(
                 dirpath=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
                 resume_if_exists=True,
-            ).setup(None, trainer)
+            ).setup(trainer)
 
         ## if there are multiple "-last" checkpoints, choose the most recent one
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end").rmdir()
@@ -125,7 +125,7 @@ class TestNeMoLogger:
         nl.AutoResume(
             dirpath=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
             resume_if_exists=True,
-        ).setup(None, trainer)
+        ).setup(trainer)
         assert str(trainer.ckpt_path) == str(
             Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last")
         )
@@ -141,7 +141,7 @@ class TestNeMoLogger:
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last").rmdir()
         nl.AutoResume(
             resume_if_exists=True,
-        ).setup(None, trainer)
+        ).setup(trainer)
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last")
         assert Path(trainer.ckpt_path).resolve() == checkpoint.resolve()
 
@@ -160,5 +160,5 @@ class TestNeMoLogger:
         nl.AutoResume(
             resume_if_exists=True,
             dirpath=str(dirpath_checkpoint_dir),
-        ).setup(None, trainer)
+        ).setup(trainer)
         assert Path(trainer.ckpt_path).resolve() == dirpath_checkpoint.resolve()
