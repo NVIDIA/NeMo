@@ -395,7 +395,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
     def _monitor_candidates(self, trainer: "pl.Trainer") -> Dict[str, torch.Tensor]:
         """Broadcast loss from last pipeline stage."""
-        monitor_candidates = super().monitor_candidates(trainer)
+        monitor_candidates = super()._monitor_candidates(trainer)
 
         from nemo.lightning._strategy_lib import _sync_from_last_pipeline_stage
 
