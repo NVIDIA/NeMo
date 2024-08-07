@@ -165,6 +165,7 @@ class FaultToleranceParams:
     initial_rank_heartbeat_timeout: Optional[float] = 60.0 * 60.0
     rank_heartbeat_timeout: Optional[float] = 45.0 * 60.0
     calculate_timeouts: bool = True
+    safety_factor: float = 5.0
     rank_termination_signal: signal.Signals = signal.SIGKILL
     log_level: str = 'INFO'
     max_rank_restarts: int = 0
@@ -229,6 +230,8 @@ class ExpManagerConfig:
     # Fault tolrance
     create_fault_tolerance_callback: Optional[bool] = False
     fault_tolerance: Optional[FaultToleranceParams] = field(default_factory=FaultToleranceParams)
+    # logs TFLOPs per sec per gpu
+    log_tflops_per_sec_per_gpu: Optional[bool] = True
 
 
 class TimingCallback(Callback):
@@ -558,7 +561,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         if HAVE_STRAGGLER_DET:
             logging.info("Enabling straggler detection...")
             straggler_det_args_dict = dict(cfg.straggler_detection_params)
-            straggler_det_callback = StragglerDetectionCallback(**straggler_det_args_dict, logger=logging)
+            straggler_det_callback = StragglerDetectionCallback(**straggler_det_args_dict)
             trainer.callbacks.append(straggler_det_callback)
         else:
             raise ValueError(
@@ -573,6 +576,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             # here we only need to know if the autoresume is enabled.
             ft_use_autoresume = ft_params.max_subsequent_job_failures > 0
             fault_tol_callback = FaultToleranceCallback(
+                exp_dir=Path(log_dir).parent,  # log_dir is "<run name>/results/"
                 autoresume=ft_use_autoresume,
                 calculate_timeouts=ft_params.calculate_timeouts,
                 simulated_fault_params=ft_params.simulated_fault,
@@ -582,6 +586,11 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             raise ValueError(
                 'FaultToleranceCallback was enabled with create_fault_tolerance_callback, but fault_tolerance package is not installed.'
             )
+
+    if cfg.log_tflops_per_sec_per_gpu:
+        logging.info(
+            "TFLOPs per sec per GPU will be calculated, conditioned on supported models. Defaults to -1 upon failure."
+        )
 
     if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
