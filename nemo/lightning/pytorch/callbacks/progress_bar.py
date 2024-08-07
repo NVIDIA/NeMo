@@ -44,7 +44,7 @@ class MegatronProgressBar(TQDMProgressBar):
         n = self.get_current_epoch_step(trainer)
         if self._should_update(n, self.train_progress_bar.total):
             _update_n(self.train_progress_bar, n)
-            self.train_progress_bar.set_postfix(self.get_metrics(trainer, pl_module))
+            self.train_progress_bar.set_postfix(self.get_metrics(trainer, pl_module), refresh=False)
 
 
 def calculate_data_parallel_groups() -> int:
