@@ -45,6 +45,7 @@ from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_au
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -102,6 +103,8 @@ try:
         init_method_normal,
         scaled_init_method_normal,
     )
+    from megatron.core.models.mamba import MambaModel
+    from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
 
     HAVE_MEGATRON_CORE = True
 
@@ -305,6 +308,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
         self.mcore_gpt = cfg.get('mcore_gpt', False)
+        self.mamba_model = cfg.get('mamba_model', False)
+        if self.mamba_model:
+            assert HAVE_MEGATRON_CORE, "Megatron core required to support Mamba based models."
         self.spec_name = cfg.get('name', '')
         if cfg.get('fp8', False):
             self.prev_step_training = True
@@ -428,7 +434,23 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
-        if self.mcore_gpt:
+        if self.mamba_model:
+            self.hybrid_override_pattern = self.cfg.get(
+            'hybrid_override_pattern', "M" * self.transformer_config.num_layers
+            )
+            self.transformer_config.add_bias_linear = self.cfg.get('add_bias_linear', False)
+            self.transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', False)
+            self.transformer_config.layernorm_epsilon = self.cfg.get('layernorm_epsilon', 1e-5)
+
+            model = MambaModel(
+                config=self.transformer_config,
+                max_sequence_length=self.cfg.get('encoder_seq_length', 4096),
+                vocab_size=self.cfg.get('vocab_size', 65536),
+                mamba_ssm_ngroups=self.cfg.get('mamba_ssm_ngroups', 8),
+                mamba_stack_spec=mamba_stack_spec,
+                hybrid_override_pattern=self.hybrid_override_pattern,
+            )
+        elif self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
                 transformer_layer_spec=get_specs(

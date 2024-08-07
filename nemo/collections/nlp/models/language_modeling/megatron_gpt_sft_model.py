@@ -265,6 +265,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             8 * self.cfg.get('tensor_model_parallel_size', 1) if self.cfg.get('sequence_parallel', False) else 16
         )
         pad_seq_length_to_mult *= self.cfg.get('context_parallel_size', 1)
+        pad_seq_length_to_mult = self.cfg.get("override_pad_seq_length_to_mult", pad_seq_length_to_mult)
 
         dataset_kwargs = {}
         for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):

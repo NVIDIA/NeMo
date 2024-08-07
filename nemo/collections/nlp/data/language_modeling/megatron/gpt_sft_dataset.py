@@ -40,7 +40,7 @@ class GPTSFTDataset(Dataset):
         tokenizer: TokenizerSpec,
         max_seq_length: int = 1024,
         min_seq_length: int = 1,
-        pad_seq_length_to_mult: int = 16,
+        pad_seq_length_to_mult: int = 256,
         add_bos: bool = False,
         add_eos: bool = True,
         add_sep: bool = False,

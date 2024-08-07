@@ -1,10 +1,10 @@
 inference:
-  greedy: False # Whether or not to use sampling ; use greedy decoding otherwise
+  greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
   top_p: 0.9 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
   temperature: 1.0 # sampling temperature
   add_BOS: True # add the bos token at the begining of the prompt
-  tokens_to_generate: 30 # The minimum length of the sequence to be generated.
+  tokens_to_generate: 100 # The minimum length of the sequence to be generated.
   all_probs: False  # whether return the log prob for all the tokens in vocab
   repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
   min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
@@ -24,17 +24,18 @@ tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0 # used for encoder and decoder model (0 for others)
 megatron_amp_O2: False  # Enable O2-level automatic mixed precision to save memory
-mamba_model_file: null  # Mamba nemo file path
+gpt_model_file: null  # Mamba nemo file path
 checkpoint_dir: null # checkpoint file dir. This is used to load the PTL checkpoint generated during the Mamba training
 checkpoint_name: null # PTL checkpoint file name, only used for PTL checkpoint loading
 hparams_file: null # model configuration file, only used for PTL checkpoint loading
+mamba_model: True
+target: nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTModel
+override_pad_seq_length_to_mult: 256
 prompts: # prompts for Mamba inference
-  - "Q: How are you?"
-  - "Q: How big is the universe?"
+  - "Dialogue: #Person1#: Hi, Mr. Smith. I'm Doctor Hawkins. Why are you here today?\n#Person2#: I found it would be a good idea to get a check-up.\n#Person1#: Yes, well, you haven't had one for 5 years. You should have one every year.\n#Person2#: I know. I figure as long as there is nothing wrong, why go see the doctor?\n#Person1#: Well, the best way to avoid serious illnesses is to find out about them early. So try to come at least once a year for your own good.\n#Person2#: Ok.\n#Person1#: Let me see here. Your eyes and ears look fine. Take a deep breath, please. Do you smoke, Mr. Smith?\n#Person2#: Yes.\n#Person1#: Smoking is the leading cause of lung cancer and heart disease, you know. You really should quit.\n#Person2#: I've tried hundreds of times, but I just can't seem to kick the habit.\n#Person1#: Well, we have classes and some medications that might help. I'll give you more information before you leave.\n#Person2#: Ok, thanks doctor.\n\nSummary:"
 prompts_jsonl: null
 server: False  # whether launch the API server
 port: 5555 # the port number for the inference server
-web_server: False # whether launch the web inference server
 share: False  # whether create a public URL
 username: test # user name for web client
 password: test2  # password for web client

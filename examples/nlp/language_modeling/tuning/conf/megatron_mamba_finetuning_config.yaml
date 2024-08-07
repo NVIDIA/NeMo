@@ -23,7 +23,7 @@ exp_manager:
   name: ${name}
   create_wandb_logger: False
   wandb_logger_kwargs:
-    project: griffin
+    project: mamba_refac
     name: sft-test
   resume_if_exists: False
   resume_ignore_no_checkpoint: True
@@ -80,6 +80,9 @@ model:
   hidden_dropout: 0.0
   attention_dropout: 0.0
   ffn_dropout: 0.0
+  mamba_model: True
+  target: nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTModel
+  override_pad_seq_length_to_mult: 256
   
   peft:
     peft_scheme: "none"  # can be either adapter,ia3, lora, or ptuning
