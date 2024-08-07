@@ -13,14 +13,15 @@ class Trainer(pl.Trainer, IOMixin):
 
     def add_io(self, obj):
         """Recurse to the leaves of a container and add io functionality to non-serializable leaves"""
-        if not isinstance(obj, (dict, list)):
+        if isinstance(obj, (dict, list)):
+            if isinstance(obj, dict):
+                obj = obj.values()
+            for item in obj:
+                self.add_io(item)
+        else:
             if not serialization.find_node_traverser(type(obj)):
                 track_io(type(obj))
             return
-        if isinstance(obj, dict):
-            obj = obj.values()
-        for item in obj:
-            self.add_io(item)
 
     def io_init(self, **kwargs) -> fdl.Config[Self]:
         # Each argument of the trainer can be stateful so we copy them
