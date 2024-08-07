@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Dict, List, Optional
+from einops import rearrange
 
 import numpy as np
 import pytorch_lightning as pl
@@ -93,8 +94,6 @@ class _MockNevaDataset(Dataset):
         self.seq_length = seq_length
 
         self.vocab_size = tokenizer.vocab_size
-        if len(getattr(tokenizer, "added_tokens_encoder", {})):
-            self.vocab_size = max(max(tokenizer.added_tokens_decoder) + 1, self.vocab_size)
 
         crop_size = image_processor.crop_size
         self.image_height, self.image_width = crop_size["height"], crop_size["width"]
@@ -118,11 +117,12 @@ class _MockNevaDataset(Dataset):
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
+        tokens[0] = -200  # ImageToken token index
         labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
-        images = torch.from_numpy(np_gen.random(size=[self.image_height, self.image_width], dtype=np.float32))
-
+        images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
+        images = rearrange(images, "c h w -> 1 1 c h w")  # T F c h w
         return {
-            "images": images,
+            "media": images,
             "tokens": tokens,
             "labels": labels,
             "attention_mask": self.attention_mask,

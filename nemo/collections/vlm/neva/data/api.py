@@ -11,7 +11,7 @@ def mock() -> pl.LightningDataModule:
 
 
 @factory
-def squad() -> pl.LightningDataModule:
+def lazy() -> pl.LightningDataModule:
     return NevaLazyDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
 
 

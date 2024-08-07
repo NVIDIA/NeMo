@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
+from einops import rearrange
 
 import pytorch_lightning as L
 import torch
@@ -186,46 +187,35 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         if self.vision_model is not None:
             self._drop_vision_class_token = drop_vision_class_token
-            # Map (intermediate) vision model outputs to the language model input dimension.
-            # self.vision_projection = MultimodalProjector(
-            #     vision_projection_config,
-            #     vision_projection_layer_spec,
-            #     vision_projection_type,
-            #     vision_transformer_config.hidden_size,  # input size to the projection.
-            # )
-            # # This allows ignoring missing weights for the vision projection during checkpoint loading.
-            # # This should be disabled by default but can be enabled if your checkpoint contains pretrained
-            # # vision and language models but not the projection from vision model outputs to language model inputs.
-            # if allow_missing_vision_projection_checkpoint:
-            #     vision_projection_param_names = [
-            #         f"vision_projection.{name}"
-            #         for name in self.vision_projection.state_dict().keys()
-            #     ]
-            #     self.vision_projection.register_load_state_dict_post_hook(
-            #         partial(_load_state_dict_hook_ignore_param_names, vision_projection_param_names)
-            #     )
 
-    def _merge_input_ids_with_image_features(self, image_features, inputs_embeds, input_ids, attention_mask, labels):
-        num_images, num_image_patches, embed_dim = image_features.shape
+        self.add_encoder = self.vision_model is not None
+        self.add_decoder = self.language_model is not None
+
+    def _merge_input_ids_with_media_features(self, media_features, inputs_embeds, input_ids, attention_mask, labels):
+        """
+        modified from llava next _merge_input_ids_with_image_features
+        https://github.com/huggingface/transformers/blob/main/src/transformers/models/llava_next/modeling_llava_next.py#L409
+        """
+        ignore_index = -100
+        media_token_index = -200  #TODO(yuya): update
+
+        num_medias, num_media_patches, embed_dim = media_features.shape
         batch_size, sequence_length = input_ids.shape
-        left_padding = not torch.sum(input_ids[:, -1] == torch.tensor(self.pad_token_id))
-        # 1. Create a mask to know where special image tokens are
-        special_image_token_mask = input_ids == self.config.image_token_index
-        num_special_image_tokens = torch.sum(special_image_token_mask, dim=-1)
+        # 1. Create a mask to know where special media tokens are
+        special_media_token_mask = input_ids == media_token_index
+        num_special_media_tokens = torch.sum(special_media_token_mask, dim=-1)
         # Compute the maximum embed dimension
-        max_embed_dim = (num_special_image_tokens.max() * (num_image_patches - 1)) + sequence_length
-        batch_indices, non_image_indices = torch.where(input_ids != self.config.image_token_index)
+        max_embed_dim = (num_special_media_tokens.max() * (num_media_patches - 1)) + sequence_length
+        batch_indices, non_media_indices = torch.where(input_ids != media_token_index)
 
         # 2. Compute the positions where text should be written
-        # Calculate new positions for text tokens in merged image-text sequence.
-        # `special_image_token_mask` identifies image tokens. Each image token will be replaced by `nb_text_tokens_per_images - 1` text tokens.
-        # `torch.cumsum` computes how each image token shifts subsequent text token positions.
+        # Calculate new positions for text tokens in merged media-text sequence.
+        # `special_media_token_mask` identifies media tokens. Each media token will be replaced by `nb_text_tokens_per_medias - 1` text tokens.
+        # `torch.cumsum` computes how each media token shifts subsequent text token positions.
         # - 1 to adjust for zero-based indexing, as `cumsum` inherently increases indices by one.
-        new_token_positions = torch.cumsum((special_image_token_mask * (num_image_patches - 1) + 1), -1) - 1
-        nb_image_pad = max_embed_dim - 1 - new_token_positions[:, -1]
-        if left_padding:
-            new_token_positions += nb_image_pad[:, None]  # offset for left padding
-        text_to_overwrite = new_token_positions[batch_indices, non_image_indices]
+        new_token_positions = torch.cumsum((special_media_token_mask * (num_media_patches - 1) + 1), -1) - 1
+        nb_media_pad = max_embed_dim - 1 - new_token_positions[:, -1]
+        text_to_overwrite = new_token_positions[batch_indices, non_media_indices]
 
         # 3. Create the full embedding, already padded to the maximum position
         final_embedding = torch.zeros(
@@ -236,52 +226,42 @@ class MCoreNevaModel(MCoreLLaVAModel):
         )
         if labels is not None:
             final_labels = torch.full(
-                (batch_size, max_embed_dim), self.config.ignore_index, dtype=input_ids.dtype, device=input_ids.device
+                (batch_size, max_embed_dim), ignore_index, dtype=input_ids.dtype, device=input_ids.device
             )
         # In case the Vision model or the Language model has been offloaded to CPU, we need to manually
         # set the corresponding tensors into their correct target device.
         target_device = inputs_embeds.device
-        batch_indices, non_image_indices, text_to_overwrite = (
+        batch_indices, non_media_indices, text_to_overwrite = (
             batch_indices.to(target_device),
-            non_image_indices.to(target_device),
+            non_media_indices.to(target_device),
             text_to_overwrite.to(target_device),
         )
-        attention_mask = attention_mask.to(target_device)
 
-        # 4. Fill the embeddings based on the mask. If we have ["hey" "<image>", "how", "are"]
-        # we need to index copy on [0, 577, 578, 579] for the text and [1:576] for the image features
-        final_embedding[batch_indices, text_to_overwrite] = inputs_embeds[batch_indices, non_image_indices]
-        final_attention_mask[batch_indices, text_to_overwrite] = attention_mask[batch_indices, non_image_indices]
+        # 4. Fill the embeddings based on the mask. If we have ["hey" "<media>", "how", "are"]
+        # we need to index copy on [0, 577, 578, 579] for the text and [1:576] for the media features
+        final_embedding[batch_indices, text_to_overwrite] = inputs_embeds[batch_indices, non_media_indices]
+        # final_attention_mask[batch_indices, text_to_overwrite] = attention_mask[batch_indices, non_media_indices]
         if labels is not None:
-            final_labels[batch_indices, text_to_overwrite] = labels[batch_indices, non_image_indices]
+            final_labels[batch_indices, text_to_overwrite] = labels[batch_indices, non_media_indices]
 
-        # 5. Fill the embeddings corresponding to the images. Anything that is not `text_positions` needs filling (#29835)
-        image_to_overwrite = torch.full(
+        # 5. Fill the embeddings corresponding to the medias. Anything that is not `text_positions` needs filling (#29835)
+        media_to_overwrite = torch.full(
             (batch_size, max_embed_dim), True, dtype=torch.bool, device=inputs_embeds.device
         )
-        image_to_overwrite[batch_indices, text_to_overwrite] = False
-        image_to_overwrite &= image_to_overwrite.cumsum(-1) - 1 >= nb_image_pad[:, None].to(target_device)
+        media_to_overwrite[batch_indices, text_to_overwrite] = False
+        media_to_overwrite &= media_to_overwrite.cumsum(-1) - 1 >= nb_media_pad[:, None].to(target_device)
 
-        if image_to_overwrite.sum() != image_features.shape[:-1].numel():
+        if media_to_overwrite.sum() != media_features.shape[:-1].numel():
             raise ValueError(
-                f"The input provided to the model are wrong. The number of image tokens is {torch.sum(special_image_token_mask)} while"
-                f" the number of image given to the model is {num_images}. This prevents correct indexing and breaks batch generation."
+                f"The input provided to the model are wrong. The number of media tokens is {torch.sum(special_media_token_mask)} while"
+                f" the number of media given to the model is {num_medias}. This prevents correct indexing and breaks batch generation."
             )
 
-        final_embedding[image_to_overwrite] = image_features.contiguous().reshape(-1, embed_dim).to(target_device)
-        final_attention_mask |= image_to_overwrite
-        position_ids = (final_attention_mask.cumsum(-1) - 1).masked_fill_((final_attention_mask == 0), 1)
-
-        # 6. Mask out the embedding at padding positions, as we later use the past_key_value value to determine the non-attended tokens.
-        batch_indices, pad_indices = torch.where(input_ids == self.pad_token_id)
-        indices_to_mask = new_token_positions[batch_indices, pad_indices]
-
-        final_embedding[batch_indices, indices_to_mask] = 0
+        final_embedding[media_to_overwrite] = media_features.contiguous().reshape(-1, embed_dim).to(target_device)
 
         if labels is None:
             final_labels = None
-
-        return final_embedding, final_attention_mask, final_labels, position_ids
+        return final_embedding, final_labels
 
     def forward(
         self,
@@ -294,57 +274,57 @@ class MCoreNevaModel(MCoreLLaVAModel):
     ) -> torch.Tensor:
         use_inference_kv_cache = (
             inference_params is not None
-            and "image_tokens_count" in inference_params.key_value_memory_dict
+            and "media_tokens_count" in inference_params.key_value_memory_dict
         )
-        # If running inference, we can skip image token computation if they were computed already earlier for this sample.
+        # If running inference, we can skip media token computation if they were computed already earlier for this sample.
         if use_inference_kv_cache:
-            image_embeddings = None
+            media_embeddings = None
         elif self.vision_model is not None:
-            image_embeddings = self.vision_model(media)  # [b, img_seq_len, h_vision]
+            # mbs, medias_per_micro_batch, frames
+            b, T, F = media.shape[:3] 
+            media = rearrange(media, "b T F c h w -> (b T F) c h w")
+            media_embeddings = self.vision_model(media)  # [b, img_seq_len, h_vision]
             if self._drop_vision_class_token:
-                image_embeddings = image_embeddings[:, self.vision_model.class_token_len :, :]
-            # contiguous() call required as `permute` can sparsify the tensor and this breaks pipelining
-            image_embeddings = image_embeddings.permute(
-                1, 0, 2
-            ).contiguous()  # [img_seq_len, b, h_vision]
+                media_embeddings = media_embeddings[:, self.vision_model.class_token_len :, :]
             # map vision model output size to language model input size.
-            image_embeddings = self.vision_projection(
-                image_embeddings
+            media_embeddings = self.vision_projection(
+                media_embeddings
             )  # [img_seq_len, b, h_vision]
-
-            # If running inference, the language model KV cache will be updated for image token positions.
-            # Here we store the image tokens sequence length, which can be used as an offset to the KV cache later.
+            # media_embeddings = rearrange(
+            #     media_embeddings,
+            #     f"(b T F) img_seq_len h_vision -> b T F img_seq_len h_vision",
+            #     b=b, T=T, F=F
+            # )
+            # If running inference, the language model KV cache will be updated for media token positions.
+            # Here we store the media tokens sequence length, which can be used as an offset to the KV cache later.
             if inference_params is not None:
-                inference_params.key_value_memory_dict["image_tokens_count"] = (
-                    image_embeddings.shape[0]
+                inference_params.key_value_memory_dict["media_tokens_count"] = (
+                    media_embeddings.shape[0]
                 )
         else:
-            image_embeddings = self.encoder_hidden_state
+            media_embeddings = self.encoder_hidden_state
 
         if not self.add_decoder:
-            return image_embeddings
+            return media_embeddings
 
         if self.pre_process:
+            input_language_embeddings_ids = input_ids.clone()
+            # MultiModal Token indices are assumed to be values
+            input_language_embeddings_ids[input_ids < 0] = 0
             language_embeddings = self.language_model.embedding(
-                input_ids=input_ids, position_ids=position_ids
+                input_ids=input_language_embeddings_ids, position_ids=position_ids
             )  # [text_seq_len, b, h_language]
 
-            # If running inference, we can skip image token computation if they were computed already earlier for this sample.
+            # If running inference, we can skip media token computation if they were computed already earlier for this sample.
             if use_inference_kv_cache:
                 combined_embeddings = language_embeddings
             else:
-                combined_embeddings = torch.cat(
-                    [
-                        language_embeddings[: self.img_embedding_idx],
-                        image_embeddings,
-                        language_embeddings[self.img_embedding_idx :],
-                    ],
-                    dim=0,
-                )  # [combined_seq_len, b, h_language]
-                image_embeddings, language_embeddings, input_ids, attention_mask, labels = \
-                self._merge_input_ids_with_image_features(
-                    image_embeddings, language_embeddings, input_ids, attention_mask, labels
+                language_embeddings = language_embeddings.transpose(0, 1)  # [b, text_seq_len, h_language]
+                combined_embeddings, labels = self._merge_input_ids_with_media_features(
+                    media_embeddings, language_embeddings, input_ids, attention_mask, labels
                 )
+                combined_embeddings = combined_embeddings.transpose(0, 1).contiguous()  # [text_seq_len, b, h_language]
+
         else:
             combined_embeddings = None
 
@@ -367,13 +347,13 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             # TODO: Add transformer_layer_spec when we update mcore
             optim: Optional[OptimizerModule] = None,
             tokenizer: Optional["TokenizerSpec"] = None,
-            image_processor: Optional = None,  # TODO(yuya): add class type
+            media_processor: Optional = None,  # TODO(yuya): add class type
             model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
-        self.image_processor = image_processor
+        self.media_processor = media_processor
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
