@@ -249,7 +249,7 @@ model:
       separate_prompt_and_response_with_newline: False
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
-      prompt_template: "[INST]\n<<SYS>>\nPlease answer the following based on the previous speech feature.\n<</SYS>>\n\n{context}[/INST] {answer}"
+      prompt_template: "[INST]\n<<SYS>>\nPlease answer the following based on the previous speech feature.\n<</SYS>>\n\n{question}[/INST] {answer}"
       # ASR configs
       sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
       max_duration: 24 # it is set for LibriSpeech, you may need to update it for your dataset
