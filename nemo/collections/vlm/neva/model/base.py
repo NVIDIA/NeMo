@@ -14,12 +14,10 @@ from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.collections.llm.gpt.model import transformer_engine_layer_spec, local_layer_spec
-
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
-if TYPE_CHECKING:
-    from megatron.core.models.multimodal.llava_model import MCoreLLaVAModel
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 
 
 def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
@@ -74,19 +72,24 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
     TERowParallelLinear,
 )
 
+from megatron.core.models.gpt.gpt_layer_specs import _get_mlp_module_spec
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.inference_params import InferenceParams
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-
+from megatron.core.transformer.enums import AttnMaskType, ModelType
 
 @dataclass
 class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
-    projector_type: str
-    input_size: int
-    layer_spec: ModuleSpec = MLPSubmodules
+    projector_type: str = "mlp"
+    input_size: Optional[int] = None
+    layer_spec: Optional[MLPSubmodules] = None
 
     def configure_model(self) -> "MCoreMultimodalProjector":
+        if self.layer_spec is None:
+            if self.projector_type == "mlp":
+                self.layer_spec = _get_mlp_module_spec().submodules
+
         return MCoreMultimodalProjector(
             self,
             self.layer_spec,
@@ -105,9 +108,12 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
     transformer_layer_spec: ModuleSpec = transformer_engine_layer_spec
 
     def configure_model(self) -> "MCoreCLIPViTModel":
+        transformer_layer_spec = self.transformer_layer_spec
+        if not isinstance(transformer_layer_spec, ModuleSpec):
+            transformer_layer_spec = transformer_layer_spec(self)
         return MCoreCLIPViTModel(
             self,
-            self.transformer_layer_spec,
+            transformer_layer_spec,
             ln_pre_impl=self.ln_pre_impl,
             add_class_token=self.add_class_token,
             class_token_len=self.class_token_len,
@@ -119,11 +125,10 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
 
 @dataclass
 class NevaConfig(TransformerConfig, io.IOMixin):
-    language_transformer_config: TransformerConfig
-    vision_transformer_config: TransformerConfig
-    vision_projection_config: TransformerConfig
-    drop_vision_class_token: bool
-    vision_projection_config: TransformerConfig
+    language_transformer_config: Optional[TransformerConfig] = None
+    vision_transformer_config: Optional[TransformerConfig] = None
+    vision_projection_config: Optional[TransformerConfig] = None
+    drop_vision_class_token: bool = True
     allow_missing_vision_projection_checkpoint: bool = False
     img_embedding_idx: int = 0
 
@@ -156,7 +161,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         drop_vision_class_token: bool = False,
         img_embedding_idx: int = 0,
     ) -> None:
-        MegatronModule.__init__(self, config=transformer_config)
+        super(MCoreLLaVAModel, self).__init__(config=transformer_config)
 
         logging.warning(
             "LLaVA model is under development and may be missing features."
@@ -170,7 +175,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self.vision_model = vision_model
         self.vision_projection = vision_projection
         self.language_model = language_model
-
+        self.model_type = ModelType.encoder_or_decoder
         # This attribute is needed to check if an all-reduce is required
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
         self.share_embeddings_and_output_weights = False
