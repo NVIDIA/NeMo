@@ -163,7 +163,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         self._model_key = 'model'
 
     def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
+        """See megatron.model.transformer.set_input_tensor()"""
         self.model.set_input_tensor(input_tensor)
 
     def forward(
@@ -173,6 +173,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         layer_past=None,
         get_key_value=False,
         enc_self_attention_relative_position_bias=None,
+        set_inference_key_value_memory=False,
     ):
         # convert to Megatron mask
         if self.use_flash_attention:
@@ -180,7 +181,9 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         else:
             enc_attn_mask_3d = attn_mask_postprocess(
                 build_attention_mask_3d(
-                    source_mask=enc_attn_mask, target_mask=enc_attn_mask, attn_mask_type=self.model_attn_mask_type,
+                    source_mask=enc_attn_mask,
+                    target_mask=enc_attn_mask,
+                    attn_mask_type=self.model_attn_mask_type,
                 )
             )
 
@@ -192,6 +195,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
             get_key_value=get_key_value,
             self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
             cross_attention_relative_position_bias=None,
+            set_inference_key_value_memory=set_inference_key_value_memory,
         )
 
         return enc_output
