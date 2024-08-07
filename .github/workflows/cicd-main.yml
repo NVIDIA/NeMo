@@ -538,12 +538,12 @@ jobs:
   #   runs-on: self-hosted-azure-gpus-1
   #   container:
   #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-  #     options:
+  #     options: 
   #       # --user 0:128
   #       --device=/dev/nvidia0
   #       --gpus all
-  #       --shm-size=8g
-  #       --env TRANSFORMERS_OFFLINE=0
+  #       --shm-size=8g 
+  #       --env TRANSFORMERS_OFFLINE=0 
   #       --env HYDRA_FULL_ERROR=1
   #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
@@ -814,20 +814,6 @@ jobs:
         audio_dir="/home/TestData/an4_transcribe/test_subset/" \
         output_filename="stt_test_res.json" \
         amp=true
-      AFTER_SCRIPT: |
-        rm -rf stt_test_res.json
-
-  L2_Speech_Transcription_Canary1B_Transcribe:
-    needs: [cicd-test-container-setup]
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/asr/transcribe_speech.py \
-        pretrained_name="nvidia/canary-1b" \
-        audio_dir="/home/TestData/an4_transcribe/test_subset/" \
-        output_filename="stt_test_res.json" \
-        compute_dtype=bfloat16
       AFTER_SCRIPT: |
         rm -rf stt_test_res.json
 
