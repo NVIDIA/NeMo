@@ -511,11 +511,14 @@ class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
         bin_dim0, bin_dim1 = self.max_seq_len_buckets[bucket_idx]
         num_buckets = len(self.max_seq_len_buckets)
         while (
-            (next_idx := bucket_idx + 1) < num_buckets
-            and (bin := self.max_seq_len_buckets[next_idx])[0] == bin_dim0
-            and bin_dim1 < example_len[1] <= bin[1]
+            (next_idx := bucket_idx + 1) < num_buckets  # There is a next bucket
+            and (bin := self.max_seq_len_buckets[next_idx])[0] == bin_dim0  # The next bucket has the same 1st dim.
+            # The example's 2nd dim is between that of the current and the next bucket; or,
+            # the next bucket's 2nd dim is still smaller than example.
+            and (bin_dim1 < example_len[1] <= bin[1] or bin[1] < example_len[1])
         ):
             bucket_idx = next_idx
+            bin_dim0, bin_dim1 = self.max_seq_len_buckets[bucket_idx]
         return bucket_idx
 
 

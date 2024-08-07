@@ -27,8 +27,21 @@ def cuts():
 
 
 def test_2d_bucketing_expected_bucket_allocation(cuts):
-    duration_bins = [(5.0, 5), (5.0, 15), (7.0, 10), (7.0, 20), (8.0, 15), (8.0, 25), (15.0, 20), (15.0, 30)]
-    batch_sizes = [1, 2, 3, 4, 5, 6, 7, 8]
+    duration_bins = [
+        (5.0, 5),
+        (5.0, 11),
+        (5.0, 15),
+        (7.0, 10),
+        (7.0, 13),
+        (7.0, 20),
+        (8.0, 15),
+        (8.0, 17),
+        (8.0, 25),
+        (15.0, 20),
+        (15.0, 29),
+        (15.0, 30),
+    ]
+    batch_sizes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     sampler = DynamicBucketingSampler(
         cuts.repeat(),
         shuffle=True,
