@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional, Union
 
 import torch
 import torch.nn.functional as F
@@ -52,10 +52,44 @@ class MixtralConfig8x7B(GPTConfig):
     params_dtype: torch.dtype = torch.bfloat16
 
 
+@dataclass
+class MixtralConfig8x22B(GPTConfig):
+    """
+    Config for Mixtral-8x7B model
+    Official announcement: https://mistral.ai/news/mixtral-8x22b/
+    """
+
+    normalization: str = "RMSNorm"
+    activation_func: Callable = F.silu
+    position_embedding_type: str = "rope"
+    add_bias_linear: bool = False
+    gated_linear_unit: bool = True
+    apply_query_key_layer_scaling: bool = False  # TODO: Should this be True?
+
+    num_layers: int = 56
+    hidden_size: int = 6144
+    num_attention_heads: int = 48
+    num_query_groups: int = 8
+    ffn_hidden_size: int = 16384
+    max_position_embeddings: int = 65536
+    seq_length: int = 4096  # 65536
+    # MoE
+    num_moe_experts: int = 8
+    moe_router_topk: int = 2
+
+    init_method_std: float = 0.02
+    layernorm_epsilon: float = 1e-5
+    # rotary
+    rotary_percent: float = 0  # TODO: @akoumparouli: is this correct?
+    rotary_base: float = 1000000
+    bf16: bool = True
+    params_dtype: torch.dtype = torch.bfloat16
+
+
 class MixtralModel(GPTModel):
     def __init__(
         self,
-        config: Optional[MixtralConfig8x7B] = None,
+        config: Optional[Union[MixtralConfig8x7B, MixtralConfig8x22B]] = None,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
@@ -107,17 +141,21 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
         return AutoTokenizer(str(self))
 
     @property
-    def config(self) -> MixtralConfig8x7B:
+    def config(self) -> MixtralConfig8x7B | MixtralConfig8x22B:
         from transformers import MixtralConfig as HfMixtralConfig
 
         config = HfMixtralConfig.from_pretrained(str(self))
-        return MixtralConfig8x7B(
+        config_cls = MixtralConfig8x7B
+        if '8x22b' in str(self).lower():
+            config_cls = MixtralConfig8x22B
+        return config_cls(
             bf16=getattr(config, "torch_dtype", None) == torch.bfloat16,
             activation_func=F.silu,
             # network
             num_layers=config.num_hidden_layers,
             hidden_size=config.hidden_size,
             ffn_hidden_size=config.intermediate_size,
+            kv_channels=config.get('head_dim', config.hidden_size // config.num_attention_heads),
             max_position_embeddings=config.max_position_embeddings,  # TODO
             seq_length=config.max_position_embeddings,
             # RoPE
@@ -160,7 +198,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
     head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -241,7 +279,8 @@ class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
 
     @property
     def config(self) -> "MixtralConfig":
-        source: MixtralConfig7B = io.load_ckpt(str(self)).model.config
+        # Either MixtralConfig8x7B or MixtralConfig8x22B
+        source: MixtralConfig8x7B = io.load_ckpt(str(self)).model.config
 
         from transformers import MixtralConfig as HfMixtralConfig
 
@@ -264,6 +303,7 @@ class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
             initializer_range=source.init_method_std,
             # vocab
             vocab_size=self.tokenizer.vocab_size,
+            head_dim=source.kv_channels,
         )
 
 
@@ -283,7 +323,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
     head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
