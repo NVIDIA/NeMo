@@ -1,5 +1,11 @@
 from nemo.collections.llm.gpt.model.base import (
     GPTConfig,
+    GPTConfig5B,
+    GPTConfig7B,
+    GPTConfig20B,
+    GPTConfig40B,
+    GPTConfig126M,
+    GPTConfig175B,
     GPTModel,
     MaskedTokenLossReduction,
     gpt_data_step,
