@@ -24,7 +24,7 @@ class RandomBlockMasking(NeuralModule):
     Performs random block masking on sequence of features.
     Args:
         mask_prob (float): percentage of sequence to mask
-        block_size (int): size of each block to mask   
+        block_size (int): size of each block to mask
         mask_value (Optional[float]): value to use for masking, if None, use random values
         feat_in (Optional[int]): size of input features, required if mask_value is None
         freeze (bool): if True, mask embedding is not trainable
@@ -59,8 +59,7 @@ class RandomBlockMasking(NeuralModule):
 
     @property
     def input_types(self):
-        """Returns definitions of module input types
-        """
+        """Returns definitions of module input types"""
         return {
             "input_feats": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "input_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -68,8 +67,7 @@ class RandomBlockMasking(NeuralModule):
 
     @property
     def output_types(self):
-        """Returns definitions of module output types
-        """
+        """Returns definitions of module output types"""
         return {
             "maksed_feats": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "masks": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
@@ -104,15 +102,18 @@ class RandomBlockMasking(NeuralModule):
         maksed_feats = input_feats.clone()
         for i in range(batch_size):
             if self.block_size >= input_lengths[i] * self.max_mask_ratio:
-                continue
-            num_patches = torch.ceil(input_lengths[i] * self.mask_prob / self.block_size).int()
-            offset = torch.randint(0, self.block_size, (1,), device=input_feats.device)[0]
-            block_size = self.block_size
-            if (num_patches + 1) * self.block_size > input_lengths[i]:
-                block_size = torch.div(input_lengths[i], (num_patches + 1), rounding_mode='trunc')
-
-            max_num_patches = torch.div(input_lengths[i], block_size, rounding_mode='trunc')
-            patch_idx = torch.randperm(max_num_patches - 1, device=input_feats.device)[:num_patches]
+                # handle case where audio is too short
+                block_size = 8
+                num_patches = 1
+                patch_idx = [0]
+            else:
+                num_patches = torch.ceil(input_lengths[i] * self.mask_prob / self.block_size).int()
+                offset = torch.randint(0, self.block_size, (1,), device=input_feats.device)[0]
+                block_size = self.block_size
+                if (num_patches + 1) * self.block_size > input_lengths[i]:
+                    block_size = torch.div(input_lengths[i], (num_patches + 1), rounding_mode='trunc')
+                max_num_patches = torch.div(input_lengths[i], block_size, rounding_mode='trunc')
+                patch_idx = torch.randperm(max_num_patches - 1, device=input_feats.device)[:num_patches]
             for j in range(num_patches):
                 start = patch_idx[j] * block_size + offset
                 end = start + block_size
@@ -137,13 +138,19 @@ class RandomBlockMasking(NeuralModule):
         # # TODO: change below code to batched operations if possible
         for i in range(batch_size):
             if self.block_size >= input_lengths[i] * self.max_mask_ratio:
-                continue
-            curr_len = input_lengths[i].detach().cpu().numpy()
-            num_patches = np.random.binomial(max(0, curr_len - self.block_size), self.mask_prob)
-            patch_idices = torch.randperm(max(0, curr_len - self.block_size), device=input_feats.device)[:num_patches]
+                # handle case where audio is too short
+                curr_block_size = 8
+                num_patches = 1
+                patch_idices = [0]
+            else:
+                curr_block_size = self.block_size
+                curr_len = input_lengths[i].detach().cpu().numpy()
+                num_patches = np.random.binomial(max(0, curr_len - self.block_size), self.mask_prob)
+                patch_idices = torch.randperm(max(0, curr_len - self.block_size), device=input_feats.device)
+                patch_idices = patch_idices[:num_patches]
             for j in range(num_patches):
                 start = patch_idices[j]
-                end = min(start + self.block_size, input_lengths[i])
+                end = min(start + curr_block_size, input_lengths[i])
                 masks[i, :, start:end] = 1.0
                 maksed_feats[i, :, start:end] = mask_value
         return maksed_feats, masks

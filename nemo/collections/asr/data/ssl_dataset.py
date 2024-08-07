@@ -22,8 +22,8 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
-from omegaconf import ListConfig, open_dict, DictConfig
 from lhotse.dataset import AudioSamples
+from omegaconf import DictConfig, ListConfig, open_dict
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dataset
 from nemo.collections.asr.data.dataclasses import AudioNoiseBatch, AudioNoiseItem
@@ -106,7 +106,6 @@ def _audio_noise_collate_fn(batch: List[AudioNoiseItem], batch_augmentor: Any = 
             noisy_audio = torch.nn.functional.pad(noisy_audio, pad)
         noisy_audio_signal_list.append(noisy_audio[:max_audio_len])
 
-
     audio_signal = torch.stack(audio_signal_list).float()
     audio_lengths = torch.stack(audio_lengths).long()
     noise_signal = torch.stack(noise_signal_list).float()
@@ -165,7 +164,10 @@ def load_noise_audio(
             offset = np.random.uniform(0, duration - max_dur)
 
             audio_segment = AudioSegment.from_file(
-                audio_file=sample['audio_filepath'], offset=offset, duration=max_dur, target_sr=sample_rate,
+                audio_file=sample['audio_filepath'],
+                offset=offset,
+                duration=max_dur,
+                target_sr=sample_rate,
             )
 
             if sum(audio_segment.samples) > 0:
@@ -174,7 +176,10 @@ def load_noise_audio(
             cnt += 1
     else:
         audio_segment = AudioSegment.from_file(
-            audio_file=sample['audio_filepath'], offset=offset, duration=duration, target_sr=sample_rate,
+            audio_file=sample['audio_filepath'],
+            offset=offset,
+            duration=duration,
+            target_sr=sample_rate,
         )
 
     if sum(audio_segment.samples) == 0:
@@ -196,9 +201,7 @@ def load_noise_audio(
     return noise, noise_len
 
 
-def sample_noise(
-    noise_data: List[Dict],  sample_rate: int, max_audio_len: int | None = None, max_trial: int = 20
-):
+def sample_noise(noise_data: List[Dict], sample_rate: int, max_audio_len: int | None = None, max_trial: int = 20):
     if len(noise_data) == 0:
         return torch.zeros(max_audio_len).float(), torch.tensor(max_audio_len).long()
     cnt = 0
@@ -408,21 +411,19 @@ class LhotseAudioNoiseDataset(torch.utils.data.Dataset):
         self.load_audio = AudioSamples(fault_tolerant=True)
 
     def __getitem__(self, cuts):
-        
+
         audios, audio_lens, cuts = self.load_audio(cuts)
-        sampled_noises = [
-            sample_noise(self.noise_data, cut.sampling_rate, cut.num_samples)
-            for cut in cuts]
+        sampled_noises = [sample_noise(self.noise_data, cut.sampling_rate, cut.num_samples) for cut in cuts]
 
         items = [
             AudioNoiseItem(
-            sample_id=str(cuts[i].id),
-            audio=audios[i],
-            audio_len=audio_lens[i],
-            noise=sampled_noises[i][0],
-            noise_len=sampled_noises[i][1],
-            noisy_audio=audios[i] + sampled_noises[i][0],
-            noisy_audio_len=audio_lens[i],
+                sample_id=str(cuts[i].id),
+                audio=audios[i],
+                audio_len=audio_lens[i],
+                noise=sampled_noises[i][0],
+                noise_len=sampled_noises[i][1],
+                noisy_audio=audios[i] + sampled_noises[i][0],
+                noisy_audio_len=audio_lens[i],
             )
             for i in range(len(cuts))
         ]
@@ -603,9 +604,9 @@ def get_audio_noise_dataset_from_config(
     if is_concat:
         if config.get('concat_sampling_technique', None) is None:
             logging.warning(
-                f"Concat dataset requires `concat_sampling_technique` but it was not provided, using round_robin. Config: {config}"
+                f"Concat dataset requires `concat_sampling_technique` but it was not provided, using round-robin. Config: {config}"
             )
-            config['concat_sampling_technique'] = 'round_robin'
+            config['concat_sampling_technique'] = 'round-robin'
 
         if config['concat_sampling_technique'] == 'random':
             if not 'concat_sampling_probabilities' in config:
