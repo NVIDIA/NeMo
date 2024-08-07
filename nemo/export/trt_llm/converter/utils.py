@@ -174,6 +174,107 @@ def write_int8(vals, dir, base_key, split_dim, tp_rank, split_factor, kv_cache_o
             save_val(vals[save_key], dir, f"{base_key}.{save_key}")
 
 
+def get_suffix(key):
+    return '.' + key.split('.')[-1]
+
+def get_layer_prefix(key):
+    layer_num = key.split(".")[1]
+    return f'transformer.layers.{layer_num}'
+
+def get_new_keyname(key):
+    layer_prefix = get_layer_prefix(key)
+
+    if ("post_attention_layernorm.weight" in key
+        or "post_attention_layernorm.bias" in key
+        or "post_self_attn_layernorm.weight" in key):
+        return f'{layer_prefix}.post_layernorm' + get_suffix(key)
+
+    if "mlp.linear_fc2.bias" in key or "mlp.dense_4h_to_h.bias" in key:
+        return f'{layer_prefix}.mlp.proj.bias'
+
+    if "attention.linear_proj.bias" in key or "attention.dense.bias" in key:
+        return f'{layer_prefix}.attention.dense.bias'
+
+    if "final_layernorm.weight" in key or "final_layernorm.bias" in key:
+        return key.replace("final_layernorm", "transformer.ln_f")
+
+    if "input_layernorm.weight" in key or "input_layernorm.bias" in key:
+        return f'{layer_prefix}.input_layernorm' + get_suffix(key)
+
+    if "pre_mlp_layernorm.weight" in key or "pre_mlp_layernorm.bias" in key:
+        return f'{layer_prefix}.post_layernorm' + get_suffix(key)
+
+    if "attention.linear_proj.weight" in key or "attention.dense.weight" in key:
+        return f'{layer_prefix}.attention.dense.weight'
+
+    if "mlp.linear_fc2.weight" in key or "mlp.dense_4h_to_h.weight" in key:
+        return f'{layer_prefix}.mlp.proj.weight'
+
+    if (
+        "mlp.dense_h_to_4h.weight" in key
+        or "mlp.dense_h_to_4h.bias" in key
+        or "mlp.linear_fc1.weight" in key
+        or "mlp.linear_fc1.bias" in key
+    ):
+        return f'{layer_prefix}.mlp.fc' + get_suffix(key)
+
+    if "attention.query_key_value.bias" in key or "attention.linear_qkv.bias" in key:
+        return f'{layer_prefix}.attention.qkv.bias'
+
+    if "attention.query_key_value.weight" in key or "attention.linear_qkv.weight" in key:
+        return f'{layer_prefix}.attention.qkv.weight'
+
+    if "mlp.router.weight" in key:
+        return f'{layer_prefix}.mlp.router.weight'
+
+    if "experts.linear_fc1.weight" in key:
+        return f'{layer_prefix}.mlp.fc.weight'
+
+    if "experts.linear_fc2.weight" in key:
+        return f'{layer_prefix}.mlp.proj.weight'
+
+    return key
+
+
+def is_scaling_factor(key):
+    return "scale_fwd" in key
+
+def get_scaling_factor_keys(key):
+    base_key = '.'.join(key.split('.')[:-2]) + '.weight'
+    base_key = '.'.join(get_new_keyname(base_key).split('.')[:-1])
+    weight_scale = base_key + '.weights_scaling_factor'
+    activation_scale = base_key + '.activation_scaling_factor'
+    return weight_scale, activation_scale
+
+def handle_scaling_factor(key, val, dir, split_gated_activation):
+    weights_key, activation_key = get_scaling_factor_keys(key)
+    weights_factors = 1 / val[1].view(1)
+    activation_factors = 1 / val[0].view(1)
+    save_val(torch_to_numpy(weights_factors), dir, weights_key)
+    save_val(torch_to_numpy(activation_factors), dir, activation_key)
+
+    if split_gated_activation and (("mlp.dense_h_to_4h" in key) or ("mlp.linear_fc1" in key)):
+        layer_num = key.split(".")[1]
+        layer_prefix = f'transformer.layers.{layer_num}'
+        mapped_key = f'{layer_prefix}.mlp.gate'
+        save_val(torch_to_numpy(weights_factors), dir, mapped_key + '.weights_scaling_factor')
+        save_val(torch_to_numpy(activation_factors), dir, mapped_key + '.activation_scaling_factor')
+
+    global weights_dict
+    return weights_dict
+
+
+def cast_val_datatype(vals, key, storage_type, is_fp8_model):
+    if is_fp8_model:
+        fp8_storage_type = torch.float8_e4m3fn
+        quantized_keys = ['attention.dense', 'attention.linear', 'attention.query_key_value', 'attention.linear_qkv', 'mlp.linear', 'mlp.dense']
+        for k in quantized_keys:
+            if k in key:
+                storage_type = fp8_storage_type
+                return [val.to(storage_type) for val in vals]
+
+    return [val.to(storage_type) for val in vals]
+
 # Note: in multi_query_mode, only query heads are split between multiple GPUs, while key/value head
 # are not split as there is only one head per key/value.
 @torch.no_grad()
@@ -187,11 +288,13 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     num_kv_heads = config.get("num_kv_heads", num_attention_heads)
     size_per_head = config.get("kv_channels", None)
     convert_on_device = config.get("convert_on_device", False)
+    is_fp8_model = config.get("fp8", False)
+
+    if is_scaling_factor(key):
+        return handle_scaling_factor(key, vals[0], saved_dir, split_gated_activation)
 
     save_int8 = int8_outputs == "all" or int8_outputs == "kv_cache_only"
-
-    layer_num = key.split(".")[1]
-    layer_prefix = f'transformer.layers.{layer_num}'
+    layer_prefix = get_layer_prefix(key)
 
     if not isinstance(vals, list):
         vals = [vals]
@@ -201,13 +304,17 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     if "layernorm.weight" in key and config.get("apply_layernorm_1p", False):
         vals = [val.float() + 1.0 for val in vals]
 
-    vals = [val.to(storage_type) for val in vals]
+    print("key ", key, vals)
+    vals = cast_val_datatype(vals, key, storage_type, is_fp8_model)
+    print(vals)
+    # vals = [val.to(storage_type) for val in vals]
     if convert_on_device:
         assert len(vals) == 1  # Should only convert a single device param per call
         assert torch.is_tensor(vals[0])
     elif torch.is_tensor(vals[0]):
         vals = [torch_to_numpy(val.cpu()) for val in vals]
 
+    trt_llm_key = get_new_keyname(key)
     if (
         "input_layernorm.weight" in key
         or "input_layernorm.bias" in key
@@ -224,29 +331,8 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         or "final_layernorm.bias" in key
     ):
         # shared weights, only need to convert the weights of rank 0
-        if "post_self_attn_layernorm" in key or "post_attention_layernorm" in key:
-            if key.endswith('weight'):
-                key = f'{layer_prefix}.post_layernorm.weight'
-            else:
-                key = f'{layer_prefix}.post_layernorm.bias'
-        elif "mlp.linear_fc2.bias" in key or "mlp.dense_4h_to_h.bias" in key:
-            key = f'{layer_prefix}.mlp.proj.bias'
-        elif "attention.linear_proj.bias" in key or "attention.dense.bias" in key:
-            key = f'{layer_prefix}.attention.dense.bias'
-        elif "final_layernorm" in key:
-            key = key.replace("final_layernorm", "transformer.ln_f")
-        elif "input_layernorm" in key:
-            if key.endswith('weight'):
-                key = f'{layer_prefix}.input_layernorm.weight'
-            else:
-                key = f'{layer_prefix}.input_layernorm.bias'
-        elif "pre_mlp_layernorm" in key:
-            if key.endswith('weight'):
-                key = f'{layer_prefix}.post_layernorm.weight'
-            else:
-                key = f'{layer_prefix}.post_layernorm.bias'
         if tp_rank == 0 or convert_on_device:
-            save_val(vals[0], saved_dir, key)
+            save_val(vals[0], saved_dir, trt_llm_key)
 
     elif (
         "attention.dense.weight" in key
@@ -254,21 +340,16 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         or "attention.linear_proj.weight" in key
         or "mlp.linear_fc2.weight" in key
     ):
-        if "attention.linear_proj.weight" in key or "attention.dense.weight" in key:
-            key = f'{layer_prefix}.attention.dense.weight'
-        elif "mlp.linear_fc2.weight" in key or "mlp.dense_4h_to_h.weight" in key:
-            key = f'{layer_prefix}.mlp.proj.weight'
-
         if convert_on_device:
-            save_val(vals[0], saved_dir, key)
+            save_val(vals[0], saved_dir, trt_llm_key)
         else:
             cat_dim = 0
             val = np.concatenate(vals, axis=cat_dim)
             split_vals = np.split(val, split_factor, axis=cat_dim)
-            save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+            save_split(split_vals, saved_dir, trt_llm_key, tp_rank, split_factor)
 
         if act_range is not None and int8_outputs == "all":
-            base_key = key.replace(".weight", "")
+            base_key = trt_llm_key.replace(".weight", "")
             vals_i8 = generate_int8(val, act_range, multi_query_mode=multi_query_mode)
             write_int8(vals_i8, saved_dir, base_key, cat_dim, tp_rank, split_factor)
 
@@ -278,11 +359,6 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         or "mlp.linear_fc1.weight" in key
         or "mlp.linear_fc1.bias" in key
     ):
-        if key.endswith("weight"):
-            key = f'{layer_prefix}.mlp.fc.weight'
-        else:
-            key = f'{layer_prefix}.mlp.fc.bias'
-
         if split_gated_activation:
             if convert_on_device:
                 vals, gates = [[n] for n in torch.chunk(vals[0], 2, axis=-1)]
@@ -291,48 +367,43 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
                 vals, gates = list(zip(*splits))
 
         if convert_on_device:
-            save_val(vals[0], saved_dir, key)
+            save_val(vals[0], saved_dir, trt_llm_key)
         else:
             cat_dim = -1
             val = np.concatenate(vals, axis=cat_dim)
             split_vals = np.split(val, split_factor, axis=cat_dim)
-            save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+            save_split(split_vals, saved_dir, trt_llm_key, tp_rank, split_factor)
 
         if act_range is not None and int8_outputs == "all":
-            base_key = key.replace(".weight", "")
+            base_key = trt_llm_key.replace(".weight", "")
             vals_i8 = generate_int8(val, act_range, multi_query_mode=multi_query_mode)
             write_int8(vals_i8, saved_dir, base_key, cat_dim, tp_rank, split_factor)
 
         if split_gated_activation:
             assert not save_int8
-            if key.endswith("weight"):
-                key = f'{layer_prefix}.mlp.gate.weight'
-            else:
-                key = f'{layer_prefix}.mlp.gate.bias'
-
+            gate_key = f'{layer_prefix}.mlp.gate' + get_suffix(trt_llm_key)
             if convert_on_device:
-                save_val(gates[0], saved_dir, key)
+                save_val(gates[0], saved_dir, gate_key)
             else:
                 gate = np.concatenate(gates, axis=cat_dim)
                 split_vals = np.split(gate, split_factor, axis=cat_dim)
-                save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+                save_split(split_vals, saved_dir, gate_key, tp_rank, split_factor)
 
     elif "mlp.dense_h_to_4h_2.weight" in key or "mlp.dense_h_to_4h_2.bias" in key:
         if convert_on_device:
-            save_val(vals[0], saved_dir, key)
+            save_val(vals[0], saved_dir, trt_llm_key)
         else:
             cat_dim = -1
             val = np.concatenate(vals, axis=cat_dim)
             split_vals = np.split(val, split_factor, axis=cat_dim)
-            save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+            save_split(split_vals, saved_dir, trt_llm_key, tp_rank, split_factor)
 
         if act_range is not None and int8_outputs == "all":
-            base_key = key.replace(".weight", "")
+            base_key = trt_llm_key.replace(".weight", "")
             vals_i8 = generate_int8(val, act_range, multi_query_mode=multi_query_mode)
             write_int8(vals_i8, saved_dir, base_key, cat_dim, tp_rank, split_factor)
 
     elif "attention.query_key_value.bias" in key or "attention.linear_qkv.bias" in key:
-        key = f'{layer_prefix}.attention.qkv.bias'
         qkv_hidden_dim = vals[0].shape[0]
         size_per_head = qkv_hidden_dim // (num_attention_heads + 2 * num_kv_heads)
         q_num = num_attention_heads // num_kv_heads
@@ -349,7 +420,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         if convert_on_device:
             qkv = torch.split(val, [q_num, 1, 1], dim=1)
             split_vals = torch.concatenate([qkv[0].reshape(-1), qkv[1].reshape(-1), qkv[2].reshape(-1)], dim=1)
-            save_val(split_vals, saved_dir, key)
+            save_val(split_vals, saved_dir, trt_llm_key)
         else:
             qkv = np.split(val, [q_num, q_num + 1], axis=1)
             q_split = np.split(qkv[0], split_factor, axis=0)
@@ -361,10 +432,9 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
                 np.concatenate([q_split[i].reshape(-1), k_split[i].reshape(-1), v_split[i].reshape(-1)], axis=0)
                 for i in range(split_factor)
             ]
-            save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+            save_split(split_vals, saved_dir, trt_llm_key, tp_rank, split_factor)
 
     elif "attention.query_key_value.weight" in key or "attention.linear_qkv.weight" in key:
-        key = f'{layer_prefix}.attention.qkv.weight'
         assert use_attention_nemo_shape, "Only support NEMO shape for QKV weights"
         hidden_dim = vals[0].shape[0]
         if size_per_head is None:
@@ -380,7 +450,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
             split_vals = torch.concatenate(
                 [qkv[0].reshape(hidden_dim, -1), qkv[1].reshape(hidden_dim, -1), qkv[2].reshape(hidden_dim, -1)], dim=1
             )
-            save_val(split_vals, saved_dir, key)
+            save_val(split_vals, saved_dir, trt_llm_key)
         else:
             len_vals = len(vals)
             val = np.concatenate(vals, axis=1)
@@ -414,10 +484,10 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
                 )
                 for i in range(split_factor)
             ]
-            save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+            save_split(split_vals, saved_dir, trt_llm_key, tp_rank, split_factor)
 
         if save_int8:
-            base_key = key.replace(".weight", "")
+            base_key = trt_llm_key.replace(".weight", "")
             vals_i8 = generate_int8(val, act_range, is_qkv=True, multi_query_mode=multi_query_mode)
             write_int8(
                 vals_i8,
@@ -437,8 +507,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         pass
     elif "mlp.router.weight" in key:
         val = np.concatenate(vals, axis=1)
-        key = f'{layer_prefix}.mlp.router.weight'
-        save_val(val, saved_dir, key)
+        save_val(val, saved_dir, trt_llm_key)
     elif "experts.linear_fc1.weight" in key:
         cat_dim = -1
         val = np.concatenate(vals, axis=cat_dim)
@@ -449,15 +518,13 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         split_w3s = np.split(w3, split_factor, axis=1)
 
         split_vals = [np.concatenate(item, axis=1) for item in zip(split_w3s, split_w1s)]
-        key = f'{layer_prefix}.mlp.fc.weight'
-        save_expert_split(split_vals, saved_dir, key, tp_rank, split_factor)
+        save_expert_split(split_vals, saved_dir, trt_llm_key, tp_rank, split_factor)
 
     elif "experts.linear_fc2.weight" in key:
         cat_dim = -1
         val = np.concatenate(vals, axis=cat_dim)
         split_vals = np.split(val, split_factor, axis=cat_dim)
-        key = f'{layer_prefix}.mlp.proj.weight'
-        save_expert_split(split_vals, saved_dir, key, tp_rank, split_factor)
+        save_expert_split(split_vals, saved_dir, trt_llm_key, tp_rank, split_factor)
     else:
         print(f"[WARNING] {key} not handled by converter")
 

@@ -20,7 +20,7 @@ from typing import Union
 import zarr.storage
 
 
-class TarPath:
+class TarPath(os.PathLike):
     """
     A class that represents a path inside a TAR archive and behaves like pathlib.Path.
 
@@ -56,6 +56,9 @@ class TarPath:
         return TarPath(self._tar, os.path.join(self._relpath, key))
 
     def __str__(self) -> str:
+        return os.path.join(self._tar.name, self._relpath)
+
+    def __fspath__(self):
         return os.path.join(self._tar.name, self._relpath)
 
     @property
