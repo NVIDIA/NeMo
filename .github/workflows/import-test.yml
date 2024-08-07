@@ -24,6 +24,7 @@ jobs:
       id: nemo-wheel
       run:  |
         pip install Cython
+        sed -i "/torch/d" requirements/requirements.txt
         # install test requirements
         pip install -r requirements/requirements_test.txt
         # Build nemo as a wheel
@@ -36,7 +37,6 @@ jobs:
       run: |
         # Install NeMo Domain
         pip install "${{ steps.nemo-wheel.outputs.DIST_FILE }}[asr]"
-        pip install torch==2.0.1
         # Run import checks
         python tests/core_ptl/check_imports.py --domain "asr"
         # Uninstall NeMo
@@ -56,6 +56,7 @@ jobs:
       id: nemo-wheel
       run:  |
         pip install Cython
+        sed -i "/torch/d" requirements/requirements.txt
         # install test requirements
         pip install -r requirements/requirements_test.txt
         # Build nemo as a wheel
@@ -68,7 +69,6 @@ jobs:
       run: |
         # Install NeMo Domain
         pip install "${{ steps.nemo-wheel.outputs.DIST_FILE }}[tts]"
-        pip install torch==2.0.1
         # Run import checks
         python tests/core_ptl/check_imports.py --domain "tts"
         # Uninstall NeMo
