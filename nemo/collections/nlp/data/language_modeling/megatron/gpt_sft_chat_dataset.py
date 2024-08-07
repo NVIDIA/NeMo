@@ -28,7 +28,6 @@ PREFIX_STR = (
 )
 
 IGNORE_INDEX = -100
-SYSTEM_TOKEN = "System"
 
 TYPE_INSTRUCTION = {
     'TEXT_TO_VALUE': "",
@@ -51,7 +50,8 @@ def _get_header_conversation_type_mask_role(source, special_tokens):
         if TYPE_INSTRUCTION[data_type] != '':
             conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
     mask_role = source.get('mask', 'User')
-    header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{END_NAME_SIGNAL}{conversation}{END_SIGNAL}"
+    system_token = source.get("system_token", "System")
+    header = f"{special_tokens['system_turn_start']}{system_token}{END_NAME_SIGNAL}{conversation}{END_SIGNAL}"
     conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type, special_tokens)
     return header, conversation, data_type, mask_role
 
@@ -73,7 +73,7 @@ def get_prompt_template_example(special_tokens):
 
 
 def identify_start_index_of_subsequence(subsequence, sequence):
-    """ find the location of the small tensor in the large tensor.
+    """find the location of the small tensor in the large tensor.
         e.g.  small = [1,3], large = [2,3,1,3], returns 2
               small = [3,2], large = [2,3,1,3], returns -1
     Args:
@@ -100,7 +100,7 @@ def _mask_targets(
     label_start_ids,
     num_turn_start_tokens,
 ):
-    """ This function masks the tokens so the loss is computed only on the non-masked role's responses.
+    """This function masks the tokens so the loss is computed only on the non-masked role's responses.
     For 'TEXT_TO_VALUE' type, the loss is computed on the value attributes.
 
     Args:
