@@ -24,18 +24,17 @@ tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0 # used for encoder and decoder model (0 for others)
 megatron_amp_O2: False  # Enable O2-level automatic mixed precision to save memory
-gpt_model_file: null  # Mamba nemo file path
+mamba_model_file: null  # Mamba nemo file path
 checkpoint_dir: null # checkpoint file dir. This is used to load the PTL checkpoint generated during the Mamba training
 checkpoint_name: null # PTL checkpoint file name, only used for PTL checkpoint loading
 hparams_file: null # model configuration file, only used for PTL checkpoint loading
-mamba_model: True
-target: nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTModel
-override_pad_seq_length_to_mult: 256
 prompts: # prompts for Mamba inference
   - "Dialogue: #Person1#: Hi, Mr. Smith. I'm Doctor Hawkins. Why are you here today?\n#Person2#: I found it would be a good idea to get a check-up.\n#Person1#: Yes, well, you haven't had one for 5 years. You should have one every year.\n#Person2#: I know. I figure as long as there is nothing wrong, why go see the doctor?\n#Person1#: Well, the best way to avoid serious illnesses is to find out about them early. So try to come at least once a year for your own good.\n#Person2#: Ok.\n#Person1#: Let me see here. Your eyes and ears look fine. Take a deep breath, please. Do you smoke, Mr. Smith?\n#Person2#: Yes.\n#Person1#: Smoking is the leading cause of lung cancer and heart disease, you know. You really should quit.\n#Person2#: I've tried hundreds of times, but I just can't seem to kick the habit.\n#Person1#: Well, we have classes and some medications that might help. I'll give you more information before you leave.\n#Person2#: Ok, thanks doctor.\n\nSummary:"
+  - "Dialogue: #Person1#: Ms. Dawson, I need you to take a dictation for me.\n#Person2#: Yes, sir...\n#Person1#: This should go out as an intra-office memorandum to all employees by this afternoon. Are you ready?\n#Person2#: Yes, sir. Go ahead.\n#Person1#: Attention all staff... Effective immediately, all office communications are restricted to email correspondence and official memos. The use of Instant Message programs by employees during working hours is strictly prohibited.\n#Person2#: Sir, does this apply to intra-office communications only? Or will it also restrict external communications?\n#Person1#: It should apply to all communications, not only in this office between employees, but also any outside communications.\n#Person2#: But sir, many employees use Instant Messaging to communicate with their clients.\n#Person1#: They will just have to change their communication methods. I don't want any - one using Instant Messaging in this office. It wastes too much time! Now, please continue with the memo. Where were we?\n#Person2#: This applies to internal and external communications.\n#Person1#: Yes. Any employee who persists in using Instant Messaging will first receive a warning and be placed on probation. At second offense, the employee will face termination. Any questions regarding this new policy may be directed to department heads.\n#Person2#: Is that all?\n#Person1#: Yes. Please get this memo typed up and distributed to all employees before 4 pm.\n\nSummary:"
 prompts_jsonl: null
 server: False  # whether launch the API server
 port: 5555 # the port number for the inference server
+web_server: False # whether launch the web inference server
 share: False  # whether create a public URL
 username: test # user name for web client
 password: test2  # password for web client
