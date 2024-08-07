@@ -1700,7 +1700,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             frozen_submodule_names, frozen_submodules = find_frozen_submodules(self.perception)
             self.trainer.strategy.kwargs['ignored_states'].extend(frozen_submodules)
             self.perception = self.trainer.strategy._setup_model(self.perception)
-            self.perception = self.perception.cuda(torch.cuda.current_device())
+            # self.perception = self.perception.cuda(torch.cuda.current_device())
 
 
 class CrossAttendModularAudioGPTModel(ModularAudioGPTModel):

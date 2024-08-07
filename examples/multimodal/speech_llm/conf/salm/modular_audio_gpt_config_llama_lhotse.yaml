@@ -239,7 +239,7 @@ model:
       # non-tar).
       # See audio_text_qa_dataset.py for details.
       concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
-      context_key: 'context'
+      context_key: 'question'
       answer_key: 'answer'
       add_eos: True
       # add_eos: False
