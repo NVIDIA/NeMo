@@ -385,9 +385,10 @@ jobs:
           model.pipeline_model_parallel_size=1 \
           model.micro_batch_size=1 \
           model.global_batch_size=4 \
-          model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-          model.data.train_ds.concat_sampling_probabilities=[1.0] \
-          model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+          model.optim.name=distributed_fused_adam \
+          model.optim.sched.warmup_steps=1 \
+          model.data.data_prefix=[1.0,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
+          model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings \
           exp_manager.exp_dir=examples/nlp/megatron_llama_distill
       AFTER_SCRIPT: |
           rm -rf examples/nlp/megatron_llama_distill
