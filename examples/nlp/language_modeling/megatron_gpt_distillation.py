@@ -513,7 +513,11 @@ def _merge_model_arch_fields(cfg: DictConfig, model_load_path: str) -> DictConfi
     model_arch_keys = [k for k in MODEL_ARCHITECHTURE_KEYS if k in model_cfg]
     model_arch_cfg = OmegaConf.masked_copy(model_cfg, model_arch_keys)
     with open_dict(cfg):
-        return OmegaConf.merge(cfg, model_arch_cfg)
+        cfg = OmegaConf.merge(cfg, model_arch_cfg)
+        # Add tokenizer from model if not provided
+        if OmegaConf.is_missing(cfg.tokenizer, "model"):
+            cfg.tokenizer = model_cfg.tokenizer
+    return cfg
 
 
 ########################################################
