@@ -609,6 +609,13 @@ def preprocess_yi_34b(
     The function applies prompt templates and tokenizes the conversations according to the Yi-1.5 34b model specifications.
     It involves special handling of tokens, masking of labels, and adjustments based on configuration settings.
 
+    This template works with the following tokenizer configs:
+    - model.tokenizer.library='huggingface'
+    - model.tokenizer.type='01-ai/Yi-1.5-34B'
+    - model.tokenizer.additional_special_tokens='{additional_special_tokens: ["<extra_id_0>", "<extra_id_1>", "<extra_id_2>", "<extra_id_3>", "<extra_id_4>", "<extra_id_5>"]}'
+    At inference time, add end string to stop sampling:
+    - inference.end_strings='["<|im_end|>"]'
+
     Parameters:
     - sources (dict): A dictionary of sources containing conversations to be processed.
     - tokenizer: The tokenizer to be used for processing the text.
