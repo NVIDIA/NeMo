@@ -10,4 +10,4 @@ Some of the helpful classes provided here include:
 - [`MegatronParallel`](./megatron_parallel.py): Class which sets up and manages Megatron's distributed model parallelism.
 - [`MegatronMixedPrecision`](./pytorch/plugins/mixed_precision.py): A specialized precision plugin for training Megatron-based models in PTL.
 
-More information on `MegatronStrategy`, `MegatronParallel`, and `MegatronMixedPrecision` can be found in [this document](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo_2.0/design/megatron.html)
+More information on `MegatronStrategy`, `MegatronParallel`, and `MegatronMixedPrecision` can be found in [this document](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo_2.0/design/megatron.html).
