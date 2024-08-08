@@ -71,23 +71,26 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         cluster_environment: Cluster environment for distributed training. Defaults to None.
         checkpoint_io: Checkpoint I/O handler. Defaults to None.
         find_unused_parameters (bool): Find unused parameters in DDP. Defaults to False.
-        enable_nemo_ckpt_io (bool): Enable NeMo checkpoint I/O. Defaults to True.
         ckpt_type (TrainerCkptProtocol): Checkpoint type. Defaults to TrainerCheckpoint.
-        ckpt_include_optimizer (bool): Include optimizer state in checkpoint. Defaults to False.
+        ckpt_include_optimizer (bool): Include optimizer state in checkpoint. Defaults to True.
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
         lazy_init (bool): Use lazy initialization for model parallel parameters. Defaults to False.
         pipeline_dtype (Optional[torch.dtype]): Data type for pipeline parallelism. Defaults to None.
-        save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving.
+        save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving. Should be one of
+            'torch_dist' or 'zarr'. Defaults to 'torch_dist'.
+        ckpt_async_save (bool): Whether to save checkpoints asynchronously to reduce checkpointing overhead.
+            Defaults to False.
         ckpt_torch_dist_multiproc (int): Number of extra processes per rank used during ckpt save
-            with PyTorch distributed format.
+            with PyTorch distributed format. Defaults to None.
         ckpt_assume_constant_structure (bool): Allows caching some computation across checkpoint saves.
             Set to True only if the state dict structure doesn't change within a single job.
         ckpt_parallel_save (bool): If true, each worker will write its own part of the dist checkpoint.
+            Defaults to True.
         ckpt_parallel_save_within_dp (bool): If true, save will be parallelized only within a DP group
-            (whole world otherwise), which might slightly reduce the save overhead.
+            (whole world otherwise), which might slightly reduce the save overhead. Defaults to False.
         ckpt_parallel_load (bool): If true, each worker will load part of the dist checkpoint
-            and exchange with NCCL. Might use some extra GPU memory.
-        ckpt_parallel_save_optim (bool): Parallel save/load of a DistributedOptimizer. 'True' 
+            and exchange with NCCL. Might use some extra GPU memory. Defaults to False.
+        ckpt_parallel_save_optim (bool): Parallel save/load of a DistributedOptimizer. 'True'
             allows performant save and reshardable checkpoints. Set to 'False' only in order to minimize
             the number of checkpoint files.
         ckpt_load_directly_on_device (bool): if True, loads the weights directly on GPU.
@@ -95,6 +98,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         setup_optimizers (bool): Whether to call the trainer's setup_optimizers function to perform any
             necessary conversions of optimizer parameters and move optimizer parameters to the correct device.
         init_model_parallel (bool): Whether to initialize the model parallel groups.
+            Defaults to True.
+        setup_optimizers (bool): Whether to call the trainer's setup_optimizers function to perform any
+            necessary conversions of optimizer parameters and move optimizer parameters to the correct device.
+            Defaults to True.
+        init_model_parallel (bool): Whether to initialize the model parallel groups. Defaults to True.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -118,18 +126,26 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         cluster_environment=None,  # TODO: Add type-hint
         checkpoint_io=None,  # TODO: Add type-hint
         find_unused_parameters: bool = False,
-        ckpt_include_optimizer: bool = False,
+        ckpt_include_optimizer: bool = True,
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
         lazy_init: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
         save_ckpt_format: str = 'torch_dist',
+<<<<<<< HEAD
+=======
+        ckpt_async_save: bool = False,
+>>>>>>> e033481e26e6ae32764d3e2b3f16afed00dc7218
         ckpt_torch_dist_multiproc: int = None,  ## TODO(ashors): put elsewhere?
         ckpt_assume_constant_structure: bool = False,
         ckpt_parallel_save: bool = True,
         ckpt_parallel_save_within_dp: bool = False,
         ckpt_parallel_load: bool = False,
         ckpt_parallel_save_optim: bool = True,
+<<<<<<< HEAD
         ckpt_load_directly_on_device: bool =True,
+=======
+        ckpt_load_directly_on_device: bool = True,
+>>>>>>> e033481e26e6ae32764d3e2b3f16afed00dc7218
         setup_optimizers: bool = True,
         init_model_parallel: bool = True,
         **kwargs,
@@ -160,6 +176,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
 
         self.save_ckpt_format = save_ckpt_format
+        self.async_save = ckpt_async_save
         self.torch_dist_multiproc = ckpt_torch_dist_multiproc
         self.assume_constant_structure = ckpt_assume_constant_structure
         self.parallel_save = ckpt_parallel_save
@@ -225,6 +242,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if not self.data_sampler and hasattr(datamodule, "data_sampler"):
             self.data_sampler = datamodule.data_sampler
             self.data_sampler.setup(self.cluster_environment.global_rank())
+            if hasattr(datamodule, "reconfigure_limit_batches"):
+                datamodule.reconfigure_limit_batches()
 
         if self.data_sampler:
             self.data_sampler.connect(trainer)
@@ -269,6 +288,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             # we need to manually synchronize the module's states since we aren't using the DDP wrapper
             assert self.model is not None
             _sync_module_states(self.model)
+
+        ## add AsyncFinalizerCallback if using async
+        if self.async_save:
+            have_async_callback = False
+            for callback in self.trainer.callbacks:
+                if isinstance(callback, AsyncFinalizerCallback):
+                    have_async_callback = True
+                    break
+            if not have_async_callback:
+                self.trainer.callbacks.append(AsyncFinalizerCallback())
 
     @override
     def setup_distributed(self) -> None:
@@ -594,11 +623,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @override
     def checkpoint_io(self) -> CheckpointIO:
         if self._checkpoint_io is None:
-            checkpoint_callback = self.trainer.checkpoint_callback
-            async_save = getattr(checkpoint_callback, "async_save", False)
             self._checkpoint_io = MegatronCheckpointIO(
                 save_ckpt_format=self.save_ckpt_format,
-                async_save=async_save,
+                async_save=self.async_save,
                 torch_dist_multiproc=self.torch_dist_multiproc,
                 assume_constant_structure=self.assume_constant_structure,
                 parallel_save=self.parallel_save,
@@ -606,15 +633,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 parallel_load=self.parallel_load,
                 load_directly_on_device=self.load_directly_on_device,
             )
-            if async_save:
+            if self.async_save:
                 self._checkpoint_io = AsyncFinalizableCheckpointIO(self._checkpoint_io)
-                have_async_callback = False
-                for callback in self.trainer.callbacks:
-                    if isinstance(callback, AsyncFinalizerCallback):
-                        have_async_callback = True
-                        break
-                if not have_async_callback:
-                    self.trainer.callbacks.append(AsyncFinalizerCallback())
         elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
             self._checkpoint_io.checkpoint_io = MegatronCheckpointIO()
 

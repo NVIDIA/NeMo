@@ -379,8 +379,11 @@ class MegatronBaseModel(NLPModel):
         # NVIDIA container version check
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
 
-        # Support DLFW master container
-        if nvidia_torch_version == 'master':
+        def is_official_release_version(nvidia_torch_version):
+            return re.fullmatch("[0-9][0-9]\.[0-9][0-9].*", nvidia_torch_version)  # "YY.MM.*"
+
+        # Support DLFW dev container
+        if not is_official_release_version(nvidia_torch_version):
             nvidia_torch_version = datetime.now().strftime('%y.%m')
 
         if nvidia_torch_version is not None:
@@ -389,7 +392,7 @@ class MegatronBaseModel(NLPModel):
             except Exception:
                 NVIDIA_TORCH_MAJOR = 0
             try:
-                NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
+                NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1][:2])
             except Exception:
                 NVIDIA_TORCH_MINOR = 0
 
@@ -399,7 +402,9 @@ class MegatronBaseModel(NLPModel):
                 self.cfg.persist_layer_norm = False
 
             # NVFUSER available starting with 21.11
-            if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11):
+            if (NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11)) and (
+                NVIDIA_TORCH_MAJOR < 23 or (NVIDIA_TORCH_MAJOR == 23 and NVIDIA_TORCH_MINOR < 11)
+            ):
 
                 # NVFUSER
                 torch._C._jit_set_profiling_executor(True)
