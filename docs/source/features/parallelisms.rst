@@ -119,9 +119,9 @@ Set ``tensor_model_parallel_size`` to greater than ``1`` to enable intra-layer m
 
    .. code-block:: yaml
 
-       tensor_model_parallel_size: 1  # Example to enable Tensor Parallelism
+       tensor_model_parallel_size: 2  # Example to enable Tensor Parallelism
 
-The configuration file can be adjusted here: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L65>`_.
+The configuration file can be adjusted here: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L64>`_.
 
 Implement Tensor Parallelism
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
