@@ -63,7 +63,7 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomSampler
 from nemo.core import adapter_mixins
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.utils import logging
+from nemo.utils import logging, run_if_testing
 
 try:
     from megatron.core import InferenceParams, dist_checkpointing, parallel_state, tensor_parallel
@@ -237,22 +237,52 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         # flatten patches
         media_features = media_features.view(batch_size, -1, hidden_size)
 
-        # create an indices matrix used in torch.scatter
-        padded_media_indices = torch.ones(
-            (batch_size, num_images_per_sample), dtype=torch.long, device=input_ids.device
+        # create an indices matrix used in torch.scatter {
+        sorted_media_end_positions_mask, media_end_positions_mask_sort_idx = (
+            # NOTE: to(torch.long) is needed because PyTorch does not have sort for boolean tensors on CUDA
+            (input_ids == self.media_end_id)
+            .to(torch.long)
+            .sort(dim=-1, descending=True, stable=True)
         )
-        padded_media_indices *= sequence_length
-        for idx, input_id in enumerate(input_ids):
-            media_end_positions = torch.where(input_id == self.media_end_id)[0]
+        # TODO: unless `media_end_positions_mask_sort_idx` is required to be sorted,
+        # we can replace sort with topk(..., k=num_images_per_sample)
+        sorted_media_end_positions_mask = sorted_media_end_positions_mask[:, :num_images_per_sample]
+        media_end_positions_mask_sort_idx = media_end_positions_mask_sort_idx[:, :num_images_per_sample]
+
+        # NOTE: to(bool) is needed for torch.where
+        if self.use_im_start_end:
+            padded_media_indices = torch.where(
+                sorted_media_end_positions_mask.to(torch.bool),
+                media_end_positions_mask_sort_idx - num_patches,
+                sequence_length,
+            )
+        else:
+            padded_media_indices = torch.where(
+                sorted_media_end_positions_mask.to(torch.bool),
+                media_end_positions_mask_sort_idx - num_patches + 1,
+                sequence_length,
+            )
+
+        # Check whether `padded_media_indices` represents correct indices
+        # This check is only run when the env var `NEMO_TESTING` is set
+        def check_padded_media_indices():
             if self.use_im_start_end:
-                # locate the first media token positions
-                padded_media_indices[idx, : len(media_end_positions)] = media_end_positions - num_patches
-                assert (
-                    input_id[padded_media_indices[idx, : len(media_end_positions)] - 1] == self.media_start_id
-                ).all()
+                idx_mask = sorted_media_end_positions_mask
+                idx = padded_media_indices - 1
             else:
-                padded_media_indices[idx, : len(media_end_positions)] = media_end_positions - num_patches + 1
-                assert (input_id[padded_media_indices[idx, : len(media_end_positions)]] == self.media_start_id).all()
+                idx_mask = sorted_media_end_positions_mask
+                idx = padded_media_indices
+
+            # Gather over masked index
+            select_input_ids = input_ids.gather(1, idx_mask * idx)
+            # Set values outside of the mask with `self.media_start_id`
+            select_input_ids = torch.where(idx_mask.to(torch.bool), select_input_ids, self.media_start_id)
+
+            # Do the check
+            assert (select_input_ids == self.media_start_id).all()
+
+        run_if_testing(check_padded_media_indices)
+        # }
 
         # use indices to create a span
         padded_media_indices = padded_media_indices.unsqueeze(-1) + torch.arange(
