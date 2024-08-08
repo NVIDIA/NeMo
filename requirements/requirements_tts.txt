@@ -1,5 +1,4 @@
 attrdict
-cutlet
 einops
 janome
 jieba
