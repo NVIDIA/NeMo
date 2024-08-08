@@ -155,9 +155,9 @@ class ProgressPrinter(ProgressBar):
     ) -> None:
         if self.is_disabled:
             return
-        n = int((batch_idx + 1) / get_num_microbatches())
+        n = (batch_idx + 1) / get_num_microbatches()
         if self.should_log(n):
-            print(self.validation_description + f": iteration {n}/{self.total_validation_steps}")
+            print(self.validation_description + f": iteration {int(n)}/{self.total_validation_steps}")
 
     @override
     def on_test_batch_start(
