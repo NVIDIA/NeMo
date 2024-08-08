@@ -42,7 +42,11 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
 
-    _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
+    _batch = {
+        key: val.cuda(non_blocking=True)
+        if key in required_keys and val is not None else None
+        for key, val in _batch.items()
+    }
     # slice batch along sequence dimension for context parallelism
     output = get_batch_on_this_context_parallel_rank(_batch)
 
@@ -54,8 +58,9 @@ def neva_forward_step(model, batch) -> torch.Tensor:
         "media": batch["media"],
         "input_ids": batch["tokens"],
         "position_ids": batch["position_ids"],
-        "attention_mask": batch["attention_mask"],
-        "labels": batch["labels"],
+        "attention_mask": batch.get("attention_mask", None),
+        "loss_mask": batch.get("loss_mask", None),
+        "labels": batch.get("labels", None),
     }
 
     if 'cu_seqlens' in batch:
@@ -191,7 +196,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self.add_encoder = self.vision_model is not None
         self.add_decoder = self.language_model is not None
 
-    def _merge_input_ids_with_media_features(self, media_features, inputs_embeds, input_ids, attention_mask, labels):
+    def _merge_input_ids_with_media_features(self, media_features, inputs_embeds, input_ids, loss_mask, labels):
         """
         modified from llava next _merge_input_ids_with_image_features
         https://github.com/huggingface/transformers/blob/main/src/transformers/models/llava_next/modeling_llava_next.py#L409
@@ -221,8 +226,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
         final_embedding = torch.zeros(
             batch_size, max_embed_dim, embed_dim, dtype=inputs_embeds.dtype, device=inputs_embeds.device
         )
-        final_attention_mask = torch.zeros(
-            batch_size, max_embed_dim, dtype=attention_mask.dtype, device=inputs_embeds.device
+        final_loss_mask = torch.zeros(
+            (batch_size, max_embed_dim), dtype=loss_mask.dtype, device=loss_mask.device
         )
         if labels is not None:
             final_labels = torch.full(
@@ -240,7 +245,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         # 4. Fill the embeddings based on the mask. If we have ["hey" "<media>", "how", "are"]
         # we need to index copy on [0, 577, 578, 579] for the text and [1:576] for the media features
         final_embedding[batch_indices, text_to_overwrite] = inputs_embeds[batch_indices, non_media_indices]
-        # final_attention_mask[batch_indices, text_to_overwrite] = attention_mask[batch_indices, non_media_indices]
+        final_loss_mask[batch_indices, text_to_overwrite] = loss_mask[batch_indices, non_media_indices]
         if labels is not None:
             final_labels[batch_indices, text_to_overwrite] = labels[batch_indices, non_media_indices]
 
@@ -261,20 +266,89 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         if labels is None:
             final_labels = None
-        return final_embedding, final_labels
+        return final_embedding, final_loss_mask, final_labels
+
+    def _preprocess_data(
+        self,
+        media_embeddings,
+        input_ids,
+        position_ids,
+        loss_mask,
+        labels,
+        use_inference_kv_cache,
+    ):
+        """Preprocess input data before input to language model.
+
+        image_token_index = -200 signifies the image position in the input_ids = [1, 2, -200, 3, 4] and labels = [2, -200, 3, 4, 5], for example.
+        We want to replace the image position (-200) with image_embeddings and return the following:
+        - new_embeddings = [language_embeddings1, image_embeddings, language_embeddings2],
+            where language_embeddings1/2 are embeddings for [1, 2] and [3, 4], respectively.
+        - new_loss_mask = [1, 0, 1, 1, 1]
+        - labels = [2, -100, 3, 4, 5]
+
+        This function also handles the case where the input does not contain an image (text-only sample).
+
+        If pipeline parallelism is not used, then self.pre_process and self.post_process are both True and we update both
+        input embeddings, labels and loss masks (if available).
+
+        If pipeline parallelism is used, then we do the following
+        - the first language model chunk has self.pre_process = True and self.post_process = False. We update input embeddings.
+        - the middle language model chunk(s) has self.pre_process = False and self.post_process = False. We don't need to update anything.
+        - the last language model chunk has self.pre_process = False and self.post_process = True. We update labels and loss mask.
+        """
+        assert self.language_model is not None, "data preprocessing should only run for the language model"
+
+        # No pre- or postprocessing needed. With pipeline parallel > 2, this means a chunk in the middle of the model.
+        if not self.pre_process and not self.post_process:
+            return None, loss_mask, labels
+
+        # If using the inference KV cache, the image tokens are already computed.
+        if use_inference_kv_cache:
+            language_embeddings = None
+            if self.pre_process:
+                language_embeddings = self.language_model.embedding(
+                    input_ids=input_ids, position_ids=position_ids
+                )  # [text_seq_len, b, h_language]
+
+            return language_embeddings, loss_mask, labels
+
+        assert input_ids.shape == position_ids.shape, "mismatching input shapes"
+        if labels is not None:
+            assert labels.shape == loss_mask.shape, "mismatching labels and loss mask shapes"
+
+        if self.pre_process:
+            input_language_embeddings_ids = input_ids.clone()
+            # MultiModal Token indices are assumed to be values
+            input_language_embeddings_ids[input_ids < 0] = 0
+            language_embeddings = self.language_model.embedding(
+                input_ids=input_language_embeddings_ids, position_ids=position_ids
+            )  # [text_seq_len, b, h_language]
+
+            language_embeddings = language_embeddings.transpose(0, 1)  # [b, text_seq_len, h_language]
+            combined_embeddings, loss_mask, labels = self._merge_input_ids_with_media_features(
+                media_embeddings, language_embeddings, input_ids, loss_mask, labels
+            )
+            combined_embeddings = combined_embeddings.transpose(0, 1).contiguous()  # [text_seq_len, b, h_language]
+
+        else:
+            combined_embeddings = None
+
+        return combined_embeddings, loss_mask, labels
+
 
     def forward(
         self,
         media: torch.Tensor,
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
+        loss_mask: torch.Tensor,
         attention_mask: torch.Tensor,
         labels: torch.Tensor = None,
         inference_params: InferenceParams = None,
     ) -> torch.Tensor:
         use_inference_kv_cache = (
             inference_params is not None
-            and "media_tokens_count" in inference_params.key_value_memory_dict
+            and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         # If running inference, we can skip media token computation if they were computed already earlier for this sample.
         if use_inference_kv_cache:
@@ -290,11 +364,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             media_embeddings = self.vision_projection(
                 media_embeddings
             )  # [img_seq_len, b, h_vision]
-            # media_embeddings = rearrange(
-            #     media_embeddings,
-            #     f"(b T F) img_seq_len h_vision -> b T F img_seq_len h_vision",
-            #     b=b, T=T, F=F
-            # )
+
             # If running inference, the language model KV cache will be updated for media token positions.
             # Here we store the media tokens sequence length, which can be used as an offset to the KV cache later.
             if inference_params is not None:
@@ -305,28 +375,17 @@ class MCoreNevaModel(MCoreLLaVAModel):
             media_embeddings = self.encoder_hidden_state
 
         if not self.add_decoder:
-            return media_embeddings
+            return media_embeddings, loss_mask
 
-        if self.pre_process:
-            input_language_embeddings_ids = input_ids.clone()
-            # MultiModal Token indices are assumed to be values
-            input_language_embeddings_ids[input_ids < 0] = 0
-            language_embeddings = self.language_model.embedding(
-                input_ids=input_language_embeddings_ids, position_ids=position_ids
-            )  # [text_seq_len, b, h_language]
-
-            # If running inference, we can skip media token computation if they were computed already earlier for this sample.
-            if use_inference_kv_cache:
-                combined_embeddings = language_embeddings
-            else:
-                language_embeddings = language_embeddings.transpose(0, 1)  # [b, text_seq_len, h_language]
-                combined_embeddings, labels = self._merge_input_ids_with_media_features(
-                    media_embeddings, language_embeddings, input_ids, attention_mask, labels
-                )
-                combined_embeddings = combined_embeddings.transpose(0, 1).contiguous()  # [text_seq_len, b, h_language]
-
-        else:
-            combined_embeddings = None
+        # Preprocess input, labels and loss mask.
+        combined_embeddings, loss_mask, labels = self._preprocess_data(
+            media_embeddings,
+            input_ids,
+            position_ids,
+            loss_mask,
+            labels,
+            use_inference_kv_cache,
+        )
 
         output = self.language_model(
             input_ids=None,
@@ -337,7 +396,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             inference_params=inference_params,
         )
 
-        return output
+        return output, loss_mask
 
 
 class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
@@ -367,6 +426,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             media: torch.Tensor,
             input_ids: torch.Tensor,
             position_ids: torch.Tensor,
+            loss_mask: torch.Tensor,
             attention_mask: torch.Tensor,
             labels: torch.Tensor = None,
             inference_params: InferenceParams = None,
@@ -375,6 +435,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             media,
             input_ids,
             position_ids,
+            loss_mask,
             attention_mask,
             labels=labels,
             inference_params=inference_params,

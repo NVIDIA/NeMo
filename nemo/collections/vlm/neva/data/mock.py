@@ -101,8 +101,9 @@ class _MockNevaDataset(Dataset):
         self.length = num_samples
         self.seed = seed
 
-        self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
-        self.attention_mask = self.attention_mask < 0.5
+        # self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
+        # self.attention_mask = self.attention_mask < 0.5
+        # self.attention_mask = None
         self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
@@ -117,7 +118,7 @@ class _MockNevaDataset(Dataset):
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
-        tokens[0] = -200  # ImageToken token index
+        tokens[2] = -200  # ImageToken token index
         labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
         images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
         images = rearrange(images, "c h w -> 1 1 c h w")  # T F c h w
@@ -125,7 +126,7 @@ class _MockNevaDataset(Dataset):
             "media": images,
             "tokens": tokens,
             "labels": labels,
-            "attention_mask": self.attention_mask,
+            # "attention_mask": self.attention_mask,
             "loss_mask": self.loss_mask,
             "position_ids": self.position_ids,
         }
@@ -135,7 +136,9 @@ class _MockNevaDataset(Dataset):
         A default implementation of a collation function.
         Users should override this method to define custom data loaders.
         """
-        return data.dataloader.default_collate(batch)
+        collated_batch = data.dataloader.default_collate(batch)
+        collated_batch["attention_mask"] = None
+        return collated_batch
 
     def collate_fn(self, batch):
         """Method that user pass as functor to DataLoader.
