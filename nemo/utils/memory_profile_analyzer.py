@@ -16,7 +16,6 @@ import csv
 import os
 import pickle
 
-import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks
 from nemo.utils import logging
@@ -24,8 +23,6 @@ from nemo.utils import logging
 __all__ = ['peak_memory_analysis']
 
 GB_SIZE = 1024 * 1024 * 1024
-MB_SIZE = 1024 * 1024
-KB_SIZE = 1024
 
 
 def load_pickle_file(filename):
