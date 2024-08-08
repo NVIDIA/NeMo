@@ -27,6 +27,7 @@ from typing import List, Optional
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils.cuda_python_utils import (
     check_cuda_python_cuda_graphs_conditional_nodes_supported,
+    checked_graph,
     cu_call,
     run_nvrtc,
     with_conditional_node,
@@ -174,7 +175,7 @@ class RNNTGreedyDecodeCudaGraph:
         with (
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),
-            torch.cuda.graph(self.graph, stream=stream_for_graph, capture_error_mode="thread_local"),
+            checked_graph(self.graph, stream=stream_for_graph, capture_error_mode="thread_local"),
         ):
             # This is failing...
             self.f = torch.zeros(
