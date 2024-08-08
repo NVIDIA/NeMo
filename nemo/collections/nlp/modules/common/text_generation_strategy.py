@@ -422,11 +422,11 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
         DEFAULT_IMAGE_TOKEN,
         preprocess_llama_2,
         preprocess_llama_3,
-        preprocess_yi_34b,
         preprocess_multimodal,
         preprocess_nv_dpo,
         preprocess_nvgpt,
         preprocess_v1,
+        preprocess_yi_34b,
     )
 
     list_data_dict = []

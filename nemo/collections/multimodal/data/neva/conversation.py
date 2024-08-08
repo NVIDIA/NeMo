@@ -347,14 +347,14 @@ conv_nv_dpo = Conversation(
     sep2=f"{DEFAULT_SYSTEM_TOKEN}System\n",
 )
 
-conv_yi_34b=Conversation(
+conv_yi_34b = Conversation(
     system="",
     roles=('user', 'assistant'),
     version="1.5",
     messages=(),
     offset=0,
     sep_style=SeparatorStyle.YI34b,
-    sep="\n"
+    sep="\n",
 )
 
 conv_vicuna_v0 = Conversation(

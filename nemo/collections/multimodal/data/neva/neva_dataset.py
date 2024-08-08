@@ -597,6 +597,7 @@ def preprocess_llama_2(
         labels=labels,
     )
 
+
 def preprocess_yi_34b(
     sources: dict,
     tokenizer,
@@ -622,12 +623,12 @@ def preprocess_yi_34b(
 
     conv = conversation_lib.conv_yi_34b.copy()
 
-    #apply prompt templates
+    # apply prompt templates
     conversations = []
     for i, source in enumerate(sources):
         source = source["conversations"]
         strip_end_for_inference = False
-        
+
         for i, turn in enumerate(source):
 
             if i % 2 == 1:
@@ -636,13 +637,13 @@ def preprocess_yi_34b(
 
                 conv.append_message(turn['from'], value)
                 if not turn["value"]:
-                    strip_end_for_inference = ( True )
+                    strip_end_for_inference = True
             else:
                 turn["from"] = conv.roles[0]
                 conv.append_message(turn["from"], turn["value"])
         context = conv.get_prompt()
         if strip_end_for_inference and context.endswith("\n<|im_end|>"):
-                context = context[: -len("\n<|im_end|>")] + "\n"
+            context = context[: -len("\n<|im_end|>")] + "\n"
         conversations.append(context)
 
     add_extra_token = cfg.get("add_extra_token")
@@ -668,7 +669,7 @@ def preprocess_yi_34b(
             parts = rou.split(sep)
             if len(parts) != 2:
                 break
-            instruction_len = len(tokenizer.text_to_ids(parts[0] + sep))   
+            instruction_len = len(tokenizer.text_to_ids(parts[0] + sep))
             round_len = len(tokenizer.text_to_ids(rou))
             target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
 
@@ -686,7 +687,7 @@ def preprocess_yi_34b(
         tokens=tokens,
         labels=labels,
     )
-            
+
 
 def preprocess_v1(
     sources: dict,
