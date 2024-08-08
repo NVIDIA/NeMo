@@ -93,6 +93,8 @@ try:
         get_gpt_layer_local_spec,
         get_gpt_layer_with_transformer_engine_spec,
     )
+    from megatron.core.models.mamba import MambaModel
+    from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -305,6 +307,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
         self.mcore_gpt = cfg.get('mcore_gpt', False)
+        self.mamba_model = cfg.get('mamba_model', False)
+        if self.mamba_model:
+            assert HAVE_MEGATRON_CORE, "Megatron core required to support Mamba based models."
         self.spec_name = cfg.get('name', '')
         if cfg.get('fp8', False):
             self.prev_step_training = True
@@ -428,7 +433,23 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
-        if self.mcore_gpt:
+        if self.mamba_model:
+            self.hybrid_override_pattern = self.cfg.get(
+                'hybrid_override_pattern', "M" * self.transformer_config.num_layers
+            )
+            self.transformer_config.add_bias_linear = self.cfg.get('add_bias_linear', False)
+            self.transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', False)
+            self.transformer_config.layernorm_epsilon = self.cfg.get('layernorm_epsilon', 1e-5)
+
+            model = MambaModel(
+                config=self.transformer_config,
+                max_sequence_length=self.cfg.get('encoder_seq_length', 4096),
+                vocab_size=self.cfg.get('vocab_size', 65536),
+                mamba_ssm_ngroups=self.cfg.get('mamba_ssm_ngroups', 8),
+                mamba_stack_spec=mamba_stack_spec,
+                hybrid_override_pattern=self.hybrid_override_pattern,
+            )
+        elif self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
                 transformer_layer_spec=get_specs(
