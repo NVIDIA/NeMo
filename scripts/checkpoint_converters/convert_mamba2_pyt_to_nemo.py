@@ -27,11 +27,18 @@ from nemo.utils import logging
 Example
 
 CUDA_VISIBLE_DEVICES="0" python /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
-                                --input_name_or_path null \
-                                --output_path /home/ataghibakhsh/mamba2_ckpts/tiny_hybrid.nemo \
+                                --input_name_or_path <path to the source pytorch model> \
+                                --output_path <path to target .nemo model> \
                                 --mamba_ssm_ngroups 8 \
                                 --precision bf16 \
-                                --tokenizer_model_dir /home/ataghibakhsh/tokenizers/mamba/mamba_hybrid_tokenizer.model
+                                --tokenizer_model_dir <path to tokenizer.model, only set for 8b models, otherwise defaults to None>
+
+CUDA_VISIBLE_DEVICES="0" torchrun --nproc_per_node=1 /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
+                                --input_name_or_path /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/hf_models/Mamba-Codestral-7B-v0.1/pytorch_model.bin \
+                                --output_path /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/codstral_mamba.nemo \
+                                --mamba_ssm_ngroups 8 \
+                                --precision bf16 \
+                                --tokenizer_model_dir /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/hf_models/Mamba-Codestral-7B-v0.1/tokenizer.model.v3
 '''
 
 
@@ -63,118 +70,115 @@ def get_args():
 
 def convert(args):
 
-    # checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')
+    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')['model']
     new_state_dict = {}
 
-    # if 'backbone' in list(checkpoint_weights.keys())[0]:
+    if 'backbone' in list(checkpoint_weights.keys())[0]:
+        if 'model' in list(checkpoint_weights.keys())[0]:
+            checkpoint_weights = {key.replace('model.', '', 1): value for key, value in checkpoint_weights.items()}
 
-    #     layer_keys = [key for key in checkpoint_weights.keys() if re.match(r'backbone\.layers\.\d+\.', key)]
-    #     layer_numbers = set(int(re.search(r'backbone\.layers\.(\d+)\.', key).group(1)) for key in layer_keys)
-    #     num_layers = max(layer_numbers) + 1
+            # Codestral Mamba Model Tokenizer Settings
+            tokenizer_library = 'megatron'
+            tokenizer_type = 'GPTSentencePieceTokenizer'
+            tokenizer_model = args.tokenizer_model_dir
 
-    #     direct_mappings = {
-    #         'model.embedding.word_embeddings.weight': 'backbone.embedding.weight',
-    #         'model.decoder.final_norm.weight': 'backbone.norm_f.weight',
-    #         'model.output_layer.weight': 'lm_head.weight',
-    #     }
+        else:
 
-    #     for new_key, old_key in direct_mappings.items():
-    #         new_state_dict[new_key] = checkpoint_weights[old_key]
+            # Tri Dao and Albert Gu Mamba Model Tokenizer Settings
+            tokenizer_library = 'huggingface'
+            tokenizer_type = 'EleutherAI/gpt-neox-20b'
+            tokenizer_model = None
 
-    #     layer_attributes = [
-    #         'mixer.A_log',
-    #         'mixer.D',
-    #         'mixer.conv1d.weight',
-    #         'mixer.conv1d.bias',
-    #         'mixer.in_proj.weight',
-    #         'mixer.dt_bias',
-    #         'mixer.out_proj.weight',
-    #         'mixer.norm.weight',
-    #         'norm.weight',
-    #     ]
+        layer_keys = [key for key in checkpoint_weights.keys() if re.match(r'backbone\.layers\.\d+\.', key)]
+        layer_numbers = set(int(re.search(r'backbone\.layers\.(\d+)\.', key).group(1)) for key in layer_keys)
+        num_layers = max(layer_numbers) + 1
 
-    #     for i in range(num_layers):
-    #         for attr in layer_attributes:
-    #             if attr == 'norm.weight':
-    #                 new_key = f'model.decoder.layers.{i}.mixer.in_proj.layer_norm_weight'
-    #                 old_key = f'backbone.layers.{i}.norm.weight'
-    #             else:
-    #                 new_key = f'model.decoder.layers.{i}.{attr}'
-    #                 old_key = f'backbone.layers.{i}.{attr}'
-    #             new_state_dict[new_key] = checkpoint_weights[old_key]
+        direct_mappings = {
+            'model.embedding.word_embeddings.weight': 'backbone.embedding.weight',
+            'model.decoder.final_norm.weight': 'backbone.norm_f.weight',
+            'model.output_layer.weight': 'lm_head.weight',
+        }
 
-    #     # Tokenizer settings
-    #     tokenizer_library = 'huggingface'
-    #     tokenizer_type = 'EleutherAI/gpt-neox-20b'
-    #     tokenizer_model = None
+        for new_key, old_key in direct_mappings.items():
+            new_state_dict[new_key] = checkpoint_weights[old_key]
 
-    # else:
+        layer_attributes = [
+            'mixer.A_log',
+            'mixer.D',
+            'mixer.conv1d.weight',
+            'mixer.conv1d.bias',
+            'mixer.in_proj.weight',
+            'mixer.dt_bias',
+            'mixer.out_proj.weight',
+            'mixer.norm.weight',
+            'norm.weight',
+        ]
 
-    #     layer_keys = [key for key in checkpoint_weights.keys() if re.match(r'decoder\.layers\.\d+\.', key)]
-    #     layer_numbers = set(int(re.search(r'decoder\.layers\.(\d+)\.', key).group(1)) for key in layer_keys)
-    #     num_layers = max(layer_numbers) + 1
+        for i in range(num_layers):
+            for attr in layer_attributes:
+                if attr == 'norm.weight':
+                    new_key = f'model.decoder.layers.{i}.mixer.in_proj.layer_norm_weight'
+                    old_key = f'backbone.layers.{i}.norm.weight'
+                else:
+                    new_key = f'model.decoder.layers.{i}.{attr}'
+                    old_key = f'backbone.layers.{i}.{attr}'
+                new_state_dict[new_key] = checkpoint_weights[old_key]
 
-    #     for key, value in checkpoint_weights.items():
-    #         if '.norm.weight' in key and 'mixer' not in key:
-    #             key = key[:-11] + 'mixer.in_proj.layer_norm_weight'
-    #         new_state_dict["model." + key] = value
+    else:
 
-    #     # Tokenizer settings
-    #     tokenizer_library = 'megatron'
-    #     tokenizer_type = 'GPTSentencePieceTokenizer'
-    #     tokenizer_model = args.tokenizer_model_dir
+        layer_keys = [key for key in checkpoint_weights.keys() if re.match(r'decoder\.layers\.\d+\.', key)]
+        layer_numbers = set(int(re.search(r'decoder\.layers\.(\d+)\.', key).group(1)) for key in layer_keys)
+        num_layers = max(layer_numbers) + 1
 
-    #     # Tokenizer settings
-    #     tokenizer_library = 'megatron'
-    #     tokenizer_type = 'GPTSentencePieceTokenizer'
-    #     tokenizer_model = args.tokenizer_model_dir
+        for key, value in checkpoint_weights.items():
+            if '.norm.weight' in key and 'mixer' not in key:
+                key = key[:-11] + 'mixer.in_proj.layer_norm_weight'
+            new_state_dict["model." + key] = value       
 
-    # layers = defaultdict(list)
+        # Tokenizer settings
+        tokenizer_library = 'megatron'
+        tokenizer_type = 'GPTSentencePieceTokenizer'
+        tokenizer_model = args.tokenizer_model_dir
 
-    # for key in new_state_dict.keys():
-    #     match = re.match(r'model\.decoder\.layers\.(\d+)\.(\w+)', key)
-    #     if match:
-    #         index, layer_type = match.groups()
-    #         layers[index].append(layer_type)
+    layers = defaultdict(list)
 
-    # layer_pattern = ''
-    # for i in range(max(map(int, layers.keys())) + 1):
-    #     index_str = str(i)
-    #     layer_types = layers.get(index_str, [])
-    #     if 'mixer' in layer_types:
-    #         layer_pattern += 'M'
-    #     elif 'self_attention' in layer_types:
-    #         layer_pattern += '*'
-    #     elif 'mlp' in layer_types:
-    #         layer_pattern += '-'
-    #     else:
-    #         raise AssertionError("Layer not found. Each layer must be eiher MLP, Mamba, or Attention")
+    for key in new_state_dict.keys():
+        match = re.match(r'model\.decoder\.layers\.(\d+)\.(\w+)', key)
+        if match:
+            index, layer_type = match.groups()
+            layers[index].append(layer_type)
 
-    tokenizer_library = 'megatron'
-    tokenizer_type = 'GPTSentencePieceTokenizer'
-    tokenizer_model = args.tokenizer_model_dir
-    layer_pattern = "M-M*" 
+    layer_pattern = ''
+    for i in range(max(map(int, layers.keys())) + 1):
+        index_str = str(i)
+        layer_types = layers.get(index_str, [])
+        if 'mixer' in layer_types:
+            layer_pattern += 'M'
+        elif 'self_attention' in layer_types:
+            layer_pattern += '*'
+        elif 'mlp' in layer_types:
+            layer_pattern += '-'
+        else:
+            raise AssertionError("Layer not found. Each layer must be eiher MLP, Mamba, or Attention")
 
     nemo_config = OmegaConf.load(args.hparams_file)
     nemo_config.trainer["precision"] = args.precision
-    nemo_config.model.ffn_hidden_size = 8192
-    nemo_config.model.vocab_size, nemo_config.model.hidden_size =  256000, 2048
-    # nemo_config.model.vocab_size, nemo_config.model.hidden_size = new_state_dict[
-    #     'model.embedding.word_embeddings.weight'
-    # ].shape
-    nemo_config.model.num_layers = 4 #num_layers
+    nemo_config.model.vocab_size, nemo_config.model.hidden_size = new_state_dict[
+        'model.embedding.word_embeddings.weight'
+    ].shape
+    nemo_config.model.num_layers = num_layers
     nemo_config.model.hybrid_override_pattern = layer_pattern
-    nemo_config.model.mamba_ssm_ngroups = 8 #args.mamba_ssm_ngroups
+    nemo_config.model.mamba_ssm_ngroups = args.mamba_ssm_ngroups
     nemo_config.model.tokenizer.library = tokenizer_library
     nemo_config.model.tokenizer.type = tokenizer_type
     nemo_config.model.tokenizer.model = tokenizer_model
 
-    # if "-" in layer_pattern:
-    #     nemo_config.model.ffn_hidden_size = new_state_dict[
-    #         f'model.decoder.layers.{layer_pattern.index("-")}.mlp.linear_fc1.weight'
-    #     ].shape[0]
-    # else:
-    #     nemo_config.model.ffn_hidden_size = nemo_config.model.hidden_size
+    if "-" in layer_pattern:
+        nemo_config.model.ffn_hidden_size = new_state_dict[
+            f'model.decoder.layers.{layer_pattern.index("-")}.mlp.linear_fc1.weight'
+        ].shape[0]
+    else:
+        nemo_config.model.ffn_hidden_size = nemo_config.model.hidden_size
 
     nemo_config.model.use_cpu_initialization = True
 
@@ -185,7 +189,7 @@ def convert(args):
 
     # Setting strict=False for the _extra_state
 
-    # nemo_model_from_pyt.load_state_dict(new_state_dict, strict=False)
+    nemo_model_from_pyt.load_state_dict(new_state_dict, strict=False)
     dtype = torch_dtype_from_precision(args.precision)
     nemo_model_from_pyt = nemo_model_from_pyt.to(dtype=dtype)
     nemo_model_from_pyt.save_to(args.output_path)

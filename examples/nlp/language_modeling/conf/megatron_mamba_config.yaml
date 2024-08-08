@@ -94,7 +94,7 @@ model:
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
-  fp32_residual_connection: False # Move residual connections to fp32
+  fp32_residual_connection: True # Move residual connections to fp32
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
   # Megatron O2-style half-precision
@@ -104,7 +104,7 @@ model:
 
   # Fusion
   grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce. Only used with O2 and no pipeline parallelism..
-  gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs. Only used with pipeline parallelism and O2.
+  gradient_accumulation_fusion: True # Fuse weight gradient accumulation to GEMMs. Only used with pipeline parallelism and O2.
   bias_activation_fusion: False # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
   bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.

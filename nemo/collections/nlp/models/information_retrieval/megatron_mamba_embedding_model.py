@@ -41,7 +41,6 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         self.cross_entropy_loss = torch.nn.CrossEntropyLoss(label_smoothing=cfg.get('label_smoothing', 0.0))
         self.temperature = self.cfg.get('temperature', 1)
 
-        self.hard_negatives_to_train = self.cfg.data.train_ds.get("hard_negatives_to_train", 4)
         self.global_inbatch_negatives = self.cfg.get("global_inbatch_negatives", True)
         self.use_all_possible_negatives = self.cfg.get("use_all_possible_negatives", False)
         self.use_inbatch_negatives = self.cfg.get("use_inbatch_negatives", True)
@@ -76,7 +75,8 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
         self.transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', False)
         self.transformer_config.layernorm_epsilon = self.cfg.get('layernorm_epsilon', 1e-5)
         self.use_latent_attention = self.cfg.get("use_latent_attention", False)
-
+        self.gradient_accumulation_fusion = True
+        
         if self.use_latent_attention:
             model = MambaEmbeddingModel(
                 config=self.transformer_config,
@@ -166,6 +166,7 @@ class MegatronMambaEmbeddingModel(MegatronGPTEmbeddingModel):
             8 * self.cfg.get('tensor_model_parallel_size', 1) if self.cfg.get('sequence_parallel', False) else 16
         )
         if is_train:
+            self.hard_negatives_to_train = self.cfg.data.train_ds.get("hard_negatives_to_train", 4)
             datasets = []
             for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
                 dataset = GPTEmbeddingDataset(

@@ -9,6 +9,7 @@ from nemo.core.config import hydra_runner
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 
 mp.set_start_method("spawn", force=True)
 
@@ -35,7 +36,20 @@ def main(cfg) -> None:
     model = MegatronMambaEmbeddingModel.restore_from(
         restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=False
     )
-    model._save_restore_connector = SaveRestoreConnector()
+
+    peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
+
+    if cfg.model.peft.restore_from_path is not None:
+        # initialize peft weights from a checkpoint instead of randomly
+        # This is not the same as resume training because optimizer states are not restored.
+        logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
+        model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
+    elif peft_cfg_cls is not None:
+        logging.info("Adding adapter weights to the model for PEFT")
+        model.add_adapter(peft_cfg_cls(model_cfg))
+    else:
+        logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
+
 
     trainer.fit(model)
 
