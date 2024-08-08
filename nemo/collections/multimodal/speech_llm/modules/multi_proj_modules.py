@@ -703,7 +703,7 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
-                    tokens_loss = torch.matmul(tokens_loss, torch.FloatTensor(self.proj_head_loss_weights).to(tokens_loss.device)) / sum(self.proj_head_loss_weights)
+                    tokens_loss = tokens_loss * torch.FloatTensor(self.proj_head_loss_weights).to(tokens_loss.device) / sum(self.proj_head_loss_weights)
                     # check if hiddens is used
                     if return_all_selfattention_probs or return_all_crossattention_probs:
                         return tokens_loss, attention_probs
