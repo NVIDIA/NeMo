@@ -487,7 +487,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
             pp_size = parallel_state.get_pipeline_model_parallel_world_size()
             if pp_size > 1:
-                # ranks that are not final pp stage have 0 for loss, and out will be reduced
+                # ranks that are not final pp stage have 0 for loss, and out will be mean-reduced over pp
+                # groups (due to sync_dist), which divides val_loss by pp_size. so we multiply by pp_size to cancel out
                 self.lightning_module.log(
                     'val_loss',
                     out * pp_size,
