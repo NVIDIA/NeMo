@@ -36,8 +36,9 @@ from tensorrt_llm.layers import MoeConfig
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
-#from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
-#from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_trt_llm_ckpt
+
+# from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
+# from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_trt_llm_ckpt
 from nemo.export.trt_llm.converter.utils import init_model_parallel_from_nemo
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
     build_tokenizer,
@@ -172,7 +173,9 @@ class TensorRTLLM(ITritonDeployable):
 
         conf.layernorm_epsilon = nemo_model_config.get('layernorm_epsilon')
 
-        conf.position_embedding_type = "rope_gpt_neox" if nemo_model_config.get('position_embedding_type') == "rope" else "learned_absolute"
+        conf.position_embedding_type = (
+            "rope_gpt_neox" if nemo_model_config.get('position_embedding_type') == "rope" else "learned_absolute"
+        )
 
         conf.max_position_embeddings = nemo_model_config.get('max_position_embeddings')
 
@@ -188,9 +191,7 @@ class TensorRTLLM(ITritonDeployable):
             'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
         )
 
-        conf.moe_tp_mode = nemo_model_config.get(
-            'moe_tp_mode', 2
-        ),
+        conf.moe_tp_mode = (nemo_model_config.get('moe_tp_mode', 2),)
 
         conf.seq_len_interpolation_factor = nemo_model_config.get("seq_len_interpolation_factor")
 
