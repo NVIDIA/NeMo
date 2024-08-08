@@ -1459,10 +1459,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss
 
     def on_validation_epoch_end(self):
-        if torch.distributed.get_rank() == 0:
-            import pdb; pdb.set_trace()
-        else:
-            import time; time.sleep(10000)
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss with their batch size
             if self.validation_drop_last:
