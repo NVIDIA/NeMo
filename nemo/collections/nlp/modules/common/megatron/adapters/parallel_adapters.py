@@ -24,6 +24,8 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 
+import thunder
+
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
@@ -235,7 +237,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             self.layer_norm = None
 
         if dropout > 0.0:
-            self.dropout = nn.Dropout(dropout)
+            self.dropout = thunder.jit(nn.Dropout(dropout))
         else:
             self.dropout = None
 
