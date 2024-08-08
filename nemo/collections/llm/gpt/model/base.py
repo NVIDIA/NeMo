@@ -14,6 +14,12 @@ from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 
+HAVE_TE = True
+try:
+    import transformer_engine
+except (ImportError, ModuleNotFoundError):
+    HAVE_TE = False
+
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
@@ -80,6 +86,13 @@ def local_layer_spec(config: "GPTConfig") -> ModuleSpec:
     )
 
 
+def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
+    if HAVE_TE:
+        return transformer_engine_layer_spec(config)
+    else:
+        return local_layer_spec(config)
+
+
 @dataclass
 class GPTConfig(TransformerConfig, io.IOMixin):
     # From megatron.core.models.gpt.gpt_model.GPTModel
@@ -96,7 +109,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
 
-    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = transformer_engine_layer_spec
+    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
 
@@ -147,6 +160,8 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
+        self._training_loss_reduction = None
+        self._validation_loss_reduction = None
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
@@ -187,11 +202,19 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return self.forward_step(batch)
 
+    @property
     def training_loss_reduction(self) -> MaskedTokenLossReduction:
-        return MaskedTokenLossReduction()
+        if not self._training_loss_reduction:
+            self._training_loss_reduction = MaskedTokenLossReduction()
 
+        return self._training_loss_reduction
+
+    @property
     def validation_loss_reduction(self) -> MaskedTokenLossReduction:
-        return MaskedTokenLossReduction(validation_step=True)
+        if not self._validation_loss_reduction:
+            self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
+
+        return self._validation_loss_reduction
 
 
 def get_batch_on_this_context_parallel_rank(batch):

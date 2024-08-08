@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
-
 try:
     from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
     from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
@@ -30,6 +28,8 @@ try:
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError) as e:
+
+    from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
     TransformerLayer = TransformerLayerSubmodules = ApexGuardDefaults
     MLP = MLPSubmodules = ModuleSpec = IdentityOp = ApexGuardDefaults

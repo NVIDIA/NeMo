@@ -21,10 +21,11 @@ import lhotse
 import numpy as np
 import pytest
 import torch
-from lhotse import CutSet, MonoCut, NumpyFilesWriter, Recording
+from lhotse import CutSet, MonoCut, NumpyFilesWriter, Recording, SupervisionSegment, compute_num_samples
 from lhotse.audio import AudioLoadingError
 from lhotse.cut import Cut, MixedCut
 from lhotse.cut.text import TextPairExample
+from lhotse.testing.dummies import dummy_recording
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
@@ -1575,3 +1576,255 @@ def test_dataloader_with_synth_rir(cutset_path: Path):
         assert tfnm["name"] == "ReverbWithImpulseResponse"
     else:  # lhotse>=1.24.0
         assert isinstance(tfnm, ReverbWithImpulseResponse)
+
+
+@pytest.fixture(scope="session")
+def questions_path(tmp_path_factory) -> Path:
+    """A text file with 10 lines containing question values"""
+    qdir = tmp_path_factory.mktemp("questions")
+    path = qdir / "questions.txt"
+    path.write_text("\n".join(f"some question number {i}" for i in range(10)))
+    return path
+
+
+def test_dataloader_from_nemo_nontarred_manifest_with_extra_questions_field_iter(
+    nemo_manifest_path: Path, questions_path: Path
+):
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "manifest_filepath": nemo_manifest_path,
+                    "type": "nemo",
+                    "extra_fields": [
+                        {
+                            "type": "text_iter",
+                            "name": "question",
+                            "path": questions_path,
+                        }
+                    ],
+                },
+            ],
+            "sample_rate": 16000,
+            "shuffle": False,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 2,
+            "use_bucketing": False,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    b = next(iter(dl))
+    c = b[0]
+    assert isinstance(c, MonoCut)
+    assert hasattr(c, "question")
+    assert c.question == "some question number 0"
+    c = b[1]
+    assert isinstance(c, MonoCut)
+    assert hasattr(c, "question")
+    assert c.question == "some question number 1"
+
+
+def test_dataloader_from_nemo_manifest_with_extra_questions_field_iter(
+    nemo_tarred_manifest_path: tuple, questions_path: Path
+):
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "manifest_filepath": nemo_tarred_manifest_path[0],
+                    "tarred_audio_filepaths": nemo_tarred_manifest_path[1],
+                    "type": "nemo_tarred",
+                    "extra_fields": [
+                        {
+                            "type": "text_iter",
+                            "name": "question",
+                            "path": questions_path,
+                        }
+                    ],
+                },
+            ],
+            "sample_rate": 16000,
+            "shuffle": False,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 2,
+            "use_bucketing": False,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    b = next(iter(dl))
+    c = b[0]
+    assert isinstance(c, MonoCut)
+    assert hasattr(c, "question")
+    assert c.question == "some question number 0"
+    c = b[1]
+    assert isinstance(c, MonoCut)
+    assert hasattr(c, "question")
+    assert c.question == "some question number 1"
+
+
+def test_dataloader_from_nemo_manifest_with_extra_questions_field_sample(
+    nemo_tarred_manifest_path: tuple, questions_path: Path
+):
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "manifest_filepath": nemo_tarred_manifest_path[0],
+                    "tarred_audio_filepaths": nemo_tarred_manifest_path[1],
+                    "type": "nemo_tarred",
+                    "extra_fields": [
+                        {
+                            "type": "text_sample",
+                            "name": "question",
+                            "path": questions_path,
+                        }
+                    ],
+                },
+            ],
+            "sample_rate": 16000,
+            "shuffle": False,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 5,
+            "seed": 0,
+            "shard_seed": 0,
+            "use_bucketing": False,
+        }
+    )
+
+    # Note: despite shuffle=True, it is sampling lines from questions_path because of type: "text_sample"
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    b = next(iter(dl))
+    c = b[0]
+    assert isinstance(c, MonoCut)
+    assert hasattr(c, "question")
+    assert c.question == "some question number 6"
+    c = b[1]
+    assert isinstance(c, MonoCut)
+    assert hasattr(c, "question")
+    assert c.question == "some question number 6"
+    c = b[2]
+    assert isinstance(c, MonoCut)
+    assert hasattr(c, "question")
+    assert c.question == "some question number 0"
+    c = b[3]
+    assert isinstance(c, MonoCut)
+    assert hasattr(c, "question")
+    assert c.question == "some question number 4"
+    c = b[4]
+    assert isinstance(c, MonoCut)
+    assert hasattr(c, "question")
+    assert c.question == "some question number 8"
+
+
+@pytest.fixture(scope="session")
+def nemo_tarred_manifest_path_with_offset(tmp_path_factory) -> Tuple[str, str]:
+    """10 utterances of length 1s as a NeMo tarred manifest."""
+    from lhotse.serialization import SequentialJsonlWriter
+    from lhotse.shar.writers import TarWriter
+
+    root = tmp_path_factory.mktemp("nemo_tar_offset")
+    root.mkdir(exist_ok=True)
+    recording = dummy_recording(0, duration=10.0, with_data=True)
+
+    with (
+        TarWriter(f"{root}/audios_0.tar", shard_size=None) as tar_writer,
+        SequentialJsonlWriter(root / "tarred_audio_filepaths.jsonl") as mft_writer,
+    ):
+        tar_writer.write(recording.id, BytesIO(recording.sources[0].source))
+        mft_writer.write(
+            {  # segment 0-3s
+                "audio_filepath": recording.id,
+                "offset": 0.0,
+                "duration": 3.0,
+                "text": "irrelevant",
+                "lang": "en",
+                "shard_id": 0,
+            }
+        )
+        mft_writer.write(
+            {  # segment 4-9s
+                "audio_filepath": recording.id + "-sub1",
+                "offset": 4.0,
+                "duration": 5.0,
+                "text": "irrelevant-2",
+                "lang": "en",
+                "shard_id": 0,
+            }
+        )
+        mft_writer.write(
+            {  # full recording - for reference
+                "audio_filepath": recording.id + "-sub2",
+                "offset": 0.0,
+                "duration": 10.0,
+                "text": "irrelevant irrelevant-2",
+                "lang": "en",
+                "shard_id": 0,
+            }
+        )
+    return mft_writer.path, tar_writer.output_paths[0]
+
+
+def test_dataloader_from_tarred_nemo_manifest_with_offset(nemo_tarred_manifest_path_with_offset: tuple[str, str]):
+    json_mft, tar_mft = nemo_tarred_manifest_path_with_offset
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": json_mft,
+            "tarred_audio_filepaths": tar_mft,
+            "sample_rate": 16000,
+            "shuffle": False,
+            "num_workers": 0,
+            "batch_size": 3,
+            "seed": 0,
+            "shard_seed": 0,
+            "force_finite": True,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Loads all three examples in a single mini-batch (that's why batch_size=3).
+    batches = [b for b in dl]
+    assert len(batches) == 1
+    (batch,) = batches
+    assert len(batch) == 3
+
+    # Validate example containing full 10s recording.
+    full_cut = batch[-1]
+    assert full_cut.start == 0.0
+    assert full_cut.duration == 10.0
+    assert full_cut.supervisions[0].text == "irrelevant irrelevant-2"
+    assert full_cut.supervisions[0].language == "en"
+    full_audio = full_cut.load_audio()
+    assert full_audio.shape[1] == full_cut.num_samples == 160000  # 10s * 16kHz
+
+    # Validate segment 0-3s.
+    cut = batch[0]
+    assert cut.start == 0.0
+    assert cut.duration == 3.0
+    assert cut.supervisions[0].text == "irrelevant"
+    assert cut.supervisions[0].language == "en"
+    audio = cut.load_audio()
+    assert audio.shape[1] == cut.num_samples
+    # Check the audio for the segment is identical to a slice of the full audio.
+    np.testing.assert_equal(audio, full_audio[:, : compute_num_samples(cut.duration, cut.sampling_rate)])
+
+    # Validate segment 4-9s.
+    # Note: LazyNeMoTarredIterator removes the offset information, as it creates a new recording
+    # that's a "subset" of the original recording as a memory saving optimization.
+    # Hence, we will not see cut.start == 4.0.
+    cut = batch[1]
+    assert cut.start == 0.0
+    assert cut.duration == 5.0
+    assert cut.supervisions[0].text == "irrelevant-2"
+    assert cut.supervisions[0].language == "en"
+    audio = cut.load_audio()
+    assert audio.shape[1] == cut.num_samples
+    # Check the audio for the segment is identical to a slice of the full audio.
+    np.testing.assert_equal(
+        audio, full_audio[:, compute_num_samples(4.0, cut.sampling_rate) : compute_num_samples(9.0, cut.sampling_rate)]
+    )

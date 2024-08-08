@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, List, Literal, Optional
 
 import pytorch_lightning as pl
@@ -43,12 +44,13 @@ class MegatronDataSampler(DataSampler):
     def transform_dataloader(self, dataloader: DataLoader, consumed_samples: int = 0) -> DataLoader:
         from nemo.lightning.data import add_megatron_sampler
 
+        mode = getattr(dataloader, 'mode', 'train')
         return add_megatron_sampler(
             dataloader,
             micro_batch_size=self.micro_batch_size,
             global_batch_size=self.global_batch_size,
             rampup_batch_size=self.rampup_batch_size,
-            consumed_samples=self.init_consumed_samples,
+            consumed_samples=self.init_consumed_samples if mode == 'train' else 0,
             dataloader_type=self.dataloader_type,
         )
 
@@ -60,12 +62,8 @@ class MegatronDataSampler(DataSampler):
             return 0
 
         app_state = AppState()
-
         if self.rampup_batch_size is not None:
-            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-
-            current_global_batch_size = getattr(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, "current_global_batch_size", 1)
-            consumed_samples = self.prev_consumed_samples + self.if_first_step * current_global_batch_size
+            consumed_samples = self.prev_consumed_samples + self.if_first_step * self.current_global_batch_size
         else:
             consumed_samples = (
                 self.init_consumed_samples
@@ -85,15 +83,17 @@ class MegatronDataSampler(DataSampler):
             trainer.should_stop = True
 
     def on_megatron_step_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
-        import apex.transformer.pipeline_parallel.utils
+        try:
+            from megatron.core.num_microbatches_calculator import update_num_microbatches
 
-        if self.rampup_batch_size is None:
-            return
+        except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 
         self.prev_global_batch_size = self.current_global_batch_size
 
         # TODO: Add consumed samples
-        consumed_samples = self.compute_consumed_samples(trainer.global_step + 1 - self.init_global_step)
+        consumed_samples = self.compute_consumed_samples(trainer.global_step + 1 - self.init_consumed_samples)
 
         pl_module.log(
             'consumed_samples',
@@ -105,18 +105,13 @@ class MegatronDataSampler(DataSampler):
 
         self.prev_consumed_samples = consumed_samples
 
-        num_microbatch_calculator = (
-            apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR  # noqa: SLF001
-        )
-
-        num_microbatch_calculator.update(
+        update_num_microbatches(
             consumed_samples=consumed_samples,
             consistency_check=False,
         )
-        current_global_batch_size = num_microbatch_calculator.current_global_batch_size
         pl_module.log(
             "global_batch_size",
-            current_global_batch_size,
+            self.current_global_batch_size,
             prog_bar=True,
             rank_zero_only=True,
             batch_size=1,
@@ -133,17 +128,27 @@ class MegatronDataSampler(DataSampler):
 
     @property
     def num_microbatches(self) -> int:
-        from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+        try:
+            from megatron.core.num_microbatches_calculator import get_num_microbatches
+
+        except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
         return get_num_microbatches()
 
     @property
     def current_global_batch_size(self) -> int:
-        import apex.transformer.pipeline_parallel.utils
+        try:
+            from megatron.core.num_microbatches_calculator import get_current_global_batch_size
 
-        num_microbatch_calculator = (
-            apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR  # noqa: SLF001
-        )
-        current_global_batch_size = num_microbatch_calculator.current_global_batch_size
+        except (ImportError, ModuleNotFoundError):
+            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size
+
+        if get_current_global_batch_size():
+            current_global_batch_size = get_current_global_batch_size()
+        else:
+            current_global_batch_size = 1
 
         return current_global_batch_size

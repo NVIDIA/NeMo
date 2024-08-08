@@ -68,16 +68,6 @@ from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 
 try:
-    import apex.transformer.pipeline_parallel.utils
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
     from megatron.core import InferenceParams, parallel_state
     from megatron.core.models.retro import RetroModel as MCoreRetroModel
     from megatron.core.models.retro.config import RetroConfig
@@ -97,8 +87,16 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     TransformerConfig = ApexGuardDefaults
+    RetroConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 try:
     import transformer_engine

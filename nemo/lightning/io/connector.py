@@ -2,7 +2,7 @@ import inspect
 import logging
 import os
 import shutil
-from pathlib import Path, PosixPath, WindowsPath
+from pathlib import Path, PosixPath, PurePath, WindowsPath
 from typing import Generic, Optional, Tuple, TypeVar
 
 import pytorch_lightning as pl
@@ -139,7 +139,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         from nemo.lightning import MegatronStrategy, Trainer
 
         _trainer = trainer or Trainer(
-            devices=1, accelerator="cpu", strategy=MegatronStrategy(store_optimizer_states=False, ddp="pytorch")
+            devices=1, accelerator="cpu", strategy=MegatronStrategy(store_optimizer_states=False)
         )
 
         _trainer.strategy.connect(model)
@@ -161,6 +161,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             trainer (pl.Trainer): The trainer with the strategy to save the model.
         """
         trainer.strategy._setup_optimizers = False
+        trainer.strategy._init_model_parallel = False
         trainer.strategy.setup(trainer)
         trainer.save_checkpoint(output_path)
 
@@ -211,6 +212,10 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
 
             _base = Path(NEMO_MODELS_CACHE)
 
+        # If the useu supplied `hf:///path/to/downloaded/my-model/`
+        # then extract the last dir-name (i.e. my-model) and append it to _base
+        if str(self).startswith('/'):
+            return _base / PurePath((str(self))).name
         return _base / str(self).replace("://", "/")
 
     def on_import_ckpt(self, model: pl.LightningModule):
