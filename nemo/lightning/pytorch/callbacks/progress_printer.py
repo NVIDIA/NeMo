@@ -6,21 +6,32 @@ from pytorch_lightning.callbacks.progress import ProgressBar
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from typing_extensions import override
 
-
 class ProgressPrinter(ProgressBar):
     """
     Callback for logging progress in Megatron. Prints status in terms of global batches rather than microbatches.
     Recommended over MegatronProgressBar for non-interactive settings
+
+    Args:
+        log_interval (int): determines how frequently (in steps) to print the progress.
+        skip_accumulate_metrics (list[str]): for all metrics in this list, value logged will
+            simply reflect the latest value rather than averaging over the log interval.
+        exclude_metrics (list[str]): any metrics to exclude from logging.
     """
 
-    def __init__(self, log_interval: int = 100, skip_accumulate_metrics: list[str] = ["global_step"]):
+    def __init__(
+        self,
+        log_interval: int = 100,
+        skip_accumulate_metrics: list[str] = ["global_step"],
+        exclude_metrics: list[str] = ["v_num"]
+    ):
         self._train_description = "Training"
         self._validation_description = "Validation"
         self._test_description = "Testing"
         self._log_interval = int(log_interval)
         # most recent "global_step" will be logged
         # rather than averaging over last log_interval steps
-        self._skip_accumulate_metrics = skip_accumulate_metrics
+        self.skip_accumulate_metrics = skip_accumulate_metrics
+        self.exclude_metrics = exclude_metrics
         self.total_metrics_dict = defaultdict(lambda: 0.0)
         self._is_disabled = log_interval <= 0
 
@@ -85,14 +96,6 @@ class ProgressPrinter(ProgressBar):
     def log_interval(self, val):
         self._log_interval = val
 
-    @property
-    def skip_accumulate_metrics(self):
-        return self._skip_accumulate_metrics
-
-    @skip_accumulate_metrics.setter
-    def skip_accumulate_metrics(self, val):
-        self._skip_accumulate_metrics = val
-
     @override
     def on_sanity_check_start(self, *_: Any) -> None:
         self._validation_description = "Sanity checking " + self.validation_description
@@ -110,7 +113,7 @@ class ProgressPrinter(ProgressBar):
         else:
             self.total = trainer.num_training_batches
 
-    ## TODO: handle nan losses!
+    ## TODO(ashors): handle nan losses
     @override
     def on_train_batch_end(self, trainer, pl_module, *_, **__):
         if self.is_disabled:
@@ -118,13 +121,15 @@ class ProgressPrinter(ProgressBar):
         n = self.get_current_epoch_step(trainer)
         metrics = self.get_metrics(trainer, pl_module)
         for key in metrics:
+            if key in self.exclude_metrics:
+                continue
             if key in self.skip_accumulate_metrics or not isinstance(metrics[key], (int, float)):
                 self.total_metrics_dict[key] = metrics[key]
             else:
                 self.total_metrics_dict[key] += metrics[key]
 
         if self.should_log(n):
-            prefix = self.train_description + f" epoch {trainer.current_epoch}, iteration {n}/{self.total}:"
+            prefix = self.train_description + f" epoch {trainer.current_epoch}, iteration {n}/{self.total}"
             log_string = self.format_string(prefix, self.average_metrics_dict)
             print(log_string)
 
