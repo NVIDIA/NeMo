@@ -9,6 +9,7 @@ from nemo.collections.llm.fn.activation import openai_gelu
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.pytorch.callbacks import ModelTransform
 
 if TYPE_CHECKING:
     from transformers import GemmaForCausalLM
@@ -30,6 +31,8 @@ class GemmaConfig(GPTConfig):
     add_bias_linear: bool = False
     seq_length: int = 8192
     kv_channels: int = 256
+    attention_dropout: float = 0.0
+    hidden_dropout: float = 0.0
     share_embeddings_and_output_weights: bool = True
     # Note: different behavior compared to Legacy NeMo
     # Legacy NeMo does not set layernorm_zero_centered_gamma and instead adds 1 in the HF -> NeMo conversion script
@@ -71,7 +74,30 @@ class GemmaModel(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or GemmaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or GemmaConfig(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=lambda model: (
+                GemmaModelTransform()(model)
+                if model_transform is None
+                else model_transform(GemmaModelTransform()(model))
+            ),
+        )
+
+
+class GemmaModelTransform(ModelTransform):
+    def transform(self, m: nn.Module, name=None, prefix=None):
+        from nemo.collections.common.parts.utils import extend_instance
+        from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import EmbeddingScalingMixin
+
+        if name == "embedding":
+            extend_instance(m, EmbeddingScalingMixin)
+        return m
+
+    def __call__(self, model: nn.Module) -> nn.Module:
+        model.walk(self.transform)
+        return model
 
 
 @io.model_importer(GemmaModel, "hf")
