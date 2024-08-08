@@ -17,12 +17,24 @@ class AdapterParallelAdd(AdapterWrapper):
     """
 
     def forward(self, x):
-        linear_output, bias = self.to_wrap(x)
-        if isinstance(linear_output, tuple) and len(linear_output) == 2:
-            linear_output, layernorm_output = linear_output
-            adapter_output = self.adapter(layernorm_output)
-        else:
-            adapter_output = self.adapter(x)
+        linear_output = self.to_wrap(x)
+        assert isinstance(linear_output, tuple), f"{self.to_wrap} should return a tuple but instead returns {linear_output}"
+        """ Four cases for the wrapped module's return values
+        1. nothing: (out, None)
+        2. return_bias: (out, bias)
+        2. return_layernorm_output: ((out, ln_out), None)
+        3. both: (out, bias, ln_out)
+        """
+        if len(linear_output) == 2:
+            linear_output, bias = linear_output
+            if isinstance(linear_output, tuple) and len(linear_output) == 2:
+                linear_output, layernorm_output = linear_output
+                x = layernorm_output
+        elif len(linear_output) == 3:
+            linear_output, bias, layernorm_output = linear_output
+            x = layernorm_output
+        
+        adapter_output = self.adapter(x)
         return linear_output + adapter_output, bias
 
 
