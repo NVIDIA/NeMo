@@ -623,6 +623,8 @@ class TokenPerSecondFilter:
 
 
 def _measure_tokens(cut: Cut) -> int:
+    if hasattr(cut, "tokenized_prompted_transcript"):
+        return len(cut.tokenized_prompted_transcript)  # tokenized with prompt formatter
     supervisions_with_tokens = [s for s in cut.supervisions if hasattr(s, "tokens")]
     assert len(supervisions_with_tokens) > 0, (
         "Cannot measure tokens-per-second with untokenized supervisions. "

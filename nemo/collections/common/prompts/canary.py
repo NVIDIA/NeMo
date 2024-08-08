@@ -117,19 +117,6 @@ def canary(
 
     prompts_with_answers, prompts, answers = [], [], []
     for cut in cuts:
-
-        try:
-            # Fast-path: the example was already tokenized, e.g. during sampling.
-            pt = cut.tokenized_prompted_transcript
-            p = cut.tokenized_prompt
-            t = cut.tokenized_transcript
-            prompts_with_answers.append(pt)
-            prompts.append(p)
-            answers.append(t)
-            continue
-        except AttributeError:
-            pass
-
         if isinstance(cut, MixedCut):
             cut = cut._first_non_padding_cut
         if not isinstance(cut, MonoCut):

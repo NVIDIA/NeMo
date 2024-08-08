@@ -73,7 +73,15 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
-        prompts_with_answers, prompts, answers = self.prompt_format_fn(cuts, self.tokenizer)
+        # Fast-path: the tokenization and prompt formatting was already done before sampling.
+        attrs = ("tokenized_prompt", "tokenized_transcript", "tokenized_prompted_transcript")
+        pre_formatted = all(hasattr(c, a) for c in cuts for a in attrs)
+        if pre_formatted:
+            prompts_with_answers, prompts, answers = zip(
+                *((c.tokenized_prompted_transcript, c.tokenized_prompt, c.tokenized_transcript) for c in cuts)
+            )
+        else:
+            prompts_with_answers, prompts, answers = self.prompt_format_fn(cuts, self.tokenizer)
 
         transcript, transcript_lens = self._collate_tokens(answers)
         prompts_with_answers, prompts_with_answers_lens = self._collate_tokens(prompts_with_answers)
