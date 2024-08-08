@@ -18,11 +18,10 @@ import pickle
 
 import numpy as np
 import pandas as pd
-from scipy.signal import find_peaks, peak_prominences
-
+from scipy.signal import find_peaks
 from nemo.utils import logging
 
-_all__ = ['peak_memory_analysis']
+__all__ = ['peak_memory_analysis']
 
 GB_SIZE = 1024 * 1024 * 1024
 MB_SIZE = 1024 * 1024
@@ -91,10 +90,7 @@ def find_max_min_alloc_memory(trace):
     """
     Given a trace, find the maximum/minimum alloc memory and the corresponding idx and timestamps.
     """
-    alloc_memory_history = np.zeros(len(trace))  # record the curr_alloc_memory at each timepoint
-    time_us_history = np.zeros(len(trace))  # record the time_us at each timepoint
-
-    curr_alloc_memory = 0  # in GB
+    curr_alloc_memory = 0 # in GB
 
     min_alloc_memory = float('inf')
     max_alloc_memory = float('-inf')
@@ -112,9 +108,6 @@ def find_max_min_alloc_memory(trace):
         elif action == "free_completed":
             curr_alloc_memory -= size
 
-        alloc_memory_history[idx] = curr_alloc_memory
-        time_us_history[idx] = time_us
-
         if curr_alloc_memory > max_alloc_memory:
             max_alloc_memory = curr_alloc_memory
             time_max_alloc = time_us
@@ -125,11 +118,7 @@ def find_max_min_alloc_memory(trace):
             time_min_alloc = time_us
             idx_min = idx
 
-    return (
-        (alloc_memory_history, time_us_history),
-        (idx_min, time_min_alloc, min_alloc_memory),
-        (idx_max, time_max_alloc, max_alloc_memory),
-    )
+    return (idx_min, time_min_alloc, min_alloc_memory), (idx_max, time_max_alloc, max_alloc_memory)
 
 
 class MemoryLife:
@@ -398,11 +387,7 @@ def peak_memory_analysis(mem_snapshot_filepath, mem_snapshot_csv_dir, name_suffi
     # change all the global time_us to the relative time (starting from 0)
     trace = to_relative_time(trace, TIME_OFFSET)
 
-    (
-        (alloc_memory_history, time_us_history),
-        (idx_min, time_min_alloc, min_alloc_memory),
-        (idx_max, time_max_alloc, max_alloc_memory),
-    ) = find_max_min_alloc_memory(trace)
+    (idx_min, time_min_alloc, min_alloc_memory), (idx_max, time_max_alloc, max_alloc_memory) = find_max_min_alloc_memory(trace)
     logging.info(f"===== Global Max and Min Memory =====")
     logging.info(
         f"idx_min: {idx_min}, relative_idx_min: {idx_min/len(trace):.5f}, time_min_alloc: {time_min_alloc}, min_alloc_memory: {min_alloc_memory:.5f} GB"
