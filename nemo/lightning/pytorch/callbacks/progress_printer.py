@@ -6,6 +6,7 @@ from pytorch_lightning.callbacks.progress import ProgressBar
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from typing_extensions import override
 
+
 class ProgressPrinter(ProgressBar):
     """
     Callback for logging progress in Megatron. Prints status in terms of global batches rather than microbatches.
@@ -22,7 +23,7 @@ class ProgressPrinter(ProgressBar):
         self,
         log_interval: int = 100,
         skip_accumulate_metrics: list[str] = ["global_step"],
-        exclude_metrics: list[str] = ["v_num"]
+        exclude_metrics: list[str] = ["v_num"],
     ):
         self._train_description = "Training"
         self._validation_description = "Validation"
