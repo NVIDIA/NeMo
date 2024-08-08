@@ -90,7 +90,7 @@ def find_max_min_alloc_memory(trace):
     """
     Given a trace, find the maximum/minimum alloc memory and the corresponding idx and timestamps.
     """
-    curr_alloc_memory = 0 # in GB
+    curr_alloc_memory = 0  # in GB
 
     min_alloc_memory = float('inf')
     max_alloc_memory = float('-inf')
@@ -387,7 +387,9 @@ def peak_memory_analysis(mem_snapshot_filepath, mem_snapshot_csv_dir, name_suffi
     # change all the global time_us to the relative time (starting from 0)
     trace = to_relative_time(trace, TIME_OFFSET)
 
-    (idx_min, time_min_alloc, min_alloc_memory), (idx_max, time_max_alloc, max_alloc_memory) = find_max_min_alloc_memory(trace)
+    (idx_min, time_min_alloc, min_alloc_memory), (idx_max, time_max_alloc, max_alloc_memory) = (
+        find_max_min_alloc_memory(trace)
+    )
     logging.info(f"===== Global Max and Min Memory =====")
     logging.info(
         f"idx_min: {idx_min}, relative_idx_min: {idx_min/len(trace):.5f}, time_min_alloc: {time_min_alloc}, min_alloc_memory: {min_alloc_memory:.5f} GB"
