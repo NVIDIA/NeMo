@@ -187,7 +187,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.parallel_load = ckpt_parallel_load
         self.parallel_save_optim = ckpt_parallel_save_optim
         self.load_directly_on_device = ckpt_load_directly_on_device
-        self._validation_step_outputs = None
 
         self._ddp = ddp
         if ddp == "megatron":
@@ -475,26 +474,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
             return out
 
-    @property
-    def validation_step_outputs(self):
-        """
-        Cached outputs of validation_step. It can be a list of items (for single data loader) or a list of lists
-        (for multiple data loaders).
-
-        Returns:
-            List of outputs of validation_step.
-        """
-        if self._validation_step_outputs is not None:
-            return self._validation_step_outputs
-
-        # Initialize new output list
-        self._validation_step_outputs = []
-        return self._validation_step_outputs
-
-    @validation_step_outputs.setter
-    def validation_step_outputs(self, value):
-        self._validation_step_outputs = value
-
     @override
     def validation_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
         assert self.lightning_module is not None
@@ -503,21 +482,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         with self.precision_plugin.val_step_context():  # TODO: Do we need this?
             out = self.model(dataloader_iter, forward_only=True, *args, **kwargs)
-            self.validation_step_outputs.append(out)
+            _strategy_lib._sync_from_last_pipeline_stage(out, broadcast=True)
+            self.lightning_module.log('val_loss', out, prog_bar=True, batch_size=1)
             return out
-
-    @override
-    def on_validation_end(self):
-        from megatron.core import parallel_state
-
-        if parallel_state.is_pipeline_last_stage():
-            averaged_loss = torch.stack(self.validation_step_outputs).mean()
-        else:
-            averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
-
-        _strategy_lib._sync_from_last_pipeline_stage(averaged_loss, broadcast=True)
-        self.lightning_module.log('val_loss', averaged_loss, prog_bar=True, batch_size=1)
-        self.validation_step_outputs.clear()  # free memory
 
     @override
     def test_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
