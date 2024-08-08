@@ -48,6 +48,8 @@ class MegatronSetup(Callback, IOMixin):
             datamodule.data_sampler = trainer.strategy.data_sampler
         elif hasattr(datamodule, "data_sampler"):
             trainer.strategy.data_sampler = datamodule.data_sampler
+            if hasattr(datamodule, "reconfigure_limit_batches"):
+                datamodule.reconfigure_limit_batches()
         if trainer.strategy.data_sampler is not None:
             trainer.strategy.data_sampler.setup(trainer.strategy.cluster_environment.global_rank())
             trainer.strategy.data_sampler.connect(trainer)
