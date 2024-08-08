@@ -14,6 +14,11 @@
 
 """Blendable dataset."""
 
+# NeMo cannot be under /dev/shm due to the .so
+import pathlib
+
+assert not str(pathlib.Path(__file__).parent.resolve()).startswith('/dev/shm/'), "NeMo can't be under /dev/shm"
+
 import time
 
 import numpy as np
@@ -85,7 +90,7 @@ class MemoryEfficientBlendableDataset(torch.utils.data.Dataset):
     """
     A BlendableDataset implementation that uses less memory than the original implementation.
     Indices are computed algorithmically instead of storing them in memory.
-    
+
     To test call: MemoryEfficientBlendableDataset.test_index_blending()
     """
 
