@@ -12,28 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pickle
-import os
 import csv
-import pandas as pd
+import os
+import pickle
+
 import numpy as np
+import pandas as pd
 from scipy.signal import find_peaks, peak_prominences
+
 from nemo.utils import logging
 
 _all__ = ['peak_memory_analysis']
 
-GB_SIZE = 1024*1024*1024
-MB_SIZE = 1024*1024
+GB_SIZE = 1024 * 1024 * 1024
+MB_SIZE = 1024 * 1024
 KB_SIZE = 1024
+
 
 def load_pickle_file(filename):
     with open(filename, "rb") as f:
         data = pickle.load(f)
     return data
 
+
 def make_hashable(obj):
     """
-    Helper function to make an object hashable. 
+    Helper function to make an object hashable.
     """
     if isinstance(obj, dict):
         return tuple(sorted((k, make_hashable(v)) for k, v in obj.items()))
@@ -41,19 +45,21 @@ def make_hashable(obj):
         return tuple(make_hashable(e) for e in obj)
     return obj
 
+
 def prune_frames(frames):
     """
-    The stack trace is too long, and include many not-so-useful frame. We prune those frames with '??' in the filename. 
+    The stack trace is too long, and include many not-so-useful frame. We prune those frames with '??' in the filename.
     """
     return [frame for frame in frames if '??' not in frame['filename']]
 
+
 def get_printed_frames(alive_memory):
     """
-    Get the printed frames for the alive_memory. 
-    prune_frames to get rid of '??' in the filename. 
-    Add `\n` in between each frame for the readability. 
+    Get the printed frames for the alive_memory.
+    prune_frames to get rid of '??' in the filename.
+    Add `\n` in between each frame for the readability.
     """
-    # Prune Frames. x: [addr, start_time_us, size, alloc_frames]. x[3]: alloc_frames. 
+    # Prune Frames. x: [addr, start_time_us, size, alloc_frames]. x[3]: alloc_frames.
     after_prune_frames = [prune_frames(x[3]) for x in alive_memory]
     # add `\n` to each frame. Connect them together.
     printed_frames = ['\n'.join([str(frame) for frame in frames]) for frames in after_prune_frames]
@@ -80,14 +86,15 @@ def first_py_frame(alloc_frames):
             return frame
     return None
 
+
 def find_max_min_alloc_memory(trace):
     """
-    Given a trace, find the maximum/minimum alloc memory and the corresponding idx and timestamps. 
+    Given a trace, find the maximum/minimum alloc memory and the corresponding idx and timestamps.
     """
-    alloc_memory_history = np.zeros(len(trace)) # record the curr_alloc_memory at each timepoint
-    time_us_history = np.zeros(len(trace)) # record the time_us at each timepoint
+    alloc_memory_history = np.zeros(len(trace))  # record the curr_alloc_memory at each timepoint
+    time_us_history = np.zeros(len(trace))  # record the time_us at each timepoint
 
-    curr_alloc_memory = 0 # in GB
+    curr_alloc_memory = 0  # in GB
 
     min_alloc_memory = float('inf')
     max_alloc_memory = float('-inf')
@@ -96,7 +103,7 @@ def find_max_min_alloc_memory(trace):
     time_max_alloc = None
     idx_min = None
     idx_max = None
-    
+
     for idx, timepoint in enumerate(trace):
         time_us, addr, action, size, frames, stream = read_tp(timepoint)
 
@@ -118,31 +125,35 @@ def find_max_min_alloc_memory(trace):
             time_min_alloc = time_us
             idx_min = idx
 
-    return (alloc_memory_history, time_us_history), (idx_min, time_min_alloc, min_alloc_memory), (idx_max, time_max_alloc, max_alloc_memory)
+    return (
+        (alloc_memory_history, time_us_history),
+        (idx_min, time_min_alloc, min_alloc_memory),
+        (idx_max, time_max_alloc, max_alloc_memory),
+    )
 
 
 class MemoryLife:
     """
-    Records one active memory interval. Information includes its lifetime interval (start, end), the size of memory, and related frames (stack trace). 
+    Records one active memory interval. Information includes its lifetime interval (start, end), the size of memory, and related frames (stack trace).
     """
+
     def __init__(self, start_time_us, end_time_us, size, alloc_frames, free_frames):
         self.start_time_us = start_time_us
         self.end_time_us = end_time_us
         self.size = size
         self.alloc_frames = alloc_frames
         self.free_frames = free_frames
-    
+
     # the default print function
     def __str__(self):
         return f"[{self.start_time_us}, {self.end_time_us}], size: {self.size:.5f} GB"
-    
-    
+
 
 class MemoryInfo:
     def __init__(self, addr):
         self.addr = addr
-        self.history = [] # list of tps
-        self.lifetime = [] # list of MemoryLife
+        self.history = []  # list of tps
+        self.lifetime = []  # list of MemoryLife
 
     def add_history(self, tp):
         self.history.append(tp)
@@ -163,17 +174,16 @@ class MemoryInfo:
         self.lifetime[-1].end_time_us = end_time_us
         # record the free frames
         self.lifetime[-1].free_frames = frames
-    
+
     def get_info_if_alive(self, time_us):
         """
-        Check if the memory is alive at the given time point. We all use relative time point. 
+        Check if the memory is alive at the given time point. We all use relative time point.
         Return (start_time_us, size, alloc_frames) if alive, otherwise return None.
         """
         for life in self.lifetime:
             if (life.start_time_us <= time_us) and (life.end_time_us is None or life.end_time_us > time_us):
                 return (life.start_time_us, life.size, life.alloc_frames)
         return None
-
 
     def print_info(self):
         logging.info(f"Addr: {self.addr}, len(lifetime): {len(self.lifetime)}")
@@ -185,43 +195,48 @@ class MemoryInfo:
 
 class MemoryTracker:
     def __init__(self):
-        self.data = {} # key: addr, value: MemoryInfo
+        self.data = {}  # key: addr, value: MemoryInfo
 
     def add_entry(self, tp):
         (time_us, addr, action, size, frames, stream) = read_tp(tp)
-        
+
         if addr not in self.data:
             self.data[addr] = MemoryInfo(addr)
 
         self.data[addr].add_history(tp)
-        
-        if action == 'alloc': 
+
+        if action == 'alloc':
             # alloc memory
             self.data[addr].add_lifetime_alloc(time_us, size, frames)
-        elif (action == 'free_completed') and (len(self.data[addr].lifetime)!= 0) :
-            # free memory, but this can't be the first memory op for this addr. There must be an alloc happening before. 
+        elif (action == 'free_completed') and (len(self.data[addr].lifetime) != 0):
+            # free memory, but this can't be the first memory op for this addr. There must be an alloc happening before.
             self.data[addr].add_lifetime_free(time_us, size, frames)
         else:
-            # ignore free_requested; or free_completed op before any alloc op, since that is related to some previous alloc ops that are not captured. 
-            # one thing need to keep in mind: we ignore `free_completed` memory that we don't see `alloc` before in this trace. However, these memory activities exist because our trace is not guaranteed to be complete. This may lead to some memory counting mismatch. 
+            # ignore free_requested; or free_completed op before any alloc op, since that is related to some previous alloc ops that are not captured.
+            # one thing need to keep in mind: we ignore `free_completed` memory that we don't see `alloc` before in this trace. However, these memory activities exist because our trace is not guaranteed to be complete. This may lead to some memory counting mismatch.
             pass
-    
+
     def check_alive_memory(self, time_us):
         """
-        Gather all alive memory addresses, their start time, their sizes, and alloc_frames at the given time point. Save it with the order of start time. 
+        Gather all alive memory addresses, their start time, their sizes, and alloc_frames at the given time point. Save it with the order of start time.
         """
         alive_memory = []
         for addr, memory_info in self.data.items():
-            info = memory_info.get_info_if_alive(time_us) # info = (start_time_us, size, alloc_frames)
+            info = memory_info.get_info_if_alive(time_us)  # info = (start_time_us, size, alloc_frames)
             if info is not None:
-                alive_memory.append((addr, info[0], info[1], info[2])) # alive_memory: (addr, start_time_us, size, alloc_frames)
-        alive_memory.sort(key=lambda x: x[1]) # sort by start time
+                alive_memory.append(
+                    (addr, info[0], info[1], info[2])
+                )  # alive_memory: (addr, start_time_us, size, alloc_frames)
+        alive_memory.sort(key=lambda x: x[1])  # sort by start time
         return alive_memory
+
 
 '''
 Data structure for memory grouped by alloc_frames. 
 It includes alloc_frames, a list of memory that shares the same alloc_frames, the total count, the total size of memory. 
 '''
+
+
 class MemoryGroupByAllocFrames:
     def __init__(self, alloc_frames, memory_list):
         self.alloc_frames = alloc_frames
@@ -229,12 +244,12 @@ class MemoryGroupByAllocFrames:
         self.count = len(memory_list)
         self.total_size = sum([x[2] for x in memory_list])
         self.frame_string = self.first_py_frame()
-    
+
     def add_memory(self, memory):
-        self.memory_list.append(memory) # memory = (addr, start_time_us, size, alloc_frames)
+        self.memory_list.append(memory)  # memory = (addr, start_time_us, size, alloc_frames)
         self.count += 1
         self.total_size += memory[2]
-    
+
     def first_py_frame(self):
         """
         Return the frame when it first shows a `.py` file.
@@ -244,7 +259,6 @@ class MemoryGroupByAllocFrames:
             if '.py' in frame['filename']:
                 return frame
         return None
-
 
     def __str__(self):
         # return f"Alloc Frames: {self.alloc_frames}, Count: {self.count}, Total Size: {self.total_size:.5f} GB"a
@@ -258,24 +272,26 @@ class MemoryAnalyzer:
         memory_list: list of (addr, start_time_us, size, alloc_frames)
         """
         self.memory_list = memory_list
-        self.alloc_frames_group = dict() # key: alloc_frames_tuple, value: MemoryGroupByAllocFrames
+        self.alloc_frames_group = dict()  # key: alloc_frames_tuple, value: MemoryGroupByAllocFrames
 
     def group_memory_by_alloc_frames(self):
         for addr, start_time_us, size, alloc_frames in self.memory_list:
-            alloc_frames_tuple = make_hashable(alloc_frames) # make it hashable so that it can be used as a key
-            
+            alloc_frames_tuple = make_hashable(alloc_frames)  # make it hashable so that it can be used as a key
+
             if alloc_frames_tuple not in self.alloc_frames_group:
                 self.alloc_frames_group[alloc_frames_tuple] = MemoryGroupByAllocFrames(alloc_frames, [])
 
             self.alloc_frames_group[alloc_frames_tuple].add_memory((addr, start_time_us, size, alloc_frames))
-        
+
         # sort the alloc_frames_group by total_size
-        self.alloc_frames_group = dict(sorted(self.alloc_frames_group.items(), key=lambda x: x[1].total_size, reverse=True))
-    
+        self.alloc_frames_group = dict(
+            sorted(self.alloc_frames_group.items(), key=lambda x: x[1].total_size, reverse=True)
+        )
+
     def print_info(self):
         for frames, group in self.alloc_frames_group.items():
             logging.info(f"{group}")
-    
+
     def save_as_list(self):
         """
         Save as a list of tuple (frame_string, count, total_size, alloc_frames)
@@ -289,18 +305,21 @@ class MemoryAnalyzer:
 
 def find_prominence_peak(history, prominence, distance=1000):
     """
-    Find peaks/valleys with prominence. 
-    After checking the definition of prominence, seems like in our case, prominence is close to the memory_gap. So we use a 0.8*memory_gap as prominence. 
+    Find peaks/valleys with prominence.
+    After checking the definition of prominence, seems like in our case, prominence is close to the memory_gap. So we use a 0.8*memory_gap as prominence.
     Note that this is kind of heuristic, and can be broken in some cases (?)
 
     Return: prominence_peaks and prominence_valleys
         (peaks, valleys)
     """
-    peaks, properties_peak = find_peaks(x=history, prominence=prominence, distance=distance)  # looks like prominence is close to memory_gap   ## we set a very small distance, since we find a case that two peaks are very close to each other.
+    peaks, properties_peak = find_peaks(
+        x=history, prominence=prominence, distance=distance
+    )  # looks like prominence is close to memory_gap   ## we set a very small distance, since we find a case that two peaks are very close to each other.
     # Find local minima (inverted peaks)
     inverted_history = -history
     valleys, properties_valleys = find_peaks(inverted_history, prominence=prominence, distance=distance)
     return (peaks, properties_peak), (valleys, properties_valleys)
+
 
 def find_paired_peak_valley(peaks, valleys):
     """
@@ -318,9 +337,10 @@ def find_paired_peak_valley(peaks, valleys):
             paired_peaks.append(next_peak)
     return paired_peaks, paired_valleys
 
+
 def to_relative_time(trace, TIME_OFFSET):
     """
-    Change the absolute time to the relative time for all the timepoints in this trace. The absolute time is too large, which is not readable. 
+    Change the absolute time to the relative time for all the timepoints in this trace. The absolute time is too large, which is not readable.
     """
     for timepoint in trace:
         timepoint['time_us'] -= TIME_OFFSET
@@ -338,43 +358,37 @@ def compare_alive_memory(tracker, time_us_1, time_us_2):
     gone_memory = [x for x in alive_memory_1 if x not in alive_memory_2]
     # 3. what's unchanged
     unchanged_memory = [x for x in alive_memory_2 if x in alive_memory_1]
-    # 4. new_memory and gone_memory could overlap a lot, but they only differ on the addr or start_time_us. We compare them to show real_new_memory and real_gone_memory. 
+    # 4. new_memory and gone_memory could overlap a lot, but they only differ on the addr or start_time_us. We compare them to show real_new_memory and real_gone_memory.
     # This time when we compare `in`, we compare (size, alloc_frames) instead of (addr, start_time_us, size, alloc_frames)
     real_new_memory = [x for x in new_memory if (x[2], x[3]) not in [(y[2], y[3]) for y in gone_memory]]
     real_gone_memory = [x for x in gone_memory if (x[2], x[3]) not in [(y[2], y[3]) for y in new_memory]]
 
     return (new_memory, gone_memory), (real_new_memory, real_gone_memory), unchanged_memory
 
+
 def print_memory_list_summary(memory_list, name):
     total_size = sum([x[2] for x in memory_list])
     print(f"len({name}): {len(memory_list)}, Total memory size: {total_size:.5f} GB")
 
 
-
-
-
-
-
-
 def peak_memory_analysis(mem_snapshot_filepath, mem_snapshot_csv_dir, name_suffix, device_id):
     """
-    Key and Entry Function for peak memory analysis. 
-    Find the global peak of the trace. 
-    1. Check alive memory at global peak, and export to CSV with their stack traces. 
-    2. Group the alive memory by its alloc_frames. Export to CSV. 
+    Key and Entry Function for peak memory analysis.
+    Find the global peak of the trace.
+    1. Check alive memory at global peak, and export to CSV with their stack traces.
+    2. Group the alive memory by its alloc_frames. Export to CSV.
     """
-    
+
     # ===== Loading =====
     snapshot = load_pickle_file(mem_snapshot_filepath)
     traces = snapshot['device_traces']
-    trace = traces[device_id] # useful trace. 
+    trace = traces[device_id]  # useful trace.
 
     # remove the last timepoint, if it is an oom action
     if trace[-1]['action'] == 'oom':
         trace = trace[:-1]
     # remove the timepoint that has the action 'snapshot'
     trace = [tp for tp in trace if tp['action'] != 'snapshot']
-
 
     min_time_us, max_time_us = trace[0]['time_us'], trace[-1]['time_us']
     TIME_OFFSET = min_time_us
@@ -384,25 +398,37 @@ def peak_memory_analysis(mem_snapshot_filepath, mem_snapshot_csv_dir, name_suffi
     # change all the global time_us to the relative time (starting from 0)
     trace = to_relative_time(trace, TIME_OFFSET)
 
-    (alloc_memory_history, time_us_history), (idx_min, time_min_alloc, min_alloc_memory), (idx_max, time_max_alloc, max_alloc_memory) = find_max_min_alloc_memory(trace)
+    (
+        (alloc_memory_history, time_us_history),
+        (idx_min, time_min_alloc, min_alloc_memory),
+        (idx_max, time_max_alloc, max_alloc_memory),
+    ) = find_max_min_alloc_memory(trace)
     logging.info(f"===== Global Max and Min Memory =====")
-    logging.info(f"idx_min: {idx_min}, relative_idx_min: {idx_min/len(trace):.5f}, time_min_alloc: {time_min_alloc}, min_alloc_memory: {min_alloc_memory:.5f} GB")
-    logging.info(f"idx_max: {idx_max}, relative_idx_max: {idx_max/len(trace):.5f}, time_max_alloc: {time_max_alloc}, max_alloc_memory: {max_alloc_memory:.5f} GB")
+    logging.info(
+        f"idx_min: {idx_min}, relative_idx_min: {idx_min/len(trace):.5f}, time_min_alloc: {time_min_alloc}, min_alloc_memory: {min_alloc_memory:.5f} GB"
+    )
+    logging.info(
+        f"idx_max: {idx_max}, relative_idx_max: {idx_max/len(trace):.5f}, time_max_alloc: {time_max_alloc}, max_alloc_memory: {max_alloc_memory:.5f} GB"
+    )
 
     # track the lifetime of each memory address
     tracker = MemoryTracker()
     for tp in trace:
         tracker.add_entry(tp)
-    
+
     # ======== 1. Global Peak Alive Memory Analsysis ========
     logging.info(f"======== 1. Global Peak Alive Memory Analysis ========")
-    logging.info(f"===== Check Alive Memory at Global Peak: time_max_alloc (relative time): {time_max_alloc/max_time_us:.5f} =====") # need to be the time here
+    logging.info(
+        f"===== Check Alive Memory at Global Peak: time_max_alloc (relative time): {time_max_alloc/max_time_us:.5f} ====="
+    )  # need to be the time here
 
     alive_memory_max = tracker.check_alive_memory(time_max_alloc)
     # the accumulated memory size at time_max_alloc
     total_memory_max = sum([x[2] for x in alive_memory_max])
-    logging.info(f"Number of alive memory addresses: {len(alive_memory_max)}, Total memory size: {total_memory_max:.5f} GB")
-    
+    logging.info(
+        f"Number of alive memory addresses: {len(alive_memory_max)}, Total memory size: {total_memory_max:.5f} GB"
+    )
+
     logging.info(f"===== Export to CSV: alive memory with its stack traces =====")
     # 1. export this alive_memory_max to a csv file, with pandas
     alive_memory_max_short = [(x[0], x[1], x[2], first_py_frame(x[3])) for x in alive_memory_max]
@@ -410,14 +436,17 @@ def peak_memory_analysis(mem_snapshot_filepath, mem_snapshot_csv_dir, name_suffi
         "Addr (Decimal)": [x[0] for x in alive_memory_max],
         "Time of Allocation (us)": [x[1] for x in alive_memory_max],
         "Size (GB)": [x[2] for x in alive_memory_max],
-        "First Python Frame": [x[3] for x in alive_memory_max_short], # this is the first frame that shows a `.py` file
-        "Stack Trace": get_printed_frames(alive_memory_max), 
+        "First Python Frame": [
+            x[3] for x in alive_memory_max_short
+        ],  # this is the first frame that shows a `.py` file
+        "Stack Trace": get_printed_frames(alive_memory_max),
     }
     df = pd.DataFrame(data)
     csv_1_path = os.path.join(mem_snapshot_csv_dir, f"alive_memory_{name_suffix}.csv")
-    df.to_csv(csv_1_path, index=False, quoting=csv.QUOTE_ALL) # this generates a big csv file, since the alloc_frames are huge. 
+    df.to_csv(
+        csv_1_path, index=False, quoting=csv.QUOTE_ALL
+    )  # this generates a big csv file, since the alloc_frames are huge.
     logging.info(f"1: Exported to {csv_1_path}")
-
 
     # ======== 2. group memory by alloc_frames at global peak ========
     logging.info(f"======== 2. Group Global Peak Alive Memory by Alloc Frames ========")
@@ -432,13 +461,10 @@ def peak_memory_analysis(mem_snapshot_filepath, mem_snapshot_csv_dir, name_suffi
     data_group = {
         "First Python Frame": [x[0] for x in memory_group_by_alloc_frames],
         "Repeat": [x[1] for x in memory_group_by_alloc_frames],
-        "Total Size (GB)": [x[2] for x in memory_group_by_alloc_frames], 
-        "Stack Trace": get_printed_frames(memory_group_by_alloc_frames) # prune the stack trace
+        "Total Size (GB)": [x[2] for x in memory_group_by_alloc_frames],
+        "Stack Trace": get_printed_frames(memory_group_by_alloc_frames),  # prune the stack trace
     }
     df_group = pd.DataFrame(data_group)
     csv_2_path = os.path.join(mem_snapshot_csv_dir, f"group_by_alloc_frames_{name_suffix}.csv")
     df_group.to_csv(csv_2_path, index=False, quoting=csv.QUOTE_ALL)
-    logging.info(f"2: Exported to {csv_2_path}")   
-
-
-
+    logging.info(f"2: Exported to {csv_2_path}")
