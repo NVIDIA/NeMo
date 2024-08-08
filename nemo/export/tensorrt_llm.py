@@ -27,12 +27,17 @@ import numpy as np
 import tensorrt_llm
 import torch
 import wrapt
+
+from megatron.core.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
+from megatron.core.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_trt_llm_ckpt
 from megatron.core.export.trt_llm.tensorrt_llm_build import build_and_save_engine
+
+from tensorrt_llm.layers import MoeConfig
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
-from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
-from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_trt_llm_ckpt
+#from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
+#from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_trt_llm_ckpt
 from nemo.export.trt_llm.converter.utils import init_model_parallel_from_nemo
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
     build_tokenizer,
@@ -140,6 +145,68 @@ class TensorRTLLM(ITritonDeployable):
 
         if load_model:
             self._load()
+
+    def get_model_config(self, nemo_model_config):
+        from megatron.core.export.trt_llm.model_config import ModelConfigForExport
+
+        conf = ModelConfigForExport()
+        conf.share_embeddings_and_output_weights = nemo_model_config.get("share_embeddings_and_output_weights", False)
+
+        conf.activation = nemo_model_config.get('activation')
+
+        conf.nemo_model_config = nemo_model_config.get('num_moe_experts', 0)
+
+        conf.num_layers = nemo_model_config.get('num_layers')
+
+        conf.num_attention_heads = nemo_model_config.get('kv_channels')
+
+        conf.num_attention_heads = nemo_model_config.get('num_attention_heads', nemo_model_config.get('kv_channels'))
+
+        conf.num_query_groups = nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads'])
+
+        conf.kv_channels = nemo_model_config.get("kv_channels", None)
+
+        conf.hidden_size = nemo_model_config.get('hidden_size')
+
+        conf.ffn_hidden_size = nemo_model_config.get('ffn_hidden_size')
+
+        conf.layernorm_epsilon = nemo_model_config.get('layernorm_epsilon')
+
+        conf.position_embedding_type = "rope_gpt_neox" if nemo_model_config.get('position_embedding_type') == "rope" else "learned_absolute"
+
+        conf.max_position_embeddings = nemo_model_config.get('max_position_embeddings')
+
+        conf.bias = nemo_model_config.get('bias')
+
+        conf.rotary_percentage = nemo_model_config.get('rotary_percentage', 1.0)
+
+        conf.rotary_base = nemo_model_config.get('rotary_base', 10000)
+
+        conf.num_moe_experts = nemo_model_config.get('num_moe_experts', 0)
+
+        conf.moe_renorm_model = nemo_model_config.get(
+            'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
+        )
+
+        conf.moe_tp_mode = nemo_model_config.get(
+            'moe_tp_mode', 2
+        ),
+
+        conf.seq_len_interpolation_factor = nemo_model_config.get("seq_len_interpolation_factor")
+
+        conf.mcore_gpt = nemo_model_config.get("mcore_gpt", False)
+
+        conf.share_embeddings_and_output_weights = nemo_model_config.get("share_embeddings_and_output_weights", False)
+
+        conf.apply_embedding_scaling = nemo_model_config.get("apply_embedding_scaling", False)
+
+        conf.multi_query_mode = nemo_model_config.get("multi_query_mode", False)
+
+        conf.normalization = nemo_model_config.get("normalization", "")
+
+        conf.precision = nemo_model_config.get("precision")
+
+        return conf
 
     def export(
         self,
@@ -311,10 +378,13 @@ class TensorRTLLM(ITritonDeployable):
                     model_type = "llama"
 
                 model, model_configs, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir)
+
+                model_config_for_export = self.get_model_config(model_configs)
+
                 weights_dicts, model_configs = model_to_trtllm_ckpt(
                     model=model,
-                    nemo_model_config=model_configs,
-                    nemo_export_dir=nemo_export_dir,
+                    model_config_for_export=model_config_for_export,
+                    model_export_dir=nemo_export_dir,
                     decoder_type=model_type,
                     dtype=dtype,
                     tensor_parallel_size=tensor_parallelism_size,
