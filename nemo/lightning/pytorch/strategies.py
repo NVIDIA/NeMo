@@ -486,7 +486,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             from megatron.core import parallel_state
 
             pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            if pp_size > 1:
                 # ranks that are not final pp stage have 0 for loss, and out will be reduced
                 self.lightning_module.log(
                     'val_loss',
