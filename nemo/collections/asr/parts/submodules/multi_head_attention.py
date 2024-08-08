@@ -58,11 +58,13 @@ class MultiHeadAttention(nn.Module):
         use_bias (bool): whether to remove bias in linear and conv layers
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate, max_cache_len=0, use_bias=True):
+    def __init__(self, n_head, n_feat, dropout_rate, max_cache_len=0, use_sdpa=False, use_bias=True):
         """Construct an MultiHeadedAttention object."""
         super(MultiHeadAttention, self).__init__()
+        self.use_sdpa = use_sdpa
         self.cache_drop_size = None
         self.use_bias = use_bias
+        self.dropout_rate = dropout_rate
         assert n_feat % n_head == 0
         # We assume d_v always equals d_k
         self.d_k = n_feat // n_head
@@ -141,8 +143,23 @@ class MultiHeadAttention(nn.Module):
         # temporary until we solve this more gracefully
         with avoid_float16_autocast_context():
             q, k, v = self.forward_qkv(query, key, value)
-            scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
-            out = self.forward_attention(v, scores, mask)
+
+            if self.use_sdpa:
+                scale = 1 / self.s_d_k
+                n_batch = value.size(0)
+
+                if mask is not None:
+                    mask = mask.unsqueeze(1)
+
+                out = torch.nn.functional.scaled_dot_product_attention(
+                    q, k, v, attn_mask=mask, dropout_p=self.dropout_rate, scale=scale
+                )
+                out = out.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
+                out = self.linear_out(out)  # (batch, time1, d_model)
+            else:
+                scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
+                out = self.forward_attention(v, scores, mask)
+
         if cache is None:
             return out
         else:
@@ -166,7 +183,9 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         use_bias (bool): whether to apply bias in linear and conv layers of MultiHeadAttention
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v, max_cache_len=0, use_bias=True):
+    def __init__(
+        self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v, max_cache_len=0, use_bias=True, use_sdpa=False
+    ):
         """Construct an RelPositionMultiHeadedAttention object."""
         super().__init__(
             n_head=n_head,
@@ -174,6 +193,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             dropout_rate=dropout_rate,
             max_cache_len=max_cache_len,
             use_bias=use_bias,
+            use_sdpa=use_sdpa,
         )
         # linear transformation for positional encoding
         self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
@@ -228,6 +248,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             q = q.transpose(1, 2)  # (batch, time1, head, d_k)
 
             n_batch_pos = pos_emb.size(0)
+            n_batch = value.size(0)
             p = self.linear_pos(pos_emb).view(n_batch_pos, -1, self.h, self.d_k)
             p = p.transpose(1, 2)  # (batch, head, time1, d_k)
 
@@ -240,18 +261,31 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             # first compute matrix a and matrix c
             # as described in https://arxiv.org/abs/1901.02860 Section 3.3
             # (batch, head, time1, time2)
-            matrix_ac = torch.matmul(q_with_bias_u, k.transpose(-2, -1))
 
             # compute matrix b and matrix d
             # (batch, head, time1, time2)
             matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
             matrix_bd = self.rel_shift(matrix_bd)
-            # drops extra elements in the matrix_bd to match the matrix_ac's size
-            matrix_bd = matrix_bd[:, :, :, : matrix_ac.size(-1)]
 
-            scores = (matrix_ac + matrix_bd) / self.s_d_k  # (batch, head, time1, time2)
+            if self.use_sdpa:
+                scale_factor = 1 / math.sqrt(q_with_bias_u.size(-1))
+                matrix_bd = matrix_bd[:, :, :, : k.size(-2)] * scale_factor
 
-            out = self.forward_attention(v, scores, mask)
+                if mask is not None:
+                    mask = mask.unsqueeze(1)
+                    matrix_bd.masked_fill_(mask.logical_not(), float("-inf"))
+
+                out = torch.nn.functional.scaled_dot_product_attention(
+                    q_with_bias_u, k, v, attn_mask=matrix_bd, dropout_p=self.dropout_rate, scale=scale_factor
+                )
+                out = out.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
+                out = self.linear_out(out)  # (batch, time1, d_model)
+            else:
+                # drops extra elements in the matrix_bd to match the matrix_ac's size
+                matrix_ac = torch.matmul(q_with_bias_u, k.transpose(-2, -1))
+                matrix_bd = matrix_bd[:, :, :, : matrix_ac.size(-1)]
+                scores = (matrix_ac + matrix_bd) / self.s_d_k  # (batch, head, time1, time2)
+                out = self.forward_attention(v, scores, mask)
 
         if cache is None:
             return out
