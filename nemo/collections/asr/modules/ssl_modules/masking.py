@@ -177,7 +177,7 @@ class ConvFeatureMaksingWrapper(NeuralModule):
             self.curr_mask = torch.zeros_like(feats)
         return masked_feats, lengths
 
-    def set_masking(self, apply_mask: bool):
+    def set_masking_enabled(self, apply_mask: bool):
         self.apply_mask = apply_mask
 
     def get_current_mask(self):

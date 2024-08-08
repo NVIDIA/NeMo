@@ -134,7 +134,7 @@ class EncDecSpeechSSLModel(SpeechEncDecSelfSupervisedModel):
 
         if self.pre_encoder is not None:
             # mask after convolutional sub-sampling
-            self.pre_encoder.set_masking(apply_mask=apply_mask)
+            self.pre_encoder.set_masking_enabled(apply_mask=apply_mask)
             encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
             masks = self.pre_encoder.get_current_mask()
             feats = self.pre_encoder.get_current_feat()
@@ -389,7 +389,7 @@ class EncDecSpeechDenoiseMLMModel(EncDecSpeechSSLModel):
             feats, _ = self.pre_encoder.pre_encode(x=processed_signal, lengths=processed_signal_length)
             _, tokens = self.quantizer(input_signal=feats.transpose(1, 2))
 
-            self.pre_encoder.set_masking(apply_mask=apply_mask)
+            self.pre_encoder.set_masking_enabled(apply_mask=apply_mask)
             encoded, encoded_len = self.encoder(
                 audio_signal=processed_noisy_input_signal, length=processed_noisy_input_signal_length
             )

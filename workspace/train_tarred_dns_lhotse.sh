@@ -1,5 +1,5 @@
 
-NEMO_BASEPATH="/home/heh/codes/nemo-ssl-lhotse"
+NEMO_BASEPATH="/home/heh/codes/nemo-ssl"
 export PYTHONPATH=$NEMO_BASEPATH:$PYTHONPATH
 
 data_dir="/media/data3/datasets/librispeech_origin"
@@ -12,8 +12,8 @@ batch_size=4
 num_workers=0
 
 TRAIN_IS_TARRED=True
-TRAIN_MANIFEST='/media/data3/datasets/librispeech_tarred/tarred_audio_manifest.json'
-TRAIN_FILEPATHS="/media/data3/datasets/librispeech_tarred/audio__OP_0..511_CL_.tar"
+TRAIN_MANIFEST='[/media/data3/datasets/librispeech_tarred/sharded_manifests/manifest__OP_0..511_CL_.json,/media/data3/datasets/librispeech_tarred/sharded_manifests/manifest__OP_0..511_CL_.json]'
+TRAIN_FILEPATHS="[/media/data3/datasets/librispeech_tarred/audio__OP_0..511_CL_.tar,/media/data3/datasets/librispeech_tarred/audio__OP_0..511_CL_.tar]"
 noise_manifest="[/media/data3/datasets/noise_data/musan/musan_nonspeech_manifest.json,/media/data3/datasets/noise_data/freesound/freesound_noise_manifest_filtered.json]"
 
 exp_name=ssl_fastconformer_large_rq_ls_dns_v2_debug_lhotse_r1

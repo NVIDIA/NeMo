@@ -281,20 +281,3 @@ class MultiSpeakerNoiseAugmentation(WavLMAugmentation):
             noise_segments.append(audio_segment)
 
         return noise_segments
-
-
-class NoiseSpeakerImpulseAugmentation(WavLMAugmentation):
-    def __init__(
-        self,
-        prob: float = 0,
-        noise_ratio: float = 0,
-        min_r_speech: float = -5,
-        max_r_speech: float = 5,
-        min_r_noise: float = -5,
-        max_r_noise: float = 20,
-        min_mix_rate: float = 0,
-        max_mix_rate: float = 1,
-    ):
-        super().__init__(
-            prob, noise_ratio, min_r_speech, max_r_speech, min_r_noise, max_r_noise, min_mix_rate, max_mix_rate
-        )
