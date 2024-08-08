@@ -184,7 +184,11 @@ def is_prefix(x: List[int], pref: List[int]) -> bool:
 
 
 def select_k_expansions(
-    hyps: List[Hypothesis], topk_idxs: torch.Tensor, topk_logps: torch.Tensor, gamma: float, beta: int,
+    hyps: List[Hypothesis],
+    topk_idxs: torch.Tensor,
+    topk_logps: torch.Tensor,
+    gamma: float,
+    beta: int,
 ) -> List[Tuple[int, Hypothesis]]:
     """
     Obtained from https://github.com/espnet/espnet
@@ -212,7 +216,10 @@ def select_k_expansions(
         k_best_exp_idx = k_best_exp_val[0]
         k_best_exp = k_best_exp_val[1]
 
-        expansions = sorted(filter(lambda x: (k_best_exp - gamma) <= x[1], hyp_i), key=lambda x: x[1],)
+        expansions = sorted(
+            filter(lambda x: (k_best_exp - gamma) <= x[1], hyp_i),
+            key=lambda x: x[1],
+        )
 
         if len(expansions) > 0:
             k_expansions.append(expansions)
@@ -586,11 +593,15 @@ def batched_hyps_to_hypotheses(
     """
     assert batch_size is None or batch_size <= batched_hyps.scores.shape[0]
     num_hyps = batched_hyps.scores.shape[0] if batch_size is None else batch_size
+    scores = batched_hyps.scores.cpu()
+    current_lengths = batched_hyps.current_lengths.cpu()
+    transcript = batched_hyps.transcript.cpu()
+    timesteps = batched_hyps.timesteps.cpu()
     hypotheses = [
         Hypothesis(
-            score=batched_hyps.scores[i].item(),
-            y_sequence=batched_hyps.transcript[i, : batched_hyps.current_lengths[i]],
-            timestep=batched_hyps.timesteps[i, : batched_hyps.current_lengths[i]],
+            score=scores[i].item(),
+            y_sequence=transcript[i, : current_lengths[i]],
+            timestep=timesteps[i, : current_lengths[i]],
             alignments=None,
             dec_state=None,
         )
