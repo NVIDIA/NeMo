@@ -246,19 +246,24 @@ def get_scaling_factor_keys(key):
     activation_scale = base_key + '.activation_scaling_factor'
     return weight_scale, activation_scale
 
+
 def handle_scaling_factor(key, val, dir, split_gated_activation):
     weights_key, activation_key = get_scaling_factor_keys(key)
-    weights_factors = 1 / val[1].view(1)
-    activation_factors = 1 / val[0].view(1)
-    save_val(torch_to_numpy(weights_factors), dir, weights_key)
-    save_val(torch_to_numpy(activation_factors), dir, activation_key)
+
+    activation_factor = 1 / val[0].view(1)
+    weights_factor = 1 / val[1].view(1)
+    # weights_factor_2 = 1 / val[2].view(1)
+
+    save_val(torch_to_numpy(activation_factor), dir, activation_key)
+    save_val(torch_to_numpy(weights_factor), dir, weights_key)
+    #save_val(torch_to_numpy(weights_factor_2), dir, weights_key + '_2')
 
     if split_gated_activation and (("mlp.dense_h_to_4h" in key) or ("mlp.linear_fc1" in key)):
-        layer_num = key.split(".")[1]
-        layer_prefix = f'transformer.layers.{layer_num}'
+        layer_prefix = get_layer_prefix(key)
         mapped_key = f'{layer_prefix}.mlp.gate'
-        save_val(torch_to_numpy(weights_factors), dir, mapped_key + '.weights_scaling_factor')
-        save_val(torch_to_numpy(activation_factors), dir, mapped_key + '.activation_scaling_factor')
+        save_val(torch_to_numpy(activation_factor), dir, mapped_key + '.activation_scaling_factor')
+        save_val(torch_to_numpy(weights_factor), dir, mapped_key + '.weights_scaling_factor')
+        #save_val(torch_to_numpy(weights_factor_2), dir, mapped_key + '.weights_scaling_factor_2')
 
     global weights_dict
     return weights_dict
@@ -271,7 +276,7 @@ def cast_val_datatype(vals, key, storage_type, is_fp8_model):
         for k in quantized_keys:
             if k in key:
                 storage_type = fp8_storage_type
-                return [val.to(storage_type) for val in vals]
+                break
 
     return [val.to(storage_type) for val in vals]
 
@@ -304,10 +309,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     if "layernorm.weight" in key and config.get("apply_layernorm_1p", False):
         vals = [val.float() + 1.0 for val in vals]
 
-    print("key ", key, vals)
     vals = cast_val_datatype(vals, key, storage_type, is_fp8_model)
-    print(vals)
-    # vals = [val.to(storage_type) for val in vals]
     if convert_on_device:
         assert len(vals) == 1  # Should only convert a single device param per call
         assert torch.is_tensor(vals[0])
