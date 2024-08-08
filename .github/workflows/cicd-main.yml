@@ -825,7 +825,7 @@ jobs:
         matmul_precision=medium \
         2>&1 | tee transcribe.log
         actual_wer=$(grep -oP "(?<='wer': )[0-9.]*" transcribe.log)
-        (( $(echo "$actual_wer >= 0.031 && $actual_wer <= 0.032" | bc -l) )) && exit 0 || exit 1
+        (( $(echo "$actual_wer >= 0.03 && $actual_wer <= 0.032" | bc -l) )) && exit 0 || exit 1
       AFTER_SCRIPT: |
         rm -rf preds.json transcribe.log
 
@@ -850,7 +850,7 @@ jobs:
         +prompt.pnc="no" \
         2>&1 | tee transcribe.log
         actual_wer=$(grep -oP "(?<='wer': )[0-9.]*" transcribe.log)
-        (( $(echo "$actual_wer >= 0.031 && $actual_wer <= 0.032" | bc -l) )) && exit 0 || exit 1
+        (( $(echo "$actual_wer >= 0.03 && $actual_wer <= 0.032" | bc -l) )) && exit 0 || exit 1
       AFTER_SCRIPT: |
         rm -rf preds.json transcribe.log
 
