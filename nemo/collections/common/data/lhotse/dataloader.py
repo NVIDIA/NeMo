@@ -40,6 +40,8 @@ from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import guess_parse_cutset, read_cutset_from_config
+from nemo.collections.common.prompts.fn import get_prompt_format_fn
+from nemo.collections.common.prompts.formatter import PromptFormatter
 from nemo.utils import logging
 
 
@@ -83,6 +85,7 @@ class LhotseDataLoadingConfig:
     cuda_expandable_segments: bool = True
 
     # 2.1 Multimodal sampling override options
+    prompt_format: str | None = None  # when provided, we'll apply the prompt in addition to the tokenizer
     use_multimodal_sampling: bool = False
     token_equivalent_duration: float | None = None
     batch_tokens: int | None = None
@@ -166,11 +169,9 @@ def get_lhotse_dataloader_from_config(
     For an example, see: :class:`nemo.collections.asr.data.audio_to_text_lhotse.LhotseSpeechToTextBpeDataset`,
     which is constructed from just a tokenizer and essentially loads and collates audio and tokenizes the transcript.
 
-    The ``tokenizer`` is used when text-only datasets are included in dataloading.
-    In these cases we will tokenize ``TextExample``s before sampling mini-batches so that
-    we can account for their number of tokens.
-    Note: this behaviour might eventually be extended to audio datasets too.
-
+    The ``tokenizer`` is used both for audio and text datasets for on-the-fly tokenization.
+    This allows us to stratify the bucketing by the count of input/output tokens (depending on modality).
+    If "prompt_format" is additionally provided in the config, we will also apply a prompt formatter.
     Note that ``tokenizer`` can be any tokenizer type (e.g. both SentencePiece and Aggregate tokenizers work).
     """
     logging.info("We will be using a Lhotse DataLoader.")
@@ -200,9 +201,14 @@ def get_lhotse_dataloader_from_config(
     if tokenizer is not None:
         from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 
-        if not isinstance(tokenizer, TokenizerWrapper):
-            tokenizer = TokenizerWrapper(tokenizer)
-        cuts = cuts.map(partial(tokenize, tokenizer=tokenizer), apply_fn=None)
+        if config.prompt_format is not None:
+            cuts = cuts.map(
+                partial(tokenize_with_prompt, tokenizer=tokenizer, prompt_format=config.prompt_format), apply_fn=None
+            )
+        else:
+            if not isinstance(tokenizer, TokenizerWrapper):
+                tokenizer = TokenizerWrapper(tokenizer)
+            cuts = cuts.map(partial(tokenize, tokenizer=tokenizer), apply_fn=None)
         cuts = cuts.filter(TokenPerSecondFilter(config.min_tps, config.max_tps))
 
     # 2. Optional augmentations.
@@ -548,7 +554,8 @@ Example = TypeVar("Example", bound=Union[Cut, TextExample, TextPairExample])
 def tokenize(example: Example, tokenizer) -> Example:
     if isinstance(example, Cut):
         for s in example.supervisions:
-            s.tokens = np.asarray(tokenizer(s.text, s.language))
+            if s.text is not None:
+                s.tokens = np.asarray(tokenizer(s.text, s.language))
     elif isinstance(example, TextExample):
         example.tokens = np.asarray(tokenizer(example.text, example.language))
     elif isinstance(example, TextPairExample):
@@ -556,6 +563,23 @@ def tokenize(example: Example, tokenizer) -> Example:
         example.target.tokens = np.asarray(tokenizer(example.source.text, example.target.language))
     else:
         raise RuntimeError(f"Unsupported type of example: {type(example)}")
+    return example
+
+
+def tokenize_with_prompt(example: Example, tokenizer, prompt_format: str) -> Example:
+    # TODO(pzelasko): This mechanism makes it possible to measure the actual output sequence length
+    #   for prompted models such as AED MultiTask (Canary), which includes the transcript and the prompt.
+    #   We intend to extend it for text modality in follow-up work.
+    if isinstance(example, Cut):
+        prompt_format_fn = get_prompt_format_fn(prompt_format)
+        (tokenized_prompted_transcript,), (tokenized_prompt,), (tokenized_transcript,) = prompt_format_fn(
+            CutSet([example]), tokenizer
+        )
+        example.tokenized_prompted_transcript = tokenized_prompted_transcript
+        example.tokenized_prompt = tokenized_prompt
+        example.tokenized_transcript = tokenized_transcript
+    else:
+        raise RuntimeError(f"Currently we only support tokenization + prompting during sampling for audio modality.")
     return example
 
 
@@ -586,11 +610,13 @@ class TokenPerSecondFilter:
     """
 
     def __init__(self, tps_min: float, tps_max: float) -> None:
+        assert tps_min <= tps_max
         self.tps_min = tps_min
         self.tps_max = tps_max
+        self.enabled = tps_min > 0 or tps_max < float("inf")
 
     def __call__(self, example) -> bool:
-        if not isinstance(example, Cut):
+        if not isinstance(example, Cut) or not self.enabled:
             return True  # pass-through for non-audio examples.
         tps = _measure_tps(example)
         return self.tps_min <= tps <= self.tps_max
