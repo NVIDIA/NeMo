@@ -125,8 +125,8 @@ def convert_hf_config(nemo_config, tokenizer, vocab_size, dtype, hf_output_path,
         "use_cache": True,
         "vocab_size": vocab_size,
     }
-    if nemo_config.kv_channels is not None:
-        hf_config["kv_channels"] = nemo_config.kv_channels
+    if nemo_config.get("kv_channels", None) is not None:
+        hf_config["head_dim"] = nemo_config.kv_channels
     json.dump(hf_config, open(f"{hf_output_path}/config.json", "w"), indent=2)
 
 
