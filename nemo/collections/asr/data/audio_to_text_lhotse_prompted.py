@@ -198,7 +198,7 @@ def canary(
         ]
         if text := ' '.join(s.text for s in cut.supervisions if s.text is not None):
             # Create answer_ids only if there is some transcript in the data.
-            turns.extend(
+            turns.append(
                 dict(
                     role="assistant",
                     slots={
