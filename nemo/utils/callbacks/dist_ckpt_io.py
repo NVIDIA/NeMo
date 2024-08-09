@@ -265,7 +265,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         """
         fs = get_filesystem(path)
         fs.makedirs(path, exist_ok=True)
-        #print(ckpts)
+        # print(ckpts)
 
         validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
         self.validated_consistency = True
