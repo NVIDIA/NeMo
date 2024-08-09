@@ -153,8 +153,10 @@ def add_megatron_sampler(
             # data_sharding=data_sharding
         )
     elif dataloader_type == 'batch':
-        from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import \
-            MegatronPretrainingBatchSampler
+        from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+            MegatronPretrainingBatchSampler,
+        )
+
         batch_sampler = MegatronPretrainingBatchSampler(
             total_samples=len(dataloader.dataset),
             consumed_samples=consumed_samples,

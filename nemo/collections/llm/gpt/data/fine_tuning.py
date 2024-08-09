@@ -1,6 +1,6 @@
+import math
 from functools import lru_cache
 from pathlib import Path
-import math
 from typing import TYPE_CHECKING, List, Optional, Union
 
 import pytorch_lightning as pl
@@ -68,7 +68,6 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.data_sampler = None
         self.max_train_samples = None
 
-
     def setup(self, stage: str):
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
@@ -115,7 +114,7 @@ class FineTuningDataModule(pl.LightningDataModule):
             seq_length=self.seq_length,
             memmap_workers=self.memmap_workers,
             seed=self.seed,
-            **kwargs
+            **kwargs,
         )
 
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
