@@ -56,6 +56,7 @@ model:
   hidden_size: 768
   ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
   num_attention_heads: 12
+  num_tokentypes: 2
   transformer_block_type: pre_ln
   add_pooler: True
   add_lm_head: True
