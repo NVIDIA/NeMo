@@ -41,6 +41,7 @@ try:
     from megatron.core.transformer.transformer_block import TransformerBlockSubmodules, get_num_layers_to_build
     from megatron.core.transformer.transformer_layer import BaseTransformerLayer
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
+    from megatron.core.transformer.graphs import CudaGraphManager
 
     HAVE_MEGATRON_CORE = True
 
@@ -188,9 +189,6 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
 
         self.config = config
         self.is_first_microbatch = True
-        self.sample_inputs = None
-        self.sample_outputs = None
-        self.enable_cuda_graph = config.enable_cuda_graph
 
         precision = 'bf16' if config.bf16 else 16
 
@@ -324,17 +322,9 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
         return sharded_state_dict
 
     def __call__(self, *args, **kwargs):
-        from megatron.core.transformer.graphs import CudaGraphManager
-
-        if hasattr(self, 'enable_cuda_graph') and self.enable_cuda_graph and self.training:
-            if not hasattr(self, 'cudagraph_manager'):
-                self.add_module('cudagraph_manager', CudaGraphManager())
-
-            out = self.cudagraph_manager(self, args, kwargs)
-        else:
-            out = super(MegatronModule, self).__call__(*args, **kwargs)
-        return out
-
+        if hasattr(self, 'cudagraph_manager'):
+            return self.cudagraph_manager(self, args, kwargs)
+        return super().__call__(*args, **kwargs)
 
 # Use this spec to use the full Transformer layer from Transformer Engine
 def get_gpt_full_te_layer_autocast_spec(transformer_config) -> ModuleSpec:

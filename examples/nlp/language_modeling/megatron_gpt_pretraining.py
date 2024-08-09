@@ -59,9 +59,6 @@ def main(cfg) -> None:
     # Start new pretraining or resume from a checkpoint if it exists
     else:
         model = MegatronGPTModel(cfg.model, trainer)
-
-    s = torch.cuda.Stream()
-    torch.cuda.set_stream(s)
     
     trainer.fit(model)
 
