@@ -53,6 +53,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_all_params_for_weight_decay_optimization,
     get_ltor_masks_and_position_ids,
     get_params_for_weight_decay_optimization,
+    get_te_normalization,
+    is_glu_activation,
 )
 from nemo.collections.nlp.modules.common.text_generation_strategy import TextGenerationStrategy
 from nemo.collections.nlp.modules.common.text_generation_utils import (
@@ -2076,18 +2078,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         normalization = self.cfg.get('normalization', 'layernorm').lower()
         layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
-        if normalization == 'layernorm':
-            normalization = 'LayerNorm'
-        elif normalization == 'rmsnorm':
-            normalization = 'RMSNorm'
-        elif normalization == 'layernorm1p':
-            normalization = 'LayerNorm'
+        normalization = get_te_normalization(normalization)
+        if normalization == 'layernorm1p':
             layernorm_zero_centered_gamma = True
-        else:
-            logging.warning(
-                f"The normalization type: {normalization} might not be supported in megatron core."
-                f"Supported types are LayerNorm and RMSNorm."
-            )
+
+        activation = self.cfg.get('activation', 'gelu').lower()
+        gated_linear_unit = is_glu_activation(activation)
 
         ub_tp_comm_overlap = self.cfg.get('ub_tp_comm_overlap', False)
 
@@ -2104,8 +2100,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         model_specific_configs = {
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
             'normalization': normalization,
+            'activation_func': activation_to_func(activation),
+            'gated_linear_unit': gated_linear_unit,
             'fp8': fp8,
             'tp_comm_overlap': ub_tp_comm_overlap,
+            # Bias related
+            'add_bias_linear': self.cfg.get('bias', True),
+            'bias_activation_fusion': self.cfg.get('bias_activation_fusion', True),
+            'bias_dropout_fusion': self.cfg.get('bias_dropout_add_fusion', True),
             # MoE related
             'num_moe_experts': self.cfg.get('num_moe_experts', None),
             'moe_router_load_balancing_type': self.cfg.get('moe_router_load_balancing_type', 'aux_loss'),

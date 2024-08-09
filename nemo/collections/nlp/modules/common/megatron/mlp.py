@@ -26,7 +26,12 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, ApproxGELUActivation, erf_gelu
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
+    ApproxGELUActivation,
+    erf_gelu,
+    is_glu_activation,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
 from nemo.collections.nlp.modules.common.megatron.utils import squared_relu
 from nemo.core import adapter_mixins
@@ -121,9 +126,9 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # Project to 4h.
         self.dense_h_to_4h = tensor_parallel.ColumnParallelLinear(
             hidden_size,
-            ffn_hidden_size * 2
-            if self.fast_glu_activation
-            else ffn_hidden_size,  # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
+            (
+                ffn_hidden_size * 2 if self.fast_glu_activation else ffn_hidden_size
+            ),  # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
             config=config,
             gather_output=False,
             init_method=init_method,
@@ -144,14 +149,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 bias=bias,
             )
 
-        self.glu_activation_family = activation in [
-            'geglu',
-            'reglu',
-            'swiglu',
-            'fast-geglu',
-            'fast-reglu',
-            'fast-swiglu',
-        ]
+        self.glu_activation_family = is_glu_activation(activation)
         bias_activation_fusion_unavailable = activation in ['reglu', 'swiglu']
 
         if bias_activation_fusion_unavailable and bias_activation_fusion:
@@ -278,7 +276,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
 class SwitchMLP(MegatronModule):
     """Top-1 MoE
-    
+
     Curently supports Sinkhorn based expert routing."""
 
     def __init__(
