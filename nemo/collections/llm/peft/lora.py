@@ -86,6 +86,8 @@ class LoRA(PEFT):
     alpha: int = 32
     dropout: float = 0.0
     dropout_position: Literal['pre', 'post'] = 'post'
+    lora_A_init_method: str = "xavier"
+    lora_B_init_method: str = "zero"
 
     def transform(self, m: nn.Module, name=None, prefix=None):
         """
@@ -129,8 +131,8 @@ class LoRA(PEFT):
                 activation='identity',
                 norm_position=None,
                 norm_type=None,
-                column_init_method="xavier",
-                row_init_method="zero",
+                column_init_method=self.lora_A_init_method,
+                row_init_method=self.lora_B_init_method,
                 gather_output=False,
                 input_is_parallel=input_is_parallel,
                 dropout=self.dropout,
