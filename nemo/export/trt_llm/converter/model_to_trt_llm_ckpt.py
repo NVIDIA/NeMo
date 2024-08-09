@@ -148,6 +148,7 @@ def convert_model_to_trt_llm_ckpt(
         "use_attention_nemo_shape": True,
         "transpose_weights": True,
         "use_parallel_embedding": use_parallel_embedding,
+        "fp8": nemo_model_config.get('fp8', False),
     }
 
     # split_factor: in how many parts a TP training node is split
@@ -158,7 +159,7 @@ def convert_model_to_trt_llm_ckpt(
         if tp_idx == 0 and pp_idx == 0:
             if has_position_embedding:
                 val = model[get_layer_name("position_embedding", prefix)]
-                val = torch_to_numpy(val.to(storage_type).cpu())
+                val = val.to(storage_type).cpu()
                 model_level_weights["transformer.position_embedding.weight"].append(val)
         if pp_idx == 0:
             val = model.get("state_dict", model)[get_layer_name("word_embedding", prefix)]
@@ -171,11 +172,11 @@ def convert_model_to_trt_llm_ckpt(
                     pad_width = vocab_size_padded - vocab_size
                     val = torch.nn.functional.pad(val, (0, 0, 0, pad_width), value=0)
 
-            val = torch_to_numpy(val.to(storage_type).cpu())
+            val = val.to(storage_type).cpu()
             model_level_weights["transformer.vocab_embedding.weight"].append(val)
         if has_lm_head and pp_idx == training_pp_size - 1:
             val = model.get("state_dict", model)[get_layer_name("output_layer", prefix)]
-            val = torch_to_numpy(val.to(storage_type).cpu())
+            val = val.to(storage_type).cpu()
             model_level_weights["lm_head.weight"].append(val)
 
     weights_dict = {}
@@ -187,8 +188,24 @@ def convert_model_to_trt_llm_ckpt(
 
     starmap_args = []
     for key, val in model.items():
-        if "_extra_state" not in key:
-            if len(val.size()) == 1:
+        if len(val.size()) == 1:
+            starmap_args.append(
+                (
+                    tp_rank,
+                    out_dir,
+                    split_factor,
+                    # Let's rename/map the key to the old layer name previously. You can try printing out
+                    # the rename_key output of the old llama checkpoint and compare.
+                    rename_key_dist_ckpt(key, 0),
+                    # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
+                    [val],
+                    storage_type,
+                    None,
+                    export_config,
+                )
+            )
+        else:
+            for i in range(num_layers):
                 starmap_args.append(
                     (
                         tp_rank,
@@ -196,31 +213,14 @@ def convert_model_to_trt_llm_ckpt(
                         split_factor,
                         # Let's rename/map the key to the old layer name previously. You can try printing out
                         # the rename_key output of the old llama checkpoint and compare.
-                        rename_key_dist_ckpt(key, 0),
+                        rename_key_dist_ckpt(key, i),
                         # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
-                        [val],
+                        [val[i]],
                         storage_type,
                         None,
                         export_config,
                     )
                 )
-            else:
-                for i in range(num_layers):
-                    starmap_args.append(
-                        (
-                            tp_rank,
-                            out_dir,
-                            split_factor,
-                            # Let's rename/map the key to the old layer name previously. You can try printing out
-                            # the rename_key output of the old llama checkpoint and compare.
-                            rename_key_dist_ckpt(key, i),
-                            # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
-                            [val[i]],
-                            storage_type,
-                            None,
-                            export_config,
-                        )
-                    )
 
     starmap_args = tqdm(starmap_args, desc="saving weights")
 
@@ -236,7 +236,7 @@ def convert_model_to_trt_llm_ckpt(
     weights_dict.update(weights_dict_local)
 
     for key, values in model_level_weights.items():
-        model_level_weights[key] = np.concatenate(values, axis=0)
+        model_level_weights[key] = torch.concatenate(values, axis=0)
         weights_dict[key] = model_level_weights[key]
 
     return weights_dict
@@ -314,6 +314,7 @@ def dist_model_to_trt_llm_ckpt(
         "convert_on_device": True,
         "use_attention_nemo_shape": True,
         "transpose_weights": True,
+        "fp8": nemo_model_config.get('fp8', False),
     }
 
     starmap_config = {
