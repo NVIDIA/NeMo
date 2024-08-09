@@ -278,10 +278,7 @@ class TimingCallback(Callback):
         #     batch_size=1,
         #     prog_bar=(name == "train_step_timing"),
         # )
-        pl_module.logger.experiment.add_scalar(
-            name + ' in s', 
-            self.timer[name]
-        )
+        pl_module.logger.experiment.add_scalar(name + ' in s', self.timer[name])
         # trainer.global_step
         # profiler.disable()
         # stats = pstats.Stats(profiler)
