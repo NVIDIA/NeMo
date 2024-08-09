@@ -340,12 +340,19 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
                 orig_sr=manifest_entry.orig_sr,
             )
             audio_filestream.close()
-            if len(self._audio_cache) >= self._max_audio_cache:
-                self._audio_cache.popitem(last=False)
-            self._audio_cache[manifest_idx] = audio.clone()
         except Exception as e:
             logging.warning(f"Error reading audio sample: {manifest_entry}, with exception: {e}.")
             print(f"\n[E] Error reading audio sample: {manifest_entry}, with exception: {e}\n", flush=True)
+            failed = True
+
+        if audio.size(0) == 0:
+            logging.warning(f"Loaded audio has zero length: {manifest_entry}.")
+            failed = True
+        elif audio.isnan().any():
+            logging.warning(f"Loaded audio has NaN values: {manifest_entry}.")
+            failed = True
+        elif audio.abs().max() == 0:
+            logging.warning(f"Loaded audio has all zero values: {manifest_entry}.")
             failed = True
 
         if failed:
@@ -363,8 +370,10 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
                 print(f"\n[Wp] Error reading audio sample: {manifest_entry}, returning dummy audio\n", flush=True)
                 audio = 0.1 * torch.ones(self.featurizer.sample_rate, dtype=torch.float32)
 
-        if audio.size(0) == 0:
-            logging.warning(f"Loaded audio has zero length: {manifest_entry}.")
+        if len(self._audio_cache) >= self._max_audio_cache:
+            self._audio_cache.popitem(last=False)
+        self._audio_cache[manifest_idx] = audio.clone()
+
         min_len = int(self.min_audio_len_secs * self.featurizer.sample_rate)
         audio = pad_audio(audio, min_len, self.pad_audio_mode)
         audio_len = torch.tensor(audio.shape[0]).long()
