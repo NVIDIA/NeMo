@@ -67,6 +67,8 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_FT = False
 
+import cProfile
+import pstats
 
 class NotFoundError(NeMoBaseException):
     """Raised when a file or folder is not found"""
@@ -241,8 +243,12 @@ class TimingCallback(Callback):
 
     def __init__(self, timer_kwargs={}):
         self.timer = timers.NamedTimer(**timer_kwargs)
+        self.named_timer_values = {}
 
     def _on_batch_start(self, name):
+        if name not in self.named_timer_values:
+            self.named_timer_values[name] = []
+
         # reset only if we do not return mean of a sliding window
         if self.timer.buffer_size <= 0:
             self.timer.reset(name)
@@ -256,41 +262,68 @@ class TimingCallback(Callback):
 
         self.timer.start(name)
 
-    def _on_batch_end(self, name, pl_module):
+    def _on_batch_end(self, name, trainer, pl_module):
         self.timer.stop(name)
         # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
-        pl_module.log(
-            name + ' in s',
-            self.timer[name],
-            on_step=True,
-            on_epoch=False,
-            batch_size=1,
-            prog_bar=(name == "train_step_timing"),
-        )
+        self.named_timer_values[name].append(self.timer[name])
+
+        # profiler = cProfile.Profile()
+        # profiler.enable()
+        # pl_module.log(
+        #     name + ' in s',
+        #     self.timer[name],
+        #     on_step=True,
+        #     on_epoch=False,
+        #     batch_size=1,
+        #     prog_bar=(name == "train_step_timing"),
+        # )
+        # trainer.global_step
+        # profiler.disable()
+        # stats = pstats.Stats(profiler)
+        # stats.sort_stats('tottime').print_stats(10)
+
+        # if name == "train_step_timing":
+        #     logging.info(f"train_step_timing: {self.timer[name]}")
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         self._on_batch_start("train_step_timing")
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        self._on_batch_end("train_step_timing", pl_module)
+        self._on_batch_end("train_step_timing", trainer, pl_module)
 
     def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx=0):
         self._on_batch_start("validation_step_timing")
 
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
-        self._on_batch_end("validation_step_timing", pl_module)
+        self._on_batch_end("validation_step_timing", trainer, pl_module)
 
     def on_test_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx=0):
         self._on_batch_start("test_step_timing")
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
-        self._on_batch_end("test_step_timing", pl_module)
+        self._on_batch_end("test_step_timing", trainer, pl_module)
 
     def on_before_backward(self, trainer, pl_module, loss):
         self._on_batch_start("train_backward_timing")
 
     def on_after_backward(self, trainer, pl_module):
-        self._on_batch_end("train_backward_timing", pl_module)
+        self._on_batch_end("train_backward_timing", trainer, pl_module)
+
+    # def on_train_start(self, trainer, pl_module):
+    #     print(f"\n\n===={trainer.max_steps=}====\n\n")
+
+    def on_train_end(self, trainer, pl_module):
+        for name, values in self.named_timer_values.items():
+            for value in values:
+                # profiler = cProfile.Profile()
+                # profiler.enable()
+                pl_module.logger.experiment.add_scalar(
+                name + ' in s',
+                value
+            )
+                # profiler.disable()
+                # stats = pstats.Stats(profiler)
+                # stats.sort_stats('tottime').print_stats(10)
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
