@@ -70,6 +70,7 @@ except (ImportError, ModuleNotFoundError):
 import cProfile
 import pstats
 
+
 class NotFoundError(NeMoBaseException):
     """Raised when a file or folder is not found"""
 
@@ -317,10 +318,7 @@ class TimingCallback(Callback):
             for value in values:
                 # profiler = cProfile.Profile()
                 # profiler.enable()
-                pl_module.logger.experiment.add_scalar(
-                name + ' in s',
-                value
-            )
+                pl_module.logger.experiment.add_scalar(name + ' in s', value)
                 # profiler.disable()
                 # stats = pstats.Stats(profiler)
                 # stats.sort_stats('tottime').print_stats(10)
