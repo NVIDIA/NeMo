@@ -143,7 +143,11 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     num_query_groups = model.cfg.get("num_query_groups", head_num)  # different num_query_groups for 70B
 
     # Use kv_channels if available. Otherwise, use hidden_size // head_num as head_size
-    head_size = model.cfg.get("kv_channels", hidden_size // head_num)
+    if model.cfg.get("kv_channels", None) is None:
+        head_size = hidden_size // head_num
+    else:
+        head_size = model.cfg.kv_channels
+
     heads_per_group = head_num // num_query_groups
     qkv_total_dim = head_num + 2 * num_query_groups
 
