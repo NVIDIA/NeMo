@@ -4,13 +4,16 @@ Mixture of Experts
 Overview
 --------
 
-NeMo supports Mixture of Experts (MoE) in the feedforward block of the transformer layer.
+NeMo Framework supports Mixture of Experts (MoE) in the feedforward block of the transformer layer.
 
 MoE is a machine learning technique where multiple specialized models (experts,
 usually multi-layer perceptrons) are combined to solve a complex task. Each expert
 focuses on a specific subtask or domain, while a gating network dynamically activates
 the most appropriate expert based on the current input.
 
+
+Use MoE
+-------
 
 To use MoE  in the NeMo Framework, adjust the ``num_moe_experts`` parameter in the model configuration:
 
@@ -25,6 +28,9 @@ To use MoE  in the NeMo Framework, adjust the ``num_moe_experts`` parameter in t
    .. code-block:: yaml
 
        moe_router_topk: 2  # Processes each token using 2 experts.
+
+Configure MoE-specific Loss Functions
+-------------------------------------
 
 In addition, NeMo provides options to configure MoE-specific loss function.
 To balance token distribution across experts:
@@ -60,10 +66,10 @@ Other options include:
 
 4. ``moe_per_layer_logging`` enables per-layer logging for MoE, currently support aux-loss and z-loss.
 
-5. ``moe_expert_capacity_factor`` the capacity factor determines the maximum number of tokens that can be routed to each expert in any MoE layer, None means no token will be dropped. The default is None.
+5. ``moe_expert_capacity_factor`` the capacity factor determines the maximum number of tokens that can be routed to each expert in any MoE layer. None means no token will be dropped. The default is None.
 
-6. ``moe_pad_expert_input_to_capacity`` if True, pads the input for each expert to match the expert capacity length, effective only after the moe_expert_capacity_factor is set. The default setting is False.
+6. ``moe_pad_expert_input_to_capacity`` if True, pads the input for each expert to match the expert capacity length. It is effective only after the moe_expert_capacity_factor is set. The default setting is False.
 
-7. ``moe_token_drop_policy`` the policy to drop tokens. Can be either "probs" or "position". If "probs", the tokens with the lowest probabilities will be dropped. If "position", tokens at the end of each batch will be dropped. Default value is "probs".
+7. ``moe_token_drop_policy`` the policy to drop tokens. Can be either "probs" or "position". If "probs", the tokens with the lowest probabilities will be dropped. If "position", tokens at the end of each batch will be dropped. The default value is "probs".
 
-8. ``moe_layer_recompute`` if True, checkpointing moe_layer to save activation memory, default is False.
+8. ``moe_layer_recompute`` if True, checkpointing moe_layer to save activation memory. The default is False.
