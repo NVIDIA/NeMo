@@ -70,7 +70,6 @@ try:
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
     from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
-    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
 
@@ -79,6 +78,13 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 
 def skip_fp8_load(x):
@@ -481,7 +487,7 @@ class NevaBaseModel:
             from transformers import AutoConfig
 
             config = AutoConfig.from_pretrained(mm_cfg.vision_encoder.from_pretrained)
-            if config.architectures[0] == "CLIPVisionModel":
+            if config.architectures[0] == "CLIPVisionModel" or config.architectures[0] == "CLIPModel":
                 vision_encoder = CLIPVisionModel.from_pretrained(
                     mm_cfg.vision_encoder.from_pretrained,
                     torch_dtype=torch.bfloat16,
@@ -491,7 +497,7 @@ class NevaBaseModel:
                     for param in vision_encoder.parameters():
                         param.requires_grad = False
                     vision_encoder = vision_encoder.eval()
-            elif config.architectures[0] == "SiglipVisionModel":
+            elif config.architectures[0] == "SiglipVisionModel" or config.architectures[0] == "SiglipModel":
                 vision_encoder = SiglipVisionModel.from_pretrained(
                     mm_cfg.vision_encoder.from_pretrained,
                     torch_dtype=torch.bfloat16,
@@ -1076,9 +1082,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 inference_max_sequence_len,
             ) = batch
             tokens = tokens.cuda()
-            attention_mask = attention_mask.cuda()
             position_ids = position_ids.cuda()
-            attention_mask = attention_mask[0:1]
+            if attention_mask != None:
+                attention_mask = attention_mask.cuda()
+                attention_mask = attention_mask[0:1]
             if media is not None:
                 media = media.cuda()
             labels = None
