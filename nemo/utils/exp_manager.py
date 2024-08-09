@@ -266,7 +266,7 @@ class TimingCallback(Callback):
     def _on_batch_end(self, name, trainer, pl_module):
         self.timer.stop(name)
         # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
-        self.named_timer_values[name].append(self.timer[name])
+        # self.named_timer_values[name].append(self.timer[name])
 
         # profiler = cProfile.Profile()
         # profiler.enable()
@@ -278,10 +278,14 @@ class TimingCallback(Callback):
         #     batch_size=1,
         #     prog_bar=(name == "train_step_timing"),
         # )
+        pl_module.logger.experiment.add_scalar(
+            name + ' in s', 
+            self.timer[name]
+        )
         # trainer.global_step
         # profiler.disable()
         # stats = pstats.Stats(profiler)
-        # stats.sort_stats('tottime').print_stats(10)
+        # stats.sort_stats('time').print_stats(10)
 
         # if name == "train_step_timing":
         #     logging.info(f"train_step_timing: {self.timer[name]}")
@@ -313,15 +317,18 @@ class TimingCallback(Callback):
     # def on_train_start(self, trainer, pl_module):
     #     print(f"\n\n===={trainer.max_steps=}====\n\n")
 
-    def on_train_end(self, trainer, pl_module):
-        for name, values in self.named_timer_values.items():
-            for value in values:
-                # profiler = cProfile.Profile()
-                # profiler.enable()
-                pl_module.logger.experiment.add_scalar(name + ' in s', value)
-                # profiler.disable()
-                # stats = pstats.Stats(profiler)
-                # stats.sort_stats('tottime').print_stats(10)
+    # def on_train_end(self, trainer, pl_module):
+    #     for name, values in self.named_timer_values.items():
+    #         for value in values:
+    #             # profiler = cProfile.Profile()
+    #             # profiler.enable()
+    #             pl_module.logger.experiment.add_scalar(
+    #             name + ' in s',
+    #             value
+    #         )
+    #             # profiler.disable()
+    #             # stats = pstats.Stats(profiler)
+    #             # stats.sort_stats('time').print_stats(10)
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
