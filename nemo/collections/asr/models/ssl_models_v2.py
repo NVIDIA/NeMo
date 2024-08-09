@@ -450,11 +450,21 @@ class EncDecSpeechDenoiseMLMModel(EncDecSpeechSSLModel):
 
         loss_value = self.loss(masks=masks, decoder_outputs=log_probs, targets=tokens, decoder_lengths=encoded_len)
         if loss_value.isnan():
-            logging.error(f"NaN detected in val loss at step {self.global_step}.")
+            logging.error(
+                f"NaN detected in val loss at dataloader {self._validation_names[dataloader_idx]} batch {batch_idx}."
+            )
         if log_probs.isnan().any():
-            logging.error(f"NaN detected in val log_probs at step {self.global_step}.")
+            logging.error(
+                f"NaN detected in val log_probs at dataloader {self._validation_names[dataloader_idx]} batch {batch_idx}."
+            )
         if masks.isnan().any():
-            logging.error(f"NaN detected in val masks at step {self.global_step}.")
+            logging.error(
+                f"NaN detected in val masks at dataloader {self._validation_names[dataloader_idx]} batch {batch_idx}."
+            )
+        if tokens.isnan().any():
+            logging.error(
+                f"NaN detected in val tokens at dataloader {self._validation_names[dataloader_idx]} batch {batch_idx}."
+            )
         return {f'{mode}_loss': loss_value}
 
 
