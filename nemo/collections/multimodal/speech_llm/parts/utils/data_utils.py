@@ -312,7 +312,7 @@ class TextProcessing:
         else:
             pre_pad = []
         answer_text = text[len(context) :]
-        answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text, self.sample_alpha)
+        answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text)
         if self.end_string:
             answer_ids += self.tokenizer.text_to_ids(self.end_string)
 
