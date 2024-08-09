@@ -23,6 +23,8 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import LengthsType, LogprobsType, NeuralType, PredictionsType
 
+DEFAULT_TOKEN_OFFSET = 100
+
 
 class _TokensWrapper:
     def __init__(self, vocabulary: List[str], tokenizer: TokenizerSpec):
@@ -65,7 +67,9 @@ class _TokensWrapper:
             return -1
 
         if self.tokenizer is not None:
-            return self.tokenizer.token_to_id(token)
+            return self.tokenizer.token_to_id(
+                token
+            )  ### Todo: fix AggregateTokenizer.token_to_id() missing 1 required positional argument: 'lang_id'
         else:
             return self.reverse_map[token]
 
@@ -74,6 +78,15 @@ class _TokensWrapper:
             return self.tokenizer.text_to_tokens(text)
         else:
             return list(text)
+
+
+def create_lexicon(tokenizer):
+    lexicon = {'<unk>': []}
+    for id in range(tokenizer.vocab_size):
+        word = chr(id + DEFAULT_TOKEN_OFFSET)
+        token = tokenizer.ids_to_tokens([id])
+        lexicon[word] = [token]
+    return lexicon
 
 
 class FlashLightKenLMBeamSearchDecoder(NeuralModule):
@@ -116,8 +129,10 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                 KenLM,
                 LexiconDecoder,
                 LexiconDecoderOptions,
+                LMState,
                 SmearingMode,
                 Trie,
+                ZeroLM,
             )
             from flashlight.lib.text.dictionary import create_word_dict, load_words
         except ModuleNotFoundError:
@@ -133,9 +148,11 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
         self.vocab_size = self.tokenizer_wrapper.vocab_size
         self.blank = self.tokenizer_wrapper.blank
         self.silence = self.tokenizer_wrapper.unk_id
-
         if lexicon_path is not None:
-            self.lexicon = load_words(lexicon_path)
+            if lexicon_path == "DEFAULT_TOKEN_OFFSET":
+                self.lexicon = create_lexicon(tokenizer)
+            else:
+                self.lexicon = load_words(lexicon_path)
             self.word_dict = create_word_dict(self.lexicon)
             self.unk_word = self.word_dict.get_index("<unk>")
 
@@ -155,8 +172,12 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             # loads in the kenlm binary and combines in with the dictionary object from the lexicon
             # this gives a mapping between each entry in the kenlm binary and its mapping to whatever
             # numeraire is used by the AM, which is explicitly mapped via the lexicon
-            # this information is ued to build a vocabulary trie for decoding
-            self.lm = KenLM(lm_path, self.word_dict)
+            # this information is used to build a vocabulary trie for decoding
+            if lm_path:
+                self.lm = KenLM(lm_path, self.word_dict)
+            else:
+                self.lm = ZeroLM()
+
             self.trie = Trie(self.vocab_size, self.silence)
 
             start_state = self.lm.start(False)
@@ -196,7 +217,14 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             )
 
             self.decoder = LexiconDecoder(
-                self.decoder_opts, self.trie, self.lm, self.silence, self.blank, self.unk_word, [], False,
+                self.decoder_opts,
+                self.trie,
+                self.lm,
+                self.silence,
+                self.blank,
+                self.unk_word,
+                [],
+                False,
             )
         else:
             from flashlight.lib.text.decoder import LexiconFreeDecoder, LexiconFreeDecoderOptions
@@ -206,7 +234,11 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                 for w in self.tokenizer_wrapper.vocab + ([] if '<unk>' in self.tokenizer_wrapper.vocab else ['<unk>'])
             }
             self.word_dict = create_word_dict(d)
-            self.lm = KenLM(lm_path, self.word_dict)
+            if lm_path:
+                self.lm = KenLM(lm_path, self.word_dict)
+            else:
+                self.lm = ZeroLM()
+
             self.decoder_opts = LexiconFreeDecoderOptions(
                 beam_size=beam_size,
                 beam_size_token=int(beam_size_token),

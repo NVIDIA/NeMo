@@ -57,11 +57,14 @@ use a trick to encode the sub-word tokens of the training data as unicode charac
 class TrainKenlmConfig:
     """
     Train an N-gram language model with KenLM to be used with beam search decoder of ASR models.
+    The BPE sub-words are encoded using the Unicode table.
+    This encoding scheme reduces the required memory significantly, and the LM and its binary blob format require less storage space.
+    The value DEFAULT_TOKEN_OFFSET from nemo.collections.asr.parts.submodules.ctc_beam_decoding is utilized as the offset value.
     """
 
-    train_paths: List[
-        str
-    ] = MISSING  # List of training files or folders. Files can be a plain text file or ".json" manifest or ".json.gz". Example: [/path/to/manifest/file,/path/to/folder]
+    train_paths: List[str] = (
+        MISSING  # List of training files or folders. Files can be a plain text file or ".json" manifest or ".json.gz". Example: [/path/to/manifest/file,/path/to/folder]
+    )
 
     nemo_model_file: str = MISSING  # The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model
     kenlm_model_file: str = MISSING  # The path to store the KenLM binary model file
@@ -87,6 +90,7 @@ def main(args: TrainKenlmConfig):
 
     if encoding_level == "subword":
         discount_arg = "--discount_fallback"  # --discount_fallback is needed for training KenLM for BPE-based models
+        kenlm_utils.save_flashlight_lexicon(tokenizer, args.kenlm_model_file)
     else:
         discount_arg = ""
 

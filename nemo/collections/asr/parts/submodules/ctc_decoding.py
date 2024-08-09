@@ -213,7 +213,13 @@ class AbstractCTCDecoding(ConfidenceMixin):
         self.batch_dim_index = self.cfg.get('batch_dim_index', 0)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
 
-        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'pyctcdecode', 'flashlight']
+        possible_strategies = [
+            'greedy',
+            'greedy_batch',
+            'beam',
+            'pyctcdecode',
+            'flashlight',
+        ]
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}. Given {self.cfg.strategy}")
 
@@ -247,6 +253,13 @@ class AbstractCTCDecoding(ConfidenceMixin):
             self.compute_timestamps |= self.preserve_frame_confidence
 
         if self.cfg.strategy == 'greedy':
+            if self.cfg.get('beam', None):
+                logging.warning('beam in not None, but greedy decoding is used')
+            logging.warning(
+                "CTC decoding strategy 'greedy' is slower than 'greedy_batch', which implements the same exact interface. Consider changing your strategy to 'greedy_batch' for a free performance improvement.",
+                mode=logging_mode.ONCE,
+            )
+
             self.decoding = ctc_greedy_decoding.GreedyCTCInfer(
                 blank_id=self.blank_id,
                 preserve_alignments=self.preserve_alignments,
@@ -264,52 +277,21 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 confidence_method_cfg=self.confidence_method_cfg,
             )
 
-        elif self.cfg.strategy == 'beam':
+        elif self.cfg.strategy in ['beam', 'pyctcdecode', 'flashlight']:
 
             self.decoding = ctc_beam_decoding.BeamCTCInfer(
                 blank_id=blank_id,
                 beam_size=self.cfg.beam.get('beam_size', 1),
-                search_type='default',
+                search_type=self.cfg.strategy,
                 return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                 preserve_alignments=self.preserve_alignments,
                 compute_timestamps=self.compute_timestamps,
                 beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
                 kenlm_path=self.cfg.beam.get('kenlm_path', None),
-            )
-
-            self.decoding.override_fold_consecutive_value = False
-
-        elif self.cfg.strategy == 'pyctcdecode':
-
-            self.decoding = ctc_beam_decoding.BeamCTCInfer(
-                blank_id=blank_id,
-                beam_size=self.cfg.beam.get('beam_size', 1),
-                search_type='pyctcdecode',
-                return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
-                preserve_alignments=self.preserve_alignments,
-                compute_timestamps=self.compute_timestamps,
-                beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
-                beam_beta=self.cfg.beam.get('beam_beta', 0.0),
-                kenlm_path=self.cfg.beam.get('kenlm_path', None),
-                pyctcdecode_cfg=self.cfg.beam.get('pyctcdecode_cfg', None),
-            )
-
-            self.decoding.override_fold_consecutive_value = False
-
-        elif self.cfg.strategy == 'flashlight':
-
-            self.decoding = ctc_beam_decoding.BeamCTCInfer(
-                blank_id=blank_id,
-                beam_size=self.cfg.beam.get('beam_size', 1),
-                search_type='flashlight',
-                return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
-                preserve_alignments=self.preserve_alignments,
-                compute_timestamps=self.compute_timestamps,
-                beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
-                beam_beta=self.cfg.beam.get('beam_beta', 0.0),
-                kenlm_path=self.cfg.beam.get('kenlm_path', None),
+                kenlm_type=self.cfg.beam.get('kenlm_type', None),
                 flashlight_cfg=self.cfg.beam.get('flashlight_cfg', None),
+                pyctcdecode_cfg=self.cfg.beam.get('pyctcdecode_cfg', None),
             )
 
             self.decoding.override_fold_consecutive_value = False
@@ -379,9 +361,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
             for nbest_hyp in hypotheses_list:  # type: NBestHypotheses
                 n_hyps = nbest_hyp.n_best_hypotheses  # Extract all hypotheses for this sample
-                decoded_hyps = self.decode_hypothesis(
-                    n_hyps, fold_consecutive
-                )  # type: List[Union[Hypothesis, NBestHypotheses]]
+                decoded_hyps = self.decode_hypothesis(n_hyps, fold_consecutive)  # type: List[NBestHypotheses]
 
                 # If computing timestamps
                 if self.compute_timestamps is True:
@@ -400,9 +380,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             return best_hyp_text, all_hyp_text
 
         else:
-            hypotheses = self.decode_hypothesis(
-                hypotheses_list, fold_consecutive
-            )  # type: List[Union[Hypothesis, NBestHypotheses]]
+            hypotheses = self.decode_hypothesis(hypotheses_list, fold_consecutive)  # type: List[Hypothesis]
 
             # If computing timestamps
             if self.compute_timestamps is True:
@@ -1297,7 +1275,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
 
 @dataclass
 class CTCDecodingConfig:
-    strategy: str = "greedy_batch"
+    strategy: str = "greedy_batch"  # greedy_batch, greedy, pyctcdecode, beam = pyctcdecode, flashlight
 
     # preserve decoding alignments
     preserve_alignments: Optional[bool] = None

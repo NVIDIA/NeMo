@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Use this script to install KenLM, OpenSeq2Seq decoder, Flashlight decoder
+# Use this script to install KenLM, Flashlight decoder
 shopt -s expand_aliases
 
 NEMO_PATH=/workspace/nemo  # Path to NeMo folder: /workspace/nemo if you use NeMo/Dockerfile
@@ -38,32 +38,16 @@ else
   alias b2install='sudo ./b2'
 fi
 
-aptupdate && apt-get upgrade -y && apt-get install -y swig liblzma-dev && rm -rf /var/lib/apt/lists/* # liblzma needed for flashlight decoder
+aptupdate && apt-get upgrade -y && apt-get install -y swig liblzma-dev libeigen3-dev && rm -rf /var/lib/apt/lists/* # liblzma needed for flashlight decoder, libeigen3-dev for kenlm.
 
 # install Boost package for KenLM
-wget https://boostorg.jfrog.io/artifactory/main/release/1.80.0/source/boost_1_80_0.tar.bz2 --no-check-certificate && tar --bzip2 -xf $NEMO_PATH/boost_1_80_0.tar.bz2 && cd boost_1_80_0 && ./bootstrap.sh && b2install --layout=tagged link=static,shared threading=multi,single install -j4 && cd .. || echo FAILURE
-export BOOST_ROOT=$NEMO_PATH/boost_1_80_0
+wget https://boostorg.jfrog.io/artifactory/main/release/1.84.0/source/boost_1_84_0.tar.bz2 --no-check-certificate && tar --bzip2 -xf $NEMO_PATH/boost_1_84_0.tar.bz2 && cd boost_1_84_0 && ./bootstrap.sh && b2install --layout=tagged link=static,shared threading=multi,single install -j4 && cd .. || echo FAILURE
+export BOOST_ROOT=$NEMO_PATH/boost_1_84_0
 
-git clone https://github.com/NVIDIA/OpenSeq2Seq
-cd OpenSeq2Seq
-git checkout ctc-decoders
-cd ..
-mv OpenSeq2Seq/decoders $NEMO_PATH/
-rm -rf OpenSeq2Seq
-cd $NEMO_PATH/decoders
-cp $NEMO_PATH/scripts/installers/setup_os2s_decoders.py ./setup.py
-./setup.sh
-
-# install KenLM
-cd $NEMO_PATH/decoders/kenlm/build && cmake -DKENLM_MAX_ORDER=$KENLM_MAX_ORDER .. && make -j2
-cd $NEMO_PATH/decoders/kenlm
-python setup.py install --max_order=$KENLM_MAX_ORDER
-export KENLM_LIB=$NEMO_PATH/decoders/kenlm/build/bin
-export KENLM_ROOT=$NEMO_PATH/decoders/kenlm
-cd ..
+# install binary KenLM
+export MAX_ORDER=$KENLM_MAX_ORDER && mkdir $NEMO_PATH/decoders && cd $NEMO_PATH/decoders && git clone https://github.com/kpu/kenlm.git && mkdir $NEMO_PATH/decoders/kenlm/build && cd $NEMO_PATH/decoders/kenlm/build && cmake -DKENLM_MAX_ORDER=$KENLM_MAX_ORDER .. && make -j2
+# install python KenLM
+cd $NEMO_PATH/decoders/kenlm && python setup.py install --max_order=$KENLM_MAX_ORDER && export KENLM_LIB=$NEMO_PATH/decoders/kenlm/build/bin && export KENLM_ROOT=$NEMO_PATH/decoders/kenlm && cd ..
 
 # install Flashlight
-git clone https://github.com/flashlight/text && cd text
-python setup.py bdist_wheel
-pip install dist/*.whl
-cd ..
+export USE_KENLM=1 && pip install flashlight-text
