@@ -21,7 +21,7 @@ class ProgressPrinter(ProgressBar):
 
     def __init__(
         self,
-        log_interval: int = 100,
+        log_interval: int = 1,
         skip_accumulate_metrics: list[str] = ["global_step"],
         exclude_metrics: list[str] = ["v_num"],
     ):
