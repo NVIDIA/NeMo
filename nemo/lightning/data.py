@@ -122,7 +122,7 @@ def add_megatron_sampler(
     global_batch_size: int,
     rampup_batch_size: Optional[List[int]] = None,
     consumed_samples: int = 0,
-    dataloader_type: Literal["single", "cyclic"] = "single",
+    dataloader_type: Literal["single", "cyclic", "batch"] = "single",
     drop_last: bool = True,
     pad_samples_to_global_batch_size: bool = False,
     # data_sharding: bool = False
@@ -151,6 +151,19 @@ def add_megatron_sampler(
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
             drop_last=drop_last,
             # data_sharding=data_sharding
+        )
+    elif dataloader_type == 'batch':
+        from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import \
+            MegatronPretrainingBatchSampler
+        batch_sampler = MegatronPretrainingBatchSampler(
+            total_samples=len(dataloader.dataset),
+            consumed_samples=consumed_samples,
+            micro_batch_size=micro_batch_size,
+            global_batch_size=global_batch_size,
+            data_parallel_rank=parallel_state.get_data_parallel_rank(),
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            drop_last=drop_last,
+            pad_samples_to_global_batch_size=not drop_last,
         )
     else:
         raise Exception(f'{dataloader_type} dataloader type is not supported.')
