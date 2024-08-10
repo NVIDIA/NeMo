@@ -209,7 +209,7 @@ class AutoConfiguratorOptions(TypedDict):
     multi_block_mode_list: List[bool]
 
 
-class AutoConfiguratorPermutation(TypedDict):
+class AutoConfiguratorCombination(TypedDict):
     #nemo_checkpoint: str
     #model_type: str
     num_gpus: int
@@ -264,23 +264,23 @@ def generate_autoconfig_options() -> AutoConfiguratorOptions:
     }
     return options
 
-def generate_autoconfig_permutations(options: AutoConfiguratorOptions) -> List[AutoConfiguratorPermutation]:
-    # create initial empty permutation
-    permutations = [{}]
+def generate_autoconfig_combinations(options: AutoConfiguratorOptions) -> List[AutoConfiguratorCombination]:
+    # create initial empty combination
+    combinations = [{}]
     for key, value in options.items():
         if key.endswith('_list'):
-            permutation_key = key.removesuffix('_list')
-            # we must generate permutations for the list
-            permutation_list = []
-            for permutation_value in value:
-                permutation_sublist = copy.deepcopy(permutations)
-                for entry in permutation_sublist:
-                    entry[permutation_key] = permutation_value
-                permutation_list.extend(permutation_sublist)
-            permutations = permutation_list
-    return permutations
+            combination_key = key.removesuffix('_list')
+            # we must generate combinations for the list
+            combination_list = []
+            for combination_value in value:
+                combination_sublist = copy.deepcopy(combinations)
+                for entry in combination_sublist:
+                    entry[combination_key] = combination_value
+                combination_list.extend(combination_sublist)
+            combinations = combination_list
+    return combinations
 
-def test_inference(options: AutoConfiguratorOptions, permutation: AutoConfiguratorPermutation, query):
+def test_inference(options: AutoConfiguratorOptions, combination: AutoConfiguratorCombination, query):
     # lambada dataset based accuracy test, which includes more than 5000 sentences.
     # Use generated last token with original text's last token for accuracy comparison.
     # If the generated last token start with the original token, trtllm_correct make an increment.
@@ -293,7 +293,7 @@ def test_inference(options: AutoConfiguratorOptions, permutation: AutoConfigurat
         entries = json.load(file)
 
         # extract and batch the prompts
-        batch_size = permutation['max_batch_size']
+        batch_size = combination['max_batch_size']
         num_entries = len(entries)
         num_batches = (num_entries + batch_size) // batch_size
         prompt_batches = [[entry["text_before_last_word"] for entry in entries[batch_size*i:batch_size*(i+1)]] for i in range(num_batches)]
@@ -337,36 +337,36 @@ def test_inference(options: AutoConfiguratorOptions, permutation: AutoConfigurat
 def autoconfig_run(options: AutoConfiguratorOptions):
     trt_llm_path = "/tmp/trt_llm_model_dir/"
     model_name = "autoconfigurator_model"
-    autoconfig_permutations = generate_autoconfig_permutations(options)
+    autoconfig_combinations = generate_autoconfig_combinations(options)
     results = []
 
-    for permutation in autoconfig_permutations:
+    for combination in autoconfig_combinations:
         trt_llm_exporter = TensorRTLLM(
             model_dir=trt_llm_path,
-            lora_ckpt_list=permutation['lora_ckpt'],
+            lora_ckpt_list=combination['lora_ckpt'],
             load_model=False,
-            use_python_runtime=(not permutation['use_cpp_runtime']),
+            use_python_runtime=(not combination['use_cpp_runtime']),
         )
         trt_llm_exporter.export(
             nemo_checkpoint_path=options['nemo_checkpoint'],
             model_type=options['model_type'],
-            n_gpus=permutation['num_gpus'],
-            tensor_parallelism_size=permutation['tensor_parallelism_size'],
-            pipeline_parallelism_size=permutation['pipeline_parallelism_size'],
-            max_input_len=permutation['max_input_len'],
-            max_output_len=permutation['max_output_len'],
-            max_batch_size=permutation['max_batch_size'],
-            max_num_tokens=permutation['max_num_tokens'],
-            opt_num_tokens=permutation['opt_num_tokens'],
-            use_parallel_embedding=permutation['use_parallel_embedding'],
-            max_prompt_embedding_table_size=permutation['max_prompt_embedding_table_size'],
-            paged_kv_cache=permutation['paged_kv_cache'],
-            remove_input_padding=permutation['remove_input_padding'],
-            dtype=permutation['dtype'],
-            enable_multi_block_mode=permutation['multi_block_mode'],
-            use_lora_plugin=permutation['use_lora_plugin'],
-            lora_target_modules=permutation['lora_target_modules'],
-            max_lora_rank=permutation['max_lora_rank'],
+            n_gpus=combination['num_gpus'],
+            tensor_parallelism_size=combination['tensor_parallelism_size'],
+            pipeline_parallelism_size=combination['pipeline_parallelism_size'],
+            max_input_len=combination['max_input_len'],
+            max_output_len=combination['max_output_len'],
+            max_batch_size=combination['max_batch_size'],
+            max_num_tokens=combination['max_num_tokens'],
+            opt_num_tokens=combination['opt_num_tokens'],
+            use_parallel_embedding=combination['use_parallel_embedding'],
+            max_prompt_embedding_table_size=combination['max_prompt_embedding_table_size'],
+            paged_kv_cache=combination['paged_kv_cache'],
+            remove_input_padding=combination['remove_input_padding'],
+            dtype=combination['dtype'],
+            enable_multi_block_mode=combination['multi_block_mode'],
+            use_lora_plugin=combination['use_lora_plugin'],
+            lora_target_modules=combination['lora_target_modules'],
+            max_lora_rank=combination['max_lora_rank'],
         )
         nm = DeployPyTriton(
             model=trt_llm_exporter,
@@ -377,18 +377,23 @@ def autoconfig_run(options: AutoConfiguratorOptions):
 
         # run queries on test data here and time them
         nemo_query = NemoQueryLLM(url="localhost:8000", model_name=model_name)
-        inference_result = test_inference(options, permutation, nemo_query)
+        inference_result = test_inference(options, combination, nemo_query)
         results.append(inference_result)
 
         nm.stop()
     
-    # at this point, we have finished testing for all permutations
-    # sort permutations by ascending time taken (fastest first)
-    sorted_results = sorted(zip(results, autoconfig_permutations), key=lambda x: x[0]['evaluation_time'])
+    # at this point, we have finished testing for all combinations
+    # sort combinations by ascending time taken (fastest first)
+    sorted_results = sorted(zip(results, autoconfig_combinations), key=lambda x: x[0]['evaluation_time'])
+    # get list of parameters that were actually varying between combinations
+    varying_parameters = []
+    for key, value in options.items():
+        if isinstance(value, list) and len(value) > 1:
+            varying_parameters.append(key)
     # print best ones
-    for i in range (min(len(sorted_results),3)):
-        print(f"#{i+1} configuration, {sorted_results[i][0]['evaluation_time']} seconds:")
-        print((sorted_results[i]))
+    for index, result_entry in enumerate(sorted_results[:4]):
+        print(f"#{index+1} configuration, {result_entry[0]['evaluation_time']} seconds:")
+        print({key: result_entry[key] for key in varying_parameters})
 
 def main():
     autoconfig_options: AutoConfiguratorOptions = generate_autoconfig_options()
