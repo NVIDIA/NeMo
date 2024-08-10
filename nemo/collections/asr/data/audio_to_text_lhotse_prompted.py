@@ -198,19 +198,19 @@ def canary(
                 },
             )
         ]
-        if text := ' '.join(s.text for s in cut.supervisions if s.text is not None):
-            # Create answer_ids only if there is some transcript in the data.
-            turns.append(
-                dict(
-                    role="assistant",
-                    slots={
-                        "text": text,
-                        formatter.PROMPT_LANGUAGE_SLOT: ifnone(
-                            cut.supervisions[0].language, cut.custom.get("target_lang")
-                        ),
-                    },
-                ),
-            )
+        # If data has no transcript, create empty response with <eos> only.
+        text = ' '.join(s.text for s in cut.supervisions if s.text is not None)
+        turns.append(
+            dict(
+                role="assistant",
+                slots={
+                    "text": text,
+                    formatter.PROMPT_LANGUAGE_SLOT: ifnone(
+                        cut.supervisions[0].language, cut.custom.get("target_lang")
+                    ),
+                },
+            ),
+        )
         encoded = formatter.encode_dialog(turns)
         prompts_with_answers.append(encoded["input_ids"])
         prompts.append(encoded["context_ids"])

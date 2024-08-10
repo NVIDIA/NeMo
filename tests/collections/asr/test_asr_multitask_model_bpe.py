@@ -396,7 +396,7 @@ class TestEncDecMultiTaskModel:
 def test_prompted_dataset(asr_model):
     dataset = PromptedAudioToTextLhotseDataset(tokenizer=asr_model.tokenizer, prompt_format_fn=canary)
 
-    cuts = DummyManifest(CutSet, begin_id=0, end_id=2, with_data=True)
+    cuts = DummyManifest(CutSet, begin_id=0, end_id=3, with_data=True)
 
     c = cuts[0]
     c.supervisions[0].language = "en"
@@ -413,13 +413,21 @@ def test_prompted_dataset(asr_model):
     c.taskname = "ast"  # note: testing for "taskname" as we support it together with "task"
     c.pnc = "yes"
 
+    c = cuts[2]
+    c.supervisions[0].language = "en"
+    c.supervisions[0].text = ""
+    c.source_lang = "en"
+    c.target_lang = "en"
+    c.task = "asr"
+    c.pnc = "yes"
+
     batch = dataset[cuts]
 
     assert isinstance(batch, PromptedAudioToTextMiniBatch)
-    assert batch.audio.shape == (2, 16000)
-    assert batch.audio_lens.tolist() == [16000, 16000]
+    assert batch.audio.shape == (3, 16000)
+    assert batch.audio_lens.tolist() == [16000, 16000, 16000]
 
-    # Test example 0
+    # Test example 0 (transcription)
     i = 0
     assert (
         asr_model.tokenizer.ids_to_text(batch.prompt[i]) == '<|startoftranscript|><|en|><|transcribe|><|en|><|nopnc|>'
@@ -433,7 +441,7 @@ def test_prompted_dataset(asr_model):
     )
     assert batch.prompted_transcript_lens[i] == 14
 
-    # Test example 1
+    # Test example 1 (translation)
     i = 1
     assert asr_model.tokenizer.ids_to_text(batch.prompt[i]) == '<|startoftranscript|><|en|><|translate|><|de|><|pnc|>'
     assert batch.prompt_lens[i] == 5
@@ -444,3 +452,15 @@ def test_prompted_dataset(asr_model):
         == '<|startoftranscript|><|en|><|translate|><|de|><|pnc|>u##ne##r##h##e##b##l##i##c##h<|endoftext|>'
     )
     assert batch.prompted_transcript_lens[i] == 16
+
+    # Test example 2 (no transcript, e.g. noise)
+    i = 2
+    assert asr_model.tokenizer.ids_to_text(batch.prompt[i]) == '<|startoftranscript|><|en|><|transcribe|><|en|><|pnc|>'
+    assert batch.prompt_lens[i] == 5
+    assert asr_model.tokenizer.ids_to_text(batch.transcript[i]) == '<pad>' * 10
+    assert batch.transcript_lens[i] == 0
+    assert (
+        asr_model.tokenizer.ids_to_text(batch.prompted_transcript[i])
+        == '<|startoftranscript|><|en|><|transcribe|><|en|><|pnc|><|endoftext|>' + '<pad>' * 10
+    )
+    assert batch.prompted_transcript_lens[i] == 6
