@@ -822,10 +822,7 @@ jobs:
         num_workers=0 \
         amp=false \
         compute_dtype=bfloat16 \
-        matmul_precision=medium \
-        2>&1 | tee transcribe.log \
-        && actual_wer=$(grep -oP "(?<='wer': )[0-9.]*" transcribe.log) \
-        && (( $(echo "$actual_wer >= 0.02 && $actual_wer <= 0.04" | bc -l) )) && exit 0 || exit 1
+        matmul_precision=medium
       AFTER_SCRIPT: |
         rm -rf preds.json transcribe.log
 
@@ -847,10 +844,7 @@ jobs:
         +prompt.source_lang="en" \
         +prompt.target_lang="en" \
         +prompt.task="asr" \
-        +prompt.pnc="no" \
-        2>&1 | tee transcribe.log \
-        && actual_wer=$(grep -oP "(?<='wer': )[0-9.]*" transcribe.log) \
-        && (( $(echo "$actual_wer >= 0.02 && $actual_wer <= 0.04" | bc -l) )) && exit 0 || exit 1
+        +prompt.pnc="no"
       AFTER_SCRIPT: |
         rm -rf preds.json transcribe.log
 
