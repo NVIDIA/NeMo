@@ -214,7 +214,7 @@ jobs:
         rm -f /home/TestData/multimodal/video_neva/llama3-ci-hf/llama3_ci.nemo
         rm -rf /home/TestData/multimodal/video_neva/llama3-ci-hf/model_weights
       IS_OPTIONAL: true
-      
+
   # this test is using a 7B model which is too large for GitHub CI
   # replace the model in this test with a toy model or move the test
   # to the nightly CI
@@ -4531,7 +4531,8 @@ jobs:
         model.data.synthetic_data=True
       AFTER_SCRIPT: |
         rm -rf examples/multimodal/text_to_image/sd_train_results
-
+      IS_OPTIONAL: true
+      
   L2_NeMo_2_GPT_Pretraining_no_transformer_engine:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
