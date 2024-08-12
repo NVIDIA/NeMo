@@ -40,7 +40,7 @@ def get_args():
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output HF checkpoint.")
     parser.add_argument('--hf_model_name', type=str, default="mistralai/Mistral-7B-v0.1", help="Name of HF checkpoint")
-    parser.add_argument("--precision", type=str, default="32", help="Model precision")
+    parser.add_argument("--precision", type=str, default="bf16", help="Model precision")
     args = parser.parse_args()
     return args
 
@@ -84,6 +84,7 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
         model_config.use_cpu_initialization = True
     else:
         map_location = None
+    model_config.perform_initialization = False
 
     if cpu_only:
         logging.info("******** Loading model on CPU. This will take a significant amount of time.")
@@ -216,6 +217,14 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
 
 
 if __name__ == '__main__':
+    import transformers
+
+    type(transformers.__version__)
+    from packaging.version import Version
+
+    if Version(transformers.__version__) < Version('4.44.0'):
+        logging.warning("You need to use transformers >= v4.44.0")
+
     args = get_args()
     hf_state_dict, nemo_config, dtype = convert(args.input_name_or_path, args.precision)
 
