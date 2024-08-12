@@ -48,7 +48,8 @@ def get_args():
 def load_config(hf_model_name, nemo_config):
     hf_config = AutoConfig.from_pretrained(hf_model_name)
     # SWA; nemo_config.window_size is list [left-bound, right-bound]
-    hf_config.sliding_window = nemo_config.window_size[0]
+    if hasattr(nemo_config, 'window_size'):
+        hf_config.sliding_window = nemo_config.window_size[0]
     hf_config.max_position_embeddings = nemo_config.encoder_seq_length
     hf_config.num_hidden_layers = nemo_config.num_layers
     hf_config.hidden_size = nemo_config.hidden_size
@@ -129,7 +130,7 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
     num_layers = model.cfg.num_layers
     num_query_groups = model.cfg.get("num_query_groups", head_num)  # different num_query_groups for 70B
 
-    head_size = hidden_size // head_num
+    head_size = model.cfg.get('kv_channels', hidden_size // head_num)
     heads_per_group = head_num // num_query_groups
     qkv_total_dim = head_num + 2 * num_query_groups
 
