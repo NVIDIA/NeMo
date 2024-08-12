@@ -17,6 +17,7 @@ from typing import List, Optional
 import numpy as np
 import torch
 from nemo.utils import logging, logging_mode
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 
 
 def maybe_cast_to_list(x):
@@ -253,10 +254,12 @@ class TextProcessing:
         else:
             self.eos_id = None
 
-        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id is not None and tokenizer.pad_id > 0:
             self.pad_id = tokenizer.pad_id
+        elif self.eos_id is not None:
+            self.pad_id = self.eos_id
         else:
-            self.pad_id = self.eos_id if self.eos_id is not None else 0
+            self.pad_id = 0
 
         self.sep_id = sep_id if add_sep else None
 
@@ -312,7 +315,7 @@ class TextProcessing:
         else:
             pre_pad = []
         answer_text = text[len(context) :]
-        answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text, self.sample_alpha)
+        answer_ids = pre_pad + self._text_to_ids(answer_text)
         if self.end_string:
             answer_ids += self.tokenizer.text_to_ids(self.end_string)
 
@@ -380,3 +383,8 @@ class TextProcessing:
         }
 
         return processed_example
+
+    def _text_to_ids(self, text):
+        if isinstance(self.tokenizer, SentencePieceTokenizer):
+            return self.tokenizer.text_to_ids(text, self.sample_alpha)
+        return self.tokenizer.text_to_ids(text)
