@@ -133,14 +133,10 @@ def set_model_parallel_attributes(model, parallelism):
     has_mcore_config = isinstance(getattr(model, "config", None), TransformerConfig)
     if has_mcore_config and hasattr(model, "configure_model"):
         config: TransformerConfig = model.config
-        config.tensor_model_parallel_size = parallelism.tensor_model_parallel_size
-        config.pipeline_model_parallel_size = parallelism.pipeline_model_parallel_size
-        config.virtual_pipeline_model_parallel_size = parallelism.virtual_pipeline_model_parallel_size
-        config.context_parallel_size = parallelism.context_parallel_size
-        config.expert_model_parallel_size = parallelism.expert_model_parallel_size
-        config.moe_extended_tp = parallelism.moe_extended_tp
-        config.sequence_parallel = parallelism.sequence_parallel
-        config.pipeline_dtype = parallelism.pipeline_dtype
+        _set_parallelism_config(config, parallelism)
+
+        if hasattr(model.config, "__io__"):
+            _set_parallelism_config(model.config.__io__, parallelism)
 
         return config
 
@@ -524,3 +520,14 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
                 _state_dict[key] = value
 
         module.load_state_dict(_state_dict, strict=strict)
+
+
+def _set_parallelism_config(config, parallelism):
+    config.tensor_model_parallel_size = parallelism.tensor_model_parallel_size
+    config.pipeline_model_parallel_size = parallelism.pipeline_model_parallel_size
+    config.virtual_pipeline_model_parallel_size = parallelism.virtual_pipeline_model_parallel_size
+    config.context_parallel_size = parallelism.context_parallel_size
+    config.expert_model_parallel_size = parallelism.expert_model_parallel_size
+    config.moe_extended_tp = parallelism.moe_extended_tp
+    config.sequence_parallel = parallelism.sequence_parallel
+    config.pipeline_dtype = parallelism.pipeline_dtype
