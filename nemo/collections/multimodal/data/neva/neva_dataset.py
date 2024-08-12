@@ -1314,7 +1314,7 @@ class DataCollatorForSupervisedDataset(object):
         return batch
 
 
-def make_supervised_data_module(tokenizer, image_processor, model_cfg, data_file=None) -> Dict:
+def make_supervised_data_module(tokenizer, image_processor, model_cfg, each_file_from_path=None) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     data_cfg = model_cfg.data
     mm_cfg = model_cfg.mm_cfg
@@ -1322,7 +1322,7 @@ def make_supervised_data_module(tokenizer, image_processor, model_cfg, data_file
     if getattr(model_cfg, 'no_seqlen_plus_one_input_tokens', False):
         add_extra_token = 0
     crop_size = mm_cfg.vision_encoder.get("crop_size", (224, 224))
-    data_path = data_file if data_file is not None else data_cfg.data_path
+    data_path = each_file_from_path if each_file_from_path is not None else data_cfg.data_path
     train_dataset = NevaDataset(
         tokenizer=tokenizer,
         data_path=data_path,

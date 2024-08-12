@@ -1268,14 +1268,14 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
         if len(data_cfg.concat_sampling_probabilities) != len(data_cfg.data_path):
             raise ValueError(
-                f"concat_sampling_probabilities must be of the same size as data_file_names. "
+                f"concat_sampling_probabilities must be of the same size as number of files from data path. "
                 f"Provided size {len(data_cfg.concat_sampling_probabilities)}, number of datasets {len(data_cfg.data_path)}"
             )
 
-        for data_file in data_cfg.data_path:
+        for each_file_from_path in data_cfg.data_path:
             if is_packed_sequence:
-                train_dataset = NevaPackedSeqDatatset(data_file, self.cfg.mm_cfg.vision_encoder.get("crop_size"))
-                valid_dataset = NevaPackedSeqDatatset(data_file, self.cfg.mm_cfg.vision_encoder.get("crop_size"))
+                train_dataset = NevaPackedSeqDatatset(each_file_from_path, self.cfg.mm_cfg.vision_encoder.get("crop_size"))
+                valid_dataset = NevaPackedSeqDatatset(each_file_from_path, self.cfg.mm_cfg.vision_encoder.get("crop_size"))
             else:
                 ds_dict = make_supervised_data_module(
                     tokenizer=self.tokenizer,
@@ -1285,7 +1285,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                         else self.model.image_processor
                     ),
                     model_cfg=self.cfg,
-                    data_file=data_file,
+                    each_file_from_path=each_file_from_path,
                 )
                 train_dataset = ds_dict["train_dataset"]
                 valid_dataset = ds_dict["eval_dataset"]
@@ -1337,8 +1337,14 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     self.cfg.data.concat_sampling_probabilities = [1 / len(self.cfg.data.data_path)] * len(
                         self.cfg.data.data_path
                     )
-                elif sum(self.cfg.data.concat_sampling_probabilities) != 1:
-                    raise ValueError("Concat_sampling_probabilities must sum up to 1.")
+                else:
+                    # Normalize the sampling probabilities if they don't sum to 1
+                    total = sum(self.cfg.data.concat_sampling_probabilities)
+                    if total != 1:
+                        logging.warning(f"Concat_sampling_probabilities sum to {total}. Normalizing to sum to 1.")
+                        self.cfg.data.concat_sampling_probabilities = [
+                            prob / total for prob in self.cfg.data.concat_sampling_probabilities
+                        ]
                 return self.build_train_valid_test_datasets_blend()
             elif len(self.cfg.data.data_path) == 1:
                 if self.cfg.data.concat_sampling_probabilities is not None:
