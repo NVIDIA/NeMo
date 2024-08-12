@@ -18,10 +18,10 @@ To trim the model layers, use the following script:
 
 **Note:** layer indices start from 1.
 
-To save trimmed model in ``zarr`` checkpoint format add this flag to the command above:
+To save trimmed model in ``zarr`` checkpoint format, add the following flag to the command above:
 
 .. code::
-  
+
   --zarr
 
 **Note:** The ``zarr`` checkpoint format is deprecated.
