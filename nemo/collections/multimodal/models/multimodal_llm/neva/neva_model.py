@@ -1274,8 +1274,12 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
         for each_file_from_path in data_cfg.data_path:
             if is_packed_sequence:
-                train_dataset = NevaPackedSeqDatatset(each_file_from_path, self.cfg.mm_cfg.vision_encoder.get("crop_size"))
-                valid_dataset = NevaPackedSeqDatatset(each_file_from_path, self.cfg.mm_cfg.vision_encoder.get("crop_size"))
+                train_dataset = NevaPackedSeqDatatset(
+                    each_file_from_path, self.cfg.mm_cfg.vision_encoder.get("crop_size")
+                )
+                valid_dataset = NevaPackedSeqDatatset(
+                    each_file_from_path, self.cfg.mm_cfg.vision_encoder.get("crop_size")
+                )
             else:
                 ds_dict = make_supervised_data_module(
                     tokenizer=self.tokenizer,
