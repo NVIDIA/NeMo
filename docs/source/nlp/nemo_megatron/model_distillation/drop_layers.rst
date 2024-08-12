@@ -21,6 +21,7 @@ To trim the model layers, use the following script:
 To save trimmed model in ``zarr`` checkpoint format add this flag to the command above:
 
 .. code::
+  
   --zarr
 
 **Note:** The ``zarr`` checkpoint format is deprecated.
@@ -44,6 +45,7 @@ To validate the trimmed model, use the following script:
 To use a specific dataset instead of a mock dataset, modify the ``model.data`` parameters as follows:
 
 .. code::
+
   model.data.data_impl=mmap \
   model.data.data_prefix=["path/to/datafile1", "path/to/datafile2"]
 
