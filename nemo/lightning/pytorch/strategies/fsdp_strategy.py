@@ -56,13 +56,12 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     def __init__(
         self,
-        *args,
         auto_wrap_policy={TransformerLayer},
         state_dict_type="sharded",
         ckpt_include_optimizer=False,
         **kwargs,
     ):
-        super().__init__(*args, auto_wrap_policy=auto_wrap_policy, state_dict_type=state_dict_type, **kwargs)
+        super().__init__(auto_wrap_policy=auto_wrap_policy, state_dict_type=state_dict_type, **kwargs)
         self.ckpt_include_optimizer = ckpt_include_optimizer
 
     @override

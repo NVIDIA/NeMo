@@ -248,17 +248,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         setup_data_sampler(self.trainer)
         fix_progress_bar(trainer)
-        # datamodule = getattr(trainer, "datamodule", None)
-        # if not self.data_sampler and hasattr(datamodule, "data_sampler"):
-        #     self.data_sampler = datamodule.data_sampler
-        #     self.data_sampler.setup(self.cluster_environment.global_rank())
-        #     if hasattr(datamodule, "reconfigure_limit_batches"):
-        #         datamodule.reconfigure_limit_batches()
 
-        # if self.data_sampler:
-        #     self.data_sampler.connect(trainer)
-
-        # self._fix_progress_bar(trainer)
         self.setup_megatron_parallel(trainer)
         self.setup_precision_plugin()
 
