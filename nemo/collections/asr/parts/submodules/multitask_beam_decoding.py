@@ -231,9 +231,12 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
                 hyp.y_sequence = hyp.y_sequence[prefix.shape[0] :]
         for hyp in packed_result:
             ids = hyp.y_sequence
+            ids_len = ids.shape[0]
             pos = -1
             while ids[pos] == self.pad or ids[pos] == self.eos:
                 pos -= 1
+                if ids_len + pos == -1:
+                    break  # empty sequence
             if pos < -1:
                 hyp.y_sequence = ids[: pos + 1]
 
