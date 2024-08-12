@@ -410,7 +410,7 @@ class NLPDDPStrategy(DDPStrategy):
             filepath = inject_model_parallel_rank(filepath)
             if self.is_global_zero or app_state.data_parallel_rank == 0:
                 self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
-        
+
         drop_optim = True
         if drop_optim:
             self._remove_optimizer_states(filepath)
@@ -588,11 +588,13 @@ class NLPDDPStrategy(DDPStrategy):
             ]
 
         return checkpoint
-    
+
     def _remove_optimizer_states(self, filepath: Union[str, Path], storage_options=None):
         save_last_n_optim_states = 2
         checkpoint_dir = os.path.dirname(filepath)
-        checkpoints = [d for d in os.listdir(checkpoint_dir) if os.path.isdir(os.path.join(checkpoint_dir, d)) and 'last' not in d]
+        checkpoints = [
+            d for d in os.listdir(checkpoint_dir) if os.path.isdir(os.path.join(checkpoint_dir, d)) and 'last' not in d
+        ]
         checkpoints = sorted(checkpoints, key=lambda x: int(x.split('-step=')[1].split('-')[0]))
 
         checkpoint_number = len(checkpoints) - save_last_n_optim_states - 1
@@ -606,7 +608,6 @@ class NLPDDPStrategy(DDPStrategy):
             self.checkpoint_io.save_checkpoint(checkpoint, checkpoint_path, storage_options=storage_options)
             logging.info(f"Successfully removed optimizer states from {checkpoints[checkpoint_number]} checkpoint.")
             self.counter += 1
-
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         # check if filepath is a distributed checkpoint
