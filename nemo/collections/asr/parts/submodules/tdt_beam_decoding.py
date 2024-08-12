@@ -416,7 +416,7 @@ class BeamTDTInfer(Typing):
                     duration = self.durations[duration_idx]
                     # Construct hypothesis for non-blank token
                     new_hyp = Hypothesis(
-                        score=float(max_hyp.score + total_logp_topk),                         # update score
+                        score=float(max_hyp.score + total_logp_topk),                       # update score
                         y_sequence=max_hyp.y_sequence + [token_idx],                        # update hypothesis sequence
                         dec_state=decoder_state,                                            # update decoder state
                         timestep=max_hyp.timestep + [time_idx + duration],                  # update timesteps
