@@ -40,6 +40,9 @@ from nemo.collections.llm.gpt.model import (
     MixtralConfig8x7B,
     MixtralConfig8x22B,
     MixtralModel,
+    NemotronModel,
+    NemotronConfig,
+    Nemotron3Config8B,
     gpt_data_step,
     gpt_forward_step,
 )
