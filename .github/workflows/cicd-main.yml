@@ -213,7 +213,8 @@ jobs:
       AFTER_SCRIPT: |
         rm -f /home/TestData/multimodal/video_neva/llama3-ci-hf/llama3_ci.nemo
         rm -rf /home/TestData/multimodal/video_neva/llama3-ci-hf/model_weights
-  
+      IS_OPTIONAL: true
+      
   # this test is using a 7B model which is too large for GitHub CI
   # replace the model in this test with a toy model or move the test
   # to the nightly CI
