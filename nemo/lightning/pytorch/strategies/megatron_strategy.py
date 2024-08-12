@@ -315,6 +315,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         super().setup_distributed()
         init_model_parallel(self.model)
 
+        if self.data_sampler:
+            assert isinstance(self.cluster_environment, ClusterEnvironment), "Cluster environment not initialized"
+            self.data_sampler.setup(self.cluster_environment.global_rank())
+
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
         if self.data_sampler:
