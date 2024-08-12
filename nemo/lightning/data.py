@@ -127,9 +127,40 @@ def add_megatron_sampler(
     pad_samples_to_global_batch_size: bool = False,
     # data_sharding: bool = False
 ) -> DataLoader:
+    """
+    This function takes an existing PyTorch `DataLoader` and configures it to use a Megatron sampler.
+    The Megatron sampler is responsible for splitting the data into batches
+    during training with Megatron.
+
+    Args:
+        dataloader (DataLoader): The original PyTorch DataLoader to wrap.
+        micro_batch_size (int): The size of each micro-batch.
+        global_batch_size (int): The effective size of the training batch across all data parallel devices.
+        rampup_batch_size (Optional[List[int]]): A list of target batch sizes for a gradual
+            rampup schedule during training (optional).
+        consumed_samples (int, optional): The number of samples consumed before
+            starting this iteration (defaults to 0).
+        dataloader_type (Literal["single", "cyclic", "batch"], optional): The type of
+            Megatron sampler to use. Valid options are:
+                - "single": Uses `MegatronPretrainingSampler` for single pass data sampling.
+                - "cyclic": Uses `MegatronPretrainingRandomSampler` for cyclic data sampling.
+                - "batch": Uses `MegatronPretrainingBatchSampler` for batch sampling. This is the option to
+                  use for fine-tuning workloads, where sequence lengths are variable between samples.
+                  Sampling the entire global batch together ensures that sequences in a global batch are
+                  padded to the same lengths.
+            Defaults to "single".
+        drop_last (bool, optional): Whether to drop the last incomplete batch
+            (defaults to True).
+        pad_samples_to_global_batch_size (bool, optional): Whether to pad the last incomplete
+            batch to the `global_batch_size`  (defaults to False, only applies when
+            `drop_last` is False).
+
+    Returns:
+        DataLoader: A new DataLoader instance with the configured Megatron sampler.
+    """
+
     from megatron.core import parallel_state
 
-    ## TODO: expose drop_last and pad_samples_to_global_batch_size args
     if dataloader_type == 'single':
         batch_sampler = MegatronPretrainingSampler(
             total_samples=len(dataloader.dataset),
