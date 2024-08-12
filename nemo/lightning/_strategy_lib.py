@@ -136,10 +136,10 @@ def set_model_parallel_attributes(model, parallelism):
     has_mcore_config = isinstance(getattr(model, "config", None), TransformerConfig)
     if has_mcore_config and hasattr(model, "configure_model"):
         config: TransformerConfig = model.config
-        for attr_name in filter(lambda x: not x.startswith('__'), dir(parallelism)):
-            if not hasattr(config, attr_name):
-                continue
-            setattr(config, attr_name, getattr(parallelism, attr_name))
+        _set_parallelism_config(config, parallelism)
+
+        if hasattr(model.config, "__io__"):
+            _set_parallelism_config(model.config.__io__, parallelism)
 
         return config
 
@@ -553,3 +553,14 @@ def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False)
                 src_rank,
                 group=parallel_state.get_pipeline_model_parallel_group(),
             )
+
+
+def _set_parallelism_config(config, parallelism):
+    config.tensor_model_parallel_size = parallelism.tensor_model_parallel_size
+    config.pipeline_model_parallel_size = parallelism.pipeline_model_parallel_size
+    config.virtual_pipeline_model_parallel_size = parallelism.virtual_pipeline_model_parallel_size
+    config.context_parallel_size = parallelism.context_parallel_size
+    config.expert_model_parallel_size = parallelism.expert_model_parallel_size
+    config.moe_extended_tp = parallelism.moe_extended_tp
+    config.sequence_parallel = parallelism.sequence_parallel
+    config.pipeline_dtype = parallelism.pipeline_dtype
