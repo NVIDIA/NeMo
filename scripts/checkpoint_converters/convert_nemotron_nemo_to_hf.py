@@ -315,7 +315,7 @@ def extract_nemotron_tokenizer(nemo_file, model_config, output_hf_path, nemo_tok
         tokenizer = LlamaTokenizer.from_pretrained(output_hf_path, legacy=False)
         # Convert the LlamaTokenizer to a PreTrainedTokenizerFast instance
         tokenizer = PreTrainedTokenizerFast(
-            tokenizer_object=LlamaConverter(tokenizer).converted(), model_input_names=["input_ids"]
+            tokenizer_object=LlamaConverter(tokenizer).converted(), model_input_names=["input_ids", "attention_mask"]
         )
         tokenizer.save_pretrained(output_hf_path)
         logging.info(f"Setencepiece tokenizer has been saved to {output_tokenizer}")
