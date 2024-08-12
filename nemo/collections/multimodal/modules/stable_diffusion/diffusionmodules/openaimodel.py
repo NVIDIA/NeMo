@@ -19,6 +19,7 @@ import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
+import thunder
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
@@ -529,7 +530,7 @@ class UNetModel(nn.Module):
         for level, mult in enumerate(channel_mult):
             for _ in range(num_res_blocks):
                 layers = [
-                    ResBlock(
+                    thunder.jit(ResBlock(
                         ch,
                         time_embed_dim,
                         dropout,
@@ -538,7 +539,7 @@ class UNetModel(nn.Module):
                         use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
                         resblock_gn_groups=resblock_gn_groups,
-                    )
+                    ))
                 ]
                 ch = mult * model_channels
                 if ds in attention_resolutions:

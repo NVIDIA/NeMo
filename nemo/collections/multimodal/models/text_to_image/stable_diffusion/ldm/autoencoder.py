@@ -337,7 +337,7 @@ class AutoencoderKL(pl.LightningModule):
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
 
         if from_pretrained is not None:
-            state_dict = torch.load(from_pretrained)
+            state_dict = torch.load(from_pretrained) 
             missed_key, unexpected_key, missmatched_key, err_msg = self._load_pretrained_model(state_dict)
 
             if len(missed_key) > 0:

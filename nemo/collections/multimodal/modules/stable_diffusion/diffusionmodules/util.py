@@ -33,6 +33,7 @@ from einops import repeat
 from torch._dynamo import disable
 from torch.cuda.amp import custom_bwd, custom_fwd
 
+import thunder
 
 def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2, cosine_s=8e-3):
     if schedule == "linear":
@@ -248,11 +249,11 @@ def conv_nd(dims, *args, **kwargs):
     Create a 1D, 2D, or 3D convolution module.
     """
     if dims == 1:
-        return nn.Conv1d(*args, **kwargs)
+        return thunder.jit(nn.Conv1d(*args, **kwargs))
     elif dims == 2:
-        return nn.Conv2d(*args, **kwargs)
+        return thunder.jit(nn.Conv2d(*args, **kwargs))
     elif dims == 3:
-        return nn.Conv3d(*args, **kwargs)
+        return thunder.jit(nn.Conv3d(*args, **kwargs))
     raise ValueError(f"unsupported dimensions: {dims}")
 
 
