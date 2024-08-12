@@ -77,9 +77,11 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         pos_bias_v=None,
         att_context_size=[-1, -1],
         use_bias=True,
+        use_pytorch_sdpa=True,
     ):
         super(ConformerLayer, self).__init__()
 
+        self.use_pytorch_sdpa = use_pytorch_sdpa
         self.self_attention_model = self_attention_model
         self.n_heads = n_heads
         self.fc_factor = 0.5
@@ -111,6 +113,7 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
                 pos_bias_v=pos_bias_v,
                 max_cache_len=MHA_max_cache_len,
                 use_bias=use_bias,
+                use_pytorch_sdpa=self.use_pytorch_sdpa,
             )
         elif self_attention_model == 'rel_pos_local_attn':
             self.self_attn = RelPositionMultiHeadAttentionLongformer(
@@ -133,6 +136,7 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
                 dropout_rate=dropout_att,
                 max_cache_len=MHA_max_cache_len,
                 use_bias=use_bias,
+                use_pytorch_sdpa=self.use_pytorch_sdpa,
             )
         else:
             raise ValueError(
