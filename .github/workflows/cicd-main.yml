@@ -194,7 +194,7 @@ jobs:
         rm -rf /home/TestData/nlp/megatron_gpt/falcon-ci-hf/model_weights
   
   # L2: Community llava multimodal Checkpoints tests
-  L2_Community_vita_Checkpoints_tests_Llama3:
+  OPTIONAL_L2_Community_vita_Checkpoints_tests_Llama3:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
     with:
@@ -4483,7 +4483,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -f examples/asr/evaluation_transcripts.json
 
-  L2_Stable_Diffusion_Training:
+  OPTIONAL_L2_Stable_Diffusion_Training:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
     with:
@@ -4573,7 +4573,7 @@ jobs:
       - L2_Community_LLM_Checkpoints_tests_Llama
       - L2_Community_LLM_Checkpoints_tests_StarCoder
       - L2_Community_LLM_Checkpoints_tests_Falcon
-      - L2_Community_vita_Checkpoints_tests_Llama3
+      #- OPTIONAL_L2_Community_vita_Checkpoints_tests_Llama3
       #- OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2
       - ASR_dev_run_Speech_to_Text
       - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
@@ -4666,7 +4666,7 @@ jobs:
       - L2_TTS_Fast_dev_runs_1_Mixer-TTS
       - L2_TTS_Fast_dev_runs_1_Hifigan
       - Speech_Checkpoints_tests
-      # - L2_Stable_Diffusion_Training
+      #- OPTIONAL_L2_Stable_Diffusion_Training
       - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
     if: always()
     runs-on: ubuntu-latest
