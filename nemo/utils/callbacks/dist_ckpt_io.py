@@ -270,17 +270,6 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
         self.validated_consistency = True
 
-        save_last_n_optim_states = 2
-        ckpt_dir = os.path.dirname(path)
-        ckpts = [d for d in os.listdir(ckpt_dir) if os.path.isdir(os.path.join(ckpt_dir, d)) and 'last' not in d]
-        ckpts = sorted(ckpts, key=lambda x: int(x.split('-step=')[1].split('-')[0]))
-        print(ckpts)
-
-        if len(ckpts) > save_last_n_optim_states:
-            ckpt = self.load_checkpoint(path=os.path.join(ckpt_dir, ckpts[len(ckpts) - save_last_n_optim_states - 1]))
-            ckpt['optimizer_states'] = None
-            self.save_checkpoint(ckpt)
-
         return dist_checkpointing.save(
             sharded_state_dict=checkpoint,
             checkpoint_dir=path,
