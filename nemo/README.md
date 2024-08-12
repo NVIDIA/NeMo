@@ -11,4 +11,4 @@ NeMo (**Ne**ural **Mo**dules) is a toolkit for creating AI applications built ar
 * Multimodal - collection of modules and models for building multimodal networks
 * Audio - collection of modules and models for building audio processing networks
 
-***Performance benchmarks for pre-training and fine-tuning of various models can be found [here](../docs/source/performance_benchmarks.md)***
+***Performance benchmarks for pre-training and fine-tuning of various models can be found [here](../docs/source/performance/performance_summary.md)***
