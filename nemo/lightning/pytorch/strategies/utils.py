@@ -1,20 +1,20 @@
 import io
 from pathlib import Path
-from typing import Any, cast, Dict, Iterable, List, Tuple, Union
+from typing import Any, Dict, Iterable, List, Tuple, Union, cast
 
-import torch
 import pytorch_lightning as pl
+import torch
+from lightning_fabric.plugins import ClusterEnvironment
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
 from megatron.core.transformer.utils import _get_extra_state_offsets
-from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
-from lightning_fabric.plugins import ClusterEnvironment
 from pytorch_lightning.callbacks import Callback, TQDMProgressBar
+from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 
-from nemo.lightning.io import IOMixin
 from nemo.lightning import _strategy_lib
+from nemo.lightning.io import IOMixin
 from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 
@@ -25,6 +25,7 @@ def setup_parallel_ranks(strategy: pl.strategies.Strategy):
     env = cast(ClusterEnvironment, strategy.cluster_environment)
     parallelism = getattr(strategy, "parallelism", ModelParallelConfig())
     _strategy_lib.init_parallel_ranks(env.world_size(), env.global_rank(), env.local_rank(), parallelism)
+
 
 def init_model_parallel(pl_module: pl.LightningModule):
     from megatron.core import parallel_state
@@ -37,6 +38,7 @@ def init_model_parallel(pl_module: pl.LightningModule):
         if app_state.model_parallel_size is not None:
             _strategy_lib.init_model_parallel(pl_module)
 
+
 def setup_data_sampler(trainer: pl.Trainer):
     datamodule = getattr(trainer, "datamodule", None)
     if hasattr(trainer.strategy, "data_sampler") and trainer.strategy.data_sampler is not None:
@@ -48,6 +50,7 @@ def setup_data_sampler(trainer: pl.Trainer):
         trainer.strategy.data_sampler.connect(trainer)
     if hasattr(datamodule, "reconfigure_limit_batches"):
         datamodule.reconfigure_limit_batches()
+
 
 def fix_progress_bar(trainer: pl.Trainer) -> None:
     from nemo.lightning.pytorch.callbacks import MegatronProgressBar

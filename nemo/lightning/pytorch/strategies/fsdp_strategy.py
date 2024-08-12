@@ -3,8 +3,8 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-import torch
 import pytorch_lightning as pl
+import torch
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.strategies.fsdp import _get_sharded_state_dict_context
 from megatron.core.transformer.transformer_layer import TransformerLayer
@@ -70,7 +70,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         setup_parallel_ranks(self)
         super().setup_environment()
         init_model_parallel(self.model)
-    
+
     @override
     def setup(self, trainer: pl.Trainer) -> None:
         self.trainer = trainer

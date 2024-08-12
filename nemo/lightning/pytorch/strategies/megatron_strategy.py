@@ -33,8 +33,8 @@ from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
-    get_checkpoint_io,
     fix_progress_bar,
+    get_checkpoint_io,
     init_model_parallel,
     setup_data_sampler,
     setup_parallel_ranks,
