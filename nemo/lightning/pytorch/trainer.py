@@ -9,21 +9,9 @@ from typing_extensions import Self
 from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.fabric.fabric import Fabric
 from nemo.lightning.io.mixin import IOMixin, serialization, track_io
-from nemo.lightning.pytorch.callbacks import MegatronSetup
 
 
 class Trainer(pl.Trainer, IOMixin):
-    def __init__(self, callbacks: Optional[Union[List[Callback], Callback]] = None, **kwargs):
-        if callbacks is None:
-            callbacks = []
-        elif isinstance(callbacks, Callback):
-            callbacks = [callbacks]
-
-        if all(not isinstance(cb, MegatronSetup) for cb in callbacks):
-            callbacks.append(MegatronSetup())
-
-        super().__init__(callbacks=callbacks, **kwargs)
-
     def io_init(self, **kwargs) -> fdl.Config[Self]:
         # Each argument of the trainer can be stateful so we copy them
         cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items()}

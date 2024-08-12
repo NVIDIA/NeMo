@@ -1,17 +1,69 @@
 import io
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple, Union
+from typing import Any, cast, Dict, Iterable, List, Tuple, Union
 
 import torch
+import pytorch_lightning as pl
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
 from megatron.core.transformer.utils import _get_extra_state_offsets
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
+from lightning_fabric.plugins import ClusterEnvironment
+from pytorch_lightning.callbacks import Callback, TQDMProgressBar
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 
+from nemo.lightning.io import IOMixin
+from nemo.lightning import _strategy_lib
 from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
+
+
+def setup_parallel_ranks(strategy: pl.strategies.Strategy):
+    from megatron.core.model_parallel_config import ModelParallelConfig
+
+    env = cast(ClusterEnvironment, strategy.cluster_environment)
+    parallelism = getattr(strategy, "parallelism", ModelParallelConfig())
+    _strategy_lib.init_parallel_ranks(env.world_size(), env.global_rank(), env.local_rank(), parallelism)
+
+def init_model_parallel(pl_module: pl.LightningModule):
+    from megatron.core import parallel_state
+
+    from nemo.utils import AppState
+
+    if not parallel_state.model_parallel_is_initialized():
+        app_state = AppState()
+
+        if app_state.model_parallel_size is not None:
+            _strategy_lib.init_model_parallel(pl_module)
+
+def setup_data_sampler(trainer: pl.Trainer):
+    datamodule = getattr(trainer, "datamodule", None)
+    if hasattr(trainer.strategy, "data_sampler") and trainer.strategy.data_sampler is not None:
+        datamodule.data_sampler = trainer.strategy.data_sampler
+    elif hasattr(datamodule, "data_sampler"):
+        trainer.strategy.data_sampler = datamodule.data_sampler
+    if trainer.strategy.data_sampler is not None:
+        trainer.strategy.data_sampler.setup(trainer.strategy.cluster_environment.global_rank())
+        trainer.strategy.data_sampler.connect(trainer)
+    if hasattr(datamodule, "reconfigure_limit_batches"):
+        datamodule.reconfigure_limit_batches()
+
+def fix_progress_bar(trainer: pl.Trainer) -> None:
+    from nemo.lightning.pytorch.callbacks import MegatronProgressBar
+
+    callbacks: List[pl.Callback] = cast(List[pl.Callback], getattr(trainer, "callbacks"))
+    contains_megatron_progress, contains_progress = False, False
+    for callback in callbacks:
+        if isinstance(callback, MegatronProgressBar):
+            contains_megatron_progress = True
+        if callback.__class__ == TQDMProgressBar:
+            contains_progress = True
+    if not contains_megatron_progress and contains_progress:
+        for callback in callbacks:
+            if isinstance(callback, TQDMProgressBar):
+                callback.__class__ = MegatronProgressBar
+                break
 
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:

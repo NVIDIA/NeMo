@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import torch
+import pytorch_lightning as pl
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.strategies.fsdp import _get_sharded_state_dict_context
 from megatron.core.transformer.transformer_layer import TransformerLayer
@@ -23,9 +24,13 @@ from nemo.lightning import io
 from nemo.lightning.megatron_parallel import masked_token_loss
 from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
+    fix_progress_bar,
     get_checkpoint_io,
+    init_model_parallel,
     mcore_to_pyt_sharded_state_dict,
     pyt_to_mcore_state_dict,
+    setup_data_sampler,
+    setup_parallel_ranks,
 )
 
 
@@ -59,6 +64,19 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
     ):
         super().__init__(*args, auto_wrap_policy=auto_wrap_policy, state_dict_type=state_dict_type, **kwargs)
         self.ckpt_include_optimizer = ckpt_include_optimizer
+
+    @override
+    def setup_environment(self) -> None:
+        setup_parallel_ranks(self)
+        super().setup_environment()
+        init_model_parallel(self.model)
+    
+    @override
+    def setup(self, trainer: pl.Trainer) -> None:
+        self.trainer = trainer
+        setup_data_sampler(self.trainer)
+        fix_progress_bar(trainer)
+        super().setup(trainer)
 
     def _step_proxy(self, method_name, batch, batch_idx=None):
         if self.model != self.lightning_module:

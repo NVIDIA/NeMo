@@ -31,7 +31,14 @@ from typing_extensions import override
 from nemo.lightning import _strategy_lib, io
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import ModelTransform
-from nemo.lightning.pytorch.strategies.utils import ckpt_to_dir, get_checkpoint_io
+from nemo.lightning.pytorch.strategies.utils import (
+    ckpt_to_dir,
+    get_checkpoint_io,
+    fix_progress_bar,
+    init_model_parallel,
+    setup_data_sampler,
+    setup_parallel_ranks,
+)
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizerCallback
 
 if TYPE_CHECKING:
@@ -191,6 +198,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def setup(self, trainer: pl.Trainer) -> None:
         assert self.accelerator is not None
         self.accelerator.setup(trainer)
+        self.trainer = trainer
+        setup_data_sampler(self.trainer)
 
         # move the model to the correct device
         # self.model_to_device()
@@ -202,6 +211,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             assert self.model is not None
             self.model = self._layer_sync.apply(self.model)
 
+        fix_progress_bar(trainer)
         self.setup_megatron_parallel(trainer)
         self.setup_precision_plugin()
 
@@ -251,6 +261,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     break
             if not have_async_callback:
                 self.trainer.callbacks.append(AsyncFinalizerCallback())
+
+    @override
+    def setup_distributed(self) -> None:
+        setup_parallel_ranks(self)
+        super().setup_distributed()
+        init_model_parallel(self.model)
 
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
