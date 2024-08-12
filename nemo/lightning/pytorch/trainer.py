@@ -1,9 +1,7 @@
 from copy import deepcopy
-from typing import List, Optional, Union
 
 import fiddle as fdl
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import Callback
 from typing_extensions import Self
 
 from nemo.lightning.fabric.conversion import to_fabric

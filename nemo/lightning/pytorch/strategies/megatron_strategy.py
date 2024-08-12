@@ -199,7 +199,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         assert self.accelerator is not None
         self.accelerator.setup(trainer)
         self.trainer = trainer
-        setup_data_sampler(self.trainer)
 
         # move the model to the correct device
         # self.model_to_device()
@@ -211,6 +210,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             assert self.model is not None
             self.model = self._layer_sync.apply(self.model)
 
+        setup_data_sampler(self.trainer)
         fix_progress_bar(trainer)
         self.setup_megatron_parallel(trainer)
         self.setup_precision_plugin()
