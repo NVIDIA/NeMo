@@ -121,7 +121,7 @@ def convert_hf_config(nemo_config, tokenizer, vocab_size, dtype, hf_output_path,
         "partial_rotary_factor": nemo_config.get("rotary_percentage", 1.0),
         "tie_word_embeddings": False,
         "torch_dtype": DTYPE2HF[dtype],
-        "transformers_version": "4.32.0.dev0",  # TODO
+        "transformers_version": "4.44.0",
         "use_cache": True,
         "vocab_size": vocab_size,
     }
@@ -315,7 +315,7 @@ def extract_nemotron_tokenizer(nemo_file, model_config, output_hf_path, nemo_tok
         tokenizer = LlamaTokenizer.from_pretrained(output_hf_path, legacy=False)
         # Convert the LlamaTokenizer to a PreTrainedTokenizerFast instance
         tokenizer = PreTrainedTokenizerFast(
-            tokenizer_object=LlamaConverter(tokenizer).converted(), model_input_names=["input_ids", "token_type_ids"]
+            tokenizer_object=LlamaConverter(tokenizer).converted(), model_input_names=["input_ids"]
         )
         tokenizer.save_pretrained(output_hf_path)
         logging.info(f"Setencepiece tokenizer has been saved to {output_tokenizer}")
