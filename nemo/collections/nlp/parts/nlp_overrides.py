@@ -412,7 +412,7 @@ class NLPDDPStrategy(DDPStrategy):
             filepath = inject_model_parallel_rank(filepath)
             if self.is_global_zero or app_state.data_parallel_rank == 0:
                 self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
-        
+
         if self.save_last_n_optim_states >= 0:
             self._drop_optimizer_states(filepath)
 
@@ -558,7 +558,7 @@ class NLPDDPStrategy(DDPStrategy):
 
             if getattr(self.lightning_module, 'continue_training', False):
                 checkpoint = self._integrate_original_checkpoint_data(checkpoint)
-            
+
             self.dropped_optim_states = checkpoint['hyper_parameters']['cfg'].get('dropped_optims', 0)
             return checkpoint
 
@@ -590,7 +590,7 @@ class NLPDDPStrategy(DDPStrategy):
             ]
 
         return checkpoint
-    
+
     def _drop_optimizer_states(self, filepath: Union[str, Path], storage_options: Optional[Any] = None):
         # Get list of saved checkpoints
         checkpoint_dir = os.path.dirname(filepath)
