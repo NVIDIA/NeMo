@@ -12,7 +12,7 @@ from megatron.core.transformer.utils import _get_extra_state_offsets
 from pytorch_lightning.callbacks import TQDMProgressBar
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
-from torch.distributed._tensor import DTensor, Shard, Replicate
+from torch.distributed._tensor import DTensor, Replicate, Shard
 from torch.distributed.device_mesh import DeviceMesh
 
 from nemo.lightning import _strategy_lib
@@ -111,14 +111,14 @@ def mcore_to_pyt_sharded_state_dict(
         dten = DTensor.from_local(
             tens[0],
             device_mesh,
-            (Replicate(), Shard(dim=0),), # hardcoded for HSDP
+            (
+                Replicate(),
+                Shard(dim=0),
+            ),  # hardcoded for HSDP
         )
         return dten
 
-    def _mcore_to_pyt_sharded_tensor(
-        tens: List[torch.Tensor],
-        sh_tens: List[ShardedTensor]
-    ) -> TorchShardedTensor:
+    def _mcore_to_pyt_sharded_tensor(tens: List[torch.Tensor], sh_tens: List[ShardedTensor]) -> TorchShardedTensor:
         for ten, sh_ten in zip(tens, sh_tens):
             # remove prepend axes and put in loaded tensor
             sh_ten.global_shape = sh_ten.global_shape[sh_ten.prepend_axis_num :]
@@ -150,7 +150,9 @@ def mcore_to_pyt_sharded_state_dict(
     return checkpoint
 
 
-def pyt_to_mcore_state_dict(state_dict: Dict[str, Any], prefix: str = "", device_mesh: DeviceMesh = None) -> Dict[str, List[ShardedBase]]:
+def pyt_to_mcore_state_dict(
+    state_dict: Dict[str, Any], prefix: str = "", device_mesh: DeviceMesh = None
+) -> Dict[str, List[ShardedBase]]:
 
     def _dtensor_to_mcore_sharded_tensor(
         key: str,
@@ -158,7 +160,7 @@ def pyt_to_mcore_state_dict(state_dict: Dict[str, Any], prefix: str = "", device
         prepend_offsets: Iterable[Tuple[int, int, int]] = (),
         prefix: str = "",
         allow_shape_mismatch: bool = False,
-        device_mesh: DeviceMesh = None
+        device_mesh: DeviceMesh = None,
     ) -> List[ShardedTensor]:
         prepend_axis_num = len(prepend_offsets)
 
@@ -260,11 +262,16 @@ def pyt_to_mcore_state_dict(state_dict: Dict[str, Any], prefix: str = "", device
                     prepend_offsets,
                     prefix=f"{prefix}{kk}.",
                     allow_shape_mismatch=allow_shape_mismatch,
-                    device_mesh=device_mesh
+                    device_mesh=device_mesh,
                 )
         elif isinstance(v, DTensor):
             state_dict[k] = _dtensor_to_mcore_sharded_tensor(
-                sh_key, v, prepend_offsets, prefix=prefix, allow_shape_mismatch=allow_shape_mismatch, device_mesh=device_mesh
+                sh_key,
+                v,
+                prepend_offsets,
+                prefix=prefix,
+                allow_shape_mismatch=allow_shape_mismatch,
+                device_mesh=device_mesh,
             )
         elif isinstance(v, TorchShardedTensor):
             state_dict[k] = _torch_to_mcore_sharded_tensor(
