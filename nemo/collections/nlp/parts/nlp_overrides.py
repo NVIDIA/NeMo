@@ -594,7 +594,9 @@ class NLPDDPStrategy(DDPStrategy):
     def _drop_optimizer_states(self, filepath: Union[str, Path], storage_options: Optional[Any] = None):
         # Get list of saved checkpoints
         checkpoint_dir = os.path.dirname(filepath)
-        checkpoints = [d for d in os.listdir(checkpoint_dir) if os.path.isdir(os.path.join(checkpoint_dir, d)) and 'last' not in d]
+        checkpoints = [
+            d for d in os.listdir(checkpoint_dir) if os.path.isdir(os.path.join(checkpoint_dir, d)) and 'last' not in d
+        ]
         checkpoints = sorted(checkpoints, key=lambda x: int(x.split('-step=')[1].split('-')[0]))
 
         # Drop optimizer states
@@ -625,7 +627,6 @@ class NLPDDPStrategy(DDPStrategy):
 
             logging.info(f"Successfully dropped optimizer states for {checkpoint_path} checkpoint.")
             self.dropped_optim_states += 1
-
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         # check if filepath is a distributed checkpoint
