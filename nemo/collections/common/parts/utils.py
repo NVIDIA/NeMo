@@ -181,7 +181,7 @@ class HalfSnake(nn.Module):
         self.lrelu = torch.nn.LeakyReLU()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        snake_out = self.snake_act(x[:, :self.snake_channels, :])
-        lrelu_out = self.lrelu(x[:, self.snake_channels:, :])
+        snake_out = self.snake_act(x[:, : self.snake_channels, :])
+        lrelu_out = self.lrelu(x[:, self.snake_channels :, :])
         out = torch.cat([snake_out, lrelu_out], dim=1)
         return out
