@@ -1038,9 +1038,10 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         with open_dict(model_cfg):
             # to be compatible with old checkpoints
-            if "context_key" not in model_cfg.data.train_ds or "answer_key" not in model_cfg.data.train_ds:
-                model_cfg.data.train_ds.context_key = "question"
-                model_cfg.data.train_ds.answer_key = "answer"
+            if 'train_ds' in model_cfg.data:
+                if "context_key" not in model_cfg.data.train_ds or "answer_key" not in model_cfg.data.train_ds:
+                    model_cfg.data.train_ds.context_key = "question"
+                    model_cfg.data.train_ds.answer_key = "answer"
 
             # update the model config of the trained model with params we want to set at inference time.
             model_cfg.precision = cfg.trainer.precision
