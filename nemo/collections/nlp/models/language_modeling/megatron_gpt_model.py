@@ -811,11 +811,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     module = module.module
                 if not self.mcore_gpt:
                     module = module.language_model
-                # if hasattr(module, 'embedding'):
-                    # for param in module.embedding.parameters():
-                    #     param.data_ptr()
-                for param in module.parameters():
-                    param.data_ptr()
+
+                # Cudagraphed model does not trigger param sync hooks, so manually trigger param syncs here.
+                if self.cfg.get('enable_cuda_graph', False):
+                    for param in module.parameters():
+                        param.data_ptr()
+                else:
+                    if hasattr(module, 'embedding'):
+                        for param in module.embedding.parameters():
+                            param.data_ptr()
+    
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage(
             ignore_virtual=True
@@ -2114,6 +2119,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'moe_z_loss_coeff': self.cfg.get('moe_z_loss_coeff', None),  # 1e-3 would be a good start value for z-loss
             'moe_input_jitter_eps': self.cfg.get('moe_input_jitter_eps', None),
             'moe_token_dropping': self.cfg.get('moe_token_dropping', False),  # TODO: Support token dropping.
+            'enable_cuda_graph': self.cfg.get('enable_cuda_graph', False)
         }
         if model_specific_configs['num_moe_experts'] is not None:
             assert mcore_supports_moe(), 'Megatron-core >= v0.5.0 is required for MoE'
