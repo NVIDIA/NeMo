@@ -271,7 +271,6 @@ class MultiSpeakerNoiseAugmentation(WavLMAugmentation):
         sid = 0
         for seg_len in segment_lens:
             bid = speaker_candidates[sid]
-            sid = (sid + 1) % len(speaker_candidates)
             if seg_len > audio_lengths[bid]:
                 audio_segment = self.pad_or_trim_noise(
                     self.repeat_noise(audio_signal[bid], audio_lengths[bid], seg_len), seg_len
@@ -280,5 +279,8 @@ class MultiSpeakerNoiseAugmentation(WavLMAugmentation):
                 start_idx = np.random.randint(audio_lengths[bid] - seg_len) if audio_lengths[bid] > seg_len else 0
                 audio_segment = audio_signal[bid][start_idx : start_idx + seg_len].clone()
             noise_segments.append(audio_segment)
+            sid += 1
+            if sid >= len(speaker_candidates):
+                sid = np.random.randint(len(speaker_candidates))
 
         return noise_segments
