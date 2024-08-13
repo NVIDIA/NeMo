@@ -358,6 +358,9 @@ class LazySupervisedDataset(Dataset):
                 return_tensors="pt")[0]
             answer_start, answer_end = find_pattern_indices(tokens, answer_tokens)
             labels[answer_start:answer_end] = tokens[answer_start:answer_end]
+
+        tokens = tokens[:-1].contiguous()
+        labels = labels[1:].contiguous()
         return tokens, labels
 
     def _get_crop_size(self):
@@ -579,7 +582,6 @@ class NevaLazyDataModule(pl.LightningDataModule):
             self.init_global_step = self.trainer.global_step
         return DataLoader(
             dataset,
-            batch_sampler=self.data_sampler,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,

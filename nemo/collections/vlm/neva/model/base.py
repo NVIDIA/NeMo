@@ -68,6 +68,7 @@ def neva_forward_step(model, batch) -> torch.Tensor:
 
     return model(**forward_args)
 
+
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
 from megatron.core.transformer.custom_layers.transformer_engine import (
@@ -85,11 +86,14 @@ from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from megatron.core.transformer.enums import AttnMaskType, ModelType
 
+
 @dataclass
 class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
     projector_type: str = "mlp"
     input_size: Optional[int] = None
     layer_spec: Optional[MLPSubmodules] = None
+    num_layers: int = 1
+    num_attention_heads: int = 1
 
     def configure_model(self) -> "MCoreMultimodalProjector":
         if self.layer_spec is None:
@@ -102,6 +106,34 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
             projector_type=self.projector_type,
             input_size=self.input_size,
         )
+
+
+import os
+from transformers import CLIPVisionConfig, CLIPVisionModel
+
+
+@dataclass
+class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
+    """
+    https://github.com/huggingface/transformers/blob/v4.44.0/src/transformers/models/clip/configuration_clip.py#L261
+    """
+    pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def configure_model(self) -> "MCoreCLIPViTModel":
+        def set_input_tensor(self, tensor):
+            pass
+        # Monkey patch the method to the vision encoder
+        CLIPVisionModel.set_input_tensor = set_input_tensor
+
+        if self.pretrained_model_name_or_path is None:
+            model = CLIPVisionModel(self)
+        else:
+            model = CLIPVisionModel.from_pretrained(self.pretrained_model_name_or_path)
+        return model
+
 
 @dataclass
 class CLIPViTConfig(TransformerConfig, io.IOMixin):
@@ -136,13 +168,14 @@ class NevaConfig(TransformerConfig, io.IOMixin):
     vision_projection_config: Optional[TransformerConfig] = None
     drop_vision_class_token: bool = True
     allow_missing_vision_projection_checkpoint: bool = False
-    img_embedding_idx: int = 0
+    num_layers: int = 1  # Placeholder, NOT used!
+    num_attention_heads: int = 4  # Placeholder, NOT used!
 
     forward_step_fn: Callable = neva_forward_step
     data_step_fn: Callable = neva_data_step
 
     def configure_model(self, tokenizer) -> "MCoreLLaVAModel":
-        language_model = self.language_transformer_config.configure_model(tokenizer)
+        language_model = self.language_transformer_config.configure_model(tokenizer=tokenizer)
         vision_model = self.vision_transformer_config.configure_model()
         vision_projection = self.vision_projection_config.configure_model()
         return MCoreNevaModel(
@@ -151,7 +184,6 @@ class NevaConfig(TransformerConfig, io.IOMixin):
             vision_model=vision_model,
             vision_projection=vision_projection,
             drop_vision_class_token=self.drop_vision_class_token,
-            img_embedding_idx=self.img_embedding_idx,
         )
 
 
@@ -175,7 +207,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         self.pre_process = pre_process
         self.post_process = post_process
-        self.img_embedding_idx = img_embedding_idx
 
         self.encoder_hidden_state = None
         self.vision_model = vision_model
@@ -202,7 +233,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         https://github.com/huggingface/transformers/blob/main/src/transformers/models/llava_next/modeling_llava_next.py#L409
         """
         ignore_index = -100
-        media_token_index = -200  #TODO(yuya): update
+        media_token_index = -200  # TODO(yuya): update
 
         num_medias, num_media_patches, embed_dim = media_features.shape
         batch_size, sequence_length = input_ids.shape
@@ -355,11 +386,14 @@ class MCoreNevaModel(MCoreLLaVAModel):
             media_embeddings = None
         elif self.vision_model is not None:
             # mbs, medias_per_micro_batch, frames
-            b, T, F = media.shape[:3] 
+            # TODO(yuya): update (b T F) part to be one single number in data processing part.
             media = rearrange(media, "b T F c h w -> (b T F) c h w")
-            media_embeddings = self.vision_model(media)  # [b, img_seq_len, h_vision]
+            media_embeddings = self.vision_model(media, output_hidden_states=True)  # [b, img_seq_len, h_vision]
+            media_embeddings = media_embeddings[-1][-2]  # take second from last layer
             if self._drop_vision_class_token:
-                media_embeddings = media_embeddings[:, self.vision_model.class_token_len :, :]
+                class_token_len = getattr(self.vision_model, "class_token_len", 1)
+                media_embeddings = media_embeddings[:, class_token_len:, :]
+
             # map vision model output size to language model input size.
             media_embeddings = self.vision_projection(
                 media_embeddings
@@ -465,11 +499,11 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return MaskedTokenLossReduction(validation_step=True)
 
 
-# __all__ = [
-#     "GPTModel",
-#     "GPTConfig",
-#     "gpt_data_step",
-#     "gpt_forward_step",
-#     "transformer_engine_layer_spec",
-#     "local_layer_spec",
-# ]
+__all__ = [
+    "NevaModel",
+    "NevaConfig",
+    "neva_data_step",
+    "neva_forward_step",
+    "transformer_engine_layer_spec",
+    "local_layer_spec",
+]
