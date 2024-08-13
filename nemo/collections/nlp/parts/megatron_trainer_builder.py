@@ -176,7 +176,10 @@ class MegatronTrainerBuilder:
             callbacks.append(AsyncFinalizerCallback())
 
         if self.cfg.get('exp_manager', {}).get('log_tflops_per_sec_per_gpu', True):
-            callbacks.append(FLOPsMeasurementCallback(self.cfg))
+            if self.cfg.get('exp_manager', {}).get('create_tensorboard_logger', False):
+                callbacks.append(FLOPsMeasurementCallback(self.cfg))
+            else:
+                logging.warning("Tensorboard logging is not enabled. Required to measure TFLOPs/sec.")
 
         return callbacks
 
