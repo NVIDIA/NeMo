@@ -12,7 +12,7 @@ from megatron.core.transformer.utils import _get_extra_state_offsets
 from pytorch_lightning.callbacks import TQDMProgressBar
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
-from torch.distributed._tensor import DTensor, Shard
+from torch.distributed._tensor import DTensor, Shard, Replicate
 from torch.distributed.device_mesh import DeviceMesh
 
 from nemo.lightning import _strategy_lib
@@ -111,11 +111,14 @@ def mcore_to_pyt_sharded_state_dict(
         dten = DTensor.from_local(
             tens[0],
             device_mesh,
-            (Shard(dim=0),),  # for now its just FSDP
+            (Replicate(), Shard(dim=0),), # hardcoded for HSDP
         )
         return dten
 
-    def _mcore_to_pyt_sharded_tensor(tens: List[torch.Tensor], sh_tens: List[ShardedTensor]) -> TorchShardedTensor:
+    def _mcore_to_pyt_sharded_tensor(
+        tens: List[torch.Tensor],
+        sh_tens: List[ShardedTensor]
+    ) -> TorchShardedTensor:
         for ten, sh_ten in zip(tens, sh_tens):
             # remove prepend axes and put in loaded tensor
             sh_ten.global_shape = sh_ten.global_shape[sh_ten.prepend_axis_num :]
@@ -147,7 +150,7 @@ def mcore_to_pyt_sharded_state_dict(
     return checkpoint
 
 
-def pyt_to_mcore_state_dict(state_dict: Dict[str, Any], prefix: str = "") -> Dict[str, List[ShardedBase]]:
+def pyt_to_mcore_state_dict(state_dict: Dict[str, Any], prefix: str = "", device_mesh: DeviceMesh = None) -> Dict[str, List[ShardedBase]]:
 
     def _dtensor_to_mcore_sharded_tensor(
         key: str,
@@ -155,9 +158,11 @@ def pyt_to_mcore_state_dict(state_dict: Dict[str, Any], prefix: str = "") -> Dic
         prepend_offsets: Iterable[Tuple[int, int, int]] = (),
         prefix: str = "",
         allow_shape_mismatch: bool = False,
+        device_mesh: DeviceMesh = None
     ) -> List[ShardedTensor]:
         prepend_axis_num = len(prepend_offsets)
 
+        assert device_mesh is not None
         assert isinstance(dten, DTensor), dten
 
         ten = dten.to_local()
@@ -172,6 +177,8 @@ def pyt_to_mcore_state_dict(state_dict: Dict[str, Any], prefix: str = "") -> Dic
             if isinstance(placement, Shard):
                 ax = placement.dim
                 rank_offsets.append((ax + prepend_axis_num, dten.device_mesh.get_local_rank(i), axis_fragm[ax]))
+            elif placement.is_replicate():
+                replica_id = device_mesh.get_local_rank(i)
 
         local_shard = ShardedTensor.from_rank_offsets(
             f"{prefix}{key}",
@@ -242,7 +249,7 @@ def pyt_to_mcore_state_dict(state_dict: Dict[str, Any], prefix: str = "") -> Dic
 
         return ShardedObject(f"{prefix}{key}", obj, *_get_extra_state_offsets(sharded_offsets), replica_id)
 
-    def _convert(state_dict, k, sh_key, v, prepend_offsets, prefix="", allow_shape_mismatch=False):
+    def _convert(state_dict, k, sh_key, v, prepend_offsets, prefix="", allow_shape_mismatch=False, device_mesh=None):
         if isinstance(v, Dict):
             for kk, vv in v.items():
                 _convert(
@@ -253,10 +260,11 @@ def pyt_to_mcore_state_dict(state_dict: Dict[str, Any], prefix: str = "") -> Dic
                     prepend_offsets,
                     prefix=f"{prefix}{kk}.",
                     allow_shape_mismatch=allow_shape_mismatch,
+                    device_mesh=device_mesh
                 )
         elif isinstance(v, DTensor):
             state_dict[k] = _dtensor_to_mcore_sharded_tensor(
-                sh_key, v, prepend_offsets, prefix=prefix, allow_shape_mismatch=allow_shape_mismatch
+                sh_key, v, prepend_offsets, prefix=prefix, allow_shape_mismatch=allow_shape_mismatch, device_mesh=device_mesh
             )
         elif isinstance(v, TorchShardedTensor):
             state_dict[k] = _torch_to_mcore_sharded_tensor(
@@ -281,6 +289,6 @@ def pyt_to_mcore_state_dict(state_dict: Dict[str, Any], prefix: str = "") -> Dic
             sh_key = '.'.join(sh_key)
             prepend_offsets.append((0, global_layer_offset, num_layers))
 
-        _convert(state_dict, k, sh_key, v, prepend_offsets, prefix, allow_shape_mismatch)
+        _convert(state_dict, k, sh_key, v, prepend_offsets, prefix, allow_shape_mismatch, device_mesh)
 
     return state_dict
