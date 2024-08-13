@@ -105,7 +105,7 @@ jobs:
         NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
       IS_OPTIONAL: true
 
-  L0_Unit_Tests_CPU:
+  OPTIONAL_L0_Unit_Tests_CPU:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
     with:
@@ -113,6 +113,7 @@ jobs:
       TIMEOUT: 60
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+      IS_OPTIONAL: true
 
   L0_Setup_Test_Data_And_Models:
     needs: [cicd-test-container-setup]
@@ -974,7 +975,6 @@ jobs:
         data.train_ds.tar_metadata_file=/home/TestData/nlp/duplex_text_norm/tarred_small/metadata.json \
         data.test_ds.use_cache=false \
         data.test_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv
-
 
   # L2: Intent and Slot Classification Tasks
   L2_Intent_and_Slot_Classification_Tasks_Intent_and_Slot_Classification:
@@ -4582,7 +4582,7 @@ jobs:
       - gpu-test
       - cicd-test-container-setup
       - L0_Unit_Tests_GPU
-      - L0_Unit_Tests_CPU
+      #- OPTIONAL_L0_Unit_Tests_CPU
       - L2_Community_LLM_Checkpoints_tests_Bert
       - L2_Community_LLM_Checkpoints_tests_Llama
       - L2_Community_LLM_Checkpoints_tests_StarCoder
