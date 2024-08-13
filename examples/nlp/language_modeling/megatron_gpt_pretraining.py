@@ -59,7 +59,7 @@ def main(cfg) -> None:
     # Start new pretraining or resume from a checkpoint if it exists
     else:
         model = MegatronGPTModel(cfg.model, trainer)
-    
+
     trainer.fit(model)
 
 
