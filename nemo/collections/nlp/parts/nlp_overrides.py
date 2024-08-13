@@ -199,6 +199,7 @@ class NLPDDPStrategy(DDPStrategy):
         nccl_communicator_config_path: Optional[str] = None,
         sharp: bool = False,
         dist_ckpt_parallel_save: bool = False,
+        save_last_n_optim_states: int = -1,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -221,7 +222,8 @@ class NLPDDPStrategy(DDPStrategy):
         self.nccl_communicator_config_path = nccl_communicator_config_path
         self.sharp = sharp
         self._dist_ckpt_parallel_save = dist_ckpt_parallel_save
-        self.counter = 0
+        self.save_last_n_optim_states = save_last_n_optim_states
+        self.dropped_optim_states = 0
 
     def setup(self, trainer: "pl.Trainer") -> None:
         """
@@ -395,7 +397,7 @@ class NLPDDPStrategy(DDPStrategy):
             checkpoint['optimizer_states'] = [sharded_optim_state]
             # remove device state_dict
             checkpoint['state_dict'] = OrderedDict([])
-
+            checkpoint['hyper_parameters']['cfg']['dropped_optims'] = self.dropped_optim_states
             self.checkpoint_io.save_checkpoint(checkpoint, ckpt_to_dir(filepath), storage_options=storage_options)
 
             if HAVE_MODELOPT and hasattr(self.lightning_module, "get_model_module_list"):
@@ -411,9 +413,8 @@ class NLPDDPStrategy(DDPStrategy):
             if self.is_global_zero or app_state.data_parallel_rank == 0:
                 self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
         
-        drop_optim = True
-        if drop_optim:
-            self._remove_optimizer_states(filepath)
+        if self.save_last_n_optim_states >= 0:
+            self._drop_optimizer_states(filepath)
 
     # PTL 2.2 supports non strict loading of the ckpt with the strict arg (https://github.com/Lightning-AI/pytorch-lightning/pull/19404)
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
@@ -545,7 +546,6 @@ class NLPDDPStrategy(DDPStrategy):
                 )
 
             sharded_state_dict = self.lightning_module.sharded_state_dict()
-
             checkpoint = {}
 
             # after dist_checkpointing.load, sharded tensors will be replaced with tensors
@@ -558,6 +558,8 @@ class NLPDDPStrategy(DDPStrategy):
 
             if getattr(self.lightning_module, 'continue_training', False):
                 checkpoint = self._integrate_original_checkpoint_data(checkpoint)
+            
+            self.dropped_optim_states = checkpoint['hyper_parameters']['cfg'].get('dropped_optims', 0)
             return checkpoint
 
         # Legacy model parallel checkpointing logic, does not use megatron core
@@ -589,23 +591,40 @@ class NLPDDPStrategy(DDPStrategy):
 
         return checkpoint
     
-    def _remove_optimizer_states(self, filepath: Union[str, Path], storage_options=None):
-        save_last_n_optim_states = 2
+    def _drop_optimizer_states(self, filepath: Union[str, Path], storage_options: Optional[Any] = None):
+        # Get list of saved checkpoints
         checkpoint_dir = os.path.dirname(filepath)
         checkpoints = [d for d in os.listdir(checkpoint_dir) if os.path.isdir(os.path.join(checkpoint_dir, d)) and 'last' not in d]
         checkpoints = sorted(checkpoints, key=lambda x: int(x.split('-step=')[1].split('-')[0]))
 
-        checkpoint_number = len(checkpoints) - save_last_n_optim_states - 1
-        if self.counter == checkpoint_number:
-            logging.info(f"Loading {checkpoints[checkpoint_number]} checkpoint to drop optimizer states...")
-            checkpoint_path = os.path.join(checkpoint_dir, checkpoints[checkpoint_number])
+        # Drop optimizer states
+        checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
+        if self.dropped_optim_states == checkpoint_index:
+            checkpoint_path = os.path.join(checkpoint_dir, checkpoints[checkpoint_index])
+
+            logging.info(f"Loading {checkpoint_path} checkpoint to drop optimizer states...")
             checkpoint = self.load_checkpoint(checkpoint_path=checkpoint_path)
 
+            # Remove the checkpoint version with optimizer steps
             self.remove_checkpoint(checkpoint_path)
-            checkpoint['optimizer'] = [None]
+
+            checkpoint['optimizer_states'] = [None]
+            checkpoint['state_dict'] = OrderedDict([])
+            checkpoint['sharded_state_dict'] = self.lightning_module.sharded_state_dict()
+
+            # Save the checkpoint without optimizer steps
             self.checkpoint_io.save_checkpoint(checkpoint, checkpoint_path, storage_options=storage_options)
-            logging.info(f"Successfully removed optimizer states from {checkpoints[checkpoint_number]} checkpoint.")
-            self.counter += 1
+
+            if HAVE_MODELOPT and hasattr(self.lightning_module, "get_model_module_list"):
+                save_sharded_modelopt_state(
+                    self.lightning_module.get_model_module_list(),
+                    checkpoint_path,
+                    self.unwrapped_checkpoint_io.save_sharded_strategy,
+                    prefix="model.",
+                )
+
+            logging.info(f"Successfully dropped optimizer states for {checkpoint_path} checkpoint.")
+            self.dropped_optim_states += 1
 
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:

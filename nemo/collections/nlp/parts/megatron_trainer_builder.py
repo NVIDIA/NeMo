@@ -92,6 +92,7 @@ class MegatronTrainerBuilder:
             nccl_communicator_config_path=self.cfg.model.get('nccl_communicator_config_path', None),
             sharp=self.cfg.model.get('sharp', False),
             dist_ckpt_parallel_save=self.cfg.model.get('dist_ckpt_parallel_dist_opt', True),
+            save_last_n_optim_states=self.cfg.model.get('save_last_n_optim_states', -1),
         )
 
     def _grad_scaler(self) -> GradScaler:
