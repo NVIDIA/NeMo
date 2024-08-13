@@ -11,9 +11,9 @@ from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_
 from megatron.core.transformer.utils import _get_extra_state_offsets
 from pytorch_lightning.callbacks import TQDMProgressBar
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
-from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Shard
+from torch.distributed.device_mesh import DeviceMesh
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.io.pl import MegatronCheckpointIO
@@ -107,18 +107,15 @@ def mcore_to_pyt_sharded_state_dict(
         device_mesh: DeviceMesh,
     ) -> DTensor:
         assert len(tens) == 1 and len(sh_tens) == 1
-        
+
         dten = DTensor.from_local(
             tens[0],
             device_mesh,
-            (Shard(dim=0),), # for now its just FSDP
+            (Shard(dim=0),),  # for now its just FSDP
         )
         return dten
 
-    def _mcore_to_pyt_sharded_tensor(
-        tens: List[torch.Tensor],
-        sh_tens: List[ShardedTensor]
-    ) -> TorchShardedTensor:
+    def _mcore_to_pyt_sharded_tensor(tens: List[torch.Tensor], sh_tens: List[ShardedTensor]) -> TorchShardedTensor:
         for ten, sh_ten in zip(tens, sh_tens):
             # remove prepend axes and put in loaded tensor
             sh_ten.global_shape = sh_ten.global_shape[sh_ten.prepend_axis_num :]
@@ -186,7 +183,6 @@ def pyt_to_mcore_state_dict(state_dict: Dict[str, Any], prefix: str = "") -> Dic
             allow_shape_mismatch=allow_shape_mismatch,
         )
         return [local_shard]
-        
 
     def _torch_to_mcore_sharded_tensor(
         key: str,
