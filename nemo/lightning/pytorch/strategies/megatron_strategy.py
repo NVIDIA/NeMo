@@ -529,6 +529,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 self.lightning_module.log(
                     "reduced_train_loss", reduced_train_loss, prog_bar=True, batch_size=1, sync_dist=False
                 )
+                # Log any MoE losses.
+                # TODO(@akoumparouli): loss_scale depends on the GBS.
+                for loss_name, loss_value in aggregate_moe_loss_stats(loss_scale=1.0).items():
+                    self.lightning_module.log(loss_name, loss_value, prog_bar=True, rank_zero_only=True, batch_size=1)
 
             return out
 

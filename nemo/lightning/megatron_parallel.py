@@ -18,7 +18,7 @@ import functools
 import inspect
 import queue
 from collections import defaultdict
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from typing import (
     Any,
@@ -1515,6 +1515,7 @@ def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor, num_valid_t
 
     return loss
 
+
 def reduce_loss_across_pipeline(loss):
     from megatron.core import parallel_state
 
@@ -1529,3 +1530,28 @@ def reduce_loss_across_pipeline(loss):
         elif torch.distributed.get_rank() == 0:
             torch.distributed.recv(loss, get_last_rank())
     return loss
+
+
+@contextmanager
+def moe_loss_tracker_ctx():
+    from megatron.core.transformer.moe.moe_utils import (
+        clear_aux_losses_tracker,
+        reduce_aux_losses_tracker_across_ranks,
+    )
+
+    reduce_aux_losses_tracker_across_ranks()
+    yield
+    clear_aux_losses_tracker()
+
+
+@torch.no_grad()
+def aggregate_moe_loss_stats(loss_scale=1.0):
+    with moe_loss_tracker_ctx():
+        tracker = parallel_state.get_moe_layer_wise_logging_tracker()
+        aux_losses = {k: v['values'].float() * loss_scale for k, v in tracker.items()}
+        total_loss_dict = {}
+        for name, loss_list in aux_losses.items():
+            if name not in total_loss_dict:
+                total_loss_dict[name] = 0
+            total_loss_dict[name] += loss_list.mean().item()
+        return total_loss_dict
