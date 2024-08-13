@@ -803,6 +803,8 @@ The following script may be used:
 .. code-block:: bash
 
     $ python scripts/speech_recognition/estimate_duration_bins.py -b 30 manifest.json
+
+    # The script's output:
     Use the following options in your config:
             num_buckets=30
             bucket_duration_bins=[1.78,2.34,2.69,...
@@ -813,6 +815,8 @@ For multi-dataset setups, one may provide a dataset config directly:
 .. code-block:: bash
 
     $ python scripts/speech_recognition/estimate_duration_bins.py -b 30 input_cfg.yaml
+
+    # The script's output:
     Use the following options in your config:
             num_buckets=30
             bucket_duration_bins=[1.91,3.02,3.56,...
@@ -823,6 +827,8 @@ It's also possible to manually specify the list of data manifests (optionally to
 .. code-block:: bash
 
     $ python scripts/speech_recognition/estimate_duration_bins.py -b 30 [[manifest.json,0.7],[other.json,0.3]]
+
+    # The script's output:
     Use the following options in your config:
             num_buckets=30
             bucket_duration_bins=[1.91,3.02,3.56,...
@@ -855,6 +861,8 @@ To run 2D bucketing with 30 buckets sub-divided into 5 sub-buckets each (150 buc
         --buckets 30 \
         --sub-buckets 5 \
         input_cfg.yaml
+
+    # The script's output:
     Use the following options in your config:
             num_buckets=30
             bucket_duration_bins=[[1.91,10],[1.91,17],[1.91,25],...
@@ -921,14 +929,12 @@ In order to run OOMptimizer, you only need the bucketing bins (from previous sec
         --config-path fast-conformer_aed.yaml \
         --module-name nemo.collections.asr.models.EncDecMultiTaskModel \
         --buckets '[[3.975,30],[3.975,48],[4.97,37],[4.97,60],[5.851,42],[5.851,71],[6.563,46],[6.563,79],[7.32,49],[7.32,88],[8.19,54],[8.19,99],[8.88,61],[8.88,107],[9.75,66],[9.75,117],[10.55,72],[10.55,127],[11.21,76],[11.21,135],[11.87,79],[11.87,143],[12.54,82],[12.54,151],[13.08,87],[13.08,157],[13.62,91],[13.62,164],[14.16,93],[14.16,170],[14.7,96],[14.7,177],[15.19,99],[15.19,183],[15.67,101],[15.67,189],[16.13,103],[16.13,194],[16.66,105],[16.66,200],[17.2,108],[17.2,207],[17.73,111],[17.73,213],[18.2,114],[18.2,219],[18.69,117],[18.69,225],[19.15,120],[19.15,230],[19.62,123],[19.62,236],[20.264,122],[20.264,244],[32.547,173],[32.547,391],[36.587,227],[36.587,440],[40.0,253],[40.0,480]]'
+
+    # The script's output:
     <output logs from the search>
     The final profile is:
-            bucket_duration_bins=[[3.975,30],[3.975,48],[4.97,37],[4.97,60],[5.851,42],[5.851,71],[6.563,46],[6.563,79],[7.32,49],[7.32,88],[8.19,54],[8.19,99],[8.88,61],[8.88,107],[9.7
-    5,66],[9.75,117],[10.55,72],[10.55,127],[11.21,76],[11.21,135],[11.87,79],[11.87,143],[12.54,82],[12.54,151],[13.08,87],[13.08,157],[13.62,91],[13.62,164],[14.16,93],[14.16,170],[14
-    .7,96],[14.7,177],[15.19,99],[15.19,183],[15.67,101],[15.67,189],[16.13,103],[16.13,194],[16.66,105],[16.66,200],[17.2,108],[17.2,207],[17.73,111],[17.73,213],[18.2,114],[18.2,219],
-    [18.69,117],[18.69,225],[19.15,120],[19.15,230],[19.62,123],[19.62,236],[20.264,122],[20.264,244],[32.547,173],[32.547,391],[36.587,227],[36.587,440],[40.0,253],[40.0,480]]
-            bucket_batch_size=[352,308,280,245,245,206,206,180,186,163,168,142,151,132,136,119,126,106,116,98,110,92,104,88,99,83,94,79,90,76,86,72,86,72,81,68,80,65,78,63,74,60,72,58,7
-    0,58,68,54,66,52,65,52,62,50,37,28,31,24,28,21]
+            bucket_duration_bins=[[3.975,30],[3.975,48],[4.97,37],[4.97,60],[5.851,42],[5.851,71],[6.563,46],[6.563,79],[7.32,49],[7.32,88],[8.19,54],[8.19,99],[8.88,61],[8.88,107],[9.75,66],[9.75,117],[10.55,72],[10.55,127],[11.21,76],[11.21,135],[11.87,79],[11.87,143],[12.54,82],[12.54,151],[13.08,87],[13.08,157],[13.62,91],[13.62,164],[14.16,93],[14.16,170],[14.7,96],[14.7,177],[15.19,99],[15.19,183],[15.67,101],[15.67,189],[16.13,103],[16.13,194],[16.66,105],[16.66,200],[17.2,108],[17.2,207],[17.73,111],[17.73,213],[18.2,114],[18.2,219],[18.69,117],[18.69,225],[19.15,120],[19.15,230],[19.62,123],[19.62,236],[20.264,122],[20.264,244],[32.547,173],[32.547,391],[36.587,227],[36.587,440],[40.0,253],[40.0,480]]
+            bucket_batch_size=[352,308,280,245,245,206,206,180,186,163,168,142,151,132,136,119,126,106,116,98,110,92,104,88,99,83,94,79,90,76,86,72,86,72,81,68,80,65,78,63,74,60,72,58,70,58,68,54,66,52,65,52,62,50,37,28,31,24,28,21]
             max_tps=12.0
             max_duration=40.0
 
@@ -941,9 +947,9 @@ to your fine-tuning data:
         --pretrained-name nvidia/canary-1b \
         --buckets '[2.0,3.1,5.6,6.6,...]'
 
-Note that in a rare event, your training script can perform some additional actions using GPU RAM that cannot
-be anticipated by the OOMptimizer. In that case, you can try re-estimating the profile with the option
-``--memory-fraction 0.75`` (or another value) that will cap OOMptimizer's available GPU RAM.
+Note that your training script can perform some additional actions using GPU RAM that cannot be anticipated by the OOMptimizer.
+By default, we let the script use up to 90% of GPU's RAM for this estimation to account for that.
+In the unlikely case you run into an OutOfMemoryError during training, you can try re-estimating the profile with the option ``--memory-fraction 0.75`` (or another value) that will further cap OOMptimizer's available GPU RAM.
 
 Seeds and randomness
 ~~~~~~~~~~~~~~~~~~~~

@@ -41,7 +41,6 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import guess_parse_cutset, read_cutset_from_config
 from nemo.collections.common.prompts.fn import get_prompt_format_fn
-from nemo.collections.common.prompts.formatter import PromptFormatter
 from nemo.utils import logging
 
 
@@ -85,6 +84,7 @@ class LhotseDataLoadingConfig:
     cuda_expandable_segments: bool = True
 
     # 2.1 Multimodal sampling override options
+    pretokenize: bool = True  # should we apply tokenizer before data sampling
     prompt_format: str | None = None  # when provided, we'll apply the prompt in addition to the tokenizer
     use_multimodal_sampling: bool = False
     token_equivalent_duration: float | None = None
@@ -198,8 +198,16 @@ def get_lhotse_dataloader_from_config(
     # Expands cuts if multiple translations are provided.
     cuts = CutSet(LazyFlattener(cuts.map(_flatten_alt_text, apply_fn=None)))
 
-    if tokenizer is not None:
+    if tokenizer is not None and config.pretokenize:
         from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
+
+        if not is_tarred:
+            logging.warning(
+                "You are using a non-tarred dataset and requested tokenization during data sampling (pretokenize=True). "
+                "This will cause the tokenization to happen in the main (GPU) process, possibly impacting the training speed "
+                "if your tokenizer is very large. If the impact is noticable, set pretokenize=False in dataloader config. "
+                "(note: that will disable token-per-second filtering and 2D bucketing features)"
+            )
 
         if config.prompt_format is not None:
             cuts = cuts.map(
