@@ -63,9 +63,9 @@ model:
       min_mix_rate: 0.2
       max_mix_rate: 0.6
       min_num_segments: 1
-      max_num_segments: 5
-      min_num_speakers: 1  # num of extra speakers to add
-      max_num_speakers: 4
+      max_num_segments: 4
+      min_num_speakers: 1  # min num of extra speakers to add
+      max_num_speakers: 4  # max num of extra speakers to add
 
   validation_ds:
     manifest_filepath: ???
