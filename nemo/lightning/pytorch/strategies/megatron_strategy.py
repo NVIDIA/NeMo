@@ -481,7 +481,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             for opt in self.optimizers:
                 opt.zero_grad()
 
-            out = self.model(dataloader_iter, forward_only=False, *args, **kwargs)
+            loss = self.model(dataloader_iter, forward_only=False, *args, **kwargs)
 
             if torch.is_tensor(out):
                 reduced_train_loss = out
