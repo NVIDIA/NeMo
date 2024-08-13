@@ -11,7 +11,6 @@ from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
 
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
-import torch
 from cloudpickle import dump, load
 from fiddle._src.experimental import serialization
 from typing_extensions import Self
@@ -292,17 +291,14 @@ class ConnectorMixin:
         ------
             FileNotFoundError: If the checkpoint file does not exist at the specified path.
         """
-        import os
-
         connector = self._get_connector(path)
         ckpt_path: Path = connector.local_path(base_path=base_path)
         # If already in multiproc environment (e.g. due to torchrun invocation) run only on RANK = 0
-        is_distributed = 'LOCAL_WORLD_SIZE' in os.environ
-        if (is_distributed and int(os.environ['LOCAL_RANK']) == 0) or not 'LOCAL_WORLD_SIZE' in os.environ:
+        from nemo.utils.get_rank import is_global_rank_zero
+
+        if is_global_rank_zero():
             ckpt_path = connector(ckpt_path, overwrite=overwrite)
             connector.on_import_ckpt(self)
-            if is_distributed:
-                torch.distributed.barrier()
 
         return ckpt_path
 
