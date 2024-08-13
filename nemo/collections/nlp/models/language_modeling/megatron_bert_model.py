@@ -87,7 +87,7 @@ class MegatronBertModel(MegatronBaseModel):
         if not self.megatron_amp_O2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
 
-        super().__init__(cfg, trainer=trainer, no_lm_init=False)
+        MegatronBaseModel.__init__(self, cfg, trainer=trainer, no_lm_init=False)
 
         self._validate_trainer()
 
@@ -1061,7 +1061,7 @@ class MegatronBertModel(MegatronBaseModel):
             buckets[-1].extend(p for p in self.parameters() if p not in used_params)
             self.distributed_adam_buckets = buckets
 
-        return super().configure_optimizers()
+        return MegatronBaseModel.configure_optimizers(self)
 
     # Required for ONNX export
     @property
@@ -1185,7 +1185,7 @@ class MegatronBertModel(MegatronBaseModel):
             'normalization': normalization,
         }
 
-        transformer_config = super().build_transformer_config()
+        transformer_config = MegatronBaseModel.build_transformer_config(self)
 
         for key, value in model_specific_configs.items():
             setattr(transformer_config, key, value)

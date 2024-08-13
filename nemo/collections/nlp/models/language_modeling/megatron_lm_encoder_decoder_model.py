@@ -78,7 +78,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        super().__init__(cfg, trainer=trainer)
+        MegatronBaseModel.__init__(self, cfg, trainer=trainer)
         if cfg.get('pipeline_model_parallel_size', 1) > 1:
             if cfg.get('pipeline_model_parallel_split_rank', 0) <= 0:
                 raise ValueError(
@@ -201,7 +201,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
                     param._with_fp32_optimizer = with_fp32_embedding_grads
 
-        return super().configure_optimizers()
+        return MegatronBaseModel.configure_optimizers(self)
 
     def _handle_bias_activation_fusion_args(self, cfg):
         # For oldest models, we don't have the option to turn on/off bias activation fusion. It is always on.
@@ -626,8 +626,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def _process_batch(self, global_batch: Dict[str, torch.Tensor]) -> List[torch.Tensor]:
         # If the decoder input starts with <pad> instead of <bos>, which is the case for huggingface T5 models, we don't want to mask the first token.
         # For NeMo-Megatron, the sequence starts with <bos>, which is never masked so we can always set index 0 to be unmasked.
-        global_batch['dec_mask'][:, 0] = 1
-
+        # global_batch['dec_mask'][:, 0] = 1
+        for i, len in enumerate(global_batch["loss_mask"].sum(dim=1)):
+            global_batch['dec_mask'][i, :len, 0] = 1
+            
         return [
             global_batch["text_enc"],
             global_batch["text_dec"],
@@ -635,6 +637,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             global_batch["labels"],
             global_batch["enc_mask"],
             global_batch["dec_mask"],
+            global_batch["enc_dec_mask"],
             global_batch.get('data', None),
         ]
 
@@ -656,6 +659,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 lm_labels,
                 encoder_attn_mask,
                 decoder_attn_mask,
+                encoder_decoder_attn_mask,
                 batch_data,
             ) = batch
 
@@ -683,12 +687,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             else:
                 output = model(
                     encoder_input_ids,  # enc_input_ids
-                    encoder_attn_mask,  # enc_attn_mask
                     decoder_input_ids,  # dec_input_ids
+                    encoder_attn_mask,  # enc_attn_mask
                     decoder_attn_mask,  # dec_attn_mask
-                    None,  # token_type_ids
+                    encoder_decoder_attn_mask,
                     lm_labels,  # labels
-                    batch_data,  # batch_data
                 )
 
             def loss_func(output_tensor):
@@ -1719,7 +1722,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def build_model_parallel_config(self):
         """Hidden size needs to be set from the cfg.encoder for the pipeline schedule."""
 
-        model_parallel_config = super().build_model_parallel_config()
+        model_parallel_config = MegatronBaseModel.build_model_parallel_config(self)
         try:
             # hidden size is needed for pipeline schedules but is not currently in ModelParallelConfig
             setattr(model_parallel_config, 'hidden_size', self.cfg.encoder.hidden_size)
@@ -1833,7 +1836,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             'normalization': normalization,
         }
 
-        transformer_config = super().build_transformer_config()
+        transformer_config = MegatronBaseModel.build_transformer_config(self)
 
         for key, value in model_specific_configs.items():
             setattr(transformer_config, key, value)

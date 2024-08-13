@@ -286,7 +286,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
-        super().__init__(cfg, trainer=trainer, no_lm_init=True)
+        MegatronBaseModel.__init__(self, cfg, trainer=trainer, no_lm_init=True)
 
         self._validate_trainer()
 
@@ -641,7 +641,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             buckets[-1].extend(p for p in self.parameters() if p not in used_params)
             self.distributed_adam_buckets = buckets
 
-        return super().configure_optimizers()
+        return MegatronBaseModel.configure_optimizers(self)
 
     def forward(self, tokens, text_position_ids, attention_mask, labels):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
@@ -1676,7 +1676,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.initialize_last_rank_embeddings()
 
         if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
-            self.setup_transformer_engine_tp_groups()
+            MegatronBaseModel.setup_transformer_engine_tp_groups(self)
             self.setup_transformer_engine_cp_groups()
 
     def setup_training_data(self, cfg):
@@ -1738,7 +1738,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.trainer.strategy.setup_environment()
 
             if self.cfg.get('transformer_engine', False):
-                self.setup_transformer_engine_tp_groups()
+                MegatronBaseModel.setup_transformer_engine_tp_groups(self)
                 self.setup_transformer_engine_cp_groups()
 
         # set the default sampling params if it is None.
@@ -1872,7 +1872,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         This is needed when overlapping the AllGather of the updated parameters with the following valdation step.
         """
         if not self.validation_param_sync_overlap:
-            super().on_validation_model_zero_grad()
+            MegatronBaseModel.on_validation_model_zero_grad(self)
 
     def sharded_state_dict(self, prefix: str = '') -> Dict[str, Any]:
         """
@@ -2099,7 +2099,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for k in moe_keys:
                 del model_specific_configs[k]
 
-        transformer_config = super().build_transformer_config()
+        transformer_config = MegatronBaseModel.build_transformer_config(self)
 
         for key, value in model_specific_configs.items():
             setattr(transformer_config, key, value)

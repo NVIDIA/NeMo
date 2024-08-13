@@ -227,6 +227,11 @@ class AutoTokenizer(TokenizerSpec):
         return [id2vocab[i] for i in range(len(id2vocab))]
 
     @property
+    def inv_vocab(self):
+        id2vocab = {v: k for k, v in self.tokenizer.vocab.items()}
+        return id2vocab
+
+    @property
     def pad_id(self):
         if getattr(self, 'pad_token') is None:
             return None

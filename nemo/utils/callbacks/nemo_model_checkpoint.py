@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 import os
 import re
 import shutil
@@ -237,8 +238,18 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
             backup_path = self._backup_existing_nemo_ckpt(trainer)
-            pl_module.save_to(save_path=app_state.model_restore_path)
-            logging.info(f"New .nemo model saved to: {app_state.model_restore_path}")
+            # pl_module.save_to(save_path=app_state.model_restore_path)
+            # logging.info(f"New .nemo model saved to: {app_state.model_restore_path}")
+        
+            # add step to filename
+            step_path = os.path.expanduser(os.path.join(self.dirpath, f'.{trainer.global_step}{self.postfix}'))
+            if trainer.global_step > 0:
+                step_path = os.path.expanduser(os.path.join(self.dirpath, f'{trainer.global_step}{self.postfix}'))
+            else: # if our trainer is weird, just use time
+                step_path = os.path.expanduser(os.path.join(self.dirpath, f'{time.time()}{self.postfix}'))
+            pl_module.save_to(save_path=step_path)
+            logging.info(f"New .nemo model saved to: {step_path}")
+        
         if backup_path is not None and is_global_rank_zero():
             logging.info(f'Removing old .nemo backup {backup_path}')
             get_filesystem(backup_path).rm(backup_path)
