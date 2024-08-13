@@ -9,12 +9,13 @@ from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
 from megatron.core.transformer.utils import _get_extra_state_offsets
-from pytorch_lightning.callbacks import Callback, TQDMProgressBar
+from pytorch_lightning.callbacks import TQDMProgressBar
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
+from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
+from torch.distributed._tensor import DTensor, Shard
 
 from nemo.lightning import _strategy_lib
-from nemo.lightning.io import IOMixin
 from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 
@@ -97,11 +98,26 @@ def get_checkpoint_io(checkpoint_io, **kwargs):
 def mcore_to_pyt_sharded_state_dict(
     checkpoint: Dict[str, List[torch.Tensor]],
     sharded_state_dict: Dict[str, Union[List[ShardedTensor], ShardedObject]],
+    dtensor: bool = False,
+    device_mesh: DeviceMesh = None,
 ) -> Dict[str, Union[TorchShardedTensor, io.BytesIO]]:
+    def _mcore_to_pyt_dtensor(
+        tens: List[torch.Tensor],
+        sh_tens: List[ShardedTensor],
+        device_mesh: DeviceMesh,
+    ) -> DTensor:
+        assert len(tens) == 1 and len(sh_tens) == 1
+        
+        dten = DTensor.from_local(
+            tens[0],
+            device_mesh,
+            (Shard(dim=0),), # for now its just FSDP
+        )
+        return dten
 
     def _mcore_to_pyt_sharded_tensor(
         tens: List[torch.Tensor],
-        sh_tens: List[ShardedTensor],
+        sh_tens: List[ShardedTensor]
     ) -> TorchShardedTensor:
         for ten, sh_ten in zip(tens, sh_tens):
             # remove prepend axes and put in loaded tensor
@@ -114,24 +130,63 @@ def mcore_to_pyt_sharded_state_dict(
 
         return sharded_tensor_to_torch_sharded_tensor(sh_tens)
 
-    def _convert(checkpoint, sharded_state_dict, k):
+    def _convert(checkpoint, sharded_state_dict, k, device_mesh=None):
         assert k in sharded_state_dict, f"{k} not in sharded_state_dict"
 
         if isinstance(sharded_state_dict[k], Dict):
             for kk in sharded_state_dict[k]:
-                _convert(checkpoint[k], sharded_state_dict[k], kk)
+                _convert(checkpoint[k], sharded_state_dict[k], kk, device_mesh=device_mesh)
         elif isinstance(sharded_state_dict[k], ShardedObject):
             """Do nothing. checkpoint[k] contains loaded io.BytesIO already."""
         elif isinstance(sharded_state_dict[k], List):  # list of ShardedTensor
-            checkpoint[k] = _mcore_to_pyt_sharded_tensor(checkpoint[k], sharded_state_dict[k])
+            if dtensor:
+                checkpoint[k] = _mcore_to_pyt_dtensor(checkpoint[k], sharded_state_dict[k], device_mesh=device_mesh)
+            else:
+                checkpoint[k] = _mcore_to_pyt_sharded_tensor(checkpoint[k], sharded_state_dict[k])
 
     for k in checkpoint:
-        _convert(checkpoint, sharded_state_dict, k)
+        _convert(checkpoint, sharded_state_dict, k, device_mesh=device_mesh)
 
     return checkpoint
 
 
 def pyt_to_mcore_state_dict(state_dict: Dict[str, Any], prefix: str = "") -> Dict[str, List[ShardedBase]]:
+
+    def _dtensor_to_mcore_sharded_tensor(
+        key: str,
+        dten: DTensor,
+        prepend_offsets: Iterable[Tuple[int, int, int]] = (),
+        prefix: str = "",
+        allow_shape_mismatch: bool = False,
+    ) -> List[ShardedTensor]:
+        prepend_axis_num = len(prepend_offsets)
+
+        assert isinstance(dten, DTensor), dten
+
+        ten = dten.to_local()
+        global_shape = dten.shape
+
+        rank_offsets = []
+        replica_id = 0
+        axis = list(range(len(global_shape)))
+        axis_fragm = [global_shape[i] // ten.shape[i] for i in axis]
+
+        for i, placement in enumerate(dten.placements):
+            if isinstance(placement, Shard):
+                ax = placement.dim
+                rank_offsets.append((ax + prepend_axis_num, dten.device_mesh.get_local_rank(i), axis_fragm[ax]))
+
+        local_shard = ShardedTensor.from_rank_offsets(
+            f"{prefix}{key}",
+            ten,
+            *prepend_offsets,  # prepend layer shards
+            *rank_offsets,
+            replica_id=replica_id,
+            prepend_axis_num=prepend_axis_num,
+            allow_shape_mismatch=allow_shape_mismatch,
+        )
+        return [local_shard]
+        
 
     def _torch_to_mcore_sharded_tensor(
         key: str,
@@ -203,6 +258,10 @@ def pyt_to_mcore_state_dict(state_dict: Dict[str, Any], prefix: str = "") -> Dic
                     prefix=f"{prefix}{kk}.",
                     allow_shape_mismatch=allow_shape_mismatch,
                 )
+        elif isinstance(v, DTensor):
+            state_dict[k] = _dtensor_to_mcore_sharded_tensor(
+                sh_key, v, prepend_offsets, prefix=prefix, allow_shape_mismatch=allow_shape_mismatch
+            )
         elif isinstance(v, TorchShardedTensor):
             state_dict[k] = _torch_to_mcore_sharded_tensor(
                 sh_key, v, prepend_offsets, prefix=prefix, allow_shape_mismatch=allow_shape_mismatch
