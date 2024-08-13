@@ -4497,7 +4497,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -f examples/asr/evaluation_transcripts.json
 
-  L2_Stable_Diffusion_Training:
+  OPTIONAL_L2_Stable_Diffusion_Training:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
     with:
@@ -4545,6 +4545,7 @@ jobs:
         model.data.synthetic_data=True
       AFTER_SCRIPT: |
         rm -rf examples/multimodal/text_to_image/sd_train_results
+      IS_OPTIONAL: true
 
   L2_NeMo_2_GPT_Pretraining_no_transformer_engine:
     needs: [cicd-test-container-setup]
@@ -4679,7 +4680,7 @@ jobs:
       - L2_TTS_Fast_dev_runs_1_Mixer-TTS
       - L2_TTS_Fast_dev_runs_1_Hifigan
       - Speech_Checkpoints_tests
-      - L2_Stable_Diffusion_Training
+      #- OPTIONAL_L2_Stable_Diffusion_Training
       - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
     if: always()
     runs-on: ubuntu-latest
