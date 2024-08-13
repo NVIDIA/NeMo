@@ -1617,7 +1617,7 @@ jobs:
         model.global_batch_size=4 \
         model.data.data_impl=text_mmap \
         model.data.data_prefix=[1.0,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src] \
-        model.data.splits_string="800,100,100" \
+        model.data.splits_string=[800,100,100] \
         model.data.whole_word_masking=False \
         model.tokenizer.library=sentencepiece \
         model.tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
@@ -1662,7 +1662,7 @@ jobs:
         model.global_batch_size=4 \
         model.data.data_impl=text_mmap \
         model.data.data_prefix=[1.0,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src] \
-        model.data.splits_string="800,100,100" \
+        model.data.splits_string=[800,100,100] \
         model.data.whole_word_masking=False \
         model.tokenizer.library=sentencepiece \
         model.tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
@@ -2116,7 +2116,7 @@ jobs:
         model.init_method_std=0.023 \
         model.optim.lr=6.0e-4 \
         model.megatron_amp_O2=True \
-        model.data.splits_string="98,2,0" \
+        model.data.splits_string=[98,2,0] \
         model.data.dataloader_type=cyclic \
         trainer.max_steps=10
 
@@ -2140,7 +2140,7 @@ jobs:
         model.init_method_std=0.023 \
         model.optim.lr=6.0e-4 \
         model.megatron_amp_O2=True \
-        model.data.splits_string="98,2,0" \
+        model.data.splits_string=[98,2,0] \
         model.data.dataloader_type=cyclic \
         trainer.max_steps=20
       AFTER_SCRIPT: |
