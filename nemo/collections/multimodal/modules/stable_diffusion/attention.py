@@ -303,7 +303,7 @@ class CrossAttention(nn.Module):
                     self.flash_attn = FlashCrossAttention(softmax_scale=self.scale)
             else:
                 self.te_dpa = DotProductAttention(
-                    kv_channels=dim_head,
+                    k_channels=dim_head,
                     num_attention_heads=self.inner_dim // dim_head,
                     attn_mask_type='no_mask',
                     attention_type='self' if context_dim == query_dim else 'cross',
@@ -383,7 +383,6 @@ class CrossAttention(nn.Module):
             b, s_kv, hd = k.shape
             s_q = q.shape[1]
             d = hd // h
-            # print(f"[batchsize, s_q, s_kv, num_heads, head_dim] are: [{b}, {s_q}, {s_kv}, {h}, {d}]")
             out = self.te_dpa(q.view(b, s_q, h, d), k.view(b, s_kv, h, d), v.view(b, s_kv, h, d))
 
         elif self.context_dim == self.query_dim:
