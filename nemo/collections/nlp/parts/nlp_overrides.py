@@ -546,7 +546,7 @@ class NLPDDPStrategy(DDPStrategy):
                 )
 
             sharded_state_dict = self.lightning_module.sharded_state_dict()
-            
+
             checkpoint = {}
 
             # after dist_checkpointing.load, sharded tensors will be replaced with tensors
