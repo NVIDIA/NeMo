@@ -219,6 +219,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if _maybe_mcore_config:
             self._mcore_config = _maybe_mcore_config
 
+        if hasattr(self._precision_plugin, 'dtype_config'):
+            from nemo.lightning.pytorch.plugins.precision import patch_dtype_config
+
+            model.config = patch_dtype_config(self._precision_plugin.dtype_config, model.config)
+            model.optim.config = patch_dtype_config(self._precision_plugin.dtype_config, model.optim.config)
+
         has_optim = getattr(model, "optim", None)
         if has_optim:
             opt_config = getattr(model.optim, "config", None)
