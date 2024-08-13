@@ -20,7 +20,6 @@ from pkg_resources import packaging
 
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.parts import utils_funcs
-_IS_GRAPH_CAPTURING=False
 
 try:
     from transformer_engine.pytorch import TransformerLayer
@@ -189,7 +188,6 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
 
         self.config = config
         self.is_first_microbatch = True
-
         precision = 'bf16' if config.bf16 else 16
 
         transformer_layer_args = {
@@ -266,8 +264,12 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
             # checkpoint_core_attention,
         )
         self.is_first_microbatch = False
+        context = None
 
-        return hidden_states, None
+        # CUDA graph requires returned values to be Tensors
+        if self.config.enable_cuda_graph and self.training:
+            return hidden_states
+        return hidden_states, context
 
     def _get_layer_offset(self):
 
