@@ -94,17 +94,18 @@ jobs:
         '
         ### \'\'
   
-  # # TODO refactor: Commenting this test out until it is fixed & works properly again (test passes again)
-  # L0_Unit_Tests_GPU:
-  #   needs: [cicd-test-container-setup]
-  #   uses: ./.github/workflows/_test_template.yml
-  #   with:
-  #     RUNNER: self-hosted-azure
-  #     TIMEOUT: 60
-  #     SCRIPT: |
-  #       NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
-  #     IS_OPTIONAL: true
+  
+  L0_Unit_Tests_GPU:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      TIMEOUT: 60
+      SCRIPT: |
+        NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
+      IS_OPTIONAL: true
 
+   # # TODO refactor: Commenting this test out until it is fixed & works properly again (test passes again)
   # OPTIONAL_L0_Unit_Tests_CPU:
   #   needs: [cicd-test-container-setup]
   #   uses: ./.github/workflows/_test_template.yml
@@ -1710,7 +1711,7 @@ jobs:
         model.global_batch_size=4 \
         model.data.data_impl=text_mmap \
         model.data.data_prefix=[1.0,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src] \
-        model.data.splits_string="[800,100,100]" \
+        model.data.splits_string="\"800,100,100\"" \
         model.data.whole_word_masking=False \
         model.tokenizer.library=sentencepiece \
         model.tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
