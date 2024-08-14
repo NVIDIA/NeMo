@@ -9,7 +9,7 @@ Long Context Model Training enhances the capability of Large Language Model to h
 Access Long Context Recipe
 ========================
 
-NeMo 2.0 is providing a tested recipe to train long context models. The recipe is available in the `NeMo/nemo/collections/llm/gpt/trainer/long_context` directory.
+NeMo 2.0 is providing a tested recipe to train long context models. The recipe is available in the `NeMo/nemo/collections/llm/gpt/model` directory.
 
 Currently we are supporting the following models:
 - Llama-3
@@ -49,13 +49,17 @@ Mixtal
    * - Sequence Length
      - 8x3B
      - 8x7B
+     - 8x22B
    * - 16k
      - Yes
      - Yes
+     - TODO
    * - 64k
      - Yes
      - Yes
+     - TODO
    * - 128k
+     - TODO
      - TODO
      - TODO
 
