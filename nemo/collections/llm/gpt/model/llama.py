@@ -66,28 +66,8 @@ class Llama3Config8B(Llama2Config7B):
 
 
 @dataclass
-class Llama3Config8B16K(Llama3Config8B):
-    seq_length: int = 16384
-
-
-@dataclass
-class Llama3Config8B64k(Llama3Config8B):
-    seq_length: int = 65536
-
-
-@dataclass
 class Llama3Config70B(Llama2Config70B):
     seq_length: int = 8192
-
-
-@dataclass
-class Llama3Config70B16K(Llama3Config70B):
-    seq_length: int = 16384
-
-
-@dataclass
-class Llama3Config70B64k(Llama3Config70B):
-    seq_length: int = 65536
 
 
 @dataclass

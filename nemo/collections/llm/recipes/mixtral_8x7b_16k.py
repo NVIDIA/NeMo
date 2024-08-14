@@ -3,25 +3,30 @@ import pytorch_lightning as pl
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.api import squad
-from nemo.collections.llm.gpt.model.llama import MixtralConfig8x22B, MixtralModel
+from nemo.collections.llm.gpt.model.llama import MixtralConfig8x7B, MixtralModel
 from nemo.collections.llm.peft.api import gpt_lora
 from nemo.collections.llm.recipes.log.default import default_log
 from nemo.collections.llm.recipes.optim.adam import adam_with_cosine_annealing
 from nemo.collections.llm.utils import Partial, factory
 
-NAME = "mixtral_8x22b_4k"
+NAME = "mixtral_8x7b_16k"
 
 
 @factory(name=NAME)
 def model() -> pl.LightningModule:
-    return MixtralModel(MixtralConfig8x22B(seq_length=4096))
+    return MixtralModel(MixtralConfig8x7B(seq_length=16384))
 
 
 @factory(name=NAME)
 def trainer(devices=8) -> nl.Trainer:
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=8,
+        pipeline_model_parallel_size=4,
+        virtual_pipeline_model_parallel_size=8,
+        context_model_parallel_size=4,
         sequence_parallel=True,
+        expert_model_parallel_size=4,
+        pipeline_dtype=torch.bfloat16,
     )
 
     return nl.Trainer(
@@ -35,7 +40,7 @@ def trainer(devices=8) -> nl.Trainer:
 
 @factory(name=NAME + "_hf")
 def hf_resume() -> nl.AutoResume:
-    return nl.AutoResume(import_path="hf://mistralai/Mixtral-8x22B-v0.1")
+    return nl.AutoResume(import_path="hf://mistralai/Mixtral-8x7B-v0.1")
 
 
 @factory(name=NAME, for_task="llm.pretrain")

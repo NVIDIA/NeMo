@@ -53,16 +53,6 @@ class MixtralConfig8x7B(GPTConfig):
 
 
 @dataclass
-class MixtralConfig8x7B16K(MixtralConfig8x7B):
-    seq_length: int = 16384
-
-
-@dataclass
-class MixtralConfig8x7B64K(MixtralConfig8x7B):
-    seq_length: int = 65536
-
-
-@dataclass
 class MixtralConfig8x22B(GPTConfig):
     """
     Config for Mixtral-8x7B model
