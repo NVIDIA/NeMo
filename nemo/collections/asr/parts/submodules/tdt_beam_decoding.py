@@ -202,10 +202,10 @@ class BeamTDTInfer(Typing):
         if self.preserve_alignments:
             raise NotImplementedError("Preserving alignments is not implemented.")
         
-        if self.beam_size == 1:
-            logging.info("Beam size of 1 was used, switching to sample level `greedy_search`")
-            self.search_algorithm = self.greedy_search
-        elif search_type == "default":
+        if search_type == "default":
+            if self.beam_size == 1:
+                logging.info("""If beam size is 1, defaults to stateful greedy search.
+                     For accurate greedy results, please use GreedyTDTInfer or GreedyBatchedTDTInfer.""")
             self.search_algorithm = self.default_beam_search
         elif search_type == "tsd":
             raise NotImplementedError("`tsd` (Time Synchronous Decoding) has not been implemented.")
@@ -526,7 +526,6 @@ class BeamTDTInfer(Typing):
             if self.zero_duration_idx != None:
                 hyps = self.prefix_search(sorted(hyps, key=lambda x: len(x.y_sequence), reverse=True), beam_encoder_output, prefix_alpha=self.maes_prefix_alpha)  # type: List[Hypothesis]
             
-            duplication_check = [hyp.y_sequence for hyp in hyps]    # List of hypotheses of the current frame
             list_b = []     # List that contains the blank token emisions
             list_nb = []    # List that contains the non-zero duration non-blank token emisions
             # Repeat for number of mAES steps
@@ -595,7 +594,7 @@ class BeamTDTInfer(Typing):
                                 new_hyp.score += self.ngram_lm_alpha * lm_score
                             
                             # If token duration is 0 adding to expansions list
-                            if duration == 0 and (new_hyp.y_sequence + [int(k)]) not in duplication_check:
+                            if duration == 0:
                                 list_exp.append(new_hyp)
                             else:
                                 list_nb.append(new_hyp)
