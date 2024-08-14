@@ -43,7 +43,7 @@ Mixtal
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table:: Mixtral
-   :widths: 30 25 25
+   :widths: 30 25 25 25
    :header-rows: 1
 
    * - Sequence Length
