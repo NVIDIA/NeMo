@@ -2165,7 +2165,7 @@ jobs:
         model.init_method_std=0.023 \
         model.optim.lr=6.0e-4 \
         model.megatron_amp_O2=True \
-        model.data.splits_string=[98,2,0] \
+        model.data.splits_string="\"98,2,0\"" \
         model.data.dataloader_type=cyclic \
         trainer.max_steps=10
 
@@ -2189,7 +2189,7 @@ jobs:
         model.init_method_std=0.023 \
         model.optim.lr=6.0e-4 \
         model.megatron_amp_O2=True \
-        model.data.splits_string=[98,2,0] \
+        model.data.splits_string="\"98,2,0\"" \
         model.data.dataloader_type=cyclic \
         trainer.max_steps=20
       AFTER_SCRIPT: |
