@@ -130,7 +130,7 @@ class ProgressPrinter(ProgressBar):
                 self.total_metrics_dict[key] += metrics[key]
 
         if self.should_log(n):
-            prefix = self.train_description + f" epoch {trainer.current_epoch}, iteration {n}/{self.total}"
+            prefix = self.train_description + f" epoch {trainer.current_epoch}, iteration {n-1}/{self.total-1}"
             log_string = self.format_string(prefix, self.average_metrics_dict)
             print(log_string)
 
