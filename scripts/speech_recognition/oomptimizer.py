@@ -433,58 +433,58 @@ def oomptimizer(
 
     # Iterate buckets from the largest to the smallest sequences. This usually ends up creating
     # a tiny bit smaller batches, likely due to worse memory fragmentation.
-    for bucket, (seq_len_in, seq_len_out) in reversed(list(zip(buckets, max_seq_lens))):
-        click.echo(f"The current sequence lengths are: input={seq_len_in} output={seq_len_out}.")
-        gen.reset()
-        batch_idx = 0
+    with torch.autocast("cuda", getattr(torch, dtype)):
+        for bucket, (seq_len_in, seq_len_out) in reversed(list(zip(buckets, max_seq_lens))):
+            click.echo(f"The current sequence lengths are: input={seq_len_in} output={seq_len_out}.")
+            gen.reset()
+            batch_idx = 0
 
-        def step():
-            click.echo(
-                f"\t[BEGIN step] [CUDA RAM CURRENT: {torch.cuda.memory_allocated() / (1024 * 1024):.1f}MB] [CUDA RAM MAX: {torch.cuda.max_memory_allocated() / (1024*1024):.1f}MB]"
-            )
-            batch = gen(seq_len_in, seq_len_out)
-            oom = False
-            try:
-                click.echo(f"\tCurrent gap: {gen.current_rel_gap}... ", nl=False)
-                optimizer.zero_grad()
-                out = model.training_step(batch, batch_idx)
-                out['loss'].sum().backward()
-                optimizer.step()
-            except torch.cuda.OutOfMemoryError as e:
-                click.secho(f"OOM!", fg="yellow")
-                oom = True
-            except RuntimeError as e:
-                if "cuFFT error: CUFFT_INTERNAL_ERROR" not in str(e):
-                    raise
-                click.secho(f"OOM!", fg="yellow")
-                oom = True
-            else:
-                click.secho(f"OK!", fg="green")
-            finally:
+            def step():
                 click.echo(
-                    f"\t[END step] [CUDA RAM CURRENT: {torch.cuda.memory_allocated() / (1024 * 1024):.1f}MB] [CUDA RAM MAX: {torch.cuda.max_memory_allocated() / (1024*1024):.1f}MB]"
+                    f"\t[BEGIN step] [CUDA RAM CURRENT: {torch.cuda.memory_allocated() / (1024 * 1024):.1f}MB] [CUDA RAM MAX: {torch.cuda.max_memory_allocated() / (1024*1024):.1f}MB]"
                 )
-                del batch
-                # Note: We could call empty_cache() to free up some more memory on the GPU,
-                #       but we have found out empirically that this causes a mismatched condition
-                #       between OOMptimizer and the actual training. During training, there is some
-                #       degree of memory fragmentation and it's better to simulate that in OOMptimizer.
-                # torch.cuda.memory.empty_cache()
-                torch.cuda.reset_max_memory_allocated()
-            return oom
+                batch = gen(seq_len_in, seq_len_out)
+                oom = False
+                try:
+                    click.echo(f"\tCurrent gap: {gen.current_rel_gap}... ", nl=False)
+                    optimizer.zero_grad()
+                    out = model.training_step(batch, batch_idx)
+                    out['loss'].sum().backward()
+                    optimizer.step()
+                except torch.cuda.OutOfMemoryError as e:
+                    click.secho(f"OOM!", fg="yellow")
+                    oom = True
+                except RuntimeError as e:
+                    if "cuFFT error: CUFFT_INTERNAL_ERROR" not in str(e):
+                        raise
+                    click.secho(f"OOM!", fg="yellow")
+                    oom = True
+                else:
+                    click.secho(f"OK!", fg="green")
+                finally:
+                    click.echo(
+                        f"\t[END step] [CUDA RAM CURRENT: {torch.cuda.memory_allocated() / (1024 * 1024):.1f}MB] [CUDA RAM MAX: {torch.cuda.max_memory_allocated() / (1024*1024):.1f}MB]"
+                    )
+                    del batch
+                    # Note: We could call empty_cache() to free up some more memory on the GPU,
+                    #       but we have found out empirically that this causes a mismatched condition
+                    #       between OOMptimizer and the actual training. During training, there is some
+                    #       degree of memory fragmentation and it's better to simulate that in OOMptimizer.
+                    # torch.cuda.memory.empty_cache()
+                    torch.cuda.reset_max_memory_allocated()
+                return oom
 
-        with torch.autocast("cuda", getattr(torch, dtype)):
             oom = step()
             while not (finished := gen.advance(oom)):
                 click.echo("\t" + "=" * 80)
                 oom = step()
 
-        click.secho(
-            f"=> Optimal setting for bucket={bucket} (input={seq_len_in} output={seq_len_out}) is max_batch_size={gen.max_batch_size}",
-            fg="green",
-        )
-        profile[(bucket, seq_len_in, seq_len_out)] = gen.max_batch_size
-        gen.start_batch_size = gen.max_batch_size * 2
+            click.secho(
+                f"=> Optimal setting for bucket={bucket} (input={seq_len_in} output={seq_len_out}) is max_batch_size={gen.max_batch_size}",
+                fg="green",
+            )
+            profile[(bucket, seq_len_in, seq_len_out)] = gen.max_batch_size
+            gen.start_batch_size = gen.max_batch_size * 2
 
     # Reverse the profile to be ascendingly sorted again.
     profile = dict(reversed(list(profile.items())))

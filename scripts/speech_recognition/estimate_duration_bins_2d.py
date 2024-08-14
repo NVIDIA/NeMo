@@ -143,10 +143,15 @@ def estimate_duration_buckets(
     max_duration: float,
     quiet: bool,
 ) -> list[tuple[float, float]]:
+    """
+    This function is based on lhotse.dataset.sampling.dynamic_bucketing.estimate_duration_buckets.
+    It extends it to a 2D bucketing case.
+    """
     assert num_buckets > 1
 
     constraint = FixedBucketBatchSizeConstraint2D([(0.0, 0.0)], [0])
 
+    # Gather the duration and token count statistics for the dataset.
     sizes = []
     num_tokens = []
     for c in cuts:
@@ -160,6 +165,8 @@ def estimate_duration_buckets(
     sizes = joint.f0
     num_tokens = joint.f1
 
+    # We are building buckets with equal duration (empirically leads to more even bucket exhaustion over time).
+    # We need to determine how much duration to allocate per bucket.
     size_per_bucket = sizes.sum() / num_buckets
 
     if not quiet:
@@ -179,32 +186,37 @@ def estimate_duration_buckets(
     bins = []
     bin_indexes = [0]
     tot = 0.0
+
+    def _estimate_token_buckets(max_bucket_duration):
+        # Since this is 2D bucketing, apply the same bin creation logic
+        # for the second dimension (i.e. token count) as for the first dimension (duration).
+        # That means we aim to have each bucket contain roughly the same number of tokens.
+        # Note that this estimation is biased towards more padding if you have
+        # a lot of zero-token examples (e.g. non-speech).
+        nonlocal bins
+        num_tokens_bucket = num_tokens[bin_indexes[-1] : binidx]
+        num_tokens_bucket.sort()
+        tokens_per_subbucket = num_tokens_bucket.sum() / num_subbuckets
+        tot_toks = 0
+        # Iterate over token counts, and whenever we hit tokens_per_subbucket, create a new 2D bucket bin.
+        for num_toks in num_tokens_bucket:
+            # Threshold hit: we are creating a new (max_duration, max_num_tokens) bin.
+            if tot_toks > tokens_per_subbucket:
+                bins.append((max_bucket_duration, num_toks))
+                tot_toks = 0
+            tot_toks += num_toks
+        bins.append((size, math.ceil(size * max_tps)))
+
+    # Iterate over data, and whenever we hit size_per_bucket, create a new bucket bin.
     for binidx, size in enumerate(sizes):
         if tot > size_per_bucket:
-            num_tokens_bucket = num_tokens[bin_indexes[-1] : binidx]
-            num_tokens_bucket.sort()
-            tokens_per_subbucket = num_tokens_bucket.sum() / num_subbuckets
-            tot_toks = 0
-            for num_toks in num_tokens_bucket:
-                if tot_toks > tokens_per_subbucket:
-                    bins.append((size, num_toks))
-                    tot_toks = 0
-                tot_toks += num_toks
-            bins.append((size, math.ceil(size * max_tps)))
-            bin_indexes.append(binidx)
+            # Threshold hit: we are creating a new duration bin (multiplied by number of token bins).
+            _estimate_token_buckets(max_bucket_duration=size)
             tot = 0.0
         tot += size
 
-    num_tokens_bucket = num_tokens[bin_indexes[-1] : binidx]
-    num_tokens_bucket.sort()
-    tokens_per_subbucket = num_tokens_bucket.sum() / num_subbuckets
-    tot_toks = 0
-    for num_toks in num_tokens_bucket:
-        if tot_toks > tokens_per_subbucket:
-            bins.append((max_duration, num_toks))
-            tot_toks = 0
-        tot_toks += num_toks
-    bins.append((max_duration, math.ceil(max_duration * max_tps)))
+    # Estimate an extra 2D bin set for global max duration.
+    _estimate_token_buckets(max_bucket_duration=max_duration)
 
     return bins
 
