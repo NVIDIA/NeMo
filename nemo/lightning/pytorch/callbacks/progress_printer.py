@@ -48,15 +48,6 @@ class ProgressPrinter(ProgressBar):
                 log_string += f' | {metric}: {val:.4}'
         return log_string
 
-    def get_current_epoch_step(self, trainer) -> int:
-        """
-        Get the value of step within an epoch.
-        """
-        return max(
-            trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed,
-            trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
-        )
-
     def disable(self):
         self._is_disabled = True
 
@@ -119,7 +110,7 @@ class ProgressPrinter(ProgressBar):
     def on_train_batch_end(self, trainer, pl_module, *_, **__):
         if self.is_disabled:
             return
-        n = self.get_current_epoch_step(trainer)
+        n = trainer.strategy.current_epoch_step
         metrics = self.get_metrics(trainer, pl_module)
         for key in metrics:
             if key in self.exclude_metrics:
