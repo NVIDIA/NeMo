@@ -785,9 +785,7 @@ class FlowMatchingAudioToAudioModel(AudioToAudioModel):
         # Estimate the vector  using the neural estimator
         estimate, estimate_len = self.estimator(input=estimator_input, input_length=input_enc_len, condition=time)
 
-        conditional_vector_field = self.flow.vector_field(
-            time=time, x_start=x_start, x_end=target_enc, point=sample
-        )
+        conditional_vector_field = self.flow.vector_field(time=time, x_start=x_start, x_end=target_enc, point=sample)
 
         return self.loss(estimate=estimate, target=conditional_vector_field, input_length=input_enc_len)
 
