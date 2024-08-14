@@ -472,7 +472,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             else:
                 seq_length = None  # TODO(pzelasko): not sure if it is even needed ???
 
-            data_iter = get_iterator_k_split(batch, get_num_microbatches())
+            data_iter = get_iterator_k_split(batch, get_num_microbatches(), self.enforce_divisible_batch)
 
             # TODO(pzelasko): restore this logging once we decide what's the right format for joint text-audio batches
             # if log_token_counts:
