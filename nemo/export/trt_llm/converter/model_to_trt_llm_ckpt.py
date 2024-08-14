@@ -25,7 +25,7 @@ from tensorrt_llm._utils import pad_vocab_size, str_dtype_to_torch, torch_to_num
 from tqdm import tqdm
 
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
-from nemo.export.trt_llm.converter.utils import save_val, split_and_save_weight, weights_dict
+from nemo.export.trt_llm.converter.utils import save_val, split_and_save_weight, load_scaling_factor, weights_dict
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -94,29 +94,18 @@ def rename_key_dist_ckpt(old_key: str, layer: int):
     return rename_key(new_key)
 
 
-def load_scaling_factors(model, num_layers, tp_rank, out_dir, split_factor, storage_type, export_config):
+def load_scaling_factors(model, num_layers, out_dir, export_config):
     starmap_args = []
     for key, val in model.items():
         if 'extra_state' not in key:
             continue
 
-        for i in range(num_layers):
-            starmap_args.append(
-                (
-                    tp_rank,
-                    out_dir,
-                    split_factor,
-                    rename_key_dist_ckpt(key, i),
-                    [val[i]],
-                    storage_type,
-                    None,
-                    export_config,
-                    {},
-                )
-            )
+        for layer in range(num_layers):
+            args = (rename_key_dist_ckpt(key, layer), val[layer], out_dir, export_config)
+            starmap_args.append(args)
 
     for starmap_arg in starmap_args:
-        scaling_factors = split_and_save_weight(*starmap_arg)
+        scaling_factors = load_scaling_factor(*starmap_arg)
 
     return scaling_factors
 
@@ -132,7 +121,6 @@ def convert_model_to_trt_llm_ckpt(
     use_parallel_embedding,
     processes,
 ):
-
     # if checkpoints files could be found - start preparing output dir
     out_dir = create_export_dir(nemo_export_dir)
     storage_type = str_dtype_to_torch(storage_type)
@@ -213,7 +201,7 @@ def convert_model_to_trt_llm_ckpt(
     handle_model_level_weights(model, 0, 0)
     model = extract_layers_with_prefix(model, transformer_layer_prefix)
 
-    scaling_factors = load_scaling_factors(model, num_layers, tp_rank, out_dir, split_factor, storage_type, export_config)
+    scaling_factors = load_scaling_factors(model, num_layers, out_dir, export_config)
 
     starmap_args = []
     for key, val in model.items():
@@ -222,12 +210,10 @@ def convert_model_to_trt_llm_ckpt(
 
         # Let's rename/map the key to the old layer name previously.
         # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
-        if len(val.size()) == 1:
-            key_vals = [(rename_key_dist_ckpt(key, 0), val)]
-        else:
-            key_vals = [(rename_key_dist_ckpt(key, i), val[i]) for i in range(num_layers)]
+        layer_vals = [(l, val[l]) for l in range(num_layers)] if len(val.size()) != 1 else [(0, val)]
 
-        for (k, v) in key_vals:
+        for (l, v) in layer_vals:
+            k = rename_key_dist_ckpt(key, l)
             starmap_args.append(
                 (tp_rank, out_dir, split_factor, k, [v], storage_type, None, export_config, scaling_factors)
             )

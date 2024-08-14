@@ -18,8 +18,8 @@ import logging
 from typing import Dict, List, Tuple
 
 import numpy as np
-import torch
 import tensorrt_llm
+import torch
 from tensorrt_llm._utils import pad_vocab_size
 from tensorrt_llm.functional import non_gated_version
 from tensorrt_llm.layers import MoeConfig
@@ -39,10 +39,11 @@ LOGGER = logging.getLogger("NeMo")
 def get_config(decoder_type, config):
     if decoder_type == "llama":
         return LLaMAConfig(**config)
-    elif decoder_type == "gpt" or decoder_type == "gptnext":
+
+    if decoder_type in ["gpt", "gptnext"]:
         return GPTConfig(**config)
-    else:
-        return PretrainedConfig(**config)
+
+    return PretrainedConfig(**config)
 
 
 def prompt_convert(prompt_config, prompt_weights):
@@ -93,8 +94,9 @@ def model_to_trtllm_ckpt(
     use_distributed_convert: bool = False,
     model_parallel_rank: int = None,
     vocab_size: int = None,
+    quantize_kv_cache: bool = False
 ) -> Tuple[List[Dict], List[PretrainedConfig]]:
-
+    nemo_model_config['kv_cache'] = quantize_kv_cache
     if nemo_model_config.get("share_embeddings_and_output_weights", False) and not use_embedding_sharing:
         LOGGER.info(
             "Found share_embeddings_and_output_weights is True in NeMo config, set use_embedding_sharing = True"
@@ -112,6 +114,8 @@ def model_to_trtllm_ckpt(
         )
         vocab_size_padded = vocab_size
     else:
+        vocab_embedding_key = "transformer.vocab_embedding.weight"
+
         weights_dict = convert_model_to_trt_llm_ckpt(
             model=model,
             nemo_model_config=nemo_model_config,
@@ -127,15 +131,15 @@ def model_to_trtllm_ckpt(
         if has_lm_head:
             lm_head_weight = weights_dict["lm_head.weight"]
         if vocab_size is None:
-            vocab_size = weights_dict["transformer.vocab_embedding.weight"].shape[0]
+            vocab_size = weights_dict[vocab_embedding_key].shape[0]
+
         vocab_size_padded = pad_vocab_size(vocab_size, tensor_parallel_size) if has_lm_head else vocab_size
-
-        if has_lm_head and vocab_size_padded != vocab_size:
+        if vocab_size_padded != vocab_size:
             padding = (0, 0, 0, vocab_size_padded - vocab_size)
-            embedding_key = "transformer.vocab_embedding.weight"
-            lm_head_weight = torch.nn.functional.pad(lm_head_weight, padding, "constant", 0)
-            weights_dict[embedding_key] = torch.nn.functional.pad(weights_dict[embedding_key], padding, "constant", 0)
-
+            if has_lm_head:
+                lm_head_weight = torch.nn.functional.pad(lm_head_weight, padding, "constant", 0)
+            if vocab_embedding_key in weights_dict:
+                weights_dict[vocab_embedding_key] = torch.nn.functional.pad(weights_dict[vocab_embedding_key], padding, "constant", 0)
 
     world_size = tensor_parallel_size * pipeline_parallel_size
     hidden_act = nemo_model_config.get('activation')
@@ -164,7 +168,7 @@ def model_to_trtllm_ckpt(
         'share_embedding_table': use_embedding_sharing,
         'quantization': {
             'quant_algo': "FP8" if nemo_model_config.get('fp8', False) else None,
-            'kv_cache_quant_algo': None, # TODO maybe "FP8",
+            'kv_cache_quant_algo': "FP8" if quantize_kv_cache else None,
         },
         'bias': nemo_model_config.get('bias'),
         'apply_query_key_layer_scaling': False,
@@ -207,7 +211,7 @@ def model_to_trtllm_ckpt(
         return weights_dicts, model_configs
 
     pp_key = {
-        "transformer.vocab_embedding.weight",
+        vocab_embedding_key,
         "transformer.position_embedding.weight",
         "lm_head.weight",
         "transformer.ln_f.weight",
@@ -232,10 +236,9 @@ def model_to_trtllm_ckpt(
                 continue
             new_key = k
             if new_key.endswith(".bin"):  # TP split
-                if new_key.endswith(f"{mapping.tp_rank}.bin"):
-                    new_key = new_key.replace(f".{mapping.tp_rank}.bin", "")
-                else:
+                if not new_key.endswith(f"{mapping.tp_rank}.bin"):
                     continue
+                new_key = new_key.replace(f".{mapping.tp_rank}.bin", "")
             if "layers" in new_key:  # PP
                 layer_num = int(new_key.split(".")[2])
                 if layer_num in layers_range:
@@ -247,13 +250,13 @@ def model_to_trtllm_ckpt(
         if mapping.is_first_pp_rank():
             embedding_weight = (
                 np.ascontiguousarray(
-                    split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank)
+                    split(weights_dict[vocab_embedding_key], mapping.tp_size, mapping.tp_rank)
                 )
                 if use_parallel_embedding
-                else weights_dict["transformer.vocab_embedding.weight"]
+                else weights_dict[vocab_embedding_key]
             )
 
-            weights_dict_local["transformer.vocab_embedding.weight"] = embedding_weight
+            weights_dict_local[vocab_embedding_key] = embedding_weight
 
             pos_embedding_weight = weights_dict.get("transformer.position_embedding.weight")
             if pos_embedding_weight is not None:
@@ -265,7 +268,9 @@ def model_to_trtllm_ckpt(
 
         if mapping.is_last_pp_rank():
             if has_lm_head:
-                weights_dict_local["lm_head.weight"] = split(lm_head_weight, mapping.tp_size, mapping.tp_rank).contiguous()
+                weights_dict_local["lm_head.weight"] = split(
+                    lm_head_weight, mapping.tp_size, mapping.tp_rank
+                ).contiguous()
             weights_dict_local["transformer.ln_f.weight"] = weights_dict["transformer.ln_f.weight"]
 
             ln_f_bias = weights_dict.get("transformer.ln_f.bias")

@@ -27,7 +27,7 @@ import yaml
 import zarr
 from tensorrt_llm._utils import np_bfloat16
 from torch.distributed.checkpoint import FileSystemReader
-from torch.distributed.checkpoint.metadata import TensorStorageMetadata, BytesStorageMetadata
+from torch.distributed.checkpoint.metadata import BytesStorageMetadata, TensorStorageMetadata
 from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
@@ -72,16 +72,19 @@ def get_extra_state_key(state_dict):
             return key
     return False
 
+
 def unpack_extra_state_key(key):
     basename = key.split('/')[0]
     size = int(key.split('/')[1].split('_')[-1])
     return basename, size
+
 
 def clear_loaded_extra_states(state_dict, basename):
     to_remove = [k for k in state_dict.keys() if basename + '/' in k]
     for key in to_remove:
         state_dict.pop(key)
     return state_dict
+
 
 def load_scaling_factors(state_dict, basename, size):
     scales = []
@@ -98,6 +101,7 @@ def load_scaling_factors(state_dict, basename, size):
     all_scales = torch.stack(scales)
     return all_scales
 
+
 def standarize_distributed_scaling_factors(state_dict):
     while key := get_extra_state_key(state_dict):
         basename, size = unpack_extra_state_key(key)
@@ -105,7 +109,7 @@ def standarize_distributed_scaling_factors(state_dict):
         if scaling_factors != []:
             state_dict[basename + '.scale_fwd'] = scaling_factors
         state_dict = clear_loaded_extra_states(state_dict, basename)
-    
+
     return state_dict
 
 
@@ -153,8 +157,10 @@ def load_sharded_pickle_extra_state_scale(dir):
     all_scales = torch.stack(scales)
     return all_scales
 
+
 def contains_extra_states(subdir):
     return list(subdir.glob('shard_0_*.pt')) != []
+
 
 def load_extra_state_from_pickle(sharded_state_dict, subdir):
     if scales := load_sharded_pickle_extra_state_scale(subdir):
@@ -162,6 +168,7 @@ def load_extra_state_from_pickle(sharded_state_dict, subdir):
         sharded_state_dict[key] = scales
 
     return sharded_state_dict
+
 
 def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
     sharded_state_dict = {}
@@ -182,6 +189,7 @@ def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tenso
                     sharded_state_dict[key] = torch.from_numpy(arr[:].view(np.int16)).view(torch.bfloat16)
                 else:
                     from tensorrt_llm._utils import str_dtype_to_torch
+
                     sharded_state_dict[key] = torch.from_numpy(arr[:]).view(str_dtype_to_torch(arr.dtype.name))
             else:
                 sharded_state_dict[key] = arr[:]
