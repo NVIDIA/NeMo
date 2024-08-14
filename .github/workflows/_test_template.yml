@@ -48,7 +48,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v4
           with:
-          path: ${{ github.run_id }}
+            path: ${{ github.run_id }}
 
         - id: main
           name: Run main script
