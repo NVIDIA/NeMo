@@ -25,7 +25,7 @@ from tensorrt_llm._utils import pad_vocab_size, str_dtype_to_torch, torch_to_num
 from tqdm import tqdm
 
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
-from nemo.export.trt_llm.converter.utils import save_val, split_and_save_weight, load_scaling_factor, weights_dict
+from nemo.export.trt_llm.converter.utils import load_scaling_factor, save_val, split_and_save_weight, weights_dict
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -212,7 +212,7 @@ def convert_model_to_trt_llm_ckpt(
         # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
         layer_vals = [(l, val[l]) for l in range(num_layers)] if len(val.size()) != 1 else [(0, val)]
 
-        for (l, v) in layer_vals:
+        for l, v in layer_vals:
             k = rename_key_dist_ckpt(key, l)
             starmap_args.append(
                 (tp_rank, out_dir, split_factor, k, [v], storage_type, None, export_config, scaling_factors)

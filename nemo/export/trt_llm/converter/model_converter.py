@@ -94,7 +94,7 @@ def model_to_trtllm_ckpt(
     use_distributed_convert: bool = False,
     model_parallel_rank: int = None,
     vocab_size: int = None,
-    quantize_kv_cache: bool = False
+    quantize_kv_cache: bool = False,
 ) -> Tuple[List[Dict], List[PretrainedConfig]]:
     nemo_model_config['kv_cache'] = quantize_kv_cache
     if nemo_model_config.get("share_embeddings_and_output_weights", False) and not use_embedding_sharing:
@@ -139,7 +139,9 @@ def model_to_trtllm_ckpt(
             if has_lm_head:
                 lm_head_weight = torch.nn.functional.pad(lm_head_weight, padding, "constant", 0)
             if vocab_embedding_key in weights_dict:
-                weights_dict[vocab_embedding_key] = torch.nn.functional.pad(weights_dict[vocab_embedding_key], padding, "constant", 0)
+                weights_dict[vocab_embedding_key] = torch.nn.functional.pad(
+                    weights_dict[vocab_embedding_key], padding, "constant", 0
+                )
 
     world_size = tensor_parallel_size * pipeline_parallel_size
     hidden_act = nemo_model_config.get('activation')
@@ -249,9 +251,7 @@ def model_to_trtllm_ckpt(
 
         if mapping.is_first_pp_rank():
             embedding_weight = (
-                np.ascontiguousarray(
-                    split(weights_dict[vocab_embedding_key], mapping.tp_size, mapping.tp_rank)
-                )
+                np.ascontiguousarray(split(weights_dict[vocab_embedding_key], mapping.tp_size, mapping.tp_rank))
                 if use_parallel_embedding
                 else weights_dict[vocab_embedding_key]
             )

@@ -31,7 +31,11 @@ DECODER_MODEL_TYPE = {
     "falcon": 'FalconForCausalLM',
 }
 
-post_layernorm_keys = ["post_attention_layernorm.weight", "post_attention_layernorm.bias", "post_self_attn_layernorm.weight"]
+post_layernorm_keys = [
+    "post_attention_layernorm.weight",
+    "post_attention_layernorm.bias",
+    "post_self_attn_layernorm.weight",
+]
 mlp_proj_bias_keys = ["mlp.linear_fc2.bias", "mlp.dense_4h_to_h.bias"]
 attention_dense_bias_keys = ["attention.linear_proj.bias", "attention.dense.bias"]
 input_layernorm_keys = ["input_layernorm.weight", "input_layernorm.bias"]
@@ -46,7 +50,12 @@ mlp_fc_expert_keys = ["experts.linear_fc1.weight"]
 mlp_proj_experts_keys = ["experts.linear_fc2.weight"]
 final_layernorm_keys = ["final_layernorm.weight", "final_layernorm.bias"]
 mlp_dense_2_keys = ["mlp.dense_h_to_4h_2.weight", "mlp.dense_h_to_4h_2.bias"]
-attention_not_mapped_keys = ["attention.query.weight", "attention.query.bias", "attention.key_value.weight", "attention.key_value.bias"]
+attention_not_mapped_keys = [
+    "attention.query.weight",
+    "attention.query.bias",
+    "attention.key_value.weight",
+    "attention.key_value.bias",
+]
 
 
 def save_val(val, dir, key, tp_num=None):
@@ -207,11 +216,12 @@ def any_word_in_key(key, words):
 
 
 def sequential_key_map(key, mapping):
-    for (keywords, mapped) in mapping:
+    for keywords, mapped in mapping:
         if any_word_in_key(key, keywords):
             return mapped
 
     return None
+
 
 def get_trt_llm_infix(key):
     mapping = [
@@ -226,7 +236,7 @@ def get_trt_llm_infix(key):
         (attention_qkv_bias_keys + attention_qkv_weight_keys, '.attention.qkv'),
         (mlp_router_keys, '.mlp.router'),
         (mlp_fc_keys, '.mlp.fc'),
-        (mlp_proj_experts_keys, '.mlp.proj')
+        (mlp_proj_experts_keys, '.mlp.proj'),
     ]
     return sequential_key_map(key, mapping)
 
@@ -254,6 +264,8 @@ def get_scaling_factor_keys(key):
 
 
 first = True
+
+
 def load_scaling_factor(key, val, dir, config):
     global weights_dict
     if not is_scaling_factor(key):
@@ -291,7 +303,9 @@ def cast_val_datatype(vals, trt_llm_key, storage_type, is_fp8_model, scaling_fac
         return [val.to(storage_type) for val in vals]
 
     fp8_storage_type = torch.float8_e4m3fn
-    quantized_keys = [ k.split('.weights_scaling_factor')[0] for k in scaling_factors.keys() if '.weights_scaling_factor' in k ]
+    quantized_keys = [
+        k.split('.weights_scaling_factor')[0] for k in scaling_factors.keys() if '.weights_scaling_factor' in k
+    ]
     for k in quantized_keys:
         if k in trt_llm_key:
             storage_type = fp8_storage_type
@@ -344,8 +358,15 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     elif torch.is_tensor(vals[0]):
         vals = [torch_to_numpy(val.cpu()) for val in vals]
 
-    if (any_word_in_key(key, input_layernorm_keys + pre_layernorm_keys + attention_dense_bias_keys + post_layernorm_keys + mlp_proj_bias_keys + final_layernorm_keys)
-            and (tp_rank == 0 or convert_on_device)):
+    if any_word_in_key(
+        key,
+        input_layernorm_keys
+        + pre_layernorm_keys
+        + attention_dense_bias_keys
+        + post_layernorm_keys
+        + mlp_proj_bias_keys
+        + final_layernorm_keys,
+    ) and (tp_rank == 0 or convert_on_device):
         # shared weights, only need to convert the weights of rank 0
         save_val(vals[0], saved_dir, trt_llm_key)
 
