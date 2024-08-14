@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple, TypedDict, TypeVar, Union
 
 import megatron.core.num_microbatches_calculator
+import pytest
 import pytorch_lightning as pl
 import torch
 import torch.distributed
@@ -492,6 +493,7 @@ def clean_parallel_state_context() -> Iterator[None]:
         _teardown_apex_megatron_cuda()
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available")
 def test_train_mnist_litautoencoder_with_megatron_strategy_single_gpu(tmpdir):
     with clean_parallel_state_context():
         # Configure our custom Checkpointer
