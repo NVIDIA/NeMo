@@ -219,7 +219,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             if self.big_blank_durations is not None and self.big_blank_durations != []:
                 raise ValueError("duration and big_blank_durations can't both be not None")
             if self.cfg.strategy not in ['greedy', 'greedy_batch', 'beam', 'maes']:
-                raise ValueError("currently only greedy, greedy_batch, beam and maes inference is supported for TDT models")
+                raise ValueError(
+                    "currently only greedy, greedy_batch, beam and maes inference is supported for TDT models"
+                )
 
         if (
             self.big_blank_durations is not None and self.big_blank_durations != []
@@ -377,7 +379,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
                         preserve_alignments=self.preserve_alignments,
                     )
-                else: 
+                else:
                     self.decoding = tdt_beam_decoding.BeamTDTInfer(
                         decoder_model=decoder,
                         joint_model=joint,
@@ -1228,7 +1230,9 @@ class RNNTDecoding(AbstractRNNTDecoding):
             blank_id=blank_id,
         )
 
-        if isinstance(self.decoding, rnnt_beam_decoding.BeamRNNTInfer) or isinstance(self.decoding, tdt_beam_decoding.BeamTDTInfer):
+        if isinstance(self.decoding, rnnt_beam_decoding.BeamRNNTInfer) or isinstance(
+            self.decoding, tdt_beam_decoding.BeamTDTInfer
+        ):
             self.decoding.set_decoding_type('char')
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
@@ -1492,7 +1496,9 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
             decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id
         )
 
-        if isinstance(self.decoding, rnnt_beam_decoding.BeamRNNTInfer) or isinstance(self.decoding, tdt_beam_decoding.BeamTDTInfer):
+        if isinstance(self.decoding, rnnt_beam_decoding.BeamRNNTInfer) or isinstance(
+            self.decoding, tdt_beam_decoding.BeamTDTInfer
+        ):
             self.decoding.set_decoding_type('subword')
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
