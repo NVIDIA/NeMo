@@ -20,9 +20,42 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama3Config70B,
     LlamaModel,
 )
+from nemo.collections.llm.gpt.model.nemotron import (
+    NemotronConfig4B,
+    NemotronConfig8B,
+    NemotronConfig15B,
+    NemotronConfig22B,
+    NemotronConfig340B,
+    NemotronModel,
+)
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
 from nemo.collections.llm.utils import factory
+
+
+@factory
+def nemotron_4b() -> pl.LightningModule:
+    return NemotronModel(NemotronConfig4B())
+
+
+@factory
+def nemotron_8b() -> pl.LightningModule:
+    return NemotronModel(NemotronConfig8B())
+
+
+@factory
+def nemotron_15b() -> pl.LightningModule:
+    return NemotronModel(NemotronConfig15B())
+
+
+@factory
+def nemotron_22b() -> pl.LightningModule:
+    return NemotronModel(NemotronConfig22B())
+
+
+@factory
+def nemotron_340b() -> pl.LightningModule:
+    return NemotronModel(NemotronConfig340B())
 
 
 @factory
@@ -106,6 +139,11 @@ def code_gemma_7b() -> pl.LightningModule:
 
 
 __all__ = [
+    "nemotron_4b",
+    "nemotron_8b",
+    "nemotron_15b",
+    "nemotron_22b",
+    "nemotron_340b",
     "mistral",
     "mixtral",
     "llama2_7b",
