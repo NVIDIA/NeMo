@@ -55,6 +55,8 @@ jobs:
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /mnt/datadrive/TestData:/home/TestData
+    permissions:
+      actions: write # Required for cancelling workflows 
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
