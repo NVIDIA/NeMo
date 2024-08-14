@@ -1005,7 +1005,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         if pretrained_model_cfg:
             model_cfg = pretrained_model_cfg
         elif cfg.model.peft.restore_from_path or cfg.model.peft.restore_from_ckpt.checkpoint_dir:
-            if cfg.model.peft.restore_from_path.endswith(".nemo"):
+            if cfg.model.peft.restore_from_path and cfg.model.peft.restore_from_path.endswith(".nemo"):
                 model_cfg = ModularAudioGPTModel.restore_from(
                     restore_path=cfg.model.peft.restore_from_path,
                     trainer=trainer,
