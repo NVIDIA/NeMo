@@ -54,7 +54,6 @@ class MegatronMixedPrecision(MixedPrecision):
 
         return model, optimizers, lr_schedulers
 
-
     def convert_module(self, module: Module) -> Module:
         """Convert the module parameters to the precision type this plugin handles.
 
@@ -88,7 +87,6 @@ class MegatronMixedPrecision(MixedPrecision):
         assert optim_config.bf16 == (self.precision == "bf16-mixed"), "BF16 enabled on model but not on optimizer"
         assert optim_config.fp16 == (self.precision == "fp16-mixed"), "BF16 enabled on model but not on optimizer"
         return optimizer
-
 
     def convert_input(self, data: AnyT) -> AnyT:
         """Convert model inputs (forward) to the floating point precision type of this plugin.
