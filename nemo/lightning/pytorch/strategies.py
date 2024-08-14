@@ -732,6 +732,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         )
 
     from contextlib import contextmanager, nullcontext
+
     @contextmanager
     @override
     def tensor_init_context(self, empty_init: Optional[bool] = None):
@@ -739,7 +740,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         # @akoumparouli: using Parent's tensor_init_context causes mcore
         # parameters to be initialized on GPU instead of (assumed) CPU.
         yield
-
 
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
