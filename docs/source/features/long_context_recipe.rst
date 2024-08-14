@@ -21,30 +21,63 @@ Here are charts that shows the different sequence lengths that are supported by 
 
 Llama-3
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-| Sequence Length |    8B    |    70B    |
-| ------ | ------ | ------ |
-|       16k       |    Yes   |    Yes    |
-|       64k       |    Yes   |    Yes    |
-|       128k      |    TODO  |    TODO   |
-|       1M        |    TODO  |    TODO   |
+
+.. list-table:: Llama-3
+   :widths: 30 25 25
+   :header-rows: 1
+
+   * - Sequence Length
+     - 8B
+     - 70B
+   * - 16k
+     - Yes
+     - Yes
+   * - 64k
+     - Yes
+     - Yes
+   * - 128k
+     - TODO
+     - TODO
 
 Mixtal
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-| Sequence Length |    8x3B    |    8x7B    |    8x22B    |
-| ------ | ------ | ------ | ------ |
-|       16k       |    Yes   |    Yes    |    TODO    |
-|       64k       |    Yes   |    Yes    |    TODO    |
-|       128k      |    TODO  |    TODO   |    TODO    |
-|       1M        |    TODO  |    TODO   |    TODO    |
+
+.. list-table:: Mixtral
+   :widths: 30 25 25
+   :header-rows: 1
+
+   * - Sequence Length
+     - 8x3B
+     - 8x7B
+   * - 16k
+     - Yes
+     - Yes
+   * - 64k
+     - Yes
+     - Yes
+   * - 128k
+     - TODO
+     - TODO
 
 Nemotron (Not yet supported in NeMo 2.0)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-| Sequence Length |    15B    |    340B    |
-| ------ | ------ | ------ |
-|       16k       |    TODO  |    TODO   |
-|       64k       |    TODO  |    TODO   |
-|       128k      |    TODO  |    TODO   |
-|       1M        |    TODO  |    TODO   |
+
+.. list-table:: Nemotron
+   :widths: 30 25 25
+   :header-rows: 1
+
+   * - Sequence Length
+     - 15B
+     - 340B
+   * - 16k
+     - TODO
+     - TODO
+   * - 64k
+     - TODO
+     - TODO
+   * - 128k
+     - TODO
+     - TODO
 
 
 Context Parallelism
