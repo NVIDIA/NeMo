@@ -4,7 +4,7 @@ import logging
 import os
 import shutil
 from collections import OrderedDict
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ContextManager, Dict, List, Literal, Mapping, Optional, TypeVar, Union, cast
@@ -730,8 +730,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             moe_extended_tp=self.moe_extended_tp,
             pipeline_dtype=self.pipeline_dtype,
         )
-
-    from contextlib import contextmanager, nullcontext
 
     @contextmanager
     @override
