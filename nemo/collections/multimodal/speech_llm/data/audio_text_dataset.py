@@ -528,9 +528,6 @@ class TarredAudioLoopOffsets:
         return self.current_bytes, self.current_fn, self.offset_id
 
 
-
-
-
 class TarredAudioTextDataset(TextProcessing, IterableDataset):
     """
     A similar Dataset to the AudioTextDataset, but which loads tarred audio files.
@@ -650,7 +647,6 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
         sample_alpha: Optional[float] = None, for SPE subword sampling
 
     """
-
 
     def __init__(
         self,

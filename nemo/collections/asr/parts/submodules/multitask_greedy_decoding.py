@@ -205,11 +205,7 @@ class TransformerAEDGreedyInfer(AEDGreedyInfer, Typing):
 
         return (packed_result,)
 
-    def format_hypotheses(
-        self,
-        packed_result: List[Hypothesis],
-        decoder_input_ids: Union[torch.Tensor, None]
-    ) -> None:
+    def format_hypotheses(self, packed_result: List[Hypothesis], decoder_input_ids: Union[torch.Tensor, None]) -> None:
         """
         For each hypothesis in the mini-batch:
         * Remove the decoder input ids (prompt) from the predictions
