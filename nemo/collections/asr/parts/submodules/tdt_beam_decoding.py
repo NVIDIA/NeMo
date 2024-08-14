@@ -243,7 +243,7 @@ class BeamTDTInfer(Typing):
             
         try:
             self.zero_duration_idx = self.durations.index(0)
-        except:
+        except ValueError:
             self.zero_duration_idx = None
         self.min_non_zero_duration_idx = np.argmin(np.ma.masked_where(np.array(self.durations)==0, self.durations))
 
