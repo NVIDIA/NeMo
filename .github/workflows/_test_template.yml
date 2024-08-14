@@ -44,16 +44,13 @@ jobs:
         - name: Docker system cleanup
           run: |
             docker system prune -a --filter "until=48h" --force
-        
-        - name: Checkout repository
-          uses: actions/checkout@v4
-          with:
-            path: ${{ github.run_id }}
 
         - id: main
           name: Run main script
           timeout-minutes: ${{ inputs.TIMEOUT }}
           run: |
+            mkdir -p ${{ github.run_id }}
+            cd ${{ github.run_id }}/
             set +e 
             (  
               set -e
