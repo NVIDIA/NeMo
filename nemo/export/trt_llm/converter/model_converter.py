@@ -18,6 +18,7 @@ import logging
 from typing import Dict, List, Tuple
 
 import numpy as np
+import torch
 import tensorrt_llm
 from tensorrt_llm._utils import pad_vocab_size
 from tensorrt_llm.functional import non_gated_version
@@ -159,7 +160,7 @@ def model_to_trtllm_ckpt(
         'embedding_sharding_dim': 0,
         'share_embedding_table': use_embedding_sharing,
         'quantization': {
-            'quant_algo': None,
+            'quant_algo': "FP8" if nemo_model_config.get('fp8', False) else None,
             'kv_cache_quant_algo': None,
         },
         'bias': nemo_model_config.get('bias'),
@@ -261,9 +262,7 @@ def model_to_trtllm_ckpt(
 
         if mapping.is_last_pp_rank():
             if has_lm_head:
-                weights_dict_local["lm_head.weight"] = np.ascontiguousarray(
-                    split(lm_head_weight, mapping.tp_size, mapping.tp_rank)
-                )
+                weights_dict_local["lm_head.weight"] = split(lm_head_weight, mapping.tp_size, mapping.tp_rank).contiguous()
             weights_dict_local["transformer.ln_f.weight"] = weights_dict["transformer.ln_f.weight"]
 
             ln_f_bias = weights_dict.get("transformer.ln_f.bias")

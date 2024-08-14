@@ -25,7 +25,10 @@ import tensorstore  # This is important even though not used. Otherwise zarr rai
 import torch
 import yaml
 import zarr
+from tensorrt_llm._utils import np_bfloat16
 from torch.distributed.checkpoint import FileSystemReader
+from torch.distributed.checkpoint.metadata import TensorStorageMetadata, BytesStorageMetadata
+from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
@@ -56,9 +59,55 @@ class TarFileSystemReader(FileSystemReader):
     """
 
     def __init__(self, path: Union[Path, TarPath]) -> None:
-        """No call to super().__init__ because it expects pure Path."""
-        self.path = path
-        self.storage_data = dict()
+        """Makes sure that super().__init__ gets a pure path as expected."""
+        super_path = str(path) if isinstance(path, TarPath) else path
+        super().__init__(super_path)
+        if isinstance(path, TarPath):
+            self.path = path  # overwrites path set in super().__init__ call
+
+
+def _get_extra_state_key(state_dict):
+    for key in state_dict.keys():
+        if '_extra_state/' in key:
+            return key
+    return False
+
+def _unpack_extra_state_key(key):
+    basename = key.split('/')[0]
+    size = int(key.split('/')[1].split('_')[-1])
+    return basename, size
+
+def _clear_key_basename_from_state_dict(state_dict, basename):
+    # '/' is important, as scaling factors are saved to basename.scaling_fwd
+    to_remove = [k for k in state_dict.keys() if basename + '/' in k]
+    for key in to_remove:
+        state_dict.pop(key)
+    return state_dict
+
+def _load_scaling_factors(state_dict, basename, size):
+    scales = []
+    for layer in range(size):
+        keyname = f'{basename}/shard_{layer}_{size}'
+        extra_state = state_dict[keyname][0]
+        extra_state.seek(0)
+        extra_state = torch.load(extra_state)
+
+        if 'scale_fwd' not in extra_state.keys():
+            return []
+        scales.append(extra_state['scale_fwd'].cpu())
+
+    all_scales = torch.stack(scales)
+    return all_scales
+
+def standarize_distributed_scaling_factors(state_dict):
+    while key := _get_extra_state_key(state_dict):
+        basename, size = _unpack_extra_state_key(key)
+        scaling_factors = _load_scaling_factors(state_dict, basename, size)
+        if scaling_factors != []:
+            state_dict[basename + '.scale_fwd'] = scaling_factors
+        state_dict = _clear_key_basename_from_state_dict(state_dict, basename)
+    
+    return state_dict
 
 
 def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
@@ -66,15 +115,17 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch
     metadata = fs_reader.read_metadata()
 
     state_dict = {
-        k: torch.empty(tp.size, dtype=tp.properties.dtype)
+        k: torch.empty(tp.size, dtype=tp.properties.dtype) if isinstance(tp, TensorStorageMetadata) else {}
         for k, tp in metadata.state_dict_metadata.items()
-        if isinstance(tp, TensorStorageMetadata)
+        if isinstance(tp, TensorStorageMetadata) or isinstance(tp, BytesStorageMetadata)
     }
+
     load_state_dict(
         state_dict,
         storage_reader=fs_reader,
         no_dist=True,
     )
+    state_dict = standarize_distributed_scaling_factors(state_dict)
 
     if not torch_tensor:
         for k, v in state_dict.items():
@@ -85,24 +136,51 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch
     return state_dict
 
 
+def load_sharded_pickle_extra_state_scale(dir):
+    scales = []
+
+    i = 0
+    while pt_file_list := list(dir.glob(f'shard_{i}_*.pt')):
+        pt_file = pt_file_list[0]
+        checkpoint = torch.load(pt_file)
+        checkpoint.seek(0)
+        state_dict = torch.load(checkpoint)
+        if not 'scale_fwd' in state_dict:
+            return []
+        scale = state_dict['scale_fwd'].cpu()
+        scales.append(scale)
+        i += 1
+
+    all_scales = torch.stack(scales)
+    return all_scales
+
 def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
     sharded_state_dict = {}
     for subdir in checkpoint_dir.iterdir():
-        if not subdir.is_dir() or not (subdir / '.zarray').exists():
+        if not subdir.is_dir():
             continue
+
         key = subdir.name
+        if list(subdir.glob('shard_0_*.pt')):
+            scales = load_sharded_pickle_extra_state_scale(subdir)
+            if scales != []:
+                key = key + '.scale_fwd'
+                sharded_state_dict[key] = scales
+        elif (subdir / '.zarray').exists():
+            zstore = ZarrPathStore(subdir)
+            arr = zarr.open(zstore, 'r')
 
-        zstore = ZarrPathStore(subdir)
-        arr = zarr.open(zstore, 'r')
-
-        if torch_tensor:
-            # sharded_state_dict[key] = torch.from_numpy(arr[:].astype("float32")).to(dtype=torch.bfloat16)
-            if arr.dtype.name == "bfloat16":
-                sharded_state_dict[key] = torch.from_numpy(arr[:].view(np.int16)).view(torch.bfloat16)
+            if torch_tensor:
+                # sharded_state_dict[key] = torch.from_numpy(arr[:].astype("float32")).to(dtype=torch.bfloat16)
+                if arr.dtype.name == "bfloat16":
+                    sharded_state_dict[key] = torch.from_numpy(arr[:].view(np.int16)).view(torch.bfloat16)
+                else:
+                    from tensorrt_llm._utils import str_dtype_to_torch
+                    sharded_state_dict[key] = torch.from_numpy(arr[:]).view(str_dtype_to_torch(arr.dtype.name))
             else:
-                sharded_state_dict[key] = torch.from_numpy(arr[:])
+                sharded_state_dict[key] = arr[:]
         else:
-            sharded_state_dict[key] = arr[:]
+            continue
 
     return sharded_state_dict
 
