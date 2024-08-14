@@ -35,6 +35,7 @@ class NemotronConfig(GPTConfig):
     init_method_std: float = 0.01
     # apply_query_key_layer_scaling: bool = True
     share_embeddings_and_output_weights: bool = False
+    kv_channels: int = None
     
 
 @dataclass
@@ -83,8 +84,11 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
             "model.layers.*.mlp.up_proj.weight": "decoder.layers.*.mlp.linear_fc1.weight",
             "model.layers.*.mlp.down_proj.weight": "decoder.layers.*.mlp.linear_fc2.weight",
             "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+            "model.layers.*.input_layernorm.bias": "decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
             "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+            "model.layers.*.post_attention_layernorm.bias": "decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
             "model.norm.weight": "decoder.final_layernorm.weight",
+            "model.norm.bias": "decoder.final_layernorm.bias",
             "lm_head.weight": "output_layer.weight",
         }
 
@@ -92,9 +96,9 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
-        # from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-        # return get_nmt_tokenizer(model_name='/aot/checkpoints/nemotron/nemotron3-8b/tokenizer.model', 
-        #                           tokenizer_model='/aot/checkpoints/nemotron/nemotron3-8b/tokenizer.model')
+        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+        return get_nmt_tokenizer(model_name='/aot/checkpoints/nemotron/nemotron3-8b/tokenizer.model', 
+                                  tokenizer_model='/aot/checkpoints/nemotron/nemotron3-8b/tokenizer.model')
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(str(self))
@@ -128,6 +132,66 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
 
         return output
 
+@io.model_exporter(NemotronModel, "hf")
+class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]):
+    def init(self) -> "NemotronForCausalLM":
+        from transformers import AutoModelForCausalLM
+
+        return AutoModelForCausalLM.from_config(self.config)
+
+    def apply(self, output_path: Path) -> Path:
+        target = self.init()
+        source, _ = self.nemo_load(str(self))
+        target = self.convert_state(source, target)
+
+        target = target.cpu()
+        target.save_pretrained(output_path)
+        self.tokenizer.save_pretrained(output_path)
+
+        return output_path
+
+    def convert_state(self, source, target):
+        mapping = {
+            "embedding.word_embeddings.weight": "model.embed_tokens.weight",
+            "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
+            "decoder.layers.*.mlp.linear_fc1.weight": "model.layers.*.mlp.up_proj.weight",
+            "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
+            "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
+            "decoder.layers.*.self_attention.linear_qkv.layer_norm_bias": "model.layers.*.input_layernorm.bias",
+            "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
+            "decoder.layers.*.mlp.linear_fc1.layer_norm_bias": "model.layers.*.post_attention_layernorm.bias",
+            "decoder.final_layernorm.weight": "model.norm.weight",
+            "decoder.final_layernorm.bias": "model.norm.bias",
+            "output_layer.weight": "lm_head.weight",
+        }
+
+        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv])
+
+    @property
+    def tokenizer(self):
+        return io.load_context(str(self)).model.tokenizer.tokenizer
+
+    @property
+    def config(self) -> "HFNemotronConfig":
+        source: NemotronConfig = io.load_context(str(self)).model.config
+
+        from transformers import NemotronConfig as HFNemotronConfig
+
+        return HFNemotronConfig(
+            num_hidden_layers=source.num_layers,
+            hidden_size=source.hidden_size,
+            intermediate_size=source.ffn_hidden_size,
+            num_attention_heads=source.num_attention_heads,
+            head_dim=source.kv_channels if source.kv_channels is not None else source.hidden_size // source.num_attention_heads,
+            tie_word_embeddings=source.share_embeddings_and_output_weights,
+            max_position_embeddings=source.seq_length,
+            initializer_range=source.init_method_std,
+            norm_eps=source.layernorm_epsilon,
+            num_key_value_heads=source.num_query_groups,
+            rope_theta=source.rotary_base,
+            partial_rotary_factor=source.rotary_percent,
+            vocab_size=self.tokenizer.vocab_size,
+        )
 
 @io.state_transform(
     source_key=(
@@ -169,3 +233,44 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
 
     return qkv_weights
+
+@io.state_transform(
+    source_key="decoder.layers.*.self_attention.linear_qkv.weight",
+    target_key=(
+        "model.layers.*.self_attn.q_proj.weight",
+        "model.layers.*.self_attn.k_proj.weight",
+        "model.layers.*.self_attn.v_proj.weight",
+    ),
+)
+def _export_qkv(ctx: io.TransformCTX, linear_qkv):
+    megatron_config = ctx.source.config
+
+    head_num = megatron_config.num_attention_heads
+    num_query_groups = megatron_config.num_query_groups
+    heads_per_group = head_num // num_query_groups
+    hidden_size = megatron_config.hidden_size
+    head_num = megatron_config.num_attention_heads
+    head_size = hidden_size // head_num
+    qkv_total_dim = head_num + 2 * num_query_groups
+
+    linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
+    q_slice = torch.cat(
+        [
+            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            for i in range(num_query_groups)
+        ]
+    )
+    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+    q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
+    k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
+    v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
+
+    return q_proj, k_proj, v_proj
+
+__all__ = [
+    "NemotronConfig",
+    "Nemotron3Config8B",
+    "NemotronModel",
+]
