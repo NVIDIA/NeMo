@@ -25,7 +25,8 @@ import torch
 import yaml
 from tensorrt_llm.builder import Builder
 from transformers import AutoModel
-
+from nemo.collections.multimodal.speech_llm.modules.perception_modules import AudioPerceptionModule
+from omegaconf import OmegaConf
 from nemo.export.tensorrt_llm import TensorRTLLM
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
 
@@ -75,6 +76,27 @@ def export_visual_wrapper_onnx(
         dynamic_axes=dynamic_axes,
     )
 
+def export_perception_wrapper_onnx(
+    perception_wrapper, input, output_dir, \
+    input_names=['processed_signal', 'processed_signal_length'],
+    output_names=['encoded', 'encoded_length'],
+    dynamic_axes={'processed_signal': {0: 'batch', 2: 'time'},
+                  'processed_signal_length': {0: 'batch'},
+                  'encoded': {0: 'batch', 1: 'time'},
+                  'encoded_length': {0: 'batch'}}
+):
+    logger.log(trt.Logger.INFO, "Exporting onnx")
+    os.makedirs(f'{output_dir}/onnx', exist_ok=True)
+    torch.onnx.export(
+        perception_wrapper,
+        input,
+        f'{output_dir}/onnx/perception_encoder.onnx',
+        opset_version=17,
+        input_names=input_names,
+        output_names=output_names,
+        dynamic_axes=dynamic_axes,
+    )
+
 
 def build_trt_engine(
     model_type,
@@ -85,8 +107,8 @@ def build_trt_engine(
     image_size=None,
     num_frames=None,
     nemo_config=None,
+    part_name='visual_encoder',
 ):
-    part_name = 'visual_encoder'
     onnx_file = '%s/onnx/%s.onnx' % (output_dir, part_name)
     engine_file = '%s/%s.engine' % (output_dir, part_name)
     config_file = '%s/%s' % (output_dir, "config.json")
@@ -367,6 +389,60 @@ def build_video_neva_engine(
     )
 
 
+def build_perception_engine(
+    model_dir: str,
+    perception_checkpoint_path: str,
+    model_type: str = "salm",
+    max_batch_size: int = 1,
+):
+    assert model_type == "salm", f"Invalid model type {model_type}"
+    def load_perception_model(perception_checkpoint_path):
+        weights = "model_weights.ckpt"
+        perception_state_dict = torch.load(os.path.join(perception_checkpoint_path, weights))
+        config = "model_config.yaml"
+        config = OmegaConf.load(os.path.join(perception_checkpoint_path, config))
+        perception = AudioPerceptionModule(cfg=config)
+        perception.load_state_dict(perception_state_dict)
+        perception.eval()
+        return perception
+      
+    # load perception model
+    perception_model = load_perception_model(perception_checkpoint_path)
+    feature_extractor = perception_model.preprocessor
+    input_signal=torch.randn(1, 1000)
+    input_signal_length=torch.tensor([1000])
+    
+    processed_signal, processed_signal_length = feature_extractor(input_signal=input_signal, length=input_signal_length)
+    dump_path = model_dir + "/feature_extractor.ts"  # dump the feature extractor as torchscript
+    feature_extractor.export(dump_path, (input_signal, input_signal_length))
+
+    class PerceptionWrapper(torch.nn.Module):
+        def __init__(self, encoder, modality_adapter, proj):
+            super().__init__()
+            self.encoder = encoder
+            self.modality_adapter = modality_adapter
+            self.proj = proj
+
+        def forward(self, processed_signal, processed_signal_length):
+            encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+            encoded, encoded_len = self.modality_adapter(audio_signal=encoded, length=encoded_len)
+            # b, c, t -> b, t, c
+            encoded = self.proj(encoded.transpose(1, 2))
+            return encoded, encoded_len
+    perception = PerceptionWrapper(perception_model.encoder, perception_model.modality_adapter, perception_model.proj)
+    export_perception_wrapper_onnx(perception, (processed_signal, processed_signal_length), model_dir)
+    # export the onnx perception model to tensorrt engine
+    build_trt_engine(
+        model_type,
+        [[80, 64],[80, 512],[80, 3072]],
+        model_dir,
+        max_batch_size,
+        dtype=torch.float16,
+        nemo_config=None,
+        part_name='perception_encoder',
+    )
+    
+
 def build_visual_engine(
     model_dir: str,
     visual_checkpoint_path: str,
@@ -380,3 +456,4 @@ def build_visual_engine(
         build_video_neva_engine(model_dir, visual_checkpoint_path, vision_max_batch_size)
     else:
         raise RuntimeError(f"Invalid model type {model_type}")
+

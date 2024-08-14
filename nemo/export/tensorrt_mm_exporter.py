@@ -21,7 +21,7 @@ import numpy as np
 import wrapt
 
 from nemo.deploy import ITritonDeployable
-from nemo.export.multimodal.build import build_trtllm_engine, build_visual_engine
+from nemo.export.multimodal.build import build_trtllm_engine, build_visual_engine, build_perception_engine
 from nemo.export.multimodal.run import MultimodalModelRunner
 
 use_deploy = True
@@ -74,9 +74,11 @@ class TensorRTMMExporter(ITritonDeployable):
         self,
         model_dir: str,
         load_model: bool = True,
+        modality: str = "vision",
     ):
         self.model_dir = model_dir
         self.runner = None
+        self.modality = modality
 
         if load_model:
             self._load()
@@ -128,8 +130,12 @@ class TensorRTMMExporter(ITritonDeployable):
             dtype=dtype,
         )
 
-        visual_dir = os.path.join(self.model_dir, "visual_engine")
-        build_visual_engine(visual_dir, visual_checkpoint_path, model_type, vision_max_batch_size)
+        if model_type == "salm":
+            perception_dir = os.path.join(self.model_dir, "perception_engine")
+            build_perception_engine(perception_dir, visual_checkpoint_path, model_type, vision_max_batch_size)
+        else:
+            visual_dir = os.path.join(self.model_dir, "visual_engine")
+            build_visual_engine(visual_dir, visual_checkpoint_path, model_type, vision_max_batch_size)
 
         if load_model:
             self._load()
