@@ -8,8 +8,8 @@ from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
-from nemo.lightning import OptimizerModule, io, teardown
 from nemo.collections.nlp.modules.common.megatron.utils import squared_relu
+from nemo.lightning import OptimizerModule, io, teardown
 
 if TYPE_CHECKING:
     from transformers import NemotronConfig as HFNemotronConfig
@@ -17,7 +17,6 @@ if TYPE_CHECKING:
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-
 
 
 @dataclass
@@ -31,12 +30,12 @@ class NemotronConfig(GPTConfig):
     rotary_percent: float = 0.5
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
-    layernorm_zero_centered_gamma: bool = True # layernorm1p
+    layernorm_zero_centered_gamma: bool = True  # layernorm1p
     init_method_std: float = 0.01
     # apply_query_key_layer_scaling: bool = True
     share_embeddings_and_output_weights: bool = False
     kv_channels: int = None
-    
+
 
 @dataclass
 class Nemotron3Config8B(NemotronConfig):
@@ -44,7 +43,7 @@ class Nemotron3Config8B(NemotronConfig):
     hidden_size: int = 4096
     ffn_hidden_size: int = 16384
     num_attention_heads: int = 32
-    
+
 
 class NemotronModel(GPTModel):
     def __init__(
@@ -55,6 +54,7 @@ class NemotronModel(GPTModel):
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(config or NemotronConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+
 
 @io.model_importer(NemotronModel, "hf")
 class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]):
@@ -97,8 +97,11 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
     @property
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-        return get_nmt_tokenizer(model_name='/aot/checkpoints/nemotron/nemotron3-8b/tokenizer.model', 
-                                  tokenizer_model='/aot/checkpoints/nemotron/nemotron3-8b/tokenizer.model')
+
+        return get_nmt_tokenizer(
+            model_name='/aot/checkpoints/nemotron/nemotron3-8b/tokenizer.model',
+            tokenizer_model='/aot/checkpoints/nemotron/nemotron3-8b/tokenizer.model',
+        )
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(str(self))
@@ -131,6 +134,7 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
         )
 
         return output
+
 
 @io.model_exporter(NemotronModel, "hf")
 class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]):
@@ -182,7 +186,11 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
-            head_dim=source.kv_channels if source.kv_channels is not None else source.hidden_size // source.num_attention_heads,
+            head_dim=(
+                source.kv_channels
+                if source.kv_channels is not None
+                else source.hidden_size // source.num_attention_heads
+            ),
             tie_word_embeddings=source.share_embeddings_and_output_weights,
             max_position_embeddings=source.seq_length,
             initializer_range=source.init_method_std,
@@ -192,6 +200,7 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
             partial_rotary_factor=source.rotary_percent,
             vocab_size=self.tokenizer.vocab_size,
         )
+
 
 @io.state_transform(
     source_key=(
@@ -234,6 +243,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 
     return qkv_weights
 
+
 @io.state_transform(
     source_key="decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
@@ -268,6 +278,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
 
     return q_proj, k_proj, v_proj
+
 
 __all__ = [
     "NemotronConfig",
