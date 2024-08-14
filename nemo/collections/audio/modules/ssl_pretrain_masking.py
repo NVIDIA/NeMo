@@ -27,10 +27,10 @@ class SSLPretrainWithMaskedPatch(NeuralModule):
     """
     Zeroes out fixed size time patches of the spectrogram.
     All samples in batch are guaranteed to have the same amount of masked time steps.
-    Note that this may be problematic when we do pretraining on a unbalanced dataset. 
-    
-    For example, say a batch contains two spectrograms of length 87 and 276. 
-    With mask_fraction=0.7 and patch_size=10, we'll obrain mask_patches=7. 
+    Note that this may be problematic when we do pretraining on a unbalanced dataset.
+
+    For example, say a batch contains two spectrograms of length 87 and 276.
+    With mask_fraction=0.7 and patch_size=10, we'll obrain mask_patches=7.
     Each of the two data will then have 7 patches of 10-frame mask.
 
     Args:
@@ -68,16 +68,16 @@ class SSLPretrainWithMaskedPatch(NeuralModule):
     @typecheck()
     def forward(self, input_spec, length):
         """
-        Apply Patched masking on the input_spec. 
+        Apply Patched masking on the input_spec.
 
-                
-        During the training stage, the mask is generated randomly, with 
+
+        During the training stage, the mask is generated randomly, with
         approximately `self.mask_fraction` of the time frames being masked out.
 
         In the validation stage, the masking pattern is fixed to ensure
         consistent evaluation of checkpoints and to prevent overfitting. Note
-        that the same masking pattern is applied to all data, regardless of 
-        their lengths. On average, approximately `self.mask_fraction` of the 
+        that the same masking pattern is applied to all data, regardless of
+        their lengths. On average, approximately `self.mask_fraction` of the
         time frames will be masked out.
 
         """
