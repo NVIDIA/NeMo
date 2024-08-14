@@ -26,6 +26,13 @@ from nemo.lightning._strategy_lib import GradScaler
 AnyT = TypeVar("AnyT")
 
 
+def get_optim_config(optimizer: Optimizer):
+    try:
+        return optimizer.mcore_optimizer.config
+    except:
+        raise ValueError("Failed to extract optimizer config from module.")
+
+
 class MegatronMixedPrecision(MixedPrecision):
     def __init__(
         self,
@@ -83,6 +90,10 @@ class MegatronMixedPrecision(MixedPrecision):
 
         """
         from nemo.core.optim import MainParamsOptimizerWrapper
+
+        optim_config = get_optim_config(optimizer)
+        assert optim_config.bf16 == (self.precision == "bf16-mixed"), "BF16 enabled on model but not on optimizer"
+        assert optim_config.fp16 == (self.precision == "fp16-mixed"), "BF16 enabled on model but not on optimizer"
 
         if not self.amp_O2 or isinstance(optimizer, MainParamsOptimizerWrapper):
             return optimizer
