@@ -164,7 +164,9 @@ def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict =
         spec_name = 'te_gpt'
     name_spec_dict = {
         "": get_gpt_layer_local_spec(num_experts, moe_grouped_gemm, transformer_config.qk_layernorm),
-        "te_gpt": get_gpt_layer_with_transformer_engine_spec(num_experts, moe_grouped_gemm, transformer_config.qk_layernorm),
+        "te_gpt": get_gpt_layer_with_transformer_engine_spec(
+            num_experts, moe_grouped_gemm, transformer_config.qk_layernorm
+        ),
         "megatron_falcon_gpt": get_falcon_layer_spec(),
         "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(transformer_config),
         "modelopt": get_gpt_layer_modelopt_spec(num_experts),
@@ -2099,7 +2101,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             fp8 = 'hybrid'
         else:
             raise ValueError(f"fp8 enabled but fp8_format (fp8_e4m3 | fp8_hybrid) is not set.")
-        
+
         qk_layernorm = self.cfg.get('qk_layernorm', False)
         if fp8 and not qk_layernorm:
             logging.warning("fp8 enabled but qk_layernorm disabled.")
