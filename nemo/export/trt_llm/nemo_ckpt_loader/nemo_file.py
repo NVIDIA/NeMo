@@ -66,25 +66,25 @@ class TarFileSystemReader(FileSystemReader):
             self.path = path  # overwrites path set in super().__init__ call
 
 
-def _get_extra_state_key(state_dict):
+def get_extra_state_key(state_dict):
     for key in state_dict.keys():
         if '_extra_state/' in key:
             return key
     return False
 
-def _unpack_extra_state_key(key):
+def unpack_extra_state_key(key):
     basename = key.split('/')[0]
     size = int(key.split('/')[1].split('_')[-1])
     return basename, size
 
-def _clear_key_basename_from_state_dict(state_dict, basename):
+def clear_key_basename_from_state_dict(state_dict, basename):
     # '/' is important, as scaling factors are saved to basename.scaling_fwd
     to_remove = [k for k in state_dict.keys() if basename + '/' in k]
     for key in to_remove:
         state_dict.pop(key)
     return state_dict
 
-def _load_scaling_factors(state_dict, basename, size):
+def load_scaling_factors(state_dict, basename, size):
     scales = []
     for layer in range(size):
         keyname = f'{basename}/shard_{layer}_{size}'
@@ -100,12 +100,12 @@ def _load_scaling_factors(state_dict, basename, size):
     return all_scales
 
 def standarize_distributed_scaling_factors(state_dict):
-    while key := _get_extra_state_key(state_dict):
-        basename, size = _unpack_extra_state_key(key)
-        scaling_factors = _load_scaling_factors(state_dict, basename, size)
+    while key := get_extra_state_key(state_dict):
+        basename, size = unpack_extra_state_key(key)
+        scaling_factors = load_scaling_factors(state_dict, basename, size)
         if scaling_factors != []:
             state_dict[basename + '.scale_fwd'] = scaling_factors
-        state_dict = _clear_key_basename_from_state_dict(state_dict, basename)
+        state_dict = clear_key_basename_from_state_dict(state_dict, basename)
     
     return state_dict
 
