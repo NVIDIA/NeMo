@@ -68,19 +68,11 @@ class Llama3Config8B(Llama2Config7B):
 @dataclass
 class Llama3Config8B16K(Llama3Config8B):
     seq_length: int = 16384
-    tensor_model_parallel_size: int = 4
-    pipeline_model_parallel_size: int = 4
-    virtual_pipeline_model_parallel_size: int = 5
-    context_parallel_size: int = 1
 
 
 @dataclass
 class Llama3Config8B64k(Llama3Config8B):
     seq_length: int = 65536
-    tensor_model_parallel_size: int = 4
-    pipeline_model_parallel_size: int = 4
-    virtual_pipeline_model_parallel_size: int = 5
-    context_parallel_size: int = 2
 
 
 @dataclass
@@ -91,19 +83,11 @@ class Llama3Config70B(Llama2Config70B):
 @dataclass
 class Llama3Config70B16K(Llama3Config70B):
     seq_length: int = 16384
-    tensor_model_parallel_size: int = 8
-    pipeline_model_parallel_size: int = 4
-    virtual_pipeline_model_parallel_size: int = 5
-    context_parallel_size: int = 4
 
 
 @dataclass
 class Llama3Config70B64k(Llama3Config70B):
     seq_length: int = 65536
-    tensor_model_parallel_size: int = 8
-    pipeline_model_parallel_size: int = 8
-    virtual_pipeline_model_parallel_size: int = 5
-    context_parallel_size: int = 8
 
 
 @dataclass

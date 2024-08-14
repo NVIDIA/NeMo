@@ -55,21 +55,11 @@ class MixtralConfig8x7B(GPTConfig):
 @dataclass
 class MixtralConfig8x7B16K(MixtralConfig8x7B):
     seq_length: int = 16384
-    tensor_model_parallel_size: int = 4
-    pipeline_model_parallel_size: int = 4
-    virtual_pipeline_model_parallel_size: int = 8
-    context_parallel_size: int = 2
-    expert_model_parallel_size: int = 8
 
 
 @dataclass
 class MixtralConfig8x7B64K(MixtralConfig8x7B):
     seq_length: int = 65536
-    tensor_model_parallel_size: int = 4
-    pipeline_model_parallel_size: int = 4
-    virtual_pipeline_model_parallel_size: int = 8
-    context_parallel_size: int = 8
-    expert_model_parallel_size: int = 8
 
 
 @dataclass
