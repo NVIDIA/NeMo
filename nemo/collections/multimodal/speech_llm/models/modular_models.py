@@ -1004,7 +1004,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         if pretrained_model_cfg:
             model_cfg = pretrained_model_cfg
-        elif cfg.model.peft.restore_from_path:
+        elif cfg.model.peft.restore_from_path or cfg.model.peft.restore_from_ckpt.checkpoint_dir:
             if cfg.model.peft.restore_from_path.endswith(".nemo"):
                 model_cfg = ModularAudioGPTModel.restore_from(
                     restore_path=cfg.model.peft.restore_from_path,
@@ -1038,10 +1038,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         with open_dict(model_cfg):
             # to be compatible with old checkpoints
-            if 'train_ds' in model_cfg.data:
-                if "context_key" not in model_cfg.data.train_ds or "answer_key" not in model_cfg.data.train_ds:
-                    model_cfg.data.train_ds.context_key = "question"
-                    model_cfg.data.train_ds.answer_key = "answer"
+            if "context_key" not in model_cfg.data.train_ds or "answer_key" not in model_cfg.data.train_ds:
+                model_cfg.data.train_ds.context_key = "question"
+                model_cfg.data.train_ds.answer_key = "answer"
 
             # update the model config of the trained model with params we want to set at inference time.
             model_cfg.precision = cfg.trainer.precision
