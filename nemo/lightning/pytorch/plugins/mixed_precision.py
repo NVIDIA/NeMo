@@ -30,21 +30,30 @@ class MegatronMixedPrecision(MixedPrecision):
     def __init__(
         self,
         precision: Literal["16-mixed", "bf16-mixed"],
+        amp_O2: bool = False,
         device="cuda",
     ) -> None:
-        assert precision in ["16-mixed", "bf16-mixed"], f"Got unknown precision = `{precision}`"
         if precision == "bf16-mixed":
             scaler = None
         else:
             scaler = GradScaler(init_scale=2**32, growth_interval=1000, hysteresis=2)
 
         super().__init__(precision, device, scaler)
+        self.amp_O2 = amp_O2
 
     def connect(
         self, model: Module, optimizers: List[Optimizer], lr_schedulers: List[Any]
     ) -> Tuple[Module, List[Optimizer], List[Any]]:
         """Connects this plugin to the accelerator and the training process."""
-        return model, optimizers, lr_schedulers
+        from nemo.core.optim import MainParamsOptimizerWrapper
+
+        if not self.amp_O2 or not optimizers or isinstance(optimizers[0], MainParamsOptimizerWrapper):
+            return model, optimizers, lr_schedulers
+
+        _optimizers = [*optimizers]
+        _optimizers[0] = self.convert_optimizer(_optimizers[0])
+
+        return model, _optimizers, lr_schedulers
 
     def convert_module(self, module: Module) -> Module:
         """Convert the module parameters to the precision type this plugin handles.
@@ -55,11 +64,15 @@ class MegatronMixedPrecision(MixedPrecision):
         from megatron.core.transformer.module import Float16Module
         from megatron.core.utils import get_model_config
 
-        config = get_model_config(module.module)
-        config.fp16 = self.precision == "16-mixed"
-        config.bf16 = self.precision == "bf16-mixed"
-        config.autocast = False
-        module.module = Float16Module(config, module.module)
+        if self.precision in ["16-mixed", "bf16-mixed"]:
+            config = get_model_config(module.module)
+            config.fp16 = self.precision == "16-mixed"
+            config.bf16 = self.precision == "bf16-mixed"
+            config.autocast = False
+            if hasattr(module, 'module'):
+                module.module = Float16Module(config, module.module)
+            else:
+                module = Float16Module(config, module)
 
         return module
 
@@ -69,8 +82,16 @@ class MegatronMixedPrecision(MixedPrecision):
         This is optional and depends on the precision limitations during optimization.
 
         """
-        assert hasattr(optimizer, 'mcore_optimizer'), "Expected optimizer to have `mcore_optimizer` attr"
-        return optimizer
+        from nemo.core.optim import MainParamsOptimizerWrapper
+
+        if not self.amp_O2 or isinstance(optimizer, MainParamsOptimizerWrapper):
+            return optimizer
+
+        return MainParamsOptimizerWrapper(
+            optimizer,
+            fp32_grad_accum=True,
+            contiguous_grad_bucket=True,
+        )
 
     def convert_input(self, data: AnyT) -> AnyT:
         """Convert model inputs (forward) to the floating point precision type of this plugin.
@@ -99,7 +120,7 @@ class MegatronMixedPrecision(MixedPrecision):
     ) -> None:
         from nemo.core.optim import MainParamsOptimizerWrapper
 
-        if not isinstance(optimizer, MainParamsOptimizerWrapper):
+        if not self.amp_O2 or not isinstance(optimizer, MainParamsOptimizerWrapper):
             return super().optimizer_step(optimizer, model, closure, **kwargs)
 
         if self.scaler is None:
