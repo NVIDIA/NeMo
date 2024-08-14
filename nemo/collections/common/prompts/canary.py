@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch
 from lhotse import CutSet, MonoCut
 from lhotse.cut import MixedCut
@@ -39,6 +41,11 @@ class CanaryPromptFormatter(PromptFormatter):
             },
         },
     }
+
+    def _validate_slot_values(self, expected: dict[str, Modality], received: dict[str, Any]) -> None:
+        if "taskname" in received and "task" not in received:
+            received["task"] = received.pop("taskname")
+        return super()._validate_slot_values(expected=expected, received=received)
 
     def encode_turn(self, prompt_template: str, expected_slots: dict, slot_values: dict) -> list[int]:
         # This method handles a level of indirection for Canary.
@@ -147,19 +154,19 @@ def canary(
                 },
             )
         ]
-        if text := ' '.join(s.text for s in cut.supervisions if s.text is not None):
-            # Create answer_ids only if there is some transcript in the data.
-            turns.append(
-                dict(
-                    role="assistant",
-                    slots={
-                        "text": text,
-                        formatter.PROMPT_LANGUAGE_SLOT: ifnone(
-                            cut.supervisions[0].language, cut.custom.get("target_lang")
-                        ),
-                    },
-                ),
-            )
+        # If data has no transcript, create empty response with <eos> only.
+        text = ' '.join(s.text for s in cut.supervisions if s.text is not None)
+        turns.append(
+            dict(
+                role="assistant",
+                slots={
+                    "text": text,
+                    formatter.PROMPT_LANGUAGE_SLOT: ifnone(
+                        cut.supervisions[0].language, cut.custom.get("target_lang")
+                    ),
+                },
+            ),
+        )
         encoded = formatter.encode_dialog(turns)
         prompts_with_answers.append(encoded["input_ids"])
         prompts.append(encoded["context_ids"])
