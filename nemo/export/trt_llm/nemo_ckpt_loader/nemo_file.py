@@ -77,8 +77,7 @@ def unpack_extra_state_key(key):
     size = int(key.split('/')[1].split('_')[-1])
     return basename, size
 
-def clear_key_basename_from_state_dict(state_dict, basename):
-    # '/' is important, as scaling factors are saved to basename.scaling_fwd
+def clear_loaded_extra_states(state_dict, basename):
     to_remove = [k for k in state_dict.keys() if basename + '/' in k]
     for key in to_remove:
         state_dict.pop(key)
@@ -105,7 +104,7 @@ def standarize_distributed_scaling_factors(state_dict):
         scaling_factors = load_scaling_factors(state_dict, basename, size)
         if scaling_factors != []:
             state_dict[basename + '.scale_fwd'] = scaling_factors
-        state_dict = clear_key_basename_from_state_dict(state_dict, basename)
+        state_dict = clear_loaded_extra_states(state_dict, basename)
     
     return state_dict
 
@@ -138,21 +137,31 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch
 
 def load_sharded_pickle_extra_state_scale(dir):
     scales = []
+    layer_number = 0
 
-    i = 0
-    while pt_file_list := list(dir.glob(f'shard_{i}_*.pt')):
+    while pt_file_list := list(dir.glob(f'shard_{layer_number}_*.pt')):
         pt_file = pt_file_list[0]
         checkpoint = torch.load(pt_file)
         checkpoint.seek(0)
         state_dict = torch.load(checkpoint)
-        if not 'scale_fwd' in state_dict:
+        if 'scale_fwd' not in state_dict:
             return []
         scale = state_dict['scale_fwd'].cpu()
         scales.append(scale)
-        i += 1
+        layer_number += 1
 
     all_scales = torch.stack(scales)
     return all_scales
+
+def contains_extra_states(subdir):
+    return list(subdir.glob('shard_0_*.pt')) != []
+
+def load_extra_state_from_pickle(sharded_state_dict, subdir):
+    if scales := load_sharded_pickle_extra_state_scale(subdir):
+        key = subdir.name + '.scale_fwd'
+        sharded_state_dict[key] = scales
+
+    return sharded_state_dict
 
 def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
     sharded_state_dict = {}
@@ -160,13 +169,10 @@ def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tenso
         if not subdir.is_dir():
             continue
 
-        key = subdir.name
-        if list(subdir.glob('shard_0_*.pt')):
-            scales = load_sharded_pickle_extra_state_scale(subdir)
-            if scales != []:
-                key = key + '.scale_fwd'
-                sharded_state_dict[key] = scales
+        if contains_extra_states(subdir):
+            sharded_state_dict = load_extra_state_from_pickle(sharded_state_dict, subdir)
         elif (subdir / '.zarray').exists():
+            key = subdir.name
             zstore = ZarrPathStore(subdir)
             arr = zarr.open(zstore, 'r')
 
@@ -179,8 +185,6 @@ def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tenso
                     sharded_state_dict[key] = torch.from_numpy(arr[:]).view(str_dtype_to_torch(arr.dtype.name))
             else:
                 sharded_state_dict[key] = arr[:]
-        else:
-            continue
 
     return sharded_state_dict
 

@@ -131,8 +131,11 @@ def model_to_trtllm_ckpt(
         vocab_size_padded = pad_vocab_size(vocab_size, tensor_parallel_size) if has_lm_head else vocab_size
 
         if has_lm_head and vocab_size_padded != vocab_size:
-            pad_width = vocab_size_padded - vocab_size
-            lm_head_weight = np.pad(lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0)
+            padding = (0, 0, 0, vocab_size_padded - vocab_size)
+            embedding_key = "transformer.vocab_embedding.weight"
+            lm_head_weight = torch.nn.functional.pad(lm_head_weight, padding, "constant", 0)
+            weights_dict[embedding_key] = torch.nn.functional.pad(weights_dict[embedding_key], padding, "constant", 0)
+
 
     world_size = tensor_parallel_size * pipeline_parallel_size
     hidden_act = nemo_model_config.get('activation')
@@ -161,7 +164,7 @@ def model_to_trtllm_ckpt(
         'share_embedding_table': use_embedding_sharing,
         'quantization': {
             'quant_algo': "FP8" if nemo_model_config.get('fp8', False) else None,
-            'kv_cache_quant_algo': None,
+            'kv_cache_quant_algo': None, # TODO maybe "FP8",
         },
         'bias': nemo_model_config.get('bias'),
         'apply_query_key_layer_scaling': False,

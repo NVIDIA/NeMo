@@ -94,6 +94,33 @@ def rename_key_dist_ckpt(old_key: str, layer: int):
     return rename_key(new_key)
 
 
+def load_scaling_factors(model, num_layers, tp_rank, out_dir, split_factor, storage_type, export_config):
+    starmap_args = []
+    for key, val in model.items():
+        if 'extra_state' not in key:
+            continue
+
+        for i in range(num_layers):
+            starmap_args.append(
+                (
+                    tp_rank,
+                    out_dir,
+                    split_factor,
+                    rename_key_dist_ckpt(key, i),
+                    [val[i]],
+                    storage_type,
+                    None,
+                    export_config,
+                    {},
+                )
+            )
+
+    for starmap_arg in starmap_args:
+        scaling_factors = split_and_save_weight(*starmap_arg)
+
+    return scaling_factors
+
+
 @torch.no_grad()
 def convert_model_to_trt_llm_ckpt(
     nemo_model_config,
@@ -186,41 +213,24 @@ def convert_model_to_trt_llm_ckpt(
     handle_model_level_weights(model, 0, 0)
     model = extract_layers_with_prefix(model, transformer_layer_prefix)
 
+    scaling_factors = load_scaling_factors(model, num_layers, tp_rank, out_dir, split_factor, storage_type, export_config)
+
     starmap_args = []
     for key, val in model.items():
+        if 'extra_state' in key:
+            continue
+
+        # Let's rename/map the key to the old layer name previously.
+        # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
         if len(val.size()) == 1:
-            starmap_args.append(
-                (
-                    tp_rank,
-                    out_dir,
-                    split_factor,
-                    # Let's rename/map the key to the old layer name previously. You can try printing out
-                    # the rename_key output of the old llama checkpoint and compare.
-                    rename_key_dist_ckpt(key, 0),
-                    # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
-                    [val],
-                    storage_type,
-                    None,
-                    export_config,
-                )
-            )
+            key_vals = [(rename_key_dist_ckpt(key, 0), val)]
         else:
-            for i in range(num_layers):
-                starmap_args.append(
-                    (
-                        tp_rank,
-                        out_dir,
-                        split_factor,
-                        # Let's rename/map the key to the old layer name previously. You can try printing out
-                        # the rename_key output of the old llama checkpoint and compare.
-                        rename_key_dist_ckpt(key, i),
-                        # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
-                        [val[i]],
-                        storage_type,
-                        None,
-                        export_config,
-                    )
-                )
+            key_vals = [(rename_key_dist_ckpt(key, i), val[i]) for i in range(num_layers)]
+
+        for (k, v) in key_vals:
+            starmap_args.append(
+                (tp_rank, out_dir, split_factor, k, [v], storage_type, None, export_config, scaling_factors)
+            )
 
     starmap_args = tqdm(starmap_args, desc="saving weights")
 
@@ -238,6 +248,9 @@ def convert_model_to_trt_llm_ckpt(
     for key, values in model_level_weights.items():
         model_level_weights[key] = torch.concatenate(values, axis=0)
         weights_dict[key] = model_level_weights[key]
+
+    for key, value in scaling_factors.items():
+        weights_dict[key] = value
 
     return weights_dict
 
