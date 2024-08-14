@@ -793,6 +793,24 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf examples/asr/speech_to_text_adapters_mha_results
 
+  # L2: OOMptimizer
+  L2_Speech_Batch_Size_OOMptimizer:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        # 1D bucketing
+        python scripts/speech_recognition/oomptimizer.py \
+          -c /home/TestData/oomptimizer/fast-conformer_ctc_bpe.yaml \
+          -m nemo.collections.asr.models.EncDecCTCModelBPE \
+          -b '[5.0,10.0]'
+        # 2D bucketing
+        python scripts/speech_recognition/oomptimizer.py \
+          -c /home/TestData/oomptimizer/fast-conformer_ctc_bpe.yaml \
+          -m nemo.collections.asr.models.EncDecCTCModelBPE \
+          -b '[[5.0,30],[5.0,45],[10.0,57],[10.0,71]]'
+
   # L2: Speech Transcription
   L2_Speech_Transcription_Speech_to_Text_Transcribe:
     needs: [cicd-test-container-setup]

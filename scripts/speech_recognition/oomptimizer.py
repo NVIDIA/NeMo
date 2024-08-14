@@ -207,7 +207,10 @@ class FloatList(click.Option):
         try:
             import ast
 
-            return ast.literal_eval(value)
+            ans = ast.literal_eval(value)
+            if isinstance(ans[0], list):
+                ans = [tuple(item) for item in ans]
+            return ans
         except ValueError:
             raise click.BadParameter(value)
 
@@ -399,7 +402,7 @@ def oomptimizer(
                 input_len, output_len = bin
             else:
                 input_len = bin
-                output_len = ratio * input_len
+                output_len = math.ceil(ratio * input_len)
             sampling_rate = getattr(
                 model, "sample_rate", 16000
             )  # TODO: may need to extend schema for broader model coverage
@@ -480,7 +483,7 @@ def oomptimizer(
             f"=> Optimal setting for bucket={bucket} (input={seq_len_in} output={seq_len_out}) is max_batch_size={gen.max_batch_size}",
             fg="green",
         )
-        profile[(tuple(bucket), seq_len_in, seq_len_out)] = gen.max_batch_size
+        profile[(bucket, seq_len_in, seq_len_out)] = gen.max_batch_size
         gen.start_batch_size = gen.max_batch_size * 2
 
     # Reverse the profile to be ascendingly sorted again.
