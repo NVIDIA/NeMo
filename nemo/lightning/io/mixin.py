@@ -446,7 +446,7 @@ def _io_init(self, **kwargs) -> fdl.Config[Self]:
 def _io_wrap_init(cls):
     """Wraps the __init__ method of a class to add IO functionality."""
     original_init = cls.__init__
-    
+
     if getattr(cls, "__wrapped_init__", False):
         return cls
 
