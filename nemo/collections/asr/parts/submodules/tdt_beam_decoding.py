@@ -198,11 +198,13 @@ class BeamTDTInfer(Typing):
 
         if self.preserve_alignments:
             raise NotImplementedError("Preserving alignments is not implemented.")
-        
+
         if search_type == "default":
             if self.beam_size == 1:
-                logging.info("""If beam size is 1, defaults to stateful greedy search.
-                     For accurate greedy results, please use GreedyTDTInfer or GreedyBatchedTDTInfer.""")
+                logging.info(
+                    """If beam size is 1, defaults to stateful greedy search.
+                     For accurate greedy results, please use GreedyTDTInfer or GreedyBatchedTDTInfer."""
+                )
             self.search_algorithm = self.default_beam_search
         elif search_type == "tsd":
             raise NotImplementedError("`tsd` (Time Synchronous Decoding) has not been implemented.")
@@ -421,10 +423,10 @@ class BeamTDTInfer(Typing):
                     duration = self.durations[duration_idx]
                     # Construct hypothesis for non-blank token
                     new_hyp = Hypothesis(
-                        score=float(max_hyp.score + total_logp_topk),                       # update score
-                        y_sequence=max_hyp.y_sequence + [token_idx],                        # update hypothesis sequence
-                        dec_state=decoder_state,                                            # update decoder state
-                        timestep=max_hyp.timestep + [time_idx + duration],                  # update timesteps
+                        score=float(max_hyp.score + total_logp_topk),  # update score
+                        y_sequence=max_hyp.y_sequence + [token_idx],  # update hypothesis sequence
+                        dec_state=decoder_state,  # update decoder state
+                        timestep=max_hyp.timestep + [time_idx + duration],  # update timesteps
                         length=encoded_lengths,
                         last_frame=max_hyp.last_frame + duration,
                     )  # update frame idx where last token appeared
