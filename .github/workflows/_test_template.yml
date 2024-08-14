@@ -44,7 +44,10 @@ jobs:
         - name: Docker system cleanup
           run: |
             docker system prune -a --filter "until=48h" --force
-
+        
+        - name: Checkout repository
+          uses: actions/checkout@v4
+          
         - id: main
           name: Run main script
           timeout-minutes: ${{ inputs.TIMEOUT }}
