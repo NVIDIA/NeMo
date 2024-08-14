@@ -56,7 +56,7 @@ exp_manager:
   checkpoint_callback_params:
     dirpath: null # to use S3 checkpointing, set the dirpath in format s3://bucket/key
     monitor: val_loss
-    save_top_k: 10
+    save_top_k: 5
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits

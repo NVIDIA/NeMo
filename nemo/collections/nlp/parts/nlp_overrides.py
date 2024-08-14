@@ -28,7 +28,7 @@ import torch
 from lightning_fabric.plugins import TorchCheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.optimizer import _optimizer_to_device
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
 from pytorch_lightning.core.optimizer import LightningOptimizer
@@ -397,7 +397,10 @@ class NLPDDPStrategy(DDPStrategy):
             checkpoint['optimizer_states'] = [sharded_optim_state]
             # remove device state_dict
             checkpoint['state_dict'] = OrderedDict([])
-            checkpoint['hyper_parameters']['cfg']['dropped_optims'] = self.dropped_optim_states
+            if 'last' not in filepath and self.save_last_n_optim_states >= 0:
+                with open_dict(checkpoint['hyper_parameters']['cfg']):
+                    checkpoint['hyper_parameters']['cfg']['dropped_optim_states'] = self.dropped_optim_states
+
             self.checkpoint_io.save_checkpoint(checkpoint, ckpt_to_dir(filepath), storage_options=storage_options)
 
             if HAVE_MODELOPT and hasattr(self.lightning_module, "get_model_module_list"):
@@ -415,6 +418,7 @@ class NLPDDPStrategy(DDPStrategy):
 
         if self.save_last_n_optim_states >= 0:
             self._drop_optimizer_states(filepath)
+        print(f"SAVE: {self.dropped_optim_states}")
 
     # PTL 2.2 supports non strict loading of the ckpt with the strict arg (https://github.com/Lightning-AI/pytorch-lightning/pull/19404)
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
@@ -525,7 +529,7 @@ class NLPDDPStrategy(DDPStrategy):
                 loaded_state_dict['optimizer_states'][0]['param_groups'].pop(expert_index)
         return loaded_state_dict
 
-    def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
+    def load_checkpoint(self, checkpoint_path: Union[str, Path], drop_optim_states: Optional[bool] = False) -> Dict[str, Any]:
         """PTL method which we override to integrate distributed checkpoints for model parallel models.
         In order to load distributed checkpoints we need to provide the sharded_state_dict to
         the distributed load function. We get the sharded_state_dict from self.lightning_module
@@ -559,8 +563,14 @@ class NLPDDPStrategy(DDPStrategy):
 
             if getattr(self.lightning_module, 'continue_training', False):
                 checkpoint = self._integrate_original_checkpoint_data(checkpoint)
+                if 'last' in str(checkpoint_path):
+                    self.dropped_optim_states = 0
+            else:
+                if not drop_optim_states and self.save_last_n_optim_states >= 0:
+                    checkpoints = self._get_checkpoints_list(checkpoint_path)
+                    self.dropped_optim_states = (checkpoint['hyper_parameters']['cfg']['dropped_optim_states'] + 1) if len(checkpoints) > self.save_last_n_optim_states else 0
 
-            self.dropped_optim_states = checkpoint['hyper_parameters']['cfg'].get('dropped_optims', 0)
+            print(f"LOAD: {self.dropped_optim_states}")
             return checkpoint
 
         # Legacy model parallel checkpointing logic, does not use megatron core
@@ -594,19 +604,16 @@ class NLPDDPStrategy(DDPStrategy):
 
     def _drop_optimizer_states(self, filepath: Union[str, Path], storage_options: Optional[Any] = None):
         # Get list of saved checkpoints
-        checkpoint_dir = os.path.dirname(filepath)
-        checkpoints = [
-            d for d in os.listdir(checkpoint_dir) if os.path.isdir(os.path.join(checkpoint_dir, d)) and 'last' not in d
-        ]
-        checkpoints = sorted(checkpoints, key=lambda x: int(x.split('-step=')[1].split('-')[0]))
+        checkpoints = self._get_checkpoints_list(filepath)
 
         # Drop optimizer states
         checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
+        print(checkpoint_index, self.dropped_optim_states)
         if self.dropped_optim_states == checkpoint_index:
-            checkpoint_path = os.path.join(checkpoint_dir, checkpoints[checkpoint_index])
+            checkpoint_path = checkpoints[checkpoint_index]
 
             logging.info(f"Loading {checkpoint_path} checkpoint to drop optimizer states...")
-            checkpoint = self.load_checkpoint(checkpoint_path=checkpoint_path)
+            checkpoint = self.load_checkpoint(checkpoint_path=checkpoint_path, drop_optim_states=True)
 
             # Remove the checkpoint version with optimizer steps
             self.remove_checkpoint(checkpoint_path)
@@ -628,6 +635,17 @@ class NLPDDPStrategy(DDPStrategy):
 
             logging.info(f"Successfully dropped optimizer states for {checkpoint_path} checkpoint.")
             self.dropped_optim_states += 1
+            print(f"DROP: {self.dropped_optim_states}")
+
+    def _get_checkpoints_list(self, filepath: Union[str, Path]):
+        checkpoint_dir = os.path.dirname(filepath)
+        checkpoints = [
+            d for d in os.listdir(checkpoint_dir) if os.path.isdir(os.path.join(checkpoint_dir, d)) and 'last' not in d
+        ]
+        checkpoints = sorted(checkpoints, key=lambda x: int(x.split('-step=')[1].split('-')[0]))
+        checkpoints = [os.path.join(checkpoint_dir, checkpoint) for checkpoint in checkpoints]
+
+        return checkpoints
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         # check if filepath is a distributed checkpoint
