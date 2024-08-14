@@ -43,7 +43,7 @@ The following example shows the contents of a quantized model intended to be ser
     └── tokenizer_config.yaml
 
 Community Checkpoint Converter
------------------------------
+------------------------------
 We provide easy-to-use tools that enable users to convert community checkpoints into the NeMo format. These tools facilitate various operations, including resuming training, Supervised Fine-Tuning (SFT), Parameter-Efficient Fine-Tuning (PEFT), and deployment. For detailed instructions and guidelines, please refer to our documentation.
 
 We offer comprehensive guides to assist both end users and developers:

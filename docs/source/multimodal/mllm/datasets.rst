@@ -14,13 +14,13 @@ For **pretraining**, utilize the *LAION/CC/SBU BLIP-Caption Concept-balanced 558
 
    /path/to/neva/datasets/LLaVA-Pretrain-LCS-558K/blip_laion_cc_sbu_558k.json
 
-Acquire the image data from `HuggingFace <https://huggingface.co/datasets/liuhaotian/LLaVA-Pretrain/blob/main/images.zip>`_ and extract to:
+Acquire the image data from `HuggingFace <https://huggingface.co/datasets/liuhaotian/LLaVA-Pretrain/blob/main/images.zip>`__ and extract to:
 
 .. code-block:: bash
 
    /path/to/neva/datasets/LLaVA-Pretrain-LCS-558K/images
 
-For **fine-tuning**, deploy the *LLaVA-Instruct-150K* dataset. This is also available on `LLaVA's GitHub <https://github.com/haotian-liu/LLaVA/blob/main/docs/Data.md>`_. You can download the prompts from `HuggingFace <https://huggingface.co/datasets/liuhaotian/LLaVA-Instruct-150K/tree/main>`_:
+For **fine-tuning**, deploy the *LLaVA-Instruct-150K* dataset. This is also available on `LLaVA's GitHub <https://github.com/haotian-liu/LLaVA/blob/main/docs/Data.md>`_. You can download the prompts from `HuggingFace <https://huggingface.co/datasets/liuhaotian/LLaVA-Instruct-150K/tree/main>`__:
 
 .. code-block:: bash
 

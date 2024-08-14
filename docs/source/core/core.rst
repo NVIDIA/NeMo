@@ -750,26 +750,34 @@ NeMo offers users two options for profiling: Nsys & CUDA memory profiling. These
 to debug performance issues as well as memory issues such as memory leaks.
 
 To enable Nsys profiling, add the following options to the model config:
-nsys_profile: False
-   start_step: 10  # Global batch to start profiling
-   end_step: 10 # Global batch to end profiling
-   ranks: [0] # Global rank IDs to profile
-   gen_shape: False # Generate model and kernel details including input shapes
 
-Finally, the model training script with:
+.. code-block:: yaml
 
-nsys profile -s none -o <profile filepath> -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop python ./examples/... 
+    nsys_profile: False
+        start_step: 10  # Global batch to start profiling
+        end_step: 10 # Global batch to end profiling
+        ranks: [0] # Global rank IDs to profile
+        gen_shape: False # Generate model and kernel details including input shapes
+
+Finally, run the model training script with:
+
+.. code-block:: bash
+
+    nsys profile -s none -o <profile filepath> -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop python ./examples/...
+
 See more options at `nsight user guide <https://docs.nvidia.com/nsight-systems/UserGuide/index.html#cli-profiling>`_.
 
 
 
 To enable CUDA memory profiling, add the following options to the model config:
 
-memory_profile:
-   enabled: True
-   start_step: 10  # Global batch to start profiling
-   end_step: 10 # Global batch to end profiling
-   rank: 0 # Global rank ID to profile
-   output_path: None # Path to store the profile output file
+.. code-block:: yaml
+
+    memory_profile:
+        enabled: True
+        start_step: 10  # Global batch to start profiling
+        end_step: 10 # Global batch to end profiling
+        rank: 0 # Global rank ID to profile
+        output_path: None # Path to store the profile output file
 
 And invoke your NeMo script without any changes in the invocation command.

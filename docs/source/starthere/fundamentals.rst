@@ -209,7 +209,7 @@ The NeMo team also releases pretrained models which you can browse on `NGC <http
 
 
 Fine-Tuning
-----------
+-----------
 
 NeMo allows you to fine-tune models as well as train them from scratch.
 
@@ -219,7 +219,7 @@ You can achieve this by initializing a model with random weights, then replacing
 .. _where_next:
 
 Where To Go Next?
------------
+-----------------
 
 Here are some options:
 

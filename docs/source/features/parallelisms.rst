@@ -121,7 +121,7 @@ Set ``tensor_model_parallel_size`` to greater than ``1`` to enable intra-layer m
 
        tensor_model_parallel_size: 1  # Example to enable Tensor Parallelism
 
-The configuration file can be adjusted here: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L65>`_.
+The configuration file can be adjusted here: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L65>`__.
 
 Implement Tensor Parallelism
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -164,7 +164,7 @@ Set ``pipeline_model_parallel_size`` to a value greater than ``1`` to enable int
 
        pipeline_model_parallel_size: 1  # Example to enable Pipeline Parallelism
 
-Adjust the configuration accordingly here: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L66>`_.
+Adjust the configuration accordingly here: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L66>`__.
 
 Interleaved Pipeline Parallel Schedule
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -203,7 +203,7 @@ To enable EP, set ``model.expert_model_parallel_size`` to the desired expert par
 
        expert_model_parallel_size: 3  # Set EP to 3
 
-For further information on configuration, refer to the following documentation: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L68>`_.
+For further information on configuration, refer to the following documentation: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L68>`__.
 
 
 Implement Expert Parallelism
@@ -237,7 +237,7 @@ To utilize Sequence Parallelism in NeMo, set the ``sequence_parallel`` parameter
 
        sequence_parallel: True  # Enable Sequence Parallelism
 
-For further information on configuration, refer to the following documentation: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L66>`_.
+For further information on configuration, refer to the following documentation: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L66>`__.
 
 Implement Sequence Parallelism
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
