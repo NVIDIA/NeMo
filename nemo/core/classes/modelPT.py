@@ -618,6 +618,10 @@ class ModelPT(LightningModule, Model):
             overlap_grad_reduce=self.cfg.optim.get('overlap_grad_sync', False),
             overlap_param_gather=self.cfg.optim.get('overlap_param_sync', False),
         )
+        if hasattr(megatron_optim_config, "overlap_param_gather_with_optimizer_step"):
+            megatron_optim_config.overlap_param_gather_with_optimizer_step = (
+                self.cfg.optim.get('overlap_param_gather_with_optimizer_step', False)
+            )
         return megatron_optim_config
 
     def setup_optimization(

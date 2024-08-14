@@ -554,7 +554,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     model_chunk,
                     # Turn off bucketing for model_chunk 2 onwards, since communication for these
                     # model chunks is overlapped with compute anyway.
-                    disable_bucketing=(model_chunk_idx > 0),
+                    disable_bucketing=(model_chunk_idx > 0) or self.cfg.optim.get('overlap_param_gather_with_optimizer_step', False),
                 )
                 for (model_chunk_idx, model_chunk) in enumerate(self.model)
             ]
@@ -676,7 +676,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     if self.cfg.optim.get("delay_grad_reduce", True):
                         grad_sync_func = [model_chunk.start_grad_sync for model_chunk in self.model]
                         grad_sync_func = grad_sync_func[0] if len(self.model) == 1 else grad_sync_func
-                if self.cfg.optim.get("overlap_param_sync", False) and self.cfg.optim.get("delay_param_gather", False):
+                if self.cfg.optim.get("overlap_param_sync", False) and self.cfg.optim.get("delay_param_gather", True):
                     param_sync_func = [
                         lambda x, model_index=model_index: self._optimizer.finish_param_sync(model_index, x)
                         for model_index in range(len(self.model))
