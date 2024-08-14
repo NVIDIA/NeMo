@@ -24,12 +24,22 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama2Config13B,
     Llama2Config70B,
     Llama3Config8B,
+    Llama3Config8B16K,
+    Llama3Config8B64k,
     Llama3Config70B,
+    Llama3Config70B16K,
+    Llama3Config70B64k,
     LlamaConfig,
     LlamaModel,
 )
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
-from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralConfig8x22B, MixtralModel
+from nemo.collections.llm.gpt.model.mixtral import (
+    MixtralConfig8x7B,
+    MixtralConfig8x7B16K,
+    MixtralConfig8x7B64K,
+    MixtralConfig8x22B,
+    MixtralModel,
+)
 
 __all__ = [
     "GPTConfig",
@@ -37,13 +47,20 @@ __all__ = [
     "MistralConfig7B",
     "MistralModel",
     "MixtralConfig8x7B",
+    "MixtralConfig8x7B16K",
+    "MixtralConfig8x7B64K",
+    "MixtralConfig8x22B",
     "MixtralModel",
     "LlamaConfig",
     "Llama2Config7B",
     "Llama2Config13B",
     "Llama2Config70B",
     "Llama3Config8B",
+    "Llama3Config8B16K",
+    "Llama3Config8B64k",
     "Llama3Config70B",
+    "Llama3Config70B16K",
+    "Llama3Config70B64k",
     "CodeLlamaConfig7B",
     "CodeLlamaConfig13B",
     "CodeLlamaConfig34B",
