@@ -181,7 +181,7 @@ def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict =
 def mcore_model_customize(cfg, model):
     if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
         extend_instance(model.embedding, EmbeddingScalingMixin)
-    if self.cfg.get('scale_positional_embedding', False):
+    if cfg.get('scale_positional_embedding', False):
         model.rotary_pos_emb.inv_freq = apply_rope_scaling(model.rotary_pos_emb.inv_freq)
     if cfg.get("mcore_customization_config", {}).get("final_logit_softcapping", 0):
         from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import Gemma2OutputLayer
