@@ -52,7 +52,7 @@ def get_layer_name(layer_type: str, prefix: str):
         raise ValueError(f"Unknown layer type {layer_type}")
 
 
-def get_layer_prefix(layer_names, is_mcore):
+def get_layer_prefix(layer_names, is_mcore, is_enc_dec=False, component=None):
     transformer_layer_prefix = None
 
     for layer_name in layer_names:
@@ -60,7 +60,10 @@ def get_layer_prefix(layer_names, is_mcore):
             transformer_layer_prefix = layer_name.split('layers')[0]
             break
     assert transformer_layer_prefix is not None, "Cannot extract transformer layer prefix from {layer_name}"
-    if is_mcore:
+    if is_enc_dec:
+        model_prefix = transformer_layer_prefix.split('coder')[0][:-2]
+        transformer_layer_prefix = f'{model_prefix}{component}.'
+    elif is_mcore:
         model_prefix = transformer_layer_prefix.split('decoder')[0]
     else:
         model_prefix = transformer_layer_prefix.split('encoder')[0]
@@ -104,17 +107,19 @@ def convert_model_to_trt_llm_ckpt(
     decoder_type,
     use_parallel_embedding,
     processes,
+    component,
 ):
 
     # if checkpoints files could be found - start preparing output dir
     out_dir = create_export_dir(nemo_export_dir)
     storage_type = str_dtype_to_torch(storage_type)
     is_mcore = nemo_model_config.get("mcore_gpt", False)
+    is_enc_dec = decoder_type == "t5"
 
     # load position_embedding from rank 0
     model_state_dict = model.get("state_dict", model)
 
-    prefix, transformer_layer_prefix = get_layer_prefix(model_state_dict.keys(), is_mcore)
+    prefix, transformer_layer_prefix = get_layer_prefix(model_state_dict.keys(), is_mcore, is_enc_dec, component)
 
     has_position_embedding = get_layer_name("position_embedding", prefix) in model_state_dict
     has_lm_head = get_layer_name("output_layer", prefix) in model_state_dict
@@ -172,7 +177,10 @@ def convert_model_to_trt_llm_ckpt(
                     val = torch.nn.functional.pad(val, (0, 0, 0, pad_width), value=0)
 
             val = torch_to_numpy(val.to(storage_type).cpu())
-            model_level_weights["transformer.vocab_embedding.weight"].append(val)
+            if is_enc_dec:
+                model_level_weights["embedding.vocab_embedding.weight"].append(val)
+            else:
+                model_level_weights["transformer.vocab_embedding.weight"].append(val)
         if has_lm_head and pp_idx == training_pp_size - 1:
             val = model.get("state_dict", model)[get_layer_name("output_layer", prefix)]
             val = torch_to_numpy(val.to(storage_type).cpu())
@@ -183,9 +191,15 @@ def convert_model_to_trt_llm_ckpt(
     tp_rank = 0
 
     handle_model_level_weights(model, 0, 0)
-    model = extract_layers_with_prefix(model, transformer_layer_prefix)
+
+    if is_enc_dec:
+        model = extract_layers_with_prefix(model, transformer_layer_prefix)
+        export_config["component"] = component
+    else:
+        model = extract_layers_with_prefix(model, transformer_layer_prefix)
 
     starmap_args = []
+
     for key, val in model.items():
         if "_extra_state" not in key:
             if len(val.size()) == 1:

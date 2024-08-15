@@ -29,6 +29,7 @@ DECODER_MODEL_TYPE = {
     "llama": 'LlamaForCausalLM',
     "gemma": 'GemmaForCausalLM',
     "falcon": 'FalconForCausalLM',
+    "t5": 'DecoderModel',
 }
 
 
@@ -187,11 +188,17 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     num_kv_heads = config.get("num_kv_heads", num_attention_heads)
     size_per_head = config.get("kv_channels", None)
     convert_on_device = config.get("convert_on_device", False)
+    component = config.get("component", None)
 
     save_int8 = int8_outputs == "all" or int8_outputs == "kv_cache_only"
 
     layer_num = key.split(".")[1]
-    layer_prefix = f'transformer.layers.{layer_num}'
+
+    if component is not None:
+        layer_prefix = f'{component}_layers.{layer_num}'
+        trtllm_attn_layer_name = 'attention' if component == 'encoder' else 'self_attention'
+    else:
+        layer_prefix = f'transformer.layers.{layer_num}'
 
     if not isinstance(vals, list):
         vals = [vals]
@@ -222,10 +229,14 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         or "mlp.linear_fc2.bias" in key
         or "final_layernorm.weight" in key
         or "final_layernorm.bias" in key
+        or "pre_cross_attn_layernorm" in key
     ):
         # shared weights, only need to convert the weights of rank 0
         if "post_self_attn_layernorm" in key or "post_attention_layernorm" in key:
-            if key.endswith('weight'):
+            if component is not None:
+                suffix = 'weight' if key.endswith('weight') else 'bias'
+                key = f'{layer_prefix}.mlp_layernorm.{suffix}'
+            elif key.endswith('weight'):
                 key = f'{layer_prefix}.post_layernorm.weight'
             else:
                 key = f'{layer_prefix}.post_layernorm.bias'
@@ -236,7 +247,11 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         elif "final_layernorm" in key:
             key = key.replace("final_layernorm", "transformer.ln_f")
         elif "input_layernorm" in key:
-            if key.endswith('weight'):
+            if component is not None:
+                trtllm_attn_layernorm_name = 'self_attention_layernorm' if component == 'decoder' else 'attention_layernorm'
+                suffix = 'weight' if key.endswith('weight') else 'bias'
+                key = f'{layer_prefix}.{trtllm_attn_layernorm_name}.{suffix}'
+            elif key.endswith('weight'):
                 key = f'{layer_prefix}.input_layernorm.weight'
             else:
                 key = f'{layer_prefix}.input_layernorm.bias'
@@ -245,6 +260,9 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
                 key = f'{layer_prefix}.post_layernorm.weight'
             else:
                 key = f'{layer_prefix}.post_layernorm.bias'
+        elif "pre_cross_attn_layernorm" in key:
+            suffix = 'weight' if key.endswith('weight') else 'bias'
+            key = f'{layer_prefix}.cross_attention_layernorm.{suffix}'
         if tp_rank == 0 or convert_on_device:
             save_val(vals[0], saved_dir, key)
 
@@ -255,7 +273,10 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         or "mlp.linear_fc2.weight" in key
     ):
         if "attention.linear_proj.weight" in key or "attention.dense.weight" in key:
-            key = f'{layer_prefix}.attention.dense.weight'
+            if component is not None:
+                key = f'{layer_prefix}.{trtllm_attn_layer_name}.dense.weight'
+            else:
+                key = f'{layer_prefix}.attention.dense.weight'
         elif "mlp.linear_fc2.weight" in key or "mlp.dense_4h_to_h.weight" in key:
             key = f'{layer_prefix}.mlp.proj.weight'
 
@@ -332,7 +353,10 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
             write_int8(vals_i8, saved_dir, base_key, cat_dim, tp_rank, split_factor)
 
     elif "attention.query_key_value.bias" in key or "attention.linear_qkv.bias" in key:
-        key = f'{layer_prefix}.attention.qkv.bias'
+        if component is not None:
+            key = f'{layer_prefix}.{trtllm_attn_layer_name}.qkv.bias'
+        else:
+            key = f'{layer_prefix}.attention.qkv.bias'
         qkv_hidden_dim = vals[0].shape[0]
         size_per_head = qkv_hidden_dim // (num_attention_heads + 2 * num_kv_heads)
         q_num = num_attention_heads // num_kv_heads
@@ -364,7 +388,10 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
             save_split(split_vals, saved_dir, key, tp_rank, split_factor)
 
     elif "attention.query_key_value.weight" in key or "attention.linear_qkv.weight" in key:
-        key = f'{layer_prefix}.attention.qkv.weight'
+        if component is not None:
+            key = f'{layer_prefix}.{trtllm_attn_layer_name}.qkv.weight'
+        else:
+            key = f'{layer_prefix}.attention.qkv.weight'
         assert use_attention_nemo_shape, "Only support NEMO shape for QKV weights"
         hidden_dim = vals[0].shape[0]
         if size_per_head is None:
@@ -428,6 +455,87 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
                 split_factor,
                 kv_cache_only=int8_outputs == "kv_cache_only",
             )
+    elif "attention.linear_q" in key:
+        if key.endswith('.bias'):
+            split_dim = 0
+            suffix = 'bias'
+        else:
+            split_dim = 1
+            suffix = 'weight'
+
+        if component is not None:
+            key = f'{layer_prefix}.cross_attention.q.{suffix}'
+
+        hidden_dim = vals[0].shape[0]
+        q_num = num_attention_heads // num_kv_heads
+        size_per_head = hidden_dim // num_attention_heads
+
+        len_vals = len(vals)
+        val = np.concatenate(vals, axis=split_dim)
+        if split_dim == 0:
+            val = val.reshape(num_kv_heads * len_vals // tp_size, q_num, size_per_head)
+        else:
+            val = val.reshape(hidden_dim, num_kv_heads * len_vals // tp_size, q_num, size_per_head)
+
+        q_split = np.split(val, split_factor, axis=split_dim)
+        if split_dim == 0:
+            split_vals = [
+                q_split[i].reshape(-1) for i in range(split_factor)
+            ]
+        else:
+            split_vals = [
+                q_split[i].reshape(hidden_dim, -1) for i in range(split_factor)
+            ]
+        save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+    elif "attention.linear_kv" in key:
+        if key.endswith('.bias'):
+            split_dim = 0
+            suffix = 'bias'
+        else:
+            split_dim = 1
+            suffix = 'weight'
+
+        if component is not None:
+            key = f'{layer_prefix}.cross_attention.kv.{suffix}'
+
+        hidden_dim = vals[0].shape[0]
+        q_num = num_attention_heads // num_kv_heads
+
+        len_vals = len(vals)
+        val = np.concatenate(vals, axis=split_dim)
+        if split_dim == 0:
+            size_per_head = hidden_dim // (2 * num_kv_heads)
+            val = val.reshape(num_kv_heads * len_vals // tp_size, 2, size_per_head)
+        else:
+            size_per_head = hidden_dim // num_attention_heads
+            val = val.reshape(hidden_dim, num_kv_heads * len_vals // tp_size, 2, size_per_head)
+
+        kv = np.split(val, 2, axis=split_dim + 1)
+        k_split = np.split(kv[0], split_factor, axis=split_dim)
+        v_split = np.split(kv[1], split_factor, axis=split_dim)
+        if split_dim == 0:
+            split_vals = [
+                np.concatenate(
+                    [
+                        k_split[i].reshape(-1),
+                        v_split[i].reshape(-1),
+                    ],
+                    axis=0,
+                )
+                for i in range(split_factor)
+            ]
+        else:
+            split_vals = [
+                np.concatenate(
+                    [
+                        k_split[i].reshape(hidden_dim, -1),
+                        v_split[i].reshape(hidden_dim, -1),
+                    ],
+                    axis=1,
+                )
+                for i in range(split_factor)
+            ]
+        save_split(split_vals, saved_dir, key, tp_rank, split_factor)
     elif (
         "attention.query.weight" in key
         or "attention.query.bias" in key

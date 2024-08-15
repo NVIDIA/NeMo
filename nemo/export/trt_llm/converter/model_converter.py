@@ -92,6 +92,7 @@ def model_to_trtllm_ckpt(
     use_distributed_convert: bool = False,
     model_parallel_rank: int = None,
     vocab_size: int = None,
+    component: str = "decoder",
 ) -> Tuple[List[Dict], List[PretrainedConfig]]:
 
     if nemo_model_config.get("share_embeddings_and_output_weights", False) and not use_embedding_sharing:
@@ -120,13 +121,16 @@ def model_to_trtllm_ckpt(
             storage_type=dtype,
             use_parallel_embedding=use_parallel_embedding,
             decoder_type=decoder_type,
+            component=component,
         )
 
         has_lm_head = "lm_head.weight" in weights_dict
+        is_enc_dec = decoder_type == "t5"
+        embedding_key = "embedding.vocab_embedding.weight" if is_enc_dec else "transformer.vocab_embedding.weight"
         if has_lm_head:
             lm_head_weight = weights_dict["lm_head.weight"]
         if vocab_size is None:
-            vocab_size = weights_dict["transformer.vocab_embedding.weight"].shape[0]
+            vocab_size = weights_dict[embedding_key].shape[0]
         vocab_size_padded = pad_vocab_size(vocab_size, tensor_parallel_size) if has_lm_head else vocab_size
 
         if has_lm_head and vocab_size_padded != vocab_size:
@@ -221,6 +225,7 @@ def model_to_trtllm_ckpt(
             gpus_per_node=gpus_per_node,
         )
         layers_range = mapping.pp_layers(num_layers)
+        layer_num_index = 1 if is_enc_dec else 2
 
         weights_dict_local = {}
         for k, v in weights_dict.items():
@@ -233,23 +238,32 @@ def model_to_trtllm_ckpt(
                 else:
                     continue
             if "layers" in new_key:  # PP
-                layer_num = int(new_key.split(".")[2])
+                layer_num = int(new_key.split(".")[layer_num_index])
                 if layer_num in layers_range:
                     new_key = new_key.replace(f"layers.{layer_num}", f"layers.{layer_num-layers_range[0]}")
-            if config.get("new_decoder_architecture", False) and "post_layernorm" in new_key:
+                else:
+                    continue
+            if "cross_attention" in new_key:
+                if "q" in new_key:
+                    kv_key = k.replace("q", "kv")
+                    new_key = new_key.replace("q", "qkv")
+                    v = np.concatenate([v, weights_dict[kv_key]], axis=0)
+                else:
+                    continue
+            elif config.get("new_decoder_architecture", False) and "post_layernorm" in new_key:
                 new_key = new_key.replace("post_layernorm", "mlp_layernorm")
             weights_dict_local[new_key] = v
 
         if mapping.is_first_pp_rank():
             embedding_weight = (
                 np.ascontiguousarray(
-                    split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank)
+                    split(weights_dict[embedding_key], mapping.tp_size, mapping.tp_rank)
                 )
                 if use_parallel_embedding
-                else weights_dict["transformer.vocab_embedding.weight"]
+                else weights_dict[embedding_key]
             )
 
-            weights_dict_local["transformer.vocab_embedding.weight"] = embedding_weight
+            weights_dict_local[embedding_key] = embedding_weight
 
             pos_embedding_weight = weights_dict.get("transformer.position_embedding.weight")
             if pos_embedding_weight is not None:
@@ -264,11 +278,12 @@ def model_to_trtllm_ckpt(
                 weights_dict_local["lm_head.weight"] = np.ascontiguousarray(
                     split(lm_head_weight, mapping.tp_size, mapping.tp_rank)
                 )
-            weights_dict_local["transformer.ln_f.weight"] = weights_dict["transformer.ln_f.weight"]
+            new_key = "final_layernorm" if is_enc_dec else "transformer.ln_f"
+            weights_dict_local[f"{new_key}.weight"] = weights_dict["transformer.ln_f.weight"]
 
             ln_f_bias = weights_dict.get("transformer.ln_f.bias")
             if ln_f_bias is not None:
-                weights_dict_local["transformer.ln_f.bias"] = ln_f_bias
+                weights_dict_local[f"{new_key}.bias"] = ln_f_bias
 
         config["gpus_per_node"] = gpus_per_node
         model_config = get_config(decoder_type, config)
