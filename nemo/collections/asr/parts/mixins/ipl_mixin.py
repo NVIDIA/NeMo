@@ -76,7 +76,7 @@ class IPLMixin:
             _ipl_model_type (str): The type of model being used. Takes values "hybrid" or "ctc".
         """
 
-        ipl_config = self.cfg.get("ipl")
+        ipl_config = self.cfg.get("pseudo_label_cfg")
         self._ipl_params = {}
         self._ipl_model_type = model_type
         if ipl_config is not None:
@@ -139,7 +139,7 @@ class IPLMixin:
         """
         Function implements the logic of IPL algorithm.
         """
-        if not self.cfg.get("ipl"):
+        if not self.cfg.get("pseudo_label_cfg"):
             return
         if self._ipl_params['m_epochs'] > 0:
             self._ipl_params['m_epochs'] -= 1

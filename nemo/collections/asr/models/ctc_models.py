@@ -128,9 +128,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         Cache datastore manifests for non tarred unlabeled data for pseudo labeling.
         This function prevents caching audio files at the end of every epoch.
         """
-        if self.cfg.get("ipl"):
-            if not self.cfg.ipl.get("is_tarred", False):
-                cache_datastore_manifests(self.cfg.ipl.get("manifest_filepath"), cache_audio=True)
+        if self.cfg.get("pseudo_label_cfg"):
+            if not self.cfg.pseudo_label_cfg.get("is_tarred", False):
+                cache_datastore_manifests(self.cfg.pseudo_label_cfg.get("manifest_filepath"), cache_audio=True)
         super().on_fit_start()
 
     def on_train_epoch_end(self):
