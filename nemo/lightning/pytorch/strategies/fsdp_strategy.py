@@ -151,6 +151,20 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
     @override
     def checkpoint_io(self) -> CheckpointIO:
         return get_checkpoint_io(self._checkpoint_io)
+    
+    @checkpoint_io.setter
+    def checkpoint_io(self, io: CheckpointIO) -> None:
+        self._checkpoint_io = io
+
+    @property
+    def current_epoch_step(self) -> int:
+        """
+        Get the value of step within an epoch.
+        """
+        return max(
+            self.trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed,
+            self.trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
+        )
 
     @override
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:

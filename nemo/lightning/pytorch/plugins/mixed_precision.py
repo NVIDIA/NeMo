@@ -17,18 +17,16 @@ from typing import Any, Callable, Generator, List, Literal, Tuple, TypeVar, Unio
 
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.plugins.precision import FSDPPrecision as PLFSDPPrecision
 from pytorch_lightning.plugins.precision import MixedPrecision
 from torch.nn import Module
 from torch.optim import Optimizer
 
 from nemo.lightning._strategy_lib import GradScaler
-from nemo.lightning.io import IOMixin
 
 AnyT = TypeVar("AnyT")
 
 
-class MegatronMixedPrecision(MixedPrecision, IOMixin):
+class MegatronMixedPrecision(MixedPrecision):
     def __init__(
         self,
         precision: Literal["16-mixed", "bf16-mixed"],
@@ -156,12 +154,6 @@ class MegatronMixedPrecision(MixedPrecision, IOMixin):
             yield
         finally:
             pass
-
-
-class FSDPPrecision(PLFSDPPrecision, IOMixin):
-    """Lightning's mixed precision plugin for FSDP. Need to add IOMixin for checkpointing."""
-
-    pass
 
 
 __all__ = ["MegatronMixedPrecision"]
