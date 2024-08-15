@@ -397,8 +397,6 @@ class CUDAGraphCallback(Callback):
 
         LightningModule._LightningModule__to_tensor = LightningModule.__orig_to_tensor__
         del LightningModule.__orig_to_tensor__
-        _ResultCollection.register_key = _ResultCollection.__orig_register_key__
-        del _ResultCollection.__orig_register_key__
         _ResultCollection.update_metrics = _ResultCollection.__orig_update_metrics__
         del _ResultCollection.__orig_update_metrics__
 
