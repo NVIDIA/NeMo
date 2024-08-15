@@ -130,6 +130,8 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
+import torch.nn.functional as F
+import wandb
 
 @cache
 def mcore_supports_moe() -> bool:
@@ -268,6 +270,36 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     @property
     def output_names(self) -> List[str]:
         return ['logits']
+
+
+#from mend
+def kl_loc_loss(pre, post, mask=None, use_absolute_kl=False, use_log_softmax_kl=True):
+    pre_ = pre.to(torch.float32)
+    post_ = post.to(torch.float32)
+
+    # sequence = pre.dim() == 3
+    # pre_ = pre.view(-1, pre.shape[-1])
+    # post_ = post.view(pre_.shape)
+    # assert pre_.shape[0] == post_.shape[0]
+
+    # if not sequence:
+    #     if pre_.shape[-1] == 1:  # No masking needed for binary classification
+    #         return (pre.sigmoid() * (F.logsigmoid(pre) - F.logsigmoid(post))).mean() + (
+    #             (-pre).sigmoid() * (F.logsigmoid(-pre) - F.logsigmoid(-post))
+    #         ).mean()
+    # else:  # We have sequences of predictions; masking needed
+        # if pre_.shape[-1] > 1:
+    assert mask is not None
+    mask_ = mask.view(pre.shape[-1])
+    if use_log_softmax_kl:
+        _kl = (pre_.softmax(-1) * (pre_.log_softmax(-1) - post_.log_softmax(-1)))
+    else:
+        _kl = pre_ - post_
+    if use_absolute_kl:
+        kl = _kl.abs().sum(0) * -1
+    else:
+        kl = _kl.sum(0)
+    return (kl * mask_).sum() / mask_.sum()
 
 
 class MegatronGPTModel(MegatronBaseModel, TextGeneration):
@@ -1172,7 +1204,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return batch
 
     def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
-        def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
+        def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None,
+                                     previous_logits=None, previous_forward_args=None, previous_loss_mask=None):
 
             # Get data batch
             batch = self.get_batch(dataloader_iter, tuning)
@@ -1246,10 +1279,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     )
 
             output_tensor = model(**forward_args)
+            
+            loss_mask = batch['loss_mask']
+            kl_div = torch.tensor(0., device=loss_mask.device)
+            if self.c_kl > 0 and previous_logits is not None and previous_forward_args is not None and previous_loss_mask is not None:
+                post_logits = model(**previous_forward_args)
+                kl_div = kl_loc_loss(previous_logits, post_logits, 
+                                     previous_loss_mask,
+                                    self.use_absolute_kl, self.use_log_softmax_kl)
+                if wandb.run:
+                    wandb.log({'kl-div': kl_div})
 
-            def loss_func(output_tensor):
+            def loss_func(output_tensor, c_kl_p_kl_div):
                 # Loss for a micro-batch (ub)
                 loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
+                loss_for_ub += c_kl_p_kl_div
                 cp_size = parallel_state.get_context_parallel_world_size()
                 if self.return_output_tensors:
                     # TODO: need a better way to check if loss_func is returning more stuff than just loss... (@adithyare)
@@ -1295,7 +1339,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
                     return loss_for_ub * cp_size, {'avg': reduced_loss}
 
-            return output_tensor, loss_func
+            return output_tensor, loss_func, forward_args, loss_mask, self.c_kl * kl_div
 
         return fwd_output_and_loss_func
 
