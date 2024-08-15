@@ -138,7 +138,7 @@ Sequence Packing for NeVA
 Sequence packing in NeVA (Multimodal LLMs) differs slightly from the LLM SFT/PEFT approach. For details,
 please refer to the documentation below
 
-:doc:`../multimodal/mllm/sequence_packing`
+:doc:`../../multimodal/mllm/sequence_packing`
 
 .. rubric:: Footnotes
 

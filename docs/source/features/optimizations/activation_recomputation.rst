@@ -42,11 +42,9 @@ Scheme of full and selective checkpointing granularity:
 .. image:: https://github.com/NVIDIA/NeMo/releases/download/v2.0.0rc0/asset-post-activation-recomputation-exampe-2.jpg
     :align: center
     :alt: activation-recomputation-example-2
-    :scale: 50%
 
 Scheme of uniform and block checkpointing method (full checkpointing granularity):
 
 .. image:: https://github.com/NVIDIA/NeMo/releases/download/v2.0.0rc0/asset-post-activation-recomputation-exampe-1.jpg
     :align: center
     :alt: activation-recomputation-example-1
-    :scale: 50%

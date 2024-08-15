@@ -252,45 +252,45 @@ However, the following changes to the training pipeline are necessary:
 
 .. code-block:: yaml
 
-  _target_: nemo.collections.multimodal.models.nerf.dreamfusion.DreamFusion
-  defaults:
-    - nerf: torchngp
-    - background: torchngp
-    - material: basic_shading
-    - renderer: nvdiffrast            # (1)
-    - guidance: sd_huggingface
-    - optim: adan
-    - loss: dmtet                     # (2)
-    - data: data
-    - _self_
+   _target_: nemo.collections.multimodal.models.nerf.dreamfusion.DreamFusion
+   defaults:
+     - nerf: torchngp
+     - background: torchngp
+     - material: basic_shading
+     - renderer: nvdiffrast            # (1)
+     - guidance: sd_huggingface
+     - optim: adan
+     - loss: dmtet                     # (2)
+     - data: data
+     - _self_
 
-  ### model options
-  resume_from_checkpoint: "/results/DreamFusion/checkpoints/DreamFusion-step\=10000-last.ckpt"   # (3)
-  prompt: 'a hamburger'
-  negative_prompt: ''
-  front_prompt: ', front view'
-  side_prompt: ', side view'
-  back_prompt: ', back view'
-  update_extra_interval: 16
-  guidance_scale: 100
-  export_video: False
+   ### model options
+   resume_from_checkpoint: "/results/DreamFusion/checkpoints/DreamFusion-step\\=10000-last.ckpt"   # (3)
+   prompt: 'a hamburger'
+   negative_prompt: ''
+   front_prompt: ', front view'
+   side_prompt: ', side view'
+   back_prompt: ', back view'
+   update_extra_interval: 16
+   guidance_scale: 100
+   export_video: False
 
-  iters: ${trainer.max_steps}
-  latent_iter_ratio: 0.0
-  albedo_iter_ratio: 0
-  min_ambient_ratio: 0.1
-  textureless_ratio: 0.2
+   iters: ${trainer.max_steps}
+   latent_iter_ratio: 0.0
+   albedo_iter_ratio: 0
+   min_ambient_ratio: 0.1
+   textureless_ratio: 0.2
 
-  data:
-    train_dataset:
-      width: 512         # (4)
-      height: 512        # (4)
-    val_dataset:
-      width: 800
-      height: 800
-    test_dataset:
-      width: 800
-      height: 800
+   data:
+     train_dataset:
+       width: 512         # (4)
+       height: 512        # (4)
+     val_dataset:
+       width: 800
+       height: 800
+     test_dataset:
+       width: 800
+       height: 800
 
 
 We note the following changes:
