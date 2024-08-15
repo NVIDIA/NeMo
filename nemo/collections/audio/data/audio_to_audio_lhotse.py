@@ -45,7 +45,7 @@ class LhotseAudioToTargetDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, cuts: CutSet) -> dict[str, torch.Tensor]:
         # In the rare case, the collate_audio function would raise the FileSeek error when loading .flac (https://github.com/bastibe/python-soundfile/issues/274)
-        # A workaround is to use fault_tolerant and skip failed data, resulting to a smaller batch size for the few problematic cases.
+        # A workaround is to use fault_tolerant and skip failed data, resulting in a smaller batch size for the few problematic cases.
         src_audio, src_audio_lens, retained_padded_cuts = collate_audio(cuts, fault_tolerant=True)
         ans = {
             "input_signal": src_audio,

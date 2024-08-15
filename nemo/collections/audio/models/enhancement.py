@@ -620,6 +620,17 @@ class ScoreBasedGenerativeAudioToAudioModel(AudioToAudioModel):
 
 
 class FlowMatchingAudioToAudioModel(AudioToAudioModel):
+    """This models uses a flow matching process to generate
+    an encoded representation of the enhanced signal.
+
+    The model consists of the following blocks:
+        - encoder: transforms input multi-channel audio signal into an encoded representation (analysis transform)
+        - estimator: neural model, estimates a score for the diffusion process
+        - flow: ordinary differential equation (ODE) defining a flow and a vector field.
+        - sampler: sampler for the inference process, estimates coefficients of the target signal
+        - decoder: transforms sampler output into the time domain (synthesis transform)
+        - ssl_pretrain_masking: if it is defined, perform the ssl pretrain masking for self reconstruction in the training process
+    """
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
         self.sample_rate = self._cfg.sample_rate
@@ -715,8 +726,7 @@ class FlowMatchingAudioToAudioModel(AudioToAudioModel):
 
         if self.p_cond == 0:
             encoded = torch.zeros_like(encoded)
-
-        if self.ssl_pretrain_masking is not None:
+        elif self.ssl_pretrain_masking is not None:
             encoded = self.ssl_pretrain_masking(input_spec=encoded, length=encoded_length)
 
         init_state = torch.randn_like(encoded) * self.flow.sigma_start
