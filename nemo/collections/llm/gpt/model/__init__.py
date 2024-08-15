@@ -29,6 +29,14 @@ from nemo.collections.llm.gpt.model.llama import (
     LlamaConfig,
     LlamaModel,
 )
+
+from nemo.collections.llm.gpt.model.chatglm import (
+    ChatGLMConfig,
+    ChatGLM2Config6B,
+    ChatGLM3Config6B,
+    ChatGLMModel,
+)
+
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralConfig8x22B, MixtralModel
 
@@ -59,6 +67,10 @@ __all__ = [
     "Baichuan2Config",
     "Baichuan2Config7B",
     "Baichuan2Model",
+    "ChatGLMConfig",
+    "ChatGLM2Config6B",
+    "ChatGLM3Config6B",
+    "ChatGLMModel",
     "MaskedTokenLossReduction",
     "gpt_data_step",
     "gpt_forward_step",
