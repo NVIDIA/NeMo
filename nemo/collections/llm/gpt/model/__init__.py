@@ -1,7 +1,6 @@
 from nemo.collections.llm.gpt.model.baichuan import (
     Baichuan2Config,
     Baichuan2Config7B,
-    Baichuan2Config13B,
     Baichuan2Model,
 )
 from nemo.collections.llm.gpt.model.base import (
@@ -63,7 +62,6 @@ __all__ = [
     "LlamaModel",
     "Baichuan2Config",
     "Baichuan2Config7B",
-    "Baichuan2Config13B",
     "Baichuan2Model",
     "MaskedTokenLossReduction",
     "gpt_data_step",

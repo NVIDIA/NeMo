@@ -41,16 +41,6 @@ class Baichuan2Config7B(Baichuan2Config):
     position_embedding_type: str = "rope"
 
 
-@dataclass
-class Baichuan2Config13B(Baichuan2Config):
-    num_layers: int = 40
-    hidden_size: int = 5120
-    num_attention_heads: int = 40
-    num_query_groups: int = 40
-    ffn_hidden_size: int = 13696
-    position_embedding_type: str = "alibi"
-
-
 class Baichuan2Model(GPTModel):
     def __init__(
         self,
@@ -272,6 +262,5 @@ def _export_linear_fc1(linear_fc1):
 __all__ = [
     "Baichuan2Config",
     "Baichuan2Config7B",
-    "Baichuan2Config13B",
     "Baichuan2Model",
 ]
