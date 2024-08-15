@@ -81,8 +81,6 @@ class MegatronMixedPrecision(MixedPrecision):
         This is optional and depends on the precision limitations during optimization.
 
         """
-        from nemo.core.optim import MainParamsOptimizerWrapper
-
         optim_config = get_optim_config(optimizer)
         assert optim_config.bf16 == (self.precision == "bf16-mixed"), "BF16 enabled on model but not on optimizer"
         assert optim_config.fp16 == (self.precision == "fp16-mixed"), "BF16 enabled on model but not on optimizer"
