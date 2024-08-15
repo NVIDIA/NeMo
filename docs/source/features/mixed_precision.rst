@@ -51,5 +51,5 @@ Resources
 
 - `Transformer Engine documentation <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/index.html>`_
 - `Intro to FP8, floating point formats, and mixed precision training <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/examples/fp8_primer.html#Introduction-to-FP8>`_
-- `Performance optimizations <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/examples/advanced_optimizations.html>`_ that are natively supported in NeMo by enabling FP8 training with TE
-- `TE installation <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/installation.html>`_
+- `Performance optimizations <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/examples/advanced_optimizations.html>`_ that are natively supported in NeMo Framework by enabling FP8 training with TE
+- `Transformer Engine installation <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/installation.html>`_
