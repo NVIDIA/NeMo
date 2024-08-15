@@ -631,6 +631,7 @@ class FlowMatchingAudioToAudioModel(AudioToAudioModel):
         - decoder: transforms sampler output into the time domain (synthesis transform)
         - ssl_pretrain_masking: if it is defined, perform the ssl pretrain masking for self reconstruction in the training process
     """
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
         self.sample_rate = self._cfg.sample_rate
