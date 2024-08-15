@@ -298,6 +298,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self._validate_trainer()
 
+        self.log_tb_at_end = cfg.get("log_tb_at_end", False)
+        if self.log_tb_at_end:
+            from collections import defaultdict
+            self.metrics = defaultdict(list)
+            self._log = self.tb_logger
+        else:
+            self._log = self.pl_logger
+
         # build the transformer config
         # TODO: add type hint once pip package is out
         self.transformer_config = self.build_transformer_config()
@@ -920,14 +928,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.log_memory_usage:
             max_memory_reserved = torch.cuda.max_memory_reserved()
             memory_allocated = torch.cuda.memory_allocated()
-            self.log(
+            self._log(
                 'peak_memory_usage',
                 max_memory_reserved,
                 prog_bar=True,
                 rank_zero_only=True,
                 batch_size=1,
             )
-            self.log(
+            self._log(
                 'memory_allocated',
                 memory_allocated,
                 prog_bar=True,
@@ -945,17 +953,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     torch.distributed.send(loss_mean, 0)
                 elif torch.distributed.get_rank() == 0:
                     torch.distributed.recv(loss_mean, get_last_rank())
-            self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
+            self._log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
 
             # (@adithyare) we need to check for the _scaler attribute to enable pp>1 for adapter training
             if self.cfg.precision == 16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
                 loss_scale = self.trainer.precision_plugin.scaler._scale
                 if loss_scale is not None:
-                    self.log('loss_scale', loss_scale, batch_size=1)
+                    self._log('loss_scale', loss_scale, batch_size=1)
 
         lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, rank_zero_only=True, batch_size=1)
-        self.log(
+        self._log('lr', lr, rank_zero_only=True, batch_size=1)
+        self._log(
             'global_step',
             self.trainer.global_step,
             prog_bar=True,
@@ -965,7 +973,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         consumed_samples = self._compute_consumed_samples_after_training_step()
         # TODO: make sure compute_consumed_samples works for pipeline parallelism
-        self.log(
+        self._log(
             'consumed_samples',
             consumed_samples,
             prog_bar=True,
@@ -981,10 +989,22 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 consistency_check=False,
             )
             current_global_batch_size = num_microbatch_calculator.current_global_batch_size
-            self.log('global_batch_size', current_global_batch_size, prog_bar=True, rank_zero_only=True, batch_size=1)
+            self._log('global_batch_size', current_global_batch_size, prog_bar=True, rank_zero_only=True, batch_size=1)
             self.if_first_step = 1
 
         return loss_mean
+    
+    def pl_logger(self, name, value, prog_bar=False, rank_zero_only=False, batch_size=1):
+        self.log(
+            name,
+            value,
+            prog_bar=prog_bar,
+            rank_zero_only=rank_zero_only,
+            batch_size=batch_size
+        )
+
+    def tb_logger(self, name, value, prog_bar=False, rank_zero_only=False, batch_size=1):
+        self.metrics[name].append(value)
 
     def backward(self, *args, **kwargs):
         """LightningModule hook to do backward.
@@ -1482,7 +1502,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 group=parallel_state.get_pipeline_model_parallel_group(),
             )
 
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self._log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.validation_step_outputs.clear()  # free memory
 
         return averaged_loss
@@ -2138,3 +2158,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             setattr(transformer_config, key, value)
 
         return transformer_config
+    
+    def on_train_end(self):
+        if self.log_tb_at_end:
+            for metric, values in self.metrics.items():
+                for value in values:
+                    logging.info(f"{metric=}, {value=}")
+                    self.logger.experiment.add_scalar(metric, value)

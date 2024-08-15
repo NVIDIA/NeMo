@@ -24,6 +24,7 @@ from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
 from typing import Any, Collection, Dict, List, Optional, Tuple, Union
+from collections import defaultdict
 
 import pytorch_lightning
 import torch
@@ -213,6 +214,7 @@ class ExpManagerConfig:
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
+    log_step_timing_on_end: Optional[bool] = False
     step_timing_kwargs: Optional[StepTimingParams] = field(default_factory=lambda: StepTimingParams())
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
@@ -239,8 +241,15 @@ class TimingCallback(Callback):
     Logs execution time of train/val/test steps
     """
 
-    def __init__(self, timer_kwargs={}):
+    def __init__(self, log_step_timing_on_end=False, timer_kwargs={}):
         self.timer = timers.NamedTimer(**timer_kwargs)
+        self.log_step_timing_on_end = log_step_timing_on_end
+
+        if self.log_step_timing_on_end:
+            self.named_timer_values = defaultdict(list)
+            self._log = self.tb_logger
+        else:
+            self._log = self.pl_logger
 
     def _on_batch_start(self, name):
         # reset only if we do not return mean of a sliding window
@@ -258,15 +267,26 @@ class TimingCallback(Callback):
 
     def _on_batch_end(self, name, pl_module):
         self.timer.stop(name)
-        # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
-        pl_module.log(
-            name + ' in s',
+
+        self._log(
+            pl_module,
+            name,
             self.timer[name],
             on_step=True,
             on_epoch=False,
             batch_size=1,
             prog_bar=(name == "train_step_timing"),
         )
+
+    def _on_train_end(self, trainer, pl_module):
+        for name, values in self.named_timer_values.items():
+            for idx, value in enumerate(values):
+                logging.info(f"Step {idx}: {name} in s={value}")
+                if pl_module.logger is not None:
+                    pl_module.logger.experiment.add_scalar(
+                    name + ' in s',
+                    value
+                )
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         self._on_batch_start("train_step_timing")
@@ -292,6 +312,22 @@ class TimingCallback(Callback):
     def on_after_backward(self, trainer, pl_module):
         self._on_batch_end("train_backward_timing", pl_module)
 
+    def on_train_end(self, trainer, pl_module):
+        if self.log_step_timing_on_end:
+            self._on_train_end(trainer, pl_module)
+
+    def pl_logger(self, pl_module, name, value, on_step=True, on_epoch=False, batch_size=1, prog_bar=False):
+        pl_module.log(
+            name + " in s",
+            self.timer[name],
+            on_step=True,
+            on_epoch=False,
+            batch_size=1,
+            prog_bar=(name == "train_step_timing"),
+        )
+
+    def tb_logger(self, pl_module, name, value, on_step=True, on_epoch=False, batch_size=1, prog_bar=False):
+        self.named_timer_values[name].append(self.timer[name])
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
     """
@@ -510,7 +546,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     # add loggers timing callbacks
     if cfg.log_step_timing:
-        timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
+        timing_callback = TimingCallback(cfg.log_step_timing_on_end, timer_kwargs=cfg.step_timing_kwargs or {})
         trainer.callbacks.insert(0, timing_callback)
 
     if cfg.ema.enable:
