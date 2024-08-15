@@ -30,7 +30,14 @@ from nemo.collections.llm.gpt.model.llama import (
 )
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralConfig8x22B, MixtralModel
-from nemo.collections.llm.gpt.model.nemotron import Nemotron3Config8B, NemotronConfig, NemotronModel
+from nemo.collections.llm.gpt.model.nemotron import (
+    Nemotron3Config4B,
+    Nemotron3Config8B,
+    Nemotron4Config15B,
+    Nemotron4Config340B,
+    NemotronConfig, 
+    NemotronModel
+)
 
 __all__ = [
     "GPTConfig",
