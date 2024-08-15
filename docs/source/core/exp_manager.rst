@@ -322,6 +322,7 @@ and stability. To use EMA, simply set the following via YAML or :class:`~nemo.ut
 
 
 .. _nemo_multirun-label:
+
 Hydra Multi-Run with NeMo
 -------------------------
 
