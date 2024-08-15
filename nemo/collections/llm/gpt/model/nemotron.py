@@ -22,55 +22,75 @@ class NemotronConfig(GPTConfig):
     # configs that are common across model sizes
     normalization: str = "LayerNorm"
     activation_func: Callable = squared_relu
-    add_bias_linear: bool = False
-    seq_length: int = 4096
     position_embedding_type: str = "rope"
-    rotary_percent: float = 0.5
+    share_embeddings_and_output_weights: bool = False
+    add_bias_linear: bool = False
+
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
-    layernorm_zero_centered_gamma: bool = True  # layernorm1p
-    init_method_std: float = 0.01
-    share_embeddings_and_output_weights: bool = False
-    kv_channels: int = None
-    num_query_groups: int = None
+    apply_query_key_layer_scaling: bool = True
+    rotary_percent: float = 0.5
+    masked_softmax_fusion: bool = True
+    persist_layer_norm: bool = True
+    bias_dropout_add_fusion: bool = False
+    layernorm_zero_centered_gamma: bool = True
+
+    # Nemotron3Config4B as default configs
+    num_layers: int = 32
+    seq_length: int = 4096
+    hidden_size: int = 3072
+    ffn_hidden_size: int = 9216
+    num_attention_heads: int = 24
+    num_query_groups: Optional[int] = 8
+    kv_channels: Optional[int] = 128
+    init_method_std: float = 0.0134
 
 
 @dataclass
 class Nemotron3Config4B(NemotronConfig):
     num_layers: int = 32
+    seq_length: int = 4096
     hidden_size: int = 3072
     ffn_hidden_size: int = 9216
-    kv_channels: int = 128
-    num_query_groups: int = 8
     num_attention_heads: int = 24
+    num_query_groups: int = 8
+    kv_channels: Optional[int] = 128
     init_method_std: float = 0.0134
 
 
 @dataclass
 class Nemotron3Config8B(NemotronConfig):
     num_layers: int = 32
+    seq_length: int = 4096
     hidden_size: int = 4096
     ffn_hidden_size: int = 16384
     num_attention_heads: int = 32
+    num_query_groups: Optional[int] = None
+    kv_channels: Optional[int] = None
+    init_method_std: float = 0.010
 
 
 @dataclass
 class Nemotron4Config15B(NemotronConfig):
     num_layers: int = 32
+    seq_length: int = 4096
     hidden_size: int = 6144
     ffn_hidden_size: int = 24576
     num_attention_heads: int = 48
-    num_query_groups: int = 8
+    num_query_groups: Optional[int] = 8
+    kv_channels: Optional[int] = None
     init_method_std: float = 0.0134
 
 
 @dataclass
 class Nemotron4Config340B(NemotronConfig):
     num_layers: int = 96
+    seq_length: int = 4096
     hidden_size: int = 18432
     ffn_hidden_size: int = 73728
     num_attention_heads: int = 96
-    num_query_groups: int = 8
+    num_query_groups: Optional[int] = 8
+    kv_channels: Optional[int] = None
     init_method_std: float = 0.0063
 
 
@@ -156,7 +176,7 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
 @io.model_exporter(NemotronModel, "hf")
 class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]):
     def init(self) -> "NemotronForCausalLM":
-        return AutoModelForCausalLM.from_config(self.config)
+        return NemotronForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
         target = self.init()
