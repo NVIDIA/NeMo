@@ -35,8 +35,8 @@ from nemo.collections.llm.gpt.model.nemotron import (
     Nemotron3Config8B,
     Nemotron4Config15B,
     Nemotron4Config340B,
-    NemotronConfig, 
-    NemotronModel
+    NemotronConfig,
+    NemotronModel,
 )
 
 __all__ = [
