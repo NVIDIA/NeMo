@@ -1,8 +1,4 @@
-from nemo.collections.llm.gpt.model.baichuan import (
-    Baichuan2Config,
-    Baichuan2Config7B,
-    Baichuan2Model,
-)
+from nemo.collections.llm.gpt.model.baichuan import Baichuan2Config, Baichuan2Config7B, Baichuan2Model
 from nemo.collections.llm.gpt.model.base import (
     GPTConfig,
     GPTModel,
