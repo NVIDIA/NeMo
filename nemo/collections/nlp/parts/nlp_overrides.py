@@ -413,7 +413,7 @@ class NLPDDPStrategy(DDPStrategy):
                 self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
         if self.save_last_n_optim_states >= 0 and '-last' in filepath:
-            self._drop_optimizer_states(filepath)
+            self._drop_optimizer_states(filepath=filepath, storage_options=storage_options)
 
     # PTL 2.2 supports non strict loading of the ckpt with the strict arg (https://github.com/Lightning-AI/pytorch-lightning/pull/19404)
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
@@ -558,7 +558,6 @@ class NLPDDPStrategy(DDPStrategy):
 
             if getattr(self.lightning_module, 'continue_training', False):
                 checkpoint = self._integrate_original_checkpoint_data(checkpoint)
-
             return checkpoint
 
         # Legacy model parallel checkpointing logic, does not use megatron core
@@ -590,7 +589,7 @@ class NLPDDPStrategy(DDPStrategy):
 
         return checkpoint
 
-    def _drop_optimizer_states(self, filepath: Union[str, Path], storage_options: Optional[Any] = None):
+    def _drop_optimizer_states(self, filepath: Union[str, Path], storage_options: Optional[Any] = None) -> None:
         # Get list of saved checkpoints
         checkpoints = self._get_checkpoints_list(filepath)
 
@@ -600,7 +599,7 @@ class NLPDDPStrategy(DDPStrategy):
             checkpoint_path = checkpoints[checkpoint_index]
 
             logging.info(f"Loading '{checkpoint_path}' checkpoint to drop optimizer states...")
-            checkpoint = self.load_checkpoint(checkpoint_path=checkpoint_path, drop_optim_states=True)
+            checkpoint = self.load_checkpoint(checkpoint_path=checkpoint_path)
 
             # Remove the checkpoint version with optimizer steps
             self.remove_checkpoint(checkpoint_path)
@@ -622,7 +621,8 @@ class NLPDDPStrategy(DDPStrategy):
 
             logging.info(f"Successfully dropped optimizer states for '{checkpoint_path}' checkpoint.")
 
-    def _get_checkpoints_list(self, filepath: Union[str, Path]):
+    def _get_checkpoints_list(self, filepath: Union[str, Path]) -> List[str]:
+        # Get a list of saved checkpoints
         checkpoint_dir = os.path.dirname(filepath)
         checkpoints = [
             d
