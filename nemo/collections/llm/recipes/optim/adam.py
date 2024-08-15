@@ -1,4 +1,3 @@
-import torch
 from megatron.core.optimizer import OptimizerConfig
 
 from nemo.collections.llm.utils import Config
