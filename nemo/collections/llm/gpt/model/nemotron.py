@@ -4,14 +4,15 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
 from torch import nn
+from transformers import NemotronConfig as HFNemotronConfig
+from transformers import NemotronForCausalLM
 
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.fn.activation import squared_relu
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 
-from transformers import NemotronForCausalLM, NemotronConfig as HFNemotronConfig
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
