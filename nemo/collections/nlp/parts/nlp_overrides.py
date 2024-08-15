@@ -597,7 +597,7 @@ class NLPDDPStrategy(DDPStrategy):
         checkpoints = self._get_checkpoints_list(filepath)
 
         # Drop optimizer states
-        checkpoint_index = (len(checkpoints) - self.save_last_n_optim_states - 1)
+        checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
         if len(checkpoints) > self.save_last_n_optim_states:
             checkpoint_path = checkpoints[checkpoint_index]
 
@@ -627,7 +627,9 @@ class NLPDDPStrategy(DDPStrategy):
     def _get_checkpoints_list(self, filepath: Union[str, Path]):
         checkpoint_dir = os.path.dirname(filepath)
         checkpoints = [
-            d for d in os.listdir(checkpoint_dir) if os.path.isdir(os.path.join(checkpoint_dir, d)) and '-last' not in d
+            d
+            for d in os.listdir(checkpoint_dir)
+            if os.path.isdir(os.path.join(checkpoint_dir, d)) and '-last' not in d
         ]
         checkpoints = sorted(checkpoints, key=lambda x: int(x.split('-step=')[1].split('-')[0]))
         checkpoints = [os.path.join(checkpoint_dir, checkpoint) for checkpoint in checkpoints]
