@@ -1,4 +1,4 @@
-w# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ from torch.nn import Module
 from torch.optim import Optimizer
 
 from nemo.lightning._strategy_lib import GradScaler
+from nemo.utils import logging
 
 AnyT = TypeVar("AnyT")
 
@@ -206,7 +207,7 @@ def patch_dtype_config(dtype_config, config):
         new_val = getattr(dtype_config, field.name)
         if old_val != new_val:
             setattr(config, field.name, new_val)
-            print(f"Overwrote {type(config).__name__}.{field.name}  {old_val} -> {new_val}")
+            logging.warning(f"Overwrote {type(config).__name__}.{field.name}  {old_val} -> {new_val}")
     return config
 
 
