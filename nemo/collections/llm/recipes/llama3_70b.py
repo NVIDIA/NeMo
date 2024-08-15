@@ -92,9 +92,9 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[Config(TimingCallback)],
         ),
-        data=Config(MockDataModule, seq_length=8192, global_batch_size=128, micro_batch_size=1),
+        data=Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
         log=default_log(ckpt_dir=ckpt_dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
-        optim=distributed_fused_adam_with_cosine_annealing(),
+        optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
 
@@ -109,5 +109,5 @@ def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node:
     )
     recipe.resume = hf_resume()
     recipe.peft = Config(LoRA)
-    recipe.data = Config(SquadDataModule, seq_length=8192, global_batch_size=128, micro_batch_size=1)
+    recipe.data = Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
     return recipe
