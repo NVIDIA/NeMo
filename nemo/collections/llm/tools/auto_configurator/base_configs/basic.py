@@ -47,7 +47,7 @@ class Basic:
         self.global_batch_size = cfg.get("global_batch_size")
         self.tokenizer_path = cfg.get("tokenizer_path")
         self.data_paths = cfg.get("data_paths")
-        self.nemo_sdk = cfg.get("nemo_sdk")
+        self.nemo_run = cfg.get("nemo_run")
 
     def model_config(self):
         """Function that returns model config."""
@@ -72,7 +72,7 @@ class Basic:
             "overlap_param_gather": True,
         }
 
-        if self.nemo_sdk:
+        if self.nemo_run:
             optim_config = Config(
                 OptimizerConfig,
                 **optim_params,

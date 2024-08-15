@@ -15,13 +15,30 @@
 from typing import List, Optional
 
 from nemo.collections.llm.tools.auto_configurator.core.search_config import search_configs
+from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
+from nemo.collections.common.tokenizers import SentencePieceTokenizer, AutoTokenizer
+from nemo.collections.llm.utils import Partial, Config
+from nemo.collections.llm.api import pretrain
+from nemo.collections.llm import PreTrainingDataModule
+from nemo.utils.exp_manager import TimingCallback
+from nemo import lightning as nl
 from nemo.utils import logging
+
+from pytorch_lightning.loggers import TensorBoardLogger
+
+import torch
 
 SUPPORTED_MODELS = [
     "gpt3",
     "llama",
     "mixtral",
     "mistral",
+]
+
+SUPPORTED_TOKENIZERS = [
+    "autotokenizer",
+    "sentencepiece",
+    "huggingface",
 ]
 
 
@@ -33,7 +50,9 @@ class AutoConfigurator:
         model_type: str = None,
         num_nodes: int = None,
         data_paths: List = None,
-        tokenizer_path: Optional[str] = None,
+        path_to_logs: Optional[str] = None,
+        tokenizer_type: Optional[str] = "autotokenizer",
+        tokenizer_path: Optional[str] = "GPT2BPETokenizer",
         model_size: Optional[int] = None,
         model_version: Optional[int] = None,
         gpus_per_node: Optional[int] = 8,
@@ -56,12 +75,14 @@ class AutoConfigurator:
         vocab_size: Optional[int] = 51200,
         model_args: Optional[dict] = {},
         custom_model: Optional[bool] = False,
-        nemo_sdk: Optional[bool] = False,
+        nemo_run: Optional[bool] = False,
     ):
         """
         :param str model_type: model type to be used for training.
         :param int num_nodes: number of nodes to be used for training.
         :param List data_paths: list of datafiles to be used for training.
+        :param str path_to_logs: path to the directory where the logs will be stored.
+        :param Optional[str] tokenizer_type: tokenizer type.
         :param Optional[str] tokenizer_path: path to the tokenizer model.
         :param Optional[int] model_size: size of model to be trained.
         :param Optional[int] model_version: version of model. 3 for GPT3, 2 for Llama2.
@@ -89,9 +110,15 @@ class AutoConfigurator:
         """
 
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {SUPPORTED_MODELS}."
+        assert tokenizer_type in SUPPORTED_TOKENIZERS, f"tokenizer_type must be set to one of {SUPPORTED_TOKENIZERS}."
+        assert path_to_logs if nemo_run else None, f"path_to_logs parameter must be specified."
         assert num_nodes, "num_nodes value must be specified."
         assert data_paths, "training data must be specified."
 
+        self.tokenizer_type = tokenizer_type
+        self.tokenizer_path = tokenizer_path
+        self.path_to_logs = path_to_logs
+        self.nemo_run = nemo_run
         self.config = locals()
         self.config.pop('self')
 
@@ -107,8 +134,98 @@ class AutoConfigurator:
         """
 
         configs = search_configs(self.config)
+        if self.nemo_run:
+            configs = self._generate_nemo_run_configs(configs)
 
         return configs
+
+    def _generate_nemo_run_configs(self, configs) -> dict:
+        tokenizer = self._get_tokenizer(self.tokenizer_type, self.tokenizer_path)
+
+        for name, config in configs.items():
+            strategy = self._get_startegy(config['auto_config'])
+            configs[name] = Partial(
+                pretrain,
+                model=config['model'],
+                trainer=self._get_trainer(config['trainer'], strategy),
+                data=self._get_data(config['data'], tokenizer),
+                optim=self._get_optim(config['optim']),
+                log=self._get_logger(name),
+                resume=None,
+            )
+    
+        return configs
+
+    def _get_tokenizer(self, tokenizer_type, tokenizer_path):
+        if tokenizer_type == "sentencepiece":
+            return Config(SentencePieceTokenizer, model_path=tokenizer_path)
+        else:
+            return Config(AutoTokenizer, pretrained_model_name=tokenizer_path)
+
+    def _get_data(self, data_config, tokenizer):
+        return Config(
+            PreTrainingDataModule,
+            **data_config,
+            tokenizer=tokenizer,
+        )
+    
+    def _get_optim(self, optim_config):
+
+        sched = Config(
+            CosineAnnealingScheduler,
+            warmup_steps=10,
+            constant_steps=0,
+            min_lr=optim_config.min_lr,
+        )
+
+        return Config(
+            MegatronOptimizerModule,
+            config=optim_config,
+            lr_scheduler=sched,
+        )
+
+    def _get_trainer(self, trainer_config, strategy):
+        
+        return Config(
+            nl.Trainer,
+            **trainer_config,
+            strategy=strategy,
+            plugins=Config(nl.MegatronMixedPrecision, precision="bf16-mixed"),
+            callbacks=[Config(TimingCallback)],
+        )
+
+    def _get_startegy(self, auto_config):
+
+        return Config(
+            nl.MegatronStrategy,
+            pipeline_dtype=torch.bfloat16,
+            tensor_model_parallel_size=auto_config.get('tensor_model_parallel_size', 1),
+            pipeline_model_parallel_size=auto_config.get('pipeline_model_parallel_size', 1),
+            virtual_pipeline_model_parallel_size=auto_config.get('virtual_pipeline_model_parallel_size', None),
+            context_parallel_size=auto_config.get('context_parallel_size', 1),
+            expert_model_parallel_size=auto_config.get('expert_model_parallel_size', 1),
+        )
+
+    def _get_logger(self, run_name):
+
+        tb_logger = Config(TensorBoardLogger, save_dir=self.path_to_logs)
+
+        ckpt = Config(
+            nl.ModelCheckpoint,
+            monitor="reduced_train_loss",
+            save_best_model=False,
+            save_last=False,
+            save_top_k=0,
+        )
+
+        return Config(
+            nl.NeMoLogger,
+            ckpt=ckpt,
+            name=run_name,
+            tensorboard=tb_logger,
+            wandb=None,
+            dir=self.path_to_logs,
+        )
 
     def _get_message(self, config) -> str:
         """
