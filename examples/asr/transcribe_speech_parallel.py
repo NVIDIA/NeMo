@@ -173,6 +173,7 @@ def main(cfg: ParallelTranscriptionConfig):
     trainer = ptl.Trainer(**cfg.trainer)
 
     if isinstance(model, EncDecMultiTaskModel):
+        OmegaConf.set_struct(cfg.predict_ds, False)
         cfg.predict_ds.global_rank = trainer.global_rank
         cfg.predict_ds.world_size = trainer.world_size
         OmegaConf.set_struct(cfg.predict_ds, True)
