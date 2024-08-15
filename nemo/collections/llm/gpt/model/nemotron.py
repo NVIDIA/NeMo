@@ -10,11 +10,9 @@ from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 
+from transformers import NemotronForCausalLM, NemotronConfig as HFNemotronConfig
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 if TYPE_CHECKING:
-    from transformers import NemotronConfig as HFNemotronConfig
-    from transformers import NemotronForCausalLM
-
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -92,8 +90,6 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
         return NemotronModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
-        from transformers import NemotronForCausalLM
-
         source = NemotronForCausalLM.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -126,14 +122,10 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-
         return AutoTokenizer(str(self))
 
     @property
     def config(self) -> NemotronConfig:
-        from transformers import NemotronConfig as HFNemotronConfig
-
         source = HFNemotronConfig.from_pretrained(str(self))
 
         def make_vocab_size_divisible_by(vocab_size):
@@ -163,8 +155,6 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
 @io.model_exporter(NemotronModel, "hf")
 class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]):
     def init(self) -> "NemotronForCausalLM":
-        from transformers import AutoModelForCausalLM
-
         return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
@@ -202,8 +192,6 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
     @property
     def config(self) -> "HFNemotronConfig":
         source: NemotronConfig = io.load_context(str(self)).model.config
-
-        from transformers import NemotronConfig as HFNemotronConfig
 
         return HFNemotronConfig(
             num_hidden_layers=source.num_layers,
