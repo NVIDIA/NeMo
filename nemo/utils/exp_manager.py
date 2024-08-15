@@ -319,7 +319,7 @@ class TimingCallback(Callback):
     def pl_logger(self, pl_module, name, value, on_step=True, on_epoch=False, batch_size=1, prog_bar=False):
         pl_module.log(
             name + " in s",
-            self.timer[name],
+            value,
             on_step=True,
             on_epoch=False,
             batch_size=1,
@@ -327,7 +327,7 @@ class TimingCallback(Callback):
         )
 
     def tb_logger(self, pl_module, name, value, on_step=True, on_epoch=False, batch_size=1, prog_bar=False):
-        self.named_timer_values[name].append(self.timer[name])
+        self.named_timer_values[name].append(value)
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
     """
