@@ -554,7 +554,6 @@ class BeamTDTInfer(Typing):
                 continue
 
             beam_encoder_output = encoder_outputs[:, time_idx : time_idx + 1]  # [1, 1, D]
-            print(beam_encoder_output.shape)
             # Perform prefix search to update hypothesis scores.
             if self.zero_duration_idx != None:
                 hyps = self.prefix_search(
