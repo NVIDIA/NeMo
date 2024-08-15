@@ -554,6 +554,7 @@ class BeamTDTInfer(Typing):
                 continue
 
             beam_encoder_output = encoder_outputs[:, time_idx : time_idx + 1]  # [1, 1, D]
+            print(beam_encoder_output.shape)
             # Perform prefix search to update hypothesis scores.
             if self.zero_duration_idx != None:
                 hyps = self.prefix_search(
@@ -562,9 +563,8 @@ class BeamTDTInfer(Typing):
                     prefix_alpha=self.maes_prefix_alpha,
                 )  # type: List[Hypothesis]
 
-            duplication_check = [hyp.y_sequence for hyp in hyps]  # List of hypotheses of the current frame
-            list_b = []  # List that contains the blank token emisions
-            list_nb = []  # List that contains the non-zero duration non-blank token emisions
+            list_b = []  # List that contains the blank token emissions
+            list_nb = []  # List that contains the non-zero duration non-blank token emissions
             # Repeat for number of mAES steps
             for n in range(self.maes_num_steps):
                 # Pack the decoder logits for all current hypotheses
@@ -582,7 +582,7 @@ class BeamTDTInfer(Typing):
                 beam_duration_logp_topks, beam_duration_idx_topks = beam_duration_logp.topk(duration_beam, dim=-1)
                 beam_total_logp = (beam_duration_logp_topks[:, :, None] + beam_logp_topks[:, None, :]).view(
                     len(hyps), -1
-                )  # [B, MAX_CANDIDATES+DURATION_BEAM]
+                )  # [B, MAX_CANDIDATES*DURATION_BEAM]
                 beam_total_logp_topks, beam_total_logp_topk_idxs = beam_total_logp.topk(
                     self.max_candidates, dim=-1
                 )  # [B, MAX_CANDIDATES]
@@ -632,9 +632,6 @@ class BeamTDTInfer(Typing):
 
                         # If the expansion was for blank
                         if k == self.blank:
-                            # Approximate LM score from blank from acoustic score
-                            if self.ngram_lm:
-                                new_hyp.score += self.ngram_lm_blank_alpha * self.ngram_lm_alpha * total_logp
                             list_b.append(new_hyp)
                         else:
                             new_hyp.y_sequence.append(int(k))
@@ -707,9 +704,6 @@ class BeamTDTInfer(Typing):
                             )
                             hyp.score += total_logp
                             hyp.last_frame += self.durations[int(duration_idx)]
-
-                            if self.ngram_lm:
-                                hyp.score += self.ngram_lm_blank_alpha * self.ngram_lm_alpha * total_logp
 
                         # Finally, update the kept hypothesis of sorted top Beam candidates
                         kept_hyps = kept_hyps + list_b + list_exp + list_nb
