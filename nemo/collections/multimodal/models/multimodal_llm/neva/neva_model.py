@@ -1179,7 +1179,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup
 
         Args:
-            stage (str, optional): 
+            stage (str, optional):
                 Can be 'fit', 'validate', 'test', or 'predict'. Defaults to None.
         """
         num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert()

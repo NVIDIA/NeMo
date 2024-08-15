@@ -1350,7 +1350,7 @@ class MegatronCLIPModel(MegatronBaseModel):
         https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup
 
         Args:
-            stage (str, optional): 
+            stage (str, optional):
                 Can be 'fit', 'validate', 'test', or 'predict'. Defaults to None.
         """
 
