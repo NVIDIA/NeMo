@@ -96,7 +96,7 @@ class MegatronBaseModel(NLPModel):
 
     """
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer, no_lm_init=True):
+    def __init__(self, cfg: DictConfig, trainer: Trainer, rootCfg: DictConfig = None, no_lm_init=True):
 
         if not HAVE_MEGATRON_CORE:
             raise ImportError(
@@ -119,7 +119,7 @@ class MegatronBaseModel(NLPModel):
             if cfg.get('precision', None) is None:
                 cfg.precision = trainer.precision
 
-        super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
+        super().__init__(cfg, trainer=trainer, rootCfg=rootCfg, no_lm_init=no_lm_init)
 
         # TODO: @maanug-nv consolidate into one attribute (requires lots of changes in subclasses)
         self.torch_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)  # Mixed precision datatype

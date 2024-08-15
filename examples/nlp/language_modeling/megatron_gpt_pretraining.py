@@ -57,11 +57,11 @@ def main(cfg) -> None:
         # Option 2: Restore both model weights and optimizer states from a PTL checkpoint
         logging.info(f"Continual training: loading weights and optimizer states from {cfg.model.restore_from_ckpt}")
         trainer.ckpt_path = Path(cfg.model.restore_from_ckpt)
-        model = MegatronGPTModel(cfg.model, trainer)
+        model = MegatronGPTModel(cfg.model, trainer, cfg)
 
     # Start new pretraining or resume from a checkpoint if it exists
     else:
-        model = MegatronGPTModel(cfg.model, trainer)
+        model = MegatronGPTModel(cfg.model, trainer, cfg)
 
     trainer.fit(model)
 

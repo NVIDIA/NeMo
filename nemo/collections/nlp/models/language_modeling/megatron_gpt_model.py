@@ -287,14 +287,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     Megatron GPT pretraining
     """
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer):
+    def __init__(self, cfg: DictConfig, trainer: Trainer, rootCfg: DictConfig = None):
         if not HAVE_MEGATRON_CORE:
             logging.warning(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
-        super().__init__(cfg, trainer=trainer, no_lm_init=True)
+        super().__init__(cfg, trainer=trainer, rootCfg=rootCfg, no_lm_init=True)
 
         self._validate_trainer()
 

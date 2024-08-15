@@ -62,7 +62,7 @@ class ModelPT(LightningModule, Model):
     Interface for Pytorch-lightning based NeMo models
     """
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None, rootCfg: DictConfig = None):
         """
         Base class from which all NeMo models should inherit
 
@@ -130,7 +130,11 @@ class ModelPT(LightningModule, Model):
         # init mapping submodule attribute -> config_field for nested NeMo models
         self._nemo_submodule_name_to_config_field = dict()
 
-        self.save_hyperparameters("cfg")
+        if rootCfg is not None:
+            self.save_hyperparameters(OmegaConf.to_container(rootCfg, resolve=True))
+        else:
+            self.save_hyperparameters({"model": OmegaConf.to_container(cfg, resolve=True)})
+
         self._train_dl = None
         self._validation_dl = None
         self._test_dl = None

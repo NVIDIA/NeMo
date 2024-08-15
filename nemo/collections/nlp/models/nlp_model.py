@@ -62,7 +62,7 @@ os.makedirs(NEMO_NLP_TMP, exist_ok=True)
 class NLPModel(ModelPT, Exportable):
     """Base class for NLP Models."""
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None, no_lm_init=False):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None, rootCfg: DictConfig = None, no_lm_init=False):
 
         self.hidden_size = None
         self.bert_model = None
@@ -106,7 +106,7 @@ class NLPModel(ModelPT, Exportable):
                 and cfg.get('tokenizer').get('vocab_file')
             ):
                 vocab_file = self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
-        super().__init__(cfg, trainer)
+        super().__init__(cfg, trainer, rootCfg)
 
         # handles model parallel save and restore logic
         self._save_restore_connector = NLPSaveRestoreConnector()
