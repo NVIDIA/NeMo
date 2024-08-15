@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
+
 @dataclass
 class Baichuan2Config(GPTConfig):
     normalization: str = "RMSNorm"
@@ -28,6 +29,7 @@ class Baichuan2Config(GPTConfig):
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
     share_embeddings_and_output_weights: bool = False
+
 
 @dataclass
 class Baichuan2Config7B(Baichuan2Config):
@@ -57,7 +59,9 @@ class Baichuan2Model(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or Baichuan2Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or Baichuan2Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+        )
 
 
 @io.model_importer(Baichuan2Model, "hf")
@@ -122,7 +126,7 @@ class HFBaichuan2Importer(io.ModelConnector["AutoModelForCausalLM", Baichuan2Mod
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
             share_embeddings_and_output_weights=False,
-            position_embedding_type="rope" if source.num_hidden_layers==32 else "alibi",
+            position_embedding_type="rope" if source.num_hidden_layers == 32 else "alibi",
         )
 
         return output
@@ -204,9 +208,9 @@ def _import_qkv(ctx: io.TransformCTX, qkv_weights):
     v = qkv_weights[2].squeeze().view(*new_kv_tensor_shape)
     qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:])
     for i in range(num_query_groups):
-        qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group: (i + 1) * heads_per_group, :, :]))
-        qkv_weights = torch.cat((qkv_weights, k[i: i + 1, :, :]))
-        qkv_weights = torch.cat((qkv_weights, v[i: i + 1, :, :]))
+        qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
+        qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
+        qkv_weights = torch.cat((qkv_weights, v[i : i + 1, :, :]))
 
     qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
     return qkv_weights
