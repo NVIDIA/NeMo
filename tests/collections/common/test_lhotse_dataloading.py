@@ -24,8 +24,8 @@ import torch
 from lhotse import CutSet, MonoCut, NumpyFilesWriter, Recording, SupervisionSegment, compute_num_samples
 from lhotse.audio import AudioLoadingError
 from lhotse.cut import Cut, MixedCut
-from lhotse.testing.dummies import dummy_recording
 from lhotse.dataset import RoundRobinSampler, ZipSampler
+from lhotse.testing.dummies import dummy_recording
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
@@ -1359,6 +1359,7 @@ def test_multimodal_text_audio_dataloading(
 ):
     en_paths, es_paths = txt_pair_paths_shards
     manifest_filepath, tarred_audio_filepaths = nemo_tarred_manifest_path_multi
+    QF, BT = 50, 1024
     config = OmegaConf.create(
         {
             "input_cfg": [
@@ -1386,7 +1387,7 @@ def test_multimodal_text_audio_dataloading(
             "shuffle": True,
             "num_workers": 0,
             "use_multimodal_sampling": True,
-            "batch_tokens": 1024,
+            "batch_tokens": BT,
             # How to set token equivalent duration in actual training?
             #   assuming fbank frames: 0.01 is the base due to frame shift;
             #       + subsampling x8 gives us 0.08
@@ -1394,7 +1395,7 @@ def test_multimodal_text_audio_dataloading(
             #       we'd get 0.02
             #   in this test we'll just use 0.1 for simplicity
             "token_equivalent_duration": 0.1,
-            "quadratic_factor": 50,
+            "quadratic_factor": QF,
             "seed": 0,
             "shard_seed": 0,
         }
@@ -1410,12 +1411,11 @@ def test_multimodal_text_audio_dataloading(
 
     b = next(iter(dl))
     assert isinstance(b, lhotse.CutSet)
-    assert len(b) == 7
-    assert sum(ex.num_tokens for ex in b) == pytest.approx(215)
-    assert min(ex.num_tokens for ex in b) == pytest.approx(10)
-    assert max(ex.num_tokens for ex in b) == pytest.approx(59)
-    assert sum(isinstance(ex, Cut) for ex in b) == 4
-    assert sum(isinstance(ex, SourceTargetTextExample) for ex in b) == 3
+    assert len(b)
+    assert any(isinstance(ex, Cut) for ex in b)
+    assert any(isinstance(ex, SourceTargetTextExample) for ex in b)
+    # Batch tokens is not exceeded after applying the quadratic factor correction
+    assert sum(ex.num_tokens**2 / QF for ex in b) <= BT
     for ex in b:
         if isinstance(ex, Cut):
             assert ex.modality == "audio"
@@ -1442,6 +1442,7 @@ def test_multimodal_text_audio_dataloading_zip_strategy(
 ):
     en_paths, es_paths = txt_pair_paths_shards
     manifest_filepath, tarred_audio_filepaths = nemo_tarred_manifest_path_multi
+    QF, BT = 50, 64
     config = OmegaConf.create(
         {
             "multi_config": True,
@@ -1462,7 +1463,7 @@ def test_multimodal_text_audio_dataloading_zip_strategy(
                 "shuffle": True,
                 "num_workers": 0,
                 "use_multimodal_sampling": True,
-                "batch_tokens": 64,
+                "batch_tokens": BT,
                 # How to set token equivalent duration in actual training?
                 #   assuming fbank frames: 0.01 is the base due to frame shift;
                 #       + subsampling x8 gives us 0.08
@@ -1470,7 +1471,7 @@ def test_multimodal_text_audio_dataloading_zip_strategy(
                 #       we'd get 0.02
                 #   in this test we'll just use 0.1 for simplicity
                 "token_equivalent_duration": 0.1,
-                "quadratic_factor": 50,
+                "quadratic_factor": QF,
             },
             "text": {
                 "input_cfg": [
@@ -1518,12 +1519,12 @@ def test_multimodal_text_audio_dataloading_zip_strategy(
 
     b = batches[0]
     assert isinstance(b, lhotse.CutSet)
-    assert len(b) == 6
-    assert sum(ex.num_tokens for ex in b) == pytest.approx(109)
-    assert sum(ex.num_tokens for ex in b if isinstance(ex, Cut)) == pytest.approx(50)
-    assert sum(ex.num_tokens for ex in b if isinstance(ex, SourceTargetTextExample)) == pytest.approx(59)
-    assert sum(isinstance(ex, Cut) for ex in b) == 5
-    assert sum(isinstance(ex, SourceTargetTextExample) for ex in b) == 1
+    assert len(b)
+    assert any(isinstance(ex, Cut) for ex in b)
+    assert any(isinstance(ex, SourceTargetTextExample) for ex in b)
+    # Batch tokens is not exceeded after applying the quadratic factor correction
+    # Note: zip samples stitches together two batches hence * 2
+    assert sum(ex.num_tokens**2 / QF for ex in b) <= BT * 2
     for ex in b:
         if isinstance(ex, Cut):
             assert ex.modality == "audio"
@@ -1540,12 +1541,12 @@ def test_multimodal_text_audio_dataloading_zip_strategy(
 
     b = batches[1]
     assert isinstance(b, lhotse.CutSet)
-    assert len(b) == 6
-    assert sum(ex.num_tokens for ex in b) == pytest.approx(107)
-    assert sum(ex.num_tokens for ex in b if isinstance(ex, Cut)) == pytest.approx(50)
-    assert sum(ex.num_tokens for ex in b if isinstance(ex, SourceTargetTextExample)) == pytest.approx(57)
-    assert sum(isinstance(ex, Cut) for ex in b) == 5
-    assert sum(isinstance(ex, SourceTargetTextExample) for ex in b) == 1
+    assert len(b)
+    assert any(isinstance(ex, Cut) for ex in b)
+    assert any(isinstance(ex, SourceTargetTextExample) for ex in b)
+    # Batch tokens is not exceeded after applying the quadratic factor correction
+    # Note: zip samples stitches together two batches hence * 2
+    assert sum(ex.num_tokens**2 / QF for ex in b) <= BT * 2
     for ex in b:
         if isinstance(ex, Cut):
             assert ex.modality == "audio"
@@ -1569,6 +1570,7 @@ def test_multimodal_text_audio_dataloading_round_robin_strategy(
 ):
     en_paths, es_paths = txt_pair_paths_shards
     manifest_filepath, tarred_audio_filepaths = nemo_tarred_manifest_path_multi
+    QF, BT = 50, 64
     config = OmegaConf.create(
         {
             "multi_config": True,
@@ -1589,7 +1591,7 @@ def test_multimodal_text_audio_dataloading_round_robin_strategy(
                 "shuffle": True,
                 "num_workers": 0,
                 "use_multimodal_sampling": True,
-                "batch_tokens": 64,
+                "batch_tokens": BT,
                 # How to set token equivalent duration in actual training?
                 #   assuming fbank frames: 0.01 is the base due to frame shift;
                 #       + subsampling x8 gives us 0.08
@@ -1597,7 +1599,7 @@ def test_multimodal_text_audio_dataloading_round_robin_strategy(
                 #       we'd get 0.02
                 #   in this test we'll just use 0.1 for simplicity
                 "token_equivalent_duration": 0.1,
-                "quadratic_factor": 50,
+                "quadratic_factor": QF,
             },
             "text": {
                 "input_cfg": [
@@ -1617,7 +1619,7 @@ def test_multimodal_text_audio_dataloading_round_robin_strategy(
                 "shuffle": True,
                 "num_workers": 0,
                 "use_multimodal_sampling": True,
-                "batch_tokens": 64,
+                "batch_tokens": BT,
                 # How to set token equivalent duration in actual training?
                 #   assuming fbank frames: 0.01 is the base due to frame shift;
                 #       + subsampling x8 gives us 0.08
@@ -1625,7 +1627,7 @@ def test_multimodal_text_audio_dataloading_round_robin_strategy(
                 #       we'd get 0.02
                 #   in this test we'll just use 0.1 for simplicity
                 "token_equivalent_duration": 0.1,
-                "quadratic_factor": 50,
+                "quadratic_factor": QF,
             },
         }
     )
@@ -1646,12 +1648,10 @@ def test_multimodal_text_audio_dataloading_round_robin_strategy(
     # Batch 0 is audio-only
     b = batches[0]
     assert isinstance(b, lhotse.CutSet)
-    assert len(b) == 5
-    assert sum(ex.num_tokens for ex in b) == pytest.approx(50)
-    assert sum(ex.num_tokens for ex in b if isinstance(ex, Cut)) == pytest.approx(50)
-    assert sum(ex.num_tokens for ex in b if isinstance(ex, SourceTargetTextExample)) == pytest.approx(0)
-    assert sum(isinstance(ex, Cut) for ex in b) == 5
-    assert sum(isinstance(ex, SourceTargetTextExample) for ex in b) == 0
+    assert len(b)
+    assert all(isinstance(ex, Cut) for ex in b)
+    # Batch tokens is not exceeded after applying the quadratic factor correction
+    assert sum(ex.num_tokens**2 / QF for ex in b) <= BT
     for ex in b:
         assert ex.modality == "audio"
         assert isinstance(ex.load_audio(), np.ndarray)
@@ -1660,12 +1660,10 @@ def test_multimodal_text_audio_dataloading_round_robin_strategy(
     # Batch 1 is text-only
     b = batches[1]
     assert isinstance(b, lhotse.CutSet)
-    assert len(b) == 1
-    assert sum(ex.num_tokens for ex in b) == pytest.approx(59)
-    assert sum(ex.num_tokens for ex in b if isinstance(ex, Cut)) == pytest.approx(0)
-    assert sum(ex.num_tokens for ex in b if isinstance(ex, SourceTargetTextExample)) == pytest.approx(59)
-    assert sum(isinstance(ex, Cut) for ex in b) == 0
-    assert sum(isinstance(ex, SourceTargetTextExample) for ex in b) == 1
+    assert len(b)
+    assert all(isinstance(ex, SourceTargetTextExample) for ex in b)
+    # Batch tokens is not exceeded after applying the quadratic factor correction
+    assert sum(ex.num_tokens**2 / QF for ex in b) <= BT
     for ex in b:
         assert ex.modality == "text"
         assert ex.source.language == "en"

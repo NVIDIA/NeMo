@@ -216,8 +216,8 @@ def get_lhotse_dataloader_from_single_config(
     maybe_set_cuda_expandable_segments(enabled=config.cuda_expandable_segments)
 
     # First, resolve the random seed in case a string value was provided.
-    seed = resolve_seed(config.seed)
-    fix_random_seed(seed)
+    config.seed = resolve_seed(config.seed)
+    fix_random_seed(config.seed)
 
     assert config.sampler_fusion == "mux", (
         "In order to use a sampler_fusion strategy different than 'mux', "
@@ -238,7 +238,7 @@ def get_lhotse_dataloader_from_single_config(
         # This together with infinite datasets removes the need to split data across nodes/workers.
         dloader_kwargs = dict(
             dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
-            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=seed),
+            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=config.seed),
             persistent_workers=config.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
         )
     else:
@@ -492,7 +492,7 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
             ReverbWithImpulseResponse(
                 rir_recordings=RecordingSet.from_file(config.rir_path) if config.rir_path is not None else None,
                 p=config.rir_prob,
-                randgen=random.Random(seed),
+                randgen=random.Random(config.seed),
             )
         )
 
