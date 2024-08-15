@@ -601,14 +601,14 @@ class NLPDDPStrategy(DDPStrategy):
             logging.info(f"Loading '{checkpoint_path}' checkpoint to drop optimizer states...")
             checkpoint = self.load_checkpoint(checkpoint_path=checkpoint_path)
 
-            # Remove the checkpoint version with optimizer steps
+            # Remove the checkpoint version with optimizer states
             self.remove_checkpoint(checkpoint_path)
 
             checkpoint['optimizer_states'] = [None]
             checkpoint['state_dict'] = OrderedDict([])
             checkpoint['sharded_state_dict'] = self.lightning_module.sharded_state_dict()
 
-            # Save the checkpoint without optimizer steps
+            # Save the checkpoint without optimizer states
             self.checkpoint_io.save_checkpoint(checkpoint, checkpoint_path, storage_options=storage_options)
 
             if HAVE_MODELOPT and hasattr(self.lightning_module, "get_model_module_list"):
