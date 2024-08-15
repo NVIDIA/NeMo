@@ -800,6 +800,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
+        set -x
         # 1D buckets [SSL, CTC]
         python scripts/speech_recognition/estimate_duration_bins.py \
           /home/TestData/an4_dataset/an4_train.json \
@@ -818,7 +819,7 @@ jobs:
              /home/TestData/asr_tokenizers/canary/es/tokenizer_spe_bpe_v1024_max_4/tokenizer.model \
           --langs spl_tokens en es \
           --prompt-format canary \
-          --prompt "[{'role':'user','slots':{'source_lang':'en','target_lang':'en','task':'asr','pnc':'yes'}}]" \
+          --prompt '[{"role":"user","slots":{"source_lang":"en","target_lang":"en","task":"asr","pnc":"yes"}}]' \
           --buckets 5 \
           --sub-buckets 2
 
