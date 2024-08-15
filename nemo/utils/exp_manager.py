@@ -999,7 +999,7 @@ def configure_loggers(
         if wandb_kwargs.get('save_dir', None) is None:
             wandb_kwargs['save_dir'] = exp_dir
         os.makedirs(wandb_kwargs['save_dir'], exist_ok=True)
-        wandb_logger = WandbLogger(version=version, **wandb_kwargs)
+        wandb_logger = WandbLogger(version=version, **OmegaConf.to_container(wandb_kwargs, resolve=True))
 
         logger_list.append(wandb_logger)
         logging.info("WandBLogger has been set up")
