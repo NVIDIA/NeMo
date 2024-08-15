@@ -46,14 +46,6 @@ class MegatronMixedPrecision(MixedPrecision):
 
         super().__init__(precision, device, scaler)
 
-    def connect(
-        self, model: Module, optimizers: List[Optimizer], lr_schedulers: List[Any]
-    ) -> Tuple[Module, List[Optimizer], List[Any]]:
-        """Connects this plugin to the accelerator and the training process."""
-        from nemo.core.optim import MainParamsOptimizerWrapper
-
-        return model, optimizers, lr_schedulers
-
     def convert_module(self, module: Module) -> Module:
         """Convert the module parameters to the precision type this plugin handles.
 
