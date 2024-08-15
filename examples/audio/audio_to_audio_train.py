@@ -51,7 +51,7 @@ class ModelType(str, Enum):
     Predictive = 'predictive'
     ScoreBased = 'score_based'
     SchroedingerBridge = 'schroedinger_bridge'
-    FlowMatchingAudioToAudioModel = 'flow_matching'
+    FlowMatching= 'flow_matching'
 
 
 def get_model_class(model_type: ModelType):
@@ -64,7 +64,7 @@ def get_model_class(model_type: ModelType):
         return ScoreBasedGenerativeAudioToAudioModel
     elif model_type == ModelType.SchroedingerBridge:
         return SchroedingerBridgeAudioToAudioModel
-    elif model_type == ModelType.FlowMatchingAudioToAudioModel:
+    elif model_type == ModelType.FlowMatching:
         return FlowMatchingAudioToAudioModel
     else:
         raise ValueError(f'Unknown model type: {model_type}')
