@@ -23,6 +23,8 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+import os
+
 mp.set_start_method("spawn", force=True)
 
 """
@@ -73,6 +75,8 @@ def main(cfg) -> None:
         model.add_adapter(peft_cfg_cls(model_cfg))
     else:
         logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
+
+    model.save_to(os.path.join(cfg.exp_manager.exp_dir, cfg.exp_manager.name, 'checkpoints', f"{cfg.exp_manager.name}--validation_loss=0.0-step=0-consumed_samples=0.0.nemo"))
 
     trainer.fit(model)
 
