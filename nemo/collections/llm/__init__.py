@@ -15,6 +15,10 @@ from nemo.collections.llm.gpt.data import (
 )
 from nemo.collections.llm.gpt.data.api import dolly, mock, squad
 from nemo.collections.llm.gpt.model import (
+    Baichuan2Config,
+    Baichuan2Config7B,
+    Baichuan2Config13B,
+    Baichuan2Model,
     CodeGemmaConfig2B,
     CodeGemmaConfig7B,
     CodeLlamaConfig7B,
@@ -39,10 +43,6 @@ from nemo.collections.llm.gpt.model import (
     MistralModel,
     MixtralConfig8x7B,
     MixtralModel,
-    Baichuan2Config,
-    Baichuan2Config7B,
-    Baichuan2Config13B,
-    Baichuan2Model,
     gpt_data_step,
     gpt_forward_step,
 )

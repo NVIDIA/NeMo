@@ -1,3 +1,9 @@
+from nemo.collections.llm.gpt.model.baichuan import (
+    Baichuan2Config,
+    Baichuan2Config7B,
+    Baichuan2Config13B,
+    Baichuan2Model,
+)
 from nemo.collections.llm.gpt.model.base import (
     GPTConfig,
     GPTModel,
@@ -27,12 +33,6 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama3Config70B,
     LlamaConfig,
     LlamaModel,
-)
-from nemo.collections.llm.gpt.model.baichuan import (
-    Baichuan2Config,
-    Baichuan2Config7B,
-    Baichuan2Config13B,
-    Baichuan2Model,
 )
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralConfig8x22B, MixtralModel
