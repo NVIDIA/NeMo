@@ -6,20 +6,19 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from nemo.collections.llm.fn.activation import squared_relu
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 
-from nemo.collections.llm.fn.activation import squared_relu
-
 if TYPE_CHECKING:
     from transformers import NemotronConfig as HFNemotronConfig
+    from transformers import NemotronForCausalLM
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
-# https://github.com/NVIDIA/NeMo-Framework-Launcher/tree/main/launcher_scripts/conf/training/nemotron
 @dataclass
 class NemotronConfig(GPTConfig):
     num_layers: int = 32
@@ -30,12 +29,13 @@ class NemotronConfig(GPTConfig):
     num_query_groups: Optional[int] = 8
     kv_channels: Optional[int] = 128
 
-    normalization: str = "layernorm1p"
+    normalization: str = "LayerNorm"  # TODO(ahmadki): add layernorm1p from apex
     init_method_std: float = 0.0134
     activation_func: Callable = squared_relu
     position_embedding_type: str = "rope"
     share_embeddings_and_output_weights: bool = False  
-    
+    add_bias_linear: bool = False
+
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
     apply_query_key_layer_scaling: bool = True
@@ -124,8 +124,6 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
         return NemotronModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
-        from transformers import NemotronForCausalLM
-
         source = NemotronForCausalLM.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -146,12 +144,15 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
             "model.layers.*.mlp.up_proj.weight": "decoder.layers.*.mlp.linear_fc1.weight",
             "model.layers.*.mlp.down_proj.weight": "decoder.layers.*.mlp.linear_fc2.weight",
             "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+            "model.layers.*.input_layernorm.bias": "decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
             "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+            "model.layers.*.post_attention_layernorm.bias": "decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
             "model.norm.weight": "decoder.final_layernorm.weight",
+            "model.norm.bias": "decoder.final_layernorm.bias",
             "lm_head.weight": "output_layer.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_linear_fc1])
+        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv])
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -175,11 +176,11 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
             ffn_hidden_size=source.intermediate_size,
             num_attention_heads=source.num_attention_heads,
             init_method_std=source.initializer_range,
-            # seq_length=source.max_position_embeddings,
+            seq_length=source.max_position_embeddings,
             layernorm_epsilon=source.norm_eps,
             num_query_groups=source.num_key_value_heads,
             rotary_base=source.rope_theta,
-            # rotary_percent=source.partial_rotary_factor,
+            rotary_percent=source.partial_rotary_factor,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
             share_embeddings_and_output_weights=False,
         )
@@ -212,19 +213,22 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
             "decoder.layers.*.mlp.linear_fc1.weight": "model.layers.*.mlp.up_proj.weight",
             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
+            "decoder.layers.*.self_attention.linear_qkv.layer_norm_bias": "model.layers.*.input_layernorm.bias",
             "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
+            "decoder.layers.*.mlp.linear_fc1.layer_norm_bias": "model.layers.*.post_attention_layernorm.bias",
             "decoder.final_layernorm.weight": "model.norm.weight",
+            "decoder.final_layernorm.bias": "model.norm.bias",
             "output_layer.weight": "lm_head.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
+        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv])
 
     @property
     def tokenizer(self):
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
-    def config(self) -> HFNemotronConfig:
+    def config(self) -> "HFNemotronConfig":
         source: NemotronConfig = io.load_context(str(self)).model.config
 
         return HFNemotronConfig(
@@ -317,24 +321,6 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
 
     return q_proj, k_proj, v_proj
-
-
-@io.state_transform(
-    source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-    target_key="decoder.layers.*.mlp.linear_fc1.weight",
-)
-def _import_linear_fc1(down, gate):
-    return torch.cat((down, gate), axis=0).float()
-
-
-@io.state_transform(
-    source_key="decoder.layers.*.mlp.linear_fc1.weight",
-    target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-)
-def _export_linear_fc1(linear_fc1):
-    gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
-
-    return gate_proj, up_proj
 
 
 __all__ = [
