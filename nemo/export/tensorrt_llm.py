@@ -274,6 +274,7 @@ class TensorRTLLM(ITritonDeployable):
                     unpack_tarball(nemo_checkpoint_path, tmp_dir.name)
                     nemo_checkpoint_path = tmp_dir.name
                 self.tokenizer = get_nmt_tokenizer(nemo_checkpoint_path)
+                vocab_path = os.path.join(nemo_export_dir, "tokenizer.vocab_file")
 
                 qnemo_to_tensorrt_llm(
                     nemo_checkpoint_path=nemo_checkpoint_path,
@@ -326,6 +327,8 @@ class TensorRTLLM(ITritonDeployable):
                     use_embedding_sharing=use_embedding_sharing,
                 )
 
+                vocab_path = os.path.join(nemo_export_dir, "vocab.json")
+
                 for weight_dict, model_config in zip(weights_dicts, model_configs):
                     build_and_save_engine(
                         max_input_len=max_input_len,
@@ -353,7 +356,9 @@ class TensorRTLLM(ITritonDeployable):
                     )
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
-            if os.path.exists(tokenizer_path):
+            if os.path.exists(vocab_path):
+                shutil.copy(vocab_path, os.path.join(self.model_dir, "vocab.json"))
+            elif os.path.exists(tokenizer_path):
                 shutil.copy(tokenizer_path, self.model_dir)
             else:
                 self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))

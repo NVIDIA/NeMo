@@ -13,11 +13,14 @@
 # limitations under the License.
 
 import os
+import shutil
+import tempfile
 
 from omegaconf import OmegaConf
 from transformers import AutoTokenizer
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
 
 # TODO: use get_nmt_tokenizer helper below to instantiate tokenizer once environment / dependencies get stable
 # from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
@@ -42,6 +45,12 @@ def get_nmt_tokenizer(nemo_checkpoint_path: str):
         tokenizer = SentencePieceTokenizer(
             model_path=os.path.join(nemo_checkpoint_path, tokenizer_cfg.model), legacy=legacy
         )
+    elif library == "tiktoken":
+        tmp_dir = tempfile.TemporaryDirectory()
+        tmp_path = os.path.join(tmp_dir.name, "vocab.json")
+        vocab_file=os.path.join(nemo_checkpoint_path, tokenizer_cfg.vocab_file)
+        shutil.copy(vocab_file, tmp_path)
+        tokenizer = TiktokenTokenizer(vocab_file=tmp_path)
     else:
         raise NotImplementedError("Currently we only support 'huggingface' and 'sentencepiece' tokenizer libraries.")
 

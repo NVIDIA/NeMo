@@ -27,8 +27,10 @@ import yaml
 import zarr
 from torch.distributed.checkpoint import FileSystemReader
 from transformers import AutoTokenizer, PreTrainedTokenizer
+import tiktoken
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
 from nemo.export.tarutils import TarPath, ZarrPathStore
 
 LOGGER = logging.getLogger("NeMo")
@@ -120,7 +122,7 @@ def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=Tru
 
 def update_tokenizer_paths(tokenizer_config: Dict, unpacked_checkpoints_dir):
     def _update_config_entry(key, file_pattern):
-        old_path = tokenizer_config[key]
+        old_path = tokenizer_config.get(key, None)
         if old_path is None:
             return
         old_path = Path(old_path)
@@ -147,7 +149,7 @@ def copy_tokenizer_files(config, out_dir):
     }
 
     for key in basenames.keys():
-        if config[key] is None:
+        if config.get(key, None) is None:
             continue
 
         path = config[key]
@@ -160,6 +162,7 @@ def copy_tokenizer_files(config, out_dir):
             continue
 
         dst_path = out_dir / f"{basenames[key]}{path.suffix}"
+        config[key] = str(dst_path)
         LOGGER.debug(f"Copy tokenizer {key}: {path}->{dst_path}")
 
         # Copy 'path' to 'dst_path' without shutil.copy(...) because 'path' may be a TarPath
@@ -167,14 +170,20 @@ def copy_tokenizer_files(config, out_dir):
             with open(dst_path, 'wb') as outfile:
                 outfile.write(infile.read())
 
+    return config
+
 
 def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
     """Loads the tokenizer from the decoded NEMO weights dir."""
     if os.path.isdir(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer")):
         return AutoTokenizer.from_pretrained(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"))
 
-    model_path = tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
-    tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
+    if os.path.exists(os.path.join(tokenizer_dir_or_path, "tokenizer.model")):
+        model_path = tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
+        tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
+    elif os.path.exists(os.path.join(tokenizer_dir_or_path, "vocab.json")):
+        vocab_path = tokenizer_dir_or_path / "vocab.json" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
+        tokenizer_config = {"library": "tiktoken", "vocab_file": str(vocab_path)}
     return build_tokenizer(tokenizer_config)
 
 
@@ -183,6 +192,8 @@ def build_tokenizer(tokenizer):
         tokenizer_config = tokenizer
         if tokenizer_config["library"] == "sentencepiece":
             return SentencePieceTokenizer(model_path=tokenizer_config["model"])
+        elif tokenizer_config["library"] == "tiktoken":
+            return TiktokenTokenizer(vocab_file=tokenizer_config["vocab_file"])
         elif "GPT2" in tokenizer_config["type"]:
             tokenizer = GPT2Tokenizer(tokenizer_config["vocab_file"], tokenizer_config["merge_file"])
         else:
@@ -239,9 +250,8 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                 )
             else:
                 tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoint_dir)
-                copy_tokenizer_files(tokenizer_config, nemo_export_dir)
+                tokenizer_config = copy_tokenizer_files(tokenizer_config, nemo_export_dir)
 
-                tokenizer_config["model"] = os.path.join(nemo_export_dir, "tokenizer.model")
                 tokenizer = build_tokenizer(tokenizer_config)
         else:
             raise Exception("Not a supported NeMo file format: only distributed MCore NeMo checkpoints are supported.")
