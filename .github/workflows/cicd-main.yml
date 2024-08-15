@@ -2794,7 +2794,7 @@ jobs:
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
         model.save_last_n_optim_states=1 \
-        model.dist_ckpt_format='torch_dist' \
+        model.dist_ckpt_format="torch_dist" \
         model.tensor_model_parallel_size=2 \
         model.megatron_amp_O2=True \
         model.optim.name=distributed_fused_adam \
