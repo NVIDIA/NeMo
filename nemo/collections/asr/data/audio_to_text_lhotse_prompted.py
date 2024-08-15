@@ -16,14 +16,14 @@ from typing import Callable, Sequence
 
 import torch.utils.data
 from lhotse import CutSet
-from lhotse.cut import MixedCut, MonoCut
+from lhotse.cut import Cut, MixedCut, MonoCut
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 from lhotse.utils import ifnone
 
-from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.prompts.canary import CanaryPromptFormatter
 from nemo.collections.common.tokenizers import CanaryTokenizer, TokenizerSpec
+from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
 from nemo.collections.common.tokenizers.canary_tokenizer import CANARY_SPECIAL_TOKENIZER
 
 

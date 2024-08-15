@@ -38,6 +38,7 @@ from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import guess_parse_cutset, read_cutset_from_config
+from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample
 from nemo.utils import logging
 
 
@@ -195,7 +196,7 @@ def get_lhotse_dataloader_from_config(
         assert (
             tokenizer is not None
         ), "You must pass a tokenizer to `get_lhotse_dataloader_from_config` in order to read text-only datasets (enabled via use_multimodal_dataloading)"
-        from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
+        from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
 
         if not isinstance(tokenizer, TokenizerWrapper):
             tokenizer = TokenizerWrapper(tokenizer)
@@ -449,27 +450,24 @@ class MultimodalSamplingConstraint(SamplingConstraint):
     def measure_length(self, example: Any) -> float:
         if isinstance(example, Cut):
             return example.duration / self.token_equivalent_duration
-        if isinstance(example, (TextExample, TextPairExample)):
+        if isinstance(example, (TextExample, TextPairExample, NeMoSFTExample)):
             return example.num_tokens
         raise RuntimeError(f"Unsupported example type: {type(example)}")
 
 
 def is_text(example) -> bool:
-    return isinstance(example, (TextExample, TextPairExample))
+    return isinstance(example, (TextExample, TextPairExample, NeMoSFTExample))
 
 
-Example = TypeVar("Example", bound=Union[Cut, TextExample, TextPairExample])
+Example = TypeVar("Example", bound=Union[Cut, TextExample, TextPairExample, NeMoSFTExample])
 
 
 def tokenize(example: Example, tokenizer) -> Example:
     if isinstance(example, Cut):
         for s in example.supervisions:
             s.tokens = np.asarray(tokenizer(s.text, s.language))
-    elif isinstance(example, TextExample):
-        example.tokens = np.asarray(tokenizer(example.text, example.language))
-    elif isinstance(example, TextPairExample):
-        example.source.tokens = np.asarray(tokenizer(example.source.text, example.source.language))
-        example.target.tokens = np.asarray(tokenizer(example.source.text, example.target.language))
+    elif hasattr(example, "tokenize") and callable(example.tokenize):
+        example = example.tokenize(tokenizer)
     else:
         raise RuntimeError(f"Unsupported type of example: {type(example)}")
     return example

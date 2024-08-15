@@ -26,7 +26,11 @@ from lhotse.cut import Cut, MixedCut, PaddingCut
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator, LazyNeMoTarredIterator
-from nemo.collections.common.data.lhotse.text_adapters import LhotseTextAdapter, LhotseTextPairAdapter
+from nemo.collections.common.data.lhotse.text_adapters import (
+    LhotseTextAdapter,
+    LhotseTextPairAdapter,
+    NeMoSFTJsonlAdapter,
+)
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 
 
@@ -57,7 +61,9 @@ def read_cutset_from_config(config: DictConfig) -> Tuple[CutSet, bool]:
     return cuts, is_tarred
 
 
-KNOWN_DATASET_CONFIG_TYPES = frozenset(("nemo", "nemo_tarred", "lhotse", "lhotse_shar", "txt", "txt_pair", "group"))
+KNOWN_DATASET_CONFIG_TYPES = frozenset(
+    ("nemo", "nemo_tarred", "lhotse", "lhotse_shar", "txt", "txt_pair", "nemo_sft_jsonl", "group")
+)
 
 
 def read_dataset_config(config) -> tuple[CutSet, bool]:
@@ -164,6 +170,9 @@ def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
     elif grp_cfg.type == "txt_pair":
         is_tarred = True
         cuts = read_txt_pair_paths(grp_cfg)
+    elif grp_cfg.type == "nemo_sft_jsonl":
+        is_tarred = True
+        cuts = read_nemo_sft_jsonl(grp_cfg)
     elif grp_cfg.type == "group":
         cuts, is_tarred = parse_and_combine_datasets(
             grp_cfg.input_cfg,
@@ -195,6 +204,17 @@ def read_txt_pair_paths(config: DictConfig) -> CutSet:
             target_paths=config.target_paths,
             source_language=config.source_language,
             target_language=config.target_language,
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
+        )
+    ).repeat()
+
+
+def read_nemo_sft_jsonl(config: DictConfig) -> CutSet:
+    return CutSet(
+        NeMoSFTJsonlAdapter(
+            paths=config.paths,
+            language=config.language,
             shuffle_shards=config.shuffle,
             shard_seed=config.shard_seed,
         )
