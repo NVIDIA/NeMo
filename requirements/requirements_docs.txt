@@ -2,6 +2,7 @@ boto3
 Jinja2
 latexcodec
 numpy
+open_clip
 pydata-sphinx-theme
 Sphinx
 sphinx-book-theme
@@ -10,4 +11,3 @@ sphinxcontrib-bibtex
 sphinxext-opengraph
 urllib3
 wrapt
-open_clip
