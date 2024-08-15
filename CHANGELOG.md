@@ -37,6 +37,7 @@
 #### ASR
 
 <details><summary>Changelog</summary>
+
 - Support dataloader as input to `audio` for transcription by @titu1994 :: PR: #9201  
 - Clean up dev docs collection section by @yaoyu-33 :: PR: #9205  
 - Fix Online_Offline_Microphone_VAD_Demo.ipynb by @stevehuang52 :: PR: #9251  
