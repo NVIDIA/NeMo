@@ -26,6 +26,7 @@ import yaml
 from tensorrt_llm.builder import Builder
 from transformers import AutoModel
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import AudioPerceptionModule
+from nemo.core.classes.common import typecheck
 from omegaconf import OmegaConf
 from nemo.export.tensorrt_llm import TensorRTLLM
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
@@ -107,7 +108,7 @@ def build_trt_engine(
     image_size=None,
     num_frames=None,
     nemo_config=None,
-    part_name='visual_encoder',
+    part_name='visual_encoder'
 ):
     onnx_file = '%s/onnx/%s.onnx' % (output_dir, part_name)
     engine_file = '%s/%s.engine' % (output_dir, part_name)
@@ -153,6 +154,10 @@ def build_trt_engine(
 
     # input sizes can be a list of ints (e.g., [3, H, W]) when inputs are images,
     # or a list of three int lists (e.g., [[1, 1, 2700], [1, 500, 2700], [1, 4096, 2700]]).
+    # or a list of three list of lists 
+    # (e.g., [{input1: min_shape, input2: min_shape, }, \
+        #     {input1: opt_shape, input2: opt_shape}, \
+            # {input1: max_shape, input2: max_shape}] )
     assert isinstance(input_sizes, list), "input_sizes must be a list"
     if isinstance(input_sizes[0], int):
         logger.log(trt.Logger.INFO, f"Processed input sizes {input_sizes}")
@@ -161,10 +166,23 @@ def build_trt_engine(
     elif len(input_sizes) == 3 and isinstance(input_sizes[0], list):
         min_size, opt_size, max_size = input_sizes
         logger.log(trt.Logger.INFO, f"Processed min/opt/max input sizes {min_size}/{opt_size}/{max_size}")
+    elif len(input_sizes) == 3 and isinstance(input_sizes[0], dict):
+        logger.log(trt.Logger.INFO, f"Processed min/opt/max input sizes {input_sizes}")
     else:
         raise ValueError(f"invalid input sizes: {input_sizes}")
 
-    profile.set_shape(inputT.name, [nMinBS, *min_size], [nOptBS, *opt_size], [nMaxBS, *max_size])
+    if isinstance(input_sizes[0], dict):
+        for i in range(network.num_inputs):
+            inputT = network.get_input(i)
+            input_name = inputT.name
+            min_size = input_sizes[0][input_name]
+            opt_size = input_sizes[1][input_name]
+            max_size = input_sizes[2][input_name]
+            logger.log(trt.Logger.INFO, f"{input_name} min/opt/max input sizes {min_size}/{opt_size}/{max_size}")
+            profile.set_shape(input_name, min_size, opt_size, max_size)
+    else:
+        profile.set_shape(inputT.name, [nMinBS, *min_size], [nOptBS, *opt_size], [nMaxBS, *max_size])
+    
     config.add_optimization_profile(profile)
 
     t0 = time()
@@ -405,7 +423,9 @@ def build_perception_engine(
         perception.load_state_dict(perception_state_dict)
         perception.eval()
         return perception
-      
+    
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
     # load perception model
     perception_model = load_perception_model(perception_checkpoint_path)
     feature_extractor = perception_model.preprocessor
@@ -423,18 +443,25 @@ def build_perception_engine(
             self.modality_adapter = modality_adapter
             self.proj = proj
 
+        @typecheck.disable_checks()
         def forward(self, processed_signal, processed_signal_length):
             encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
             encoded, encoded_len = self.modality_adapter(audio_signal=encoded, length=encoded_len)
             # b, c, t -> b, t, c
             encoded = self.proj(encoded.transpose(1, 2))
             return encoded, encoded_len
+
     perception = PerceptionWrapper(perception_model.encoder, perception_model.modality_adapter, perception_model.proj)
     export_perception_wrapper_onnx(perception, (processed_signal, processed_signal_length), model_dir)
     # export the onnx perception model to tensorrt engine
+    # 512 -> 5.12 sec, 3072 -> 30.72 sec
+    opt_batch_size = max(1, max_batch_size // 2)
+    shapes = [{"processed_signal": [1, 80, 64], "processed_signal_length":[1]},
+              {"processed_signal": [opt_batch_size, 80, 512], "processed_signal_length":[opt_batch_size]},
+              {"processed_signal": [max_batch_size,80, 3072], "processed_signal_length":[max_batch_size]}]
     build_trt_engine(
         model_type,
-        [[80, 64],[80, 512],[80, 3072]],
+        shapes,
         model_dir,
         max_batch_size,
         dtype=torch.float16,
