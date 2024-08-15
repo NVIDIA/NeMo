@@ -42,12 +42,12 @@ from nemo.collections.llm.gpt.model import (
     MistralConfig7B,
     MistralModel,
     MixtralConfig8x7B,
+    MixtralConfig8x22B,
     MixtralModel,
     gpt_data_step,
     gpt_forward_step,
 )
 from nemo.collections.llm.recipes import *  # noqa
-
 
 __all__ = [
     "MockDataModule",
