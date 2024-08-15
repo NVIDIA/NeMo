@@ -11,7 +11,7 @@ from nemo.utils.get_rank import get_rank
 
 class MemoryProfileCallback(Callback, io.IOMixin):
     """
-    This callback enables recording a timeline of memory allocations during training. 
+    This callback enables recording a timeline of memory allocations during training.
     The generated .pickle profiles can be analyzed at https://pytorch.org/memory_viz
 
     More info about the profiles can be found [here](https://pytorch.org/blog/understanding-gpu-memory-1/).
@@ -30,7 +30,6 @@ class MemoryProfileCallback(Callback, io.IOMixin):
         os.makedirs(self.dir, exist_ok=True)
         logging.info(f"Torch memory profiles will be written to: {self.dir},")
 
-    
     def setup(self, trainer, pl_module, stage) -> None:
         """PyTorch Lightning hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-end
@@ -40,14 +39,15 @@ class MemoryProfileCallback(Callback, io.IOMixin):
         if torch.distributed.is_initialized():
             torch.cuda.memory._record_memory_history(max_entries=100000)
 
-    
     def on_train_end(self, trainer, pl_module) -> None:
         """PyTorch Lightning hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-end
         We use it here to finish memory profiling and write the snapshot.
         """
 
-        logging.info(f"on_train_batch_end rank: {torch.distributed.get_rank()} mem: {torch.cuda.memory_allocated()/1024/1024/1024} / {torch.cuda.max_memory_reserved()/1024/1024/1024}")
+        logging.info(
+            f"on_train_batch_end rank: {torch.distributed.get_rank()} mem: {torch.cuda.memory_allocated()/1024/1024/1024} / {torch.cuda.max_memory_reserved()/1024/1024/1024}"
+        )
 
         if torch.distributed.is_initialized():
             rank = torch.distributed.get_rank()
