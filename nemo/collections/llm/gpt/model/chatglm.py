@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
+
 @dataclass
 class ChatGLMConfig(GPTConfig):
     num_layers: int = 28
@@ -37,9 +38,11 @@ class ChatGLMConfig(GPTConfig):
     share_embeddings_and_output_weights: bool = False
     make_vocab_size_divisible_by: int = 65024  # override vocab size
 
+
 @dataclass
 class ChatGLM2Config6B(ChatGLMConfig):
     seq_length: int = 32768
+
 
 @dataclass
 class ChatGLM3Config6B(ChatGLMConfig):
@@ -146,7 +149,15 @@ class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"])
             "output_layer.weight": "transformer.output_layer.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv_weight, _export_qkv_bias,])
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=[
+                _export_qkv_weight,
+                _export_qkv_bias,
+            ],
+        )
 
     @property
     def tokenizer(self):
@@ -193,12 +204,13 @@ def _import_qkv_weight(ctx: io.TransformCTX, hf_qkv_weights):
 
     qkv_weights = torch.empty((0, head_size, old_tensor_shape[1]))
     for i in range(num_query_groups):
-        qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group: (i + 1) * heads_per_group, :, :]))
-        qkv_weights = torch.cat((qkv_weights, k[i: i + 1, :, :]))
-        qkv_weights = torch.cat((qkv_weights, v[i: i + 1, :, :]))
+        qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
+        qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
+        qkv_weights = torch.cat((qkv_weights, v[i : i + 1, :, :]))
     qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
 
     return qkv_weights
+
 
 @io.state_transform(
     source_key="transformer.encoder.layers.*.self_attention.query_key_value.bias",
@@ -224,10 +236,14 @@ def _import_qkv_bias(ctx: io.TransformCTX, hf_qkv_bias):
     v = v.view(*new_kv_tensor_shape)
     qkv_bias = torch.empty((0, head_size))
     for i in range(num_query_groups):
-        qkv_bias = torch.cat((qkv_bias, q[i * heads_per_group: (i + 1) * heads_per_group, :]))
-        qkv_bias = torch.cat((qkv_bias, k[i: i + 1, :]))
-        qkv_bias = torch.cat((qkv_bias, v[i: i + 1, :]))
-    qkv_bias = qkv_bias.reshape([head_size * (head_num + 2 * num_query_groups), ])
+        qkv_bias = torch.cat((qkv_bias, q[i * heads_per_group : (i + 1) * heads_per_group, :]))
+        qkv_bias = torch.cat((qkv_bias, k[i : i + 1, :]))
+        qkv_bias = torch.cat((qkv_bias, v[i : i + 1, :]))
+    qkv_bias = qkv_bias.reshape(
+        [
+            head_size * (head_num + 2 * num_query_groups),
+        ]
+    )
     return qkv_bias
 
 
@@ -262,6 +278,7 @@ def _export_qkv_weight(ctx: io.TransformCTX, qkv_weights):
     v_weight = qkv_weights[v_slice].reshape(-1, hidden_size)
     return torch.cat((q_weight, k_weight, v_weight), dim=0)
 
+
 @io.state_transform(
     source_key="decoder.layers.*.self_attention.linear_qkv.bias",
     target_key="transformer.encoder.layers.*.self_attention.query_key_value.bias",
@@ -288,10 +305,17 @@ def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
     k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
     v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
 
-    q_bias = qkv_bias[q_slice].reshape(-1, )
-    k_bias = qkv_bias[k_slice].reshape(-1, )
-    v_bias = qkv_bias[v_slice].reshape(-1, )
+    q_bias = qkv_bias[q_slice].reshape(
+        -1,
+    )
+    k_bias = qkv_bias[k_slice].reshape(
+        -1,
+    )
+    v_bias = qkv_bias[v_slice].reshape(
+        -1,
+    )
     return torch.cat((q_bias, k_bias, v_bias))
+
 
 __all__ = [
     "ChatGLMConfig",
