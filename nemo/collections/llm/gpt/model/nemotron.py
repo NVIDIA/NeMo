@@ -33,7 +33,7 @@ class NemotronConfig(GPTConfig):
     init_method_std: float = 0.0134
     activation_func: Callable = squared_relu
     position_embedding_type: str = "rope"
-    share_embeddings_and_output_weights: bool = False  
+    share_embeddings_and_output_weights: bool = False
     add_bias_linear: bool = False
 
     hidden_dropout: float = 0.0

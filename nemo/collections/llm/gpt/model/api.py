@@ -20,6 +20,8 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama3Config70B,
     LlamaModel,
 )
+from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
+from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
 from nemo.collections.llm.gpt.model.nemotron import (
     NemotronConfig4B,
     NemotronConfig8B,
@@ -28,8 +30,6 @@ from nemo.collections.llm.gpt.model.nemotron import (
     NemotronConfig340B,
     NemotronModel,
 )
-from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
-from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
 from nemo.collections.llm.utils import factory
 
 
