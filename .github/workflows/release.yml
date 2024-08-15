@@ -80,7 +80,7 @@ jobs:
           echo Proceed with uploading wheel...
           cd ${{ github.run_id }}
           python3 -m pip install --upgrade twine
-          python3 -m twine upload --repository pypi dist/*
+          echo Spython3 -m twine upload --repository pypi dist/*
 
       # - name: notify
       #   run: |
