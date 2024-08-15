@@ -38,8 +38,8 @@ jobs:
                       --arg NAME "$NAME" \
                       --arg BODY "$CHANGELOG" \
                       '{
-                        "tag_name": ${{ inputs.branch }},
-                        "target_commitish": ${{ inputs.branch }},
+                        "tag_name": $CI_COMMIT_BRANCH,
+                        "target_commitish": $CI_COMMIT_BRANCH,
                         "name": $NAME,
                         "body": $BODY,
                         "draft": false,
