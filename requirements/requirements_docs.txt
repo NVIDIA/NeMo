@@ -10,3 +10,4 @@ sphinxcontrib-bibtex
 sphinxext-opengraph
 urllib3
 wrapt
+open_clip
