@@ -116,10 +116,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
 
-    def configure_model(self, tokenizer, params_dtype) -> "MCoreGPTModel":
-        self.params_dtype = params_dtype
-        self.autocast_dtype = params_dtype
-
+    def configure_model(self, tokenizer) -> "MCoreGPTModel":
         vp_size = self.virtual_pipeline_model_parallel_size
         if vp_size:
             p_size = self.pipeline_model_parallel_size
@@ -171,7 +168,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
-            self.module = self.config.configure_model(self.tokenizer, self.optim.config.params_dtype)
+            self.module = self.config.configure_model(self.tokenizer)
 
     def forward(
         self,
