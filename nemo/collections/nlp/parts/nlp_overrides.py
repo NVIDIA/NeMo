@@ -28,7 +28,7 @@ import torch
 from lightning_fabric.plugins import TorchCheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.optimizer import _optimizer_to_device
-from omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
 from pytorch_lightning.core.optimizer import LightningOptimizer
@@ -414,7 +414,6 @@ class NLPDDPStrategy(DDPStrategy):
 
         if self.save_last_n_optim_states >= 0 and '-last' in filepath:
             self._drop_optimizer_states(filepath)
-        #print(f"SAVE: {self.dropped_optim_states}")
 
     # PTL 2.2 supports non strict loading of the ckpt with the strict arg (https://github.com/Lightning-AI/pytorch-lightning/pull/19404)
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
