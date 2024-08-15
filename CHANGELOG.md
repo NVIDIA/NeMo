@@ -37,10 +37,10 @@
 #### ASR
 
 <details><summary>Changelog</summary>
-- Support dataloader as input to `audio` for transcription by @titu1994 :: PR: #9201
-- Clean up dev docs collection section by @yaoyu-33 :: PR: #9205
-- Fix Online_Offline_Microphone_VAD_Demo.ipynb by @stevehuang52 :: PR: #9251
-- Remove .nemo instead of renaming by @mikolajblaz :: PR: #9281
+- Support dataloader as input to `audio` for transcription by @titu1994 :: PR: #9201  
+- Clean up dev docs collection section by @yaoyu-33 :: PR: #9205  
+- Fix Online_Offline_Microphone_VAD_Demo.ipynb by @stevehuang52 :: PR: #9251  
+- Remove .nemo instead of renaming by @mikolajblaz :: PR: #9281  
 - Fix GreedyBatchedCTCInfer regression from GreedyCTCInfer. by @galv :: PR: #9347
 - Revert "Fix GreedyBatchedCTCInfer regression from GreedyCTCInfer." by @titu1994 :: PR: #9351
 - Prompt formatter API and canary transcribe tensor input support by @pzelasko :: PR: #9206
