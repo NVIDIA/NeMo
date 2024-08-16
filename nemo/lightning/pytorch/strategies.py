@@ -4,7 +4,7 @@ import logging
 import os
 import shutil
 from collections import OrderedDict
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ContextManager, Dict, List, Literal, Mapping, Optional, TypeVar, Union, cast
@@ -576,7 +576,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         checkpoint["state_dict"] = OrderedDict([])  # remove device state_dict
-        checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
+        # retrieve `sharded_state_dict` if it has not already been configured in `on_save_checkpoint`
+        if "sharded_state_dict" not in checkpoint:
+            checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
         if self.trainer.state.fn == TrainerFn.FITTING and self.ckpt_include_optimizer:
             checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
@@ -621,6 +623,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         assert self.megatron_parallel is not None
 
         _strategy_lib.load_model_state_dict(self.megatron_parallel, checkpoint, strict=strict)
+        for opt in self.optimizers:
+            opt.reload_model_params()
 
     @property
     @override
@@ -646,6 +650,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:
         self._checkpoint_io = io
+
+    @property
+    def current_epoch_step(self) -> int:
+        """
+        Get the value of step within an epoch.
+        """
+        return max(
+            self.trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed,
+            self.trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
+        )
 
     def _get_data_step(self, step_type: str) -> Optional[_ModuleStepFunction]:
         for fn_name in [f"{step_type}_data_step", "data_step"]:
@@ -720,6 +734,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             moe_extended_tp=self.moe_extended_tp,
             pipeline_dtype=self.pipeline_dtype,
         )
+
+    @contextmanager
+    @override
+    def tensor_init_context(self, empty_init: Optional[bool] = None):
+        # Materializaton happens in `setup()`
+        # @akoumparouli: using Parent's tensor_init_context causes mcore
+        # parameters to be initialized on GPU instead of (assumed) CPU.
+        yield
 
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
