@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
-from typing import Any, Collection, Dict, List, Optional, Tuple, Union
+from typing import Any, Collection, Dict, List, Optional, Tuple, Union, Iterable
 from collections import defaultdict
 
 import pytorch_lightning
@@ -307,6 +307,11 @@ class DeltaTimingCallback(Callback):
         self.timers[name]["values"] = [0,[]]
         self.timers[name]["start"] = time.time()
     
+    def print_once(self, *args, **kwargs):
+        if torch.distributed.get_rank():
+            return
+        print(*args, **kwargs)
+ 
     def _on_batch_end(self, name, trainer, pl_module):
         # synchronize pytorch cuda execution if supported
         if self._sync_cuda and torch.cuda.is_initialized():
@@ -315,7 +320,7 @@ class DeltaTimingCallback(Callback):
         end = time.time()
         dt = end - self.timers[name]["start"]
         self.timers[name]["values"][0] += 1
-        logging.info(f'Step {self.timers[name]["total"][0]}: train_step_timing {dt}')
+        self.print_once(f'Step {self.timers[name]["values"][0]}: train_step_timing {dt}')
         self.timers[name]["values"][1].append(dt)
         self.timers[name]["start"] = end
 
@@ -334,11 +339,25 @@ class DeltaTimingCallback(Callback):
     def on_train_end(self, trainer, pl_module):
         for timer_name, timer_data in self.timers.items():
             step_times = timer_data["values"][1]
-            logging.info(f"{timer_name} in s: {step_times}")
-            logging.info(f"Average {timer_name} in s: {step_times/timer_data['values'][0]}")
-            if pl_module.logger is not None and pl_module.logger.experiment is not None:
+            logging.info(f"Average {timer_name} in s: {sum(step_times)/timer_data['values'][0]}")
+            if (tb_logger:=self.get_tb_logger(pl_module)) is not None:
                 for step_time in step_times:
-                    pl_module.logger.experiment.add_scalar(timer_name + " in s", step_time)
+                    tb_logger.add_scalar(timer_name + " in s", step_time)
+
+    def get_tb_logger(self, pl_module):
+        if self._tb_logger is None:
+            if pl_module.logger is None and pl_module.logger.experiment is None:
+                return None
+            tb_logger = None
+            if isinstance(pl_module.logger, Iterable):
+                for logger in pl_module.logger:
+                    if isinstance(logger, TensorBoardLogger):
+                        tb_logger = logger.experiment
+                        break
+            elif isinstance(pl_module.logger, TensorBoardLogger):
+                tb_logger = pl_module.logger.experiment
+        self._tb_logger = tb_logger
+        return self._tb_logger
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
