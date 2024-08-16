@@ -93,6 +93,48 @@ class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
 
         return hidden_states
 
+@torch.no_grad()
+def make_gemm_fork_from_TELayerNormColumnParallelLinear(layer):
+    from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
+    assert isinstance(layer, TELayerNormColumnParallelLinear), "Expected input to be of type TELayerNormColumnParallelLinear"
+    import transformer_engine.pytorch as te
+    import transformer_engine.pytorch.ops as ops
+    has_bias = (layer.bias is not None and layer.bias.numel() > 0)
+    te_ops = []
+    if hasattr(layer, 'layer_norm_weight') and layer.layer_norm_weight and layer.layer_norm_weight.numel() > 0:
+        te_ops.append(ops.LayerNorm(
+            layer.layer_norm_weight.shape,
+            eps=layer.eps,
+            device=layer.layer_norm_weight.device,
+            dtype=layer.layer_norm_weight.dtype,
+            zero_centered_gamma=layer.zero_centered_gamma,
+            bias=layer_norm_bias,
+        ))
+        te_ops[0].weight.copy_(layer.layer_norm_weight)
+        if layer.layer_norm_bias:
+            te_ops[0].bias.copy_(layer.layer_norm_bias)
+    has_bias = (layer.bias is not None and layer.bias.numel() > 0)
+    te_ops += [
+        ops.AllGather(
+            layer.tp_group
+        ),
+        ops.MakeExtraOutput(),
+        ops.Linear(
+            layer.in_features,
+            layer.out_features,
+            bias=has_bias,
+            device=layer.weight.data.device,
+            dtype=layer.weight.data.dtype,
+            tensor_parallel_group=layer.tp_group,
+            sequence_parallel=False, #layer.sequence_parallel,
+            # rng_state_tracker_function
+            # accumulate_into_main_grad
+        ),
+    ]
+    te_ops[-1].weight.data.copy_(layer.weight.data)
+    if has_bias:
+        te_ops[-1].bias.data.copy_(layer.bias.data)
+    return te.ops.Sequential(*te_ops)
 
 class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
@@ -118,12 +160,27 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             # overlap is used.
             self.linear_qkv.return_layernorm_output_gathered = True
 
+        if self.linear_qkv.ub_overlap_ag and self.linear_qkv.ub_name == 'qkv' and self.linear_qkv.sequence_parallel:
+            with torch.no_grad():
+                ub_attr = {attr: getattr(self.linear_qkv, attr)
+                           for attr in filter(lambda x: x.startswith('ub_'), dir(self.linear_qkv))
+                }
+                t = self.linear_qkv
+                self.linear_qkv = make_gemm_fork_from_TELayerNormColumnParallelLinear(self.linear_qkv)
+                del t
+                for attr, val in ub_attr.items():
+                    setattr(self.linear_qkv, attr, val)
+
     def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
         """
         Derives `query`, `key` and `value` tensors from `hidden_states`.
         """
         # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
-        linear_qkv_output, _ = self.linear_qkv(hidden_states)
+        linear_qkv_output, tmp = self.linear_qkv(hidden_states)
+        from transformer_engine.pytorch.ops.sequential import Sequential as te_Sequential
+        if isinstance(self.linear_qkv, te_Sequential):
+            linear_qkv_output = (linear_qkv_output, tmp)
+
         layernorm_output = None
 
         # In megatron/core/models/gpt/gpt_layer_specs.py when fused module is used(e.g. TELayerNormColumnParallelLinear)
