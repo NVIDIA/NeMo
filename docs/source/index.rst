@@ -55,7 +55,6 @@ For more information, browse the developer docs for your area of interest in the
    features/mixed_precision
    features/parallelisms
    features/moe
-   features/long_context
    features/optimizations/index
 
 .. toctree::
