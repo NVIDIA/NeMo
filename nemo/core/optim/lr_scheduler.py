@@ -348,7 +348,7 @@ def _linear_warmup_with_cosine_annealing(max_lr, warmup_steps, step, decay_steps
     assert max_lr > min_lr
     # Use linear warmup for the initial part.
     if warmup_steps > 0 and step <= warmup_steps:
-        return max_lr * float(step) / float(warmup_steps)
+        return max_lr * float(step + 1) / float(warmup_steps + 1)
 
     # For any steps larger than `decay_steps`, use `min_lr`.
     if step > warmup_steps + decay_steps:
