@@ -93,15 +93,22 @@ class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
 
         return hidden_states
 
+def copy_ub_attrs(src, dst):
+    ub_attrs = {attr: getattr(src, attr)
+                for attr in filter(lambda x: x.startswith('ub_'), dir(src))
+    }
+    for attr, val in ub_attrs.items():
+        setattr(dst, attr, val)
+    return dst
+
 @torch.no_grad()
-def make_gemm_fork_from_TELayerNormColumnParallelLinear(layer):
+def make_fork_gemm_from_TELayerNormColumnParallelLinear(layer):
     from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
     assert isinstance(layer, TELayerNormColumnParallelLinear), "Expected input to be of type TELayerNormColumnParallelLinear"
     import transformer_engine.pytorch as te
     import transformer_engine.pytorch.ops as ops
-    has_bias = (layer.bias is not None and layer.bias.numel() > 0)
     te_ops = []
-    if hasattr(layer, 'layer_norm_weight') and layer.layer_norm_weight and layer.layer_norm_weight.numel() > 0:
+    if hasattr(layer, 'layer_norm_weight') and layer.layer_norm_weight is not None and layer.layer_norm_weight.numel() > 0:
         te_ops.append(ops.LayerNorm(
             layer.layer_norm_weight.shape,
             eps=layer.eps,
@@ -134,7 +141,37 @@ def make_gemm_fork_from_TELayerNormColumnParallelLinear(layer):
     te_ops[-1].weight.data.copy_(layer.weight.data)
     if has_bias:
         te_ops[-1].bias.data.copy_(layer.bias.data)
-    return te.ops.Sequential(*te_ops)
+    return copy_ub_attrs(layer, te.ops.Sequential(*te_ops))
+
+
+@torch.no_grad()
+def make_gemm_add_from_TERowParallelLinear(layer):
+    from megatron.core.transformer.custom_layers.transformer_engine import TERowParallelLinear
+    assert isinstance(layer, TERowParallelLinear), "Expected input to be of type TERowParallelLinear"
+    import transformer_engine.pytorch as te
+    import transformer_engine.pytorch.ops as ops
+    has_bias = (layer.bias is not None and layer.bias.numel() > 0)
+    te_ops = [
+        ops.Linear(
+            layer.weight.shape[1],
+            layer.weight.shape[0],
+            bias=has_bias,
+            device=layer.weight.data.device,
+            dtype=layer.weight.data.dtype,
+            tensor_parallel_group=layer.tp_group,
+            sequence_parallel=False, #layer.sequence_parallel,
+            # rng_state_tracker_function
+            # accumulate_into_main_grad
+        ),
+        te.ops.AddInPlace(),
+        te.ops.ReduceScatter(
+            layer.tp_group
+        ),
+    ]
+    te_ops[0].weight.data.copy_(layer.weight.data)
+    if has_bias:
+        te_ops[0].bias.data.copy_(layer.bias.data)
+    return copy_ub_attrs(layer, te.ops.Sequential(*te_ops))
 
 class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
@@ -160,19 +197,30 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             # overlap is used.
             self.linear_qkv.return_layernorm_output_gathered = True
 
-        if self.linear_qkv.ub_overlap_ag and self.linear_qkv.ub_name == 'qkv' and self.linear_qkv.sequence_parallel:
+
+        if not self.config.sequence_parallel:
+            return
+        from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
+        if self.linear_qkv.ub_overlap_ag and self.linear_qkv.ub_name == 'qkv' and isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
             # @akoumparouli: would be better to address this by modifying mcore's spec.
             # However, the state dictionary has different layout and needs a solution.
-            # Replace TELayerNormColumnParallelLinear with GEMM + Fork
+            # This patching only works because we don't need grads for linear_qkv/linear_proj.
+            # Replace TELayerNormColumnParallelLinear with Fork + GEMM
             with torch.no_grad():
-                ub_attr = {attr: getattr(self.linear_qkv, attr)
-                           for attr in filter(lambda x: x.startswith('ub_'), dir(self.linear_qkv))
-                }
                 t = self.linear_qkv
-                self.linear_qkv = make_gemm_fork_from_TELayerNormColumnParallelLinear(self.linear_qkv)
+                self.linear_qkv = make_fork_gemm_from_TELayerNormColumnParallelLinear(self.linear_qkv)
                 del t
-                for attr, val in ub_attr.items():
-                    setattr(self.linear_qkv, attr, val)
+
+        from megatron.core.transformer.custom_layers.transformer_engine import TERowParallelLinear
+        if self.linear_proj.ub_overlap_ag and self.linear_proj and isinstance(self.linear_proj, TERowParallelLinear):
+            # @akoumparouli: would be better to address this by modifying mcore's spec.
+            # Replace TERowParallelLinear with GEMM + Add
+            with torch.no_grad():
+                t = self.linear_proj
+                self.linear_proj = make_gemm_add_from_TERowParallelLinear(self.linear_proj)
+                del t
+
+
 
     def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
         """
@@ -363,13 +411,29 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         # Output. [sq, b, h]
         # =================
 
-        output, bias = self.linear_proj(core_attn_out)
+        # output, bias = self.linear_proj(core_attn_out)
         # LoRA logic
         if self.is_adapter_available():
             lora_linear_proj_adapter = self.get_adapter_module(AdapterName.LORA_DENSE_ATTENTION_ADAPTER)
             if lora_linear_proj_adapter and self.adapter_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER]['enabled']:
-                lora_output = lora_linear_proj_adapter(core_attn_out)
-                output = output + lora_output
+
+                from transformer_engine.pytorch.ops.sequential import Sequential as te_Sequential
+                if isinstance(self.linear_proj, te_Sequential):
+                    # linear_qkv_output = (linear_qkv_output, tmp)
+                    lora_linear_proj_adapter._sequence_parallel = False
+                    output = self.linear_proj(core_attn_out, lora_linear_proj_adapter(core_attn_out))
+                    if isinstance(output, tuple):
+                        output, bias = output
+                    else:
+                        bias = None
+                else:
+                    output, bias = self.linear_proj(core_attn_out)
+                    lora_output = lora_linear_proj_adapter(core_attn_out)
+                    output = output + lora_output
+            else:
+                output, bias = self.linear_proj(core_attn_out)
+        else:
+            output, bias = self.linear_proj(core_attn_out)
 
         return output, bias
 
