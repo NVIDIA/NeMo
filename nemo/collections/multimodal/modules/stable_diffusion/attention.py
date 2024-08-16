@@ -41,8 +41,8 @@ from nemo.core import adapter_mixins
 from nemo.utils import logging
 
 try:
-    from transformer_engine.pytorch.module import LayerNormLinear, LayerNormMLP
     from transformer_engine.pytorch.attention import DotProductAttention
+    from transformer_engine.pytorch.module import LayerNormLinear, LayerNormMLP
 
     HAVE_TE = True
 
@@ -312,7 +312,7 @@ class CrossAttention(nn.Module):
                     num_attention_heads=self.inner_dim // dim_head,
                     attn_mask_type='no_mask',
                     attention_type='self' if context_dim == query_dim else 'cross',
-                    qkv_format='bshd', # `sbhd`, `bshd`, `thd`
+                    qkv_format='bshd',  # `sbhd`, `bshd`, `thd`
                     softmax_scale=self.scale,
                 )
 
