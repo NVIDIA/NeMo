@@ -53,6 +53,7 @@ try:
     from megatron.core.tensor_parallel.mappings import (
         gather_from_sequence_parallel_region,
         scatter_to_sequence_parallel_region,
+        reduce_scatter_last_dim_to_tensor_parallel_region,
     )
 
     HAVE_MEGATRON_CORE = True
@@ -170,6 +171,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         self.input_is_parallel = input_is_parallel
         self.dropout_position = dropout_position
         self.use_a2a = a2a_experimental
+        self.reduce_scatter = False
 
         # megatron_gpt_peft_models will provide this arg, but deprecated ones do not.
         # in case this arg is not provided, use the dummy default config.
@@ -307,6 +309,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         if self.config.cpu_offloading and self.config.cpu_offloading_activations:
             x.activation_offloading = True
+
+        if self.reduce_scatter:
+            x = reduce_scatter_last_dim_to_tensor_parallel_region(x)
         x, _ = self.linear_out(x)
 
         if self._sequence_parallel and self.input_is_parallel:

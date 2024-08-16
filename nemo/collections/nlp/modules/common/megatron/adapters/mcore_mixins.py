@@ -65,6 +65,65 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         """
         raise NotImplementedError("Mcore mixins should implement setup_adapters on a subclass of MyBase")
 
+    def add_adapter(self, name: str, cfg, **kwargs):
+        ans = super().add_adapter(name, cfg, **kwargs)
+
+        if not self.config.sequence_parallel or not self.linear_qkv.ub_overlap_ag:
+            return ans
+
+        if name == AdapterName.LORA_KQV_ADAPTER:
+            lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
+            if not lora_kqv_adapter and self.adapter_cfg[AdapterName.LORA_KQV_ADAPTER]['enabled']:
+                return ans
+            from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
+            if self.linear_qkv.ub_name == 'qkv' and isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
+                # @akoumparouli: would be better to address this by modifying mcore's spec.
+                # However, the state dictionary has different layout and needs a solution.
+                # This patching only works because we don't need grads for linear_qkv/linear_proj.
+                # Replace TELayerNormColumnParallelLinear with Fork + GEMM
+                with torch.no_grad():
+                    t = self.linear_qkv
+                    self.linear_qkv = make_fork_gemm_from_TELayerNormColumnParallelLinear(self.linear_qkv)
+                    del t
+        elif name == AdapterName.LORA_DENSE_ATTENTION_ADAPTER:
+            from megatron.core.transformer.custom_layers.transformer_engine import TERowParallelLinear
+            lora_linear_proj_adapter = self.get_adapter_module(AdapterName.LORA_DENSE_ATTENTION_ADAPTER)
+            enabled = self.adapter_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER]['enabled']
+            if not lora_linear_proj_adapter and enabled:
+                return ans
+            if isinstance(self.linear_proj, TERowParallelLinear):
+                # @akoumparouli: would be better to address this by modifying mcore's spec.
+                # Replace TERowParallelLinear with GEMM + Add
+                with torch.no_grad():
+                    t = self.linear_proj
+                    self.linear_proj = make_gemm_add_from_TERowParallelLinear(self.linear_proj)
+                    del t
+                # Also convert adapter to CPL + CPL
+                lora_linear_proj_adapter.reduce_scatter = True
+                tp_size = lora_linear_proj_adapter.model_parallel_config['tensor_model_parallel_size']
+                weight = lora_linear_proj_adapter.linear_out.weight
+                cpl_weight = torch.empty(weight.shape[0] * tp_size, weight.shape[1],
+                                         dtype=weight.data.dtype,
+                                         device=weight.data.device)
+                torch.distributed.all_gather_into_tensor(cpl_weight, weight.data)
+
+                assert cpl_weight.shape[1] % tp_size == 0
+                num_rows = cpl_weight.shape[1] // tp_size
+                from megatron.core.tensor_parallel import RowParallelLinear
+                # init_method does not matter since we overwrite weights immediately.
+                lora_linear_proj_adapter.linear_proj = RowParallelLinear(
+                    cpl_weight.shape[1],
+                    cpl_weight.shape[0],
+                    config=lora_linear_proj_adapter.model_parallel_config,
+                    input_is_parallel=True,
+                    skip_bias_add=True,
+                    bias=False,
+                    init_method=lambda x: torch.nn.init.xavier_uniform_(x, 0.2),
+                )
+                with torch.no_grad():
+                    rank = torch.cuda.current_device()
+                    lora_linear_proj_adapter.linear_proj.weight.data.copy_(cpl_weight[:, rank * num_rows : (rank +1) * num_rows])
+        return ans
 
 class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
@@ -133,7 +192,7 @@ def make_fork_gemm_from_TELayerNormColumnParallelLinear(layer):
             device=layer.weight.data.device,
             dtype=layer.weight.data.dtype,
             tensor_parallel_group=layer.tp_group,
-            sequence_parallel=False, #layer.sequence_parallel,
+            sequence_parallel=False,
             # rng_state_tracker_function
             # accumulate_into_main_grad
         ),
@@ -159,7 +218,7 @@ def make_gemm_add_from_TERowParallelLinear(layer):
             device=layer.weight.data.device,
             dtype=layer.weight.data.dtype,
             tensor_parallel_group=layer.tp_group,
-            sequence_parallel=False, #layer.sequence_parallel,
+            sequence_parallel=False,
             # rng_state_tracker_function
             # accumulate_into_main_grad
         ),
@@ -196,30 +255,6 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             # to perform the redundant gather in the adapter module, unless TP communication
             # overlap is used.
             self.linear_qkv.return_layernorm_output_gathered = True
-
-
-        if not self.config.sequence_parallel or not self.linear_qkv.ub_overlap_ag:
-            return
-        from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
-        if self.linear_qkv.ub_name == 'qkv' and isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
-            # @akoumparouli: would be better to address this by modifying mcore's spec.
-            # However, the state dictionary has different layout and needs a solution.
-            # This patching only works because we don't need grads for linear_qkv/linear_proj.
-            # Replace TELayerNormColumnParallelLinear with Fork + GEMM
-            with torch.no_grad():
-                t = self.linear_qkv
-                self.linear_qkv = make_fork_gemm_from_TELayerNormColumnParallelLinear(self.linear_qkv)
-                del t
-
-        from megatron.core.transformer.custom_layers.transformer_engine import TERowParallelLinear
-        if isinstance(self.linear_proj, TERowParallelLinear):
-            # @akoumparouli: would be better to address this by modifying mcore's spec.
-            # Replace TERowParallelLinear with GEMM + Add
-            with torch.no_grad():
-                t = self.linear_proj
-                self.linear_proj = make_gemm_add_from_TERowParallelLinear(self.linear_proj)
-                del t
-
 
 
     def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
