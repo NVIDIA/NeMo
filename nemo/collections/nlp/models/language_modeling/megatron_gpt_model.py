@@ -20,7 +20,7 @@ from contextlib import nullcontext
 from dataclasses import fields
 from functools import cache, partial
 from importlib.metadata import version
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Union, Iterable
 
 import torch
 from omegaconf import OmegaConf
@@ -28,7 +28,9 @@ from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
+from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.trainer.trainer import Trainer
+from collections import defaultdict
 
 from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -298,11 +300,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self._validate_trainer()
 
-        self.log_tb_at_end = cfg.get("log_tb_at_end", False)
-        if self.log_tb_at_end:
-            from collections import defaultdict
+        self.log_metrics_on_train_end = cfg.get("log_metrics_on_train_end", False)
+        if self.log_metrics_on_train_end:
             self.metrics = defaultdict(list)
-            self._log = self.tb_logger
+            self._log = self.store_metrics_in_memory
         else:
             self._log = self.pl_logger
 
@@ -993,18 +994,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.if_first_step = 1
 
         return loss_mean
-    
-    def pl_logger(self, name, value, prog_bar=False, rank_zero_only=False, batch_size=1):
-        self.log(
-            name,
-            value,
-            prog_bar=prog_bar,
-            rank_zero_only=rank_zero_only,
-            batch_size=batch_size
-        )
-
-    def tb_logger(self, name, value, prog_bar=False, rank_zero_only=False, batch_size=1):
-        self.metrics[name].append(value)
 
     def backward(self, *args, **kwargs):
         """LightningModule hook to do backward.
@@ -2159,9 +2148,36 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return transformer_config
     
+    def pl_logger(self, name, value, prog_bar=False, rank_zero_only=False, batch_size=1):
+        self.log(
+            name,
+            value,
+            prog_bar=prog_bar,
+            rank_zero_only=rank_zero_only,
+            batch_size=batch_size
+        )
+
+    def store_metrics_in_memory(self, name, value, prog_bar=False, rank_zero_only=False, batch_size=1):
+        self.metrics[name].append(value)
+    
     def on_train_end(self):
-        if self.log_tb_at_end:
+        if self.log_metrics_on_train_end and self._tb_logger is not None:
             for metric, values in self.metrics.items():
                 for value in values:
-                    logging.info(f"{metric=}, {value=}")
                     self.logger.experiment.add_scalar(metric, value)
+
+    @property
+    def tb_logger(self):
+        if self._tb_logger is None:
+            if self.logger is None and self.logger.experiment is None:
+                return None
+            tb_logger = None
+            if isinstance(self.logger, Iterable):
+                for logger in self.logger:
+                    if isinstance(logger, TensorBoardLogger):
+                        tb_logger = logger.experiment
+                        break
+            elif isinstance(self.logger, TensorBoardLogger):
+                tb_logger = self.logger.experiment
+            self._tb_logger = tb_logger
+        return self._tb_logger
