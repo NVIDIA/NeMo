@@ -200,9 +200,15 @@ class AutoConfigurator:
             **data_config,
             tokenizer=tokenizer_config,
         )
-
-    def _get_optim(self, optim_config):
-
+    
+    def _get_optim(self, optim_config: Config) -> Config:
+        """
+        Function that returns the optimizer.
+        :param: Config optim_config: optimizer config.
+        :return: optimizer.
+        :rtype: Config.
+        """
+        
         sched = Config(
             CosineAnnealingScheduler,
             warmup_steps=10,
@@ -216,7 +222,14 @@ class AutoConfigurator:
             lr_scheduler=sched,
         )
 
-    def _get_trainer(self, trainer_config, strategy):
+    def _get_trainer(self, trainer_config: dict, strategy: Config) -> Config:
+        """
+        Function that returns the trainer.
+        :param: dict trainer_config: trainer config.
+        :param: Config strategy: training strategy.
+        :return: trainer.
+        :rtype: Config.
+        """
 
         return Config(
             nl.Trainer,
