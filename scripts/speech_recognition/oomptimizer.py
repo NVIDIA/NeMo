@@ -12,7 +12,7 @@ from lhotse import compute_num_samples
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import logging
 
 
@@ -111,7 +111,12 @@ class ProfilingBatchGenerator:
         names = []
         for item in self.schema["inputs"]:
             nt = item["type"]
-            if not isinstance(nt, NeuralType):  # placeholder
+            if isinstance(nt, str) and nt == "constant":
+                if isinstance(val := item["value"], str) and val == "batch":
+                    tnsr = torch.tensor([B], dtype=torch.long, device=self.device)
+                else:
+                    tnsr = torch.tensor([val], dtype=torch.long, device=self.device)
+            elif not isinstance(nt, NeuralType):  # placeholder
                 tnsr = torch.tensor([])
             elif isinstance(nt.elements_type, AudioSignal):
                 seq_length = select_seq_length[item["seq_length"]]
@@ -122,6 +127,9 @@ class ProfilingBatchGenerator:
             elif isinstance(nt.elements_type, LabelsType):
                 seq_length = select_seq_length[item["seq_length"]]
                 tnsr = torch.randint(0, item["vocab_size"], size=(B, seq_length), device=self.device)
+            elif isinstance(nt.elements_type, MaskType):
+                seq_length = select_seq_length[item["seq_length"]]
+                tnsr = torch.ones(B, seq_length, device=self.device)
             else:
                 raise RuntimeError("Unexpected item in oomptimizer schema: {item}")
             batch.append(tnsr)

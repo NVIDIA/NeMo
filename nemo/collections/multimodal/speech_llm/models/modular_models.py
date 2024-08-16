@@ -55,6 +55,7 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import adapter_mixins
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import AppState, logging, model_utils
 from nemo.utils.model_utils import inject_model_parallel_rank
 
@@ -1704,6 +1705,59 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             self.trainer.strategy.kwargs['ignored_states'].extend(frozen_submodules)
             self.perception = self.trainer.strategy._setup_model(self.perception)
             self.perception = self.perception.cuda(torch.cuda.current_device())
+
+    @property
+    def oomptimizer_schema(self) -> dict:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+
+        # TODO: add support for text
+        # input_ids = text_batch["text_input_ids"][:, :-1]
+        # labels = text_batch["text_input_ids"][:, 1:]
+        # attention_mask = self._create_attention_mask(input_ids)
+        # loss_mask = text_batch["text_masks"][:, 1:]
+
+        return {
+            "cls": dict,
+            "inputs": [
+                {"name": "audio_signal", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"name": "audio_signal_length", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {
+                    "name": "tokens",
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": self.tokenizer.vocab_size,
+                },
+                {
+                    "name": "tokens_length",
+                    "type": NeuralType(("B",), LengthsType()),
+                    "seq_length": "output",
+                },
+                {
+                    "name": "labels",
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": self.tokenizer.vocab_size,
+                },
+                {
+                    "name": "loss_mask",
+                    "type": NeuralType(("B", "T"), MaskType()),
+                    "seq_length": "output",
+                },
+                {
+                    "name": "num_audios",
+                    "type": "constant",
+                    "value": "batch",
+                },
+                {
+                    "name": "context_start_idx",
+                    "type": "constant",
+                    "value": 0,
+                },
+            ],
+        }
 
 
 class CrossAttendModularAudioGPTModel(ModularAudioGPTModel):
