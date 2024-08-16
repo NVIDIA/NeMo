@@ -13,6 +13,9 @@ from nemo.collections.llm.gpt.data import (
     PreTrainingDataModule,
     SquadDataModule,
 )
+from nemo.collections.llm.t5.data import (
+    PreTrainingDataModule,
+)
 from nemo.collections.llm.gpt.data.api import dolly, mock, squad
 from nemo.collections.llm.gpt.model import (
     CodeGemmaConfig2B,
@@ -43,6 +46,12 @@ from nemo.collections.llm.gpt.model import (
     gpt_data_step,
     gpt_forward_step,
 )
+from nemo.collections.llm.t5.model import (
+    T5Config,
+    T5Model,
+    t5_data_step,
+    t5_forward_step,
+)
 from nemo.collections.llm.recipes import *  # noqa
 
 __all__ = [
@@ -51,6 +60,10 @@ __all__ = [
     "GPTConfig",
     "gpt_data_step",
     "gpt_forward_step",
+    "T5Model",
+    "T5Config",
+    "t5_data_step",
+    "t5_forward_step",
     "MaskedTokenLossReduction",
     "MistralConfig7B",
     "MistralModel",
