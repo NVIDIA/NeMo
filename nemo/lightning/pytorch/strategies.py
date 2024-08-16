@@ -156,7 +156,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         setup_optimizers: bool = True,
         init_model_parallel: bool = True,
         replace_progress_bar: bool = True,
-        progress_interval: int = 100,
+        progress_interval: int = 1,
         **kwargs,
     ) -> None:
         super().__init__(
