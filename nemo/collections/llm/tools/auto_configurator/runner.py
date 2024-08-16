@@ -172,7 +172,7 @@ class AutoConfigurator:
 
         return configs
 
-    def _get_model(self, model_config, tokenzier):
+    def _get_model(self, model_config, tokenizer):
         return GPTModel(model_config, tokenizer=tokenizer)
         
     def _get_tokenizer(self, tokenizer_type: str, tokenizer_path: str) -> Config:
