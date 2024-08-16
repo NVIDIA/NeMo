@@ -43,6 +43,38 @@ class MistralConfig7B(GPTConfig):
     layernorm_epsilon: float = 1e-5
     window_size: List[int] = field(default_factory=lambda: [4096, 0])
 
+@dataclass
+class MistralNeMo2407Config12B(MistralConfig7B):
+    """
+    https://mistral.ai/news/mistral-nemo/
+    """
+
+    num_layers: int = 40
+    hidden_size: int = 5120
+    kv_channels: int = 128
+    seq_length: int = 4096  # but   "max_position_embeddings": 1024000,
+
+    window_size: List[int] = None
+    rotary_percent: float = 1.0
+    rotary_base: float = 1000000.0
+
+@dataclass
+class MistralNeMo2407Config123B(MistralConfig7B):
+    """
+    https://mistral.ai/news/mistral-large-2407/
+    """
+
+    num_layers: int = 88
+    hidden_size: int = 12288
+    ffn_hidden_size: int = 28672
+    num_attention_heads: int = 96
+    kv_channels: int = 128
+    seq_length: int = 4096  # but   "max_position_embeddings": 131072,
+
+    window_size: List[int] = None
+    rotary_percent: float = 1.0
+    rotary_base: float = 1000000.0
+
 
 class MistralModel(GPTModel):
     def __init__(
