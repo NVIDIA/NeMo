@@ -2,7 +2,6 @@ boto3
 Jinja2
 latexcodec
 numpy
-open_clip_torch==2.24.0
 pydata-sphinx-theme
 Sphinx
 sphinx-book-theme
