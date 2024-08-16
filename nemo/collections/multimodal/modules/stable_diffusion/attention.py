@@ -262,6 +262,11 @@ class CrossAttention(nn.Module):
     ):
         super().__init__()
 
+        if use_te_dpa:
+            assert (
+                use_flash_attention == False
+            ), 'use_te_dpa and use_flash_attention cannot be True together. Please specify the attention you want to use.'
+
         self.inner_dim = dim_head * heads
         if context_dim is None:
             self.is_self_attn = True
@@ -351,7 +356,7 @@ class CrossAttention(nn.Module):
 
         if (
             not flash_attn_installed
-            or not self.use_flash_attention
+            or (not self.use_flash_attention and not self.use_te_dpa)
             or q.dtype == torch.float32
             or (self.dim_head > 160 or (self.dim_head % 8) != 0)
             or mask is not None
