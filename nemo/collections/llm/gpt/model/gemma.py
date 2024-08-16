@@ -9,7 +9,6 @@ from nemo.collections.llm.fn.activation import openai_gelu
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
-from nemo.lightning.pytorch.callbacks import ModelTransform
 
 if TYPE_CHECKING:
     from transformers import GemmaForCausalLM
