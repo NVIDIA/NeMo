@@ -1,6 +1,6 @@
 import torch
 
-from nemo.collections.llm.utils import Config
+from nemo.collections.llm.utils import Config, Partial
 from nemo.lightning.pytorch.plugins.mixed_precision import MegatronMixedPrecision
 
 
@@ -24,3 +24,12 @@ def fp16_mixed_plugin() -> Config[MegatronMixedPrecision]:
         autocast_enabled=False,
         grad_reduce_in_fp32=False,
     )
+
+
+def attach_fp8_to_plugin(cfg: Config[MegatronMixedPrecision]):
+    cfg.fp8 = 'hybrid'
+    cfg.fp8_margin = 0
+    cfg.fp8_interval = 1
+    cfg.fp8_amax_history_len = 1024
+    cfg.fp8_amax_compute_algo = "max"
+    return cfg
