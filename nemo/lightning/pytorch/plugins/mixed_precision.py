@@ -104,7 +104,11 @@ class MegatronMixedPrecision(MixedPrecision):
         )
         scaler = None
         if self.dtype_config.fp16:
-            scaler = GradScaler(init_scale=native_amp_init_scale, growth_interval=native_amp_growth_interval, hysteresis=native_amp_hysteresis)
+            scaler = GradScaler(
+                init_scale=native_amp_init_scale,
+                growth_interval=native_amp_growth_interval,
+                hysteresis=native_amp_hysteresis,
+            )
         super().__init__(self.dtype_config, device, scaler)
 
     def convert_module(self, module: Module) -> Module:
