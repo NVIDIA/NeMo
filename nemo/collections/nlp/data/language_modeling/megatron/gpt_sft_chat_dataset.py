@@ -60,13 +60,14 @@ def get_prompt_template_example(special_tokens):
     source = {
         'system': '{system message}',
         'conversations': [
-            {'from': 'User', 'value': '{turn 1 user message}', 'label': None},
-            {'from': 'Assistant', 'value': '{turn 1 assistant message}', 'label': '{turn 1 assistant label}'},
-            {'from': 'User', 'value': '{turn 2 user message}', 'label': None},
-            {'from': 'Assistant', 'value': '{turn 2 assistant message}', 'label': '{turn 2 assistant label}'},
+            {'from': '{user role}', 'value': '{turn 1 user message}', 'label': None},
+            {'from': '{assistant role}', 'value': '{turn 1 assistant message}', 'label': '{turn 1 assistant label}'},
+            {'from': '{user role}', 'value': '{turn 2 user message}', 'label': None},
+            {'from': '{assistant role}', 'value': '{turn 2 assistant message}', 'label': '{turn 2 assistant label}'},
         ],
-        "mask": "User",
+        "mask": "{user role}",
         "type": "VALUE_TO_TEXT",
+        "system_token": '{system token}',
     }
     _, conversation, _, _ = _get_header_conversation_type_mask_role(source, special_tokens)
     return conversation
