@@ -44,7 +44,7 @@ Support is available for both the 7B and 13B chat models. Both can be downloaded
 
 To convert the LLaMA-2 checkpoints to NeMo's format, follow these steps:
 
-1. Adjust the default YAML file at `megatron_llama_config.yaml <https://TODOURL>`_. Ensure ``model.mcore_gpt`` and ``model.transformer_engine`` are set to `False` before the checkpoint conversion.
+1. Adjust the default YAML file at `megatron_llama_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/language_modeling/conf/megatron_llama_config.yaml>`__. Ensure ``model.mcore_gpt`` and ``model.transformer_engine`` are set to `False` before the checkpoint conversion.
 
 2. For the 7B chat model, use this conversion command:
 
