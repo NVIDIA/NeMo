@@ -34,6 +34,7 @@ def get_optim_config(optimizer: Optimizer):
     except:
         raise ValueError("Failed to extract optimizer config from module.")
 
+
 @dataclass
 class DtypeConfig:
     fp32: bool = False
