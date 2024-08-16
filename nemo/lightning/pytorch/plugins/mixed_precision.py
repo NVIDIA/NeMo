@@ -54,11 +54,11 @@ class DtypeConfig:
     fp8_dot_product_attention: bool = False
     fp8_multi_head_attention: bool = False
     # FP16 Loss scaling
-    loss_scale: float = None,
-    initial_loss_scale: float = None,
-    min_loss_scale: float = None,
-    loss_scale_window: float = None,
-    hysteresis: float = None,
+    loss_scale: float = (None,)
+    initial_loss_scale: float = (None,)
+    min_loss_scale: float = (None,)
+    loss_scale_window: float = (None,)
+    hysteresis: float = (None,)
 
 
 class MegatronMixedPrecision(Precision):

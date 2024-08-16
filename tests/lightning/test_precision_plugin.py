@@ -2,20 +2,21 @@ from collections import defaultdict
 from unittest.mock import MagicMock
 
 import pytest
+import pytorch_lightning as pl
+import torch
 from megatron.core import parallel_state
+from megatron.core.optimizer import OptimizerConfig
 from torch import nn
 
 from nemo import lightning as nl
-from nemo.lightning import megatron_parallel as mp
-import pytorch_lightning as pl
-from megatron.core.optimizer import OptimizerConfig
-import torch
 from nemo.collections import llm
+from nemo.lightning import megatron_parallel as mp
 
 
 class DummyTokenizer:
     def __init__(self):
         self.vocab_size = 30000
+
 
 class TestMegatronMixedPrecision:
     """Unit tests for the MegatronMixedPrecision class."""
@@ -23,6 +24,7 @@ class TestMegatronMixedPrecision:
     @pytest.mark.run_only_on('GPU')
     def test_precision_plugin_fp8_passed(self):
         """Test __init__ with default parameters."""
+
         class TrainerHook(nl.Trainer):
             def connect(self, model: pl.LightningModule) -> None:
                 assert model.config.bf16 == False
