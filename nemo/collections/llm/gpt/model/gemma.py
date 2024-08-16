@@ -65,6 +65,7 @@ class CodeGemmaConfig2B(GemmaConfig2B):
 class CodeGemmaConfig7B(GemmaConfig7B):
     pass
 
+
 class GemmaModel(GPTModel):
     def __init__(
         self,
