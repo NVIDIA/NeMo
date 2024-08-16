@@ -84,7 +84,6 @@ class MegatronMixedPrecision(Precision):
         fp16_min_loss_scale: float = 1.0,
         fp16_loss_scale_window: int = 1000,
         fp16_hysteresis: int = 2,
-        device: str = "cuda",
     ) -> None:
 
         if isinstance(precision, int):
