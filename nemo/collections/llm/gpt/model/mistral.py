@@ -43,6 +43,7 @@ class MistralConfig7B(GPTConfig):
     layernorm_epsilon: float = 1e-5
     window_size: List[int] = field(default_factory=lambda: [4096, 0])
 
+
 @dataclass
 class MistralNeMo2407Config12B(MistralConfig7B):
     """
@@ -57,6 +58,7 @@ class MistralNeMo2407Config12B(MistralConfig7B):
     window_size: List[int] = None
     rotary_percent: float = 1.0
     rotary_base: float = 1000000.0
+
 
 @dataclass
 class MistralNeMo2407Config123B(MistralConfig7B):
