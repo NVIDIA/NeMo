@@ -35,6 +35,9 @@ class MistralConfig7B(GPTConfig):
     num_query_groups: int = 8
     ffn_hidden_size: int = 14336
     seq_length: int = 32768
+    attention_dropout: float = 0.0
+    hidden_dropout: float = 0.0
+    share_embeddings_and_output_weights: bool = False
 
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
@@ -111,6 +114,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
+            kv_channels=getattr(source, 'head_dim', source.hidden_size // source.num_attention_heads),
             num_attention_heads=source.num_attention_heads,
             # max_position_embeddings=source.max_position_embeddings,
             init_method_std=source.initializer_range,
@@ -183,6 +187,7 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
             num_key_value_heads=source.num_query_groups,
             rope_theta=source.rotary_base,
             vocab_size=self.tokenizer.vocab_size,
+            head_dim=source.kv_channels,
         )
 
 
@@ -202,7 +207,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
     head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -244,7 +249,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
     head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
