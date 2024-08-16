@@ -20,6 +20,7 @@ from lhotse.cut import MixedCut, MonoCut
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 from lhotse.utils import ifnone
+from typing import Optional
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.prompts.canary import CanaryPromptFormatter
@@ -37,7 +38,7 @@ class PromptedAudioToTextMiniBatch:
     prompt_lens: torch.Tensor
     prompted_transcript: torch.Tensor
     prompted_transcript_lens: torch.Tensor
-    cuts: CutSet
+    cuts: Optional[CutSet | None] = None
 
     def get_decoder_inputs_outputs(self) -> tuple[torch.Tensor, torch.Tensor]:
         """
@@ -96,7 +97,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             prompt_lens=prompt_lens,
             prompted_transcript=prompts_with_answers,
             prompted_transcript_lens=prompts_with_answers_lens,
-            cuts=cuts,
+            cuts=cuts.drop_in_memory_data(),
         )
 
     def _collate_tokens(self, tokens: list[list[int] | torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
