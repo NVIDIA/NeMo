@@ -238,7 +238,7 @@ def get_trt_llm_infix(key: str) -> Optional[str]:
         (mlp_fc_keys, '.mlp.fc'),
         (attention_qkv_bias_keys + attention_qkv_weight_keys, '.attention.qkv'),
         (mlp_router_keys, '.mlp.router'),
-        (mlp_fc_keys, '.mlp.fc'),
+        (mlp_fc_expert_keys, '.mlp.fc'),
         (mlp_proj_experts_keys, '.mlp.proj'),
     ]
     return sequential_key_map(key, mapping)
