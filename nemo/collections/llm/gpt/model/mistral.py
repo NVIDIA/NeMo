@@ -141,6 +141,9 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
                 base //= 2
             return base
 
+        window_size = None
+        if getattr(source, 'sliding_window', None) is not None:
+            window_size = [source.sliding_window, 0]
         output = MistralConfig7B(
             seq_length=source.sliding_window,
             num_layers=source.num_hidden_layers,
@@ -155,7 +158,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            window_size=[source.sliding_window, 0],
+            window_size=window_size,
             share_embeddings_and_output_weights=False,
         )
 
@@ -208,7 +211,7 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
         from transformers import MistralConfig as HfMistralConfig
 
         return HfMistralConfig(
-            sliding_window=source.window_size[0],
+            sliding_window=source.window_size[0] if source.window_size is not None else None,
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
