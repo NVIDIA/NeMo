@@ -1,14 +1,10 @@
-import pytorch_lightning as pl
+from typing import Callable
 
-from nemo import lightning as nl
-from nemo.collections.llm.api import finetune, pretrain
-from nemo.collections.llm.gpt.data.api import squad
-from nemo.collections.llm.gpt.model.llama import MixtralConfig8x7B, MixtralModel
-from nemo.collections.llm.peft.api import gpt_lora
+import torch
+
+from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.recipes import mixtral_8x7b
-from nemo.collections.llm.recipes.log.default import default_log
-from nemo.collections.llm.recipes.optim.adam import adam_with_cosine_annealing
-from nemo.collections.llm.utils import Partial, factory
+from nemo.collections.llm.utils import Partial
 
 NAME = "mixtral_8x7b_64k"
 
@@ -21,17 +17,18 @@ def pretrain_recipe(
     )
 
     trainer = mixtral_8x7b.trainer(
-        tensor_parallelism=2,
+        tensor_parallelism=4,
         pipeline_parallelism=4,
-        pipeline_dtype=torch.bfloat16,
+        pipeline_parallelism_type=torch.bfloat16,
         virtual_pipeline_parallelism=5,
-        context_parallelism=2,
+        context_parallelism=4,
         sequence_parallelism=True,
+        expert_parallelism=8,
         num_nodes=num_nodes,
         num_gpus_per_node=num_gpus_per_node,
     )
     model = mixtral_8x7b.model()
-    model.config.seq_length = 16384
+    model.config.seq_length = 65536
 
     recipe.model = model
     recipe.trainer = trainer
@@ -51,11 +48,12 @@ def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node:
         virtual_pipeline_parallelism=5,
         context_parallelism=2,
         sequence_parallelism=True,
+        expert_parallelism=8,
         num_nodes=num_nodes,
         num_gpus_per_node=num_gpus_per_node,
     )
     model = mixtral_8x7b.model()
-    model.config.seq_length = 16384
+    model.config.seq_length = 65536
 
     recipe.model = model
     recipe.trainer = trainer

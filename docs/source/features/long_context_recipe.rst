@@ -8,7 +8,7 @@ Long context model training enhances the capability of large language models to 
 Access Long Context Recipe
 ========================
 
-NeMo 2.0 is providing tested recipes to train long context models. `The recipe is available in the NeMo LLM GPT Trainer Directory <https://github.com/NVIDIA/NeMo/tree/main/nemo/collections/llm/recipes>`_ directory.
+NeMo 2.0 is providing tested recipes to train long context models. `The recipe is available in the NeMo LLM GPT Trainer <https://github.com/NVIDIA/NeMo/tree/main/nemo/collections/llm/recipes>`_ directory.
 
 The following charts for the Llama-3, Mixtral, and Nemotron models show the different sequence lengths supported by each model at various sizes.
 
@@ -80,7 +80,7 @@ Nemotron (Not yet supported in NeMo 2.0)
 Context Parallelism
 ========================
 
-Context Parallelism (CP) is a method for parallelizing the processing of neural network activations across multiple GPUs by partitioning the input tensors along the sequence dimension.Unlike Sequence Parallelism (SP) that partitions the activations of specific layers, CP divides the activations of all layers.
+Context Parallelism (CP) is a method for parallelizing the processing of neural network activations across multiple GPUs by partitioning the input tensors along the sequence dimension. Unlike Sequence Parallelism (SP) that partitions the activations of specific layers, CP divides the activations of all layers.
 
 CP is critical for training long context models, as it allows the model to handle longer sequences by distributing the sequence activations across multiple GPUs. This method reduces the memory footprint and computational cost of processing long sequences.
 
