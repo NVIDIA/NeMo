@@ -102,7 +102,6 @@ class MixtralConfig8x22B(MixtralConfig):
     moe_router_topk: int = 2
 
 
-
 class MixtralModel(GPTModel):
     def __init__(
         self,
