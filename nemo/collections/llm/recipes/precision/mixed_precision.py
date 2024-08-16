@@ -26,7 +26,7 @@ def fp16_mixed_plugin() -> Config[MegatronMixedPrecision]:
     )
 
 
-def attach_fp8_to_plugin(cfg: Config[MegatronMixedPrecision]):
+def attach_fp8_to_plugin(cfg: Config[MegatronMixedPrecision]) -> Config[MegatronMixedPrecision]:
     cfg.fp8 = 'hybrid'
     cfg.fp8_margin = 0
     cfg.fp8_interval = 1
