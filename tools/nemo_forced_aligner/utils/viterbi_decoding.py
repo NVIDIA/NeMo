@@ -15,8 +15,132 @@
 import torch
 from utils.constants import V_NEGATIVE_NUM
 
+# rnnt version
+def viterbi_decoding(joint, y_batch, T_batch, U_batch, viterbi_device):
 
-def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device):
+    print('joint.shape:', joint.shape)
+    print('y_batch.shape:', y_batch.shape)
+    print('T_batch:', T_batch)
+    print('U_batch', U_batch)
+
+
+    B, T_max, U_max, V = joint.shape # here V includes blank
+    
+
+    # transfer all tensors to viterbi_device
+    joint = joint.to(viterbi_device)
+    y_batch = y_batch.to(viterbi_device)
+    T_batch = T_batch.to(viterbi_device)
+    U_batch = U_batch.to(viterbi_device)
+
+
+    # turn joint into probability using softmax
+    log_probs = torch.nn.functional.log_softmax(joint, -1)
+
+    log_probs_only_blank = log_probs[:, :, :, -1]
+
+    y_batch_reshaped = y_batch.unsqueeze(1).unsqueeze(3).repeat(1, T_max, 1, 1)
+    print('y_batch_reshaped.shape:', y_batch_reshaped.shape)
+
+    log_probs_ref_text_tokens = torch.gather(
+        input = log_probs, 
+        dim = -1,
+        index = y_batch_reshaped
+    )
+
+    print('log_probs_ref_text_tokens.shape:', log_probs_ref_text_tokens.shape)
+
+
+    viterbi_probs_tensor = V_NEGATIVE_NUM * torch.ones((B, T_max, U_max), device=viterbi_device)
+    backpointers_tensor = V_NEGATIVE_NUM * torch.ones((B, T_max, U_max), dtype=torch.int8, device=viterbi_device)
+
+    # initialize first timestep of viterbi_probs_tensor
+    viterbi_probs_tensor[:, 0, 0] = log_probs_ref_text_tokens[:, 0, 0]
+
+    for t in range(1, T_max):
+        for u in range(U_max):
+
+            if u == 0:
+                if t == 0:
+                    # base case
+                    viterbi_probs_tensor[:, t, u] = 0
+                    backpointers_tensor[:, t, u] = -1
+                    continue
+
+                else: 
+                    # this is case for (t = 0, u > 0), reached by (t, u - 1)
+                    # emitting a blank symbol.
+                    v_if_emitted_token = V_NEGATIVE_NUM
+                    v_if_emitted_blank = viterbi_probs_tensor[:, t-1, u] + log_probs_only_blank[:, t-1, u]
+                    
+            else:
+                if t == 0:
+                    # in case of (u > 0, t = 0), this is only reached from
+                    # (t, u - 1) with a label emission.
+                    v_if_emitted_token = viterbi_probs_tensor[:, t, u-1] + log_probs_ref_text_tokens[:, t, u-1]
+                    v_if_emitted_blank = V_NEGATIVE_NUM
+
+                else:
+                    v_if_emitted_token = viterbi_probs_tensor[:, t, u-1] + log_probs_ref_text_tokens[:, t, u-1]
+                    v_if_emitted_blank = viterbi_probs_tensor[:, t-1, u] + log_probs_only_blank[:, t-1, u]
+
+            if v_if_emitted_token > v_if_emitted_blank:
+                new_v = v_if_emitted_token
+                backpointer = 0
+            
+            else:
+                new_v = v_if_emitted_blank
+                backpointer = 1
+
+            # update viterbi_probs_tensor and backpointers_tensor
+            viterbi_probs_tensor[:, t, u] = new_v
+            backpointers_tensor[:, t, u] = backpointer
+
+    print('viterbi_probs_tensor:', viterbi_probs_tensor)
+    print('backpointers_tensor:', backpointers_tensor)
+
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(5, 10))
+    plt.imshow(viterbi_probs_tensor[0][1:].cpu().numpy())
+    plt.savefig('viterbi_probs.png')
+
+    plt.figure(figsize=(5, 10))
+    plt.imshow(log_probs_ref_text_tokens[0].cpu().numpy())
+    plt.savefig('log_probs_ref_text_tokens.png')
+    
+    import numpy as np
+    np.save('log_probs_ref_text_tokens.npy', log_probs_ref_text_tokens[0].cpu().numpy())
+    np.save('log_probs_only_blank.npy', log_probs_only_blank[0].cpu().numpy())
+
+    # trace backpointers
+    path_tensor = torch.zeros((B, T_max, U_max), dtype=torch.int8, device=viterbi_device)
+    path_coords = []
+
+    for b in range(B):
+        path_coords_b = []
+
+        t = T_max - 1
+        u = U_max - 1
+
+        while t >= 0 and u >= 0:
+            path_tensor[b, t, u] = 1
+            path_coords_b.append((t, u))
+
+            if backpointers_tensor[b, t, u] == 0:
+                u -= 1
+            else:
+                t -= 1
+
+        path_coords_b.reverse()
+
+        path_coords.append(path_coords_b)
+
+
+
+    return path_tensor, path_coords
+
+
+def viterbi_decoding_ctc(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device):
     """
     Do Viterbi decoding with an efficient algorithm (the only for-loop in the 'forward pass' is over the time dimension). 
     Args:

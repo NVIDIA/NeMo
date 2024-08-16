@@ -685,14 +685,8 @@ def get_batch_variables(
     use_buffered_chunked_streaming=False,
     buffered_chunk_params={},
 ):
-    """
-    Returns:
-        log_probs, y, T, U (y and U are s.t. every other token is a blank) - these are the tensors we will need
-            during Viterbi decoding.
-        utt_obj_batch: a list of Utterance objects for every utterance in the batch.
-        output_timestep_duration: a float indicating the duration of a single output timestep from
-            the ASR Model.
-    """
+    # modded a lot of the original CTC code. probably this structure does not make sense for RNNT
+
 
     # get hypotheses by calling 'transcribe'
     # we will use the output log_probs, the duration of the log_probs,
@@ -703,35 +697,117 @@ def get_batch_variables(
     T_list_batch = []
     pred_text_batch = []
 
-    if not use_buffered_chunked_streaming:
-        if not simulate_cache_aware_streaming:
-            with torch.no_grad():
-                hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
-        else:
-            with torch.no_grad():
-                hypotheses = model.transcribe_simulate_cache_aware_streaming(
-                    audio_filepaths_batch, return_hypotheses=True, batch_size=B
-                )
+#    if not use_buffered_chunked_streaming:
+#        if not simulate_cache_aware_streaming:
+#            with torch.no_grad():
+#                hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
+#        else:
+#            with torch.no_grad():
+#                hypotheses = model.transcribe_simulate_cache_aware_streaming(
+#                    audio_filepaths_batch, return_hypotheses=True, batch_size=B
+#                )
 
-        # if hypotheses form a tuple (from Hybrid model), extract just "best" hypothesis
-        if type(hypotheses) == tuple and len(hypotheses) == 2:
-            hypotheses = hypotheses[0]
+#        # if hypotheses form a tuple (from Hybrid model), extract just "best" hypothesis
+#        if type(hypotheses) == tuple and len(hypotheses) == 2:
+#            hypotheses = hypotheses[0]
 
-        for hypothesis in hypotheses:
-            log_probs_list_batch.append(hypothesis.y_sequence)
-            T_list_batch.append(hypothesis.y_sequence.shape[0])
-            pred_text_batch.append(hypothesis.text)
-    else:
-        delay = buffered_chunk_params["delay"]
-        model_stride_in_secs = buffered_chunk_params["model_stride_in_secs"]
-        tokens_per_chunk = buffered_chunk_params["tokens_per_chunk"]
-        for l in tqdm(audio_filepaths_batch, desc="Sample:"):
-            model.reset()
-            model.read_audio_file(l, delay, model_stride_in_secs)
-            hyp, logits = model.transcribe(tokens_per_chunk, delay, keep_logits=True)
-            log_probs_list_batch.append(logits)
-            T_list_batch.append(logits.shape[0])
-            pred_text_batch.append(hyp)
+#        for hypothesis in hypotheses:
+#            log_probs_list_batch.append(hypothesis.y_sequence)
+#            T_list_batch.append(hypothesis.y_sequence.shape[0])
+#            pred_text_batch.append(hypothesis.text)
+#    else:
+#        delay = buffered_chunk_params["delay"]
+#        model_stride_in_secs = buffered_chunk_params["model_stride_in_secs"]
+#        tokens_per_chunk = buffered_chunk_params["tokens_per_chunk"]
+#        for l in tqdm(audio_filepaths_batch, desc="Sample:"):
+#            model.reset()
+#            model.read_audio_file(l, delay, model_stride_in_secs)
+#            hyp, logits = model.transcribe(tokens_per_chunk, delay, keep_logits=True)
+#            log_probs_list_batch.append(logits)
+#            T_list_batch.append(logits.shape[0])
+#            pred_text_batch.append(hyp)
+
+    # SETTING UP DATALOADER SO I CAN GET A BATCH OF DATA IN THE FORMAT THAT THE MODEL EXPECTS,
+    # SO I CAN THEN CALL FORWARD
+
+    # making a config - hardcoding manifest_filepath for now
+    val_data_config = { # can be dict or dictconfig
+        "manifest_filepath": "/home/erastorgueva/exp/24_08/rnnt_nfa/elena_counting/one_to_ten_manifest.json",
+        "sample_rate": 16000,
+        "batch_size": 1,
+        "shuffle": False,
+        "use_start_end_token": False,
+        "num_workers": 8,
+        "pin_memory": True,
+    }
+
+
+    from nemo.collections.asr.data import audio_to_text_dataset
+
+    model_dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
+            config=val_data_config,
+            local_rank=0,
+            global_rank=0,
+            world_size=1,
+            tokenizer = model.tokenizer,
+            preprocessor_cfg=None, #self._cfg.get("preprocessor", None),
+        )
+
+    if hasattr(model_dataset, 'collate_fn'):
+        collate_fn = model_dataset.collate_fn
+
+    model_dataloader = torch.utils.data.DataLoader(
+            dataset=model_dataset,
+            batch_size=1,
+            sampler=None,
+            batch_sampler=None,
+            collate_fn=collate_fn,
+            drop_last=False,
+            shuffle=False,
+            num_workers=0,
+            pin_memory=False,
+        )    
+    batch = next(iter(model_dataloader))
+
+    signal, signal_len, transcript, transcript_len = batch
+
+    print('signal', signal)
+    print('signal_len', signal_len)
+    print('transcript', transcript)
+    print('transcript_len', transcript_len)
+
+    signal = signal.to(model.device)
+    signal_len = signal_len.to(model.device)
+    transcript = transcript.to(model.device)
+    transcript_len = transcript_len.to(model.device)
+
+
+    # NOW I WANT TO GET OUTPUTS OF THE "JOINT" PART OF THE MODEL, SO
+    # CALLING FORWARD ON THE MODEL (TO GET ENCODER OUTPUTS),
+    # THEN CALLING FORWARD ON DECODER, THEN JOINT
+
+    # forward() only performs encoder forward
+    encoded, encoded_len = model.forward(input_signal=signal, input_signal_length=signal_len)
+    del signal
+
+    # During training, loss must be computed, so decoder forward is necessary
+    decoder, target_length, states = model.decoder(targets=transcript, target_length=transcript_len)
+
+    # Compute full joint
+    joint = model.joint(encoder_outputs=encoded, decoder_outputs=decoder)
+
+    #print('encoded.shape', encoded.shape)
+    #print('encoded_len', encoded_len)
+    #print('decoder.shape', decoder.shape)
+    print('joint.shape', joint.shape)
+    #print('joint', joint)
+
+
+    # rest is some hacky code making sure the variables I use later contain the correct data,
+    # probably lots of improvements to be made here
+
+    T_list_batch = [joint.shape[1]] # TODO - only works for batch size 1 right now
+
 
     # we loop over every line in the manifest that is in our current batch,
     # and record the y (list of tokens, including blanks), U (list of lengths of y) and
@@ -776,6 +852,13 @@ def get_batch_variables(
         U_list_batch.append(len(utt_obj.token_ids_with_blanks))
         utt_obj_batch.append(utt_obj)
 
+    print('overrideing y_list_batch and U list batch')
+    y_list_batch = transcript
+    U_list_batch = [joint.shape[2]]
+
+    print('current y_list_batch', y_list_batch)
+    print('current U_list_batch', U_list_batch)
+
     # turn log_probs, y, T, U into dense tensors for fast computation during Viterbi decoding
     T_max = max(T_list_batch)
     U_max = max(U_list_batch)
@@ -787,20 +870,28 @@ def get_batch_variables(
     T_batch = torch.tensor(T_list_batch)
     U_batch = torch.tensor(U_list_batch)
 
+
+    print('V', V)
+    print('T_batch', T_batch)
+    print('U_batch', U_batch)
+
+
     # make log_probs_batch tensor of shape (B x T_max x V)
-    log_probs_batch = V_NEGATIVE_NUM * torch.ones((B, T_max, V))
-    for b, log_probs_utt in enumerate(log_probs_list_batch):
-        t = log_probs_utt.shape[0]
-        log_probs_batch[b, :t, :] = log_probs_utt
+#    log_probs_batch = V_NEGATIVE_NUM * torch.ones((B, T_max, V))
+#    for b, log_probs_utt in enumerate(log_probs_list_batch):
+#        t = log_probs_utt.shape[0]
+#        log_probs_batch[b, :t, :] = log_probs_utt
+    log_probs_batch = joint
 
     # make y tensor of shape (B x U_max)
     # populate it initially with all 'V' numbers so that the 'V's will remain in the areas that
     # are 'padding'. This will be useful for when we make 'log_probs_reorderd' during Viterbi decoding
     # in a different function.
-    y_batch = V * torch.ones((B, U_max), dtype=torch.int64)
-    for b, y_utt in enumerate(y_list_batch):
-        U_utt = U_batch[b]
-        y_batch[b, :U_utt] = torch.tensor(y_utt)
+#    y_batch = V * torch.ones((B, U_max), dtype=torch.int64)
+#    for b, y_utt in enumerate(y_list_batch):
+#        U_utt = U_batch[b]
+#        y_batch[b, :U_utt] = torch.tensor(y_utt)
+    y_batch = transcript
 
     # calculate output_timestep_duration if it is None
     if output_timestep_duration is None:
@@ -830,6 +921,7 @@ def get_batch_variables(
             f" and therefore the ASR model output timestep duration is {output_timestep_duration}"
             " -- will use this for all batches"
         )
+
 
     return (
         log_probs_batch,

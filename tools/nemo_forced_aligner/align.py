@@ -252,11 +252,12 @@ def main(cfg: AlignmentConfig):
         )
         model.change_attention_model(self_attention_model="rel_pos_local_attn", att_context_size=[64, 64])
 
-    if not (isinstance(model, EncDecCTCModel) or isinstance(model, EncDecHybridRNNTCTCModel)):
-        raise NotImplementedError(
-            f"Model is not an instance of NeMo EncDecCTCModel or ENCDecHybridRNNTCTCModel."
-            " Currently only instances of these models are supported"
-        )
+#   switching off check that we are using a CTC (or hybrid CTC) model
+#    if not (isinstance(model, EncDecCTCModel) or isinstance(model, EncDecHybridRNNTCTCModel)):
+#        raise NotImplementedError(
+#            f"Model is not an instance of NeMo EncDecCTCModel or ENCDecHybridRNNTCTCModel."
+#            " Currently only instances of these models are supported"
+#        )
 
     if cfg.ctm_file_config.minimum_timestamp_duration > 0:
         logging.warning(
@@ -327,9 +328,70 @@ def main(cfg: AlignmentConfig):
             buffered_chunk_params,
         )
 
-        alignments_batch = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
+        with torch.no_grad(): # doing torch.no_grad here but probably it should be done earlier as well
+            # "alignments_batch" now is a tensor of size (B, T, U) where 1s denote the alignment path, 0s are the rest
+            # "alignments_batch" meant something else in my original CTC code.
+            alignments_batch, path_coords = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
 
         for utt_obj, alignment_utt in zip(utt_obj_batch, alignments_batch):
+
+            # some hacky code for plotting the alignments and saving them to CTM
+
+            tokens = model.tokenizer.text_to_tokens(utt_obj.text)
+            print('tokens:', tokens)
+            print('len(tokens):', len(tokens))
+
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(5, 10))
+            plt.imshow(alignments_batch[0].cpu().numpy())
+            ## put tokens on the x-axis
+            plt.xticks(range(len(tokens)), tokens, rotation=90)
+
+            #plt.imshow(alignments_batch[0].cpu().numpy().transpose(), interpolation='none', aspect='auto')
+            #plt.yticks(range(len(tokens)), tokens)
+            #ax = plt.gca()
+            #ax.grid(which='both', color='w', linestyle='-', linewidth=1)
+
+            plt.savefig('path_tensor.png')
+            import numpy as np
+            np.save('path_tensor.npy', alignments_batch[0].cpu().numpy())
+
+            print('path_coords:', path_coords)
+
+            # making ctm
+            from nemo.collections.asr.parts.utils.manifest_utils import get_ctm_line
+            prev_t = 0 # None # TODO: check these are correct values to initialize
+            prev_u = 0 # None
+            with open("output_token_ctm.ctm", "w") as f:
+                for (current_t, current_u) in path_coords[0]: # assume batch size 1
+                    print(f'(processing ({current_t}, {current_u}))')
+                    if current_u != prev_u:
+                        # we emitted a token.
+                        # we will get the token value, and say that its time is from current_t to current_t + 1
+                        token_value = tokens[current_u-1] # TODO: should it be current_u or current_u-1?
+                        start_t = (current_t) * 0.08
+                        end_t = (current_t + 1) * 0.08
+
+                        print('changed u, will record token:', token_value, 'from', current_t, 'to', current_t + 1)
+
+                        ctm_line = get_ctm_line(
+                            source=utt_obj.utt_id,
+                            channel=1,
+                            start_time=start_t,
+                            duration=end_t - start_t,
+                            token=token_value,
+                            conf=None,
+                            type_of_token='lex',
+                            speaker=None,
+                        )
+                        f.write(ctm_line)
+
+                    prev_t = current_t
+                    prev_u = current_u
+
+
+
+            exit()
 
             utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
 

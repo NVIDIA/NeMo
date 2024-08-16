@@ -1387,6 +1387,20 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         if decoder_outputs is not None:
             decoder_outputs = decoder_outputs.transpose(1, 2)  # (B, U, D)
 
+        # HACK TO MAKE SURE WE ONLY DO NON-FUSED LOSS WER
+        # all our (latest?) rnnt model checkpoints are configured with "fuse_loss_wer" set to True
+        # but to get output of joing we need this to be false
+        # so while prototyping I decided to just make sure we never do this "fuse_loss_wer" path,
+        # but for proper alignment code, we should make sure we switch it off in a non-hacky way
+
+        if decoder_outputs is None:
+            raise ValueError(
+                "decoder_outputs can only be None for fused step!"
+            )
+
+        out = self.joint(encoder_outputs, decoder_outputs)  # [B, T, U, V + 1]
+        return out            
+
         if not self._fuse_loss_wer:
             if decoder_outputs is None:
                 raise ValueError(
