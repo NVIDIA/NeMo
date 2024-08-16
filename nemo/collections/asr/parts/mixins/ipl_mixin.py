@@ -18,15 +18,15 @@ import os
 import random
 import tempfile
 from typing import List, Union
+
 import editdistance
 import torch
-from omegaconf import ListConfig, open_dict, OmegaConf
-from nemo.collections.common.parts.preprocessing.parsers import make_parser
+from omegaconf import ListConfig, OmegaConf, open_dict
 from tqdm.auto import tqdm
+
 from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
+from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.parts.utils.ipl_utils import (
     create_final_cache_manifest,
     expand_braces,
@@ -38,6 +38,8 @@ from nemo.collections.asr.parts.utils.ipl_utils import (
     write_cache_manifest,
     write_tar_cache_manifest,
 )
+from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.parts.preprocessing.parsers import make_parser
 
 
 class IPLMixin:
@@ -78,7 +80,7 @@ class IPLMixin:
             model_type (str): The type of model being used. Takes values "hybrid" or "ctc".
             tokenizer_type (str): The type of the tokenizer. Takes values "bpe" or "char".
         """
-        
+
         ipl_config = self.cfg.get("pseudo_label_cfg")
         self._ipl_params = {}
         self._ipl_model_type = model_type
@@ -98,7 +100,6 @@ class IPLMixin:
                     self._ipl_params['cache_manifest'] = formulate_cache_manifest_names(
                         self._ipl_params['manifest_filepath'], self._ipl_params['cache_prefix'], is_tarred=False
                     )
-
 
     def _set_ipl_params(self, ipl_config):
         """
@@ -733,7 +734,9 @@ class IPLMixin:
                 global_rank=self.global_rank,
                 world_size=self.world_size,
                 dataset=LhotseSpeechToTextBpeDataset(
-                    tokenizer=self.tokenizer if self._tokenizer_is_bpe else make_parser(labels=labels, do_normalize=False),
+                    tokenizer=(
+                        self.tokenizer if self._tokenizer_is_bpe else make_parser(labels=labels, do_normalize=False)
+                    ),
                 ),
             )
         else:
@@ -753,7 +756,7 @@ class IPLMixin:
             dataset = audio_to_text_dataset.get_bpe_dataset(config=dl_config, tokenizer=self.tokenizer, augmentor=None)
         else:
             dataset = audio_to_text_dataset.get_char_dataset(config=dl_config, augmentor=None)
-            
+
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
         elif hasattr(dataset.datasets[0], 'collate_fn'):
