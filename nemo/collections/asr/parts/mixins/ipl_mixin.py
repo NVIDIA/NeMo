@@ -18,12 +18,14 @@ import os
 import random
 import tempfile
 from typing import List, Union
-
 import editdistance
 import torch
-from omegaconf import ListConfig, open_dict
+from omegaconf import ListConfig, open_dict, OmegaConf
+from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from tqdm.auto import tqdm
-
+from nemo.collections.asr.data import audio_to_text_dataset
+from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
 from nemo.collections.asr.parts.utils.ipl_utils import (
     create_final_cache_manifest,
@@ -68,17 +70,20 @@ class IPLMixin:
           in the `on_train_epoch_end` method.
     """
 
-    def setup_ipl(self, model_type: str):
+    def setup_ipl(self, model_type: str, tokenizer_type='bpe'):
         """
         Sets up IPL configuration for the model.
 
         Args:
-            _ipl_model_type (str): The type of model being used. Takes values "hybrid" or "ctc".
+            model_type (str): The type of model being used. Takes values "hybrid" or "ctc".
+            tokenizer_type (str): The type of the tokenizer. Takes values "bpe" or "char".
         """
-
+        
         ipl_config = self.cfg.get("pseudo_label_cfg")
         self._ipl_params = {}
         self._ipl_model_type = model_type
+        self._tokenizer_is_bpe = hasattr(self, "tokenizer")
+
         if ipl_config is not None:
             if self.trainer and self.trainer.max_steps < 0:
                 raise ValueError(" For IPL to work max steps should be provided in the trainer.")
@@ -93,6 +98,7 @@ class IPLMixin:
                     self._ipl_params['cache_manifest'] = formulate_cache_manifest_names(
                         self._ipl_params['manifest_filepath'], self._ipl_params['cache_prefix'], is_tarred=False
                     )
+
 
     def _set_ipl_params(self, ipl_config):
         """
@@ -677,3 +683,92 @@ class IPLMixin:
         self.encoder.unfreeze()
         self.decoder.unfreeze()
         return hypotheses
+
+    def _setup_pseudo_label_dataloader(
+        self,
+        manifest_filepaths: Union[List[List[str]], str],
+        tarred_audio_filepaths: Union[List[List[str]], str] = None,
+        batch_size: int = 64,
+    ):
+        """
+        Setup function for a data loader for unlabeled dataset
+
+        Args:
+
+            manifest_filepaths: Manifests containing information of unlabeled dataset. For tarred dataset manifests should be sharded
+            tarred_audio_filepaths: Tarr audio files which should correspond to manifest files.
+            batch_size: batch size to use during inference.
+
+        Returns:
+            A DataLoader for the given audio file(s).
+        """
+        if self._ipl_model_type == "ctc":
+            labels = self.decoder.vocabulary
+        else:
+            labels = self.joint.vocabulary
+
+        if self.cfg.train_ds.get('is_tarred', False):
+            dl_config = {
+                'manifest_filepath': manifest_filepaths,
+                'tarred_audio_filepaths': tarred_audio_filepaths,
+                'sample_rate': self.preprocessor._sample_rate,
+                'labels': labels,
+                'is_tarred': True,
+                'use_lhotse': True,
+                'shard_manifests': False,
+                'tarred_shard_strategy': 'replicate',
+                'batch_size': batch_size,
+                'drop_last': False,
+                'trim_silence': False,
+                'shuffle': False,
+                'shuffle_n': 0,
+                'num_workers': self.cfg.train_ds.num_workers,
+                'pin_memory': True,
+                'tarred_random_access': True,
+            }
+
+            dl_config = OmegaConf.create(dl_config)
+            return get_lhotse_dataloader_from_config(
+                dl_config,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+                dataset=LhotseSpeechToTextBpeDataset(
+                    tokenizer=self.tokenizer if self._tokenizer_is_bpe else make_parser(labels=labels, do_normalize=False),
+                ),
+            )
+        else:
+
+            dl_config = {
+                'manifest_filepath': manifest_filepaths,
+                'sample_rate': self.preprocessor._sample_rate,
+                'labels': labels,
+                'batch_size': batch_size,
+                'trim_silence': False,
+                'shuffle': False,
+                'num_workers': self.cfg.train_ds.num_workers,
+                'pin_memory': True,
+                'cache_audio': False,
+            }
+        if self._tokenizer_is_bpe:
+            dataset = audio_to_text_dataset.get_bpe_dataset(config=dl_config, tokenizer=self.tokenizer, augmentor=None)
+        else:
+            dataset = audio_to_text_dataset.get_char_dataset(config=dl_config, augmentor=None)
+            
+        if hasattr(dataset, 'collate_fn'):
+            collate_fn = dataset.collate_fn
+        elif hasattr(dataset.datasets[0], 'collate_fn'):
+            # support datasets that are lists of entries
+            collate_fn = dataset.datasets[0].collate_fn
+        else:
+            # support datasets that are lists of lists
+            collate_fn = dataset.datasets[0].datasets[0].collate_fn
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=dl_config['batch_size'],
+            collate_fn=collate_fn,
+            drop_last=False,
+            shuffle=False,
+            num_workers=dl_config['num_workers'],
+            pin_memory=True,
+        )
