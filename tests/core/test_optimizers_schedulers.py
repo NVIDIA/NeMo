@@ -638,9 +638,9 @@ class TestOptimizersSchedulers:
 
         for i in range(self.MAX_STEPS):
             if i <= 5:
-                assert policy.get_last_lr()[0] <= self.INITIAL_LR
+                assert 0 < policy.get_last_lr()[0] <= self.INITIAL_LR
             else:
-                assert policy.get_last_lr()[0] < self.INITIAL_LR
+                assert 0 < policy.get_last_lr()[0] < self.INITIAL_LR
 
             opt.step()
             policy.step()
@@ -660,11 +660,11 @@ class TestOptimizersSchedulers:
 
         for i in range(self.MAX_STEPS):
             if i <= 3:
-                assert policy.get_last_lr()[0] <= self.INITIAL_LR + 1e-5
+                assert 0 < policy.get_last_lr()[0] <= self.INITIAL_LR + 1e-5
             elif i > 3 and i <= 8:
-                assert policy.get_last_lr()[0] == policy._get_lr(i)[0]
+                assert 0 < policy.get_last_lr()[0] == policy._get_lr(i)[0]
             else:
-                assert policy.get_last_lr()[0] == self.MIN_LR
+                assert 0 < policy.get_last_lr()[0] == self.MIN_LR
 
             opt.step()
             policy.step()
