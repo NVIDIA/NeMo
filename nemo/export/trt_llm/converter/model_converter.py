@@ -80,6 +80,21 @@ def prompt_convert(prompt_config, prompt_weights):
     return vtokens_embeddings
 
 
+def create_common_export_config(nemo_model_config, decoder_type, fp8_quantized=False, fp8_kvcache=False):
+    is_mcore = nemo_model_config.get("mcore_gpt", False)
+    return {
+        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
+        "split_gated_activation": nemo_model_config.get("activation", "gelu")
+        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"]
+        and (decoder_type == "gptnext" or is_mcore),
+        "num_attention_heads": nemo_model_config["num_attention_heads"],
+        "use_attention_nemo_shape": True,
+        "transpose_weights": True,
+        "fp8_quantized": fp8_quantized,
+        "fp8_kvcache": fp8_kvcache,
+    }
+
+
 def model_to_trtllm_ckpt(
     model,
     nemo_model_config,
@@ -93,16 +108,17 @@ def model_to_trtllm_ckpt(
     use_embedding_sharing: bool = False,
     use_distributed_convert: bool = False,
     model_parallel_rank: int = None,
-    vocab_size: int = None,
-    quantize_kv_cache: bool = False,
+    vocab_size: int | None = None,
+    fp8_quantized: bool = False,
+    fp8_kvcache: bool = False
 ) -> Tuple[List[Dict], List[PretrainedConfig]]:
-    nemo_model_config['kv_cache'] = quantize_kv_cache
     if nemo_model_config.get("share_embeddings_and_output_weights", False) and not use_embedding_sharing:
         LOGGER.info(
             "Found share_embeddings_and_output_weights is True in NeMo config, set use_embedding_sharing = True"
         )
         use_embedding_sharing = True
 
+    export_config = create_common_export_config(nemo_model_config, decoder_type, fp8_quantized, fp8_kvcache)
     # If the model has been sharded with model parallelism, convert the model in a gpu-distributed manner
     if use_distributed_convert:
         weights_dict = dist_model_to_trt_llm_ckpt(
@@ -111,6 +127,7 @@ def model_to_trtllm_ckpt(
             inference_tp_size=tensor_parallel_size,
             inference_pp_size=pipeline_parallel_size,
             tokenizer_vocab_size=vocab_size,
+            export_config=export_config,
         )
         vocab_size_padded = vocab_size
     else:
@@ -124,24 +141,23 @@ def model_to_trtllm_ckpt(
             processes=1,
             storage_type=dtype,
             use_parallel_embedding=use_parallel_embedding,
-            decoder_type=decoder_type,
+            export_config=export_config,
         )
 
-        has_lm_head = "lm_head.weight" in weights_dict
-        if has_lm_head:
-            lm_head_weight = weights_dict["lm_head.weight"]
         if vocab_size is None:
             vocab_size = weights_dict[vocab_embedding_key].shape[0]
 
+        has_lm_head = "lm_head.weight" in weights_dict
         vocab_size_padded = pad_vocab_size(vocab_size, tensor_parallel_size) if has_lm_head else vocab_size
-        if vocab_size_padded != vocab_size:
-            padding = (0, 0, 0, vocab_size_padded - vocab_size)
-            if has_lm_head:
-                lm_head_weight = torch.nn.functional.pad(lm_head_weight, padding, "constant", 0)
-            if vocab_embedding_key in weights_dict:
-                weights_dict[vocab_embedding_key] = torch.nn.functional.pad(
-                    weights_dict[vocab_embedding_key], padding, "constant", 0
-                )
+        padding = (0, 0, 0, vocab_size_padded - vocab_size)
+        if has_lm_head:
+            lm_head_weight = weights_dict["lm_head.weight"]
+            lm_head_weight = torch.nn.functional.pad(lm_head_weight, padding, "constant", 0)
+
+        if vocab_embedding_key in weights_dict:
+            weights_dict[vocab_embedding_key] = torch.nn.functional.pad(
+                weights_dict[vocab_embedding_key], padding, "constant", 0
+            )
 
     world_size = tensor_parallel_size * pipeline_parallel_size
     hidden_act = nemo_model_config.get('activation')
@@ -169,8 +185,8 @@ def model_to_trtllm_ckpt(
         'embedding_sharding_dim': 0,
         'share_embedding_table': use_embedding_sharing,
         'quantization': {
-            'quant_algo': "FP8" if nemo_model_config.get('fp8', False) else None,
-            'kv_cache_quant_algo': "FP8" if quantize_kv_cache else None,
+            'quant_algo': "FP8" if fp8_quantized else None,
+            'kv_cache_quant_algo': "FP8" if fp8_kvcache else None,
         },
         'bias': nemo_model_config.get('bias'),
         'apply_query_key_layer_scaling': False,

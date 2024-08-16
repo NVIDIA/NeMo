@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+from typing import List, Optional, Tuple
 import numpy as np
 import tensorrt_llm
 import torch
@@ -57,6 +58,8 @@ attention_not_mapped_keys = [
     "attention.key_value.bias",
 ]
 
+weight_scaling_suffix = '.weights_scaling_factor'
+activation_scaling_suffix = '.activation_scaling_factor'
 
 def save_val(val, dir, key, tp_num=None):
     if tp_num:
@@ -86,11 +89,10 @@ def save_split(split_vals, dir, key, i, split_factor):
 
 
 def save_expert_split(split_vals, dir, key, i, split_factor):
-    if tp_num:
-        key += f".{tp_num}.bin"
-
     for j, val in enumerate(split_vals):
         tp_num = i * split_factor + j
+        if tp_num:
+            key += f".{tp_num}.bin"
         global weights_dict
         weights_dict[key] = val
 
@@ -202,20 +204,20 @@ def write_int8(vals, dir, base_key, split_dim, tp_rank, split_factor, kv_cache_o
             save_val(vals[save_key], dir, f"{base_key}.{save_key}")
 
 
-def get_suffix(key):
+def get_suffix(key: str) -> str:
     return '.' + key.split('.')[-1]
 
 
-def get_trt_llm_prefix(key):
+def get_trt_llm_prefix(key: str) -> str:
     layer_num = key.split(".")[1]
     return f'transformer.layers.{layer_num}'
 
 
-def any_word_in_key(key, words):
+def any_word_in_key(key: str, words: List[str]) -> bool:
     return any([word in key for word in words])
 
 
-def sequential_key_map(key, mapping):
+def sequential_key_map(key: str, mapping: List[Tuple[List[str], str]]) -> Optional[str]:
     for keywords, mapped in mapping:
         if any_word_in_key(key, keywords):
             return mapped
@@ -223,7 +225,7 @@ def sequential_key_map(key, mapping):
     return None
 
 
-def get_trt_llm_infix(key):
+def get_trt_llm_infix(key: str) -> Optional[str]:
     mapping = [
         (post_layernorm_keys, '.post_layernorm'),
         (mlp_proj_bias_keys, '.mlp.proj'),
@@ -241,7 +243,7 @@ def get_trt_llm_infix(key):
     return sequential_key_map(key, mapping)
 
 
-def get_new_keyname(key):
+def get_trt_llm_keyname(key: str) -> str:
     if any_word_in_key(key, final_layernorm_keys):
         return key.replace("final_layernorm", "transformer.ln_f")
 
@@ -251,51 +253,46 @@ def get_new_keyname(key):
     return key
 
 
-def is_scaling_factor(key):
+def is_scaling_factor(key: str) -> bool:
     return "scale_fwd" in key
 
 
-def get_scaling_factor_keys(key):
-    weight_key = '.'.join(key.split('.')[:-2]) + '.weight'
-    base_key = '.'.join(get_new_keyname(weight_key).split('.')[:-1])
-    weight_scale = base_key + '.weights_scaling_factor'
-    activation_scale = base_key + '.activation_scaling_factor'
-    return weight_scale, activation_scale
+def get_scaling_factor_keys(key: str) -> Tuple[Tuple[str, str], Tuple[str, str]]:
+    # Reuses existing mapping of NeMo -> TRT LLM weights key via swapping suffixes
+    corresponding_weight_key = '.'.join(key.split('.')[:-2]) + '.weight'
+    corresponding_trt_llm_weight_key = get_trt_llm_keyname(corresponding_weight_key)
+    base_key = '.'.join(corresponding_trt_llm_weight_key.split('.')[:-1])
 
+    weight_scale = base_key + weight_scaling_suffix
+    activation_scale = base_key + activation_scaling_suffix
+    keys = (weight_scale, activation_scale)
 
-first = True
+    layer_prefix = get_trt_llm_prefix(key)
+    mapped_key = layer_prefix + '.mlp.gate'
+    gate_activation = mapped_key + activation_scaling_suffix
+    gate_weight = mapped_key + weight_scaling_suffix
+    gate_keys = (gate_activation, gate_weight)
 
+    return keys, gate_keys
 
-def load_scaling_factor(key, val, dir, config):
-    global weights_dict
+def save_scaling_factor(scaling_factors: dict, key: str, val: torch.Tensor, config: dict):
     if not is_scaling_factor(key):
-        return weights_dict
+        return scaling_factors
 
-    activation_factor = 1 / val[0].view(1)
-    weights_factor = 1 / val[1].view(1)
-    weights_factor_2 = 1 / val[2].view(1)
+    activation_factor = torch_to_numpy(1 / val[0].view(1))
+    weights_factor = torch_to_numpy(1 / val[1].view(1))
 
-    weights_key, activation_key = get_scaling_factor_keys(key)
-    save_val(torch_to_numpy(activation_factor), dir, activation_key)
-    save_val(torch_to_numpy(weights_factor), dir, weights_key)
-
-    # TODO
-    # save_val(torch_to_numpy(weights_factor_2), dir, weights_key + '_2')
-    # global first
-    # if first:
-    #     first = False
-    #     for i in range(32):
-    #         save_val(torch_to_numpy(weights_factor_2), dir, f'transformer.layers.{i}.attention.kv_cache_scaling_factor')
+    (weights_key, activation_key), gate_keys = get_scaling_factor_keys(key)
+    scaling_factors[activation_key] = activation_factor
+    scaling_factors[weights_key] = weights_factor
 
     split_gated_activation = config.get("split_gated_activation", False)
-    if split_gated_activation and (("mlp.dense_h_to_4h" in key) or ("mlp.linear_fc1" in key)):
-        layer_prefix = get_trt_llm_prefix(key)
-        mapped_key = f'{layer_prefix}.mlp.gate'
-        save_val(torch_to_numpy(activation_factor), dir, mapped_key + '.activation_scaling_factor')
-        save_val(torch_to_numpy(weights_factor), dir, mapped_key + '.weights_scaling_factor')
-        # save_val(torch_to_numpy(weights_factor_2), dir, mapped_key + '.weights_scaling_factor_2')
+    if split_gated_activation and any_word_in_key(key, ["mlp.dense_h_to_4h", "mlp.linear_fc1"]):
+        (gate_activation_key, gate_weight_key) = gate_keys
+        scaling_factors[gate_activation_key] = activation_factor
+        scaling_factors[gate_weight_key] = weights_factor
 
-    return weights_dict
+    return scaling_factors
 
 
 def cast_val_datatype(vals, trt_llm_key, storage_type, is_fp8_model, scaling_factors):
@@ -304,25 +301,24 @@ def cast_val_datatype(vals, trt_llm_key, storage_type, is_fp8_model, scaling_fac
 
     fp8_storage_type = torch.float8_e4m3fn
     quantized_keys = [
-        k.split('.weights_scaling_factor')[0] for k in scaling_factors.keys() if '.weights_scaling_factor' in k
+        k.split(weight_scaling_suffix)[0] for k in scaling_factors.keys() if k.endswith(weight_scaling_suffix)
     ]
     for k in quantized_keys:
         if k in trt_llm_key:
             storage_type = fp8_storage_type
-            scale = scaling_factors[k + '.weights_scaling_factor']
+            scale = scaling_factors[k + weight_scaling_suffix]
             vals = [val.to(torch.float32) / scale for val in vals]
             break
 
     return [val.to(storage_type) for val in vals]
 
 
-def split_val_gate(vals, convert_on_device):
+def split_val_gate(vals: List[np.ndarray], convert_on_device: bool):
     if convert_on_device:
         return [[n] for n in torch.chunk(vals[0], 2, axis=-1)]
 
     splits = [np.split(val, 2, axis=-1) for val in vals]
     return list(zip(*splits))
-
 
 # Note: in multi_query_mode, only query heads are split between multiple GPUs, while key/value head
 # are not split as there is only one head per key/value.
@@ -337,11 +333,11 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     num_kv_heads = config.get("num_kv_heads", num_attention_heads)
     size_per_head = config.get("kv_channels", None)
     convert_on_device = config.get("convert_on_device", False)
-    is_fp8_model = config.get("fp8", False)
-
+    is_fp8_model = config.get("fp8_quantized", False)
+    use_fp8_kv_cache = config.get("fp8_kvcache", False)
     save_int8 = int8_outputs == "all" or int8_outputs == "kv_cache_only"
-    layer_prefix = get_trt_llm_prefix(key)
 
+    trt_llm_key = get_trt_llm_keyname(key)
     if not isinstance(vals, list):
         vals = [vals]
 
@@ -350,7 +346,6 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     if "layernorm.weight" in key and config.get("apply_layernorm_1p", False):
         vals = [val.float() + 1.0 for val in vals]
 
-    trt_llm_key = get_new_keyname(key)
     vals = cast_val_datatype(vals, trt_llm_key, storage_type, is_fp8_model, sf)
     if convert_on_device:
         assert len(vals) == 1  # Should only convert a single device param per call
@@ -382,7 +377,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         if act_range is not None and int8_outputs == "all":
             base_key = trt_llm_key.replace(".weight", "")
             vals_i8 = generate_int8(val, act_range, multi_query_mode=multi_query_mode)
-            write_int8(vals_i8, saved_dir, base_key, cat_dim, tp_rank, split_factor)        # TODO is cat dim always defined?
+            write_int8(vals_i8, saved_dir, base_key, cat_dim, tp_rank, split_factor)
 
     elif any_word_in_key(key, mlp_fc_keys):
         if split_gated_activation:
@@ -403,7 +398,8 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
 
         if split_gated_activation:
             assert not save_int8
-            gate_key = f'{layer_prefix}.mlp.gate' + get_suffix(trt_llm_key)
+            layer_prefix = get_trt_llm_prefix(key)
+            gate_key = layer_prefix +'.mlp.gate' + get_suffix(trt_llm_key)
             if convert_on_device:
                 save_val(gates[0], saved_dir, gate_key)
             else:
@@ -520,6 +516,11 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
                 kv_cache_only=int8_outputs == "kv_cache_only",
             )
 
+        if use_fp8_kv_cache:
+            base_key = trt_llm_key.replace('.qkv.weight', '')
+            scaling_factor = np.array([1.], dtype=np.float32)
+            save_val(scaling_factor, dir, base_key + '.kv_cache_scaling_factor')
+
     elif any_word_in_key(key, attention_not_mapped_keys):
         pass
 
@@ -551,13 +552,14 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     return weights_dict
 
 
-def split(v, tp_size, idx, dim=0):
+def split(v: np.ndarray | torch.Tensor, tp_size: int, idx: int, dim: int = 0):
     """Splits the np tensor v on dim and return the idx's slice."""
     if tp_size == 1:
         return v
 
-    if len(v.shape) == 1:
-        return np.ascontiguousarray(np.split(v, tp_size)[idx])
+    dim = dim if len(v.shape) != 1 else 0
+    if torch.is_tensor(v):
+        return torch.split(v, v.size(dim) // tp_size, dim=dim)[idx].contiguous()
 
     return np.ascontiguousarray(np.split(v, tp_size, axis=dim)[idx])
 

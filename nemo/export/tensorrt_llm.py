@@ -173,6 +173,8 @@ class TensorRTLLM(ITritonDeployable):
         multiple_profiles: bool = False,
         gpt_attention_plugin: str = "auto",
         gemm_plugin: str = "auto",
+        fp8_quantized: bool = False,
+        fp8_kvcache: bool = False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -322,6 +324,8 @@ class TensorRTLLM(ITritonDeployable):
                     gpus_per_node=gpus_per_node,
                     use_parallel_embedding=use_parallel_embedding,
                     use_embedding_sharing=use_embedding_sharing,
+                    fp8_quantized=fp8_quantized,
+                    fp8_kvcache=fp8_kvcache
                 )
 
                 for weight_dict, model_config in zip(weights_dicts, model_configs):

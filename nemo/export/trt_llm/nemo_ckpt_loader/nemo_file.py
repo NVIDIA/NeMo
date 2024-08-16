@@ -18,7 +18,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
 import tensorstore  # This is important even though not used. Otherwise zarr raises error.
@@ -66,27 +66,27 @@ class TarFileSystemReader(FileSystemReader):
             self.path = path  # overwrites path set in super().__init__ call
 
 
-def get_extra_state_key(state_dict):
+def get_extra_state_key(state_dict: dict) -> Optional[str]:
     for key in state_dict.keys():
         if '_extra_state/' in key:
             return key
-    return False
+    return None
 
 
-def unpack_extra_state_key(key):
+def unpack_extra_state_key(key: str) -> Tuple[str, int]:
     basename = key.split('/')[0]
     size = int(key.split('/')[1].split('_')[-1])
     return basename, size
 
 
-def clear_loaded_extra_states(state_dict, basename):
+def clear_loaded_extra_states(state_dict: dict, basename: str):
     to_remove = [k for k in state_dict.keys() if basename + '/' in k]
     for key in to_remove:
         state_dict.pop(key)
     return state_dict
 
 
-def load_scaling_factors(state_dict, basename, size):
+def load_scaling_factors(state_dict: dict, basename: str, size: int):
     scales = []
     for layer in range(size):
         keyname = f'{basename}/shard_{layer}_{size}'
@@ -102,7 +102,7 @@ def load_scaling_factors(state_dict, basename, size):
     return all_scales
 
 
-def standarize_distributed_scaling_factors(state_dict):
+def standarize_distributed_scaling_factors(state_dict: dict):
     while key := get_extra_state_key(state_dict):
         basename, size = unpack_extra_state_key(key)
         scaling_factors = load_scaling_factors(state_dict, basename, size)
@@ -139,17 +139,20 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch
     return state_dict
 
 
-def load_sharded_pickle_extra_state_scale(dir):
+def load_sharded_pickle_extra_state_scale(dir: Union[Path, TarPath]):
     scales = []
     layer_number = 0
 
     while pt_file_list := list(dir.glob(f'shard_{layer_number}_*.pt')):
         pt_file = pt_file_list[0]
-        checkpoint = torch.load(pt_file)
-        checkpoint.seek(0)
-        state_dict = torch.load(checkpoint)
-        if 'scale_fwd' not in state_dict:
-            return []
+        with pt_file.open('rb') as checkpoint_file:
+            dictionary = torch.load(checkpoint_file)
+
+        dictionary.seek(0)
+        state_dict = torch.load(dictionary)
+        if not state_dict or 'scale_fwd' not in state_dict:
+            return None
+
         scale = state_dict['scale_fwd'].cpu()
         scales.append(scale)
         layer_number += 1
@@ -158,15 +161,17 @@ def load_sharded_pickle_extra_state_scale(dir):
     return all_scales
 
 
-def contains_extra_states(subdir):
+def contains_extra_states(subdir: Union[Path, TarPath]):
     return list(subdir.glob('shard_0_*.pt')) != []
 
 
-def load_extra_state_from_pickle(sharded_state_dict, subdir):
-    if scales := load_sharded_pickle_extra_state_scale(subdir):
-        key = subdir.name + '.scale_fwd'
-        sharded_state_dict[key] = scales
+def load_extra_state_from_pickle(sharded_state_dict: dict, subdir: Union[Path, TarPath]):
+    scales = load_sharded_pickle_extra_state_scale(subdir)
+    if scales is None:
+        return sharded_state_dict
 
+    key = subdir.name + '.scale_fwd'
+    sharded_state_dict[key] = scales
     return sharded_state_dict
 
 

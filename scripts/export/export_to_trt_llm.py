@@ -50,6 +50,20 @@ def get_args(argv):
         type=str,
         help="dtype of the model on TensorRT-LLM",
     )
+    parser.add_argument(
+        "-fp8",
+        "--export_fp8_quantized",
+        default=False,
+        type=bool,
+        help="Enables exporting to a FP8-quantized TRT LLM checkpoint",
+    )
+    parser.add_argument(
+        "-kv_fp8",
+        "--use_fp8_kv_cache",
+        default=False,
+        type=bool,
+        help="Enables exporting with FP8-quantizatized KV-cache",
+    )
     parser.add_argument("-mil", "--max_input_len", default=256, type=int, help="Max input length of the model")
     parser.add_argument("-mol", "--max_output_len", default=256, type=int, help="Max output length of the model")
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
@@ -153,6 +167,8 @@ def nemo_export_trt_llm(argv):
             use_lora_plugin=args.use_lora_plugin,
             lora_target_modules=args.lora_target_modules,
             max_lora_rank=args.max_lora_rank,
+            fp8_quantized=args.export_fp8_quantized,
+            fp8_kvcache=args.use_fp8_kv_cache
         )
 
         LOGGER.info("Export is successful.")

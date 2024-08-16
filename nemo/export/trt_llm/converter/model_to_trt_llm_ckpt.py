@@ -25,7 +25,7 @@ from tensorrt_llm._utils import pad_vocab_size, str_dtype_to_torch, torch_to_num
 from tqdm import tqdm
 
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
-from nemo.export.trt_llm.converter.utils import load_scaling_factor, save_val, split_and_save_weight, weights_dict
+from nemo.export.trt_llm.converter.utils import save_scaling_factor, save_val, split_and_save_weight, weights_dict
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -69,7 +69,7 @@ def get_layer_prefix(layer_names, is_mcore):
     return model_prefix, transformer_layer_prefix
 
 
-def rename_key(new_key: str):
+def rename_key(new_key: str) -> str:
     if "self_attention" in new_key:
         new_key = new_key.replace("self_attention", "attention")
     if "attention.linear_qkv.layer_norm_weight" in new_key:
@@ -84,7 +84,7 @@ def rename_key(new_key: str):
     return new_key
 
 
-def rename_key_dist_ckpt(old_key: str, layer: int):
+def rename_key_dist_ckpt(old_key: str, layer: int) -> str:
     new_key = old_key
     if "layers." in old_key:
         split_key = old_key.split(".")
@@ -94,18 +94,18 @@ def rename_key_dist_ckpt(old_key: str, layer: int):
     return rename_key(new_key)
 
 
-def load_scaling_factors(model, num_layers, out_dir, export_config):
-    starmap_args = []
+def load_scaling_factors(model: dict, num_layers: int, export_config: dict) -> dict:
+    if not export_config.get('fp8_quantized', False):
+        return {}
+
+    scaling_factors = {}
     for key, val in model.items():
         if 'extra_state' not in key:
             continue
 
         for layer in range(num_layers):
-            args = (rename_key_dist_ckpt(key, layer), val[layer], out_dir, export_config)
-            starmap_args.append(args)
-
-    for starmap_arg in starmap_args:
-        scaling_factors = load_scaling_factor(*starmap_arg)
+            renamed_key = rename_key_dist_ckpt(key, layer)
+            scaling_factors = save_scaling_factor(scaling_factors, renamed_key, val[layer], export_config)
 
     return scaling_factors
 
@@ -117,9 +117,9 @@ def convert_model_to_trt_llm_ckpt(
     nemo_export_dir,
     storage_type,
     inference_tp_size,
-    decoder_type,
     use_parallel_embedding,
     processes,
+    export_config
 ):
     # if checkpoints files could be found - start preparing output dir
     out_dir = create_export_dir(nemo_export_dir)
@@ -133,9 +133,6 @@ def convert_model_to_trt_llm_ckpt(
 
     has_position_embedding = get_layer_name("position_embedding", prefix) in model_state_dict
     has_lm_head = get_layer_name("output_layer", prefix) in model_state_dict
-    share_embeddings_and_output = nemo_model_config.get("share_embeddings_and_output_weights", False)
-    embedding_scaling = nemo_model_config.get("apply_embedding_scaling", False)
-    hidden_size = nemo_model_config["hidden_size"]
 
     num_layers = nemo_model_config["num_layers"]
     training_tp_size = 1
@@ -143,7 +140,6 @@ def convert_model_to_trt_llm_ckpt(
     num_kv_heads = nemo_model_config.get("num_query_groups", 0)
     multi_query_mode = nemo_model_config.get("multi_query_mode", False)
     num_attention_heads = nemo_model_config["num_attention_heads"]
-    kv_channels = nemo_model_config.get("kv_channels", None)
 
     if num_kv_heads == 0:
         if multi_query_mode:
@@ -151,20 +147,14 @@ def convert_model_to_trt_llm_ckpt(
         else:
             num_kv_heads = num_attention_heads
 
-    export_config = {
-        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
-        "tp_size": training_tp_size,
-        "split_gated_activation": nemo_model_config.get("activation", "gelu")
-        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"]
-        and (decoder_type == "gptnext" or is_mcore),
-        "num_attention_heads": num_attention_heads,
-        "num_kv_heads": num_kv_heads,
-        "kv_channels": kv_channels,
-        "use_attention_nemo_shape": True,
-        "transpose_weights": True,
-        "use_parallel_embedding": use_parallel_embedding,
-        "fp8": nemo_model_config.get('fp8', False),
-    }
+    export_config.update(
+        {
+            "tp_size": training_tp_size,
+            "num_kv_heads": num_kv_heads,
+            "kv_channels": nemo_model_config.get("kv_channels", None),
+            "use_parallel_embedding": use_parallel_embedding,
+        }
+    )
 
     # split_factor: in how many parts a TP training node is split
     split_factor = inference_tp_size
@@ -200,8 +190,7 @@ def convert_model_to_trt_llm_ckpt(
 
     handle_model_level_weights(model, 0, 0)
     model = extract_layers_with_prefix(model, transformer_layer_prefix)
-
-    scaling_factors = load_scaling_factors(model, num_layers, out_dir, export_config)
+    scaling_factors = load_scaling_factors(model, num_layers, export_config)
 
     starmap_args = []
     for key, val in model.items():
@@ -235,9 +224,7 @@ def convert_model_to_trt_llm_ckpt(
         model_level_weights[key] = torch.concatenate(values, axis=0)
         weights_dict[key] = model_level_weights[key]
 
-    for key, value in scaling_factors.items():
-        weights_dict[key] = value
-
+    weights_dict.update(scaling_factors)
     return weights_dict
 
 
@@ -268,6 +255,7 @@ def dist_model_to_trt_llm_ckpt(
     inference_tp_size,
     inference_pp_size,
     tokenizer_vocab_size,
+    export_config
 ):
     from megatron.core import parallel_state
     from megatron.core.tensor_parallel.utils import VocabUtility
@@ -303,18 +291,13 @@ def dist_model_to_trt_llm_ckpt(
     prefix, transformer_layer_prefix = get_layer_prefix(sample_state_dict, is_mcore)
     assert is_mcore, "Only megatron-core inflight model conversion is supported"
 
-    export_config = {
-        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
-        "tp_size": tp_size,
-        "split_gated_activation": nemo_model_config.get("activation", "gelu")
-        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"],
-        "num_attention_heads": nemo_model_config["num_attention_heads"],
-        "num_kv_heads": nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads']),
-        "convert_on_device": True,
-        "use_attention_nemo_shape": True,
-        "transpose_weights": True,
-        "fp8": nemo_model_config.get('fp8', False),
-    }
+    export_config.update(
+        {
+            "tp_size": tp_size,
+            "num_kv_heads": nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads']),
+            "convert_on_device": True,
+        }
+    )
 
     starmap_config = {
         "tp_rank": None,

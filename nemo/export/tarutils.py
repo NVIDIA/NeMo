@@ -58,8 +58,7 @@ class TarPath(os.PathLike):
     def __str__(self) -> str:
         return os.path.join(self._tar.name, self._relpath)
 
-    def __fspath__(self):
-        return os.path.join(self._tar.name, self._relpath)
+    def __fspath__(self): return str(self)
 
     @property
     def tarobject(self):
