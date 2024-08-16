@@ -569,6 +569,7 @@ def test_train_mnist_litautoencoder_with_megatron_strategy_single_gpu(tmpdir):
             accelerator="gpu",
             devices=1,
             strategy=pred_strategy,
+            default_root_dir=root_dir,
         )
         ckpt_path = checkpoint_callback.last_model_path.replace(
             ".ckpt", ""
