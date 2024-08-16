@@ -16,21 +16,21 @@ import itertools
 import os
 import queue
 import warnings
+from collections import defaultdict
 from contextlib import nullcontext
 from dataclasses import fields
 from functools import cache, partial
 from importlib.metadata import version
-from typing import Any, Dict, Iterator, List, Optional, Union, Iterable
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
 
 import torch
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
-from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
-from collections import defaultdict
 
 from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -2147,19 +2147,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             setattr(transformer_config, key, value)
 
         return transformer_config
-    
+
     def pl_logger(self, name, value, prog_bar=False, rank_zero_only=False, batch_size=1):
-        self.log(
-            name,
-            value,
-            prog_bar=prog_bar,
-            rank_zero_only=rank_zero_only,
-            batch_size=batch_size
-        )
+        self.log(name, value, prog_bar=prog_bar, rank_zero_only=rank_zero_only, batch_size=batch_size)
 
     def store_metrics_in_memory(self, name, value, prog_bar=False, rank_zero_only=False, batch_size=1):
         self.metrics[name].append(value)
-    
+
     def on_train_end(self):
         if self.log_metrics_on_train_end and self._tb_logger is not None:
             for metric, values in self.metrics.items():
