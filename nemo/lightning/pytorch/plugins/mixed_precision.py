@@ -18,11 +18,10 @@ from typing import Any, Callable, Generator, List, Literal, Tuple, TypeVar, Unio
 
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.plugins.precision import MixedPrecision
+from pytorch_lightning.plugins.precision import Precision
 from torch.nn import Module
 from torch.optim import Optimizer
 
-from nemo.lightning._strategy_lib import GradScaler
 from nemo.utils import logging
 
 AnyT = TypeVar("AnyT")
@@ -54,9 +53,15 @@ class DtypeConfig:
     fp8_wgrad: bool = True
     fp8_dot_product_attention: bool = False
     fp8_multi_head_attention: bool = False
+    # FP16 Loss scaling
+    loss_scale: float = None,
+    initial_loss_scale: float = None,
+    min_loss_scale: float = None,
+    loss_scale_window: float = None,
+    hysteresis: float = None,
 
 
-class MegatronMixedPrecision(MixedPrecision):
+class MegatronMixedPrecision(Precision):
     def __init__(
         self,
         precision: Literal["16-mixed", "bf16-mixed", "32"],
@@ -74,9 +79,11 @@ class MegatronMixedPrecision(MixedPrecision):
         fp8_wgrad: bool = True,
         fp8_dot_product_attention: bool = False,
         fp8_multi_head_attention: bool = False,
-        native_amp_init_scale: int = 2**32,
-        native_amp_growth_interval: int = 1000,
-        native_amp_hysteresis: int = 2,
+        fp16_loss_scale: float = None,
+        fp16_initial_loss_scale: float = 4294967296,
+        fp16_min_loss_scale: float = 1.0,
+        fp16_loss_scale_window: int = 1000,
+        fp16_hysteresis: int = 2,
         device: str = "cuda",
     ) -> None:
 
@@ -101,15 +108,14 @@ class MegatronMixedPrecision(MixedPrecision):
             fp8_wgrad=fp8_wgrad,
             fp8_dot_product_attention=fp8_dot_product_attention,
             fp8_multi_head_attention=fp8_multi_head_attention,
+            # fp16 loss scale
+            loss_scale=fp16_loss_scale,
+            initial_loss_scale=fp16_initial_loss_scale,
+            min_loss_scale=fp16_min_loss_scale,
+            loss_scale_window=fp16_loss_scale_window,
+            hysteresis=fp16_hysteresis,
         )
-        scaler = None
-        if self.dtype_config.fp16:
-            scaler = GradScaler(
-                init_scale=native_amp_init_scale,
-                growth_interval=native_amp_growth_interval,
-                hysteresis=native_amp_hysteresis,
-            )
-        super().__init__(self.dtype_config, device, scaler)
+        super().__init__()
 
     def convert_module(self, module: Module) -> Module:
         """Convert the module parameters to the precision type this plugin handles.
@@ -139,8 +145,8 @@ class MegatronMixedPrecision(MixedPrecision):
 
         """
         optim_config = get_optim_config(optimizer)
-        assert optim_config.bf16 == (self.precision == "bf16-mixed"), "BF16 enabled on model but not on optimizer"
-        assert optim_config.fp16 == (self.precision == "fp16-mixed"), "BF16 enabled on model but not on optimizer"
+        assert optim_config.bf16 == self.dtype_config.bf16, "BF16 enabled on model but not on optimizer"
+        assert optim_config.fp16 == self.dtype_config.fp16, "BF16 enabled on model but not on optimizer"
         return optimizer
 
     def convert_input(self, data: AnyT) -> AnyT:
@@ -160,42 +166,6 @@ class MegatronMixedPrecision(MixedPrecision):
 
         """
         return data
-
-    def optimizer_step(
-        self,
-        optimizer: torch.optim.Optimizer,
-        model: Union["pl.LightningModule", torch.nn.Module],
-        closure: Callable[[], Any],
-        **kwargs: Any,
-    ) -> None:
-        from nemo.core.optim import MainParamsOptimizerWrapper
-
-        if not isinstance(optimizer, MainParamsOptimizerWrapper):
-            return super().optimizer_step(optimizer, model, closure, **kwargs)
-
-        if self.scaler is None:
-            assert optimizer.fp32_grad_accumulation, "BF16 uses FP32 grad accumulation"
-            _ = closure()
-            self._after_closure(model, optimizer)
-            return optimizer.step(**kwargs)
-
-        assert not optimizer.fp32_grad_accumulation, "FP16 uses FP16 grad accumulation"
-        closure_result = closure()
-
-        # TODO: Add an option for merged all-reduce
-
-        # cast fp16 grads to fp32 and copy to main grads, which are used for unscale and param update
-        optimizer.copy_model_grads_to_main_grads()
-        # `unscale` after the closure is executed but before the `on_before_optimizer_step` hook.
-        # unscale main (fp32) gradients
-        self.scaler.unscale_(optimizer)
-        self._after_closure(model, optimizer)
-        skipped_backward = closure_result is None
-        # in manual optimization, the closure does not return a value
-        if not isinstance(model, pl.LightningModule) or not model.automatic_optimization or not skipped_backward:
-            # note: the scaler will skip the `optimizer.step` if nonfinite gradients are found
-            self.scaler.step(optimizer, **kwargs)
-            self.scaler.update()
 
     @contextmanager
     def forward_context(self) -> Generator[None, None, None]:
