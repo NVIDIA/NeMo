@@ -97,7 +97,7 @@ Training The Token Classification model
 ---------------------------------------
 
 In the Token Classification model, we are jointly training a classifier on top of a pre-trained language model, such as 
-`BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__ :cite:`nlp-ner-devlin2018bert`.
+`BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__ :cite:`nlp-ner2-devlin2018bert`.
 Unless the user provides a pre-trained checkpoint for the language model, the language model is initialized with the pre-trained model 
 from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__.
 
@@ -217,4 +217,4 @@ References
 .. bibliography:: nlp_all.bib
     :style: plain
     :labelprefix: NLP-NER
-    :keyprefix: nlp-ner-
+    :keyprefix: nlp-ner2-
