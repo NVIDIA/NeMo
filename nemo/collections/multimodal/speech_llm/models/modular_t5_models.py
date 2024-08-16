@@ -1488,6 +1488,10 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         encoder_input, attention_mask, encoder_length = encoded, None, encoded_len
         # generate encoder_mask from encoder_length
         enc_mask = torch.arange(encoder_input.shape[1], device=encoder_input.device)[None, :] < encoder_length[:, None]
+
+        instructions = audio_batch['instructions']
+        encoder_input = torch.cat([self.frozen_model.enc_dec_model.encoder_embedding(instructions, None, token_type_ids=None).transpose(0, 1), encoder_input], axis=1)
+        enc_mask = torch.cat([instructions != self.tokenizer.pad_id, enc_mask], axis=1)
         return encoder_input, attention_mask, enc_mask
 
     def forward(
@@ -1515,9 +1519,6 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         # dec_input and label = text prompt and text output label
         dec_input = audio_batch['tokens']
         labels = audio_batch['labels']
-        instructions = audio_batch['instructions']
-        encoder_input = torch.cat([self.frozen_model.enc_dec_model.encoder_embedding(instructions, None, token_type_ids=None).transpose(0, 1), encoder_input], axis=1)
-        enc_mask = torch.cat([instructions != self.tokenizer.pad_id, enc_mask], axis=1)
 
         dec_mask = (dec_input[:, :, 0] != self.tokenizer.eos_id) * (dec_input[:, :, 0] != self.tokenizer.pad_id).long().contiguous()
         output = self.frozen_model.enc_dec_model(
