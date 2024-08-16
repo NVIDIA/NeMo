@@ -199,7 +199,7 @@ class MegatronMixedPrecision(MixedPrecision):
             pass
 
 
-def patch_dtype_config(dtype_config, config):
+def update_config_with_dtype_overrides(dtype_config, config):
     for field in fields(dtype_config):
         if not hasattr(config, field.name):
             continue
