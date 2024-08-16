@@ -65,7 +65,6 @@ class CodeGemmaConfig2B(GemmaConfig2B):
 class CodeGemmaConfig7B(GemmaConfig7B):
     pass
 
-
 class GemmaModel(GPTModel):
     def __init__(
         self,
@@ -74,30 +73,14 @@ class GemmaModel(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(
-            config or GemmaConfig(),
-            optim=optim,
-            tokenizer=tokenizer,
-            model_transform=lambda model: (
-                GemmaModelTransform()(model)
-                if model_transform is None
-                else model_transform(GemmaModelTransform()(model))
-            ),
-        )
+        super().__init__(config or GemmaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
-
-class GemmaModelTransform(ModelTransform):
-    def transform(self, m: nn.Module, name=None, prefix=None):
+    def configure_model(self):
         from nemo.collections.common.parts.utils import extend_instance
         from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import EmbeddingScalingMixin
 
-        if name == "embedding":
-            extend_instance(m, EmbeddingScalingMixin)
-        return m
-
-    def __call__(self, model: nn.Module) -> nn.Module:
-        model.walk(self.transform)
-        return model
+        super().configure_model()
+        extend_instance(self.module.embedding, EmbeddingScalingMixin)
 
 
 @io.model_importer(GemmaModel, "hf")
