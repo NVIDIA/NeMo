@@ -221,7 +221,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         dtype_config = getattr(self._precision_plugin, 'dtype_config', None)
         if dtype_config:
-            from nemo.lightning.pytorch.plugins.precision import update_config_with_dtype_overrides
+            from nemo.lightning.pytorch.plugins.mixed_precision import update_config_with_dtype_overrides
 
             model.config = update_config_with_dtype_overrides(dtype_config, model.config)
 
