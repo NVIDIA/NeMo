@@ -61,6 +61,7 @@ attention_not_mapped_keys = [
 weight_scaling_suffix = '.weights_scaling_factor'
 activation_scaling_suffix = '.activation_scaling_factor'
 
+
 def save_val(val, dir, key, tp_num=None):
     if tp_num:
         key += f".{tp_num}.bin"
@@ -275,6 +276,7 @@ def get_scaling_factor_keys(key: str) -> Tuple[Tuple[str, str], Tuple[str, str]]
 
     return keys, gate_keys
 
+
 def save_scaling_factor(scaling_factors: dict, key: str, val: torch.Tensor, config: dict):
     if not is_scaling_factor(key):
         return scaling_factors
@@ -319,6 +321,7 @@ def split_val_gate(vals: List[np.ndarray], convert_on_device: bool):
 
     splits = [np.split(val, 2, axis=-1) for val in vals]
     return list(zip(*splits))
+
 
 # Note: in multi_query_mode, only query heads are split between multiple GPUs, while key/value head
 # are not split as there is only one head per key/value.
@@ -399,7 +402,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         if split_gated_activation:
             assert not save_int8
             layer_prefix = get_trt_llm_prefix(key)
-            gate_key = layer_prefix +'.mlp.gate' + get_suffix(trt_llm_key)
+            gate_key = layer_prefix + '.mlp.gate' + get_suffix(trt_llm_key)
             if convert_on_device:
                 save_val(gates[0], saved_dir, gate_key)
             else:
@@ -518,7 +521,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
 
         if use_fp8_kv_cache:
             base_key = trt_llm_key.replace('.qkv.weight', '')
-            scaling_factor = np.array([1.], dtype=np.float32)
+            scaling_factor = np.array([1.0], dtype=np.float32)
             save_val(scaling_factor, dir, base_key + '.kv_cache_scaling_factor')
 
     elif any_word_in_key(key, attention_not_mapped_keys):

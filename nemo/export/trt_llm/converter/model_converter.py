@@ -110,7 +110,7 @@ def model_to_trtllm_ckpt(
     model_parallel_rank: int = None,
     vocab_size: int | None = None,
     fp8_quantized: bool = False,
-    fp8_kvcache: bool = False
+    fp8_kvcache: bool = False,
 ) -> Tuple[List[Dict], List[PretrainedConfig]]:
     if nemo_model_config.get("share_embeddings_and_output_weights", False) and not use_embedding_sharing:
         LOGGER.info(

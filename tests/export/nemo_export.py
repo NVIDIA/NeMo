@@ -327,7 +327,7 @@ def run_inference(
                 max_num_tokens=int(max_input_len * max_batch_size * 0.2),
                 use_embedding_sharing=use_embedding_sharing,
                 fp8_quantized=fp8_quantized,
-                fp8_kvcache=fp8_kvcache
+                fp8_kvcache=fp8_kvcache,
             )
 
         if ptuning:

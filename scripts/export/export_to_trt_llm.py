@@ -168,7 +168,7 @@ def nemo_export_trt_llm(argv):
             lora_target_modules=args.lora_target_modules,
             max_lora_rank=args.max_lora_rank,
             fp8_quantized=args.export_fp8_quantized,
-            fp8_kvcache=args.use_fp8_kv_cache
+            fp8_kvcache=args.use_fp8_kv_cache,
         )
 
         LOGGER.info("Export is successful.")

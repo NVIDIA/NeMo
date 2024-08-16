@@ -119,7 +119,7 @@ def convert_model_to_trt_llm_ckpt(
     inference_tp_size,
     use_parallel_embedding,
     processes,
-    export_config
+    export_config,
 ):
     # if checkpoints files could be found - start preparing output dir
     out_dir = create_export_dir(nemo_export_dir)
@@ -250,12 +250,7 @@ def get_layer_num(param_name):
 
 @torch.no_grad()
 def dist_model_to_trt_llm_ckpt(
-    model,
-    nemo_model_config,
-    inference_tp_size,
-    inference_pp_size,
-    tokenizer_vocab_size,
-    export_config
+    model, nemo_model_config, inference_tp_size, inference_pp_size, tokenizer_vocab_size, export_config
 ):
     from megatron.core import parallel_state
     from megatron.core.tensor_parallel.utils import VocabUtility

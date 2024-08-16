@@ -327,7 +327,7 @@ class TensorRTLLM(ITritonDeployable):
                     use_parallel_embedding=use_parallel_embedding,
                     use_embedding_sharing=use_embedding_sharing,
                     fp8_quantized=fp8_quantized,
-                    fp8_kvcache=fp8_kvcache
+                    fp8_kvcache=fp8_kvcache,
                 )
 
                 for weight_dict, model_config in zip(weights_dicts, model_configs):
