@@ -111,14 +111,11 @@ class AutoConfigurator:
 
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {SUPPORTED_MODELS}."
         assert tokenizer_type in SUPPORTED_TOKENIZERS, f"tokenizer_type must be set to one of {SUPPORTED_TOKENIZERS}."
-        assert path_to_logs if nemo_run else None, f"path_to_logs parameter must be specified."
         assert num_nodes, "num_nodes value must be specified."
         assert data_paths, "training data must be specified."
-
-        self.tokenizer_type = tokenizer_type
-        self.tokenizer_path = tokenizer_path
-        self.path_to_logs = path_to_logs
-        self.nemo_run = nemo_run
+        if nemo_run:
+            assert path_to_logs, f"path_to_logs parameter must be specified."
+        
         self.config = locals()
         self.config.pop('self')
 
@@ -134,13 +131,34 @@ class AutoConfigurator:
         """
 
         configs = search_configs(self.config)
-        if self.nemo_run:
-            configs = self._generate_nemo_run_configs(configs)
+        if self.config["nemo_run"]:
+            configs = self._generate_nemo_run_configs(
+                configs, 
+                self.config["tokenizer_type"], 
+                self.config["tokenizer_path"], 
+                self.config["path_to_logs"],
+            )
 
         return configs
 
-    def _generate_nemo_run_configs(self, configs) -> dict:
-        tokenizer = self._get_tokenizer(self.tokenizer_type, self.tokenizer_path)
+    def _generate_nemo_run_configs(
+        self,
+        configs: dict,
+        tokenizer_type: str,
+        tokenizer_path: str,
+        path_to_logs: str,
+    ) -> dict:
+        """
+        Function that returns a dictionary of Partial configs.
+        :param: dict config: runner config.
+        :param: str tokenizer_type: tokenizer type.
+        :param: str tokenizer_path: path to the tokenizer.
+        :param: str path_to_logs: path to logs directory.
+        :return: dictionary of Partial configs.
+        :rtype: dict.
+        """
+
+        tokenizer = self._get_tokenizer(tokenizer_type, tokenizer_path)
 
         for name, config in configs.items():
             strategy = self._get_startegy(config['auto_config'])
@@ -150,27 +168,48 @@ class AutoConfigurator:
                 trainer=self._get_trainer(config['trainer'], strategy),
                 data=self._get_data(config['data'], tokenizer),
                 optim=self._get_optim(config['optim']),
-                log=self._get_logger(name),
+                log=self._get_logger(name, path_to_logs),
                 resume=None,
             )
     
         return configs
 
-    def _get_tokenizer(self, tokenizer_type, tokenizer_path):
+    def _get_tokenizer(self, tokenizer_type: str, tokenizer_path: str) -> Config:
+        """
+        Function that returns the tokenizer config.
+        :param: str tokenizer_type: tokenizer type.
+        :param: str tokenizer_path: path to the tokenizer.
+        :return: tokenizer config.
+        :rtype: Config.
+        """
+
         if tokenizer_type == "sentencepiece":
             return Config(SentencePieceTokenizer, model_path=tokenizer_path)
         else:
             return Config(AutoTokenizer, pretrained_model_name=tokenizer_path)
 
-    def _get_data(self, data_config, tokenizer):
+    def _get_data(self, data_config: dict, tokenizer_config: Config) -> Config:
+        """
+        Function that returns the data module.
+        :param: Config tokenizer: tokenizer config.
+        :return: data module.
+        :rtype: Config.
+        """
+
         return Config(
             PreTrainingDataModule,
             **data_config,
-            tokenizer=tokenizer,
+            tokenizer=tokenizer_config,
         )
     
-    def _get_optim(self, optim_config):
-
+    def _get_optim(self, optim_config: Config) -> Config:
+        """
+        Function that returns the optimizer.
+        :param: Config optim_config: optimizer config.
+        :return: optimizer.
+        :rtype: Config.
+        """
+        
         sched = Config(
             CosineAnnealingScheduler,
             warmup_steps=10,
@@ -184,8 +223,15 @@ class AutoConfigurator:
             lr_scheduler=sched,
         )
 
-    def _get_trainer(self, trainer_config, strategy):
-        
+    def _get_trainer(self, trainer_config: dict, strategy: Config) -> Config:
+        """
+        Function that returns the trainer.
+        :param: dict trainer_config: trainer config.
+        :param: Config strategy: training strategy.
+        :return: trainer.
+        :rtype: Config.
+        """
+
         return Config(
             nl.Trainer,
             **trainer_config,
@@ -194,7 +240,13 @@ class AutoConfigurator:
             callbacks=[Config(TimingCallback)],
         )
 
-    def _get_startegy(self, auto_config):
+    def _get_startegy(self, auto_config: dict) -> Config:
+        """
+        Function that returns the training strategy.
+        :param: dict auto_config: model parallelism config.
+        :return: training strategy.
+        :rtype: Config.
+        """
 
         return Config(
             nl.MegatronStrategy,
@@ -206,9 +258,16 @@ class AutoConfigurator:
             expert_model_parallel_size=auto_config.get('expert_model_parallel_size', 1),
         )
 
-    def _get_logger(self, run_name):
+    def _get_logger(self, run_name: str, path_to_logs: str) -> Config:
+        """
+        Function that returns the training strategy.
+        :param: str run_name: name of run.
+        :param: str path_to_logs: path to logs directory.
+        :return: training logger.
+        :rtype: Config.
+        """
 
-        tb_logger = Config(TensorBoardLogger, save_dir=self.path_to_logs)
+        tb_logger = Config(TensorBoardLogger, save_dir=path_to_logs)
 
         ckpt = Config(
             nl.ModelCheckpoint,
@@ -224,10 +283,10 @@ class AutoConfigurator:
             name=run_name,
             tensorboard=tb_logger,
             wandb=None,
-            dir=self.path_to_logs,
+            dir=path_to_logs,
         )
 
-    def _get_message(self, config) -> str:
+    def _get_message(self, config: dict) -> str:
         """
         Function that returns runner config line by line.
         :param: dict config: runner config.
