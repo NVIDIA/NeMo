@@ -48,6 +48,18 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.core import adapter_mixins
 
+def has_te_ops():
+    try:
+        from transformer_engine.pytorch.ops.sequential import Sequential
+        return True
+    except ImportError:
+        return False
+
+def is_te_sequential(layer):
+    # @akoumparouli: goal is to avoid importing ops.sequential.Sequential
+    # in installation with older TE version.
+    return str(layer) == "<class 'transformer_engine.pytorch.ops.sequential.Sequential'>"
+
 
 def swap_mcore_mixin(module, mcore_mixin):
     """
@@ -70,6 +82,9 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
 
         if not self.config.sequence_parallel or not self.linear_qkv.ub_overlap_ag:
             return ans
+
+        if not has_te_ops():
+            return
 
         if name == AdapterName.LORA_KQV_ADAPTER:
             lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
@@ -263,8 +278,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         """
         # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
         linear_qkv_output, tmp = self.linear_qkv(hidden_states)
-        from transformer_engine.pytorch.ops.sequential import Sequential as te_Sequential
-        if isinstance(self.linear_qkv, te_Sequential):
+        if is_te_sequential(self.linear_qkv):
             linear_qkv_output = (linear_qkv_output, tmp)
 
         layernorm_output = None
@@ -452,8 +466,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             lora_linear_proj_adapter = self.get_adapter_module(AdapterName.LORA_DENSE_ATTENTION_ADAPTER)
             if lora_linear_proj_adapter and self.adapter_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER]['enabled']:
 
-                from transformer_engine.pytorch.ops.sequential import Sequential as te_Sequential
-                if isinstance(self.linear_proj, te_Sequential):
+                if is_te_sequential(self.linear_proj):
                     # linear_qkv_output = (linear_qkv_output, tmp)
                     lora_linear_proj_adapter._sequence_parallel = False
                     output = self.linear_proj(core_attn_out, lora_linear_proj_adapter(core_attn_out))
