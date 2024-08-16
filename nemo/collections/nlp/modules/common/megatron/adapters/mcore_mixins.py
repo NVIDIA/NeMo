@@ -198,10 +198,10 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             self.linear_qkv.return_layernorm_output_gathered = True
 
 
-        if not self.config.sequence_parallel:
+        if not self.config.sequence_parallel or not self.linear_qkv.ub_overlap_ag:
             return
         from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
-        if self.linear_qkv.ub_overlap_ag and self.linear_qkv.ub_name == 'qkv' and isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
+        if self.linear_qkv.ub_name == 'qkv' and isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
             # @akoumparouli: would be better to address this by modifying mcore's spec.
             # However, the state dictionary has different layout and needs a solution.
             # This patching only works because we don't need grads for linear_qkv/linear_proj.
@@ -212,7 +212,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
                 del t
 
         from megatron.core.transformer.custom_layers.transformer_engine import TERowParallelLinear
-        if self.linear_proj.ub_overlap_ag and self.linear_proj and isinstance(self.linear_proj, TERowParallelLinear):
+        if isinstance(self.linear_proj, TERowParallelLinear):
             # @akoumparouli: would be better to address this by modifying mcore's spec.
             # Replace TERowParallelLinear with GEMM + Add
             with torch.no_grad():
