@@ -114,7 +114,7 @@ class AutoConfigurator:
         assert data_paths, "training data must be specified."
         if nemo_run:
             assert path_to_logs, f"path_to_logs parameter must be specified."
-        
+
         self.config = locals()
         self.config.pop('self')
 
@@ -132,9 +132,9 @@ class AutoConfigurator:
         configs = search_configs(self.config)
         if self.config["nemo_run"]:
             configs = self._generate_nemo_run_configs(
-                configs, 
-                self.config["tokenizer_type"], 
-                self.config["tokenizer_path"], 
+                configs,
+                self.config["tokenizer_type"],
+                self.config["tokenizer_path"],
                 self.config["path_to_logs"],
             )
 
@@ -202,7 +202,7 @@ class AutoConfigurator:
             **data_config,
             tokenizer=tokenizer_config,
         )
-    
+
     def _get_optim(self, optim_config: Config) -> Config:
         """
         Function that returns the optimizer.
@@ -210,7 +210,7 @@ class AutoConfigurator:
         :return: optimizer.
         :rtype: Config.
         """
-        
+
         sched = Config(
             CosineAnnealingScheduler,
             warmup_steps=10,
