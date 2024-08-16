@@ -74,6 +74,9 @@ class MegatronMixedPrecision(MixedPrecision):
         fp8_wgrad: bool = True,
         fp8_dot_product_attention: bool = False,
         fp8_multi_head_attention: bool = False,
+        native_amp_init_scale: int = 2**32,
+        native_amp_growth_interval: int = 1000,
+        native_amp_hysteresis: int = 2,
         device: str = "cuda",
     ) -> None:
 
@@ -101,7 +104,7 @@ class MegatronMixedPrecision(MixedPrecision):
         )
         scaler = None
         if self.dtype_config.fp16:
-            scaler = GradScaler(init_scale=2**32, growth_interval=1000, hysteresis=2)
+            scaler = GradScaler(init_scale=native_amp_init_scale, growth_interval=native_amp_growth_interval, hysteresis=native_amp_hysteresis)
         super().__init__(self.dtype_config, device, scaler)
 
     def convert_module(self, module: Module) -> Module:
