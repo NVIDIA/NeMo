@@ -4,7 +4,7 @@ import logging
 import os
 import shutil
 from collections import OrderedDict
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ContextManager, Dict, List, Literal, Mapping, Optional, TypeVar, Union, cast
@@ -34,7 +34,7 @@ from typing_extensions import override
 from nemo.lightning import _strategy_lib, io
 from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
-from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ModelTransform
+from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ModelTransform, ProgressPrinter
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
 
 if TYPE_CHECKING:
@@ -113,6 +113,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             necessary conversions of optimizer parameters and move optimizer parameters to the correct device.
             Defaults to True.
         init_model_parallel (bool): Whether to initialize the model parallel groups. Defaults to True.
+        replace_progress_bar (bool): Whether to replace the TQDM progress bar with a megatron-style logger
+            that prints the metrics to stdout. Suitable for non-interactive settings.
+        progress_interval (int): How frequently to print progress to stdout. Only used when
+            replace_progress_bar is True.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -151,6 +155,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_directly_on_device: bool = True,
         setup_optimizers: bool = True,
         init_model_parallel: bool = True,
+        replace_progress_bar: bool = True,
+        progress_interval: int = 1,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -187,6 +193,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.parallel_load = ckpt_parallel_load
         self.parallel_save_optim = ckpt_parallel_save_optim
         self.load_directly_on_device = ckpt_load_directly_on_device
+
+        self.replace_progress_bar = replace_progress_bar
+        self.progress_interval = progress_interval
 
         self._ddp = ddp
         if ddp == "megatron":
@@ -546,9 +555,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if callback.__class__ == TQDMProgressBar:
                 contains_progress = True
         if not contains_megatron_progress and contains_progress:
-            for callback in callbacks:
+            for i, callback in enumerate(callbacks):
                 if isinstance(callback, TQDMProgressBar):
-                    callback.__class__ = MegatronProgressBar
+                    if self.replace_progress_bar:
+                        printer = ProgressPrinter(log_interval=self.progress_interval)
+                        printer._trainer = trainer
+                        if not trainer.is_global_zero:
+                            printer.disable()
+                        callbacks[i] = printer
+                    else:
+                        callback.__class__ = MegatronProgressBar
                     break
 
     def optimizer_sharded_state_dict(self, is_loading=False):
@@ -576,7 +592,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         checkpoint["state_dict"] = OrderedDict([])  # remove device state_dict
-        checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
+        # retrieve `sharded_state_dict` if it has not already been configured in `on_save_checkpoint`
+        if "sharded_state_dict" not in checkpoint:
+            checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
         if self.trainer.state.fn == TrainerFn.FITTING and self.ckpt_include_optimizer:
             checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
@@ -621,6 +639,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         assert self.megatron_parallel is not None
 
         _strategy_lib.load_model_state_dict(self.megatron_parallel, checkpoint, strict=strict)
+        for opt in self.optimizers:
+            opt.reload_model_params()
 
     @property
     @override
@@ -646,6 +666,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:
         self._checkpoint_io = io
+
+    @property
+    def current_epoch_step(self) -> int:
+        """
+        Get the value of step within an epoch.
+        """
+        return max(
+            self.trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed,
+            self.trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
+        )
 
     def _get_data_step(self, step_type: str) -> Optional[_ModuleStepFunction]:
         for fn_name in [f"{step_type}_data_step", "data_step"]:
@@ -720,6 +750,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             moe_extended_tp=self.moe_extended_tp,
             pipeline_dtype=self.pipeline_dtype,
         )
+
+    @contextmanager
+    @override
+    def tensor_init_context(self, empty_init: Optional[bool] = None):
+        # Materializaton happens in `setup()`
+        # @akoumparouli: using Parent's tensor_init_context causes mcore
+        # parameters to be initialized on GPU instead of (assumed) CPU.
+        yield
 
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
