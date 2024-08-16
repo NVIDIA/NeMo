@@ -19,6 +19,7 @@ from lhotse import CutSet
 from lhotse.cut import MixedCut, MonoCut
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
+from lhotse.utils import ifnone
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.prompts.canary import CanaryPromptFormatter
@@ -66,7 +67,9 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         tokenizer: TokenizerSpec,
-        prompt_format_fn: Callable[[CutSet, TokenizerWrapper], Sequence[Sequence[int]]],
+        prompt_format_fn: Callable[
+            [CutSet, TokenizerWrapper], tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]
+        ],
     ):
         super().__init__()
         self.tokenizer = TokenizerWrapper(tokenizer)
@@ -94,7 +97,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             prompted_transcript_lens=prompts_with_answers_lens,
         )
 
-    def _collate_tokens(self, tokens: list[list[int]]) -> tuple[torch.Tensor, torch.Tensor]:
+    def _collate_tokens(self, tokens: list[list[int] | torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         tokens = [torch.as_tensor(t) for t in tokens]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
         tokens = collate_vectors(tokens, padding_value=self.padding_value)
@@ -186,30 +189,38 @@ def canary(
                 f"Please ensure that every utterance in the input manifests contains these keys."
             )
 
-        encoded = formatter.encode_dialog(
-            turns=[
-                dict(
-                    role="user",
-                    slots={
-                        **{slot: cut.custom[slot] for slot in expected_slots},
-                        formatter.PROMPT_LANGUAGE_SLOT: CANARY_SPECIAL_TOKENIZER,
-                    },
-                ),
-                dict(
-                    role="assistant",
-                    slots={
-                        "text": ' '.join(s.text for s in cut.supervisions),
-                        formatter.PROMPT_LANGUAGE_SLOT: cut.supervisions[0].language,
-                    },
-                ),
-            ]
+        turns = [
+            dict(
+                role="user",
+                slots={
+                    **{slot: cut.custom[slot] for slot in expected_slots},
+                    formatter.PROMPT_LANGUAGE_SLOT: CANARY_SPECIAL_TOKENIZER,
+                },
+            )
+        ]
+        # If data has no transcript, create empty response with <eos> only.
+        text = ' '.join(s.text for s in cut.supervisions if s.text is not None)
+        turns.append(
+            dict(
+                role="assistant",
+                slots={
+                    "text": text,
+                    formatter.PROMPT_LANGUAGE_SLOT: ifnone(
+                        cut.supervisions[0].language, cut.custom.get("target_lang")
+                    ),
+                },
+            ),
         )
+        encoded = formatter.encode_dialog(turns)
         prompts_with_answers.append(encoded["input_ids"])
         prompts.append(encoded["context_ids"])
-        assert (
-            encoded["answer_ids"][-1].item() == formatter.tokenizer.eos
-        ), f"Expected the last token in answer_ids to be EOS, but we got {encoded['answer_ids']=}"
-        answers.append(encoded["answer_ids"][:-1])  # Strip Canary's EOS
+        if "answer_ids" in encoded:
+            assert (
+                encoded["answer_ids"][-1].item() == formatter.tokenizer.eos
+            ), f"Expected the last token in answer_ids to be EOS, but we got {encoded['answer_ids']=}"
+            answers.append(encoded["answer_ids"][:-1])  # Strip Canary's EOS
+        else:
+            answers.append([])
 
     return prompts_with_answers, prompts, answers
 
