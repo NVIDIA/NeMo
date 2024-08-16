@@ -19,6 +19,7 @@ import subprocess
 import sys
 import time
 import warnings
+import numpy as np
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -304,7 +305,7 @@ class DeltaTimingCallback(Callback):
         if self._sync_cuda and torch.cuda.is_initialized():
             torch.cuda.synchronize()
 
-        self.timers[name]["values"] = [0,[]]
+        self.timers[name]["values"] = []
         self.timers[name]["start"] = time.time()
     
     def print_once(self, *args, **kwargs):
@@ -319,9 +320,8 @@ class DeltaTimingCallback(Callback):
 
         end = time.time()
         dt = end - self.timers[name]["start"]
-        self.timers[name]["values"][0] += 1
-        self.print_once(f'Step {self.timers[name]["values"][0]}: train_step_timing {dt}')
-        self.timers[name]["values"][1].append(dt)
+        self.print_once(f'Step {len(self.timers[name]["values"])}: train_step_timing {dt}')
+        self.timers[name]["values"].append(dt)
         self.timers[name]["start"] = end
 
     def on_train_epoch_start(self, trainer, pl_module):
@@ -338,24 +338,23 @@ class DeltaTimingCallback(Callback):
 
     def on_train_end(self, trainer, pl_module):
         for timer_name, timer_data in self.timers.items():
-            step_times = timer_data["values"][1]
-            logging.info(f"Average {timer_name} in s: {sum(step_times)/timer_data['values'][0]}")
+            step_times = timer_data["values"]
+            logging.info(f"Average {timer_name} in s: {np.sum(step_times)/len(timer_data['values'])}")
             if (tb_logger:=self.get_tb_logger(pl_module)) is not None:
                 for step_time in step_times:
                     tb_logger.add_scalar(timer_name + " in s", step_time)
 
     def get_tb_logger(self, pl_module):
-        if self._tb_logger is None:
-            if pl_module.logger is None and pl_module.logger.experiment is None:
-                return None
-            tb_logger = None
-            if isinstance(pl_module.logger, Iterable):
-                for logger in pl_module.logger:
-                    if isinstance(logger, TensorBoardLogger):
-                        tb_logger = logger.experiment
-                        break
-            elif isinstance(pl_module.logger, TensorBoardLogger):
-                tb_logger = pl_module.logger.experiment
+        if pl_module.logger is None and pl_module.logger.experiment is None:
+            return None
+        tb_logger = None
+        if isinstance(pl_module.logger, Iterable):
+            for logger in pl_module.logger:
+                if isinstance(logger, TensorBoardLogger):
+                    tb_logger = logger.experiment
+                    break
+        elif isinstance(pl_module.logger, TensorBoardLogger):
+            tb_logger = pl_module.logger.experiment
         self._tb_logger = tb_logger
         return self._tb_logger
 
