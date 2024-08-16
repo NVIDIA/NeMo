@@ -22,7 +22,7 @@ In general, there are three main components of a modular SpeechLLM:
 Model Architecture
 ^^^^^^^^^^^^^^^^^^
 
-One way to incorporate speech into an LLM is to concatenate speech features with the token embeddings of the input text prompt before feeding them into the LLM. In this way, the LLM can have direct access to the speech information when generating the output text.
+One way to incorporate speech into an LLM is to concatenate speech features with the token embeddings of the input text prompt before feeding them into the LLM. In this way, the LLM can have direct access to the speech information when generating the output text. The `Speech-Augmented Language Model <https://arxiv.org/pdf/2310.09424>`__ (SALM) follows this approach.
 
 .. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.23.0/salm.png
     :align: center
@@ -31,14 +31,12 @@ One way to incorporate speech into an LLM is to concatenate speech features with
 
 
 
-Another approach is to use a cross-attention mechanism, where text embeddings attend to speech embeddings to extract task-specific information. To minimize the computational cost, we add a cross-attention module only before the LLM.
+Another approach is to use a cross-attention mechanism, where text embeddings attend to speech embeddings to extract task-specific information. To minimize the computational cost, we add a cross-attention module only before the LLM. The `BESt features from TwO Worlds <https://arxiv.org/pdf/2406.19954v1>`__ (BESTOW) model follows this approach.
    
 .. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.23.0/bestow.png
     :align: center
     :alt: BESTOW model
     :scale: 50%
 
-
-
-
+NeMo Framework contains `example scripts <https://github.com/NVIDIA/NeMo/tree/main/examples/multimodal/speech_llm>`__ for training and evaluating for both SALM and BESTOW models. A pre-trained `checkpoint <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/speechllm_fc_llama2_7b>`__ for SALM is also available.
 
