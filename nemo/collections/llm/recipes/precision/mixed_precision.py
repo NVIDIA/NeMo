@@ -1,6 +1,6 @@
 import torch
 
-from nemo.collections.llm.utils import Config, Partial
+from nemo.collections.llm.utils import Config
 from nemo.lightning.pytorch.plugins.mixed_precision import MegatronMixedPrecision
 
 
