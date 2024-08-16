@@ -22,12 +22,12 @@ from nemo.collections.llm.utils import Config
 from .basic import Basic
 
 
-class Llama(Basic):
+class Gemma(Basic):
     def __init__(
         self,
-        name: str = "Llama",
-        version: int = 2,
-        size: int = 7,
+        name: str = "Gemma",
+        version: int = None,
+        size: int = 2,
         measure: str = "B",
         cfg: dict = {},
     ):
@@ -40,7 +40,7 @@ class Llama(Basic):
         """
 
         super().__init__(name=name, version=version, size=size, measure=measure, cfg=cfg)
-        self.config_name = f"{self.name}{self.version}Config{self.size}{self.measure}"
+        self.config_name = f"{self.name}Config{self.size}{self.measure}"
 
     def get_model_config(self) -> Config:
         """
@@ -58,7 +58,6 @@ class Llama(Basic):
             model_config = model_class(**kwargs)
 
         model_config.global_batch_size = self.global_batch_size
-        print(self.global_batch_size)
         model_config.seq_length = self.seq_length
         model_config.pipeline_dtype = torch.bfloat16
 

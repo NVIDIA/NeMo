@@ -48,6 +48,7 @@ class Basic:
         self.tokenizer_path = cfg.get("tokenizer_path")
         self.data_paths = cfg.get("data_paths")
         self.nemo_run = cfg.get("nemo_run")
+        self.max_minutes_per_run = cfg.get("max_minutes_per_run")
 
     def model_config(self):
         """Function that returns model config."""
@@ -137,7 +138,7 @@ class Basic:
         run_config = {
             "name": f"{self.name}_{self.size}{self.measure}",
             "results_dir": None,
-            "time_limit": "0-00:30:00",
+            "time_limit": f"0-00:{self.max_minutes_per_run}:00",
         }
 
         return run_config

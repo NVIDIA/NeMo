@@ -90,7 +90,7 @@ def _estimate_model_size(
     :raises NotImplementedError: if the model_name is not one of the supported models.
     """
     model_penalty = 0.87 if model_name == "mt5" else 1.0
-    valid_models = ["gpt3", "t5", "mt5", "bert", "llama", "mixtral", "mistral"]
+    valid_models = ["gpt3", "t5", "mt5", "bert", "llama", "mixtral", "mistral", "gemma"]
     try:
         if model_name in valid_models:
             return round(
@@ -131,7 +131,7 @@ def _estimate_training_time(
     :raises NotImplementedError: if the model_name is not one of the supported models.
     """
     model_penalty = 1.15 if model_name == "mt5" else 1.0
-    valid_models = ["gpt3", "t5", "mt5", "bert", "llama", "mixtral", "mistral"]
+    valid_models = ["gpt3", "t5", "mt5", "bert", "llama", "mixtral", "mistral", "gemma"]
     try:
         if model_name in valid_models:
             return round(

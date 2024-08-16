@@ -23,6 +23,7 @@ MODULES = {
     "llama": "Llama",
     "mixtral": "Mixtral",
     "mistral": "Mistral",
+    "gemma": "Gemma",
 }
 
 
@@ -51,7 +52,7 @@ def _calculate_model_size(
     :rtype: float
     :raises NotImplementedError: if the model name is not valid.
     """
-    if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"]:
+    if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
         model_size = (
             12
             * num_layers
@@ -105,7 +106,7 @@ def calculate_model_size_params(
     :raises NotImplementedError: if the model name is not supported.
     """
     ffn, kv = None, None  # Only needed for some models.
-    if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"]:
+    if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
         if model_size_in_b < 0.25:
             hs, att_h, lr = 768, 12, 6e-4
         elif model_size_in_b < 0.5:
@@ -365,7 +366,7 @@ def generic_base_config(
             model_name,
         )
 
-        if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"]:
+        if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
             base_cfg["model"].num_layers = num_layers
             base_cfg["model"].hidden_size = hidden_size
             base_cfg["model"].num_attention_heads = num_attention_heads
@@ -426,6 +427,7 @@ def modify_cfg(
             "qwen2",
             "mixtral",
             "mistral",
+            "gemma",
         ]:
             new_cfg["auto_config"]["activations_checkpoint_num_layers"] = act
         else:
@@ -441,6 +443,7 @@ def modify_cfg(
         "qwen2",
         "mixtral",
         "mistral",
+        "gemma",
     ]:
         new_cfg["auto_config"]["num_micro_batches_with_partial_activation_checkpoints"] = num_mbs_act
 
@@ -453,6 +456,7 @@ def modify_cfg(
         "qwen2",
         "mixtral",
         "mistral",
+        "gemma",
     ]:
         new_cfg["auto_config"]["activations_checkpoint_layers_per_pipeline"] = act_per_pipe
 
@@ -465,6 +469,7 @@ def modify_cfg(
         "qwen2",
         "mixtral",
         "mistral",
+        "gemma",
     ]:
         new_cfg["auto_config"]["virtual_pipeline_model_parallel_size"] = virtual_pipelines
 
@@ -488,6 +493,7 @@ def modify_cfg(
         "qwen2",
         "mixtral",
         "mistral",
+        "gemma",
     ]:
         att_heads = new_cfg["model"].num_attention_heads
         num_layers = new_cfg["model"].num_layers

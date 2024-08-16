@@ -58,13 +58,13 @@ def generate_grid_search_configs(
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = (
-        1 if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"] else 2
+        1 if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"] else 2
     )
 
     seq_length = base_cfg["model"].seq_length
     num_layers = (
         base_cfg["model"].num_layers
-        if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"]
+        if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]
         else base_cfg["model"].encoder.num_layers
     )
 
@@ -77,6 +77,7 @@ def generate_grid_search_configs(
         "qwen2",
         "mixtral",
         "mistral",
+        "gemma",
     ]:
         act_method = base_cfg["model"].activations_checkpoint_method
     else:
@@ -120,6 +121,7 @@ def generate_grid_search_configs(
                             "qwen2",
                             "mixtral",
                             "mistral",
+                            "gemma",
                         ]:
                             att_heads = base_cfg["model"].num_attention_heads
                             num_layers = base_cfg["model"].num_layers
@@ -226,7 +228,7 @@ def _set_activations_checkpoint_params(
     max_layers_per_pipe = num_layers
     interval_layers_per_pipe = act_multiple
     if (
-        model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"] and pp > 2
+        model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"] and pp > 2
     ):  # Interleaved pipeline scheduling.
         virtual_pipelines = num_layers // pp  # TODO: verify that this is the best value.
         act_multiple = 1
@@ -255,6 +257,7 @@ def _set_activations_checkpoint_params(
             "qwen2",
             "mixtral",
             "mistral",
+            "gemma",
         ]:
             # Num micro batches with partial act ckpt
             num_micro_batches_partial_act_ckpt = list(range(min_micro_b, max_micro_b + 1, interval_micro_b))
@@ -973,14 +976,14 @@ def _calculate_tp_pp_mbs_grid(
     gpu_memory_gb = train_cfg.get("gpu_memory_gb")
     model_measure = train_cfg.get("model_measure")
     multiplier = (
-        1 if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"] else 2
+        1 if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"] else 2
     )
-    init_pp = [] if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"] else [1]
+    init_pp = [] if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"] else [1]
     valid_pp = init_pp + [
         multiplier * x for x in range(1, num_layers + 1) if num_layers % x == 0
     ]  # Only divisors of num_layers are possible.
 
-    if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral"]:
+    if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
         if gpu_memory_gb == 80:
             (
                 tp,

@@ -23,6 +23,7 @@ SUPPORTED_MODELS = [
     "llama",
     "mixtral",
     "mistral",
+    "gemma",
 ]
 
 

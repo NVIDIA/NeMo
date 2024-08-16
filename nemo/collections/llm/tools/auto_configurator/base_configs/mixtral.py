@@ -16,7 +16,6 @@ import copy
 import os
 
 from nemo.collections import llm
-from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.utils import Config
 
 from .basic import Basic

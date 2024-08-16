@@ -32,6 +32,7 @@ SUPPORTED_MODELS = [
     "llama",
     "mixtral",
     "mistral",
+    "gemma",
 ]
 
 SUPPORTED_TOKENIZERS = [
