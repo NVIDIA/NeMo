@@ -216,5 +216,5 @@ References
 
 .. bibliography:: nlp_all.bib
     :style: plain
-    :labelprefix: NLP-NER
+    :labelprefix: NLP-NER2
     :keyprefix: nlp-ner2-
