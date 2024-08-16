@@ -24,6 +24,7 @@ from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
 from typing import Any, Collection, Dict, List, Optional, Tuple, Union
+from collections import defaultdict
 
 import pytorch_lightning
 import torch
@@ -213,6 +214,7 @@ class ExpManagerConfig:
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
+    log_step_timing_on_end: Optional[bool] = False
     step_timing_kwargs: Optional[StepTimingParams] = field(default_factory=lambda: StepTimingParams())
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
@@ -291,6 +293,52 @@ class TimingCallback(Callback):
 
     def on_after_backward(self, trainer, pl_module):
         self._on_batch_end("train_backward_timing", pl_module)
+
+class DeltaTimingCallback(Callback):
+    def __init__(self, timer_kwargs={}):
+        self._sync_cuda = timer_kwargs.get("sync_cuda", False)
+        self.timers = defaultdict(defaultdict)
+
+    def _on_epoch_start(self, name, trainer, pl_module):
+        # synchronize pytorch cuda execution if supported
+        if self._sync_cuda and torch.cuda.is_initialized():
+            torch.cuda.synchronize()
+
+        self.timers[name]["values"] = [0,[]]
+        self.timers[name]["start"] = time.time()
+    
+    def _on_batch_end(self, name, trainer, pl_module):
+        # synchronize pytorch cuda execution if supported
+        if self._sync_cuda and torch.cuda.is_initialized():
+            torch.cuda.synchronize()
+
+        end = time.time()
+        dt = end - self.timers[name]["start"]
+        self.timers[name]["values"][0] += 1
+        logging.info(f'Step {self.timers[name]["total"][0]}: train_step_timing {dt}')
+        self.timers[name]["values"][1].append(dt)
+        self.timers[name]["start"] = end
+
+    def on_train_epoch_start(self, trainer, pl_module):
+        self._on_epoch_start("train_step_timing", trainer, pl_module)
+
+    def on_validation_epoch_start(self, trainer, pl_module):
+        self._on_epoch_start("validation_step_timing", trainer, pl_module)
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        self._on_batch_end("train_step_timing", trainer, pl_module)
+
+    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        self._on_batch_end("validation_step_timing", trainer, pl_module)
+
+    def on_train_end(self, trainer, pl_module):
+        for timer_name, timer_data in self.timers.items():
+            step_times = timer_data["values"][1]
+            logging.info(f"{timer_name} in s: {step_times}")
+            logging.info(f"Average {timer_name} in s: {step_times/timer_data['values'][0]}")
+            if pl_module.logger is not None and pl_module.logger.experiment is not None:
+                for step_time in step_times:
+                    pl_module.logger.experiment.add_scalar(timer_name + " in s", step_time)
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
@@ -510,7 +558,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     # add loggers timing callbacks
     if cfg.log_step_timing:
-        timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
+        if cfg.log_step_timing_on_end:
+            timing_callback = DeltaTimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
+        else:
+            timing_callback = TimingCallback(cfg.log_step_timing_on_end, timer_kwargs=cfg.step_timing_kwargs or {})
         trainer.callbacks.insert(0, timing_callback)
 
     if cfg.ema.enable:
