@@ -161,6 +161,9 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             self.linear_qkv.return_layernorm_output_gathered = True
 
         if self.linear_qkv.ub_overlap_ag and self.linear_qkv.ub_name == 'qkv' and self.linear_qkv.sequence_parallel:
+            # @akoumparouli: would be better to address this by modifying mcore's spec.
+            # However, the state dictionary has different layout and needs a solution.
+            # Replace TELayerNormColumnParallelLinear with GEMM + Fork
             with torch.no_grad():
                 ub_attr = {attr: getattr(self.linear_qkv, attr)
                            for attr in filter(lambda x: x.startswith('ub_'), dir(self.linear_qkv))
@@ -198,6 +201,11 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         # LoRA logic
         if self.is_adapter_available():
             lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
+            # @akoumparouli: find a better location for this.
+            # Turn off SP in lora_qkv_adapter
+            if isinstance(self.linear_qkv, te_Sequential):
+                lora_kqv_adapter._sequence_parallel = False
+
             if lora_kqv_adapter and self.adapter_cfg[AdapterName.LORA_KQV_ADAPTER]['enabled']:
                 if layernorm_output is not None:
                     lora_mixed_qkv = lora_kqv_adapter(layernorm_output)
