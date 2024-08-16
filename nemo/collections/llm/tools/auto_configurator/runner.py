@@ -19,7 +19,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo import lightning as nl
 from nemo.collections.common.tokenizers import AutoTokenizer, SentencePieceTokenizer
-from nemo.collections.llm import PreTrainingDataModule, GPTModel
+from nemo.collections.llm import GPTModel, PreTrainingDataModule
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.tools.auto_configurator.core.search_config import search_configs
 from nemo.collections.llm.utils import Config, Partial
@@ -173,8 +173,8 @@ class AutoConfigurator:
         return configs
 
     def _get_model(self, model_config, tokenier):
-        return GPTModel(model_config, tokenizer=tokenizer)
-        
+        return GPTModel(model_config, tokenier=tokenizer)
+
     def _get_tokenizer(self, tokenizer_type: str, tokenizer_path: str) -> Config:
         """
         Function that returns the tokenizer config.
