@@ -1,15 +1,16 @@
 import math
-from typing import Optional, Dict
+from typing import Optional, Dict, Union
 from random import random
 from functools import partial, wraps
+from packaging import version
 from collections import namedtuple
 
 import einops
 import torch
-from torch import nn, Tensor
+from torch import nn, Tensor, einsum
 from torch.nn import Module
 import torch.nn.functional as F
-
+from torch.cuda.amp import autocast
 
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import FloatType, LengthsType, NeuralType, SpectrogramType
@@ -165,6 +166,45 @@ def generate_mask_from_repeats(repeats: Tensor):
     mask = (seq < cumsum) & (seq >= cumsum_exclusive) & (seq < lengths)
     return mask
 
+def is_probably_audio_from_shape(t):
+    return exists(t) and (t.ndim == 2 or (t.ndim == 3 and t.shape[1] == 1))
+
+
+def maximum_path(value, mask, const=None):
+    device = value.device
+    dtype = value.dtype
+    if not exists(const):
+        const = torch.tensor(float('-inf')).to(device)  # Patch for Sphinx complaint
+    value = value * mask
+
+    b, t_x, t_y = value.shape
+    direction = torch.zeros(value.shape, dtype=torch.int64, device=device)
+    v = torch.zeros((b, t_x), dtype=torch.float32, device=device)
+    x_range = torch.arange(t_x, dtype=torch.float32, device=device).view(1, -1)
+
+    for j in range(t_y):
+        v0 = pad_tensor(v, ((0, 0), (1, 0)), value = const)[:, :-1]
+        v1 = v
+        max_mask = v1 >= v0
+        v_max = torch.where(max_mask, v1, v0)
+        direction[:, :, j] = max_mask
+
+        index_mask = x_range <= j
+        v = torch.where(index_mask.view(1,-1), v_max + value[:, :, j], const)
+
+    direction = torch.where(mask.bool(), direction, 1)
+
+    path = torch.zeros(value.shape, dtype=torch.float32, device=device)
+    index = mask[:, :, 0].sum(1).long() - 1
+    index_range = torch.arange(b, device=device)
+
+    for j in reversed(range(t_y)):
+        path[index_range, index, j] = 1
+        index = index + direction[index_range, index, j] - 1
+
+    path = path * mask.float()
+    path = path.to(dtype=dtype)
+    return path
 
 # sinusoidal positions
 
@@ -182,6 +222,36 @@ class LearnedSinusoidalPosEmb(Module):
         freqs = x * einops.rearrange(self.weights, 'd -> 1 d') * 2 * math.pi
         fouriered = torch.cat((freqs.sin(), freqs.cos()), dim = -1)
         return fouriered
+
+# rotary positional embeddings
+
+class RotaryEmbedding(Module):
+    def __init__(self, dim, theta = 50000):
+        super().__init__()
+        inv_freq = 1.0 / (theta ** (torch.arange(0, dim, 2).float() / dim))
+        self.register_buffer("inv_freq", inv_freq)
+
+    @property
+    def device(self):
+        return self.inv_freq.device
+
+    @autocast(enabled = False)
+    def forward(self, t: Union[int, Tensor]):
+        if not torch.is_tensor(t):
+            t = torch.arange(t, device = self.device)
+
+        t = t.type_as(self.inv_freq)
+        freqs = torch.einsum('i , j -> i j', t, self.inv_freq)
+        freqs = torch.cat((freqs, freqs), dim = -1)
+        return freqs
+
+def rotate_half(x):
+    x1, x2 = x.chunk(2, dim = -1)
+    return torch.cat((-x2, x1), dim = -1)
+
+@autocast(enabled = False)
+def apply_rotary_pos_emb(pos, t):
+    return t * pos.cos() + rotate_half(t) * pos.sin()
 
 # convolutional positional generating module
 
@@ -260,6 +330,165 @@ class AdaptiveRMSNorm(Module):
 
         return normed * gamma + beta
 
+# attention
+
+class MultiheadRMSNorm(Module):
+    def __init__(self, dim, heads):
+        super().__init__()
+        self.scale = dim ** 0.5
+        self.gamma = nn.Parameter(torch.ones(heads, 1, dim))
+
+    def forward(self, x):
+        return F.normalize(x, dim = -1) * self.gamma * self.scale
+
+class Attend(nn.Module):
+    def __init__(
+        self,
+        dropout = 0.,
+        flash = False,
+        scale = None
+    ):
+        super().__init__()
+        self.dropout = dropout
+        self.attn_dropout = nn.Dropout(dropout)
+
+        self.scale = scale
+
+        self.flash = flash
+        assert not (flash and version.parse(torch.__version__) < version.parse('2.0.0')), 'in order to use flash attention, you must be using pytorch 2.0 or above'
+
+        # determine efficient attention configs for cuda and cpu
+
+        self.cpu_config = FlashAttentionConfig(True, True, True)
+        self.cuda_config = None
+
+        if not torch.cuda.is_available() or not flash:
+            return
+
+        device_properties = torch.cuda.get_device_properties(torch.device('cuda'))
+
+        if device_properties.major == 8 and device_properties.minor == 0:
+            print_once('A100 GPU detected, using flash attention if input tensor is on cuda')
+            self.cuda_config = FlashAttentionConfig(True, False, False)
+        else:
+            print_once('Non-A100 GPU detected, using math or mem efficient attention if input tensor is on cuda')
+            self.cuda_config = FlashAttentionConfig(False, True, True)
+
+    def flash_attn(self, q, k, v, mask = None):
+        _, heads, q_len, dim_head, k_len, is_cuda, device = *q.shape, k.shape[-2], q.is_cuda, q.device
+
+        # if scale is given, divide by the default scale that sdpa uses
+
+        if exists(self.scale):
+            q = q * (self.scale / (dim_head ** -0.5))
+
+        # Check if mask exists and expand to compatible shape
+        # The mask is B L, so it would have to be expanded to B H N L
+
+        if exists(mask):
+            mask = mask.expand(-1, heads, q_len, -1)
+
+        # Check if there is a compatible device for flash attention
+
+        config = self.cuda_config if is_cuda else self.cpu_config
+
+        # pytorch 2.0 flash attn: q, k, v, mask, dropout, softmax_scale
+
+        with torch.backends.cuda.sdp_kernel(**config._asdict()):
+            out = F.scaled_dot_product_attention(
+                q, k, v,
+                attn_mask = mask,
+                dropout_p = self.dropout if self.training else 0.
+            )
+
+        return out
+
+    def forward(self, q, k, v, mask = None):
+        """
+        einstein notation
+        b - batch
+        h - heads
+        n, i, j - sequence length (base sequence length, source, target)
+        d - feature dimension
+        """
+
+        q_len, k_len, device = q.shape[-2], k.shape[-2], q.device
+
+        scale = default(self.scale, q.shape[-1] ** -0.5)
+
+        if exists(mask) and mask.ndim != 4:
+            mask = einops.rearrange(mask, 'b j -> b 1 1 j')
+
+        if self.flash:
+            return self.flash_attn(q, k, v, mask = mask)
+
+        # similarity
+
+        sim = einsum(f"b h i d, b h j d -> b h i j", q, k) * scale
+
+        # key padding mask
+
+        if exists(mask):
+            sim = sim.masked_fill(~mask, -torch.finfo(sim.dtype).max)
+
+        # attention
+
+        attn = sim.softmax(dim=-1)
+        attn = self.attn_dropout(attn)
+
+        # aggregate values
+
+        out = einsum(f"b h i j, b h j d -> b h i d", attn, v)
+
+        return out
+
+
+class Attention(Module):
+    def __init__(
+        self,
+        dim,
+        dim_head = 64,
+        heads = 8,
+        dropout = 0,
+        flash = False,
+        qk_norm = False,
+        qk_norm_scale = 10
+    ):
+        super().__init__()
+        self.heads = heads
+        dim_inner = dim_head * heads
+
+        scale = qk_norm_scale if qk_norm else None
+
+        self.attend = Attend(dropout, flash = flash, scale = scale)
+
+        self.qk_norm = qk_norm
+
+        if qk_norm:
+            self.q_norm = MultiheadRMSNorm(dim_head, heads = heads)
+            self.k_norm = MultiheadRMSNorm(dim_head, heads = heads)
+
+        self.to_qkv = nn.Linear(dim, dim_inner * 3, bias = False)
+        self.to_out = nn.Linear(dim_inner, dim, bias = False)
+
+    def forward(self, x, mask = None, rotary_emb = None):
+        h = self.heads
+
+        q, k, v = self.to_qkv(x).chunk(3, dim = -1)
+        q, k, v = map(lambda t: einops.rearrange(t, 'b n (h d) -> b h n d', h = h), (q, k, v))
+
+        if self.qk_norm:
+            q = self.q_norm(q)
+            k = self.k_norm(k)
+
+        if exists(rotary_emb):
+            q, k = map(lambda t: apply_rotary_pos_emb(rotary_emb, t), (q, k))
+
+        out = self.attend(q, k, v, mask = mask)
+
+        out = einops.rearrange(out, 'b h n d -> b n (h d)')
+        return self.to_out(out)
+
 class GEGLU(Module):
     def forward(self, x):
         x, gate = x.chunk(2, dim = -1)
@@ -277,6 +506,134 @@ def FeedForward(dim, mult = 4, dropout = 0.):
 # transformer
 
 class Transformer(Module):
+    def __init__(
+        self,
+        dim,
+        *,
+        depth,
+        dim_head = 64,
+        heads = 8,
+        ff_mult = 4,
+        attn_dropout = 0.,
+        ff_dropout = 0.,
+        num_register_tokens = 0.,
+        attn_flash = False,
+        adaptive_rmsnorm = False,
+        adaptive_rmsnorm_cond_dim_in = None,
+        use_unet_skip_connection = False,
+        skip_connect_scale = None,
+        attn_qk_norm = False,
+        use_gateloop_layers = False,
+        gateloop_use_jax = False,
+    ):
+        super().__init__()
+        assert divisible_by(depth, 2)
+        self.layers = nn.ModuleList([])
+
+        self.rotary_emb = RotaryEmbedding(dim = dim_head)
+
+        self.num_register_tokens = num_register_tokens
+        self.has_register_tokens = num_register_tokens > 0
+
+        if self.has_register_tokens:
+            self.register_tokens = nn.Parameter(torch.randn(num_register_tokens, dim))
+
+        if adaptive_rmsnorm:
+            rmsnorm_klass = partial(AdaptiveRMSNorm, cond_dim = adaptive_rmsnorm_cond_dim_in)
+        else:
+            rmsnorm_klass = RMSNorm
+
+        self.skip_connect_scale = default(skip_connect_scale, 2 ** -0.5)
+
+        for ind in range(depth):
+            layer = ind + 1
+            has_skip = use_unet_skip_connection and layer > (depth // 2)
+
+            self.layers.append(nn.ModuleList([
+                nn.Linear(dim * 2, dim) if has_skip else None,
+                GateLoop(dim = dim, use_jax_associative_scan = gateloop_use_jax) if use_gateloop_layers else None,
+                rmsnorm_klass(dim = dim),
+                Attention(dim = dim, dim_head = dim_head, heads = heads, dropout = attn_dropout, flash = attn_flash, qk_norm = attn_qk_norm),
+                rmsnorm_klass(dim = dim),
+                FeedForward(dim = dim, mult = ff_mult, dropout = ff_dropout)
+            ]))
+
+        self.final_norm = RMSNorm(dim)
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
+    def forward(
+        self,
+        x,
+        mask = None,
+        adaptive_rmsnorm_cond = None
+    ):
+        batch, seq_len, *_ = x.shape
+
+        # add register tokens to the left
+
+        if self.has_register_tokens:
+            register_tokens = repeat(self.register_tokens, 'n d -> b n d', b = batch)
+
+            x, ps = pack([register_tokens, x], 'b * d')
+
+            if exists(mask):
+                mask = F.pad(mask, (self.num_register_tokens, 0), value = True)
+
+        # keep track of skip connections
+
+        skip_connects = []
+
+        # rotary embeddings
+
+        positions = seq_len
+
+        if self.has_register_tokens:
+            main_positions = torch.arange(seq_len, device = self.device, dtype = torch.long)
+            register_positions = torch.full((self.num_register_tokens,), -10000, device = self.device, dtype = torch.long)
+            positions = torch.cat((register_positions, main_positions))
+
+        rotary_emb = self.rotary_emb(positions)
+
+        # adaptive rmsnorm
+
+        rmsnorm_kwargs = dict()
+        if exists(adaptive_rmsnorm_cond):
+            rmsnorm_kwargs = dict(cond = adaptive_rmsnorm_cond)
+
+        # going through the attention layers
+
+        for skip_combiner, maybe_gateloop, attn_prenorm, attn, ff_prenorm, ff in self.layers:
+
+            # in the paper, they use a u-net like skip connection
+            # unclear how much this helps, as no ablations or further numbers given besides a brief one-two sentence mention
+
+            if not exists(skip_combiner):
+                skip_connects.append(x)
+            else:
+                skip_connect = skip_connects.pop() * self.skip_connect_scale
+                x = torch.cat((x, skip_connect), dim = -1)
+                x = skip_combiner(x)
+
+            if exists(maybe_gateloop):
+                x = maybe_gateloop(x) + x
+
+            attn_input = attn_prenorm(x, **rmsnorm_kwargs)
+            x = attn(attn_input, mask = mask, rotary_emb = rotary_emb) + x
+
+            ff_input = ff_prenorm(x, **rmsnorm_kwargs) 
+            x = ff(ff_input) + x
+
+        # remove the register tokens
+
+        if self.has_register_tokens:
+            _, x = unpack(x, ps, 'b * d')
+
+        return self.final_norm(x)
+
+class _Transformer(Module):
     def __init__(
         self,
         dim,
@@ -422,128 +779,3 @@ class Transformer(Module):
         alibi_bias = alibi_bias.repeat(batch_size, 1, 1)
 
         return alibi_bias
-
-class TransformerUNet(NeuralModule):
-    def __init__(
-        self,
-        in_channels = 1,
-        out_channels = 1,
-        freq_dim = 256,
-        dim = 1024,
-        depth = 24,
-        heads = 16,
-        ff_mult = 4,
-        ff_dropout = 0.,
-        attn_dropout = 0.,
-        max_positions = 3000,
-        time_hidden_dim = None,
-        conv_pos_embed_kernel_size = 31,
-        conv_pos_embed_groups = None,
-    ):
-        super().__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        dim_in = freq_dim * in_channels * 2 
-
-        time_hidden_dim = default(time_hidden_dim, dim * 4)
-        self.proj_in = nn.Linear(dim_in, dim)
-
-        self.sinu_pos_emb = nn.Sequential(
-            LearnedSinusoidalPosEmb(dim),
-            nn.Linear(dim, time_hidden_dim),
-            nn.SiLU()
-        )
-
-
-        self.conv_embed = ConvPositionEmbed(
-            dim = dim,
-            kernel_size = conv_pos_embed_kernel_size,
-            groups = conv_pos_embed_groups
-        )
-
-        self.transformer = Transformer(
-            dim = dim,
-            depth = depth,
-            heads = heads,
-            ff_mult = ff_mult,
-            ff_dropout = ff_dropout,
-            attn_dropout= attn_dropout,
-            max_positions=max_positions,
-            adaptive_rmsnorm = True,
-            adaptive_rmsnorm_cond_dim_in = time_hidden_dim,
-            use_unet_skip_connection = True,
-        )
-
-        dim_out = freq_dim * out_channels * 2
-
-        self.proj_out = nn.Linear(dim, dim_out)
-
-    @property
-    def input_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
-        return {
-            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "input_length": NeuralType(('B',), LengthsType(), optional=True),
-            "condition": NeuralType(('B',), FloatType(), optional=True),
-        }
-
-    @property
-    def output_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
-        return {
-            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "output_length": NeuralType(('B',), LengthsType(), optional=True),
-        }
-
-
-    @staticmethod
-    def _get_key_padding_mask(input_length, max_length):
-        """
-        Return the self_attention masking according to the input length.
-        0 indicates the frame is in the valid range, while 1 indicates the frame is a padding frame.
-        """
-        key_padding_mask = torch.arange(max_length).expand(len(input_length), max_length).to(input_length.device)
-        key_padding_mask = key_padding_mask >= input_length.unsqueeze(1)
-        return key_padding_mask
-    
-    @typecheck()
-    def forward(
-        self,
-        input,
-        input_length=None,
-        condition=None
-    ):
-        # Stack real and imaginary components
-        B, C_in, D, T = input.shape
-        if C_in != self.in_channels:
-            raise RuntimeError(f'Unexpected input channel size {C_in}, expected {self.in_channels}')
-        
-        input_real_imag = torch.stack([input.real, input.imag], dim=2)
-        input_real_imag = input_real_imag.permute(0, 4, 1, 2, 3)
-        input = einops.rearrange(input_real_imag, 'B T C RI F -> B T (C RI F)')
-
-        x = self.proj_in(input)
-        key_padding_mask = self._get_key_padding_mask(input_length, max_length=T)
-        x = self.conv_embed(x, mask = key_padding_mask) + x
-
-        if not exists(condition):
-            raise NotImplementedError
-        
-        time_emb = self.sinu_pos_emb(condition)
-
-        # attend
-
-        x = self.transformer(
-            x,
-            key_padding_mask = key_padding_mask,
-            adaptive_rmsnorm_cond = time_emb
-        )
-
-        output = self.proj_out(x)
-        output = output.reshape(B, T, self.out_channels, 2, D)
-        output = output.permute(0, 2, 4, 1, 3)
-        output = torch.view_as_complex(output.contiguous())
-
-        return output, input_length

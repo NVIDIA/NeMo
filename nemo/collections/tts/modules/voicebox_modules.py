@@ -6,33 +6,21 @@ import torch
 from torch import nn, Tensor, einsum, IntTensor, FloatTensor, BoolTensor
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
-from beartype import beartype
-from beartype.typing import Callable, Tuple, Optional, List, Union
-from naturalspeech2_pytorch.utils.tokenizer import Tokenizer, _phonemes
-from naturalspeech2_pytorch.aligner import maximum_path, Aligner as _Aligner
-from naturalspeech2_pytorch.utils.cleaner import TextProcessor
-from voicebox_pytorch.voicebox_pytorch import (
-    AudioEncoderDecoder,
-    MelVoco as _MelVoco,
-    EncodecVoco as _EncodecVoco,
-    DurationPredictor as _DP,
-    is_probably_audio_from_shape,
-    Transformer,
-    Rearrange,
-)
+from typing import Callable, Tuple, Optional, List, Union
 import torchaudio.transforms as T
 from torchaudio.functional import resample
 import torchode as to
 from torchdiffeq import odeint
+from einops.layers.torch import Rearrange
 from einops import rearrange, repeat, reduce, pack, unpack
 
+from encodec import EncodecModel
 import dac
 
 from pytorch_lightning import LightningModule
 from nemo.utils import logging
 from nemo.collections.tts.models.aligner import AlignerModel
 from nemo.collections.asr.modules.audio_preprocessing import AudioPreprocessor
-# from nemo.collections.tts.parts.utils.helpers import binarize_attention
 from nemo.collections.tts.parts.utils.helpers import (
     binarize_attention_parallel as binarize_attention,
     get_mask_from_lengths,
@@ -51,11 +39,16 @@ from nemo.collections.tts.modules.voicebox_utils import (
     mask_from_start_end_indices,
     mask_from_frac_lengths,
     generate_mask_from_repeats,
+    is_probably_audio_from_shape,
+    maximum_path,
     LearnedSinusoidalPosEmb,
     ConvPositionEmbed,
-    Transformer as _Transformer,
+    Transformer,
+    _Transformer,
 )
 
+class Tokenizer:
+    pass
 
 class MFAEnglishPhonemeTokenizer(Tokenizer):
     MFA_arpa_phone_set = ["PAD", "sil", "spn", "AA", "AA0", "AA1", "AA2", "AE", "AE0", "AE1", "AE2", "AH", "AH0", "AH1", "AH2", "AO", "AO0", "AO1", "AO2", "AW", "AW0", "AW1", "AW2", "AY", "AY0", "AY1", "AY2", "B", "CH", "D", "DH", "EH", "EH0", "EH1", "EH2", "ER", "ER0", "ER1", "ER2", "EY", "EY0", "EY1", "EY2", "F", "G", "HH", "IH", "IH0", "IH1", "IH2", "IY", "IY0", "IY1", "IY2", "JH", "K", "L", "M", "N", "NG", "OW", "OW0", "OW1", "OW2", "OY", "OY0", "OY1", "OY2", "P", "R", "S", "SH", "T", "TH", "UH", "UH0", "UH1", "UH2", "UW", "UW0", "UW1", "UW2", "V", "W", "Y", "Z", "ZH"]
@@ -133,42 +126,114 @@ class MFAEnglishPhonemeTokenizer(Tokenizer):
 
         return pad_sequence(all_ids, batch_first = True, padding_value = self.pad_id)
 
+class AudioEncoderDecoder(LightningModule):
+    pass
 
-class MelVoco(_MelVoco, LightningModule):
-    def __init__(self, *args, normalize=False, **kwargs):
-        super().__init__(*args, **kwargs)
+class MelVoco(AudioEncoderDecoder):
+    def __init__(
+        self,
+        *,
+        log = True,
+        n_mels = 100,
+        sampling_rate = 24000,
+        f_max = 8000,
+        n_fft = 1024,
+        win_length = 640,
+        hop_length = 160,
+        pretrained_vocos_path = 'charactr/vocos-mel-24khz',
+        normalize=False, 
+    ):
+        super().__init__()
+        self.log = log
+        self.n_mels = n_mels
+        self.n_fft = n_fft
+        self.f_max = f_max
+        self.win_length = win_length
+        self.hop_length = hop_length
+        self.sampling_rate = sampling_rate
+
+        self.vocos = Vocos.from_pretrained(pretrained_vocos_path)
+
         self.freeze()
         self.normalize = normalize
         self.global_mean = -5.8843
         self.global_std = 2.2615
 
+    @property
+    def downsample_factor(self):
+        return self.hop_length
+
+    @property
+    def latent_dim(self):
+        return self.n_mels
+
     def encode(self, audio):
         mel = self.vocos.feature_extractor(audio)
-
         mel = rearrange(mel, 'b d n -> b n d')
+
         if self.normalize:
             mel = (mel - self.global_mean) / self.global_std
         return mel
 
     def decode(self, mel):
         mel = rearrange(mel, 'b n d -> b d n')
+
         if self.normalize:
             mel = (mel * self.global_std) + self.global_mean
-
         return self.vocos.decode(mel)
 
     def wav2mel_len(self, wav_len):
         return wav_len // self.downsample_factor + 1
 
-class EncodecVoco(_EncodecVoco, LightningModule):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class EncodecVoco(AudioEncoderDecoder):
+    def __init__(
+        self,
+        *,
+        sampling_rate = 24000,
+        pretrained_vocos_path = 'charactr/vocos-encodec-24khz',
+        bandwidth_id = 2
+    ):
+        super().__init__()
+        self.sampling_rate = sampling_rate
+        self.vocos = Vocos.from_pretrained(pretrained_vocos_path)
+        self.encodec = self.vocos.feature_extractor.encodec
+
+        self.register_buffer('bandwidth_id', torch.tensor([bandwidth_id]))
         self.freeze()
+
+    @property
+    def downsample_factor(self):
+        return reduce(lambda x, y: x * y, self.encodec.encoder.ratios)
+
+    @property
+    def latent_dim(self):
+        return self.vocos.feature_extractor.codebook_weights.shape[1]
+
+    def encode(self, audio):
+        encoded_audio = self.vocos.feature_extractor(audio, bandwidth_id = self.bandwidth_id)
+        encoded_audio = rearrange(encoded_audio, 'b d t -> b t d')
+        return encoded_audio
+
+    def decode_to_codes(self, latents):
+        codes = self.encodec.quantizer.encode(latents, self.encodec.frame_rate, self.encodec.bandwidth)
+        codes = rearrange(codes, 'q b n -> b q n')
+        return codes
+
+    def decode(self, latents):
+        codes = self.decode_to_codes(latents)
+
+        all_audios = []
+        for code in codes:
+            features = self.vocos.codes_to_features(code)
+            audio = self.vocos.decode(features, bandwidth_id = self.bandwidth_id)
+            all_audios.append(audio)
+
+        return torch.stack(all_audios)
 
     def wav2mel_len(self, wav_len):
         return torch.ceil(wav_len / self.downsample_factor).long()
 
-class DACVoco(AudioEncoderDecoder, LightningModule):
+class DACVoco(AudioEncoderDecoder):
     def __init__(
         self,
         *,
@@ -362,7 +427,80 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
     def wav2mel_len(self, wav_len):
         return torch.ceil(wav_len / self.downsample_factor).long()
 
-class Aligner(_Aligner):
+class ForwardSumLoss(LightningModule):
+    def __init__(
+        self,
+        blank_logprob = -1
+    ):
+        super().__init__()
+        self.blank_logprob = blank_logprob
+
+        self.ctc_loss = torch.nn.CTCLoss(
+            blank = 0,  # check this value
+            zero_infinity = True
+        )
+
+    def forward(self, attn_logprob, key_lens, query_lens):
+        device, blank_logprob  = attn_logprob.device, self.blank_logprob
+        max_key_len = attn_logprob.size(-1)
+
+        # Reorder input to [query_len, batch_size, key_len]
+        attn_logprob = rearrange(attn_logprob, 'b 1 c t -> c b t')
+
+        # Add blank label
+        attn_logprob = F.pad(attn_logprob, (1, 0, 0, 0, 0, 0), value = blank_logprob)
+
+        # Convert to log probabilities
+        # Note: Mask out probs beyond key_len
+        mask_value = -torch.finfo(attn_logprob.dtype).max
+        attn_logprob.masked_fill_(torch.arange(max_key_len + 1, device=device, dtype=torch.long).view(1, 1, -1) > key_lens.view(1, -1, 1), mask_value)
+
+        attn_logprob = attn_logprob.log_softmax(dim = -1)
+
+        # Target sequences
+        target_seqs = torch.arange(1, max_key_len + 1, device=device, dtype=torch.long)
+        target_seqs = repeat(target_seqs, 'n -> b n', b = key_lens.numel())
+
+        # Evaluate CTC loss
+        cost = self.ctc_loss(attn_logprob, target_seqs, query_lens, key_lens)
+
+        return cost
+
+class BinLoss(LightningModule):
+    def forward(self, attn_hard, attn_logprob, key_lens):
+        batch, device = attn_logprob.shape[0], attn_logprob.device
+        max_key_len = attn_logprob.size(-1)
+
+        # Reorder input to [query_len, batch_size, key_len]
+        attn_logprob = rearrange(attn_logprob, 'b 1 c t -> c b t')
+        attn_hard = rearrange(attn_hard, 'b t c -> c b t')
+
+        mask_value = -torch.finfo(attn_logprob.dtype).max
+
+        attn_logprob.masked_fill_(torch.arange(max_key_len, device=device, dtype=torch.long).view(1, 1, -1) > key_lens.view(1, -1, 1), mask_value)
+        attn_logprob = attn_logprob.log_softmax(dim = -1)
+
+        return (attn_hard * attn_logprob).sum() / batch
+
+class Aligner(LightningModule):
+    def __init__(
+        self,
+        dim_in,
+        dim_hidden,
+        attn_channels=80,
+        temperature=0.0005
+    ):
+        super().__init__()
+        self.dim_in = dim_in
+        self.dim_hidden = dim_hidden
+        self.attn_channels = attn_channels
+        self.temperature = temperature
+        self.aligner = AlignerNet(
+            dim_in = self.dim_in, 
+            dim_hidden = self.dim_hidden,
+            attn_channels = self.attn_channels,
+            temperature = self.temperature
+        )
 
     # def align_phoneme_ids_with_durations(self, phoneme_ids, durations):
     #     repeat_mask = generate_mask_from_repeats(durations.clamp(min = 0))
@@ -384,7 +522,7 @@ class Aligner(_Aligner):
         return alignment_hard, alignment_soft, alignment_logprob, alignment_mask
 
 
-class DurationPredictor(_DP, LightningModule):
+class DurationPredictor(LightningModule):
     """
         1. Fixing `self.forward_aligner()`.
             Affecting:
@@ -400,11 +538,84 @@ class DurationPredictor(_DP, LightningModule):
     def __init__(
         self,
         *args,
+        audio_enc_dec: Optional[AudioEncoderDecoder] = None,
+        tokenizer: Optional[Tokenizer] = None,
+        num_phoneme_tokens: Optional[int] = None,
+        dim_phoneme_emb = 512,
+        dim = 512,
+        depth = 10,
+        dim_head = 64,
+        heads = 8,
+        ff_mult = 4,
+        ff_dropout = 0.,
+        conv_pos_embed_kernel_size = 31,
+        conv_pos_embed_groups = None,
+        attn_dropout = 0,
+        attn_flash = False,
+        attn_qk_norm = True,
+        use_gateloop_layers = False,
+        p_drop_prob = 0.2, # p_drop in paper
+        frac_lengths_mask: Tuple[float, float] = (0.1, 1.),
         aligner_kwargs: Optional[dict | DictConfig] = None,
         **kwargs,
     ):
-        kwargs["frac_lengths_mask"] = tuple(kwargs["frac_lengths_mask"])
-        super().__init__(*args, **kwargs, aligner_kwargs={})
+        # kwargs["frac_lengths_mask"] = tuple(kwargs["frac_lengths_mask"])
+        # super().__init__(*args, **kwargs, aligner_kwargs={})
+        super().__init__()
+
+        # audio encoder / decoder
+
+        self.audio_enc_dec = audio_enc_dec
+
+        # cond: scalar, ground-truth duration
+        self.proj_in = nn.Linear(1, dim)
+
+        # phoneme related
+
+        assert not (exists(tokenizer) and exists(num_phoneme_tokens)), 'if a phoneme tokenizer was passed into duration module, number of phoneme tokens does not need to be specified'
+
+        if not exists(tokenizer) and not exists(num_phoneme_tokens):
+            tokenizer = Tokenizer() # default to english phonemes with espeak
+
+        if exists(tokenizer):
+            num_phoneme_tokens = tokenizer.vocab_size
+
+        self.tokenizer = tokenizer
+
+        self.to_phoneme_emb = nn.Embedding(num_phoneme_tokens, dim_phoneme_emb)
+
+        self.p_drop_prob = p_drop_prob
+        self.frac_lengths_mask = frac_lengths_mask
+
+        self.to_embed = nn.Linear(dim + dim_phoneme_emb, dim)
+
+        self.null_cond = nn.Parameter(torch.zeros(dim), requires_grad = False)
+
+        self.conv_embed = ConvPositionEmbed(
+            dim = dim,
+            kernel_size = conv_pos_embed_kernel_size,
+            groups = conv_pos_embed_groups
+        )
+
+        self.transformer = Transformer(
+            dim = dim,
+            depth = depth,
+            dim_head = dim_head,
+            heads = heads,
+            ff_mult = ff_mult,
+            ff_dropout = ff_dropout,
+            attn_dropout=attn_dropout,
+            attn_flash = attn_flash,
+            attn_qk_norm = attn_qk_norm,
+            use_gateloop_layers = use_gateloop_layers
+        )
+
+        self.to_pred = nn.Sequential(
+            nn.Linear(dim, 1),
+            Rearrange('... 1 -> ...')
+        )
+
+        # aligner related
 
         if aligner_kwargs is not None:
             # if we are using mel spec with 80 channels, we need to set attn_channels to 80
@@ -416,7 +627,6 @@ class DurationPredictor(_DP, LightningModule):
                 if isinstance(layer, nn.ReLU):
                     layer.inplace = False
 
-            from naturalspeech2_pytorch.aligner import ForwardSumLoss, BinLoss
             self.align_loss = ForwardSumLoss()
             self.bin_loss = BinLoss()
 
@@ -424,6 +634,40 @@ class DurationPredictor(_DP, LightningModule):
         repeat_mask = generate_mask_from_repeats(durations.clamp(min = 0))
         aligned_phoneme_ids = einsum('b i, b i j -> b j', phoneme_ids.float(), repeat_mask.float()).long()
         return aligned_phoneme_ids
+
+    @torch.inference_mode()
+    def forward_with_cond_scale(
+        self,
+        *args,
+        texts: Optional[List[str]] = None,
+        phoneme_ids = None,
+        cond_scale = 1.,
+        return_aligned_phoneme_ids = False,
+        **kwargs
+    ):
+        if exists(texts):
+            phoneme_ids = self.to_phoneme_ids(texts, phoneme_ids)
+
+        forward_kwargs = dict(
+            return_aligned_phoneme_ids = False,
+            phoneme_ids = phoneme_ids
+        )
+
+        durations = self.forward(*args, cond_drop_prob = 0., **forward_kwargs, **kwargs)
+
+        if cond_scale == 1.:
+            if not return_aligned_phoneme_ids:
+                return durations
+
+            return durations, self.align_phoneme_ids_with_durations(phoneme_ids, durations)
+
+        null_durations = self.forward(*args, cond_drop_prob = 1., **forward_kwargs, **kwargs)
+        scaled_durations = null_durations + (durations - null_durations) * cond_scale
+
+        if not return_aligned_phoneme_ids:
+            return scaled_durations
+
+        return scaled_durations, self.align_phoneme_ids_with_durations(phoneme_ids, scaled_durations)
 
     def forward_aligner(
         self,
@@ -443,6 +687,24 @@ class DurationPredictor(_DP, LightningModule):
             y: mel
         """
         return self.aligner(x, x_mask, y, y_mask)
+
+    def to_phoneme_ids(self, texts, phoneme_ids):
+        if not exists(phoneme_ids):
+            assert exists(self.tokenizer)
+            phoneme_ids = self.tokenizer.texts_to_tensor_ids(texts).to(self.device)
+        return phoneme_ids
+
+    def create_cond_mask(self, batch, seq_len, training=True):
+        if training:
+            if coin_flip():
+                frac_lengths = torch.zeros((batch,), device = self.device).float().uniform_(*self.frac_lengths_mask)
+                cond_mask = mask_from_frac_lengths(seq_len, frac_lengths)
+            else:
+                cond_mask = prob_mask_like((batch, seq_len), self.p_drop_prob, self.device)
+        else:
+            cond_mask = torch.zeros((batch, seq_len), device = self.device, dtype = torch.bool)
+
+        return cond_mask
 
     @torch.no_grad()
     def parse_dp_input(self, x1, audio_len, mel_len, durations=None, scaled_durations=None, phoneme_len=None, input_sampling_rate=None):
@@ -507,7 +769,6 @@ class DurationPredictor(_DP, LightningModule):
         return dp_inputs
 
 
-    @beartype
     def forward(
         self,
         *,
@@ -752,7 +1013,6 @@ class NeMoDurationPredictor(DurationPredictor):
         attn_mas = rearrange(attn_mas, 'b 1 ty tx -> b tx ty')
         return attn_hard, attn_soft, attn_logprob, attn_mas
 
-    @beartype
     def forward(
         self,
         *,
@@ -896,7 +1156,6 @@ class MFADurationPredictor(DurationPredictor):
             aligner_kwargs=None
         )
 
-    @beartype
     def forward(
         self,
         *,
@@ -1654,7 +1913,6 @@ class VoiceBox(LightningModule):
 class ConditionalFlowMatcherWrapper(LightningModule):
     """ Deal with `self.forward()` duration prediction and aligner.
     """
-    @beartype
     def __init__(
         self,
         voicebox: VoiceBox,

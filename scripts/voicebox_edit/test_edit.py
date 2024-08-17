@@ -860,28 +860,7 @@ class Inference:
         demo_batch = dataprocessor.get_demo_batch(corpus_dir, textgrid_dir)
         self.test_batch(demo_batch, out_dir)
 
-        # for spk in tqdm(spks):
-        #     # print(output_audio.shape)
-        #     # max_sim = max_sims[spk]
-        #     output_audio = output_audios[int(spk)].cpu().numpy()
-        #     masked_audio = masked_audios[int(spk)].cpu().numpy()
-
-        #     # output_audio = output_audio / max(np.abs(output_audio))
-        #     # sim = voice_encoder.embed_utterance(output_audio[t_st_pos:min(t_ed_pos, output_audio.shape[-1])]) @ ori_spk_emb
-        #     # tqdm.write(f"{sim}")
-        #     # if sim > max_sim:
-        #         # max_sim = sim
-        #         # sf.write(f"{out_dir}/{spk}_{sim:.7f}.wav", output_audio, sampling_rate, format='WAV')
-        #         # print(f"{out_dir}/{spk}_{sim:.7f}.wav")
-
-        #         # masked_audio = masked_audio / max(np.abs(masked_audio))
-        #         # sf.write(f"{out_dir}/{spk}_{sim:.7f}_0_masked.wav", masked_audio, sampling_rate, format='WAV')
-
-        #     # masked_audio = masked_audio / max(np.abs(masked_audio))
-        #     sf.write(f"{out_dir}/{spk}_1_pred.wav", output_audio, sampling_rate, format='WAV')
-        #     sf.write(f"{out_dir}/{spk}_0_masked.wav", masked_audio, sampling_rate, format='WAV')
-
-    def word_edit(self, dataprocessor: DataProcessor, output_dir="nemo_experiments/edit_gen/"):
+    def word_edit(self, dataprocessor: DataProcessor, output_dir="nemo_experiments/edit_gen/", ztts=False):
         val_batch = dataprocessor.get_val_batch(batch_idx=0)
         datas = dataprocessor.get_word_edit_data()[self.model.cfg.ds_name]
         os.makedirs(output_dir, exist_ok=True)
@@ -900,24 +879,24 @@ class Inference:
                 edit_to=[data["edit_to"]],
                 steps=16,
                 sample_std=self.sample_std,
-                ztts=False,
+                ztts=ztts,
                 mfa_en_dict=self.mfa_en_dict,
             )
-            edit_audio = edit_pred["edit_audio"]
-            # ztts_audio = edit_pred["ztts_audio"]
-            sf.write(f"{output_dir}/val_{audio_id}_ori.wav", audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
-            sf.write(f"{output_dir}/val_{audio_id}_gen.wav", edit_audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
-            # sf.write(f"{output_dir}/val_{audio_id}_tts.wav", ztts_audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
 
-    def internal_demo(self, data):
+            sf.write(f"{output_dir}/val_{audio_id}_ori.wav", audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+
+            edit_audio = edit_pred["edit_audio"]
+            sf.write(f"{output_dir}/val_{audio_id}_gen.wav", edit_audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+            if ztts:
+                ztts_audio = edit_pred["ztts_audio"]
+                sf.write(f"{output_dir}/val_{audio_id}_tts.wav", ztts_audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+
+    def internal_demo(self, data, ztts=False):
         # shape: (1, L), (1,), scalar
-        # audio, audio_len, orig_sr = get_audio_data(data["audio_path"], self.model.device)
-        # _, orig_sr = librosa.load(data["audio_path"], sr=None)
         audio_data, _sr = librosa.load(data["audio_path"], sr=self.model.voicebox.audio_enc_dec.sampling_rate)
         audio_data = Eval.preprocess_wav(audio_data, _sr)
         audio = torch.tensor(audio_data, dtype=torch.float, device=self.model.device).unsqueeze(0)
         audio_len = torch.tensor(audio.shape[1], device=self.model.device).unsqueeze(0)
-        # audio = audio * 2
         
         edit_pred = self.model.forward(
             audio=audio,
@@ -930,19 +909,22 @@ class Inference:
             cond_scale=1.0,
             sample_std=self.sample_std,
             dp_scale=1.2,
-            ztts=False,
+            ztts=ztts,
             edit_alignments=None if "edit_alignment" not in data else [data["edit_alignment"]],
             mfa_en_dict=self.mfa_en_dict,
         )
-        edit_audio = edit_pred["edit_audio"][0].cpu().numpy()
-        # ztts_audio = edit_pred["ztts_audio"][0].cpu().numpy()
-        # edit_audio = edit_audio / max(np.abs(edit_audio))
+
         sf.write(data["out_ori_path"], audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+
+        edit_audio = edit_pred["edit_audio"][0].cpu().numpy()
         sf.write(data["out_gen_path"], edit_audio, samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
-        # sf.write(data["out_tts_path"], ztts_audio, samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+        if ztts:
+            ztts_audio = edit_pred["ztts_audio"][0].cpu().numpy()
+            sf.write(data["out_tts_path"], ztts_audio, samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+
         return edit_pred["ori_mel"], edit_pred["edit_mel"]
 
-    def riva_demo(self, data):
+    def riva_demo(self, data, ztts=False):
         # shape: (1, L), (1,), scalar
         audio_data, _sr = librosa.load(data["audio_path"], sr=self.model.voicebox.audio_enc_dec.sampling_rate)
         audio_data = Eval.preprocess_wav(audio_data, _sr)
@@ -960,15 +942,21 @@ class Inference:
             cond_scale=1.0,
             sample_std=self.sample_std,
             dp_scale=1.2,
-            ztts=False,
+            ztts=ztts,
             edit_alignments=None if "edit_alignment" not in data else [data["edit_alignment"]],
             mfa_en_dict=self.mfa_en_dict,
         )
+
+        sf.write(data["out_ori_path"], audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+
         edit_audio = edit_pred["edit_audio"][0].cpu().numpy()
         if "time" in data:
+            # to cut off ref audio
             edit_audio = edit_audio[int(data["time"] * _sr):]
-        sf.write(data["out_ori_path"], audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
         sf.write(data["out_gen_path"], edit_audio, samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+        if ztts:
+            ztts_audio = edit_pred["ztts_audio"][0].cpu().numpy()
+            sf.write(data["out_tts_path"], ztts_audio, samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
         return edit_pred["ori_mel"], edit_pred["edit_mel"]
 
 class DataGen:
@@ -1085,8 +1073,6 @@ class DataGen:
                 else:
                     label[0].append(f"dev_fake_{new_id} 0.00-{gen_st[i]:.2f}-T/{gen_st[i]:.2f}-{gen_ed[i]:.2f}-F/{gen_ed[i]:.2f}-{gen_ls[i]:.2f}-T 0")
                 label[1].append(f"dev_real_{new_id} 0.00-{ori_ls[i]:.2f}-T 1")
-                # print(label[0][-1])
-                # print(label[1][-1])
 
                 _ori_audio = ori_audio[i, :ori_audio_lens[i]].cpu().numpy()
                 sf.write(f"{out_dir}/combine/dev_real_{new_id}.wav", _ori_audio, sampling_rate, format='WAV')
@@ -1097,6 +1083,16 @@ class DataGen:
             f.write('\n'.join(label[0]))
             f.write('\n')
             f.write('\n'.join(label[1]))
+
+    @staticmethod    
+    def normalize(sentence):
+        sentence = sentence.lower()
+        
+        # remove all punctuation except words and space
+        sentence = re.sub(r'[^\w\s]','', sentence)
+
+        sentence = sentence.strip()
+        return sentence
 
     @staticmethod
     def normalize_text(text):
@@ -1124,23 +1120,8 @@ class DataGen:
         # Rejoin the normalized words into a single string
         return ' '.join(normalized_words)
 
-        # Example usage, commented out to prevent execution
-        # text = "This is an example text, with various punctuation marks! Including: brackets (like these)."
-        # normalized_text = normalize_text(text)
-        # print(normalized_text)
-
     @staticmethod
     def filter_alignments(alignments: list[jiwer.AlignmentChunk]):
-        # if len(alignments) == 1:
-        #     return alignments[0].type == "equal"
-        # elif len(alignments) == 2:
-        #     for ali in alignments:
-        #         if ali.type not in ["equal", "substitute"]:
-        #             return False
-        #     return True
-        # elif len(alignments) == 3:
-        #     return [ali.type for ali in alignments] == ["equal", "substitute", "equal"]
-        # else:
         for ali in alignments:
             if ali.type == "substitute":
                 return True
@@ -1159,12 +1140,9 @@ class DataGen:
                 alignment = fix_alignment(alignment)
                 words = [ali.symbol for ali in alignment["words"] if ali.symbol != "<eps>"]
                 phns = [ali.symbol for ali in alignment["phones"] if ali.symbol != "sil"]
-                # text = ' '.join(words)
                 if "<unk>" in words:
-                    # print(words)
                     continue
                 if "spn" in phns:
-                    # print(phns)
                     continue
                 out = {
                     "id": cut.id,
@@ -1193,10 +1171,6 @@ class DataGen:
             line = line.strip()
             line = json.loads(line)
             assert line['id'] not in out_dict, line
-            # ref = line['prompt']
-            # hyp = line['gpt_text']
-            # ref = self.normalize(line['prompt'])
-            # hyp = self.normalize(line['gpt_text'])
             ref = self.normalize_text(line['prompt'])
             hyp = self.normalize_text(line['gpt_text'])
             out = jiwer.process_words(ref, hyp)
@@ -1349,46 +1323,9 @@ class DataGen:
                     files[real_type].write(label[real_type][-1] + '\n')
                     files[real_type].flush()
 
-                # _ori_audio = ori_audio[i, :ori_audio_lens[i]].cpu().numpy()
-                # sf.write(f"{out_dir}/combine/dev_real_{new_id}.wav", _ori_audio, self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
-                # _resyn_audio = resyn_audio[i, :ori_audio_lens[i]].cpu().numpy()
-                # sf.write(f"{out_dir}/combine/dev_resyn_{new_id}.wav", _resyn_audio, self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
-                # _edit_audio = edit_audio[i, :gen_audio_lens[i]].cpu().numpy()
-                # sf.write(f"{out_dir}/combine/dev_edit_{new_id}.wav", _edit_audio, self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
-                # if ztts:
-                #     _cut_paste_audio = cap_audio[i, :gen_audio_lens[i]].cpu().numpy()
-                #     sf.write(f"{out_dir}/combine/dev_cut_paste_{new_id}.wav", _cut_paste_audio, self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
-                # if redit:
-                #     _redit_audio = redit_audio[i, :gen_audio_lens[i]].cpu().numpy()
-                #     sf.write(f"{out_dir}/combine/dev_redit_{new_id}.wav", _redit_audio, self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
-
-                # f_real.write(label["real"][-1] + '\n')
-                # f_resyn.write(label["resyn"][-1] + '\n')
-                # f_edit.write(label["edit"][-1] + '\n')
-                # f_cut_paste.write(label["cut_paste"][-1] + '\n')
-
-                # f_real.flush()
-                # f_resyn.flush()
-                # f_edit.flush()
-                # f_cut_paste.flush()
-
-        # f_real.close()
-        # f_resyn.close()
-        # f_edit.close()
-        # f_cut_paste.close()
         for t in files:
             files[t].close()
         return label
-
-    @staticmethod    
-    def normalize(sentence):
-        sentence = sentence.lower()
-        
-        # remove all punctuation except words and space
-        sentence = re.sub(r'[^\w\s]','', sentence)
-
-        sentence = sentence.strip()
-        return sentence
 
 class Eval:
     def __init__(self,):
@@ -1479,9 +1416,6 @@ class Eval:
                     for key in sims:
                         sims[key] = np.mean(sims[key]).item()
                                 
-                    # metadata["sims"] = sims
-                    # metadata["sims"] = [sims["around"], sims["out"]]
-                    # json.dump(metadata, fo)
                     fo.write(' '.join([fakename, info, f"{sims['around']:.3f}", f"{sims['out']:.3f}"]))
                     fo.write('\n')
                     fo.flush()
@@ -1523,9 +1457,6 @@ class MainExc:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model = VoiceboxModel.load_from_checkpoint(self.vb_ckpt_path, map_location=device, strict=False)
 
-        # dp_state_dict = torch.load(self.dp_ckpt_path, map_location=device)["state_dict"]
-        # model.load_part_of_state_dict(state_dict=dp_state_dict, include=["duration_predictor"], exclude=[], load_from_string=dp_ckpt_path)
-
         dp_model = VoiceboxModel.load_from_checkpoint(self.dp_ckpt_path, map_location=device, strict=False)
 
         del model.duration_predictor, model.cfm_wrapper.duration_predictor
@@ -1533,7 +1464,6 @@ class MainExc:
         model.cfm_wrapper.duration_predictor = dp_model.duration_predictor
         del dp_model
 
-        # model = model.to(device)
         torch.cuda.empty_cache()
 
         model.cap_vocode = True
@@ -1598,10 +1528,8 @@ class MainExc:
                                      filter_ids=filter_ids)
         self.datagen.gen_v3_dataset_from_val_set(out_dict, f"{self.gen_data_dir}/medium-v3{tag}/split-{split_id}")
 
-        # split_id = int(sys.argv[1])
         self.eval.gen_val_frame_spk_sim(data_dir=f"{self.gen_data_dir}/medium-v3{tag}/split-{split_id}", subset="medium", audio_type="edit")
         # self.eval.gen_val_frame_spk_sim(data_dir=f"{self.gen_data_dir}/medium-v3{tag}/split-{split_id}", subset="medium", audio_type="cut_paste")
-        # exit()
 
     def v4_gs_val_word_edit(self, ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz", output_dir="nemo_experiments/edit_gen/"):
         self.dataprocessor.prepare_val_dl(ds_name=ds_name, corpus_dir=corpus_dir, manifest_filepath=manifest_filepath, old_prefix="/home/sungfengh/.cache/huggingface/datasets")

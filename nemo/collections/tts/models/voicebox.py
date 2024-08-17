@@ -53,6 +53,7 @@ from nemo.collections.tts.models.vits import VitsModel
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.tts.models.aligner import AlignerModel
 from nemo.collections.tts.modules.voicebox_modules import (
+    Tokenizer,
     ConditionalFlowMatcherWrapper,
     VoiceBox,
     DurationPredictor,
@@ -66,12 +67,10 @@ from nemo.collections.tts.modules.voicebox_modules import (
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer
 from nemo_text_processing.text_normalization.normalize import Normalizer
-from naturalspeech2_pytorch.utils.tokenizer import Tokenizer
 
 from nemo.collections.tts.parts.utils.helpers import (
     log_audio_to_tb,
     tacotron2_log_to_tb_func,
-    # plot_alignment_to_numpy,
     plot_spectrogram_to_numpy,
     waveglow_log_to_tb_func,
     save_figure_to_numpy,
