@@ -3,23 +3,26 @@ import pytorch_lightning as pl
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.api import squad
-from nemo.collections.llm.gpt.model.llama import Llama2Config7B, LlamaModel
+from nemo.collections.llm.gpt.model.llama import MixtralConfig8x22B, MixtralModel
 from nemo.collections.llm.peft.api import gpt_lora
 from nemo.collections.llm.recipes.log.default import default_log
-from nemo.collections.llm.recipes.optim.adam import adam_with_cosine_annealing
+from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.utils import Partial, factory
 
-NAME = "llama2_7b"
+NAME = "mixtral_8x22b_4k"
 
 
 @factory(name=NAME)
 def model() -> pl.LightningModule:
-    return LlamaModel(Llama2Config7B())
+    return MixtralModel(MixtralConfig8x22B(seq_length=4096))
 
 
 @factory(name=NAME)
 def trainer(devices=8) -> nl.Trainer:
-    strategy = nl.MegatronStrategy(tensor_model_parallel_size=2)
+    strategy = nl.MegatronStrategy(
+        tensor_model_parallel_size=8,
+        sequence_parallel=True,
+    )
 
     return nl.Trainer(
         devices=devices,
@@ -32,7 +35,7 @@ def trainer(devices=8) -> nl.Trainer:
 
 @factory(name=NAME + "_hf")
 def hf_resume() -> nl.AutoResume:
-    return nl.AutoResume(import_path="hf://meta-llama/Llama-2-7b-hf")
+    return nl.AutoResume(import_path="hf://mistralai/Mixtral-8x22B-v0.1")
 
 
 @factory(name=NAME, for_task="llm.pretrain")
@@ -43,7 +46,7 @@ def pretrain_recipe() -> Partial:
         trainer=trainer,
         data=squad,
         log=default_log,
-        optim=adam_with_cosine_annealing,
+        optim=distributed_fused_adam_with_cosine_annealing(),
     )
 
 
@@ -55,7 +58,7 @@ def finetune_recipe() -> Partial:
         trainer=trainer,
         data=squad,
         log=default_log,
-        optim=adam_with_cosine_annealing,
+        optim=distributed_fused_adam_with_cosine_annealing(),
         peft=gpt_lora,
         resume=hf_resume,
     )
