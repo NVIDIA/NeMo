@@ -1,16 +1,10 @@
-from collections import defaultdict
-from unittest.mock import MagicMock
-
 import pytest
 import pytorch_lightning as pl
 import torch
-from megatron.core import parallel_state
 from megatron.core.optimizer import OptimizerConfig
-from torch import nn
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.lightning import megatron_parallel as mp
 
 
 class DummyTokenizer:
