@@ -176,6 +176,8 @@ class MegatronMixedPrecision(Precision):
 
 
 def update_config_with_dtype_overrides(dtype_config, config):
+    if hasattr(config, "__io__"):
+        config.__io__ = update_config_with_dtype_overrides(dtype_config, config.__io__)
     for field in fields(dtype_config):
         if not hasattr(config, field.name):
             continue
