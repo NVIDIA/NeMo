@@ -23,8 +23,8 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.init as init
-
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
+
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
@@ -52,8 +52,8 @@ try:
     from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
     from megatron.core.tensor_parallel.mappings import (
         gather_from_sequence_parallel_region,
-        scatter_to_sequence_parallel_region,
         reduce_scatter_last_dim_to_tensor_parallel_region,
+        scatter_to_sequence_parallel_region,
     )
 
     HAVE_MEGATRON_CORE = True

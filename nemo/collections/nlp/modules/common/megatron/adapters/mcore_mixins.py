@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import cache
+
 import torch
 import torch.nn.functional as F
 from megatron.core import InferenceParams
@@ -29,7 +31,6 @@ from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
 from torch import Tensor
-from functools import cache
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -49,13 +50,16 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.core import adapter_mixins
 
+
 @cache
 def has_te_ops():
     try:
         from transformer_engine.pytorch.ops.sequential import Sequential
+
         return True
     except ImportError:
         return False
+
 
 def is_te_sequential(layer):
     # @akoumparouli: avoid importing ops.sequential.Sequential
@@ -63,6 +67,7 @@ def is_te_sequential(layer):
     if not has_te_ops():
         return False
     from transformer_engine.pytorch.ops.sequential import Sequential
+
     return isinstance(layer, Sequential)
 
 
@@ -110,6 +115,7 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         if not lora_kqv_adapter:
             return
         from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
+
         if not isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
             return
 
@@ -129,6 +135,7 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         assert adapter_name == AdapterName.LORA_DENSE_ATTENTION_ADAPTER
         assert getattr(self.linear_proj, 'ub_name', '') == 'proj'
         from megatron.core.transformer.custom_layers.transformer_engine import TERowParallelLinear
+
         enabled = self.adapter_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER]['enabled']
         if not enabled:
             return
@@ -144,7 +151,6 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         self.linear_proj.train(mode=False)
         del t
 
-
         # Gather weights from all adapters and shard again.
         # Also convert adapter
         lora_linear_proj_adapter.reduce_scatter = True
@@ -153,10 +159,7 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         assert tp_size > 1, "Expected TP > 1"
         assert weight.shape[0] > 0 and weight.shape[1] > 0, "Expected non-empty weight"
         cpl_weight = torch.empty(
-            weight.shape[0] * tp_size,
-            weight.shape[1],
-            dtype=weight.data.dtype,
-            device=weight.data.device
+            weight.shape[0] * tp_size, weight.shape[1], dtype=weight.data.dtype, device=weight.data.device
         )
         torch.distributed.all_gather_into_tensor(cpl_weight, weight.data)
 
@@ -165,22 +168,25 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         import transformer_engine.pytorch as te
         import transformer_engine.pytorch.ops as ops
 
-        lora_linear_proj_adapter.linear_out = create_tuple_output_wrapper(ops.Linear(
-            cpl_weight.shape[1],
-            cpl_weight.shape[0],
-            bias=None,
-            device=cpl_weight.data.device,
-            dtype=cpl_weight.data.dtype,
-            # tensor_parallel_group=layer.tp_group,
-            sequence_parallel=False,
-            # rng_state_tracker_function
-            # accumulate_into_main_grad
-        ))
+        lora_linear_proj_adapter.linear_out = create_tuple_output_wrapper(
+            ops.Linear(
+                cpl_weight.shape[1],
+                cpl_weight.shape[0],
+                bias=None,
+                device=cpl_weight.data.device,
+                dtype=cpl_weight.data.dtype,
+                # tensor_parallel_group=layer.tp_group,
+                sequence_parallel=False,
+                # rng_state_tracker_function
+                # accumulate_into_main_grad
+            )
+        )
 
         lora_linear_proj_adapter.linear_out.weight.data.copy_(cpl_weight)
         # Turn off SP in lora_qkv_adapter
         lora_linear_proj_adapter._sequence_parallel = False
         return
+
 
 class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
@@ -209,46 +215,56 @@ class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
 
         return hidden_states
 
+
 def copy_ub_attrs(src, dst):
-    ub_attrs = {attr: getattr(src, attr)
-                for attr in filter(lambda x: x.startswith('ub_'), dir(src))
-    }
+    ub_attrs = {attr: getattr(src, attr) for attr in filter(lambda x: x.startswith('ub_'), dir(src))}
     for attr, val in ub_attrs.items():
         setattr(dst, attr, val)
     return dst
+
 
 def create_tuple_output_wrapper(module):
     class TupleOutputWrapper(type(module)):
         def forward(self, *args, **kwargs):
             ans = super().forward(*args, **kwargs)
             return ans, None
+
     module.__class__ = TupleOutputWrapper
     return module
+
 
 @torch.no_grad()
 def make_fork_gemm_from_TELayerNormColumnParallelLinear(layer):
     from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
-    assert isinstance(layer, TELayerNormColumnParallelLinear), "Expected input to be of type TELayerNormColumnParallelLinear"
+
+    assert isinstance(
+        layer, TELayerNormColumnParallelLinear
+    ), "Expected input to be of type TELayerNormColumnParallelLinear"
     import transformer_engine.pytorch as te
     import transformer_engine.pytorch.ops as ops
+
     te_ops = []
-    if hasattr(layer, 'layer_norm_weight') and layer.layer_norm_weight is not None and layer.layer_norm_weight.numel() > 0:
-        te_ops.append(ops.LayerNorm(
-            layer.layer_norm_weight.shape,
-            eps=layer.eps,
-            device=layer.layer_norm_weight.device,
-            dtype=layer.layer_norm_weight.dtype,
-            zero_centered_gamma=layer.zero_centered_gamma,
-            # bias=layer.layer_norm_bias,
-        ))
+    if (
+        hasattr(layer, 'layer_norm_weight')
+        and layer.layer_norm_weight is not None
+        and layer.layer_norm_weight.numel() > 0
+    ):
+        te_ops.append(
+            ops.LayerNorm(
+                layer.layer_norm_weight.shape,
+                eps=layer.eps,
+                device=layer.layer_norm_weight.device,
+                dtype=layer.layer_norm_weight.dtype,
+                zero_centered_gamma=layer.zero_centered_gamma,
+                # bias=layer.layer_norm_bias,
+            )
+        )
         te_ops[0].weight.copy_(layer.layer_norm_weight)
         if layer.layer_norm_bias:
             te_ops[0].bias.copy_(layer.layer_norm_bias)
-    has_bias = (layer.bias is not None and layer.bias.numel() > 0)
+    has_bias = layer.bias is not None and layer.bias.numel() > 0
     te_ops += [
-        ops.AllGather(
-            layer.tp_group
-        ),
+        ops.AllGather(layer.tp_group),
         ops.MakeExtraOutput(),
         ops.Linear(
             layer.in_features,
@@ -270,13 +286,16 @@ def make_fork_gemm_from_TELayerNormColumnParallelLinear(layer):
     te_linear_qkv = copy_ub_attrs(layer, te.ops.Sequential(*te_ops))
     return create_tuple_output_wrapper(te_linear_qkv)
 
+
 @torch.no_grad()
 def make_gemm_add_from_TERowParallelLinear(layer):
     from megatron.core.transformer.custom_layers.transformer_engine import TERowParallelLinear
+
     assert isinstance(layer, TERowParallelLinear), "Expected input to be of type TERowParallelLinear"
     import transformer_engine.pytorch as te
     import transformer_engine.pytorch.ops as ops
-    has_bias = (layer.bias is not None and layer.bias.numel() > 0)
+
+    has_bias = layer.bias is not None and layer.bias.numel() > 0
 
     tp_size = getattr(layer, 'tp_size', None)
     assert isinstance(tp_size, int) and tp_size > 1
@@ -304,6 +323,7 @@ def make_gemm_add_from_TERowParallelLinear(layer):
         te_ops[0].bias.data.copy_(layer.bias.data)
     te_proj = copy_ub_attrs(layer, te.ops.Sequential(*te_ops))
     return create_tuple_output_wrapper(te_proj)
+
 
 class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
