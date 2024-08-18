@@ -29,6 +29,7 @@ from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
 from torch import Tensor
+from functools import cache
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -48,6 +49,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.core import adapter_mixins
 
+@cache
 def has_te_ops():
     try:
         from transformer_engine.pytorch.ops.sequential import Sequential
@@ -56,9 +58,12 @@ def has_te_ops():
         return False
 
 def is_te_sequential(layer):
-    # @akoumparouli: goal is to avoid importing ops.sequential.Sequential
+    # @akoumparouli: avoid importing ops.sequential.Sequential
     # in installation with older TE version.
-    return str(layer) == "<class 'transformer_engine.pytorch.ops.sequential.Sequential'>"
+    if not has_te_ops():
+        return False
+    from transformer_engine.pytorch.ops.sequential import Sequential
+    return isinstance(layer, Sequential)
 
 
 def swap_mcore_mixin(module, mcore_mixin):
@@ -78,67 +83,94 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         raise NotImplementedError("Mcore mixins should implement setup_adapters on a subclass of MyBase")
 
     def add_adapter(self, name: str, cfg, **kwargs):
-        ans = super().add_adapter(name, cfg, **kwargs)
+        adapter = super().add_adapter(name, cfg, **kwargs)
 
         if not self.config.sequence_parallel or not self.linear_qkv.ub_overlap_ag:
-            return ans
+            return adapter
 
         if not has_te_ops():
-            return
+            return adapter
+        # TODO(@akoumparouli): refactor this.
+        # Modify adapter and other friend modules to enable TE UB communication/computation parallelism.
+        if name == AdapterName.LORA_KQV_ADAPTER and getattr(self.linear_qkv, 'ub_name', '') == 'qkv':
+            return self.modify_qkv_adapter_and_layer(name, adapter)
+        elif name == AdapterName.LORA_DENSE_ATTENTION_ADAPTER and getattr(self.linear_proj, 'ub_name', '') == 'proj':
+            return self.modify_proj_adapter_and_layer(name, adapter)
+        else:
+            return adapter
 
-        if name == AdapterName.LORA_KQV_ADAPTER:
-            lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
-            if not lora_kqv_adapter and self.adapter_cfg[AdapterName.LORA_KQV_ADAPTER]['enabled']:
-                return ans
-            from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
-            if self.linear_qkv.ub_name == 'qkv' and isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
-                # @akoumparouli: would be better to address this by modifying mcore's spec.
-                # However, the state dictionary has different layout and needs a solution.
-                # This patching only works because we don't need grads for linear_qkv/linear_proj.
-                # Replace TELayerNormColumnParallelLinear with Fork + GEMM
-                with torch.no_grad():
-                    t = self.linear_qkv
-                    self.linear_qkv = make_fork_gemm_from_TELayerNormColumnParallelLinear(self.linear_qkv)
-                    del t
-        elif name == AdapterName.LORA_DENSE_ATTENTION_ADAPTER:
-            from megatron.core.transformer.custom_layers.transformer_engine import TERowParallelLinear
-            lora_linear_proj_adapter = self.get_adapter_module(AdapterName.LORA_DENSE_ATTENTION_ADAPTER)
-            enabled = self.adapter_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER]['enabled']
-            if not lora_linear_proj_adapter and enabled:
-                return ans
-            if isinstance(self.linear_proj, TERowParallelLinear):
-                # @akoumparouli: would be better to address this by modifying mcore's spec.
-                # Replace TERowParallelLinear with GEMM + Add
-                with torch.no_grad():
-                    t = self.linear_proj
-                    self.linear_proj = make_gemm_add_from_TERowParallelLinear(self.linear_proj)
-                    del t
-                # Also convert adapter to CPL + CPL
-                lora_linear_proj_adapter.reduce_scatter = True
-                tp_size = lora_linear_proj_adapter.model_parallel_config['tensor_model_parallel_size']
-                weight = lora_linear_proj_adapter.linear_out.weight
-                cpl_weight = torch.empty(weight.shape[0] * tp_size, weight.shape[1],
-                                         dtype=weight.data.dtype,
-                                         device=weight.data.device)
-                torch.distributed.all_gather_into_tensor(cpl_weight, weight.data)
+    @torch.no_grad()
+    def modify_qkv_adapter_and_layer(self, adapter_name, adapter):
+        assert adapter_name == AdapterName.LORA_KQV_ADAPTER
+        assert getattr(self.linear_qkv, 'ub_name', '') == 'qkv'
+        enabled = self.adapter_cfg[AdapterName.LORA_KQV_ADAPTER]['enabled']
+        if not enabled:
+            return adapter
+        lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
+        if not lora_kqv_adapter:
+            return adapter
+        from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
+        if not isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
+            return adapter
 
-                assert cpl_weight.shape[1] % tp_size == 0
-                num_rows = cpl_weight.shape[1] // tp_size
-                from megatron.core.tensor_parallel import RowParallelLinear
-                # init_method does not matter since we overwrite weights immediately.
-                lora_linear_proj_adapter.linear_proj = RowParallelLinear(
-                    cpl_weight.shape[1],
-                    cpl_weight.shape[0],
-                    config=lora_linear_proj_adapter.model_parallel_config,
-                    input_is_parallel=True,
-                    skip_bias_add=True,
-                    bias=False,
-                    init_method=lambda x: torch.nn.init.xavier_uniform_(x, 0.2),
-                )
-                with torch.no_grad():
-                    rank = torch.cuda.current_device()
-                    lora_linear_proj_adapter.linear_proj.weight.data.copy_(cpl_weight[:, rank * num_rows : (rank +1) * num_rows])
-        return ans
+        # Replace TELayerNormColumnParallelLinear with Fork + GEMM
+        # @akoumparouli: would be better to address this by modifying mcore's spec.
+        # State dictionary has different layout and needs a transformation to enable `load_state_dict`
+        t = self.linear_qkv
+        self.linear_qkv = make_fork_gemm_from_TELayerNormColumnParallelLinear(self.linear_qkv)
+        del t
+        # Turn off SP in lora_qkv_adapter
+        lora_kqv_adapter._sequence_parallel = False
+        return lora_kqv_adapter
+
+    @torch.no_grad()
+    def modify_proj_adapter_and_layer(self, adapter_name, adapter):
+        assert adapter_name == AdapterName.LORA_DENSE_ATTENTION_ADAPTER
+        assert getattr(self.linear_proj, 'ub_name', '') == 'proj'
+        from megatron.core.transformer.custom_layers.transformer_engine import TERowParallelLinear
+        enabled = self.adapter_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER]['enabled']
+        if not enabled:
+            return adapter
+        lora_linear_proj_adapter = self.get_adapter_module(AdapterName.LORA_DENSE_ATTENTION_ADAPTER)
+        if not lora_linear_proj_adapter:
+            return adapter
+        if not isinstance(self.linear_proj, TERowParallelLinear):
+            return adapter
+
+        # Replace TERowParallelLinear with GEMM + Add
+        t = self.linear_proj
+        self.linear_proj = make_gemm_add_from_TERowParallelLinear(self.linear_proj)
+        del t
+
+
+        # Gather weights from all adapters and shard again.
+        # Also convert adapter
+        lora_linear_proj_adapter.reduce_scatter = True
+        weight = lora_linear_proj_adapter.linear_out.weight
+        tp_size = lora_linear_proj_adapter.model_parallel_config['tensor_model_parallel_size']
+        assert tp_size > 1, "Expected TP > 1"
+        assert weight.shape[0] > 0 and weight.shape[1] > 0, "Expected non-empty weight"
+        cpl_weight = torch.empty(
+            weight.shape[0] * tp_size,
+            weight.shape[1],
+            dtype=weight.data.dtype,
+            device=weight.data.device
+        )
+        torch.distributed.all_gather_into_tensor(cpl_weight, weight.data)
+
+        from torch.nn import Linear
+        # Now modify adapter's linear_out.
+        del lora_linear_proj_adapter.linear_out
+        lora_linear_proj_adapter.linear_out = Linear(
+            cpl_weight.shape[1],
+            cpl_weight.shape[0],
+            bias=None,
+            dtype=cpl_weight.dtype
+        )
+        lora_linear_proj_adapter.linear_out.weight.data.copy_(cpl_weight)
+        # Turn off SP in lora_qkv_adapter
+        lora_linear_proj_adapter._sequence_parallel = False
+        return lora_linear_proj_adapter
 
 class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
@@ -175,6 +207,14 @@ def copy_ub_attrs(src, dst):
         setattr(dst, attr, val)
     return dst
 
+def create_tuple_output_wrapper(module):
+    class TupleOutputWrapper(type(module)):
+        def forward(self, *args, **kwargs):
+            ans = super().forward(*args, **kwargs)
+            return ans, None
+    module.__class__ = TupleOutputWrapper
+    return module
+
 @torch.no_grad()
 def make_fork_gemm_from_TELayerNormColumnParallelLinear(layer):
     from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
@@ -189,7 +229,7 @@ def make_fork_gemm_from_TELayerNormColumnParallelLinear(layer):
             device=layer.layer_norm_weight.device,
             dtype=layer.layer_norm_weight.dtype,
             zero_centered_gamma=layer.zero_centered_gamma,
-            bias=layer_norm_bias,
+            # bias=layer.layer_norm_bias,
         ))
         te_ops[0].weight.copy_(layer.layer_norm_weight)
         if layer.layer_norm_bias:
@@ -212,11 +252,13 @@ def make_fork_gemm_from_TELayerNormColumnParallelLinear(layer):
             # accumulate_into_main_grad
         ),
     ]
+
+    # Copy weight
     te_ops[-1].weight.data.copy_(layer.weight.data)
     if has_bias:
         te_ops[-1].bias.data.copy_(layer.bias.data)
-    return copy_ub_attrs(layer, te.ops.Sequential(*te_ops))
-
+    te_linear_qkv = copy_ub_attrs(layer, te.ops.Sequential(*te_ops))
+    return create_tuple_output_wrapper(te_linear_qkv)
 
 @torch.no_grad()
 def make_gemm_add_from_TERowParallelLinear(layer):
@@ -225,27 +267,33 @@ def make_gemm_add_from_TERowParallelLinear(layer):
     import transformer_engine.pytorch as te
     import transformer_engine.pytorch.ops as ops
     has_bias = (layer.bias is not None and layer.bias.numel() > 0)
+
+    tp_size = getattr(layer, 'tp_size', None)
+    assert isinstance(tp_size, int) and tp_size > 1
+    # @akoumparouli: have not tested without SP; does it even make sense?
+    assert layer.sequence_parallel == True
     te_ops = [
         ops.Linear(
-            layer.weight.shape[1],
+            layer.weight.shape[1] * tp_size,
             layer.weight.shape[0],
             bias=has_bias,
             device=layer.weight.data.device,
             dtype=layer.weight.data.dtype,
             tensor_parallel_group=layer.tp_group,
-            sequence_parallel=False,
+            sequence_parallel=layer.sequence_parallel,
+            tensor_parallel_mode='row',
             # rng_state_tracker_function
             # accumulate_into_main_grad
         ),
         te.ops.AddInPlace(),
-        te.ops.ReduceScatter(
-            layer.tp_group
-        ),
     ]
+
+    # Copy weights.
     te_ops[0].weight.data.copy_(layer.weight.data)
     if has_bias:
         te_ops[0].bias.data.copy_(layer.bias.data)
-    return copy_ub_attrs(layer, te.ops.Sequential(*te_ops))
+    te_proj = copy_ub_attrs(layer, te.ops.Sequential(*te_ops))
+    return create_tuple_output_wrapper(te_proj)
 
 class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
@@ -277,9 +325,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         Derives `query`, `key` and `value` tensors from `hidden_states`.
         """
         # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
-        linear_qkv_output, tmp = self.linear_qkv(hidden_states)
-        if is_te_sequential(self.linear_qkv):
-            linear_qkv_output = (linear_qkv_output, tmp)
+        linear_qkv_output, _ = self.linear_qkv(hidden_states)
 
         layernorm_output = None
 
@@ -298,11 +344,6 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         # LoRA logic
         if self.is_adapter_available():
             lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
-            # @akoumparouli: find a better location for this.
-            # Turn off SP in lora_qkv_adapter
-            if isinstance(self.linear_qkv, te_Sequential):
-                lora_kqv_adapter._sequence_parallel = False
-
             if lora_kqv_adapter and self.adapter_cfg[AdapterName.LORA_KQV_ADAPTER]['enabled']:
                 if layernorm_output is not None:
                     lora_mixed_qkv = lora_kqv_adapter(layernorm_output)
@@ -460,16 +501,13 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         # Output. [sq, b, h]
         # =================
 
-        # output, bias = self.linear_proj(core_attn_out)
         # LoRA logic
         if self.is_adapter_available():
             lora_linear_proj_adapter = self.get_adapter_module(AdapterName.LORA_DENSE_ATTENTION_ADAPTER)
             if lora_linear_proj_adapter and self.adapter_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER]['enabled']:
 
                 if is_te_sequential(self.linear_proj):
-                    # linear_qkv_output = (linear_qkv_output, tmp)
-                    lora_linear_proj_adapter._sequence_parallel = False
-                    output = self.linear_proj(core_attn_out, lora_linear_proj_adapter(core_attn_out))
+                    output, bias = self.linear_proj(core_attn_out, lora_linear_proj_adapter(core_attn_out))
                     if isinstance(output, tuple):
                         output, bias = output
                     else:
