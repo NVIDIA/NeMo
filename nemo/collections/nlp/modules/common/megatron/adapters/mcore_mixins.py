@@ -119,6 +119,7 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         t = self.linear_qkv
         self.linear_qkv = make_fork_gemm_from_TELayerNormColumnParallelLinear(self.linear_qkv)
         del t
+        self.linear_qkv.train(mode=False)
         # Turn off SP in lora_qkv_adapter
         lora_kqv_adapter._sequence_parallel = False
         return
@@ -140,6 +141,7 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         # Replace TERowParallelLinear with GEMM + Add
         t = self.linear_proj
         self.linear_proj = make_gemm_add_from_TERowParallelLinear(self.linear_proj)
+        self.linear_proj.train(mode=False)
         del t
 
 
@@ -161,12 +163,12 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         from torch.nn import Linear
         # Now modify adapter's linear_out.
         del lora_linear_proj_adapter.linear_out
-        lora_linear_proj_adapter.linear_out = Linear(
+        lora_linear_proj_adapter.linear_out = create_tuple_output_wrapper(Linear(
             cpl_weight.shape[1],
             cpl_weight.shape[0],
             bias=None,
             dtype=cpl_weight.dtype
-        )
+        ))
         lora_linear_proj_adapter.linear_out.weight.data.copy_(cpl_weight)
         # Turn off SP in lora_qkv_adapter
         lora_linear_proj_adapter._sequence_parallel = False
