@@ -311,10 +311,10 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             x.activation_offloading = True
 
         if self.reduce_scatter:
-            x = reduce_scatter_last_dim_to_tensor_parallel_region(x)
-        x, _ = self.linear_out(x)
+            x = scatter_to_sequence_parallel_region(x)
+        z = self.linear_out(x)
 
-        if self._sequence_parallel and self.input_is_parallel:
+        if self._sequence_parallel and self.input_is_parallel and not self.reduce_scatter:
             # for attention_dense and linear_fc2
             # layernorm after lora is impacted by sequence parallel,
             # hence seq dim need to be scattered right after lora linear layers
