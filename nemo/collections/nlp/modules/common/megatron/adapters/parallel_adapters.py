@@ -312,8 +312,8 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         if self.reduce_scatter:
             x = scatter_to_sequence_parallel_region(x)
-        z = self.linear_out(x)
 
+        x, _ = self.linear_out(x)
         if self._sequence_parallel and self.input_is_parallel and not self.reduce_scatter:
             # for attention_dense and linear_fc2
             # layernorm after lora is impacted by sequence parallel,
