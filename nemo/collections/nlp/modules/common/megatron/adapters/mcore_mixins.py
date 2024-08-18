@@ -93,25 +93,25 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         # TODO(@akoumparouli): refactor this.
         # Modify adapter and other friend modules to enable TE UB communication/computation parallelism.
         if name == AdapterName.LORA_KQV_ADAPTER and getattr(self.linear_qkv, 'ub_name', '') == 'qkv':
-            return self.modify_qkv_adapter_and_layer(name, adapter)
+            return self.replace_linear_qkv_with_te_ops(name)
         elif name == AdapterName.LORA_DENSE_ATTENTION_ADAPTER and getattr(self.linear_proj, 'ub_name', '') == 'proj':
-            return self.modify_proj_adapter_and_layer(name, adapter)
+            return self.replace_linear_proj_with_te_ops(name)
         else:
             return adapter
 
     @torch.no_grad()
-    def modify_qkv_adapter_and_layer(self, adapter_name, adapter):
+    def replace_linear_qkv_with_te_ops(self, adapter_name):
         assert adapter_name == AdapterName.LORA_KQV_ADAPTER
         assert getattr(self.linear_qkv, 'ub_name', '') == 'qkv'
         enabled = self.adapter_cfg[AdapterName.LORA_KQV_ADAPTER]['enabled']
         if not enabled:
-            return adapter
+            return
         lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
         if not lora_kqv_adapter:
-            return adapter
+            return
         from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear
         if not isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
-            return adapter
+            return
 
         # Replace TELayerNormColumnParallelLinear with Fork + GEMM
         # @akoumparouli: would be better to address this by modifying mcore's spec.
@@ -121,21 +121,21 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         del t
         # Turn off SP in lora_qkv_adapter
         lora_kqv_adapter._sequence_parallel = False
-        return lora_kqv_adapter
+        return
 
     @torch.no_grad()
-    def modify_proj_adapter_and_layer(self, adapter_name, adapter):
+    def replace_linear_proj_with_te_ops(self, adapter_name):
         assert adapter_name == AdapterName.LORA_DENSE_ATTENTION_ADAPTER
         assert getattr(self.linear_proj, 'ub_name', '') == 'proj'
         from megatron.core.transformer.custom_layers.transformer_engine import TERowParallelLinear
         enabled = self.adapter_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER]['enabled']
         if not enabled:
-            return adapter
+            return
         lora_linear_proj_adapter = self.get_adapter_module(AdapterName.LORA_DENSE_ATTENTION_ADAPTER)
         if not lora_linear_proj_adapter:
-            return adapter
+            return
         if not isinstance(self.linear_proj, TERowParallelLinear):
-            return adapter
+            return
 
         # Replace TERowParallelLinear with GEMM + Add
         t = self.linear_proj
@@ -170,7 +170,7 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         lora_linear_proj_adapter.linear_out.weight.data.copy_(cpl_weight)
         # Turn off SP in lora_qkv_adapter
         lora_linear_proj_adapter._sequence_parallel = False
-        return lora_linear_proj_adapter
+        return
 
 class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
