@@ -767,7 +767,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         te_module.base.initialize_ub(
             shape=input_shape,
-            tp_group=parallel_state.get_tensor_model_parallel_group(),
+            tp_size=self.cfg.get('tensor_model_parallel_size'),
             use_fp8=self.cfg.get('fp8'),
             ub_cfgs=ub_cfgs,
         )
