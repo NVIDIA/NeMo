@@ -319,14 +319,12 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             # overlap is used.
             self.linear_qkv.return_layernorm_output_gathered = True
 
-
     def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
         """
         Derives `query`, `key` and `value` tensors from `hidden_states`.
         """
         # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
         linear_qkv_output, _ = self.linear_qkv(hidden_states)
-
         layernorm_output = None
 
         # In megatron/core/models/gpt/gpt_layer_specs.py when fused module is used(e.g. TELayerNormColumnParallelLinear)
