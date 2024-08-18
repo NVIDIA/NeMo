@@ -160,15 +160,23 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         )
         torch.distributed.all_gather_into_tensor(cpl_weight, weight.data)
 
-        from torch.nn import Linear
         # Now modify adapter's linear_out.
         del lora_linear_proj_adapter.linear_out
-        lora_linear_proj_adapter.linear_out = create_tuple_output_wrapper(Linear(
+        import transformer_engine.pytorch as te
+        import transformer_engine.pytorch.ops as ops
+
+        lora_linear_proj_adapter.linear_out = create_tuple_output_wrapper(ops.Linear(
             cpl_weight.shape[1],
             cpl_weight.shape[0],
             bias=None,
-            dtype=cpl_weight.dtype
+            device=cpl_weight.data.device,
+            dtype=cpl_weight.data.dtype,
+            # tensor_parallel_group=layer.tp_group,
+            sequence_parallel=False,
+            # rng_state_tracker_function
+            # accumulate_into_main_grad
         ))
+
         lora_linear_proj_adapter.linear_out.weight.data.copy_(cpl_weight)
         # Turn off SP in lora_qkv_adapter
         lora_linear_proj_adapter._sequence_parallel = False
