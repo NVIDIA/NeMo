@@ -55,11 +55,7 @@ def setup_data_sampler(trainer: pl.Trainer):
         trainer.strategy.data_sampler.connect(trainer)
 
 
-def fix_progress_bar(
-    trainer: pl.Trainer,
-    replace_progress_bar: bool = True,
-    progress_interval: int = 1
-) -> None:
+def fix_progress_bar(trainer: pl.Trainer, replace_progress_bar: bool = True, progress_interval: int = 1) -> None:
     callbacks: List[pl.Callback] = cast(List[pl.Callback], getattr(trainer, "callbacks"))
     contains_megatron_progress, contains_progress = False, False
     for callback in callbacks:
