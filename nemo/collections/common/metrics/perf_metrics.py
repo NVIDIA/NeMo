@@ -15,6 +15,7 @@ class DummyCallback(Callback):
     def __init__(self):
         logging.debug("DummyCallback created")
 
+
 class FLOPsMeasurementCallback(Callback):
     """
     Calculate FLOPs per second after last train step for a given job run.
@@ -91,7 +92,7 @@ class FLOPsMeasurementCallback(Callback):
             if isinstance(logger, TensorBoardLogger):
                 return logger.experiment
         return None
-    
+
     def wandb_logger(self, trainer: Trainer) -> WandbLogger | None:
         if not trainer.loggers:
             return None
