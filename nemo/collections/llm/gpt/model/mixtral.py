@@ -29,7 +29,7 @@ class MixtralConfig8x7B(GPTConfig):
     position_embedding_type: str = "rope"
     add_bias_linear: bool = False
     gated_linear_unit: bool = True
-    apply_query_key_layer_scaling: bool = False  # TODO: Should this be True?
+    apply_query_key_layer_scaling: bool = False
 
     num_layers: int = 32
     hidden_size: int = 4096
@@ -38,6 +38,10 @@ class MixtralConfig8x7B(GPTConfig):
     ffn_hidden_size: int = 14336
     max_position_embeddings: int = 4096  # 32768
     seq_length: int = 4096  # 32768
+    attention_dropout: float = 0.0
+    hidden_dropout: float = 0.0
+    share_embeddings_and_output_weights: bool = False
+
     # MoE
     num_moe_experts: int = 8
     moe_router_topk: int = 1
@@ -46,8 +50,8 @@ class MixtralConfig8x7B(GPTConfig):
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
     # rotary
-    rotary_percent: float = 0.5
-    rotary_base: float = 10000
+    rotary_percent: float = 1.0
+    rotary_base: float = 1000000.0
     bf16: bool = True
     params_dtype: torch.dtype = torch.bfloat16
 
@@ -64,7 +68,7 @@ class MixtralConfig8x22B(GPTConfig):
     position_embedding_type: str = "rope"
     add_bias_linear: bool = False
     gated_linear_unit: bool = True
-    apply_query_key_layer_scaling: bool = False  # TODO: Should this be True?
+    apply_query_key_layer_scaling: bool = False
 
     num_layers: int = 56
     hidden_size: int = 6144
@@ -80,8 +84,8 @@ class MixtralConfig8x22B(GPTConfig):
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
     # rotary
-    rotary_percent: float = 0  # TODO: @akoumparouli: is this correct?
-    rotary_base: float = 1000000
+    rotary_percent: float = 1.0
+    rotary_base: float = 1000000.0
     bf16: bool = True
     params_dtype: torch.dtype = torch.bfloat16
 

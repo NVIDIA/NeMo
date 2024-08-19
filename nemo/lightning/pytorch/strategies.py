@@ -34,7 +34,7 @@ from typing_extensions import override
 from nemo.lightning import _strategy_lib, io
 from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
-from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ModelTransform
+from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ModelTransform, ProgressPrinter
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
 
 if TYPE_CHECKING:
@@ -113,6 +113,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             necessary conversions of optimizer parameters and move optimizer parameters to the correct device.
             Defaults to True.
         init_model_parallel (bool): Whether to initialize the model parallel groups. Defaults to True.
+        replace_progress_bar (bool): Whether to replace the TQDM progress bar with a megatron-style logger
+            that prints the metrics to stdout. Suitable for non-interactive settings.
+        progress_interval (int): How frequently to print progress to stdout. Only used when
+            replace_progress_bar is True.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -151,6 +155,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_directly_on_device: bool = True,
         setup_optimizers: bool = True,
         init_model_parallel: bool = True,
+        replace_progress_bar: bool = True,
+        progress_interval: int = 1,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -187,6 +193,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.parallel_load = ckpt_parallel_load
         self.parallel_save_optim = ckpt_parallel_save_optim
         self.load_directly_on_device = ckpt_load_directly_on_device
+
+        self.replace_progress_bar = replace_progress_bar
+        self.progress_interval = progress_interval
 
         self._ddp = ddp
         if ddp == "megatron":
@@ -440,7 +449,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 'global_step',
                 self.trainer.global_step,
                 prog_bar=True,
-                rank_zero_only=True,
                 batch_size=1,
             )
 
@@ -456,31 +464,22 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     "peak_memory_usage",
                     max_memory_reserved,
                     prog_bar=True,
-                    rank_zero_only=True,
                     batch_size=1,
                 )
                 self.lightning_module.log(
                     "memory_allocated",
                     memory_allocated,
                     prog_bar=True,
-                    rank_zero_only=True,
                     batch_size=1,
                 )
 
             if self.log_train_loss:
-                from megatron.core import parallel_state
-
-                from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-
-                # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
-                # it should be casted to other pipeline stages for logging.
-                # we can avoid this broadcast by updating the PTL log function to accept specific ranks
-                if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                    if torch.distributed.get_rank() == get_last_rank():
-                        torch.distributed.send(out, 0)
-                    elif torch.distributed.get_rank() == 0:
-                        torch.distributed.recv(out, get_last_rank())
-                self.lightning_module.log('reduced_train_loss', out, prog_bar=True, rank_zero_only=True, batch_size=1)
+                # p2p now, broadcast later at ckpt
+                _strategy_lib._sync_from_last_pipeline_stage(out, broadcast=False)
+                if torch.distributed.get_rank() == 0:
+                    self.lightning_module.log(
+                        'reduced_train_loss', out, prog_bar=True, rank_zero_only=True, batch_size=1
+                    )
 
             return out
 
@@ -492,7 +491,24 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         with self.precision_plugin.val_step_context():  # TODO: Do we need this?
             out = self.model(dataloader_iter, forward_only=True, *args, **kwargs)
-            self.lightning_module.log('val_loss', out, rank_zero_only=True, batch_size=1)
+
+            from megatron.core import parallel_state
+
+            pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+            if pp_size > 1:
+                # ranks that are not final pp stage have 0 for loss, and out will be mean-reduced over pp
+                # groups (due to sync_dist), which divides val_loss by pp_size. so we multiply by pp_size to cancel out
+                self.lightning_module.log(
+                    'val_loss',
+                    out * pp_size,
+                    prog_bar=True,
+                    sync_dist=True,
+                    sync_dist_group=parallel_state.get_pipeline_model_parallel_group(),
+                    on_epoch=True,
+                )
+            else:
+                self.lightning_module.log('val_loss', out, prog_bar=True, on_epoch=True)
+
             return out
 
     @override
@@ -546,9 +562,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if callback.__class__ == TQDMProgressBar:
                 contains_progress = True
         if not contains_megatron_progress and contains_progress:
-            for callback in callbacks:
+            for i, callback in enumerate(callbacks):
                 if isinstance(callback, TQDMProgressBar):
-                    callback.__class__ = MegatronProgressBar
+                    if self.replace_progress_bar:
+                        printer = ProgressPrinter(log_interval=self.progress_interval)
+                        printer._trainer = trainer
+                        if not trainer.is_global_zero:
+                            printer.disable()
+                        callbacks[i] = printer
+                    else:
+                        callback.__class__ = MegatronProgressBar
                     break
 
     def optimizer_sharded_state_dict(self, is_loading=False):
@@ -576,7 +599,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         checkpoint["state_dict"] = OrderedDict([])  # remove device state_dict
-        checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
+        # retrieve `sharded_state_dict` if it has not already been configured in `on_save_checkpoint`
+        if "sharded_state_dict" not in checkpoint:
+            checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
         if self.trainer.state.fn == TrainerFn.FITTING and self.ckpt_include_optimizer:
             checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
@@ -621,6 +646,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         assert self.megatron_parallel is not None
 
         _strategy_lib.load_model_state_dict(self.megatron_parallel, checkpoint, strict=strict)
+        for opt in self.optimizers:
+            opt.reload_model_params()
 
     @property
     @override
