@@ -33,6 +33,26 @@ from nemo.utils.model_utils import ckpt_to_dir
 
 
 class ModelCheckpoint(PTLModelCheckpoint):
+    """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
+    Adds support for asyncronous checkpointing and provides some additional logic to clean up invalid checkpoints
+    Args:
+        monitor: Metric to monitor when saving top-k checkpoints.
+        verbose: Verbosity mode.
+        save_last: When ``True``, saves a `*-last` copy whenever a checkpoint file gets saved.
+        save_top_k: When ``True``, saves the top-k checkpoints according to ``monitor``.
+        save_weights_only:  if ``True``, then only the model's weights will be saved.
+        mode: One of {min, max}. Whether the objective is to minimize or maximize the monitored quantity.
+        every_n_epochs: Number of epochs between checkpoints.
+        every_n_train_steps: Number of train steps between checkpoints.
+        train_time_interval: After each interval, monitor checkpoints. Not to be used with
+            ``every_n_epochs`` or ``every_n_train_steps``.
+        save_best_model: When ``True``, reloads and saves the best checkpoint.
+        save_on_train_epoch_end: Whether to run checkpointing at the end of the training epoch
+        enable_nemo_ckpt_io: Whether to dump the current model model state, including the
+            config file, to allow for reproducibility of experiments.
+        async_save: Whether to enable asynchronous checkpointing.
+        try_restore_best_ckpt: Whether to restore the best model path.
+    """
 
     UNFINISHED_CHECKPOINT_SUFFIX = "-unfinished"
 
@@ -163,7 +183,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             if index != len(self.monitor):
                 match = re.search('[A-z]', checkpoint[index:])
                 if match:
-                    value = checkpoint[index : index + match.start() - 1]  # -1 due to separator hypen
+                    value = checkpoint[index : index + match.start() - 1]  # -1 due to separator hyphen
                     self.best_k_models[checkpoint] = float(value)
         if len(self.best_k_models) < 1:
             return  # No saved checkpoints yet
