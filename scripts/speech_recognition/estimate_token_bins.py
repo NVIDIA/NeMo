@@ -32,6 +32,7 @@ from nemo.collections.common.data.lhotse.dataloader import (
     FixedBucketBatchSizeConstraint2D,
     LhotseDataLoadingConfig,
     MultimodalFixedBucketBatchSizeConstraint2D,
+    MultimodalSamplingConstraint,
     TokenPerSecondFilter,
     tokenize,
 )
@@ -137,22 +138,33 @@ def estimate_token_buckets(
     It extends it to a 2D bucketing case.
     """
     assert num_buckets > 1
+    is_2d = num_subbuckets is not None
 
-    constraint = MultimodalFixedBucketBatchSizeConstraint2D([(0.0, 0.0)], [0])
+    if is_2d:
+        constraint = MultimodalFixedBucketBatchSizeConstraint2D([(0.0, 0.0)], [0])
+    else:
+        constraint = MultimodalSamplingConstraint()
 
     # Gather the duration and token count statistics for the dataset.
     num_input_tokens = []
     num_output_tokens = []
     for c in cuts:
-        itoks, otoks = constraint.measure_length(c)
-        num_input_tokens.append(itoks)
-        num_output_tokens.append(otoks)
+        ans = constraint.measure_length(c)
+        if is_2d:
+            itoks, otoks = ans
+            num_input_tokens.append(itoks)
+            num_output_tokens.append(otoks)
+        else:
+            num_input_tokens.append(ans)
     num_input_tokens = np.array(num_input_tokens, dtype=np.int32)
-    num_output_tokens = np.array(num_output_tokens, dtype=np.int32)
-    joint = np.rec.fromarrays([num_input_tokens, num_output_tokens])
-    joint.sort()
-    num_input_tokens = joint.f0
-    num_output_tokens = joint.f1
+    if is_2d:
+        num_output_tokens = np.array(num_output_tokens, dtype=np.int32)
+        joint = np.rec.fromarrays([num_input_tokens, num_output_tokens])
+        joint.sort()
+        num_input_tokens = joint.f0
+        num_output_tokens = joint.f1
+    else:
+        num_input_tokens.sort()
 
     # We are building buckets with equal duration (empirically leads to more even bucket exhaustion over time).
     # We need to determine how much duration to allocate per bucket.
@@ -163,12 +175,13 @@ def estimate_token_buckets(
         print(pd.Series(num_input_tokens).describe(percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]))
     max_input_tokens = num_input_tokens[-1]
 
-    tpt = num_output_tokens / num_input_tokens
-    if not quiet:
-        print("Output tokens per input token distribution:")
-        print(pd.Series(tpt).describe(percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]))
-    max_tpt = tpt.max()
-    del tpt
+    if is_2d:
+        tpt = num_output_tokens / num_input_tokens
+        if not quiet:
+            print("Output tokens per input token distribution:")
+            print(pd.Series(tpt).describe(percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]))
+        max_tpt = tpt.max()
+        del tpt
 
     bins = []
     bin_indexes = [0]
@@ -198,9 +211,9 @@ def estimate_token_buckets(
     for binidx, size in enumerate(num_input_tokens):
         if tot > size_per_bucket:
             # Threshold hit: we are creating a new duration bin (multiplied by number of token bins).
-            if num_subbuckets is not None:  # 2D bucketing
+            if is_2d:
                 _estimate_output_token_buckets(max_bucket_duration=size)
-            else:  # 1D bucketing
+            else:
                 bins.append(size)
             tot = 0.0
         tot += size
