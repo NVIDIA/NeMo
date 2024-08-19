@@ -1706,53 +1706,70 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             self.perception = self.trainer.strategy._setup_model(self.perception)
             self.perception = self.perception.cuda(torch.cuda.current_device())
 
-    @property
-    def oomptimizer_schema(self) -> dict:
+    def oomptimizer_schema(self, schema: str = "audio") -> dict:
         """
         Return a typing schema for optimal batch size calibration for various
         sequence lengths using OOMptimizer.
         """
 
-        # TODO: add support for text
-        # input_ids = text_batch["text_input_ids"][:, :-1]
-        # labels = text_batch["text_input_ids"][:, 1:]
-        # attention_mask = self._create_attention_mask(input_ids)
-        # loss_mask = text_batch["text_masks"][:, 1:]
+        if schema == "audio":
+            return {
+                "cls": dict,
+                "inputs": [
+                    {"name": "audio_signal", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                    {"name": "audio_signal_length", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                    {
+                        "name": "tokens",
+                        "type": NeuralType(("B", "T"), LabelsType()),
+                        "seq_length": "output",
+                        "vocab_size": self.tokenizer.vocab_size,
+                    },
+                    {
+                        "name": "tokens_length",
+                        "type": NeuralType(("B",), LengthsType()),
+                        "seq_length": "output",
+                    },
+                    {
+                        "name": "labels",
+                        "type": NeuralType(("B", "T"), LabelsType()),
+                        "seq_length": "output",
+                        "vocab_size": self.tokenizer.vocab_size,
+                    },
+                    {
+                        "name": "loss_mask",
+                        "type": NeuralType(("B", "T"), MaskType()),
+                        "seq_length": "output",
+                    },
+                    {
+                        "name": "context_start_idx",
+                        "type": "constant",
+                        "value": 0,
+                    },
+                ],
+            }
+        elif schema == "text":
+            # TODO: add support for text
+            # input_ids = text_batch["text_input_ids"][:, :-1]
+            # labels = text_batch["text_input_ids"][:, 1:]
+            # attention_mask = self._create_attention_mask(input_ids)
+            # loss_mask = text_batch["text_masks"][:, 1:]
 
-        return {
-            "cls": dict,
-            "inputs": [
-                {"name": "audio_signal", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
-                {"name": "audio_signal_length", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
-                {
-                    "name": "tokens",
-                    "type": NeuralType(("B", "T"), LabelsType()),
-                    "seq_length": "output",
-                    "vocab_size": self.tokenizer.vocab_size,
-                },
-                {
-                    "name": "tokens_length",
-                    "type": NeuralType(("B",), LengthsType()),
-                    "seq_length": "output",
-                },
-                {
-                    "name": "labels",
-                    "type": NeuralType(("B", "T"), LabelsType()),
-                    "seq_length": "output",
-                    "vocab_size": self.tokenizer.vocab_size,
-                },
-                {
-                    "name": "loss_mask",
-                    "type": NeuralType(("B", "T"), MaskType()),
-                    "seq_length": "output",
-                },
-                {
-                    "name": "context_start_idx",
-                    "type": "constant",
-                    "value": 0,
-                },
-            ],
-        }
+            return {
+                "cls": dict,
+                "inputs": [
+                    {
+                        "name": "text_input_ids",
+                        "type": NeuralType(("B", "T"), LabelsType()),
+                        "seq_length": "input",
+                        "vocab_size": self.tokenizer.vocab_size,
+                    },
+                    {
+                        "name": "text_masks",
+                        "type": NeuralType(("B", "T"), MaskType()),
+                        "seq_length": "input",
+                    },
+                ],
+            }
 
 
 class CrossAttendModularAudioGPTModel(ModularAudioGPTModel):

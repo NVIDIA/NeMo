@@ -249,6 +249,13 @@ class FloatList(click.Option):
 )
 @click.option("-o", "--optimizer-name", type=str, default="adamw", help="Name of optimizer to use.")
 @click.option(
+    "-s",
+    "--schema",
+    type=str,
+    default="audio",
+    help="Which schema to use (typically used for choosing the modality, i.e., 'audio' / 'text'",
+)
+@click.option(
     "-b",
     "--buckets",
     cls=FloatList,
@@ -312,6 +319,7 @@ def oomptimizer(
     module_name: str | None,
     config_path: str | None,
     optimizer_name: str,
+    schema: str,
     buckets: list[float],
     threshold: float,
     start_batch_size: int,
@@ -392,7 +400,7 @@ def oomptimizer(
         )
         sys.exit(1)
 
-    schema = model.oomptimizer_schema
+    schema = model.oomptimizer_schema(schema)
 
     click.echo("Setting up the optimizers.")
     optimizer, _ = model.setup_optimization({"name": optimizer_name, "lr": 1e-7, "weight_decay": 0.0})
