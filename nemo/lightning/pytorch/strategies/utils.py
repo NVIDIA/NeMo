@@ -17,6 +17,7 @@ from torch.distributed.device_mesh import DeviceMesh
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.io.pl import MegatronCheckpointIO
+from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 
 
@@ -54,9 +55,11 @@ def setup_data_sampler(trainer: pl.Trainer):
         trainer.strategy.data_sampler.connect(trainer)
 
 
-def fix_progress_bar(trainer: pl.Trainer) -> None:
-    from nemo.lightning.pytorch.callbacks import MegatronProgressBar
-
+def fix_progress_bar(
+    trainer: pl.Trainer,
+    replace_progress_bar: bool = True,
+    progress_interval: int = 1
+) -> None:
     callbacks: List[pl.Callback] = cast(List[pl.Callback], getattr(trainer, "callbacks"))
     contains_megatron_progress, contains_progress = False, False
     for callback in callbacks:
@@ -65,9 +68,16 @@ def fix_progress_bar(trainer: pl.Trainer) -> None:
         if callback.__class__ == TQDMProgressBar:
             contains_progress = True
     if not contains_megatron_progress and contains_progress:
-        for callback in callbacks:
+        for i, callback in enumerate(callbacks):
             if isinstance(callback, TQDMProgressBar):
-                callback.__class__ = MegatronProgressBar
+                if replace_progress_bar:
+                    printer = ProgressPrinter(log_interval=progress_interval)
+                    printer._trainer = trainer
+                    if not trainer.is_global_zero:
+                        printer.disable()
+                    callbacks[i] = printer
+                else:
+                    callback.__class__ = MegatronProgressBar
                 break
 
 
