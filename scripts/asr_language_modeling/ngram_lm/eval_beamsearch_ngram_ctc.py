@@ -32,14 +32,14 @@ python eval_beamsearch_ngram_ctc.py --cfg job
 
 python eval_beamsearch_ngram_ctc.py model_path=<path to the .nemo file of the model> \
            dataset_manifest=<path to the input evaluation JSON manifest file> \
-           ctc_decoding.beam.word_kenlm_path=<path to the binary KenLM model> \
-           ctc_decoding.beam.nemo_kenlm_path=<path to the binary KenLM model> \
+           ctc_decoding.beam.kenlm_path=<path to the binary KenLM model> \
+           ctc_decoding.beam.kenlm_type=<type of kenlm, must be word or subword > \
            ctc_decoding.beam.beam_size=[<list of the beam widths, separated with commas>] \
            ctc_decoding.beam.beam_alpha=[<list of the beam alphas, separated with commas>] \
            ctc_decoding.beam.beam_beta=[<list of the beam betas, separated with commas>] \
            preds_output_folder=<optional folder to store the predictions> \
            cache_file=null \
-           decoding_strategy=beam
+           decoding_strategy=<must be one of greedy_batch, greedy, pyctcdecode, beam = pyctcdecode, flashlight> \
            ...
 
 
@@ -50,6 +50,9 @@ For grid search, you can provide a list of arguments as follows -
            beam_size=[4,8,16,....] \
            beam_alpha=[-2.0,-1.0,...,1.0,2.0] \
            beam_beta=[-1.0,-0.5,0.0,...,1.0] \
+
+# Use ctc_decoding.beam.kenlm_type=subword for LM created by scripts/asr_language_modeling/ngram_lm/train_kenlm.py for subword acoustic model
+# and ctc_decoding.beam.kenlm_type=word for LM created by pure KemLM binary or by scripts/asr_language_modeling/ngram_lm/train_kenlm.py for char acoustic model.
 
 # You may find more info on how to use this script at:
 # https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html

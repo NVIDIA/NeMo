@@ -72,8 +72,9 @@ sample. For JSON manifest file, the file need to contain json formatted samples 
 
     {"audio_filepath": "/data_path/file1.wav", "text": "The transcript of the audio file."}
 
-It just extracts the `text` field from each line to create the training text file. After the N-gram model is trained,
-it is stored at the path specified by `kenlm_model_file`.
+It just extracts the `text` field from each line to create the training text file. 
+For subword acoustic model a produced kenlm_type is `subword`. For char acoustic model the kenlm_type is `word`.
+After the N-gram model is trained, it is stored at the path specified by `kenlm_model_file`. 
 
 The following is the list of the arguments for the training script:
 
@@ -118,6 +119,7 @@ You may evaluate an ASR model as the following:
            dataset_manifest=<path to the evaluation JSON manifest file> \
            ctc_decoding.strategy=<Beam library such as beam, pyctcdecode or flashlight> \
            ctc_decoding.beam.kenlm_path=<path to the binary KenLM model> \
+           ctc_decoding.beam.kenlm_type=<type of KenLM, must be word or subword> \
            ctc_decoding.beam.beam_size=[<list of the beam widths, separated with commas>] \
            ctc_decoding.beam.beam_alpha=[<list of the beam alphas, separated with commas>] \
            ctc_decoding.beam.beam_beta=[<list of the beam betas, separated with commas>] \

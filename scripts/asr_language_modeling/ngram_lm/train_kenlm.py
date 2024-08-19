@@ -42,7 +42,7 @@ from dataclasses import dataclass, field
 from glob import glob
 from typing import List
 
-from omegaconf import MISSING, OmegaConf
+from omegaconf import MISSING
 from scripts.asr_language_modeling.ngram_lm import create_lexicon_from_arpa, kenlm_utils
 
 from nemo.core.config import hydra_runner
