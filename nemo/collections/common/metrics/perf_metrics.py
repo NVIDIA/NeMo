@@ -11,6 +11,10 @@ from nemo.utils import logging
 __all__ = ["FLOPsMeasurementCallback"]
 
 
+class DummyCallback(Callback):
+    def __init__(self):
+        logging.debug("DummyCallback created")
+
 class FLOPsMeasurementCallback(Callback):
     """
     Calculate FLOPs per second after last train step for a given job run.
@@ -34,6 +38,16 @@ class FLOPsMeasurementCallback(Callback):
     """
 
     higher_is_better = True
+
+    def __new__(cls, model_config, *args, **kwargs):
+        create_tensorboard_logger = model_config.get('exp_manager', {}).get("create_tensorboard_logger", False)
+        if not create_tensorboard_logger:
+            logging.warning("TensorBoard Logger should be enabled for computing TFLOPs per sec per gpu")
+            logging.info("Enable TensorBoard Logger using 'create_tensorboard_logger=True' in 'exp_manager'")
+            return DummyCallback()
+
+        instance = super().__new__(cls)
+        return instance
 
     def __init__(
         self,
@@ -77,7 +91,7 @@ class FLOPsMeasurementCallback(Callback):
             if isinstance(logger, TensorBoardLogger):
                 return logger.experiment
         return None
-
+    
     def wandb_logger(self, trainer: Trainer) -> WandbLogger | None:
         if not trainer.loggers:
             return None
@@ -90,8 +104,8 @@ class FLOPsMeasurementCallback(Callback):
         """
         PyTorch Lightning callback hook to calculate model FLOPs before fit/test
         """
-        self._tb_logger = self.tb_logger(trainer, pl_module)
-        self._wandb_logger = self.wandb_logger(trainer, pl_module)
+        self._tb_logger = self.tb_logger(trainer)
+        self._wandb_logger = self.wandb_logger(trainer)
 
     def on_train_end(self, trainer, pl_module):
         """
@@ -101,19 +115,18 @@ class FLOPsMeasurementCallback(Callback):
 
         try:
             if "peft" in self.cfg["model"]:
-                raise NotImplementedError("FLOPs measurement not supported for finetuning jobs")
+                raise NotImplementedError("FLOPs measurement not supported for finetuning experiments")
 
             step_time_list = read_tb_log(self.log_dir, "train_step_timing in s")
             tflops_per_sec_per_gpu = self.eval_tflops_per_sec_per_gpu(step_time_list)
-            logging.info(f"TFLOPs per sec per GPU={tflops_per_sec_per_gpu:.2f}")
         except Exception as exc:
             logging.error(f"Failed to calculate TFLOPs per sec per GPU.\n{exc}")
 
-        if tflops_per_sec_per_gpu != -1:
-            if self._tb_logger is not None:
-                self._tb_logger.add_scalar("tflops_per_sec_per_gpu", tflops_per_sec_per_gpu)
-            if self._wandb_logger is not None:
-                self._wandb_logger.log({"tflops_per_sec_per_gpu": tflops_per_sec_per_gpu})
+        logging.info(f"TFLOPs per sec per GPU={tflops_per_sec_per_gpu:.2f}")
+        if self._tb_logger is not None:
+            self._tb_logger.add_scalar("tflops_per_sec_per_gpu", tflops_per_sec_per_gpu)
+        if self._wandb_logger is not None:
+            self._wandb_logger.log({"tflops_per_sec_per_gpu": tflops_per_sec_per_gpu})
 
     def eval_tflops_per_sec_per_gpu(self, train_step_time: List | float | int) -> float:
         """
