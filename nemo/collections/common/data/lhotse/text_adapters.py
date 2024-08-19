@@ -25,6 +25,7 @@ from lhotse.serialization import load_jsonl
 from lhotse.utils import Pathlike
 
 from nemo.collections.common.data.lhotse.nemo_adapters import expand_sharded_filepaths
+from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer, TokenizerWrapper
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
@@ -107,7 +108,22 @@ class SourceTargetTextExample:
             return self.input_ids.shape[0]
         return None
 
-    def tokenize(self, tokenizer: TokenizerWrapper) -> "TextExample":
+    def tokenize(self, tokenizer: TokenizerWrapper, prompt: PromptFormatter = None) -> "TextExample":
+
+        if prompt is not None:
+            # TODO(pzelasko): this is temporarily hardcoded and assumes LLama2 prompt format
+            ans = prompt.encode_dialog(
+                [
+                    {"role": "system_and_user", "slots": {"system": self.question.text, "message": self.source.text}},
+                    {"role": prompt.OUTPUT_ROLE, "slots": {"message": self.target.text}},
+                ]
+            )
+            self.input_ids = ans["input_ids"]
+            self.context_ids = ans["context_ids"]
+            self.answer_ids = ans["answer_ids"]
+            self.mask = ans["mask"]
+            return self
+
         input_ids = []
         context_ids = []
         if self.question:

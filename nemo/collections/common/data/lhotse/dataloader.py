@@ -42,6 +42,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import guess_parse_cutset, read_cutset_from_config
 from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample, SourceTargetTextExample, TextExample
+from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.prompts.fn import get_prompt_format_fn
 from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
 from nemo.utils import logging
@@ -747,7 +748,9 @@ def tokenize_with_prompt(example: Example, tokenizer, prompt_format: str) -> Exa
         example.tokenized_prompt = tokenized_prompt
         example.tokenized_transcript = tokenized_transcript
     else:
-        raise RuntimeError(f"Currently we only support tokenization + prompting during sampling for audio modality.")
+        # TODO: need an equivalent of get_prompt_format_fn for text modality
+        #       to be able to construct different kinds of turns specific to a given application
+        example = example.tokenize(tokenizer, prompt=PromptFormatter.resolve(prompt_format)(tokenizer))
     return example
 
 

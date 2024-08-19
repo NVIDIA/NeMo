@@ -73,8 +73,9 @@ def parse_args():
         "-s",
         "--sub-buckets",
         type=int,
-        default=2,
-        help="The desired number of sub-buckets (dim1 => covers output sequence length / num_tokens).",
+        default=None,
+        help="The desired number of sub-buckets (dim1 => covers output sequence length / num_tokens). "
+        "If not provided, we'll only perform 1D bucketing. ",
     )
     parser.add_argument(
         "-n",
@@ -128,7 +129,7 @@ def parse_args():
 def estimate_token_buckets(
     cuts: Iterable[Cut],
     num_buckets: int,
-    num_subbuckets: int,
+    num_subbuckets: int | None,
     quiet: bool,
 ) -> list[tuple[float, float]]:
     """
@@ -197,12 +198,16 @@ def estimate_token_buckets(
     for binidx, size in enumerate(num_input_tokens):
         if tot > size_per_bucket:
             # Threshold hit: we are creating a new duration bin (multiplied by number of token bins).
-            _estimate_output_token_buckets(max_bucket_duration=size)
+            if num_subbuckets is not None:  # 2D bucketing
+                _estimate_output_token_buckets(max_bucket_duration=size)
+            else:  # 1D bucketing
+                bins.append(size)
             tot = 0.0
         tot += size
 
     # Estimate an extra 2D bin set for global max duration.
-    _estimate_output_token_buckets(max_bucket_duration=max_input_tokens)
+    if num_subbuckets is not None:
+        _estimate_output_token_buckets(max_bucket_duration=max_input_tokens)
 
     return bins
 

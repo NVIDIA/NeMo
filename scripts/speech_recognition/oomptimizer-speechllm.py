@@ -249,7 +249,6 @@ class FloatList(click.Option):
 )
 @click.option("-o", "--optimizer-name", type=str, default="adamw", help="Name of optimizer to use.")
 @click.option(
-    "-s",
     "--schema",
     type=str,
     default="audio",
