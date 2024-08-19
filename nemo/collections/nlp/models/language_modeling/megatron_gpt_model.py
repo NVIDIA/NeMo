@@ -146,10 +146,10 @@ def mcore_supports_moe() -> bool:
         return False
 
 def convert_to_probability_distribution(tensor):
-    exp_tensor = torch.exp(tensor - tensor.max(dim=-1, keepdims=True))
-    normalized_tensor = exp_tensor / exp_tensor.sum(dim=-1, keepdim=True)
+    # exp_tensor = torch.exp(tensor - tensor.max(dim=-1, keepdims=True).values)
+    # normalized_tensor = exp_tensor / exp_tensor.sum(dim=-1, keepdim=True)
     
-    return normalized_tensor
+    return F.softmax(tensor, dim=-1)
 
 def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, hyena_cfg: Dict = None):
     if num_experts is not None:
@@ -277,9 +277,14 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
         return ['logits']
 
 
+def simple_kl_div(probs_P, probs_Q):
+    epsilon = 1e-10
+    return ((probs_P + epsilon) * (torch.log(probs_P + epsilon) - torch.log(probs_Q + epsilon))).sum(dim=-1).mean()
+
+
 def kl_loc_loss(ref_outputs, output_tensor, mask=None, use_absolute_kl=False, use_log_softmax_kl=True):
-    ref_outputs = convert_to_probability_distribution(ref_outputs)
-    output_tensor = convert_to_probability_distribution(output_tensor)
+    ref_outputs = convert_to_probability_distribution(ref_outputs).to(torch.float32)
+    output_tensor = convert_to_probability_distribution(output_tensor).to(torch.float32)
 
     print('REF:', ref_outputs)
     print('OUT:', output_tensor)
@@ -290,7 +295,8 @@ def kl_loc_loss(ref_outputs, output_tensor, mask=None, use_absolute_kl=False, us
         ref_outputs = (ref_outputs * mask).sum() / mask.sum()
 
     if not use_absolute_kl and not use_absolute_kl:
-        kl_value = F.kl_div(output_tensor, ref_outputs, reduction='batchmean', log_target=False)
+        # kl_value = F.kl_div(output_tensor, ref_outputs, reduction='batchmean', log_target=False)
+        kl_value = simple_kl_div(ref_outputs, output_tensor)
         assert kl_value >= 0, 'KL should not be negative!'
 
     if use_log_softmax_kl:
