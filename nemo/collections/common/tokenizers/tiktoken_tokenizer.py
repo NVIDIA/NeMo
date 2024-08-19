@@ -27,6 +27,7 @@ from nemo.utils import logging
 
 __all__ = ['TiktokenTokenizer']
 
+
 def reload_mergeable_ranks(
     path: str,
     max_vocab: Optional[int] = None,
@@ -60,10 +61,13 @@ def reload_mergeable_ranks(
 
     return ranks
 
+
 PATTERN_TIKTOKEN = "[^\\r\\n\\p{L}\\p{N}]?[\\p{Lu}\\p{Lt}\\p{Lm}\\p{Lo}\\p{M}]*[\\p{Ll}\\p{Lm}\\p{Lo}\\p{M}]+|[^\\r\\n\\p{L}\\p{N}]?[\\p{Lu}\\p{Lt}\\p{Lm}\\p{Lo}\\p{M}]+[\\p{Ll}\\p{Lm}\\p{Lo}\\p{M}]*|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n/]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+"
 DEFAULT_TIKTOKEN_MAX_VOCAB = 2**17  # 131072
 SPECIAL_TOKENS = ["<unk>", "<s>", "</s>"]
 SPECIAL_TOKEN_TEMPLATE = "<SPECIAL_{id}>"
+
+
 class TiktokenTokenizer(TokenizerSpec):
     """
     TiktokenTokenizer https://github.com/openai/tiktoken.
@@ -79,13 +83,13 @@ class TiktokenTokenizer(TokenizerSpec):
         self,
         vocab_file: str,
         pattern: str = PATTERN_TIKTOKEN,
-        vocab_size: int = DEFAULT_TIKTOKEN_MAX_VOCAB, # 131072
+        vocab_size: int = DEFAULT_TIKTOKEN_MAX_VOCAB,  # 131072
         num_special_tokens: int = 1000,
-        special_tokens: Optional[List[str]] = None, 
+        special_tokens: Optional[List[str]] = None,
     ):
         if not vocab_file or not os.path.exists(vocab_file):
             raise ValueError(f"vocab_file: {vocab_file} is invalid")
-        
+
         if special_tokens is None:
             special_tokens = SPECIAL_TOKENS.copy()
 
@@ -112,7 +116,7 @@ class TiktokenTokenizer(TokenizerSpec):
         self.id2token = {v: k for k, v in self.token2id.items()}
         assert set(range(self.inner_vocab_size)) == set(self.id2token.keys())
 
-        self.shifted_id2token = {i: tok for i,tok in enumerate(self.special_tokens)}
+        self.shifted_id2token = {i: tok for i, tok in enumerate(self.special_tokens)}
         for key, value in self.id2token.items():
             self.shifted_id2token[key + self.num_special_tokens] = value
 
@@ -130,7 +134,7 @@ class TiktokenTokenizer(TokenizerSpec):
     def tokens_to_text(self, tokens: List[int]):
         token_ids = [self.tokenizer.encode_single_token(tokens) for tokens in tokens]
         return self.tokenizer.decode(token_ids)
-    
+
     def tokens_to_ids(self, tokens):
         return [self.tokenizer.encode_single_token(token) for token in tokens]
 
@@ -152,15 +156,18 @@ class TiktokenTokenizer(TokenizerSpec):
 
     def ids_to_text(self, tokens: List[int]):
         # Filter out special tokens and adjust the remaining tokens
-        adjusted_tokens = [t - self.num_special_tokens for t in tokens
-                if t not in {self.bos, self.eos} and t >= self.num_special_tokens]
+        adjusted_tokens = [
+            t - self.num_special_tokens
+            for t in tokens
+            if t not in {self.bos, self.eos} and t >= self.num_special_tokens
+        ]
 
         # Decode only if there are tokens left after filtering
         if adjusted_tokens:
             return self.tokenizer.decode(adjusted_tokens)
         else:
             return ""  # Return an empty string if all tokens were filtered out
-    
+
     @property
     def bos_id(self):
         return self._bos_id
@@ -172,7 +179,7 @@ class TiktokenTokenizer(TokenizerSpec):
     @property
     def unk_id(self):
         return self._unk_id
-    
+
     @property
     def vocab(self):
         return self.token2id
@@ -184,7 +191,7 @@ class TiktokenTokenizer(TokenizerSpec):
     @property
     def encoder(self):
         return self.vocab
-    
+
     @property
     def vocab_size(self) -> int:
-        return self._vocab_size    
+        return self._vocab_size
