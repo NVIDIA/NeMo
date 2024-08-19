@@ -1747,11 +1747,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                     "seq_length": "output",
                 },
                 {
-                    "name": "num_audios",
-                    "type": "constant",
-                    "value": "batch",
-                },
-                {
                     "name": "context_start_idx",
                     "type": "constant",
                     "value": 0,
