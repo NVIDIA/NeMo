@@ -288,7 +288,9 @@ def main():
     cuts, _ = read_cutset_from_config(config)
     # duration_filter = RejectionsCounter(DurationFilter(args.min_duration, args.max_duration), "Duration filtering")
     # cuts = cuts.filter(duration_filter)
-    cuts = cuts.map(partial(apply_tokenizer, tokenizer=tokenizer, prompt=prompt))
+    cuts = cuts.map(partial(apply_tokenizer, tokenizer=tokenizer, prompt=prompt), apply_fn=None)
+    if hasattr(cuts, "prefetch"):
+        cuts = cuts.prefetch()  # to be released in lhotse 1.27
     # tpt_filter = RejectionsCounter(TokensPerTokenFilter(-1, args.max_tpt), "Output tokens per input token filtering")
     # cuts = cuts.filter(tpt_filter)
     if (N := args.num_examples) > 0:
