@@ -297,7 +297,7 @@ class TransformerUNet(NeuralModule):
         pos_matrix = (
             -1 * torch.abs(torch.arange(max_positions).unsqueeze(0) - torch.arange(max_positions).unsqueeze(1)).float()
         )
-        pos_matrix = einops.rearrange(pos_matrix, "T T -> 1 T T")
+        pos_matrix = einops.rearrange(pos_matrix, "T1 T2 -> 1 T1 T2")
         self.register_buffer('pos_matrix', pos_matrix, persistent=False)
 
     @property

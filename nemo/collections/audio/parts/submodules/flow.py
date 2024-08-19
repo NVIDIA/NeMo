@@ -17,7 +17,7 @@ from typing import Tuple
 import einops
 import torch
 
-from nemo.collections.tts.parts.utils.helpers import mask_sequence_tensor
+from nemo.collections.common.parts.utils import mask_sequence_tensor
 from nemo.utils import logging
 
 
