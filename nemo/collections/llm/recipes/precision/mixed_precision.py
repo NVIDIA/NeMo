@@ -24,23 +24,3 @@ def fp16_mixed_plugin() -> Config[MegatronMixedPrecision]:
         autocast_enabled=False,
         grad_reduce_in_fp32=False,
     )
-
-
-def bf16_with_fp8_mixed_plugin() -> Config[MegatronMixedPrecision]:
-    cfg = bf16_mixed_plugin()
-    cfg.fp8 = 'hybrid'
-    cfg.fp8_margin = 0
-    cfg.fp8_interval = 1
-    cfg.fp8_amax_history_len = 1024
-    cfg.fp8_amax_compute_algo = "max"
-    return cfg
-
-
-def fp16_with_fp8_mixed_plugin() -> Config[MegatronMixedPrecision]:
-    cfg = fp16_mixed_plugin()
-    cfg.fp8 = 'hybrid'
-    cfg.fp8_margin = 0
-    cfg.fp8_interval = 1
-    cfg.fp8_amax_history_len = 1024
-    cfg.fp8_amax_compute_algo = "max"
-    return cfg
