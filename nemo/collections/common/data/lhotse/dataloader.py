@@ -595,7 +595,7 @@ def make_structured_with_schema_warnings(config: DictConfig) -> DictConfig:
 @dataclass
 class MultimodalSamplingConstraint(SamplingConstraint):
     # how many seconds of audio is a text token worth; balances audio to text ratio in a mini-batch
-    token_equivalent_duration: float
+    token_equivalent_duration: float | None = None
 
     # defines maximum batch size (may be lower than that if batch_length is also specified)
     batch_size: int | None = None
@@ -693,15 +693,25 @@ class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
 class MultimodalFixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint2D):
     token_equivalent_duration: float | None = None
 
-    def measure_length(self, example: Any) -> float:
-        assert not self.bucketing_2d_enabled, "2D bucketing for multimodal sampling is not yet supported."
-        if hasattr(example, "num_tokens"):
-            return example.num_tokens
+    def measure_length(self, example: Any) -> float | tuple[float, float]:
+        # Case 1: audio
         if isinstance(example, Cut):
             assert (
                 self.token_equivalent_duration is not None
             ), "Cannot use MultimodalFixedBucketBatchSizeConstraint with speech data when token_equivalent_duration was not specified."
-            return example.duration / self.token_equivalent_duration
+            in_tokens = example.duration / self.token_equivalent_duration
+            if self.bucketing_2d_enabled:
+                return in_tokens, _measure_tokens(example)
+            else:
+                return in_tokens
+        # Case 2: text
+        if self.bucketing_2d_enabled:
+            if hasattr(example, "context_ids") and hasattr(example, "answer_ids"):
+                return len(example.context_ids), len(example.answer_ids)
+        else:
+            if hasattr(example, "num_tokens"):
+                return example.num_tokens
+
         raise RuntimeError(f"Unsupported example type: {type(example)}")
 
 
