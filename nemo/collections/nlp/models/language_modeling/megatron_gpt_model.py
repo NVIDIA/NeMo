@@ -150,7 +150,7 @@ def mcore_supports_moe() -> bool:
 def convert_to_probability_distribution(tensor):
     # exp_tensor = torch.exp(tensor - tensor.max(dim=-1, keepdims=True).values)
     # normalized_tensor = exp_tensor / exp_tensor.sum(dim=-1, keepdim=True)
-    
+
     return F.softmax(tensor, dim=-1)
 
 
@@ -300,7 +300,7 @@ def kl_loc_loss(ref_outputs, output_tensor, mask=None, use_absolute_kl=False, us
     if not use_absolute_kl and not use_absolute_kl:
         # kl_value = F.kl_div(output_tensor, ref_outputs, reduction='batchmean', log_target=False)
         kl_value = simple_kl_div(ref_outputs, output_tensor)
-        assert kl_value >= 0, 'KL should not be negative, K = %0.10f!' %(kl_value)
+        assert kl_value >= 0, 'KL should not be negative, K = %0.10f!' % (kl_value)
 
     if use_log_softmax_kl:
         output_tensor = F.log_softmax(output_tensor, dim=1)
