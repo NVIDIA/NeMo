@@ -384,7 +384,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         decoder_model=decoder,
                         joint_model=joint,
                         durations=self.durations,
-                        durations_beam_size=decoding_cfg.beam.get('durations_beam_size', len(self.durations)),
                         beam_size=self.cfg.beam.beam_size,
                         return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
                         search_type='default',

@@ -356,7 +356,7 @@ class BeamTDTInfer(Typing):
 
         beam = min(self.beam_size, self.vocab_size)
         beam_k = min(beam, (self.vocab_size - 1))
-        
+        durations_beam_k = min(beam, len(self.durations))
 
         # Initialize zero vector states.
         decoder_state = self.decoder.initialize_state(encoder_outputs)
