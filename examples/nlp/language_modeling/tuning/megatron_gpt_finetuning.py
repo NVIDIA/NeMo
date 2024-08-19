@@ -12,22 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
+import os
+
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning.trainer.trainer import Trainer
-import datetime
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 
-from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
+from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
-
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-
-import os
 
 mp.set_start_method("spawn", force=True)
 
@@ -66,8 +65,7 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
-    
-    
+
     model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
     peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
 
@@ -80,10 +78,9 @@ def main(cfg) -> None:
         )
         ref_model = MegatronGPTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=dummy_trainer)
         ref_model.freeze()
-        
+
         # add ref_model to the model
         model.set_reference_model(ref_model)
-
 
     if cfg.model.peft.restore_from_path is not None:
         # initialize peft weights from a checkpoint instead of randomly
@@ -96,7 +93,14 @@ def main(cfg) -> None:
     else:
         logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
 
-    model.save_to(os.path.join(cfg.exp_manager.exp_dir, cfg.exp_manager.name, 'checkpoints', f"{cfg.exp_manager.name}--validation_loss=0.0-step=0-consumed_samples=0.0.nemo"))
+    model.save_to(
+        os.path.join(
+            cfg.exp_manager.exp_dir,
+            cfg.exp_manager.name,
+            'checkpoints',
+            f"{cfg.exp_manager.name}--validation_loss=0.0-step=0-consumed_samples=0.0.nemo",
+        )
+    )
 
     trainer.fit(model)
 

@@ -133,6 +133,7 @@ except (ImportError, ModuleNotFoundError):
 import torch.nn.functional as F
 import wandb
 
+
 @cache
 def mcore_supports_moe() -> bool:
     global HAVE_MEGATRON_CORE
@@ -145,11 +146,13 @@ def mcore_supports_moe() -> bool:
     except ImportError:
         return False
 
+
 def convert_to_probability_distribution(tensor):
     # exp_tensor = torch.exp(tensor - tensor.max(dim=-1, keepdims=True).values)
     # normalized_tensor = exp_tensor / exp_tensor.sum(dim=-1, keepdim=True)
     
     return F.softmax(tensor, dim=-1)
+
 
 def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, hyena_cfg: Dict = None):
     if num_experts is not None:
@@ -308,10 +311,11 @@ def kl_loc_loss(ref_outputs, output_tensor, mask=None, use_absolute_kl=False, us
             kl_value = torch.mean((ref_outputs - output_tensor).abs(), dim=1).mean()
         else:
             kl_value = torch.mean(ref_outputs - output_tensor, dim=1).mean()
-    
+
     assert kl_value >= 0, 'KL should not be negative!'
-    
+
     return kl_value
+
 
 class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     """
@@ -1292,20 +1296,30 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     )
 
             output_tensor = model(**forward_args)
-            
+
             loss_mask = batch['loss_mask']
-            kl_div = torch.tensor(0., device=loss_mask.device)
+            kl_div = torch.tensor(0.0, device=loss_mask.device)
             if self.c_kl > 0:
                 # print(forward_args)
                 # ref_logits = self.ref_model(**forward_args, forward_only=True)
-                ref_outputs = self.ref_model.forward(
-                    tokens=forward_args['input_ids'],
-                    text_position_ids=forward_args['position_ids'],
-                    attention_mask=forward_args['attention_mask'],
-                    labels=None,
-                ).max(dim=-1).values
-             
-                kl_div = kl_loc_loss(ref_outputs, output_tensor, forward_args['attention_mask'], self.use_absolute_kl, self.use_log_softmax_kl)
+                ref_outputs = (
+                    self.ref_model.forward(
+                        tokens=forward_args['input_ids'],
+                        text_position_ids=forward_args['position_ids'],
+                        attention_mask=forward_args['attention_mask'],
+                        labels=None,
+                    )
+                    .max(dim=-1)
+                    .values
+                )
+
+                kl_div = kl_loc_loss(
+                    ref_outputs,
+                    output_tensor,
+                    forward_args['attention_mask'],
+                    self.use_absolute_kl,
+                    self.use_log_softmax_kl,
+                )
                 if wandb.run:
                     wandb.log({'kl-div': kl_div})
 
