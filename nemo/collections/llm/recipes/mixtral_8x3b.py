@@ -9,18 +9,18 @@ from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
+from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x3B, MixtralModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.utils import Config, Partial
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "mixtral_8x7b"
+NAME = "mixtral_8x3b"
 
 
 def model() -> Config[pl.LightningModule]:
-    return Config(MixtralModel, config=Config(MixtralConfig8x7B))
+    return Config(MixtralModel, config=Config(MixtralConfig8x3B))
 
 
 def trainer(
@@ -84,7 +84,7 @@ def pretrain_recipe(
         fn,
         model=model(),
         trainer=trainer(
-            tensor_parallelism=8,
+            tensor_parallelism=4,
             pipeline_parallelism=1,
             pipeline_parallelism_type=None,
             virtual_pipeline_parallelism=None,
