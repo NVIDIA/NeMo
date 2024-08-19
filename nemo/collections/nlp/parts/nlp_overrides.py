@@ -64,7 +64,6 @@ except ImportError:
     # since PyTorch 2.3 the path has changed
     from torch.amp.grad_scaler import _refresh_per_optimizer_state
 
-from nemo.collections.multimodal.modules.stable_diffusion.attention import BasicTransformerBlock
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
 from nemo.collections.nlp.parts import utils_funcs
@@ -196,7 +195,12 @@ class NLPDDPStrategy(DDPStrategy):
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
+        super().__init__(
+            parallel_devices=parallel_devices,
+            cluster_environment=cluster_environment,
+            checkpoint_io=checkpoint_io,
+            **kwargs,
+        )
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.nccl_communicator_config_path = nccl_communicator_config_path
@@ -440,6 +444,9 @@ class NLPDDPStrategy(DDPStrategy):
             bool: True if the number of param groups does not match
         """
         common_state_dict = dist_checkpointing.load_common_state_dict(checkpoint_path)
+        # @akoumparouli: check if it contains an mcore dist opt
+        if common_state_dict.get('optimizer_states', [{}])[0].get('param_groups', None) is None:
+            return False
         model_param_groups = self._get_param_group(common_state_dict)
         checkpoint_param_groups = self._get_param_group(sharded_state_dict)
         return len(model_param_groups) != len(checkpoint_param_groups)
@@ -661,6 +668,9 @@ class NLPFSDPStrategy(FSDPStrategy):
         )
         # Use the default FSDP backward-prefetch policy for proper communication overlap.
         kwargs['backward_prefetch'] = BackwardPrefetch.BACKWARD_PRE
+
+        # import here to prevent circular imports
+        from nemo.collections.multimodal.modules.stable_diffusion.attention import BasicTransformerBlock
 
         # Set FSDP wrapping policy: use Transformer layer module as the FSDP sharding granularity.
         self.fsdp_wrap_module = {
@@ -941,8 +951,6 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             if dist_ckpt:
                 # model weights is a directory
                 dist_ckpt_dir = ckpt_to_dir(os.path.join(dir_name, self.model_weights_ckpt))
-
-                sharded_state_dict = model.sharded_state_dict()
                 # dist checkpoint needs torch.distributed to save the checkpoint
                 if not parallel_state.is_initialized():
 
@@ -952,6 +960,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     if model.trainer.strategy.launcher is not None:
                         model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
                     model.trainer.strategy.setup_environment()
+                sharded_state_dict = model.sharded_state_dict()
                 checkpoint_io = DistributedCheckpointIO(model.cfg.get('dist_ckpt_format', 'zarr'))
                 checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_dir)
 

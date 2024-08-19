@@ -2,16 +2,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional
 
+import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from typing_extensions import Annotated
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.utils import Config
 from nemo.lightning import io, teardown
+from nemo.lightning.pytorch.opt import OptimizerModule
 
 if TYPE_CHECKING:
     from transformers import MistralConfig, MistralForCausalLM
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 @dataclass
@@ -36,13 +41,16 @@ class Mistral7BConfig(GPTConfig):
 
 
 class Mistral7BModel(GPTModel):
-    def __init__(self, config: Optional[Mistral7BConfig] = None, tokenizer=None):
-        _tokenizer = tokenizer or HFMistral7BImporter().tokenizer
+    def __init__(
+        self,
+        config: Annotated[Optional[Mistral7BConfig], Config[Mistral7BConfig]] = None,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+    ):
+        super().__init__(config or Mistral7BConfig(), optim=optim, tokenizer=tokenizer)
 
-        super().__init__(config or Mistral7BConfig(), _tokenizer)
 
-
-@io.model_importer(Mistral7BModel, "hf", default_path="mistralai/Mistral-7B-v0.1")
+@io.model_importer(Mistral7BModel, "hf")
 class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel]):
     def init(self) -> Mistral7BModel:
         return Mistral7BModel(self.config, tokenizer=self.tokenizer)
@@ -55,6 +63,8 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
+
+        print(f"Converted Mistral 7B model to Nemo, model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
@@ -98,7 +108,7 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
             num_attention_heads=source.num_attention_heads,
-            max_position_embeddings=source.max_position_embeddings,
+            # max_position_embeddings=source.max_position_embeddings,
             init_method_std=source.initializer_range,
             layernorm_epsilon=source.rms_norm_eps,
             num_query_groups=source.num_key_value_heads,
@@ -106,6 +116,7 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
             window_size=[source.sliding_window, 0],
+            share_embeddings_and_output_weights=False,
         )
 
         return output

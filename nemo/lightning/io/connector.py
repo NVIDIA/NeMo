@@ -1,9 +1,12 @@
+import inspect
+import logging
 import os
 import shutil
 from pathlib import Path, PosixPath, WindowsPath
 from typing import Generic, Optional, Tuple, TypeVar
 
 import pytorch_lightning as pl
+from filelock import FileLock, Timeout
 
 # Dynamically inherit from the correct Path subclass based on the operating system.
 if os.name == 'nt':
@@ -47,6 +50,7 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
     """
 
     default_path = None
+    LOCK_TIMEOUT = 1200
 
     def init(self) -> TargetT:
         raise NotImplementedError()
@@ -63,13 +67,29 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
 
     def __call__(self, output_path: Optional[Path] = None, overwrite: bool = False) -> Path:
         _output_path = output_path or self.local_path()
+        lock_path = _output_path.with_suffix(_output_path.suffix + '.lock')
+        lock = FileLock(lock_path)
 
-        if overwrite and _output_path.exists():
-            shutil.rmtree(_output_path)
+        # Check if the lock file exists and set overwrite to False if it does
+        if lock_path.exists():
+            overwrite = False
 
-        if not _output_path.exists():
-            to_return = self.apply(_output_path)
-            _output_path = to_return or _output_path
+        try:
+            with lock.acquire(timeout=self.LOCK_TIMEOUT):
+                if overwrite and _output_path.exists():
+                    shutil.rmtree(_output_path)
+
+                if not _output_path.exists():
+                    to_return = self.apply(_output_path)
+                    _output_path = to_return or _output_path
+
+        except Timeout:
+            logging.error(f"Timeout occurred while trying to acquire the lock for {_output_path}")
+            raise
+
+        except Exception as e:
+            logging.error(f"An error occurred: {e}")
+            raise
 
         return _output_path
 
@@ -119,7 +139,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         from nemo.lightning import MegatronStrategy, Trainer
 
         _trainer = trainer or Trainer(
-            devices=1, accelerator="cpu", strategy=MegatronStrategy(store_optimizer_states=False)
+            devices=1, accelerator="cpu", strategy=MegatronStrategy(store_optimizer_states=False, ddp="pytorch")
         )
 
         _trainer.strategy.connect(model)
@@ -140,7 +160,12 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             output_path (Path): The path where the model checkpoint will be saved.
             trainer (pl.Trainer): The trainer with the strategy to save the model.
         """
-        trainer.strategy.setup(trainer)
+        _setup_kwargs = {}
+        setup_signature = inspect.signature(trainer.strategy.setup)
+        if 'setup_optimizers' in setup_signature.parameters:
+            _setup_kwargs["setup_optimizers"] = False
+
+        trainer.strategy.setup(trainer, **_setup_kwargs)
         trainer.save_checkpoint(output_path)
 
     def nemo_load(
@@ -162,7 +187,9 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         from nemo.lightning.io.api import load_ckpt
 
         model = load_ckpt(path).model
-        _trainer = trainer or Trainer(devices=1, accelerator="cpu" if cpu else "gpu", strategy=MegatronStrategy())
+        _trainer = trainer or Trainer(
+            devices=1, accelerator="cpu" if cpu else "gpu", strategy=MegatronStrategy(ddp="pytorch")
+        )
 
         _trainer.strategy.connect(model)
         _trainer.strategy.setup_environment()
@@ -189,3 +216,6 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             _base = Path(NEMO_MODELS_CACHE)
 
         return _base / str(self).replace("://", "/")
+
+    def on_import_ckpt(self, model: pl.LightningModule):
+        model.tokenizer = self.tokenizer

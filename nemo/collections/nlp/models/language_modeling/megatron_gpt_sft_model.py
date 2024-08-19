@@ -100,6 +100,15 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         self.virtual_tokens = 0
         self.init_global_step = 0
+        self.enforce_divisible_batch = True  # used for gradient accumulation
+
+        # self.previous_logits = None
+        # self.previous_forward_args = None
+        # self.previous_loss_mask = None
+
+        self.c_kl = self.cfg.get('c_kl')
+        self.use_absolute_kl = self.cfg.get('use_absolute_kl')
+        self.use_log_softmax_kl = self.cfg.get('use_log_softmax_kl')
 
         self.previous_logits = None
         self.previous_forward_args = None
@@ -364,7 +373,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
         batch = {k: v for k, v in batch.items() if isinstance(v, (torch.Tensor, list))}
         _, seq_length = batch['tokens'].shape
-        data_iter = get_iterator_k_split(batch, get_num_microbatches())
+        data_iter = get_iterator_k_split(batch, get_num_microbatches(), self.enforce_divisible_batch)
 
         if log_token_counts:
             self.log('seq_length_padded', seq_length, prog_bar=True, batch_size=1)
@@ -374,7 +383,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         no_sync_func = None
         grad_sync_func = None
         param_sync_func = None
-        if not forward_only and self.with_distributed_adam:
+        if not forward_only and self.with_distributed_adam and not self.use_mcore_dist_optim:
             no_sync_func = partial(
                 self._optimizer.no_sync,
                 greedy_grad_copy=self.megatron_amp_O2,
@@ -398,18 +407,18 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             seq_length=seq_length,
             micro_batch_size=get_micro_batch_size(),
             first_val_step=first_val_step,
-            previous_logits = self.previous_logits,
-            previous_forward_args = self.previous_forward_args,
-            previous_loss_mask = self.previous_loss_mask,
+            # previous_logits = self.previous_logits,
+            # previous_forward_args = self.previous_forward_args,
+            # previous_loss_mask = self.previous_loss_mask,
         )
-        self.previous_logits = output_logits.detach()
-        self.previous_forward_args = {
-            'input_ids': forward_args['input_ids'].detach(),
-            'position_ids': forward_args['position_ids'].detach(),
-            'labels': forward_args['labels'].detach(),
-            'attention_mask': None,
-        }
-        self.previous_loss_mask = loss_mask.detach()
+        # self.previous_logits = output_logits.detach()
+        # self.previous_forward_args = {
+        #     'input_ids': forward_args['input_ids'].detach(),
+        #     'position_ids': forward_args['position_ids'].detach(),
+        #     'labels': forward_args['labels'].detach(),
+        #     'attention_mask': None,
+        # }
+        # self.previous_loss_mask = loss_mask.detach()
 
         non_loss_tensors = {}
         # only the last stages of the pipeline return losses

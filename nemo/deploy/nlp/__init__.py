@@ -18,3 +18,5 @@ try:
     from nemo.deploy.nlp.query_llm import NemoQueryLLM
 except Exception:
     use_query_llm = False
+
+from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable

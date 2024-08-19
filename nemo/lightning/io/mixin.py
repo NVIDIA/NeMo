@@ -198,7 +198,7 @@ class ConnectorMixin:
         """
 
         def decorator(connector: Type[ConnT]) -> Type[ConnT]:
-            cls._IMPORTERS[ext] = connector
+            cls._IMPORTERS[str(cls) + ext] = connector
             if default_path:
                 connector.default_path = default_path
             return connector
@@ -221,7 +221,7 @@ class ConnectorMixin:
         """
 
         def decorator(connector: Type[ConnT]) -> Type[ConnT]:
-            cls._EXPORTERS[ext] = connector
+            cls._EXPORTERS[str(cls) + ext] = connector
             if default_path:
                 connector.default_path = default_path
             return connector
@@ -280,6 +280,8 @@ class ConnectorMixin:
         ckpt_path: Path = connector.local_path(base_path=base_path)
         ckpt_path = connector(ckpt_path, overwrite=overwrite)
 
+        connector.on_import_ckpt(self)
+
         return ckpt_path
 
     @classmethod
@@ -308,7 +310,7 @@ class ConnectorMixin:
         else:
             _path = path
 
-        connector = cls._IMPORTERS.get(ext) if importer else cls._EXPORTERS.get(ext)
+        connector = cls._IMPORTERS.get(str(cls) + ext) if importer else cls._EXPORTERS.get(str(cls) + ext)
         if not connector:
             raise ValueError(f"No connector found for extension '{ext}'")
 

@@ -44,6 +44,7 @@ from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_au
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common.hyena.hyena_spec import get_gpt_layer_with_te_and_hyena_spec
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -145,7 +146,14 @@ def mcore_supports_moe() -> bool:
         return False
 
 
-def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True):
+def convert_to_probability_distribution(tensor):
+    # exp_tensor = torch.exp(tensor - tensor.max(dim=-1, keepdims=True).values)
+    # normalized_tensor = exp_tensor / exp_tensor.sum(dim=-1, keepdim=True)
+
+    return F.softmax(tensor, dim=-1)
+
+
+def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, hyena_cfg: Dict = None):
     if num_experts is not None:
         assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
 
@@ -157,6 +165,7 @@ def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True):
         "megatron_falcon_gpt": get_falcon_layer_spec(),
         "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(),
         "modelopt": get_gpt_layer_modelopt_spec(),
+        "te_gpt_hyena": get_gpt_layer_with_te_and_hyena_spec(hyena_cfg),
     }
     if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
@@ -270,34 +279,41 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
         return ['logits']
 
 
-#from mend
-def kl_loc_loss(pre, post, mask=None, use_absolute_kl=False, use_log_softmax_kl=True):
-    pre_ = pre.to(torch.float32)
-    post_ = post.to(torch.float32)
+def simple_kl_div(probs_P, probs_Q):
+    epsilon = 1e-10
+    return ((probs_P + epsilon) * (torch.log(probs_P + epsilon) - torch.log(probs_Q + epsilon))).sum(dim=-1).mean()
 
-    # sequence = pre.dim() == 3
-    # pre_ = pre.view(-1, pre.shape[-1])
-    # post_ = post.view(pre_.shape)
-    # assert pre_.shape[0] == post_.shape[0]
 
-    # if not sequence:
-    #     if pre_.shape[-1] == 1:  # No masking needed for binary classification
-    #         return (pre.sigmoid() * (F.logsigmoid(pre) - F.logsigmoid(post))).mean() + (
-    #             (-pre).sigmoid() * (F.logsigmoid(-pre) - F.logsigmoid(-post))
-    #         ).mean()
-    # else:  # We have sequences of predictions; masking needed
-        # if pre_.shape[-1] > 1:
-    assert mask is not None
-    mask_ = mask.view(pre.shape[-1])
+def kl_loc_loss(ref_outputs, output_tensor, mask=None, use_absolute_kl=False, use_log_softmax_kl=False):
+    ref_outputs = convert_to_probability_distribution(ref_outputs).to(torch.float32)
+    output_tensor = convert_to_probability_distribution(output_tensor).to(torch.float32)
+
+    print(use_absolute_kl, use_log_softmax_kl)
+
+    # this part not properly tested!
+    if mask is not None:
+        mask = mask.view(ref_outputs.shape[-1])
+        ref_outputs = (ref_outputs * mask).sum() / mask.sum()
+
+    if not (use_absolute_kl and use_absolute_kl):
+        # kl_value = F.kl_div(output_tensor, ref_outputs, reduction='batchmean', log_target=False)
+        kl_value = simple_kl_div(ref_outputs, output_tensor)
+        assert kl_value >= 0, 'KL should not be negative, K = %0.10f!' % (kl_value)
+        return kl_value
+
     if use_log_softmax_kl:
-        _kl = (pre_.softmax(-1) * (pre_.log_softmax(-1) - post_.log_softmax(-1)))
+        output_tensor = F.log_softmax(output_tensor, dim=1)
+        # Calculate KL divergence
+        kl_value = F.kl_div(output_tensor, ref_outputs, reduction='batchmean', log_target=False)
     else:
-        _kl = pre_ - post_
-    if use_absolute_kl:
-        kl = _kl.abs().sum(0) * -1
-    else:
-        kl = _kl.sum(0)
-    return (kl * mask_).sum() / mask_.sum()
+        if use_absolute_kl:
+            kl_value = torch.mean((ref_outputs - output_tensor).abs(), dim=1).mean()
+        else:
+            kl_value = torch.mean(ref_outputs - output_tensor, dim=1).mean()
+
+    assert kl_value >= 0, 'KL should not be negative!'
+
+    return kl_value
 
 
 class MegatronGPTModel(MegatronBaseModel, TextGeneration):
@@ -375,7 +391,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     model_provider_func=self.model_provider_func,
                     wrap_with_ddp=False,
                     virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
-                    on_cpu=cfg.get('fsdp', False) and cfg.get('use_cpu_initialization', False),
+                    on_cpu=cfg.get('use_cpu_initialization', False),
                 )
 
         # if we're not using interleaved, then self.model is a module.
@@ -433,6 +449,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.use_loss_mask and self.transformer_config.sequence_parallel:
             raise ValueError('Loss mask is not supported with sequence parallelism.')
 
+    def set_reference_model(self, ref_model):
+        self.ref_model = ref_model
+
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
@@ -449,6 +468,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     self.transformer_config.num_moe_experts,
                     self.transformer_config.moe_grouped_gemm,
                     self.transformer_engine,
+                    self.cfg.get('hyena', None),
                 ),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
@@ -564,8 +584,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     config,
                     ddp_config,
                     model_chunk,
-                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
                     # Turn off bucketing for model_chunk 2 onwards, since communication for these
                     # model chunks is overlapped with compute anyway.
                     disable_bucketing=(model_chunk_idx > 0),
@@ -581,6 +599,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.with_distributed_adam and not self.use_mcore_dist_optim:
 
             # Special handling for embedding grads
+            with_fp32_embedding_grads = self.cfg.get('with_fp32_embedding_grads', True)
             modules = self.get_model_module_list()
             if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
                 module = modules[0]  # first virtual rank has the embeddings
@@ -590,7 +609,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 word_embeddings = (
                     module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
                 )
-                word_embeddings._with_fp32_optimizer = True
+                word_embeddings._with_fp32_optimizer = with_fp32_embedding_grads
                 if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.get(
                     'share_embeddings_and_output_weights', True
                 ):
@@ -605,7 +624,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 else:
                     position_embeddings = module.position_embeddings_weight()
                 if position_embeddings is not None:
-                    position_embeddings._with_fp32_optimizer = True
+                    position_embeddings._with_fp32_optimizer = with_fp32_embedding_grads
 
             # Handle case where embeddings are used in output layer
             if parallel_state.is_pipeline_last_stage(ignore_virtual=True) and self.cfg.get(
@@ -615,7 +634,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 word_embeddings = (
                     module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
                 )
-                word_embeddings._with_fp32_optimizer = True
+                word_embeddings._with_fp32_optimizer = with_fp32_embedding_grads
                 if parallel_state.get_pipeline_model_parallel_world_size() > 1:
                     word_embeddings._disable_greedy_grad_copy = not self.megatron_amp_O2
                     word_embeddings._disable_overlap_grad_sync = True
@@ -918,10 +937,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.megatron_timer_stop('allreduce_first_last_embeddings')
 
         if self.log_memory_usage:
-            mem_reserved = torch.cuda.max_memory_reserved()
+            max_memory_reserved = torch.cuda.max_memory_reserved()
+            memory_allocated = torch.cuda.memory_allocated()
             self.log(
                 'peak_memory_usage',
-                mem_reserved,
+                max_memory_reserved,
+                prog_bar=True,
+                rank_zero_only=True,
+                batch_size=1,
+            )
+            self.log(
+                'memory_allocated',
+                memory_allocated,
                 prog_bar=True,
                 rank_zero_only=True,
                 batch_size=1,
@@ -1157,6 +1184,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'tokens': data["tokens"],
             'labels': data["labels"],
             'loss_mask': data["loss_mask"],
+            'attention_mask': None if "attention_mask" not in data else data["attention_mask"],
             'position_ids': data["position_ids"],
         }
         if "attention_mask" in data:
@@ -1270,12 +1298,28 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             output_tensor = model(**forward_args)
 
             loss_mask = batch['loss_mask']
-            kl_div = torch.tensor(0., device=loss_mask.device)
-            if self.c_kl > 0 and previous_logits is not None and previous_forward_args is not None and previous_loss_mask is not None:
-                post_logits = model(**previous_forward_args)
-                kl_div = kl_loc_loss(previous_logits, post_logits, 
-                                     previous_loss_mask,
-                                    self.use_absolute_kl, self.use_log_softmax_kl)
+            kl_div = torch.tensor(0.0, device=loss_mask.device)
+            if self.c_kl > 0:
+                # print(forward_args)
+                # ref_logits = self.ref_model(**forward_args, forward_only=True)
+                ref_outputs = (
+                    self.ref_model.forward(
+                        tokens=forward_args['input_ids'],
+                        text_position_ids=forward_args['position_ids'],
+                        attention_mask=forward_args['attention_mask'],
+                        labels=None,
+                    )
+                    .max(dim=-1)
+                    .values
+                )
+
+                kl_div = kl_loc_loss(
+                    ref_outputs,
+                    output_tensor,
+                    forward_args['attention_mask'],
+                    self.use_absolute_kl,
+                    self.use_log_softmax_kl,
+                )
                 if wandb.run:
                     wandb.log({'kl-div': kl_div})
 
@@ -1506,8 +1550,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Where N_d is the total number of samples in a dataset (files), and N is the requested number of samples (provided for every split in the list below).
         # Setting N = 1 we force E to be 1 as well
         if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            train_valid_test_num_samples[1] = 1
-
+            train_valid_test_num_samples[1] = None
         # Add extra FIM tokens to tokenizer
         if self.cfg.data.get('add_fim', False) and self.cfg.tokenizer.library == 'megatron':
             fim_tokens = self.cfg.data.fim.extra_tokens
@@ -1532,6 +1575,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             is_dataset_built_on_rank = lambda: True
 
             mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
+            add_extra_token = not self.cfg.data.get("no_seqlen_plus_one_input_tokens", False)
             kwargs = {
                 "random_seed": self.cfg.seed,
                 "sequence_length": self.cfg.data.seq_length,
@@ -1540,7 +1584,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "reset_position_ids": self.reset_position_ids,
                 "reset_attention_mask": self.reset_attention_mask,
                 "eod_mask_loss": self.eod_mask_loss,
+                "create_attention_mask": not self.get_attention_mask_from_fusion,
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
+                "drop_last_partial_validation_sequence": self.cfg.data.get("validation_drop_last", True),
+                "add_extra_token_to_sequence": add_extra_token,
             }
 
             data_prefix = self.cfg.data.data_prefix
@@ -2032,6 +2079,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         as the megatron core TransformerConfig, we will use the value from the nemo model config.
         For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
+
+        if self.cfg.num_layers % self.cfg.get('pipeline_model_parallel_size', 1) != 0:
+            raise ValueError(
+                f"num_layers ({self.cfg.num_layers}) should be divisible by "
+                f"pipeline_model_parallel_size ({self.cfg.get('pipeline_model_parallel_size', 1)})"
+            )
 
         normalization = self.cfg.get('normalization', 'layernorm').lower()
         layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
