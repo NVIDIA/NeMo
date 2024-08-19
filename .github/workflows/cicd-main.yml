@@ -2661,7 +2661,8 @@ jobs:
         model.hidden_size=256 \
         model.num_attention_heads=8 \
         model.data.data_prefix=[] \
-        model.data.index_mapping_dir=mock
+        model.data.data_impl=mock \
+        model.dist_ckpt_format=torch_dist
       AFTER_SCRIPT: |
         rm -rf examples/nlp/language_modeling/gpt_pretrain_results
         rm -rf examples/nlp/language_modeling/gpt_index_mappings
