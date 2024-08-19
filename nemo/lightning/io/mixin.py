@@ -432,12 +432,23 @@ def _io_init(self, **kwargs) -> fdl.Config[Self]:
     -------
         fdl.Config[Self]: The initialized configuration object.
     """
-    return fdl.Config(type(self), **kwargs)
+    try:
+        return fdl.Config(type(self), **kwargs)
+    except Exception as e:
+        error_msg = (
+            f"Error creating fdl.Config for {type(self).__name__}: {str(e)}\n"
+            f"Arguments that caused the error: {kwargs}\n"
+            f"This may be due to unsupported argument types or nested configurations."
+        )
+        raise RuntimeError(error_msg) from e
 
 
 def _io_wrap_init(cls):
     """Wraps the __init__ method of a class to add IO functionality."""
     original_init = cls.__init__
+
+    if getattr(cls, "__wrapped_init__", False):
+        return cls
 
     @functools.wraps(original_init)
     def wrapped_init(self, *args, **kwargs):
@@ -453,6 +464,7 @@ def _io_wrap_init(cls):
         original_init(self, *args, **kwargs)
 
     cls.__init__ = wrapped_init
+    cls.__wrapped_init__ = True
     return cls
 
 
@@ -502,6 +514,10 @@ def _io_path_elements_fn(x):
 def _artifact_transform(cfg: fdl.Config, output_path: Path):
     for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
         current_val = getattr(cfg, artifact.attr)
+        if current_val is None:
+            if artifact.required:
+                raise ValueError(f"Artifact '{artifact.attr}' is required but not provided")
+            continue
         new_val = artifact.dump(current_val, output_path)
         setattr(cfg, artifact.attr, new_val)
 
