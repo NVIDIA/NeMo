@@ -150,7 +150,7 @@ def mcore_supports_moe() -> bool:
 def convert_to_probability_distribution(tensor):
     # exp_tensor = torch.exp(tensor - tensor.max(dim=-1, keepdims=True).values)
     # normalized_tensor = exp_tensor / exp_tensor.sum(dim=-1, keepdim=True)
-    
+
     return F.softmax(tensor, dim=-1)
 
 
