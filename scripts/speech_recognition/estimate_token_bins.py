@@ -302,7 +302,10 @@ def main():
         num_subbuckets=args.sub_buckets,
         quiet=args.quiet,
     )
-    token_bins = "[" + ','.join(f"[{b:d},{sb:d}]" for b, sb in token_bins) + "]"
+    if args.sub_buckets is not None:
+        token_bins = "[" + ','.join(f"[{b:d},{sb:d}]" for b, sb in token_bins) + "]"
+    else:
+        token_bins = "[" + ','.join(f"{b:d}" for b in token_bins) + "]"
     if args.quiet:
         print(token_bins)
         return
