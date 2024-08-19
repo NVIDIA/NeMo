@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Union, Optional
 
 import torch.utils.data
 from lhotse import CutSet
@@ -32,7 +32,7 @@ class PromptedAudioToTextMiniBatch:
     prompt_lens: torch.Tensor
     prompted_transcript: torch.Tensor
     prompted_transcript_lens: torch.Tensor
-    cuts: Optional[CutSet | None] = None
+    cuts: Optional[CutSet] = None
 
     def get_decoder_inputs_outputs(self) -> tuple[torch.Tensor, torch.Tensor]:
         """
@@ -102,7 +102,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             cuts=cuts.drop_in_memory_data(),
         )
 
-    def _collate_tokens(self, tokens: list[list[int] | torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+    def _collate_tokens(self, tokens: list[Union[list[int], torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
         tokens = [torch.as_tensor(t) for t in tokens]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
         tokens = collate_vectors(tokens, padding_value=self.padding_value)
