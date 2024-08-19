@@ -258,15 +258,17 @@ class TimingCallback(Callback):
 
     def _on_batch_end(self, name, pl_module):
         self.timer.stop(name)
+        step_time = self.timer[name]
         # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
         pl_module.log(
             name + ' in s',
-            self.timer[name],
+            step_time,
             on_step=True,
             on_epoch=False,
             batch_size=1,
             prog_bar=(name == "train_step_timing"),
         )
+        setattr(pl_module, name, step_time)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         self._on_batch_start("train_step_timing")

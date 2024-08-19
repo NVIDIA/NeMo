@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional
+from functools import cached_property
 
 import numpy as np
 from pytorch_lightning.callbacks import Callback
@@ -68,6 +69,49 @@ class FLOPsMeasurementCallback(Callback):
 
         self.model = self.model.lower() if self.model is not None else self.model
 
+    def setup(self, trainer, pl_module, stage):
+        """
+        PyTorch Lightning callback hook to calculate model FLOPs before fit/test
+        """
+        try:
+            self.total_flops, self.flops_per_gpu = self.eval_model_flops()
+        except Exception as exc:
+            logging.warning(f"Failed to calculate model flops. Skipping computing TFLOPs per sec per gpu per step.")
+            self.total_flops, self.flops_per_gpu = -1, -1
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        if hasattr(pl_module, "train_step_timing"):
+            pl_module.log(
+                f"train_tflops_per_sec_per_gpu",
+                round(self.flops_per_gpu/(1e12 * getattr(pl_module, 'train_step_timing')), 2),
+                on_step=True,
+                on_epoch=False,
+                batch_size=1,
+                prog_bar=True
+                )
+
+    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        if hasattr(pl_module, "validation_step_timing"):
+            pl_module.log(
+                f"validation_tflops_per_sec_per_gpu",
+                round(self.flops_per_gpu/(1e12 * getattr(pl_module, 'validation_step_timing')), 2),
+                on_step=True,
+                on_epoch=False,
+                batch_size=1,
+                prog_bar=True
+                )
+
+    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        if hasattr(pl_module, "test_step_timing"):
+            pl_module.log(
+                f"test_tflops_per_sec_per_gpu",
+                round(self.flops_per_gpu/(1e12 * getattr(pl_module, 'test_step_timing')), 2),
+                on_step=True,
+                on_epoch=False,
+                batch_size=1,
+                prog_bar=True
+                )
+
     def on_train_end(self, trainer, pl_module):
         """
         PyTorch Lightning callback hook to calculate TFLOPs per sec per GPU after training
@@ -106,6 +150,7 @@ class FLOPsMeasurementCallback(Callback):
 
         return flops_per_gpu / (1e12 * train_step_time)
 
+    @cached_property
     def eval_model_flops(self):
         """
         Calculate model FLOPs for a given model
