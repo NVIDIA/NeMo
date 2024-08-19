@@ -159,7 +159,7 @@ class BeamTDTInfer(Typing):
         softmax_temperature: float = 1.0,
         preserve_alignments: bool = False,
         ngram_lm_model: Optional[str] = None,
-        ngram_lm_alpha: float = 0.3
+        ngram_lm_alpha: float = 0.3,
     ):
         self.joint = joint_model
         self.decoder = decoder_model
@@ -489,7 +489,7 @@ class BeamTDTInfer(Typing):
 
         beam = min(self.beam_size, self.vocab_size)
         duration_beam = min(self.max_candidates, len(self.durations))
-        
+
         beam_state = self.decoder.initialize_state(
             torch.zeros(beam, device=encoder_outputs.device, dtype=encoder_outputs.dtype)
         )  # [L, B, H], [L, B, H] for LSTMS
