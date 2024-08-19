@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass
-from typing import Callable, Union, Optional
+from typing import Callable, Optional, Union
 
 import torch.utils.data
 from lhotse import CutSet
