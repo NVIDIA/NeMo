@@ -483,8 +483,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         raise ValueError("Cannot infer `num_microbatches` from data, please specify it manually")
 
     def init_tensor_parallel_overlap(self, micro_batch_size, sequence_length):
-        from megatron.core import parallel_state
         import transformer_engine
+        from megatron.core import parallel_state
 
         hidden_size = self.config.hidden_size
         fp8 = self.config.fp8
@@ -493,9 +493,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
 
         input_shape = [
-            sequence_length
-            * micro_batch_size
-            // cp_size,
+            sequence_length * micro_batch_size // cp_size,
             hidden_size,
         ]
 
@@ -513,7 +511,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             self.tensor_parallel_overlap_need_init = False
         except Exception as error:
             raise Exception(f"Tensor parallel overlap: userbuffer initialization failed with {error}")
-
 
     def init_model_parallel(self):
         from megatron.core import parallel_state
