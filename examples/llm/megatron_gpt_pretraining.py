@@ -25,9 +25,11 @@ def get_args():
     parser.add_argument('--vocab-path', type=str, help="Path to vocab file")
     parser.add_argument('--merges-path', type=str, help="Path to merges file")
     parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
-    parser.add_argument('--no-masked-softmax-fusion', action='store_false',
-                        help='Disable fusion of softmax.',
-                        dest='masked_softmax_fusion'
+    parser.add_argument(
+        '--no-masked-softmax-fusion',
+        action='store_false',
+        help='Disable fusion of softmax.',
+        dest='masked_softmax_fusion',
     )
 
     return parser.parse_args()
