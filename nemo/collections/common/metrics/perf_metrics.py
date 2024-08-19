@@ -74,16 +74,17 @@ class FLOPsMeasurementCallback(Callback):
         PyTorch Lightning callback hook to calculate model FLOPs before fit/test
         """
         try:
-            self.total_flops, self.flops_per_gpu = self.eval_model_flops()
+            _, flops_per_gpu = self.eval_model_flops()
+            self.tflops_per_gpu = flops_per_gpu / 1e12
         except Exception as exc:
             logging.warning(f"Failed to calculate model flops. Skipping computing TFLOPs per sec per gpu per step.")
-            self.total_flops, self.flops_per_gpu = -1, -1
+            self.tflops_per_gpu = -1
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        if hasattr(pl_module, "train_step_timing"):
+        if hasattr(pl_module, "train_step_timing") and self.tflops_per_gpu != -1:
             pl_module.log(
                 f"train_tflops_per_sec_per_gpu",
-                round(self.flops_per_gpu/(1e12 * getattr(pl_module, 'train_step_timing')), 2),
+                round(self.tflops_per_gpu/getattr(pl_module, 'train_step_timing'), 2),
                 on_step=True,
                 on_epoch=False,
                 batch_size=1,
@@ -91,10 +92,10 @@ class FLOPsMeasurementCallback(Callback):
                 )
 
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        if hasattr(pl_module, "validation_step_timing"):
+        if hasattr(pl_module, "validation_step_timing") and self.tflops_per_gpu != -1:
             pl_module.log(
                 f"validation_tflops_per_sec_per_gpu",
-                round(self.flops_per_gpu/(1e12 * getattr(pl_module, 'validation_step_timing')), 2),
+                round(self.tflops_per_gpu/getattr(pl_module, 'validation_step_timing'), 2),
                 on_step=True,
                 on_epoch=False,
                 batch_size=1,
@@ -102,10 +103,10 @@ class FLOPsMeasurementCallback(Callback):
                 )
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        if hasattr(pl_module, "test_step_timing"):
+        if hasattr(pl_module, "test_step_timing") and self.tflops_per_gpu != -1:
             pl_module.log(
                 f"test_tflops_per_sec_per_gpu",
-                round(self.flops_per_gpu/(1e12 * getattr(pl_module, 'test_step_timing')), 2),
+                round(self.tflops_per_gpu/getattr(pl_module, 'test_step_timing'), 2),
                 on_step=True,
                 on_epoch=False,
                 batch_size=1,
