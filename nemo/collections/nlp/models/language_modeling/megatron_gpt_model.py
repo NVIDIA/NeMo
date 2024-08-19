@@ -24,6 +24,7 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 
 import packaging
 import torch
+import transformer_engine_extensions as tex
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
@@ -1197,20 +1198,23 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if cp_size > 1:
             cp_rank = parallel_state.get_context_parallel_rank()
             for key, val in batch.items():
-                if val is not None:
-                    seq_dim = 1 if key != 'attention_mask' else 2
-                    val = val.view(
-                        *val.shape[0:seq_dim],
-                        2 * cp_size,
-                        val.shape[seq_dim] // (2 * cp_size),
-                        *val.shape[(seq_dim + 1) :],
-                    )
-                    index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True).cuda(
-                        non_blocking=True
-                    )
-                    val = val.index_select(seq_dim, index)
-                    val = val.view(*val.shape[0:seq_dim], -1, *val.shape[(seq_dim + 2) :])
-                    batch[key] = val
+                # check if the batch is not in THD format
+                if 'cu_seqlens' not in batch:
+                    for key, val in batch.items():
+                        if val is not None:
+                            seq_dim = 1 if key != 'attention_mask' else 2
+                            val = val.view(
+                                *val.shape[0:seq_dim],
+                                2 * cp_size,
+                                val.shape[seq_dim] // (2 * cp_size),
+                                *val.shape[(seq_dim + 1) :],
+                            )
+                            index = torch.tensor(
+                                [cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True
+                            ).cuda(non_blocking=True)
+                            val = val.index_select(seq_dim, index)
+                            val = val.view(*val.shape[0:seq_dim], -1, *val.shape[(seq_dim + 2) :])
+                            batch[key] = val
 
         batch['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
 
@@ -1282,6 +1286,26 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         )
                         raise e
 
+                    # get packed sequences for this context parallel rank
+                    cp_size = parallel_state.get_context_parallel_world_size()
+                    if cp_size > 1:
+                        cp_rank = parallel_state.get_context_parallel_rank()
+                        for key in required_keys:
+                            val = batch[key]
+                            if key != "cu_seqlens":
+                                seq_dim = 1 if key != 'attention_mask' else 2
+                                index = tex.thd_get_partitioned_indices(
+                                    cu_seqlens, val.size(seq_dim), cp_size, cp_rank
+                                )
+                                val = val.index_select(seq_dim, index)
+                                batch[key] = val
+                        cu_seqlens = cu_seqlens // cp_size
+                        forward_args = {
+                            'input_ids': batch['tokens'],
+                            'position_ids': batch['position_ids'],
+                            'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
+                            'labels': batch['labels'] if 'labels' in batch else None,
+                        }
                     forward_args['packed_seq_params'] = PackedSeqParams(
                         cu_seqlens_q=cu_seqlens,
                         cu_seqlens_kv=cu_seqlens,

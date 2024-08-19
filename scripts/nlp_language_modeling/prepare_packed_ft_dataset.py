@@ -88,6 +88,14 @@ def tokenize_dataset(cfg: 'DictConfig'):
     # using the same template as SFT/PEFT script. This may be overkill but guarantees the preprocess settings
     # are identical to normal SFT training
     data_cfg = cfg.model.data.train_ds
+    pad_seq_length_to_mult = 16
+    cp_size = cfg.model.context_parallel_size
+
+    # if context parallel is used, each individual data length in one packed dataset sample
+    # needs to be a multiple of (cp_size * 2): https://github.com/NVIDIA/TransformerEngine/pull/641
+    if cp_size > 1:
+        pad_seq_length_to_mult = max(pad_seq_length_to_mult, cp_size * 2)
+
     if os.path.isdir(cfg.tokenizer_path):
         # pass in a Hugging Face folder which contains tokenizer.json
         tokenizer = get_nmt_tokenizer(library="huggingface", model_name=cfg.tokenizer_path, use_fast=True)
@@ -99,7 +107,7 @@ def tokenize_dataset(cfg: 'DictConfig'):
         tokenizer=tokenizer,
         max_seq_length=data_cfg.max_seq_length,
         min_seq_length=data_cfg.min_seq_length,
-        pad_seq_length_to_mult=16,  # adds padding in collate_fn so this value is irrelevant here
+        pad_seq_length_to_mult=pad_seq_length_to_mult
         add_bos=data_cfg.get('add_bos', False),
         add_eos=data_cfg.get('add_eos', True),
         add_sep=data_cfg.get('add_sep', False),
@@ -121,7 +129,27 @@ def tokenize_dataset(cfg: 'DictConfig'):
         is_test=True,
     )
 
-    return np.array([dataset[i] for i in range(len(dataset))])
+    max_seq_length = dataset.max_seq_length
+    pad_id = dataset.tokenizer.eos_id
+    pad_seq_length_to_mult = dataset.pad_seq_length_to_mult
+    dataset = np.array([dataset[i] for i in range(len(dataset))])
+    if cp_size > 1:
+        def pre_pad_dataset(data, max_length, pad_id):
+            '''
+            pad each individual data point to the length of max_length
+            '''
+            for key, val in data.items():
+                if key in {'input_ids', 'context_ids'}:
+                    # because input_ids is truncated by 1 for labels in the collate_fn of GPTSFTPackedDataset
+                    # in gpt_sft_dataset.py, we add 1 extra padding here
+                    val = val + [pad_id] * (max_length - len(val) + 1)
+                    data[key] = val
+            return
+        ceil_to_nearest = lambda n, m: (n + m - 1) // m * m
+        for data in dataset:
+            max_length = min(max_seq_length, ceil_to_nearest(len(data['input_ids']), pad_seq_length_to_mult))
+            pre_pad_dataset(data, max_length, pad_id)
+    return dataset
 
 
 @dataclass
