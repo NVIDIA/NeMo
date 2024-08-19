@@ -23,6 +23,7 @@ from importlib.metadata import version
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
+import transformer_engine_extensions as tex
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
@@ -1266,6 +1267,26 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         )
                         raise e
 
+                    # get packed sequences for this context parallel rank
+                    cp_size = parallel_state.get_context_parallel_world_size()
+                    if cp_size > 1:
+                        cp_rank = parallel_state.get_context_parallel_rank()
+                        for key in required_keys:
+                            val = batch[key]
+                            if key != "cu_seqlens":
+                                seq_dim = 1 if key != 'attention_mask' else 2
+                                index = tex.thd_get_partitioned_indices(
+                                    cu_seqlens, val.size(seq_dim), cp_size, cp_rank
+                                )
+                                val = val.index_select(seq_dim, index)
+                                batch[key] = val
+                        cu_seqlens = cu_seqlens // cp_size
+                        forward_args = {
+                            'input_ids': batch['tokens'],
+                            'position_ids': batch['position_ids'],
+                            'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
+                            'labels': batch['labels'] if 'labels' in batch else None,
+                        }
                     forward_args['packed_seq_params'] = PackedSeqParams(
                         cu_seqlens_q=cu_seqlens,
                         cu_seqlens_kv=cu_seqlens,
