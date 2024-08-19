@@ -21,10 +21,11 @@ import lhotse
 import numpy as np
 import pytest
 import torch
-from lhotse import CutSet, MonoCut, NumpyFilesWriter, Recording
+from lhotse import CutSet, MonoCut, NumpyFilesWriter, Recording, SupervisionSegment, compute_num_samples
 from lhotse.audio import AudioLoadingError
 from lhotse.cut import Cut, MixedCut
 from lhotse.cut.text import TextPairExample
+from lhotse.testing.dummies import dummy_recording
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
@@ -199,6 +200,7 @@ def test_dataloader_from_lhotse_cuts(cutset_path: Path):
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "drop_last": False,
             "batch_duration": 4.0,  # seconds
@@ -354,6 +356,7 @@ def test_dataloader_from_lhotse_shar_cuts(cutset_shar_path: Path):
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "drop_last": False,
             "batch_duration": 4.0,  # seconds
@@ -400,6 +403,7 @@ def test_dataloader_from_nemo_manifest(nemo_manifest_path: Path):
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "drop_last": False,
             "batch_duration": 4.0,  # seconds
@@ -477,6 +481,7 @@ def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: tuple[s
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "drop_last": False,
             "batch_duration": 4.0,  # seconds
@@ -524,6 +529,7 @@ def test_dataloader_from_tarred_nemo_manifest_weighted_combination(nemo_tarred_m
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "drop_last": False,
             "batch_duration": 4.0,  # seconds
@@ -556,6 +562,7 @@ def test_dataloader_from_tarred_nemo_manifest_multi(nemo_tarred_manifest_path_mu
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "drop_last": False,
             "batch_duration": 4.0,  # seconds
@@ -603,6 +610,7 @@ def test_dataloader_from_tarred_nemo_manifest_multi_max_open_streams(nemo_tarred
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "max_open_streams": 1,
             "drop_last": False,
@@ -693,6 +701,7 @@ def test_dataloader_from_lhotse_shar_cuts_combine_datasets_unweighted(
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "drop_last": False,
             "batch_duration": 4.0,  # seconds
@@ -745,6 +754,7 @@ def test_dataloader_from_lhotse_shar_cuts_combine_datasets_weighted(
             "num_workers": 0,
             # lhotse specific
             "use_bucketing": True,
+            "concurrent_bucketing": False,
             "num_buckets": 2,
             "drop_last": False,
             "batch_duration": 4.0,  # seconds
@@ -1577,6 +1587,69 @@ def test_dataloader_with_synth_rir(cutset_path: Path):
         assert isinstance(tfnm, ReverbWithImpulseResponse)
 
 
+def test_dataloader_bucket_batch_size(nemo_tarred_manifest_path_multi: tuple[str, str]):
+    json_mft, tar_mft = nemo_tarred_manifest_path_multi
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": json_mft,
+            "tarred_audio_filepaths": tar_mft,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            # lhotse specific
+            "use_bucketing": True,
+            "concurrent_bucketing": False,
+            # Note: all input cuts belong to the first bucket so the batch size will always be 2.
+            "bucket_duration_bins": [2.0, 4.0],
+            "bucket_batch_size": [2, 1],
+            "drop_last": False,
+            "shuffle_buffer_size": 10,
+            "bucket_buffer_size": 100,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    for b in islice(dl, 10):
+        assert len(b) == 2
+
+
+def test_dataloader_2d_bucketing(nemo_tarred_manifest_path_multi: tuple[str, str], en_es_tokenizer):
+    json_mft, tar_mft = nemo_tarred_manifest_path_multi
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": json_mft,
+            "tarred_audio_filepaths": tar_mft,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            # lhotse specific
+            "use_bucketing": True,
+            "concurrent_bucketing": False,
+            # Here each bin has the format: [audio_duration, token_sequence_length]
+            "bucket_duration_bins": [[0.5, 1], [0.5, 2], [2.0, 5], [2.0, 15], [4.0, 10], [4.0, 20]],
+            "bucket_batch_size": [7, 6, 5, 4, 3, 2],
+            "drop_last": False,
+            "shuffle_buffer_size": 10,
+            "bucket_buffer_size": 100,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity(), tokenizer=en_es_tokenizer
+    )
+
+    # All of our data have duration 1.0 and 10 tokens so they will fall to bin[3] with batch_size=4
+    for b in islice(dl, 10):
+        assert len(b) == 4
+
+
 @pytest.fixture(scope="session")
 def questions_path(tmp_path_factory) -> Path:
     """A text file with 10 lines containing question values"""
@@ -1614,6 +1687,7 @@ def test_dataloader_from_nemo_nontarred_manifest_with_extra_questions_field_iter
     )
 
     dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
     b = next(iter(dl))
     c = b[0]
     assert isinstance(c, MonoCut)
@@ -1718,3 +1792,116 @@ def test_dataloader_from_nemo_manifest_with_extra_questions_field_sample(
     assert isinstance(c, MonoCut)
     assert hasattr(c, "question")
     assert c.question == "some question number 8"
+
+
+@pytest.fixture(scope="session")
+def nemo_tarred_manifest_path_with_offset(tmp_path_factory) -> Tuple[str, str]:
+    """10 utterances of length 1s as a NeMo tarred manifest."""
+    from lhotse.serialization import SequentialJsonlWriter
+    from lhotse.shar.writers import TarWriter
+
+    root = tmp_path_factory.mktemp("nemo_tar_offset")
+    root.mkdir(exist_ok=True)
+    recording = dummy_recording(0, duration=10.0, with_data=True)
+
+    with (
+        TarWriter(f"{root}/audios_0.tar", shard_size=None) as tar_writer,
+        SequentialJsonlWriter(root / "tarred_audio_filepaths.jsonl") as mft_writer,
+    ):
+
+        def audio_path(n: int = None):
+            return recording.id + ("" if n is None else f"-sub{n}") + ".wav"
+
+        tar_writer.write(audio_path(), BytesIO(recording.sources[0].source))
+        mft_writer.write(
+            {  # segment 0-3s
+                "audio_filepath": audio_path(),
+                "offset": 0.0,
+                "duration": 3.0,
+                "text": "irrelevant",
+                "lang": "en",
+                "shard_id": 0,
+            }
+        )
+        mft_writer.write(
+            {  # segment 4-9s
+                "audio_filepath": audio_path(1),
+                "offset": 4.0,
+                "duration": 5.0,
+                "text": "irrelevant-2",
+                "lang": "en",
+                "shard_id": 0,
+            }
+        )
+        mft_writer.write(
+            {  # full recording - for reference
+                "audio_filepath": audio_path(2),
+                "offset": 0.0,
+                "duration": 10.0,
+                "text": "irrelevant irrelevant-2",
+                "lang": "en",
+                "shard_id": 0,
+            }
+        )
+    return mft_writer.path, tar_writer.output_paths[0]
+
+
+def test_dataloader_from_tarred_nemo_manifest_with_offset(nemo_tarred_manifest_path_with_offset: tuple[str, str]):
+    json_mft, tar_mft = nemo_tarred_manifest_path_with_offset
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": json_mft,
+            "tarred_audio_filepaths": tar_mft,
+            "sample_rate": 16000,
+            "shuffle": False,
+            "num_workers": 0,
+            "batch_size": 3,
+            "seed": 0,
+            "shard_seed": 0,
+            "force_finite": True,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Loads all three examples in a single mini-batch (that's why batch_size=3).
+    batches = [b for b in dl]
+    assert len(batches) == 1
+    (batch,) = batches
+    assert len(batch) == 3
+
+    # Validate example containing full 10s recording.
+    full_cut = batch[1]
+    assert full_cut.start == 0.0
+    assert full_cut.duration == 10.0
+    assert full_cut.supervisions[0].text == "irrelevant irrelevant-2"
+    assert full_cut.supervisions[0].language == "en"
+    full_audio = full_cut.load_audio()
+    assert full_audio.shape[1] == full_cut.num_samples == 160000  # 10s * 16kHz
+
+    # Validate segment 0-3s.
+    cut = batch[2]
+    assert cut.start == 0.0
+    assert cut.duration == 3.0
+    assert cut.supervisions[0].text == "irrelevant"
+    assert cut.supervisions[0].language == "en"
+    audio = cut.load_audio()
+    assert audio.shape[1] == cut.num_samples
+    # Check the audio for the segment is identical to a slice of the full audio.
+    np.testing.assert_equal(audio, full_audio[:, : compute_num_samples(cut.duration, cut.sampling_rate)])
+
+    # Validate segment 4-9s.
+    # Note: LazyNeMoTarredIterator removes the offset information, as it creates a new recording
+    # that's a "subset" of the original recording as a memory saving optimization.
+    # Hence, we will not see cut.start == 4.0.
+    cut = batch[0]
+    assert cut.start == 0.0
+    assert cut.duration == 5.0
+    assert cut.supervisions[0].text == "irrelevant-2"
+    assert cut.supervisions[0].language == "en"
+    audio = cut.load_audio()
+    assert audio.shape[1] == cut.num_samples
+    # Check the audio for the segment is identical to a slice of the full audio.
+    np.testing.assert_equal(
+        audio, full_audio[:, compute_num_samples(4.0, cut.sampling_rate) : compute_num_samples(9.0, cut.sampling_rate)]
+    )

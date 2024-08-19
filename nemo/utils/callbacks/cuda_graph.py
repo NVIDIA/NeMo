@@ -139,25 +139,6 @@ def to_tensor(self, value, name):
     return value
 
 
-def register_key(self, key, meta, value):
-    # PyTorch Lightning creates all metrics on GPU, but creating the metric on
-    # its input device is prefered.
-    # Refer to: https://github.com/Lightning-AI/pytorch-lightning/blob/2.0.7/src/lightning/pytorch/trainer/connectors/logger_connector/result.py#L409
-    metric = _ResultMetric(meta, isinstance(value, torch.Tensor))
-    device = value.device if isinstance(value, torch.Tensor) else self.device
-    metric = metric.to(device)
-    self[key] = metric
-
-
-def update_metrics(self, key, value, batch_size):
-    # PyTorch Lightning always move all metrics to GPU, but moving the metric to
-    # its input device is prefered.
-    result_metric = self[key]
-    device = value.device if isinstance(value, torch.Tensor) else self.device
-    result_metric.forward(value.to(device), batch_size)
-    result_metric.has_reset = False
-
-
 def get_optimizer_step(state):
     def optimizer_step(
         self,
@@ -374,10 +355,6 @@ class CUDAGraphCallback(Callback):
         # Use smart metrics to avoid syncs
         LightningModule.__orig_to_tensor__ = LightningModule._LightningModule__to_tensor
         LightningModule._LightningModule__to_tensor = to_tensor
-        _ResultCollection.__orig_register_key__ = _ResultCollection.register_key
-        _ResultCollection.register_key = register_key
-        _ResultCollection.__orig_update_metrics__ = _ResultCollection.update_metrics
-        _ResultCollection.update_metrics = update_metrics
 
         # Save model outputs to static buffer for PL states reconstruct
         pl_module.__orig_training_step__ = pl_module.training_step
@@ -409,10 +386,6 @@ class CUDAGraphCallback(Callback):
 
         LightningModule._LightningModule__to_tensor = LightningModule.__orig_to_tensor__
         del LightningModule.__orig_to_tensor__
-        _ResultCollection.register_key = _ResultCollection.__orig_register_key__
-        del _ResultCollection.__orig_register_key__
-        _ResultCollection.update_metrics = _ResultCollection.__orig_update_metrics__
-        del _ResultCollection.__orig_update_metrics__
 
         pl_module.training_step = pl_module.__orig_training_step__
         del pl_module.__orig_training_step__

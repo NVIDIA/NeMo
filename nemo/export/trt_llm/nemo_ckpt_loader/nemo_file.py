@@ -25,7 +25,9 @@ import tensorstore  # This is important even though not used. Otherwise zarr rai
 import torch
 import yaml
 import zarr
-from torch.distributed.checkpoint import FileSystemReader
+from tensorrt_llm._utils import np_bfloat16
+from torch.distributed.checkpoint import FileSystemReader, TensorStorageMetadata
+from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
@@ -56,9 +58,11 @@ class TarFileSystemReader(FileSystemReader):
     """
 
     def __init__(self, path: Union[Path, TarPath]) -> None:
-        """No call to super().__init__ because it expects pure Path."""
-        self.path = path
-        self.storage_data = dict()
+        """Makes sure that super().__init__ gets a pure path as expected."""
+        super_path = str(path) if isinstance(path, TarPath) else path
+        super().__init__(super_path)
+        if isinstance(path, TarPath):
+            self.path = path  # overwrites path set in super().__init__ call
 
 
 def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
@@ -244,9 +248,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                 tokenizer_config["model"] = os.path.join(nemo_export_dir, "tokenizer.model")
                 tokenizer = build_tokenizer(tokenizer_config)
         else:
-            raise Exception(
-                "Not a supported nemo file format. " "Only distributed mcore nemo checkpoints are support."
-            )
+            raise Exception("Not a supported NeMo file format: only distributed MCore NeMo checkpoints are supported.")
     finally:
         if isinstance(nemo_dir, TarPath):
             nemo_dir.tarobject.close()

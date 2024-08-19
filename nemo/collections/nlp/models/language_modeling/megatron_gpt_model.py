@@ -30,7 +30,7 @@ from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.common.parts.utils import extend_instance
+from nemo.collections.common.parts.utils import apply_rope_scaling, extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronCorePretrainingSampler,
     MegatronPretrainingRandomSampler,
@@ -77,6 +77,7 @@ from nemo.utils import logging
 from nemo.utils.te_utils import is_float8tensor
 
 try:
+    import megatron.core as core
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
@@ -429,6 +430,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         if self.mcore_gpt:
+
             model = MCoreGPTModel(
                 config=self.transformer_config,
                 transformer_layer_spec=get_specs(
@@ -448,6 +450,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
+
+            if self.cfg.get('scale_positional_embedding', False):
+                model.rotary_pos_emb.inv_freq = apply_rope_scaling(model.rotary_pos_emb.inv_freq)
+
             if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
                 extend_instance(model.embedding, EmbeddingScalingMixin)
         else:
@@ -545,6 +551,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 # mcore bucket_size is based on num of parameters, therefore not
                 # using bucket_cap_mb to configure bucket_size here
                 bucket_size=self.cfg.optim.get('ddp_bucket_size', None),
+                average_in_collective=self.cfg.optim.get('average_in_collective', True),
             )
             self.model = [
                 McoreDDP(
@@ -630,11 +637,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
                 # Initialize a bucket for each virtual pipeline stage
                 for module in self.model:
-                    if isinstance(module, (Float16Module, MCoreFloat16Module)):
-                        module = module.module
-                    stage_bucket = []
-                    layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
-                    buckets.extend(make_parameter_bucket(layer) for layer in layers)
+                    buckets.append(make_parameter_bucket(module))
             else:
                 # Initialize a bucket for each Transformer layer
                 modules = self.model if isinstance(self.model, list) else [self.model]
