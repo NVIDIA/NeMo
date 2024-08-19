@@ -19,12 +19,12 @@ import subprocess
 import sys
 import time
 import warnings
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
 from typing import Any, Collection, Dict, List, Optional, Tuple, Union
-from collections import defaultdict
 
 import pytorch_lightning
 import torch
@@ -38,7 +38,6 @@ from pytorch_lightning.loggers import MLFlowLogger, NeptuneLogger, TensorBoardLo
 from pytorch_lightning.loops import _TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
-
 
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
@@ -235,10 +234,12 @@ class ExpManagerConfig:
     # logs TFLOPs per sec per gpu
     log_tflops_per_sec_per_gpu: Optional[bool] = True
 
+
 def print_once(*args, **kwargs):
     if torch.distributed.get_rank():
         return
     print(*args, **kwargs)
+
 
 class TimingCallback(Callback):
     """
@@ -297,6 +298,7 @@ class TimingCallback(Callback):
 
     def on_after_backward(self, trainer, pl_module):
         self._on_batch_end("train_backward_timing", pl_module)
+
 
 class DeltaTimingCallback(Callback):
     def __init__(self, timer_kwargs={}):
