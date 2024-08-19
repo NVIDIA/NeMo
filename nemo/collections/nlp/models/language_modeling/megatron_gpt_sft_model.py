@@ -102,9 +102,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         self.init_global_step = 0
         self.enforce_divisible_batch = True  # used for gradient accumulation
 
-        self.previous_logits = None
-        self.previous_forward_args = None
-        self.previous_loss_mask = None
+        # self.previous_logits = None
+        # self.previous_forward_args = None
+        # self.previous_loss_mask = None
 
         self.c_kl = self.cfg.get('c_kl')
         self.use_absolute_kl = self.cfg.get('use_absolute_kl')
@@ -399,18 +399,18 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             seq_length=seq_length,
             micro_batch_size=get_micro_batch_size(),
             first_val_step=first_val_step,
-            previous_logits = self.previous_logits,
-            previous_forward_args = self.previous_forward_args,
-            previous_loss_mask = self.previous_loss_mask,
+            # previous_logits = self.previous_logits,
+            # previous_forward_args = self.previous_forward_args,
+            # previous_loss_mask = self.previous_loss_mask,
         )
-        self.previous_logits = output_logits.detach()
-        self.previous_forward_args = {
-            'input_ids': forward_args['input_ids'].detach(),
-            'position_ids': forward_args['position_ids'].detach(),
-            'labels': forward_args['labels'].detach(),
-            'attention_mask': None,
-        }
-        self.previous_loss_mask = loss_mask.detach()
+        # self.previous_logits = output_logits.detach()
+        # self.previous_forward_args = {
+        #     'input_ids': forward_args['input_ids'].detach(),
+        #     'position_ids': forward_args['position_ids'].detach(),
+        #     'labels': forward_args['labels'].detach(),
+        #     'attention_mask': None,
+        # }
+        # self.previous_loss_mask = loss_mask.detach()
 
         non_loss_tensors = {}
         # only the last stages of the pipeline return losses

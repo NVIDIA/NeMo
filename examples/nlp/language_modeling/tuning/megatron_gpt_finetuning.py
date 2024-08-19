@@ -14,7 +14,11 @@
 
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
+from pytorch_lightning.trainer.trainer import Trainer
+import datetime
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 
+from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
@@ -62,8 +66,24 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
+    
+    
     model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
     peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
+
+    if cfg.model.c_kl > 0.0:
+        # load the model in eval mode
+        dummy_trainer = Trainer(
+            strategy=NLPDDPStrategy(timeout=datetime.timedelta(seconds=18000)),
+            **cfg.trainer,
+            callbacks=[],
+        )
+        ref_model = MegatronGPTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=dummy_trainer)
+        ref_model.freeze()
+        
+        # add ref_model to the model
+        model.set_reference_model(ref_model)
+
 
     if cfg.model.peft.restore_from_path is not None:
         # initialize peft weights from a checkpoint instead of randomly

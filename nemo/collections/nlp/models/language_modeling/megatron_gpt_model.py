@@ -145,6 +145,11 @@ def mcore_supports_moe() -> bool:
     except ImportError:
         return False
 
+def convert_to_probability_distribution(tensor):
+    exp_tensor = torch.exp(tensor - tensor.max(dim=-1, keepdims=True))
+    normalized_tensor = exp_tensor / exp_tensor.sum(dim=-1, keepdim=True)
+    
+    return normalized_tensor
 
 def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, hyena_cfg: Dict = None):
     if num_experts is not None:
@@ -272,35 +277,35 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
         return ['logits']
 
 
-#from mend
-def kl_loc_loss(pre, post, mask=None, use_absolute_kl=False, use_log_softmax_kl=True):
-    pre_ = pre.to(torch.float32)
-    post_ = post.to(torch.float32)
+def kl_loc_loss(ref_outputs, output_tensor, mask=None, use_absolute_kl=False, use_log_softmax_kl=True):
+    ref_outputs = convert_to_probability_distribution(ref_outputs)
+    output_tensor = convert_to_probability_distribution(output_tensor)
 
-    # sequence = pre.dim() == 3
-    # pre_ = pre.view(-1, pre.shape[-1])
-    # post_ = post.view(pre_.shape)
-    # assert pre_.shape[0] == post_.shape[0]
+    print('REF:', ref_outputs)
+    print('OUT:', output_tensor)
 
-    # if not sequence:
-    #     if pre_.shape[-1] == 1:  # No masking needed for binary classification
-    #         return (pre.sigmoid() * (F.logsigmoid(pre) - F.logsigmoid(post))).mean() + (
-    #             (-pre).sigmoid() * (F.logsigmoid(-pre) - F.logsigmoid(-post))
-    #         ).mean()
-    # else:  # We have sequences of predictions; masking needed
-        # if pre_.shape[-1] > 1:
-    assert mask is not None
-    mask_ = mask.view(pre.shape[-1])
+    # this part not properly tested!
+    if mask is not None:
+        mask = mask.view(ref_outputs.shape[-1])
+        ref_outputs = (ref_outputs * mask).sum() / mask.sum()
+
+    if not use_absolute_kl and not use_absolute_kl:
+        kl_value = F.kl_div(output_tensor, ref_outputs, reduction='batchmean', log_target=False)
+        assert kl_value >= 0, 'KL should not be negative!'
+
     if use_log_softmax_kl:
-        _kl = (pre_.softmax(-1) * (pre_.log_softmax(-1) - post_.log_softmax(-1)))
+        output_tensor = F.log_softmax(output_tensor, dim=1)
+        # Calculate KL divergence
+        kl_value = F.kl_div(output_tensor, ref_outputs, reduction='batchmean', log_target=False)
     else:
-        _kl = pre_ - post_
-    if use_absolute_kl:
-        kl = _kl.abs().sum(0) * -1
-    else:
-        kl = _kl.sum(0)
-    return (kl * mask_).sum() / mask_.sum()
-
+        if use_absolute_kl:
+            kl_value = torch.mean((ref_outputs - output_tensor).abs(), dim=1).mean()
+        else:
+            kl_value = torch.mean(ref_outputs - output_tensor, dim=1).mean()
+    
+    assert kl_value >= 0, 'KL should not be negative!'
+    
+    return kl_value
 
 class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     """
@@ -434,6 +439,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.use_loss_mask and self.transformer_config.sequence_parallel:
             raise ValueError('Loss mask is not supported with sequence parallelism.')
+
+    def set_reference_model(self, ref_model):
+        self.ref_model = ref_model
 
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
@@ -1204,8 +1212,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return batch
 
     def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
-        def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None,
-                                     previous_logits=None, previous_forward_args=None, previous_loss_mask=None):
+        def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
             # Get data batch
             batch = self.get_batch(dataloader_iter, tuning)
@@ -1282,11 +1289,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             
             loss_mask = batch['loss_mask']
             kl_div = torch.tensor(0., device=loss_mask.device)
-            if self.c_kl > 0 and previous_logits is not None and previous_forward_args is not None and previous_loss_mask is not None:
-                post_logits = model(**previous_forward_args)
-                kl_div = kl_loc_loss(previous_logits, post_logits, 
-                                     previous_loss_mask,
-                                    self.use_absolute_kl, self.use_log_softmax_kl)
+            if self.c_kl > 0:
+                # print(forward_args)
+                # ref_logits = self.ref_model(**forward_args, forward_only=True)
+                ref_outputs = self.ref_model.forward(
+                    tokens=forward_args['input_ids'],
+                    text_position_ids=forward_args['position_ids'],
+                    attention_mask=forward_args['attention_mask'],
+                    labels=None,
+                ).max(dim=-1).values
+             
+                kl_div = kl_loc_loss(ref_outputs, output_tensor, forward_args['attention_mask'], self.use_absolute_kl, self.use_log_softmax_kl)
                 if wandb.run:
                     wandb.log({'kl-div': kl_div})
 
