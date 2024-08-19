@@ -1,4 +1,4 @@
-from nemo.lightning.pytorch.callbacks.ddp_param_parity_tester import DdpParamParityChecker
+from nemo.lightning.pytorch.callbacks.ddp_parity_tester import DdpParityChecker
 from nemo.lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
@@ -15,5 +15,5 @@ __all__ = [
     "MegatronProgressBar",
     "ProgressPrinter",
     "PreemptionCallback",
-    "DdpParamParityChecker",
+    "DdpParityChecker",
 ]
