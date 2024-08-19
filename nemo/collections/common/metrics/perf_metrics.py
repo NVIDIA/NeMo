@@ -2,6 +2,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 from pytorch_lightning.callbacks import Callback
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from pytorch_lightning import Trainer
 
 from nemo.collections.common.parts.perf_metrics_utils import LLM_VOCAB_SIZE_MAP, read_tb_log
 from nemo.utils import logging
@@ -68,6 +70,29 @@ class FLOPsMeasurementCallback(Callback):
 
         self.model = self.model.lower() if self.model is not None else self.model
 
+    def tb_logger(self, trainer: Trainer) -> TensorBoardLogger | None:
+        if not trainer.loggers:
+            return None
+        for logger in trainer.loggers:
+            if isinstance(logger, TensorBoardLogger):
+                return logger.experiment
+        return None
+
+    def wandb_logger(self, trainer: Trainer) -> WandbLogger | None:
+        if not trainer.loggers:
+            return None
+        for logger in trainer.loggers:
+            if isinstance(logger, WandbLogger):
+                return logger.experiment
+        return None
+
+    def setup(self, trainer, pl_module, stage):
+        """
+        PyTorch Lightning callback hook to calculate model FLOPs before fit/test
+        """
+        self._tb_logger = self.tb_logger(trainer, pl_module)
+        self._wandb_logger = self.wandb_logger(trainer, pl_module)
+
     def on_train_end(self, trainer, pl_module):
         """
         PyTorch Lightning callback hook to calculate TFLOPs per sec per GPU after training
@@ -80,11 +105,15 @@ class FLOPsMeasurementCallback(Callback):
 
             step_time_list = read_tb_log(self.log_dir, "train_step_timing in s")
             tflops_per_sec_per_gpu = self.eval_tflops_per_sec_per_gpu(step_time_list)
+            logging.info(f"TFLOPs per sec per GPU={tflops_per_sec_per_gpu:.2f}")
         except Exception as exc:
             logging.error(f"Failed to calculate TFLOPs per sec per GPU.\n{exc}")
 
-        logging.info(f"TFLOPs per sec per GPU={tflops_per_sec_per_gpu:.2f}")
-        pl_module.logger.experiment.add_scalar("tflops_per_sec_per_gpu", tflops_per_sec_per_gpu)
+        if tflops_per_sec_per_gpu != -1:
+            if self._tb_logger is not None:
+                self._tb_logger.add_scalar("tflops_per_sec_per_gpu", tflops_per_sec_per_gpu)
+            if self._wandb_logger is not None:
+                self._wandb_logger.log({"tflops_per_sec_per_gpu": tflops_per_sec_per_gpu})
 
     def eval_tflops_per_sec_per_gpu(self, train_step_time: List | float | int) -> float:
         """
