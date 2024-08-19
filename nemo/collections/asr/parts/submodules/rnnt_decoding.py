@@ -445,7 +445,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         decoder_model=decoder,
                         joint_model=joint,
                         durations=self.durations,
-                        durations_beam_size=decoding_cfg.beam.get('durations_beam_size', len(self.durations)),
                         beam_size=self.cfg.beam.beam_size,
                         return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
                         search_type='maes',
@@ -458,7 +457,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         preserve_alignments=self.preserve_alignments,
                         ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                         ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.3),
-                        ngram_lm_blank_alpha=self.cfg.beam.get('ngram_lm_blank_alpha', 4.0),
                     )
         else:
 

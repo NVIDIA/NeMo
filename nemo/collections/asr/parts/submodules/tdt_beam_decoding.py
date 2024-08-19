@@ -63,9 +63,6 @@ class BeamTDTInfer(Typing):
             If beam size is 1, defaults to stateful greedy search.
             For accurate greedy results, please use GreedyRNNTInfer or GreedyBatchedRNNTInfer.
 
-        durations_beam_size: number of top durations in beams. Defaults to number of all durations.
-            Must be a positive integer >= 1.
-
         search_type: str representing the type of beam search to perform.
             Must be one of ['beam', 'maes'].
 
@@ -130,12 +127,6 @@ class BeamTDTInfer(Typing):
             The path to the N-gram LM.
         ngram_lm_alpha: float
             Alpha weight of N-gram LM.
-        ngram_lm_blank_alpha: float
-            Alpha weight blank token score.
-            Acoustic models provide a probability for blank token emission, while N-gram language models do not.
-            To account for this, the blank symbol's acoustic score is weighted.
-            The total score for the blank symbol is calculated as:
-            `score(blank) = ac(blank) + ngram_lm_alpha * ngram_lm_blank_alpha * ac(blank)`
     """
 
     @property
@@ -158,7 +149,6 @@ class BeamTDTInfer(Typing):
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         durations: list,
         beam_size: int,
-        durations_beam_size: Optional[int] = None,
         search_type: str = 'default',
         score_norm: bool = True,
         return_best_hypothesis: bool = True,
@@ -169,8 +159,7 @@ class BeamTDTInfer(Typing):
         softmax_temperature: float = 1.0,
         preserve_alignments: bool = False,
         ngram_lm_model: Optional[str] = None,
-        ngram_lm_alpha: float = 0.3,
-        ngram_lm_blank_alpha: float = 4.0,
+        ngram_lm_alpha: float = 0.3
     ):
         self.joint = joint_model
         self.decoder = decoder_model
@@ -187,14 +176,11 @@ class BeamTDTInfer(Typing):
         self.max_candidates = beam_size
         self.softmax_temperature = softmax_temperature
         self.preserve_alignments = preserve_alignments
-        self.durations_beam_size = durations_beam_size if durations_beam_size != None else len(self.durations)
 
         if preserve_alignments:
             raise ValueError("Alignment preservation has not been implemented.")
         if beam_size < 1:
             raise ValueError("Beam search size cannot be less than 1!")
-        if self.durations_beam_size < 1:
-            raise ValueError("Durations beam size cannot be less than 1!")
 
         if self.preserve_alignments:
             raise NotImplementedError("Preserving alignments is not implemented.")
@@ -252,7 +238,6 @@ class BeamTDTInfer(Typing):
             if KENLM_AVAILABLE:
                 self.ngram_lm = kenlm.Model(ngram_lm_model)
                 self.ngram_lm_alpha = ngram_lm_alpha
-                self.ngram_lm_blank_alpha = ngram_lm_blank_alpha
             else:
                 raise ImportError(
                     "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
@@ -371,7 +356,7 @@ class BeamTDTInfer(Typing):
 
         beam = min(self.beam_size, self.vocab_size)
         beam_k = min(beam, (self.vocab_size - 1))
-        durations_beam_k = min(beam, len(self.durations), self.durations_beam_size)
+        
 
         # Initialize zero vector states.
         decoder_state = self.decoder.initialize_state(encoder_outputs)
@@ -503,7 +488,8 @@ class BeamTDTInfer(Typing):
             raise NotImplementedError("Support for `partial_hypotheses` is not implemented.")
 
         beam = min(self.beam_size, self.vocab_size)
-        duration_beam = min(self.max_candidates, self.durations_beam_size, len(self.durations))
+        duration_beam = min(self.max_candidates, len(self.durations))
+        
         beam_state = self.decoder.initialize_state(
             torch.zeros(beam, device=encoder_outputs.device, dtype=encoder_outputs.dtype)
         )  # [L, B, H], [L, B, H] for LSTMS
