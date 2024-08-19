@@ -289,8 +289,8 @@ def kl_loc_loss(ref_outputs, output_tensor, mask=None, use_absolute_kl=False, us
     ref_outputs = convert_to_probability_distribution(ref_outputs).to(torch.float32)
     output_tensor = convert_to_probability_distribution(output_tensor).to(torch.float32)
 
-    print('REF:', ref_outputs)
-    print('OUT:', output_tensor)
+    print('REF:', ref_outputs.sum(dim=-1))
+    print('OUT:', output_tensor.sum(dim=-1))
 
     # this part not properly tested!
     if mask is not None:
@@ -300,7 +300,7 @@ def kl_loc_loss(ref_outputs, output_tensor, mask=None, use_absolute_kl=False, us
     if not use_absolute_kl and not use_absolute_kl:
         # kl_value = F.kl_div(output_tensor, ref_outputs, reduction='batchmean', log_target=False)
         kl_value = simple_kl_div(ref_outputs, output_tensor)
-        assert kl_value >= 0, 'KL should not be negative!'
+        assert kl_value >= 0, 'KL should not be negative, K = %0.10f!' %(kl_value)
 
     if use_log_softmax_kl:
         output_tensor = F.log_softmax(output_tensor, dim=1)
