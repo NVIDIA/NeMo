@@ -19,12 +19,11 @@ import subprocess
 import sys
 import time
 import warnings
-import numpy as np
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
-from typing import Any, Collection, Dict, List, Optional, Tuple, Union, Iterable
+from typing import Any, Collection, Dict, List, Optional, Tuple, Union
 from collections import defaultdict
 
 import pytorch_lightning
@@ -236,6 +235,10 @@ class ExpManagerConfig:
     # logs TFLOPs per sec per gpu
     log_tflops_per_sec_per_gpu: Optional[bool] = True
 
+def print_once(*args, **kwargs):
+    if torch.distributed.get_rank():
+        return
+    print(*args, **kwargs)
 
 class TimingCallback(Callback):
     """
@@ -300,6 +303,19 @@ class DeltaTimingCallback(Callback):
         self._sync_cuda = timer_kwargs.get("sync_cuda", False)
         self.timers = defaultdict(defaultdict)
 
+    def tb_logger(self, trainer):
+        if not trainer.loggers:
+            return None
+        for logger in trainer.loggers:
+            if isinstance(logger, TensorBoardLogger):
+                return logger.experiment
+        return None
+    
+    def setup(self, trainer, pl_module, stage):
+        self._tb_logger = self.tb_logger(trainer)
+        if self._tb_logger is None:
+            logging.warning("TensorBoard Logger is not enabled. Skipping logging of train metrics.")
+
     def _on_epoch_start(self, name, trainer, pl_module):
         # synchronize pytorch cuda execution if supported
         if self._sync_cuda and torch.cuda.is_initialized():
@@ -307,11 +323,6 @@ class DeltaTimingCallback(Callback):
 
         self.timers[name]["values"] = []
         self.timers[name]["start"] = time.time()
-    
-    def print_once(self, *args, **kwargs):
-        if torch.distributed.get_rank():
-            return
-        print(*args, **kwargs)
  
     def _on_batch_end(self, name, trainer, pl_module):
         # synchronize pytorch cuda execution if supported
@@ -320,7 +331,7 @@ class DeltaTimingCallback(Callback):
 
         end = time.time()
         dt = end - self.timers[name]["start"]
-        self.print_once(f'Step {len(self.timers[name]["values"])}: train_step_timing {dt}')
+        print_once(f'Step {len(self.timers[name]["values"])}: train_step_timing {dt}')
         self.timers[name]["values"].append(dt)
         self.timers[name]["start"] = end
 
@@ -337,26 +348,11 @@ class DeltaTimingCallback(Callback):
         self._on_batch_end("validation_step_timing", trainer, pl_module)
 
     def on_train_end(self, trainer, pl_module):
-        for timer_name, timer_data in self.timers.items():
-            step_times = timer_data["values"]
-            logging.info(f"Average {timer_name} in s: {np.sum(step_times)/len(timer_data['values'])}")
-            if (tb_logger:=self.get_tb_logger(pl_module)) is not None:
+        if self._tb_logger is not None:
+            for timer_name, timer_data in self.timers.items():
+                step_times = timer_data["values"]
                 for step_time in step_times:
-                    tb_logger.add_scalar(timer_name + " in s", step_time)
-
-    def get_tb_logger(self, pl_module):
-        if pl_module.logger is None and pl_module.logger.experiment is None:
-            return None
-        tb_logger = None
-        if isinstance(pl_module.logger, Iterable):
-            for logger in pl_module.logger:
-                if isinstance(logger, TensorBoardLogger):
-                    tb_logger = logger.experiment
-                    break
-        elif isinstance(pl_module.logger, TensorBoardLogger):
-            tb_logger = pl_module.logger.experiment
-        self._tb_logger = tb_logger
-        return self._tb_logger
+                    self._tb_logger.add_scalar(timer_name + " in s", step_time)
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
