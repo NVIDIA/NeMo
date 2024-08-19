@@ -4,7 +4,8 @@ import logging
 import os
 import shutil
 from collections import OrderedDict
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ContextManager, Dict, List, Literal, Mapping, Optional, TypeVar, Union, cast
 
@@ -33,7 +34,7 @@ from typing_extensions import override
 from nemo.lightning import _strategy_lib, io
 from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
-from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ModelTransform
+from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ModelTransform, ProgressPrinter
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
 
 if TYPE_CHECKING:
@@ -43,6 +44,18 @@ ConfigT = TypeVar("ConfigT")
 
 
 DDPLiteral = Literal["megatron", "pytorch"]
+
+
+@dataclass
+class ParallelismConfig:
+    tensor_model_parallel_size: int
+    pipeline_model_parallel_size: int
+    virtual_pipeline_model_parallel_size: int
+    context_parallel_size: int
+    sequence_parallel: bool
+    expert_model_parallel_size: int
+    moe_extended_tp: bool
+    pipeline_dtype: torch.dtype
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -71,12 +84,39 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         cluster_environment: Cluster environment for distributed training. Defaults to None.
         checkpoint_io: Checkpoint I/O handler. Defaults to None.
         find_unused_parameters (bool): Find unused parameters in DDP. Defaults to False.
-        enable_nemo_ckpt_io (bool): Enable NeMo checkpoint I/O. Defaults to True.
         ckpt_type (TrainerCkptProtocol): Checkpoint type. Defaults to TrainerCheckpoint.
-        ckpt_include_optimizer (bool): Include optimizer state in checkpoint. Defaults to False.
+        ckpt_include_optimizer (bool): Include optimizer state in checkpoint. Defaults to True.
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
         lazy_init (bool): Use lazy initialization for model parallel parameters. Defaults to False.
         pipeline_dtype (Optional[torch.dtype]): Data type for pipeline parallelism. Defaults to None.
+        save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving. Should be one of
+            'torch_dist' or 'zarr'. Defaults to 'torch_dist'.
+        ckpt_async_save (bool): Whether to save checkpoints asynchronously to reduce checkpointing overhead.
+            Defaults to False.
+        ckpt_torch_dist_multiproc (int): Number of extra processes per rank used during ckpt save
+            with PyTorch distributed format. Defaults to None.
+        ckpt_assume_constant_structure (bool): Allows caching some computation across checkpoint saves.
+            Set to True only if the state dict structure doesn't change within a single job.
+        ckpt_parallel_save (bool): If true, each worker will write its own part of the dist checkpoint.
+            Defaults to True.
+        ckpt_parallel_save_within_dp (bool): If true, save will be parallelized only within a DP group
+            (whole world otherwise), which might slightly reduce the save overhead. Defaults to False.
+        ckpt_parallel_load (bool): If true, each worker will load part of the dist checkpoint
+            and exchange with NCCL. Might use some extra GPU memory. Defaults to False.
+        ckpt_parallel_save_optim (bool): Parallel save/load of a DistributedOptimizer. 'True'
+            allows performant save and reshardable checkpoints. Set to 'False' only in order to minimize
+            the number of checkpoint files.
+        ckpt_load_directly_on_device (bool): if True, loads the weights directly on GPU.
+            Has effect only for `zarr` based checkpoints (PyT Distributed always loads on device).
+            Defaults to True.
+        setup_optimizers (bool): Whether to call the trainer's setup_optimizers function to perform any
+            necessary conversions of optimizer parameters and move optimizer parameters to the correct device.
+            Defaults to True.
+        init_model_parallel (bool): Whether to initialize the model parallel groups. Defaults to True.
+        replace_progress_bar (bool): Whether to replace the TQDM progress bar with a megatron-style logger
+            that prints the metrics to stdout. Suitable for non-interactive settings.
+        progress_interval (int): How frequently to print progress to stdout. Only used when
+            replace_progress_bar is True.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -100,21 +140,23 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         cluster_environment=None,  # TODO: Add type-hint
         checkpoint_io=None,  # TODO: Add type-hint
         find_unused_parameters: bool = False,
-        ckpt_include_optimizer: bool = False,
+        ckpt_include_optimizer: bool = True,
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
         lazy_init: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
-        save_ckpt_format='torch_dist',
-        ckpt_async_save=False,
-        ckpt_torch_dist_multiproc=None,  ## TODO(ashors): put elsewhere?
-        ckpt_assume_constant_structure=False,
-        ckpt_parallel_save=True,
-        ckpt_parallel_save_within_dp=False,
-        ckpt_parallel_load=False,
-        ckpt_parallel_save_optim=True,
-        ckpt_load_directly_on_device=True,
+        save_ckpt_format: str = 'torch_dist',
+        ckpt_async_save: bool = False,
+        ckpt_torch_dist_multiproc: int = None,  ## TODO(ashors): put elsewhere?
+        ckpt_assume_constant_structure: bool = False,
+        ckpt_parallel_save: bool = True,
+        ckpt_parallel_save_within_dp: bool = False,
+        ckpt_parallel_load: bool = False,
+        ckpt_parallel_save_optim: bool = True,
+        ckpt_load_directly_on_device: bool = True,
         setup_optimizers: bool = True,
         init_model_parallel: bool = True,
+        replace_progress_bar: bool = True,
+        progress_interval: int = 1,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -151,6 +193,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.parallel_load = ckpt_parallel_load
         self.parallel_save_optim = ckpt_parallel_save_optim
         self.load_directly_on_device = ckpt_load_directly_on_device
+
+        self.replace_progress_bar = replace_progress_bar
+        self.progress_interval = progress_interval
 
         self._ddp = ddp
         if ddp == "megatron":
@@ -209,7 +254,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if not self.data_sampler and hasattr(datamodule, "data_sampler"):
             self.data_sampler = datamodule.data_sampler
             self.data_sampler.setup(self.cluster_environment.global_rank())
-            datamodule.reconfigure_limit_batches()
+            if hasattr(datamodule, "reconfigure_limit_batches"):
+                datamodule.reconfigure_limit_batches()
 
         if self.data_sampler:
             self.data_sampler.connect(trainer)
@@ -403,7 +449,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 'global_step',
                 self.trainer.global_step,
                 prog_bar=True,
-                rank_zero_only=True,
                 batch_size=1,
             )
 
@@ -419,31 +464,22 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     "peak_memory_usage",
                     max_memory_reserved,
                     prog_bar=True,
-                    rank_zero_only=True,
                     batch_size=1,
                 )
                 self.lightning_module.log(
                     "memory_allocated",
                     memory_allocated,
                     prog_bar=True,
-                    rank_zero_only=True,
                     batch_size=1,
                 )
 
             if self.log_train_loss:
-                from megatron.core import parallel_state
-
-                from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-
-                # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
-                # it should be casted to other pipeline stages for logging.
-                # we can avoid this broadcast by updating the PTL log function to accept specific ranks
-                if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                    if torch.distributed.get_rank() == get_last_rank():
-                        torch.distributed.send(out, 0)
-                    elif torch.distributed.get_rank() == 0:
-                        torch.distributed.recv(out, get_last_rank())
-                self.lightning_module.log('reduced_train_loss', out, prog_bar=True, rank_zero_only=True, batch_size=1)
+                # p2p now, broadcast later at ckpt
+                _strategy_lib._sync_from_last_pipeline_stage(out, broadcast=False)
+                if torch.distributed.get_rank() == 0:
+                    self.lightning_module.log(
+                        'reduced_train_loss', out, prog_bar=True, rank_zero_only=True, batch_size=1
+                    )
 
             return out
 
@@ -455,7 +491,24 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         with self.precision_plugin.val_step_context():  # TODO: Do we need this?
             out = self.model(dataloader_iter, forward_only=True, *args, **kwargs)
-            self.lightning_module.log('val_loss', out, rank_zero_only=True, batch_size=1)
+
+            from megatron.core import parallel_state
+
+            pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+            if pp_size > 1:
+                # ranks that are not final pp stage have 0 for loss, and out will be mean-reduced over pp
+                # groups (due to sync_dist), which divides val_loss by pp_size. so we multiply by pp_size to cancel out
+                self.lightning_module.log(
+                    'val_loss',
+                    out * pp_size,
+                    prog_bar=True,
+                    sync_dist=True,
+                    sync_dist_group=parallel_state.get_pipeline_model_parallel_group(),
+                    on_epoch=True,
+                )
+            else:
+                self.lightning_module.log('val_loss', out, prog_bar=True, on_epoch=True)
+
             return out
 
     @override
@@ -509,9 +562,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if callback.__class__ == TQDMProgressBar:
                 contains_progress = True
         if not contains_megatron_progress and contains_progress:
-            for callback in callbacks:
+            for i, callback in enumerate(callbacks):
                 if isinstance(callback, TQDMProgressBar):
-                    callback.__class__ = MegatronProgressBar
+                    if self.replace_progress_bar:
+                        printer = ProgressPrinter(log_interval=self.progress_interval)
+                        printer._trainer = trainer
+                        if not trainer.is_global_zero:
+                            printer.disable()
+                        callbacks[i] = printer
+                    else:
+                        callback.__class__ = MegatronProgressBar
                     break
 
     def optimizer_sharded_state_dict(self, is_loading=False):
@@ -539,7 +599,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         checkpoint["state_dict"] = OrderedDict([])  # remove device state_dict
-        checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
+        # retrieve `sharded_state_dict` if it has not already been configured in `on_save_checkpoint`
+        if "sharded_state_dict" not in checkpoint:
+            checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
         if self.trainer.state.fn == TrainerFn.FITTING and self.ckpt_include_optimizer:
             checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
@@ -584,6 +646,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         assert self.megatron_parallel is not None
 
         _strategy_lib.load_model_state_dict(self.megatron_parallel, checkpoint, strict=strict)
+        for opt in self.optimizers:
+            opt.reload_model_params()
 
     @property
     @override
@@ -609,6 +673,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:
         self._checkpoint_io = io
+
+    @property
+    def current_epoch_step(self) -> int:
+        """
+        Get the value of step within an epoch.
+        """
+        return max(
+            self.trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed,
+            self.trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
+        )
 
     def _get_data_step(self, step_type: str) -> Optional[_ModuleStepFunction]:
         for fn_name in [f"{step_type}_data_step", "data_step"]:
@@ -672,10 +746,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         return True
 
     @property
-    def parallelism(self):
-        from megatron.core.model_parallel_config import ModelParallelConfig
-
-        return ModelParallelConfig(
+    def parallelism(self) -> ParallelismConfig:
+        return ParallelismConfig(
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
@@ -685,6 +757,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             moe_extended_tp=self.moe_extended_tp,
             pipeline_dtype=self.pipeline_dtype,
         )
+
+    @contextmanager
+    @override
+    def tensor_init_context(self, empty_init: Optional[bool] = None):
+        # Materializaton happens in `setup()`
+        # @akoumparouli: using Parent's tensor_init_context causes mcore
+        # parameters to be initialized on GPU instead of (assumed) CPU.
+        yield
 
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:

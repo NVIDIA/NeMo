@@ -116,6 +116,12 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             forward pass of a model.
         loss_reduction (Optional[Callable[[nn.Module], MegatronLossReduction]]): An optional
             function that defines how the loss is reduced.
+        vp_size (Optional[int]): Virtual pipeline parallel size.
+        ddp_config (Optional[DistributedDataParallelConfig]): An instance of Megatron core's
+            DistributedDataParallelConfig which controls the Megatron DDP configuration.
+        cpu (bool): Whether model should reside on CPU.
+        convert_module_fn (Optional[Callable[[ModelT], nn.Module]]): An optional function to
+            apply to the model parameters after initialization.
 
     Examples
     --------
@@ -224,6 +230,20 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         _num_microbatches: int = num_microbatches or self.infer_num_microbatches(data)
 
         pipeline = self.pipeline
+
+        use_global_batch_sampler = self.trainer.datamodule.data_sampler.dataloader_type == 'batch'
+        if use_global_batch_sampler:
+            from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+
+            # The current way of using a batch sampler + split to micro iterator results in
+            # extraneous padding, and is only implemented to ensure bit-exactness with NeMo 1.
+            # This part in NeMo 1 was written when megatron fwd_bwd_function did not support unequal
+            # sequence lengths, but it does now. Hence this part should be revisited in the future.
+            batch = next(data)
+            if isinstance(batch, tuple) and len(batch) == 3:
+                batch = batch[0]
+            data = get_iterator_k_split(batch, _num_microbatches, True)
+
         data_iterator: List[Iterator[DataT]] = self.to_data_iterator_list(data)
         context = self._build_context({**locals()})
 
@@ -266,16 +286,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             self.callbacks.event("on_megatron_reduce_microbatches_end", **context)
         else:
             # we're not on the last pipeline stage so no losses
-            if forward_only:
-                loss_mean = cast(torch.Tensor, [])
-            else:
-                loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
+            loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
 
         self.callbacks.event("on_megatron_log_step_end", **context)
         self.callbacks.event("on_megatron_step_end", **context)
-
-        if loss_mean == []:
-            loss_mean = None
 
         return loss_mean
 
@@ -628,6 +642,11 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
 
 class _ModuleStepFunction:
+    """
+    This class acts as a bridge between Megatron core's lower-level functional API and PTL's object-oriented API,
+        making it possible to use PTL-compatible functions in Megatron core.
+    """
+
     def __init__(self, name: str, is_property: bool = False, includes_self: bool = False):
         self.name = name
         self.is_property = is_property
@@ -656,7 +675,9 @@ class _ModuleStepFunction:
 def getattr_proxy(self, item: Any) -> Any:
     try:
         return super(self.__class__, self).__getattr__(item)
-    except AttributeError:
+    except AttributeError as e:
+        if item == 'module':  ## this is a hacky WAR and may cause misleading error messages
+            raise e
         try:
             return getattr(self.module, item)
         except AttributeError:
