@@ -22,8 +22,8 @@ from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
-from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 from nemo.collections.common.tokenizers.tiktoken_tokenizer import TiktokenTokenizer
+from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.lm_utils import get_pretrained_lm_models_list
 from nemo.collections.nlp.parts.nlp_overrides import HAVE_MEGATRON_CORE

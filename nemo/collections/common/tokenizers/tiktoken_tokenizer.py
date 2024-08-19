@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from typing import Dict, List, Optional, Union
+import base64
 import json
+import os
+from pathlib import Path
+from typing import Dict, List, Optional, Union
+
 import numpy as np
 import tiktoken
-import base64
-from pathlib import Path
+
 from nemo.collections.common.parts.utils import if_exist
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
