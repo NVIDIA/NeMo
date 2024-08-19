@@ -1,9 +1,9 @@
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
-from pytorch_lightning import Trainer
 
 from nemo.collections.common.parts.perf_metrics_utils import LLM_VOCAB_SIZE_MAP, read_tb_log
 from nemo.utils import logging
