@@ -1,5 +1,5 @@
-from typing import Any, Dict, List, Optional
 from functools import cached_property
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from pytorch_lightning.callbacks import Callback
@@ -84,34 +84,34 @@ class FLOPsMeasurementCallback(Callback):
         if hasattr(pl_module, "train_step_timing") and self.tflops_per_gpu != -1:
             pl_module.log(
                 f"train_tflops_per_sec_per_gpu",
-                round(self.tflops_per_gpu/getattr(pl_module, 'train_step_timing'), 2),
+                round(self.tflops_per_gpu / getattr(pl_module, 'train_step_timing'), 2),
                 on_step=True,
                 on_epoch=False,
                 batch_size=1,
-                prog_bar=True
-                )
+                prog_bar=True,
+            )
 
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         if hasattr(pl_module, "validation_step_timing") and self.tflops_per_gpu != -1:
             pl_module.log(
                 f"validation_tflops_per_sec_per_gpu",
-                round(self.tflops_per_gpu/getattr(pl_module, 'validation_step_timing'), 2),
+                round(self.tflops_per_gpu / getattr(pl_module, 'validation_step_timing'), 2),
                 on_step=True,
                 on_epoch=False,
                 batch_size=1,
-                prog_bar=True
-                )
+                prog_bar=True,
+            )
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         if hasattr(pl_module, "test_step_timing") and self.tflops_per_gpu != -1:
             pl_module.log(
                 f"test_tflops_per_sec_per_gpu",
-                round(self.tflops_per_gpu/getattr(pl_module, 'test_step_timing'), 2),
+                round(self.tflops_per_gpu / getattr(pl_module, 'test_step_timing'), 2),
                 on_step=True,
                 on_epoch=False,
                 batch_size=1,
-                prog_bar=True
-                )
+                prog_bar=True,
+            )
 
     def on_train_end(self, trainer, pl_module):
         """
