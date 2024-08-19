@@ -735,7 +735,7 @@ def tokenize(example: Example, tokenizer) -> Example:
     return example
 
 
-def tokenize_with_prompt(example: Example, tokenizer, prompt_format: str) -> Example:
+def tokenize_with_prompt(example: Example, tokenizer, prompt_format: str | PromptFormatter) -> Example:
     # TODO(pzelasko): This mechanism makes it possible to measure the actual output sequence length
     #   for prompted models such as AED MultiTask (Canary), which includes the transcript and the prompt.
     #   We intend to extend it for text modality in follow-up work.
@@ -750,7 +750,9 @@ def tokenize_with_prompt(example: Example, tokenizer, prompt_format: str) -> Exa
     else:
         # TODO: need an equivalent of get_prompt_format_fn for text modality
         #       to be able to construct different kinds of turns specific to a given application
-        example = example.tokenize(tokenizer, prompt=PromptFormatter.resolve(prompt_format)(tokenizer))
+        if isinstance(prompt_format, str):
+            prompt_format = PromptFormatter.resolve(prompt_format)(tokenizer)
+        example = example.tokenize(tokenizer, prompt=prompt_format)
     return example
 
 

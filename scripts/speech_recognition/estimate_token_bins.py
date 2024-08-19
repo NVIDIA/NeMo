@@ -35,6 +35,7 @@ from nemo.collections.common.data.lhotse.dataloader import (
     MultimodalSamplingConstraint,
     TokenPerSecondFilter,
     tokenize,
+    tokenize_with_prompt,
 )
 from nemo.collections.common.prompts.formatter import PromptFormatter
 from nemo.collections.common.tokenizers import AggregateTokenizer, SentencePieceTokenizer
@@ -238,19 +239,9 @@ def load_tokenizer(paths: list[str], langs: list[str] = None) -> TokenizerWrappe
 
 def apply_tokenizer(cut, tokenizer=None, prompt: PromptFormatter = None):
     if prompt is not None:
-        turns = prompt.get_default_dialog_slots()
-        last_turn = {"role": prompt.OUTPUT_ROLE, "slots": prompt.get_slots(prompt.OUTPUT_ROLE)}
-        assert len(last_turn["slots"]) == 1  # TODO: not sure how to handle multi-slot for system output here
-        for key in last_turn["slots"]:
-            last_turn["slots"][key] = cut.supervisions[0].text
-        last_turn["slots"][prompt.PROMPT_LANGUAGE_SLOT] = cut.supervisions[0].language
-        turns.append(last_turn)
-        ans = prompt.encode_dialog(turns)
-        cut.supervisions[0].tokens = ans["input_ids"]
-
+        cut = tokenize_with_prompt(cut, tokenizer, prompt)
     elif tokenizer is not None:
         cut = tokenize(cut, tokenizer)
-
     return cut
 
 
