@@ -223,6 +223,7 @@ def run_inference(
     use_embedding_sharing=False,
     max_input_len=128,
     max_output_len=128,
+    max_num_tokens=None,
     use_parallel_embedding=False,
     ptuning=False,
     p_tuning_checkpoint=None,
@@ -324,7 +325,7 @@ def run_inference(
                 max_prompt_embedding_table_size=max_prompt_embedding_table_size,
                 use_lora_plugin=use_lora_plugin,
                 lora_target_modules=lora_target_modules,
-                max_num_tokens=int(max_input_len * max_batch_size * 0.2),
+                max_num_tokens=max_num_tokens,
                 use_embedding_sharing=use_embedding_sharing,
                 fp8_quantized=fp8_quantized,
                 fp8_kvcache=fp8_kvcache,
@@ -517,6 +518,7 @@ def run_existing_checkpoints(
             use_parallel_embedding=use_parallel_embedding,
             max_input_len=512,
             max_output_len=model_info["max_output_len"],
+            max_num_tokens=None,
             ptuning=ptuning,
             p_tuning_checkpoint=p_tuning_checkpoint,
             lora=lora,
@@ -604,7 +606,6 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy nemo models to Triton and benchmark the models",
     )
-
     parser.add_argument(
         "--model_name",
         type=str,
@@ -659,6 +660,10 @@ def get_args():
         "--max_output_len",
         type=int,
         default=128,
+    )
+    parser.add_argument(
+        "--max_num_tokens",
+        type=int,
     )
     parser.add_argument(
         "--use_parallel_embedding",
@@ -882,6 +887,7 @@ def run_inference_tests(args):
                     max_batch_size=args.max_batch_size,
                     max_input_len=args.max_input_len,
                     max_output_len=args.max_output_len,
+                    max_num_tokens=args.max_num_tokens,
                     use_parallel_embedding=args.use_parallel_embedding,
                     ptuning=args.ptuning,
                     p_tuning_checkpoint=args.p_tuning_checkpoint,
