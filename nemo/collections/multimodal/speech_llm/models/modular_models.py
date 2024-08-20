@@ -1770,6 +1770,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                     },
                 ],
             }
+        else:
+            raise RuntimeError(f"Unknown schema type for oomptimizer of class {type(self)}: '{schema}'")
 
 
 class CrossAttendModularAudioGPTModel(ModularAudioGPTModel):

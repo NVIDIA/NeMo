@@ -282,7 +282,8 @@ class FloatList(click.Option):
     "For text->text it's output tokens per input token. "
     "In general larger ratio means longer output sequences and increased memory consumption. "
     "The default value is set adequately for automatic speech recognition. "
-    "This argument is ignored when 2D buckets are provided to --buckets option.",
+    "This argument is ignored when 2D buckets are provided to --buckets option. "
+    "For GPT-style models, use --ratio=1 ",
 )
 @click.option(
     "-f",
