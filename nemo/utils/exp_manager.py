@@ -234,13 +234,6 @@ class ExpManagerConfig:
     # logs TFLOPs per sec per gpu
     log_tflops_per_sec_per_gpu: Optional[bool] = True
 
-
-def print_once(*args, **kwargs):
-    if torch.distributed.get_rank():
-        return
-    print(*args, **kwargs)
-
-
 class TimingCallback(Callback):
     """
     Logs execution time of train/val/test steps
@@ -333,7 +326,7 @@ class DeltaTimingCallback(Callback):
 
         end = time.time()
         dt = end - self.timers[name]["start"]
-        print_once(f'Step {len(self.timers[name]["values"])}: train_step_timing {dt}')
+        logging.info(f'Step {len(self.timers[name]["values"])}: {name} in s={dt}')
         self.timers[name]["values"].append(dt)
         self.timers[name]["start"] = end
 
@@ -577,7 +570,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         if cfg.log_step_timing_on_end:
             timing_callback = DeltaTimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
         else:
-            timing_callback = TimingCallback(cfg.log_step_timing_on_end, timer_kwargs=cfg.step_timing_kwargs or {})
+            timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
         trainer.callbacks.insert(0, timing_callback)
 
     if cfg.ema.enable:
