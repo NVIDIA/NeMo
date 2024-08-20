@@ -28,7 +28,6 @@ def make_byzantine_model_wrapper(model, trainer):
         def forward(self, *ans, **kwargs):
             ans = super().forward(*ans, **kwargs)
             with torch.no_grad():
-                import os
                 import random
                 rank = int(os.environ['LOCAL_RANK'])
                 if rank != 1:
