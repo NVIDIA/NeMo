@@ -240,6 +240,12 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
             transformer_layer_args["ub_atomic_gemm_rs"] = config.tp_comm_atomic_rs
         super().__init__(**transformer_layer_args)
 
+        if config.enable_cuda_graph and self.training:
+            assert (
+                not config.cpu_offloading and config.recompute_granularity is None
+            ), "Cudagraphs not supported"
+            self.add_module('cudagraph_manager', CudaGraphManager())
+
     # Called by MCore's TransformerBlock.forward
     # megatron/core/transformer/transformer_block.py
     def forward(
@@ -266,8 +272,8 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
         self.is_first_microbatch = False
         context = None
 
-        # CUDA graph requires returned values to be Tensors
-        if self.config.enable_cuda_graph and self.training:
+        # External CUDA graph requires returned values to be Tensors
+        if hasattr(self.config, 'external_cuda_graph') and self.config.external_cuda_graph and self.training:
             return hidden_states
         return hidden_states, context
 
