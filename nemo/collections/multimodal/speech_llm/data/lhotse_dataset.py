@@ -58,6 +58,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         default_context_key: str = "default_context",
         vocab_sizes: list[int] = [-1],
         speech_pad_id: int = 1001,
+        filter_by_source_target_text_ratio: bool = False,
+        source_target_text_ratio_limit: float = 1.0,
     ):
         super().__init__()
         self.text_processor = text_processor
@@ -76,6 +78,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.vocab_sizes = vocab_sizes
         self.n_speech_codebooks = len(self.vocab_sizes) - 1
         self.speech_pad_id = speech_pad_id
+        self.filter_by_source_target_text_ratio = filter_by_source_target_text_ratio
+        self.source_target_text_ratio_limit = source_target_text_ratio_limit
 
     def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
         cuts = cuts.sort_by_duration()
@@ -89,29 +93,13 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         #         remove_ids.append(i)
         #         continue
         # cuts = [cut for i, cut in enumerate(cuts) if i not in remove_ids]
-        cuts = CutSet(cuts)
         logging.debug(f"Len: {len(cuts)}")
-
-        audio, audio_lens, cuts = self.load_audio(cuts)
-
-        audio_ratio = []
-        for id, cut in enumerate(cuts):
-            audio_ratio.append(1.0)
-
-        for _, cut in enumerate(cuts):
-            if hasattr(cut, self.context_key):
-                cut.context = getattr(cut, self.context_key)
-            elif hasattr(cut, self.default_context_key):
-                cut.context = getattr(cut, self.default_context_key)
-            else:
-                cut.context = self.default_context
-            if hasattr(cut, self.ali_score_key):
-                cut.ali_score = getattr(cut, self.ali_score_key)
 
         metadata = []
         instructions, instruction_lengths = [], []
         source_texts, source_text_lengths = [], [] # Not used in the current implementation
         target_texts, target_text_lengths = [], []
+        remove_ids = []
         for id, cut in enumerate(cuts):
             metadata.append({'audio_filepath': cut.id + '.wav'})
 
@@ -130,12 +118,37 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             )
             target_text, target_text_length = torch.as_tensor(target_text["context_ids"]), torch.as_tensor(target_text["context_length"])
 
+            if self.filter_by_source_target_text_ratio:
+                if source_text_length / target_text_length > self.source_target_text_ratio_limit or \
+                    target_text_length / source_text_length > self.source_target_text_ratio_limit:
+                    remove_ids.append(id)
+                    continue
+
             instructions.append(instruction)
             instruction_lengths.append(instruction_length)
             source_texts.append(source_text)
             source_text_lengths.append(source_text_length)
             target_texts.append(target_text)
             target_text_lengths.append(target_text_length)
+        
+        cuts = [c for i, c in enumerate(cuts) if i not in remove_ids]
+        cuts = CutSet(cuts)
+
+        audio, audio_lens, cuts = self.load_audio(cuts)
+
+        audio_ratio = []
+        for id, cut in enumerate(cuts):
+            audio_ratio.append(1.0)
+
+        for _, cut in enumerate(cuts):
+            if hasattr(cut, self.context_key):
+                cut.context = getattr(cut, self.context_key)
+            elif hasattr(cut, self.default_context_key):
+                cut.context = getattr(cut, self.default_context_key)
+            else:
+                cut.context = self.default_context
+            if hasattr(cut, self.ali_score_key):
+                cut.ali_score = getattr(cut, self.ali_score_key)
 
         # Now handle TTS if any
         text_pad_id = self.text_processor.pad_id
@@ -222,7 +235,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         
         for i in range(self.n_speech_codebooks):
             tokens[:,:,i+1] += sum(self.vocab_sizes[:i+1])
-        
+
         # Merge batch
         return_batch = {
             "sample_ids": list(cuts.ids),
