@@ -96,6 +96,8 @@ class LhotseDataLoadingConfig:
     token_equivalent_duration: float | None = None
     batch_tokens: int | None = None
     quadratic_factor: float | None = None
+    min_tokens: int | None = -1
+    max_tokens: int | None = 1_000_000_000
 
     # 3. Supported existing NeMo options.
     shuffle: bool = False
@@ -432,6 +434,7 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
     # Duration filtering, same as native NeMo dataloaders.
     # We can filter after the augmentations because they are applied only when calling load_audio().
     cuts = cuts.filter(DurationFilter(config.min_duration, config.max_duration))
+    cuts = cuts.filter(TokenCountFilter(config.min_tokens, config.max_tokens))
 
     bucket_duration_bins = determine_bucket_duration_bins(config)
     if config.use_multimodal_sampling:
@@ -774,6 +777,21 @@ class DurationFilter:
             return self.d_min <= example.duration <= self.d_max
         else:
             return True  # does not apply to text etc.
+
+
+class TokenCountFilter:
+    """Callable, returns ``True`` if an example's number of tokens is in range [t_min, t_max] and ``False`` otherwise."""
+
+    def __init__(self, t_min: float, t_max: float) -> None:
+        self.t_min = t_min
+        self.t_max = t_max
+
+    def __call__(self, example) -> bool:
+        if isinstance(example, Cut):
+            return True  # does not apply to Cuts
+        elif hasattr(example, "num_tokens"):
+            return self.t_min <= example.num_tokens <= self.t_max
+        return True  # applies only to non-audio with num_tokens property
 
 
 class TokenPerSecondFilter:
