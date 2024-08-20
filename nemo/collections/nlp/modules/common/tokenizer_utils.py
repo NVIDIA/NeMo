@@ -86,15 +86,15 @@ def get_tokenizer(
     if 'megatron' in tokenizer_name:
         try:
             from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
-            from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_vocab_file, get_megatron_merges_file
         except (ImportError, ModuleNotFoundError):
             raise ImportError(
                 "Megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-
         if vocab_file is None:
-            vocab_file = get_megatron_vocab_file(tokenizer_name)
-            merges_file = get_megatron_merges_file(
+            vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
+                tokenizer_name
+            )
+            merges_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_merges_file(
                 tokenizer_name
             )
         tokenizer_name = get_megatron_tokenizer(tokenizer_name)
