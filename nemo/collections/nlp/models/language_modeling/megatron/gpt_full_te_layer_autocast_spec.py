@@ -240,8 +240,10 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
             transformer_layer_args["ub_atomic_gemm_rs"] = config.tp_comm_atomic_rs
         super().__init__(**transformer_layer_args)
 
-        if not hasattr(self.config, 'external_cuda_graph') and config.enable_cuda_graph and self.training:
-            assert not config.cpu_offloading and config.recompute_granularity is None, "Cudagraphs not supported"
+        if self.config.enable_cuda_graph and self.training:
+            assert (
+                not config.cpu_offloading and config.recompute_granularity is None
+            ), "Cudagraphs not supported"
             self.add_module('cudagraph_manager', CudaGraphManager())
 
     # Called by MCore's TransformerBlock.forward
