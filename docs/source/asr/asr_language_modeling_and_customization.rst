@@ -564,14 +564,14 @@ Scheme of the CTC-WS method:
 .. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.22.0/asset-post-v1.22.0-ctcws_scheme_1.png
     :align: center
     :alt: CTC-WS scheme
-    :scale: 40%
+    :width: 80%
 
 High-level overview of the context-biasing words replacement with CTC-WS method:
 
 .. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.22.0/asset-post-v1.22.0-ctcws_scheme_2.png
     :align: center
     :alt: CTC-WS high level overview
-    :scale: 40%
+    :width: 80%
 
 More details about CTC-WS context-biasing can be found in the `tutorial <https://github.com/NVIDIA/NeMo/tree/main/tutorials/asr/ASR_Context_Biasing.ipynb>`__.
 
