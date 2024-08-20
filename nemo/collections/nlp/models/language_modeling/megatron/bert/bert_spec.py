@@ -18,7 +18,7 @@ try:
     from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
     from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
     from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-    from megatron.core.transformer.custom_layers.transformer_engine import (
+    from megatron.core.extensions.transformer_engine import (
         TEColumnParallelLinear,
         TEDotProductAttention,
         TENorm,

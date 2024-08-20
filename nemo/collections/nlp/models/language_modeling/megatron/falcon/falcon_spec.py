@@ -17,7 +17,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 try:
     from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
     from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-    from megatron.core.transformer.custom_layers.transformer_engine import (
+    from megatron.core.extensions.transformer_engine import (
         TEColumnParallelLinear,
         TEDotProductAttention,
         TENorm,

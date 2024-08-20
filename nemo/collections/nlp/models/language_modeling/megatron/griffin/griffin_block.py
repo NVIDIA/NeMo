@@ -22,7 +22,7 @@ try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.models.common.language_module.language_module import LanguageModule
     from megatron.core.packed_seq_params import PackedSeqParams
-    from megatron.core.transformer.custom_layers.transformer_engine import TENorm, te_checkpoint
+    from megatron.core.extensions.transformer_engine import TENorm, te_checkpoint
     from megatron.core.transformer.spec_utils import build_module
     from megatron.core.transformer.transformer_config import TransformerConfig
 
