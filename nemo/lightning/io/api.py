@@ -5,7 +5,7 @@ import fiddle as fdl
 import pytorch_lightning as pl
 from fiddle._src.experimental import serialization
 
-from nemo.lightning.io.mixin import ConnectorMixin, ConnT, ModelConnector, load, track_io
+from nemo.lightning.io.mixin import ConnectorMixin, ConnT, ModelConnector, load
 from nemo.lightning.io.pl import TrainerContext
 
 
