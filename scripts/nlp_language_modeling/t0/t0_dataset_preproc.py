@@ -136,6 +136,7 @@ def process_folder(data_folder, folder_name, output_folder, detokenizer, remove_
 
 def process_all_folders(data_folder, output_folder, remove_newlines):
     from sacremoses import MosesDetokenizer
+
     detokenizer = MosesDetokenizer('en')
     assert os.path.isdir(data_folder)
     if not os.path.exists(output_folder):
@@ -170,7 +171,9 @@ if __name__ == '__main__':
         help="Path to output folder where JSONL files will be written.",
     )
     parser.add_argument(
-        "--remove_newlines", action="store_true", help="Whether to remove newlines from the input and output.",
+        "--remove_newlines",
+        action="store_true",
+        help="Whether to remove newlines from the input and output.",
     )
     args = parser.parse_args()
     process_all_folders(args.p3_dataset_path, args.jsonl_output_path, args.remove_newlines)

@@ -140,9 +140,11 @@ ABBREVIATIONS_TTS_FASTPITCH = [
 
 from functools import cache
 
+
 @cache
 def inflect_engine():
     import inflect
+
     return inflect.engine()
 
 

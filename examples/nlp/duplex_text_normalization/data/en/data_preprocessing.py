@@ -46,6 +46,7 @@ After this script, you can use upsample.py to create a more class balanced train
 
 import os
 from argparse import ArgumentParser
+from functools import cache
 
 import regex as re
 from tqdm import tqdm
@@ -59,17 +60,21 @@ from nemo.collections.nlp.data.text_normalization.utils import (
 )
 from nemo.utils import logging
 
-from functools import cache
 
 @cache
 def inflect_engine():
     import inflect
+
     return inflect.engine()
+
 
 # these are all words that can appear in a verbalized number, this list will be used later as a filter to detect numbers in verbalizations
 number_verbalizations = list(range(0, 20)) + list(range(20, 100, 10))
 number_verbalizations = (
-    [inflect_engine().number_to_words(x, zero="zero").replace("-", " ").replace(",", "") for x in number_verbalizations]
+    [
+        inflect_engine().number_to_words(x, zero="zero").replace("-", " ").replace(",", "")
+        for x in number_verbalizations
+    ]
     + ["hundred", "thousand", "million", "billion", "trillion"]
     + ["point"]
 )
@@ -89,7 +94,7 @@ def process_url(o):
     """
 
     def flatten(l):
-        """ flatten a list of lists """
+        """flatten a list of lists"""
         return [item for sublist in l for item in sublist]
 
     if o != '<self>' and '_letter' in o:
@@ -294,7 +299,7 @@ def convert(example):
 def ignore(example):
     """
     This function makes sure specific class types like 'PLAIN', 'ELECTRONIC' etc. are left unchanged.
-    
+
     Args:
         example: data example
     """
@@ -306,7 +311,7 @@ def ignore(example):
 
 
 def process_file(fp):
-    """ Reading the raw data from a file of NeMo format and preprocesses it. Write is out to the output directory.
+    """Reading the raw data from a file of NeMo format and preprocesses it. Write is out to the output directory.
     For more info about the data format, refer to the
     `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
 
