@@ -27,6 +27,7 @@ from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+from omegaconf import OmegaConf, open_dict
 
 mp.set_start_method("spawn", force=True)
 
@@ -76,7 +77,7 @@ def main(cfg) -> None:
             **cfg.trainer,
             callbacks=[],
         )
-        ref_model = MegatronGPTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=dummy_trainer)
+        ref_model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=dummy_trainer)
         ref_model.freeze()
 
         # add ref_model to the model
