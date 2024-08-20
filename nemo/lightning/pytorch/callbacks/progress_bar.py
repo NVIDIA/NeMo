@@ -8,21 +8,12 @@ class MegatronProgressBar(TQDMProgressBar):
     for megatron models.
     """
 
-    def get_current_epoch_step(self, trainer) -> int:
-        """
-        Get the value of step within an epoch.
-        """
-        return max(
-            trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed,
-            trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
-        )
-
     def init_train_tqdm(self):
         """
         Override bar_format to not have 's/it'.
         """
         self.bar = super().init_train_tqdm()
-        self.bar.bar_format = "{desc} {n_fmt}/{total_fmt}{postfix}"
+        self.bar.bar_format = "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
         return self.bar
 
     def on_train_epoch_start(self, trainer, *_):
@@ -41,10 +32,10 @@ class MegatronProgressBar(TQDMProgressBar):
         """
         Override parent class on_train_batch_end to update progress bar per global batch instead of per microbatch.
         """
-        n = self.get_current_epoch_step(trainer)
+        n = trainer.strategy.current_epoch_step
         if self._should_update(n, self.train_progress_bar.total):
             _update_n(self.train_progress_bar, n)
-            self.train_progress_bar.set_postfix(self.get_metrics(trainer, pl_module))
+            self.train_progress_bar.set_postfix(self.get_metrics(trainer, pl_module), refresh=False)
 
 
 def calculate_data_parallel_groups() -> int:
