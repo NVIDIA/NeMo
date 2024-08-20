@@ -111,6 +111,6 @@ def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node:
         name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
     )
     recipe.resume = hf_resume()
-    recipe.peft = Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim = 32)
+    recipe.peft = Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
     recipe.data = Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
     return recipe
