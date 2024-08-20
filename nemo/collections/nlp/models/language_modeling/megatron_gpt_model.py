@@ -290,17 +290,18 @@ def kl_loc_loss(ref_outputs, output_tensor, mask=None, use_absolute_kl=False, us
     # ref_outputs = convert_to_probability_distribution(ref_outputs).to(torch.float32)
     # output_tensor = convert_to_probability_distribution(output_tensor).to(torch.float32)
 
-    # this part not properly tested!
-    if mask is not None:
-        mask = mask.view(ref_outputs.shape[-1])
-        ref_outputs = (ref_outputs * mask).sum() / mask.sum()
-
     if not (use_absolute_kl and use_absolute_kl):
         predictions_prob = F.softmax(output_tensor, dim=-1)
         targets_prob = F.softmax(ref_outputs, dim=-1)
         
         # Calculate KL divergence
-        kl_value = F.kl_div(predictions_prob.log(), targets_prob, reduction='batchmean')
+        kl_value = F.kl_div(predictions_prob.log(), targets_prob, reduction='none')
+
+        # this part not properly tested!
+        if mask is not None:
+            # mask = mask.view(ref_outputs.shape[-1])
+            # ref_outputs = (ref_outputs * mask).sum() / mask.sum()
+            kl_value = (kl_value * mask).sum(axis=-1).mean()
         
         return kl_value
 
@@ -1312,7 +1313,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 kl_div = kl_loc_loss(
                     ref_outputs.to(torch.float32),
                     output_tensor.to(torch.float32),
-                    forward_args['attention_mask'],
+                    loss_mask,
                     self.use_absolute_kl,
                     self.use_log_softmax_kl,
                 )
