@@ -5,10 +5,14 @@ from einops import rearrange
 import pytorch_lightning as L
 import torch
 import torch.distributed
+import torch.nn.functional as F
+from torch import nn
+
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
-from torch import nn
+from megatron.core import dist_checkpointing
+from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
@@ -17,8 +21,6 @@ from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModul
 from nemo.collections.llm.gpt.model import transformer_engine_layer_spec, local_layer_spec
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
-
-from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 
 
 def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
@@ -79,7 +81,6 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
     TERowParallelLinear,
 )
 
-from megatron.core.models.gpt.gpt_layer_specs import _get_mlp_module_spec
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.inference_params import InferenceParams
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
@@ -89,16 +90,29 @@ from megatron.core.transformer.enums import AttnMaskType, ModelType
 
 @dataclass
 class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
+    """
+    For MLP, fc1 in shape of input_size, ffn_hidden_size, fc2 in shape of ffn_hidden_size, hidden_size
+    """
     projector_type: str = "mlp"
-    input_size: Optional[int] = None
     layer_spec: Optional[MLPSubmodules] = None
-    num_layers: int = 1
-    num_attention_heads: int = 1
+    input_size: Optional[int] = 1024
+    hidden_size: int = 1024
+    ffn_hidden_size: int = 1024
+    activation_func: Callable = F.gelu
+    num_layers: int = 1  # placeholder, NOT used!
+    num_attention_heads: int = 8  # placeholder, NOT used!
 
     def configure_model(self) -> "MCoreMultimodalProjector":
         if self.layer_spec is None:
             if self.projector_type == "mlp":
-                self.layer_spec = _get_mlp_module_spec().submodules
+                self.layer_spec = ModuleSpec(
+                    module=MLP,
+                    submodules=MLPSubmodules(
+                        linear_fc1=TEColumnParallelLinear,
+                        linear_fc2=TERowParallelLinear,
+                    ),
+                )
+                self.layer_spec = self.layer_spec.submodules
 
         return MCoreMultimodalProjector(
             self,
@@ -112,6 +126,10 @@ import os
 from transformers import CLIPVisionConfig, CLIPVisionModel
 
 
+def set_input_tensor(self, tensor):
+    pass
+
+
 @dataclass
 class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
     """
@@ -123,8 +141,6 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
         super().__init__(*args, **kwargs)
 
     def configure_model(self) -> "MCoreCLIPViTModel":
-        def set_input_tensor(self, tensor):
-            pass
         # Monkey patch the method to the vision encoder
         CLIPVisionModel.set_input_tensor = set_input_tensor
 
@@ -167,9 +183,18 @@ class NevaConfig(TransformerConfig, io.IOMixin):
     vision_transformer_config: Optional[TransformerConfig] = None
     vision_projection_config: Optional[TransformerConfig] = None
     drop_vision_class_token: bool = True
-    allow_missing_vision_projection_checkpoint: bool = False
     num_layers: int = 1  # Placeholder, NOT used!
-    num_attention_heads: int = 4  # Placeholder, NOT used!
+    num_attention_heads: int = 8  # Placeholder, NOT used!
+    vision_feature_layer: int = -2
+    # "vision_feature_layer": -2,
+
+    language_model_from_pretrained: Optional[str] = None
+    vision_model_from_pretrained: Optional[str] = None  # TODO
+    vision_projection_from_pretrained: Optional[str] = None  # TODO
+
+    freeze_language_model: bool = True
+    freeze_vision_model: bool = True
+    freeze_vision_projection: bool = False
 
     forward_step_fn: Callable = neva_forward_step
     data_step_fn: Callable = neva_data_step
@@ -178,26 +203,40 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         language_model = self.language_transformer_config.configure_model(tokenizer=tokenizer)
         vision_model = self.vision_transformer_config.configure_model()
         vision_projection = self.vision_projection_config.configure_model()
-        return MCoreNevaModel(
+        if self.language_model_from_pretrained is not None:
+            sharded_state_dict = dict(state_dict=language_model.sharded_state_dict(prefix="module."))
+            loaded_state_dict = dist_checkpointing.load(
+                sharded_state_dict=sharded_state_dict,
+                checkpoint_dir=self.language_model_from_pretrained
+            )
+            loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
+            language_model.load_state_dict(loaded_state_dict)
+            logging.info(f"Restored language model weights from {self.language_model_from_pretrained}")
+        model = MCoreNevaModel(
             transformer_config=self,
             language_model=language_model,
             vision_model=vision_model,
             vision_projection=vision_projection,
             drop_vision_class_token=self.drop_vision_class_token,
         )
+        model.freeze(
+            freeze_language_model=self.freeze_language_model,
+            freeze_vision_model=self.freeze_vision_model,
+            freeze_vision_projection=self.freeze_vision_projection,
+        )
+        return model
 
 
 class MCoreNevaModel(MCoreLLaVAModel):
     def __init__(
-        self,
-        transformer_config: TransformerConfig,
-        language_model: MegatronModule,
-        vision_model: MegatronModule,
-        vision_projection: MegatronModule,
-        pre_process: bool = True,
-        post_process: bool = True,
-        drop_vision_class_token: bool = False,
-        img_embedding_idx: int = 0,
+            self,
+            transformer_config: TransformerConfig,
+            language_model: MegatronModule,
+            vision_model: MegatronModule,
+            vision_projection: MegatronModule,
+            pre_process: bool = True,
+            post_process: bool = True,
+            drop_vision_class_token: bool = False,
     ) -> None:
         super(MCoreLLaVAModel, self).__init__(config=transformer_config)
 
@@ -257,9 +296,10 @@ class MCoreNevaModel(MCoreLLaVAModel):
         final_embedding = torch.zeros(
             batch_size, max_embed_dim, embed_dim, dtype=inputs_embeds.dtype, device=inputs_embeds.device
         )
-        final_loss_mask = torch.zeros(
-            (batch_size, max_embed_dim), dtype=loss_mask.dtype, device=loss_mask.device
-        )
+        if loss_mask is not None:
+            final_loss_mask = torch.zeros(
+                (batch_size, max_embed_dim), dtype=loss_mask.dtype, device=loss_mask.device
+            )
         if labels is not None:
             final_labels = torch.full(
                 (batch_size, max_embed_dim), ignore_index, dtype=input_ids.dtype, device=input_ids.device
@@ -276,7 +316,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
         # 4. Fill the embeddings based on the mask. If we have ["hey" "<media>", "how", "are"]
         # we need to index copy on [0, 577, 578, 579] for the text and [1:576] for the media features
         final_embedding[batch_indices, text_to_overwrite] = inputs_embeds[batch_indices, non_media_indices]
-        final_loss_mask[batch_indices, text_to_overwrite] = loss_mask[batch_indices, non_media_indices]
+        if loss_mask is not None:
+            final_loss_mask[batch_indices, text_to_overwrite] = loss_mask[batch_indices, non_media_indices]
         if labels is not None:
             final_labels[batch_indices, text_to_overwrite] = labels[batch_indices, non_media_indices]
 
@@ -294,19 +335,20 @@ class MCoreNevaModel(MCoreLLaVAModel):
             )
 
         final_embedding[media_to_overwrite] = media_features.contiguous().reshape(-1, embed_dim).to(target_device)
-
+        if loss_mask is None:
+            final_loss_mask = None
         if labels is None:
             final_labels = None
         return final_embedding, final_loss_mask, final_labels
 
     def _preprocess_data(
-        self,
-        media_embeddings,
-        input_ids,
-        position_ids,
-        loss_mask,
-        labels,
-        use_inference_kv_cache,
+            self,
+            media_embeddings,
+            input_ids,
+            position_ids,
+            loss_mask,
+            labels,
+            use_inference_kv_cache,
     ):
         """Preprocess input data before input to language model.
 
@@ -334,7 +376,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             return None, loss_mask, labels
 
         # If using the inference KV cache, the image tokens are already computed.
-        if use_inference_kv_cache:
+        if use_inference_kv_cache or media_embeddings is None:
             language_embeddings = None
             if self.pre_process:
                 language_embeddings = self.language_model.embedding(
@@ -366,30 +408,33 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         return combined_embeddings, loss_mask, labels
 
-
     def forward(
-        self,
-        media: torch.Tensor,
-        input_ids: torch.Tensor,
-        position_ids: torch.Tensor,
-        loss_mask: torch.Tensor,
-        attention_mask: torch.Tensor,
-        labels: torch.Tensor = None,
-        inference_params: InferenceParams = None,
+            self,
+            input_ids: torch.Tensor,
+            position_ids: torch.Tensor,
+            loss_mask: Optional[torch.Tensor] = None,
+            attention_mask: Optional[torch.Tensor] = None,
+            media: Optional[torch.Tensor] = None,
+            labels: Optional[torch.Tensor] = None,
+            inference_params: Optional[InferenceParams] = None,
     ) -> torch.Tensor:
         use_inference_kv_cache = (
-            inference_params is not None
-            and "image_tokens_count" in inference_params.key_value_memory_dict
+                inference_params is not None
+                and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         # If running inference, we can skip media token computation if they were computed already earlier for this sample.
-        if use_inference_kv_cache:
+        if use_inference_kv_cache or media is None:
             media_embeddings = None
         elif self.vision_model is not None:
             # mbs, medias_per_micro_batch, frames
             # TODO(yuya): update (b T F) part to be one single number in data processing part.
             media = rearrange(media, "b T F c h w -> (b T F) c h w")
-            media_embeddings = self.vision_model(media, output_hidden_states=True)  # [b, img_seq_len, h_vision]
-            media_embeddings = media_embeddings[-1][-2]  # take second from last layer
+            from_hf = str(self.vision_model.__class__.__module__).startswith("transformers.")
+            if from_hf:
+                media_embeddings = self.vision_model(media, output_hidden_states=True)  # [b, img_seq_len, h_vision]
+                media_embeddings = media_embeddings[-1][self.config.vision_feature_layer]  # take second from last layer
+            else:
+                media_embeddings = self.vision_model(media)
             if self._drop_vision_class_token:
                 class_token_len = getattr(self.vision_model, "class_token_len", 1)
                 media_embeddings = media_embeddings[:, class_token_len:, :]
@@ -457,20 +502,20 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def forward(
             self,
-            media: torch.Tensor,
             input_ids: torch.Tensor,
             position_ids: torch.Tensor,
-            loss_mask: torch.Tensor,
-            attention_mask: torch.Tensor,
-            labels: torch.Tensor = None,
+            loss_mask: Optional[torch.Tensor] = None,
+            attention_mask: Optional[torch.Tensor] = None,
+            media: Optional[torch.Tensor] = None,
+            labels: Optional[torch.Tensor] = None,
             inference_params: InferenceParams = None,
     ) -> torch.Tensor:
         output_tensor = self.module(
-            media,
-            input_ids,
-            position_ids,
-            loss_mask,
-            attention_mask,
+            media=media,
+            input_ids=input_ids,
+            position_ids=position_ids,
+            loss_mask=loss_mask,
+            attention_mask=attention_mask,
             labels=labels,
             inference_params=inference_params,
         )

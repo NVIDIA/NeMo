@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.llm import Llama2Config7B, Llama2Config13B, Llama2Config70B
+from nemo.collections.llm import LlamaConfig, Llama2Config7B, Llama2Config13B, Llama2Config70B
 from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
 from nemo.collections.vlm.neva.model.base import HFCLIPVisionConfig, CLIPViTConfig, MultimodalProjectorConfig
 from nemo.collections.llm.utils import Config
@@ -38,7 +38,7 @@ class Llava1_5Config7B(LlavaConfig):
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
     )
     vision_projection_config: TransformerConfig = MultimodalProjectorConfig(
-        input_size=1024)
+        input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
 
 
 # @dataclass
@@ -101,6 +101,11 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
             "language_model.model.norm.weight": "language_model.decoder.final_layernorm.weight",
             "language_model.lm_head.weight": "language_model.output_layer.weight",
             "vision_tower.vision_model.*": "vision_model.vision_model.*",
+            "multi_modal_projector.linear_1.weight": "vision_projection.encoder.linear_fc1.weight",
+            "multi_modal_projector.linear_1.bias": "vision_projection.encoder.linear_fc1.bias",
+            "multi_modal_projector.linear_2.weight": "vision_projection.encoder.linear_fc2.weight",
+            "multi_modal_projector.linear_2.bias": "vision_projection.encoder.linear_fc2.bias",
+
         }
 
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_linear_fc1])
@@ -116,15 +121,39 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
         from transformers import LlavaConfig as HFLlavaConfig
 
         source = HFLlavaConfig.from_pretrained(str(self))
+        text_conifg = source.text_config
+        vision_config = source.vision_config
+        def make_vocab_size_divisible_by(vocab_size):
+            base = 128
+            while vocab_size % base != 0:
+                base //= 2
+            return base
 
-        # def make_vocab_size_divisible_by(vocab_size):
-        #     base = 128
-        #     while vocab_size % base != 0:
-        #         base //= 2
-        #     return base
+        language_transformer_config = LlamaConfig(
+            num_layers=text_conifg.num_hidden_layers,
+            hidden_size=text_conifg.hidden_size,
+            ffn_hidden_size=text_conifg.intermediate_size,
+            num_attention_heads=text_conifg.num_attention_heads,
+            init_method_std=text_conifg.initializer_range,
+            layernorm_epsilon=text_conifg.rms_norm_eps,
+            num_query_groups=text_conifg.num_key_value_heads,
+            rotary_base=text_conifg.rope_theta,
+            gated_linear_unit=True,
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(text_conifg.vocab_size),
+            share_embeddings_and_output_weights=False,
+        )
+        vision_transformer_config = HFCLIPVisionConfig(
+            pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+        )
+        vision_projection_config = MultimodalProjectorConfig(
+            input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
 
-        output = Llava1_5Config7B()
-        output.language_transformer_config.make_vocab_size_divisible_by = 64
+        output = LlavaConfig(
+            language_transformer_config=language_transformer_config,
+            vision_transformer_config=vision_transformer_config,
+            vision_projection_config=vision_projection_config,
+            vision_feature_layer=source.vision_feature_layer,
+        )
 
         return output
 
@@ -150,13 +179,13 @@ class HFLlavaExporter(io.ModelConnector[LlavaModel, "LlavaForConditionalGenerati
 
     def convert_state(self, source, target):
         mapping = {
-            "embedding.word_embeddings.weight": "model.embed_tokens.weight",
-            "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
-            "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
-            "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
-            "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
-            "decoder.final_layernorm.weight": "model.norm.weight",
-            "output_layer.weight": "lm_head.weight",
+            "language_model.embedding.word_embeddings.weight": "language_model.model.embed_tokens.weight",
+            "language_model.decoder.layers.*.self_attention.linear_proj.weight": "language_model.model.layers.*.self_attn.o_proj.weight",
+            "language_model.decoder.layers.*.mlp.linear_fc2.weight": "language_model.model.layers.*.mlp.down_proj.weight",
+            "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "language_model.model.layers.*.input_layernorm.weight",
+            "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "language_model.model.layers.*.post_attention_layernorm.weight",
+            "language_model.decoder.final_layernorm.weight": "language_model.model.norm.weight",
+            "language_model.output_layer.weight": "language_model.lm_head.weight",
         }
 
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
@@ -227,11 +256,11 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 
 
 @io.state_transform(
-    source_key="decoder.layers.*.self_attention.linear_qkv.weight",
+    source_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
-        "model.layers.*.self_attn.q_proj.weight",
-        "model.layers.*.self_attn.k_proj.weight",
-        "model.layers.*.self_attn.v_proj.weight",
+        "language_model.model.layers.*.self_attn.q_proj.weight",
+        "language_model.model.layers.*.self_attn.k_proj.weight",
+        "language_model.model.layers.*.self_attn.v_proj.weight",
     ),
 )
 def _export_qkv(ctx: io.TransformCTX, linear_qkv):
@@ -271,8 +300,8 @@ def _import_linear_fc1(down, gate):
 
 
 @io.state_transform(
-    source_key="decoder.layers.*.mlp.linear_fc1.weight",
-    target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+    source_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
+    target_key=("language_model.model.layers.*.mlp.gate_proj.weight", "language_model.model.layers.*.mlp.up_proj.weight"),
 )
 def _export_linear_fc1(linear_fc1):
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
