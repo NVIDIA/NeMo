@@ -280,15 +280,7 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     def output_names(self) -> List[str]:
         return ['logits']
 
-
-# def simple_kl_div(probs_P, probs_Q):
-#     epsilon = 1e-10
-#     return ((probs_P + epsilon) * (torch.log(probs_P + epsilon) - torch.log(probs_Q + epsilon))).sum(dim=-1).mean()
-
-
 def kl_loc_loss(ref_outputs, output_tensor, mask=None, kl_penalty=None):
-    # ref_outputs = convert_to_probability_distribution(ref_outputs).to(torch.float32)
-    # output_tensor = convert_to_probability_distribution(output_tensor).to(torch.float32)
 
     if kl_penalty == 'kl-fwd':
         _kl_div =  output_tensor - ref_outputs
@@ -307,7 +299,10 @@ def kl_loc_loss(ref_outputs, output_tensor, mask=None, kl_penalty=None):
     
     elif kl_penalty == 'full-bwd':
         _kl_div = F.kl_div(F.log_softmax(ref_outputs), F.log_softmax(output_tensor), log_target=True, reduction="none")
-
+    
+    elif kl_penalty == 'full-fwd-no-trg-log':
+        _kl_div = F.kl_div(F.log_softmax(output_tensor), ref_outputs, log_target=False, reduction='none')
+        
     else:
         raise NotImplementedError
 
@@ -315,28 +310,6 @@ def kl_loc_loss(ref_outputs, output_tensor, mask=None, kl_penalty=None):
         kl_value = ((_kl_div * mask).sum(axis=-1) / mask.sum(axis=-1).clamp(min=1.)).mean()
     else:
         kl_value = (_kl_div).sum(axis=-1).mean()
-        # mask = mask.view(ref_outputs.shape[-1])
-        # ref_outputs = (ref_outputs * mask).sum() / mask.sum()
-
-    # if not (use_absolute_kl and use_absolute_kl):
-    #     predictions_prob = F.softmax(output_tensor, dim=-1)
-    #     targets_prob = F.softmax(ref_outputs, dim=-1)
-        
-    #     # Calculate KL divergence
-    #     kl_value = F.kl_div(predictions_prob.log(), targets_prob, reduction='batchmean')
-        
-    #     return kl_value
-
-    # if use_log_softmax_kl:
-    #     output_tensor = F.log_softmax(output_tensor, dim=1)
-    #     # Calculate KL divergence
-    #     kl_value = F.kl_div(output_tensor, ref_outputs, reduction='batchmean', log_target=False)
-    #     assert kl_value >= 0, 'KL should not be negative, K = %0.10f!' %(kl_value)
-    # else:
-    #     if use_absolute_kl:
-    #         kl_value = torch.mean((ref_outputs - output_tensor).abs(), dim=1).mean()
-    #     else:
-    #         kl_value = torch.mean(ref_outputs - output_tensor, dim=1).mean()
 
     return kl_value
 
