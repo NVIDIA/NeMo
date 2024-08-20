@@ -144,6 +144,7 @@ def _load(
     use_python_runtime: bool = True,
     enable_chunked_context: bool = False,
     max_tokens_in_paged_kv_cache: int = None,
+    multi_block_mode: bool = False,
 ):
     """The impl of `load` API for on a single GPU worker."""
     try:
@@ -183,6 +184,7 @@ def _load(
                 max_beam_width=max_beam_width,
                 enable_chunked_context=enable_chunked_context,
                 max_tokens_in_paged_kv_cache=max_tokens_in_paged_kv_cache,
+                multi_block_mode=multi_block_mode,
                 debug_mode=False,
             )
 
@@ -296,6 +298,7 @@ def load(
     use_python_runtime: bool = True,
     enable_chunked_context: bool = False,
     max_tokens_in_paged_kv_cache: int = None,
+    multi_block_mode: bool = False,
 ) -> TensorrtLLMHostContext:
     """Loaded the compiled LLM model and run it.
 
@@ -315,6 +318,7 @@ def load(
             use_python_runtime,
             enable_chunked_context,
             max_tokens_in_paged_kv_cache,
+            multi_block_mode,
         )
         executor = None
     elif tensorrt_llm.mpi_world_size() > 1:
