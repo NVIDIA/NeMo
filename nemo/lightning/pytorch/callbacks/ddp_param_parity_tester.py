@@ -27,15 +27,14 @@ def pl_check_param_hashes_across_dp_replicas(trainer):
             opt.disable_pre_hook()
 
     torch.distributed.barrier()
-    res = check_param_hashes_across_dp_replicas(
-        [trainer.strategy.model]
-    )
+    res = check_param_hashes_across_dp_replicas([trainer.strategy.model])
     torch.distributed.barrier()
 
     if pl_has_dist_opt_with_ovelap(trainer):
         for opt in self.optimizers:
             opt.disable_pre_hook()
     return res
+
 
 class DdpParamParityChecker(Callback, io.IOMixin):
     """

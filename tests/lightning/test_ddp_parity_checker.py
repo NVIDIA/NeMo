@@ -1,8 +1,10 @@
+import argparse
 import os
+
 import pytest
 import torch
-import argparse
 from megatron.core.optimizer import OptimizerConfig
+
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks import DdpParityChecker
@@ -21,8 +23,10 @@ def wrap_config(config, trainer):
     class ConfigWrapper(type(config)):
         def configure_model(self, tokenizer) -> "MCoreGPTModel":
             return make_byzantine_model_wrapper(super().configure_model(tokenizer), trainer)
+
     config.__class__ = ConfigWrapper
     return config
+
 
 def make_byzantine_model_wrapper(model, trainer):
     class ByzantineModel(type(model)):
@@ -30,6 +34,7 @@ def make_byzantine_model_wrapper(model, trainer):
             ans = super().forward(*ans, **kwargs)
             with torch.no_grad():
                 import random
+
                 rank = int(os.environ['LOCAL_RANK'])
                 if rank != 1:
                     return ans
@@ -38,19 +43,20 @@ def make_byzantine_model_wrapper(model, trainer):
                         for param in g['params']:
                             param.fill_(random.uniform(0, 1))
             return ans
+
     model.__class__ = ByzantineModel
     return model
 
 
 def test_failing(trainer, ddp_parity, optim, data, tokenizer):
-    config = llm.Llama2Config7B(num_layers = 2)
+    config = llm.Llama2Config7B(num_layers=2)
     config = wrap_config(config, trainer)
     model = llm.LlamaModel(config, tokenizer=tokenizer, optim=optim)
     trainer.fit(model, data)
 
 
 def test_working(trainer, ddp_parity, optim, data, tokenizer):
-    config = llm.Llama2Config7B(num_layers = 2)
+    config = llm.Llama2Config7B(num_layers=2)
     model = llm.LlamaModel(config, tokenizer=tokenizer, optim=optim)
     trainer.fit(model, data)
 
@@ -83,7 +89,6 @@ def make_trainer_optim(args):
         ),
     )
 
-
     tokenizer = get_nmt_tokenizer(
         "megatron",
         "GPT2BPETokenizer",
@@ -114,6 +119,7 @@ def main():
         print("DDP parity checking worked as expected")
     except:
         raise
+
 
 if __name__ == "__main__":
     main()
