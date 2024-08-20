@@ -29,6 +29,7 @@ from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
+from nemo.collections.nlp.modules.common.text_generation_utils import sample_sequence_batch
 
 from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -148,10 +149,10 @@ def mcore_supports_moe() -> bool:
 
 
 def convert_to_probability_distribution(tensor):
-    # exp_tensor = torch.exp(tensor - tensor.max(dim=-1, keepdims=True).values)
-    # normalized_tensor = exp_tensor / exp_tensor.sum(dim=-1, keepdim=True)
+    exp_tensor = torch.exp(tensor - tensor.max(dim=-1, keepdims=True).values)
+    normalized_tensor = exp_tensor / exp_tensor.sum(dim=-1, keepdim=True)
 
-    return F.softmax(tensor, dim=-1)
+    return normalized_tensor
 
 
 def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, hyena_cfg: Dict = None):
@@ -286,10 +287,8 @@ def simple_kl_div(probs_P, probs_Q):
 
 
 def kl_loc_loss(ref_outputs, output_tensor, mask=None, use_absolute_kl=False, use_log_softmax_kl=False):
-    ref_outputs = convert_to_probability_distribution(ref_outputs).to(torch.float32)
-    output_tensor = convert_to_probability_distribution(output_tensor).to(torch.float32)
-
-    print(use_absolute_kl, use_log_softmax_kl)
+    # ref_outputs = convert_to_probability_distribution(ref_outputs).to(torch.float32)
+    # output_tensor = convert_to_probability_distribution(output_tensor).to(torch.float32)
 
     # this part not properly tested!
     if mask is not None:
@@ -297,22 +296,24 @@ def kl_loc_loss(ref_outputs, output_tensor, mask=None, use_absolute_kl=False, us
         ref_outputs = (ref_outputs * mask).sum() / mask.sum()
 
     if not (use_absolute_kl and use_absolute_kl):
-        # kl_value = F.kl_div(output_tensor, ref_outputs, reduction='batchmean', log_target=False)
-        kl_value = simple_kl_div(ref_outputs, output_tensor)
-        assert kl_value >= 0, 'KL should not be negative, K = %0.10f!' % (kl_value)
+        predictions_prob = F.softmax(output_tensor, dim=-1)
+        targets_prob = F.softmax(ref_outputs, dim=-1)
+        
+        # Calculate KL divergence
+        kl_value = F.kl_div(predictions_prob.log(), targets_prob, reduction='batchmean')
+        
         return kl_value
 
     if use_log_softmax_kl:
         output_tensor = F.log_softmax(output_tensor, dim=1)
         # Calculate KL divergence
         kl_value = F.kl_div(output_tensor, ref_outputs, reduction='batchmean', log_target=False)
+        assert kl_value >= 0, 'KL should not be negative, K = %0.10f!' %(kl_value)
     else:
         if use_absolute_kl:
             kl_value = torch.mean((ref_outputs - output_tensor).abs(), dim=1).mean()
         else:
             kl_value = torch.mean(ref_outputs - output_tensor, dim=1).mean()
-
-    assert kl_value >= 0, 'KL should not be negative!'
 
     return kl_value
 
@@ -1300,26 +1301,22 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             loss_mask = batch['loss_mask']
             kl_div = torch.tensor(0.0, device=loss_mask.device)
             if self.c_kl > 0:
-                # print(forward_args)
-                # ref_logits = self.ref_model(**forward_args, forward_only=True)
-                ref_outputs = (
-                    self.ref_model.forward(
+                with torch.no_grad():      
+                    ref_outputs = self.ref_model(
                         tokens=forward_args['input_ids'],
-                        text_position_ids=forward_args['position_ids'],
                         attention_mask=forward_args['attention_mask'],
-                        labels=None,
+                        labels=forward_args['labels'],
+                        text_position_ids=forward_args['position_ids']
                     )
-                    .max(dim=-1)
-                    .values
-                )
 
                 kl_div = kl_loc_loss(
-                    ref_outputs,
-                    output_tensor,
+                    ref_outputs.to(torch.float32),
+                    output_tensor.to(torch.float32),
                     forward_args['attention_mask'],
                     self.use_absolute_kl,
                     self.use_log_softmax_kl,
                 )
+                
                 if wandb.run:
                     wandb.log({'kl-div': kl_div})
 
@@ -1384,9 +1381,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 batch = batch[0]
             extra_arg = {}
             if len(batch) == 3:
-                batch = [x.cuda() for x in batch]
                 tokens, attention_mask, position_ids = batch
-                attention_mask = attention_mask[0:1]
+                tokens = tokens.cuda()
+                position_ids = position_ids.cuda()
+                if attention_mask is not None:
+                    attention_mask = attention_mask.cuda()
+                    attention_mask = attention_mask[0:1]
             else:
                 (
                     tokens,
