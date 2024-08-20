@@ -107,8 +107,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # self.previous_loss_mask = None
 
         self.c_kl = self.cfg.get('c_kl')
-        self.use_absolute_kl = self.cfg.get('use_absolute_kl')
-        self.use_log_softmax_kl = self.cfg.get('use_log_softmax_kl')
+        self.kl_penalty = self.cfg.get('kl_penalty')
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
