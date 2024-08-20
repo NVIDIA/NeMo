@@ -1,14 +1,19 @@
+import logging
 from typing import Any, Callable, Generic, TypeVar, Union, overload
 
-T = TypeVar('T', bound=Callable[..., Any])
+T = TypeVar("T", bound=Callable[..., Any])
 
 try:
-    import nemo_sdk as sdk
+    import nemo_run as run
 
-    Config = sdk.Config
-    Partial = sdk.Partial
+    Config = run.Config
+    Partial = run.Partial
 except ImportError:
-    _T = TypeVar('_T')
+    logging.warning(
+        "Trying to use Config or Partial, but NeMo-Run is not installed. Please install NeMo-Run before proceeding."
+    )
+
+    _T = TypeVar("_T")
 
     class Config(Generic[_T]):
         pass
@@ -19,10 +24,10 @@ except ImportError:
 
 def task(*args: Any, **kwargs: Any) -> Callable[[T], T]:
     try:
-        import nemo_sdk as sdk
+        import nemo_run as run
 
-        return sdk.task(*args, **kwargs)
-    except ImportError:
+        return run.task(*args, **kwargs)
+    except (ImportError, AttributeError):
         # Return a no-op function
         def noop_decorator(func: T) -> T:
             return func
@@ -40,15 +45,14 @@ def factory(*args: Any, **kwargs: Any) -> Callable[[T], T]: ...
 
 def factory(*args: Any, **kwargs: Any) -> Union[Callable[[T], T], T]:
     try:
-        import nemo_sdk as sdk
+        import nemo_run as run
 
-        if not args and not kwargs:
-            # Used as @factory without arguments
-            return sdk.factory()
+        if not args:
+            return run.factory(**kwargs)
         else:
             # Used as @factory(*args, **kwargs)
-            return sdk.factory(*args, **kwargs)
-    except ImportError:
+            return run.factory(*args, **kwargs)
+    except (ImportError, AttributeError):
         # Return a no-op function
         def noop_decorator(func: T) -> T:
             return func

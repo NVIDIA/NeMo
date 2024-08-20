@@ -105,6 +105,9 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     rotary_percent: float = 1.0
     seq_len_interpolation_factor: Optional[float] = None
     seq_length: int = 1024
+    attention_softmax_in_fp32: bool = False
+    masked_softmax_fusion: bool = True
+    deallocate_pipeline_outputs = True
 
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
@@ -160,6 +163,8 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
+        self._training_loss_reduction = None
+        self._validation_loss_reduction = None
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
@@ -200,11 +205,19 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return self.forward_step(batch)
 
+    @property
     def training_loss_reduction(self) -> MaskedTokenLossReduction:
-        return MaskedTokenLossReduction()
+        if not self._training_loss_reduction:
+            self._training_loss_reduction = MaskedTokenLossReduction()
 
+        return self._training_loss_reduction
+
+    @property
     def validation_loss_reduction(self) -> MaskedTokenLossReduction:
-        return MaskedTokenLossReduction(validation_step=True)
+        if not self._validation_loss_reduction:
+            self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
+
+        return self._validation_loss_reduction
 
 
 def get_batch_on_this_context_parallel_rank(batch):

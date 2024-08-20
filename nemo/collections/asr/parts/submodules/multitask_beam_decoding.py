@@ -14,7 +14,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import torch
 
@@ -212,7 +212,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
 
         return (packed_result,)
 
-    def format_hypotheses(self, packed_result: List[Hypothesis], decoder_input_ids: torch.Tensor | None) -> None:
+    def format_hypotheses(self, packed_result: List[Hypothesis], decoder_input_ids: Union[torch.Tensor, None]) -> None:
         """
         For each hypothesis in the mini-batch:
         * Remove the decoder input ids (prompt) from the predictions
@@ -231,9 +231,12 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
                 hyp.y_sequence = hyp.y_sequence[prefix.shape[0] :]
         for hyp in packed_result:
             ids = hyp.y_sequence
+            ids_len = ids.shape[0]
             pos = -1
             while ids[pos] == self.pad or ids[pos] == self.eos:
                 pos -= 1
+                if ids_len + pos == -1:
+                    break  # empty sequence
             if pos < -1:
                 hyp.y_sequence = ids[: pos + 1]
 

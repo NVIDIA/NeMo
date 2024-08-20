@@ -23,7 +23,6 @@ from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
 from lightning_fabric.plugins.precision import Precision
 from lightning_fabric.strategies import DDPStrategy
 from lightning_fabric.strategies.strategy import _validate_keys_for_strict_loading
-from lightning_fabric.utilities.imports import _TORCH_GREATER_EQUAL_2_1
 from lightning_fabric.utilities.types import _PATH, _Stateful
 from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.loops.fetchers import _DataFetcher
@@ -208,7 +207,7 @@ class FabricMegatronStrategy(DDPStrategy):
         precision_init_ctx = self.precision.module_init_context()
         module_sharded_ctx = self.megatron_context()
         stack = ExitStack()
-        if _TORCH_GREATER_EQUAL_2_1 and empty_init:
+        if empty_init:
             # Materialization happens in `setup`. When modules get wrapped by FSDP, the sequence of operations is:
             # 1) materialize module 2) call `reset_parameters()` 3) shard the module.
             # These operations are applied to each submodule 'bottom up' in the module hierarchy.
@@ -327,9 +326,9 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @property
     def parallelism(self):
-        from megatron.core.model_parallel_config import ModelParallelConfig
+        from nemo.lightning.pytorch.strategies import ParallelismConfig
 
-        return ModelParallelConfig(
+        return ParallelismConfig(
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
