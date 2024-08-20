@@ -62,7 +62,7 @@ from nemo.utils import logging
 from functools import cache
 
 @cache
-def inflect_engine()
+def inflect_engine():
     import inflect
     return inflect.engine()
 
