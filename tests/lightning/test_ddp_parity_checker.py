@@ -1,4 +1,5 @@
 import os
+import pytest
 import torch
 import argparse
 from megatron.core.optimizer import OptimizerConfig
@@ -99,8 +100,9 @@ def make_trainer_optim(args):
 
     return trainer, ddp_parity, optim, data, tokenizer
 
-if __name__ == "__main__":
 
+@pytest.mark.skip(reason="tested with GH")
+def main():
     args = make_parser().parse_args()
     try:
         test_failing(*make_trainer_optim(args))
@@ -112,3 +114,6 @@ if __name__ == "__main__":
         print("DDP parity checking worked as expected")
     except:
         raise
+
+if __name__ == "__main__":
+    main()
