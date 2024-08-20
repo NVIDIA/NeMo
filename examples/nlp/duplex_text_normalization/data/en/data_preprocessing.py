@@ -47,7 +47,6 @@ After this script, you can use upsample.py to create a more class balanced train
 import os
 from argparse import ArgumentParser
 
-import inflect
 import regex as re
 from tqdm import tqdm
 
@@ -60,12 +59,17 @@ from nemo.collections.nlp.data.text_normalization.utils import (
 )
 from nemo.utils import logging
 
-engine = inflect.engine()
+from functools import cache
+
+@cache
+def inflect_engine()
+    import inflect
+    return inflect.engine()
 
 # these are all words that can appear in a verbalized number, this list will be used later as a filter to detect numbers in verbalizations
 number_verbalizations = list(range(0, 20)) + list(range(20, 100, 10))
 number_verbalizations = (
-    [engine.number_to_words(x, zero="zero").replace("-", " ").replace(",", "") for x in number_verbalizations]
+    [inflect_engine().number_to_words(x, zero="zero").replace("-", " ").replace(",", "") for x in number_verbalizations]
     + ["hundred", "thousand", "million", "billion", "trillion"]
     + ["point"]
 )
@@ -129,6 +133,7 @@ def convert2digits(digits: str):
     Return:
         res: number verbalization of the integer prefix of the input
     """
+    engine = inflect_engine()
     res = []
     for i, x in enumerate(digits):
         if x in digit:
@@ -145,6 +150,7 @@ def convert2digits(digits: str):
 
 
 def convert(example):
+    engine = inflect_engine()
     cls, written, spoken = example
 
     written = convert_fraction(written)
