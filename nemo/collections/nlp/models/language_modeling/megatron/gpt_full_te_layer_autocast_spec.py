@@ -241,9 +241,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
         super().__init__(**transformer_layer_args)
 
         if self.config.enable_cuda_graph and self.training:
-            assert (
-                not config.cpu_offloading and config.recompute_granularity is None
-            ), "Cudagraphs not supported"
+            assert not config.cpu_offloading and config.recompute_granularity is None, "Cudagraphs not supported"
             self.add_module('cudagraph_manager', CudaGraphManager())
 
     # Called by MCore's TransformerBlock.forward
