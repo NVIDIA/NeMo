@@ -81,6 +81,9 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.filter_by_source_target_text_ratio = filter_by_source_target_text_ratio
         self.source_target_text_ratio_limit = source_target_text_ratio_limit
 
+        # To be consistent with SALM text processor
+        self.text_processor.add_sep = False
+
     def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
         cuts = cuts.sort_by_duration()
 
@@ -106,17 +109,17 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             instruction = self.text_processor._process_example(
                 context=cut.supervisions[0].text, output=""
             )
-            instruction, instruction_length = torch.as_tensor(instruction["context_ids"]), torch.as_tensor(instruction["context_length"])
+            instruction, instruction_length = torch.as_tensor(instruction["input_ids"]), torch.as_tensor(len(instruction["input_ids"]))
 
             source_text = self.text_processor._process_example(
                 context=cut.supervisions[1].text, output=""
             )
-            source_text, source_text_length = torch.as_tensor(source_text["context_ids"]), torch.as_tensor(source_text["context_length"])
+            source_text, source_text_length = torch.as_tensor(source_text["input_ids"]), torch.as_tensor(len(source_text["input_ids"]))
 
             target_text = self.text_processor._process_example(
                 context=cut.supervisions[2].text, output=""
             )
-            target_text, target_text_length = torch.as_tensor(target_text["context_ids"]), torch.as_tensor(target_text["context_length"])
+            target_text, target_text_length = torch.as_tensor(target_text["input_ids"]), torch.as_tensor(len(target_text["input_ids"]))
 
             if self.filter_by_source_target_text_ratio:
                 if source_text_length / target_text_length > self.source_target_text_ratio_limit or \
@@ -314,7 +317,7 @@ def collate_text_data(
         "context_lengths": torch.LongTensor([len(seq) for seq in fields["context_ids"]]),
         "answers": collate_vectors(fields["answer_ids"], max_length=max_length, padding_value=pad_id),
         "max_length": torch.LongTensor([max_length] * batch_size),
-        "context_ids": fields["context_ids"]
+        "context_ids": fields["context_ids"],
     }
 
 

@@ -18,6 +18,7 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 
+from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     PromptEncoderAdapterConfig,
@@ -118,7 +119,7 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
             add_encoder=add_encoder,
             add_decoder=add_decoder,
             share_token_embeddings=self.cfg.get('share_token_embeddings', True),
-            share_decoder_tokens_head_embeddings=False,
+            share_decoder_tokens_head_embeddings=True,
             tokens_head_bias=self.cfg.get('tokens_head_bias', True),
             hiddens_cfg=self.cfg.get('hiddens', None),
             n_proj_heads=self.n_proj_heads,
@@ -450,7 +451,7 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
         add_encoder=True,
         add_decoder=True,
         share_token_embeddings=True,
-        share_decoder_tokens_head_embeddings=False,
+        share_decoder_tokens_head_embeddings=True,
         tokens_head_bias=True,
         hiddens_cfg: DictConfig = None,  # allows for hidden state transformations before the decoder
         n_proj_heads=1,
@@ -484,9 +485,6 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
         self.proj_head_dims = proj_head_dims
         self.proj_head_loss_weights = proj_head_loss_weights
         assert self.proj_head_dims[0] == vocab_size
-
-        # Shared token and head embeddings are not valid for multi-proj heads
-        share_decoder_tokens_head_embeddings = False
 
         if add_decoder and post_process:
             self.tokens_heads = torch.nn.ModuleList([
@@ -679,6 +677,10 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
 
                 # project decoder output to vocabulary-size dimensions
                 token_logits = [self.tokens_heads[i](dec_output)[0] for i in range(self.n_proj_heads)]
+                if self.share_decoder_tokens_head_embeddings:
+                    token_logits[0] = self.tokens_head(dec_output, self.word_embeddings_weight())
+                else:
+                    token_logits[0] = self.tokens_head(dec_output)[0]
 
                 if labels is not None:
                     # compute loss here
@@ -741,6 +743,7 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
         self.decoder_embedding.load_state_dict(state_dict[self._decoder_embedding_key], strict=strict)
         self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
         self.tokens_heads.load_state_dict(state_dict[self._tokens_head_key], strict=False)
+        self.tokens_head.load_state_dict(state_dict['tokens_head'], strict=strict)
 
 
 class SumMultiEmbedding(Embedding):
@@ -750,6 +753,7 @@ class SumMultiEmbedding(Embedding):
         self,
         config: ModelParallelConfig,
         hidden_size,
+        orig_vocab_size,
         vocab_size,
         max_sequence_length,
         embedding_dropout_prob,
@@ -770,6 +774,7 @@ class SumMultiEmbedding(Embedding):
             position_embedding_type,
             transpose_batch_sequence,
         )
+        self.word_embeddings._parameters['weight'][orig_vocab_size:].data.zero_()
 
     # def add_tokentype_embeddings(self, num_tokentypes):
     #     """Add token-type embedding. This function is provided so we can add

@@ -3,8 +3,9 @@ PYTHONPATH=./ CUDA_VISIBLE_DEVICES=0 HYDRA_FULL_ERROR=1 NEMO_ENABLE_COLORING=1 p
     --config-name=modular_audio_t5_s2st_config \
     name=debug \
     model.language_model_path=/workspace/model/megatronnmt_any_en_500m.nemo \
+    model.salm_model_path="/workspace/model/megatron_audio_gpt_peft_tuning--validation_bleu\=53.280-step\=87504-epoch\=4.ckpt" \
     model.pretrained_audio_model=/workspace/model/stt_multilingual_fastconformer_hybrid_large_pc_blend_eu.nemo \
-    exp_manager.exp_dir=/workspace/Experiments/s2st/ \
+    exp_manager.exp_dir=/workspace/Experiments/s2st_mini/ \
     trainer.devices=1 \
     trainer.max_steps=180000 \
     trainer.log_every_n_steps=100 \
@@ -39,7 +40,7 @@ model.perception.modality_adapter.n_layers=1 \
     model.perception.spec_augment.time_width=0.05 \
     model.perception.modality_adapter.reduction=striding \
     model.data.train_ds.use_lhotse=true \
-    model.data.train_ds.batch_duration=40 \
+    model.data.train_ds.batch_duration=60 \
     model.data.train_ds.quadratic_duration=20 \
     model.data.train_ds.duration_bins=[3.155,3.76,4.27,4.74,5.1935,5.64,6.096,6.588,7.14,7.81,8.28,8.664,9.072,9.57,10.14,10.7335,11.3735,12.09,12.78,13.41,14.01,14.62,15.253375,15.96875,16.71,17.45,18.1335,18.7735,19.4,20.0] \
     +model.data.train_ds.use_bucketing=false \
@@ -67,7 +68,7 @@ model.perception.modality_adapter.n_layers=1 \
     ++model.data.validation_ds.canary_tokens_augment_ratio=0.0 \
     ++model.data.validation_ds.convert_canary_prompt_to_text=true \
     ++model.data.validation_ds.max_open_streams=null \
-    ++model.data.validation_ds.output_dir=/workspace/Results/s2st \
+    ++model.data.validation_ds.output_dir=/workspace/Results/s2st_mini \
     model.lora_tuning.q_adapter_dim=1 \
     model.lora_tuning.kv_adapter_dim=2 \
     model.lora_tuning.kqv_adapter_dim=4 \
@@ -79,7 +80,7 @@ model.perception.modality_adapter.n_layers=1 \
     model.optim.sched.min_lr=1e-6 \
     +model.use_flash_attention=True \
     +model.audio_prompt_first=False
+    # +trainer.ckpt_path="/workspace/model/megatron_audio_gpt_peft_tuning--validation_bleu\=53.280-step\=88099-epoch\=4-last.ckpt" \
     # ++model.data.validation_ds.is_tarred=false \
     # ++model.data.validation_ds.tarred_audio_filepaths=null \
     # +model.data.validation_ds.manifest_filepath=[/workspace/data/ASR/MMLPC/en/val_test/mcv11/mcv11_dev_clean_pcstrip_en_2k.json] \
-    # +trainer.ckpt_path="/workspace/model/megatron_audio_gpt_peft_tuning--validation_bleu\=53.280-step\=88099-epoch\=4-last.ckpt"

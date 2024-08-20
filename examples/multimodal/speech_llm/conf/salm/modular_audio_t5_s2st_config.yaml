@@ -77,6 +77,7 @@ model:
   global_batch_size: 128
   micro_batch_size: 4
   language_model_path: ??? # Path to an existing .nemo model you wish to add new tasks to or run inference with
+  salm_model_path: ???
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   save_nemo_on_validation_end: False # Saves an inference ready .nemo file every time a checkpoint is saved during training.
   sync_batch_comm: False
@@ -108,7 +109,7 @@ model:
   # for MegatronNMTMultiProjModel
   n_proj_heads: 9
   proj_head_dims: [64000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024]
-  proj_head_loss_weights: [1, 1, 1, 1, 1, 1, 1, 1, 1]
+  proj_head_loss_weights: [8, 1, 1, 1, 1, 1, 1, 1, 1]
 
   lora_tuning:
     kqv_adapter_dim: 128

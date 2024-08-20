@@ -38,7 +38,7 @@ from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
     AudioPerceptionModule,
     MultiAudioPerceptionModule,
 )
-from  nemo.collections.multimodal.speech_llm.modules.multi_proj_modules import MegatronNMTMultiProjModel, MegatronTokenLevelEncoderDecoderMultiProjModule, SumMultiEmbedding
+from  nemo.collections.multimodal.speech_llm.modules.multi_proj_modules import SumMultiEmbedding
 from nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model import MegatronT5LoraModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
@@ -526,6 +526,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             gpt_cfg.precision = cfg.trainer.precision
             gpt_cfg.answer_only_loss = cfg.model.answer_only_loss
             gpt_cfg.language_model_path = cfg.model.language_model_path
+            gpt_cfg.salm_model_path = cfg.model.get("salm_model_path", None)
             gpt_cfg.resume_from_checkpoint = cfg.model.resume_from_checkpoint
             gpt_cfg.save_nemo_on_validation_end = cfg.model.save_nemo_on_validation_end
             gpt_cfg.gradient_as_bucket_view = cfg.model.gradient_as_bucket_view
@@ -623,7 +624,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         )
         # load am
         model.perception.tokenizer = audio_model.tokenizer
-        if cfg.model.get('load_audio_encoder', True):
+        if cfg.model.get('load_audio_encoder', True) and cfg.model.get('salm_model_path') is None:
             model.perception.encoder.load_state_dict(
                 audio_model.encoder.state_dict(), strict='adapter' not in cfg.model.perception
             )
@@ -1408,20 +1409,6 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         else:
             self.hidden_size = self.frozen_model.cfg.hidden_size
 
-        # Extend word embedding table if self.padded_vocab_size is larger than the size of the pre-trained word embedding
-        pretrained_emb = self.frozen_model.enc_dec_model.decoder_embedding.word_embeddings
-        self.frozen_model.enc_dec_model.decoder_embedding = SumMultiEmbedding(
-            config=self.frozen_model.enc_dec_model.config,
-            hidden_size=self.hidden_size,
-            vocab_size=self.padded_vocab_size,
-            max_sequence_length=self.frozen_model.cfg.max_position_embeddings,
-            init_method=init_method_normal(0.2),
-            num_tokentypes=0,
-            embedding_dropout_prob=self.frozen_model.cfg.embedding_dropout,
-            position_embedding_type=self.frozen_model.cfg.encoder.get('position_embedding_type', 'learned_absolute'),
-        )
-        self.frozen_model.enc_dec_model.decoder_embedding.word_embeddings.weight.data[:pretrained_emb.weight.shape[0]] = pretrained_emb.weight.data
-
         # Handle this when moving GPT prompt learning to the base class.
         self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
 
@@ -1440,7 +1427,35 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         self.enable_autocast = (
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
         )
-    
+        
+    def __init__(self, cfg: DictConfig, trainer: Trainer):
+        self.cfg = cfg
+        super().__init__(cfg, trainer)
+        if cfg.get('salm_model_path') is not None:
+            torch_state_dict = torch.load(cfg.get('salm_model_path'))['state_dict']
+            self.setup_complete = False
+            # breakpoint()
+            self.load_state_dict(torch_state_dict, strict=False)
+            logging.info(f"loading from {cfg.get('salm_model_path')}: {torch_state_dict.keys()}")
+
+        # Extend word embedding table if self.padded_vocab_size is larger than the size of the pre-trained word embedding
+        pretrained_emb = self.frozen_model.enc_dec_model.decoder_embedding.word_embeddings
+        self.frozen_model.enc_dec_model.decoder_embedding = SumMultiEmbedding(
+            config=self.frozen_model.enc_dec_model.config,
+            hidden_size=self.hidden_size,
+            orig_vocab_size=self.frozen_model.proj_head_dims[0],
+            vocab_size=self.padded_vocab_size,
+            max_sequence_length=self.frozen_model.cfg.max_position_embeddings,
+            init_method=init_method_normal(0.2),
+            num_tokentypes=0,
+            embedding_dropout_prob=self.frozen_model.cfg.embedding_dropout,
+            position_embedding_type=self.frozen_model.cfg.encoder.get('position_embedding_type', 'learned_absolute'),
+        )
+        self.frozen_model.enc_dec_model.decoder_embedding.word_embeddings.weight.data[
+            : pretrained_emb.weight.shape[0]
+        ] = pretrained_emb.weight.data
+        self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
+
     @classmethod
     def _modify_config(cls, gpt_cfg, cfg, audio_cfg, add_cfg_to_tree=False):
         """
@@ -1853,8 +1868,8 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
                             inp_label_set.add(key)
                             # Remove leading BOS
                             pred = pred[1:]
-                            text_pred, speech_pred = self.parse_decoder_outputs(pred, self.tokenizer.bos_id)
-                            text_answer, speech_answer = self.parse_decoder_outputs(answer, self.tokenizer.bos_id)
+                            text_pred, speech_pred = self.parse_decoder_outputs(pred, self.tokenizer.eos_id)
+                            text_answer, speech_answer = self.parse_decoder_outputs(answer, self.tokenizer.eos_id)
                             deduplicated_outputs['text_preds'].append(MegatronT5SFTModel.ids_to_text(text_pred.unsqueeze(0), self.tokenizer))
                             deduplicated_outputs['text_answers'].append(MegatronT5SFTModel.ids_to_text(text_answer.unsqueeze(0), self.tokenizer))
                             deduplicated_outputs['speech_preds'].append(speech_pred.cpu().numpy())
@@ -1917,11 +1932,11 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
 
         return averaged_loss, averaged_loss
     
-    def parse_decoder_outputs(self, decoder_output, bos_id, speecn_pad_id=1001):
-        # Split text and speech part based on the position of the first bos tokeb
-        first_bos_pos = torch.argmax((decoder_output[:, 0] == bos_id).long())
-        text_tokens = decoder_output[:first_bos_pos, 0]
-        speech_tokens = decoder_output[first_bos_pos+1:, 1:]
+    def parse_decoder_outputs(self, decoder_output, separator, speecn_pad_id=1001):
+        # Split text and speech part based on the position of the first separator token
+        first_sep_pos = torch.argmax((decoder_output[:, 0] == separator).long())
+        text_tokens = decoder_output[:first_sep_pos, 0]
+        speech_tokens = decoder_output[first_sep_pos+1:, 1:]
 
         # Get speech token ids
         vocab_sizes = self.frozen_model.proj_head_dims
