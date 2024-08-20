@@ -15,7 +15,6 @@ import re
 from typing import List
 
 from pangu import spacing
-from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
 
 try:
     import ipadic
@@ -36,6 +35,7 @@ class EnJaProcessor:
     """
 
     def __init__(self, lang_id: str):
+        from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
         self.lang_id = lang_id
         self.moses_tokenizer = MosesTokenizer(lang=lang_id)
         self.moses_detokenizer = MosesDetokenizer(lang=lang_id)

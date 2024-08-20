@@ -19,7 +19,6 @@ from argparse import ArgumentParser
 from multiprocessing import Pool
 
 import tensorflow as tf
-from sacremoses import MosesDetokenizer
 from tasks_splits_and_features import _TASK_SPLITS_AND_FEATURES_DICT
 
 
@@ -136,6 +135,7 @@ def process_folder(data_folder, folder_name, output_folder, detokenizer, remove_
 
 
 def process_all_folders(data_folder, output_folder, remove_newlines):
+    from sacremoses import MosesDetokenizer
     detokenizer = MosesDetokenizer('en')
     assert os.path.isdir(data_folder)
     if not os.path.exists(output_folder):

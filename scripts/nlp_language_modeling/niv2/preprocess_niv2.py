@@ -18,8 +18,6 @@ import re
 from argparse import ArgumentParser
 from multiprocessing import Pool
 
-from sacremoses import MosesDetokenizer
-
 from nemo.collections.common.tokenizers import AutoTokenizer
 
 
@@ -99,6 +97,7 @@ def write_dataset_to_file(file_name, output_file_name, detokenizer, tokenizer, i
 
 
 def process_folder(data_folder, output_folder, splits_file, remove_newline):
+    from sacremoses import MosesDetokenizer
     detokenizer = MosesDetokenizer('en')
     tokenizer = AutoTokenizer("gpt2")
     assert os.path.isdir(data_folder)
