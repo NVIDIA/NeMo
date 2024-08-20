@@ -312,7 +312,7 @@ def kl_loc_loss(ref_outputs, output_tensor, mask=None, kl_penalty=None):
         raise NotImplementedError
 
     if mask is not None:
-        kl_value = (_kl_div * mask).sum(axis=-1).mean()
+        kl_value = ((_kl_div * mask).sum(axis=-1) / mask.sum(axis=-1).clamp(min=1.)).mean()
     else:
         kl_value = (_kl_div).sum(axis=-1).mean()
         # mask = mask.view(ref_outputs.shape[-1])
