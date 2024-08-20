@@ -234,6 +234,7 @@ class ExpManagerConfig:
     # logs TFLOPs per sec per gpu
     log_tflops_per_sec_per_gpu: Optional[bool] = True
 
+
 class TimingCallback(Callback):
     """
     Logs execution time of train/val/test steps
