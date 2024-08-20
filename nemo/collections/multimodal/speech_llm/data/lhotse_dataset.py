@@ -221,10 +221,13 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             # Add 1 for eos token
             token_list = [torch.concat([tt[:ttl], tc[:tcl+1]], 0) for tt, ttl, tc, tcl in zip(target_texts, target_text_lengths, target_codec, features_lens)]
             tokens, _ = collate_and_pad(token_list)
+            # -1 since the first token will not be used as a label
             loss_mask = torch.zeros(tokens.shape[0], tokens.shape[1]-1, tokens.shape[2])
             for i in range(len(tokens)):
-                loss_mask[i, :target_text_lengths[i]-1, 0] = 1
-                loss_mask[i, target_text_lengths[i]-1:target_text_lengths[i]+features_lens[i], 1:] = 1
+                # loss_mask[i, :target_text_lengths[i]-1, 0] = 1
+                # loss_mask[i, target_text_lengths[i]-1:target_text_lengths[i]+features_lens[i], 1:] = 1
+                loss_mask[i, :target_text_lengths[i]-1, :] = 1
+                loss_mask[i, target_text_lengths[i]-1:target_text_lengths[i]+features_lens[i], :] = 1
         elif getattr(cut, "s2tt", False):
             token_list = [tt[:ttl] for tt, ttl in zip(target_texts, target_text_lengths)]
             tokens, _ = collate_and_pad(token_list)
@@ -245,6 +248,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             "metadata": metadata,
             # For forward
             "instructions": instructions,
+            "instruction_lengths": instruction_lengths,
             "tokens": tokens[:, :-1, :],
             "labels": tokens[:, 1:, :],
             "loss_mask": loss_mask,
