@@ -48,19 +48,20 @@ if __name__ == '__main__':
         seed=1234,
         tokenizer=tokenizer,
     )
-    gpt_config = llm.GPTConfig(
-        num_layers=2,
-        hidden_size=768,
-        ffn_hidden_size=3072,
-        num_attention_heads=12,
+    ssm_config = llm.SSMConfig(
+        hybrid_override_pattern="M",
+        num_layers=1,
+        hidden_size=4096,
+        ffn_hidden_size=4096,
+        num_attention_heads=8,
         seq_length=seq_length,
-        init_method_std=0.023,
-        hidden_dropout=0.1,
-        attention_dropout=0.1,
+        init_method_std=0.02,
+        hidden_dropout=0.0,
+        attention_dropout=0.0,
         layernorm_epsilon=1e-5,
         make_vocab_size_divisible_by=128,
     )
-    model = llm.GPTModel(gpt_config, tokenizer=data.tokenizer)
+    model = llm.SSMModel(ssm_config, tokenizer=data.tokenizer)
     strategy = nl.MegatronStrategy()
     checkpoint_callback = ModelCheckpoint(
         every_n_train_steps=5000,
@@ -98,8 +99,7 @@ if __name__ == '__main__':
     nemo_logger = NeMoLogger(
         dir=args.experiment_dir,
     )
-    import pdb
-    pdb.set_trace()
+
     train(
         model=model,
         data=data,

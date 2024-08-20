@@ -48,6 +48,8 @@ from nemo.collections.llm.gpt.model import (
     MixtralConfig8x7B,
     MixtralConfig8x22B,
     MixtralModel,
+    SSMModel,
+    SSMConfig,
     gpt_data_step,
     gpt_forward_step,
 )
@@ -73,6 +75,8 @@ __all__ = [
     "MixtralConfig8x7B",
     "MixtralConfig8x22B",
     "MixtralModel",
+    "SSMModel",
+    "SSMConfig",
     "LlamaConfig",
     "Llama2Config7B",
     "Llama2Config13B",

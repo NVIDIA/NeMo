@@ -37,7 +37,10 @@ from nemo.collections.llm.gpt.model.mixtral import (
     MixtralConfig8x22B,
     MixtralModel,
 )
-
+from nemo.collections.llm.gpt.model.ssm import (
+    SSMConfig, 
+    SSMModel,
+    )
 __all__ = [
     "GPTConfig",
     "GPTModel",
@@ -70,6 +73,8 @@ __all__ = [
     "ChatGLM2Config6B",
     "ChatGLM3Config6B",
     "ChatGLMModel",
+    "SSMConfig",
+    "SSMModel",
     "MaskedTokenLossReduction",
     "gpt_data_step",
     "gpt_forward_step",
