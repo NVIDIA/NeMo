@@ -92,7 +92,7 @@ class MegatronMixedPrecision(Precision):
         dtype = torch.bfloat16 if precision in ['bf16', 'bf16-mixed'] else torch.float32
         self.dtype_config = DtypeConfig(
             fp32=precision in ['fp32', '32'],
-            fp16=precision in ['fp16', 'fp16-mixed', '16'],
+            fp16=precision in ['fp16', 'fp16-mixed', '16', '16-mixed'],
             bf16=precision in ['bf16', 'bf16-mixed'],
             params_dtype=params_dtype or torch.float32,
             pipeline_dtype=pipeline_dtype or dtype,
@@ -115,6 +115,12 @@ class MegatronMixedPrecision(Precision):
             hysteresis=fp16_hysteresis,
         )
         super().__init__()
+        if self.dtype_config.fp16:
+            self.precision = "16-mixed"
+        elif self.dtype_config.bf16:
+            self.precision = "bf16-mixed"
+        else:
+            self.precision = "32-true"
 
     def convert_module(self, module: Module) -> Module:
         """Convert the module parameters to the precision type this plugin handles.
