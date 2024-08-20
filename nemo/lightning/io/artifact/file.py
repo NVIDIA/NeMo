@@ -6,8 +6,8 @@ from nemo.lightning.io.artifact.base import Artifact
 
 
 class PathArtifact(Artifact[Path]):
-    def dump(self, value: Path, path: Path) -> Path:
-        new_value = copy_file(value, path)
+    def dump(self, value: Path, absolute_dir: Path, relative_dir: Path) -> Path:
+        new_value = copy_file(value, absolute_dir, relative_dir)
         return new_value
 
     def load(self, path: Path) -> Path:
