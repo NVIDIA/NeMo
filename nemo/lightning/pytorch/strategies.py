@@ -486,10 +486,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if self.log_train_loss:
                 # p2p now, broadcast later at ckpt
                 _strategy_lib._sync_from_last_pipeline_stage(out, broadcast=False)
-                if torch.distributed.get_rank() == 0:
-                    self.lightning_module.log(
-                        'reduced_train_loss', out, prog_bar=True, rank_zero_only=True, batch_size=1
-                    )
+                self.lightning_module.log('reduced_train_loss', out, prog_bar=True, batch_size=1)
 
             return out
 
