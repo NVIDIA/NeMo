@@ -36,11 +36,11 @@ except (ImportError, ModuleNotFoundError) as e:
 try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
+    from megatron.core.transformer.graphs import CudaGraphManager
     from megatron.core.transformer.spec_utils import ModuleSpec
     from megatron.core.transformer.transformer_block import TransformerBlockSubmodules, get_num_layers_to_build
     from megatron.core.transformer.transformer_layer import BaseTransformerLayer
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
-    from megatron.core.transformer.graphs import CudaGraphManager
 
     HAVE_MEGATRON_CORE = True
 
@@ -241,9 +241,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
         super().__init__(**transformer_layer_args)
 
         if not hasattr(self.config, 'external_cuda_graph') and config.enable_cuda_graph and self.training:
-            assert (
-                not config.cpu_offloading and config.recompute_granularity is None
-            ), "Cudagraphs not supported"
+            assert not config.cpu_offloading and config.recompute_granularity is None, "Cudagraphs not supported"
             self.add_module('cudagraph_manager', CudaGraphManager())
 
     # Called by MCore's TransformerBlock.forward
@@ -333,6 +331,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
         if hasattr(self, 'cudagraph_manager'):
             return self.cudagraph_manager(self, args, kwargs)
         return super().__call__(*args, **kwargs)
+
 
 # Use this spec to use the full Transformer layer from Transformer Engine
 def get_gpt_full_te_layer_autocast_spec(transformer_config) -> ModuleSpec:
