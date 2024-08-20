@@ -1296,7 +1296,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             loss_mask = batch['loss_mask']
             kl_div = torch.tensor(0.0, device=loss_mask.device)
-            if self.c_kl > 0:
+            if self.c_kl > 0 and self.trainer.state.fn == 'fit':
                 with torch.no_grad():      
                     ref_outputs = self.ref_model(
                         tokens=forward_args['input_ids'],
