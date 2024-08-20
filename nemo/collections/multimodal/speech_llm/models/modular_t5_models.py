@@ -1485,13 +1485,12 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             processed_signal=None,
             processed_signal_length=None,
         )
-        encoder_input, attention_mask, encoder_length = encoded, None, encoded_len
+        
+        encoder_input, attention_mask, encoder_length, _, encoder_max_length = self.inject_perception_input(
+            encoded, encoded_len, audio_batch['instructions'], audio_batch['instruction_lengths']
+        )
         # generate encoder_mask from encoder_length
         enc_mask = torch.arange(encoder_input.shape[1], device=encoder_input.device)[None, :] < encoder_length[:, None]
-
-        instructions = audio_batch['instructions']
-        encoder_input = torch.cat([self.frozen_model.enc_dec_model.encoder_embedding(instructions, None, token_type_ids=None).transpose(0, 1), encoder_input], axis=1)
-        enc_mask = torch.cat([instructions != self.tokenizer.pad_id, enc_mask], axis=1)
         return encoder_input, attention_mask, enc_mask
 
     def forward(
@@ -1726,8 +1725,8 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             'answers': answers,  # 2d array
             'inputs': inputs_text,  # [str]
             'speaker_contexts': speaker_contexts,  # 2d array
-            'self_attention_probs': self_attention_probs.cpu().numpy(),  # 2d array
-            'cross_attention_probs': cross_attention_probs.cpu().numpy(),  # 2d array
+            'self_attention_probs': self_attention_probs,  # 2d array
+            'cross_attention_probs': cross_attention_probs,  # 2d array
             'metadata': metadata,  # [dict]
         }
 
@@ -1769,7 +1768,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         return {
             'input_text': batch['source_texts'],
             'preds': predicted_token_ids,
-            'answers': batch['target_texts'],
+            'answers': batch['answers'],
             'attention_probs': attention_probs,
         }
 
@@ -1831,8 +1830,10 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             # Remove duplicate examples due to distributed sampler.
             inp_label_set = set()
             deduplicated_outputs = {
-                'preds': [],
-                'answers': [],
+                'text_preds': [],
+                'text_answers': [],
+                'speech_preds': [],
+                'speech_answers': [],
                 'inputs': [],
                 'speaker_contexts': [],
                 'self_attn': [],
@@ -1850,14 +1851,20 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
                         dedup = data_cfg.get('deduplicate', True)
                         if (not dedup) or key not in inp_label_set:
                             inp_label_set.add(key)
-                            deduplicated_outputs['preds'].append(MegatronT5SFTModel.ids_to_text(pred[:, 0].unsqueeze(0), self.tokenizer))
-                            deduplicated_outputs['answers'].append(MegatronT5SFTModel.ids_to_text(answer[:, 0].unsqueeze(0), self.tokenizer))
+                            # Remove leading BOS
+                            pred = pred[1:]
+                            text_pred, speech_pred = self.parse_decoder_outputs(pred, self.tokenizer.bos_id)
+                            text_answer, speech_answer = self.parse_decoder_outputs(answer, self.tokenizer.bos_id)
+                            deduplicated_outputs['text_preds'].append(MegatronT5SFTModel.ids_to_text(text_pred.unsqueeze(0), self.tokenizer))
+                            deduplicated_outputs['text_answers'].append(MegatronT5SFTModel.ids_to_text(text_answer.unsqueeze(0), self.tokenizer))
+                            deduplicated_outputs['speech_preds'].append(speech_pred.cpu().numpy())
+                            deduplicated_outputs['speech_answers'].append(speech_answer.cpu().numpy())
                             deduplicated_outputs['inputs'].append(input)
                             # deduplicated_outputs['speaker_contexts'].append(speaker_context)
-                            deduplicated_outputs['self_attn'].append(self_attn)
-                            deduplicated_outputs['cross_attn'].append(cross_attn)
+                            deduplicated_outputs['self_attn'].append(self_attn.cpu().numpy())
+                            deduplicated_outputs['cross_attn'].append(cross_attn.cpu().numpy())
                             deduplicated_outputs['metadata'].append(metadata)
-
+                            # import pdb; pdb.set_trace()
             # Write predictions to file
             if self.global_rank == 0 and data_cfg.get("write_predictions_to_file", False):
                 logging.info(
@@ -1909,46 +1916,53 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             )
 
         return averaged_loss, averaged_loss
+    
+    def parse_decoder_outputs(self, decoder_output, bos_id, speecn_pad_id=1001):
+        # Split text and speech part based on the position of the first bos tokeb
+        first_bos_pos = torch.argmax((decoder_output[:, 0] == bos_id).long())
+        text_tokens = decoder_output[:first_bos_pos, 0]
+        speech_tokens = decoder_output[first_bos_pos+1:, 1:]
+
+        # Get speech token ids
+        vocab_sizes = self.frozen_model.proj_head_dims
+        n_speech_codebook = self.frozen_model.n_proj_heads-1
+        for i in range(n_speech_codebook):
+            speech_tokens[:, i:] -= vocab_sizes[i]
+        
+        # Remove padded parts of speech tokens
+        speech_pad_pos = (torch.sum(speech_tokens == 1001, axis=1) == n_speech_codebook)
+        speech_pad_mask = (torch.cumsum(speech_pad_pos, 0) == 0)
+        return text_tokens, speech_tokens[speech_pad_mask]
 
     # consistent with speech models
     def write_predictions_to_file(self, outputs, output_file_path_prefix, output_dir):
         inputs_path = os.path.join(output_dir, output_file_path_prefix + "_inputs.jsonl")
-        for folder_name in ['preds', 'answers', 'speaker_contexts', 'self_attn', 'cross_attn']:
+        for folder_name in ['speech_pred', 'speech_answer', 'speaker_contexts', 'self_attn', 'cross_attn']:
             os.makedirs(os.path.join(output_dir, 'npy', folder_name), exist_ok=True)
-        # preds_path = os.path.join(output_dir, 'npy', 'preds', output_file_path_prefix + "_pred_{}.npy")
-        # answers_path = os.path.join(output_dir, 'npy', 'answers', output_file_path_prefix + "_answer_{}.npy")
         # speaker_contexts_path = os.path.join(output_dir, 'npy', 'speaker_contexts', output_file_path_prefix + "_speaker_context_{}.npy")
         self_attn_path = os.path.join(output_dir, 'npy', 'self_attn', output_file_path_prefix + "_self_attn_{}.npy")
         cross_attn_path = os.path.join(output_dir, 'npy', 'cross_attn', output_file_path_prefix + "_cross_attn_{}.npy")
+        speech_pred_path = os.path.join(output_dir, 'npy', 'speech_pred', output_file_path_prefix + "_speech_pred_{}.npy")
+        speech_answer_path = os.path.join(output_dir, 'npy', 'speech_answer', output_file_path_prefix + "_speech_answer_{}.npy")
 
         with open(inputs_path, "w") as f_json:
             assert (
-                len(outputs['inputs']) == len(outputs['preds']) == len(outputs['answers']) == len(outputs['self_attn']) == len(outputs['cross_attn']) == len(outputs['metadata'])
+                len(outputs['inputs']) == len(outputs['text_preds']) == len(outputs['text_answers']) == len(outputs['speech_preds']) == len(outputs['speech_answers']) == len(outputs['self_attn']) == len(outputs['cross_attn']) == len(outputs['metadata'])
             )
-            for i, (input_, pred, answer, self_attn, cross_attn, md) in enumerate(zip(outputs['inputs'], outputs['preds'], outputs['answers'], outputs['self_attn'], outputs['cross_attn'], outputs['metadata'])):
-                json_string = {'preds': pred, 'answers': answer}
+            for i, (input_, text_pred, text_answer, speech_pred, speech_answer, self_attn, cross_attn, md) in enumerate(zip(outputs['inputs'], outputs['text_preds'], outputs['text_answers'], outputs['speech_preds'], outputs['speech_answers'], outputs['self_attn'], outputs['cross_attn'], outputs['metadata'])):
+                json_string = {"index": i, 'preds': text_pred, 'answers': text_answer}
                 for k, v in md.items():
                     if k not in json_string:
                         json_string[k] = v
                 f_json.write(json.dumps(json_string) + '\n')
 
-                # vocab_sizes = self.frozen_model.proj_head_dims
-                # pred = self.convert_speech_token_id(pred, vocab_sizes)
-                # answer = self.convert_speech_token_id(answer, vocab_sizes)
-                # speaker_context = self.convert_speech_token_id(speaker_context, vocab_sizes)
-
-                # np.save(preds_path.format(i), pred.cpu().numpy())
-                # np.save(answers_path.format(i), answer.cpu().numpy())
                 # np.save(speaker_contexts_path.format(i), speaker_context.cpu().numpy())
                 np.save(self_attn_path.format(i), self_attn)
                 np.save(cross_attn_path.format(i), cross_attn)
+                np.save(speech_pred_path.format(i), speech_pred)
+                np.save(speech_answer_path.format(i), speech_answer)
 
         logging.info(f'Predictions saved to {output_dir}')
-
-    def convert_speech_token_id(self, tokens, vocab_sizes):
-        for i, v in enumerate(vocab_sizes[:-1]):
-            tokens[:, i+1:] -= v
-        return tokens
 
     def _build_dataset(self, data_cfg, is_train=True):
         # this is crucial so as to tell the decoder when to start generate answer after context and paddings
