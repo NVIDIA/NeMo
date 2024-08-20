@@ -1364,7 +1364,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
                     return loss_for_ub * cp_size, {'avg': reduced_loss}
 
-            return output_tensor, loss_func, forward_args, loss_mask, self.c_kl * kl_div
+            if self.c_kl is None:
+                return output_tensor, loss_func, forward_args, loss_mask, 0.
+            else:   
+                return output_tensor, loss_func, forward_args, loss_mask, self.c_kl * kl_div
 
         return fwd_output_and_loss_func
 
