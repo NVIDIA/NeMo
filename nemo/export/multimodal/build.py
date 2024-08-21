@@ -429,10 +429,11 @@ def build_perception_engine(
     # load perception model
     perception_model = load_perception_model(perception_checkpoint_path)
     feature_extractor = perception_model.preprocessor
-    input_signal=torch.randn(1, 1000)
-    input_signal_length=torch.tensor([1000])
+    input_signal=torch.randn(1, 1000, dtype=torch.float32)
+    input_signal_length=torch.tensor([1000], dtype=torch.int32)
     
     processed_signal, processed_signal_length = feature_extractor(input_signal=input_signal, length=input_signal_length)
+    processed_signal_length = processed_signal_length.to(torch.int32)
     dump_path = model_dir + "/feature_extractor.ts"  # dump the feature extractor as torchscript
     feature_extractor.export(dump_path, (input_signal, input_signal_length))
 
@@ -449,6 +450,7 @@ def build_perception_engine(
             encoded, encoded_len = self.modality_adapter(audio_signal=encoded, length=encoded_len)
             # b, c, t -> b, t, c
             encoded = self.proj(encoded.transpose(1, 2))
+            encoded_len = encoded_len.to(torch.int32)
             return encoded, encoded_len
 
     perception = PerceptionWrapper(perception_model.encoder, perception_model.modality_adapter, perception_model.proj)
