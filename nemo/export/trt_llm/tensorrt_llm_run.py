@@ -165,6 +165,11 @@ def _load(
         runtime_rank = tensorrt_llm.mpi_rank()
 
         if use_python_runtime:
+            if enable_chunked_context:
+                logging.warning("enable_chunked_context is disabled when using python runtime")
+            if multi_block_mode:
+                logging.warning("multi_block_mode is disabled when using python runtime")
+
             decoder = ModelRunner.from_dir(
                 engine_dir=engine_dir,
                 lora_dir=lora_ckpt_list,

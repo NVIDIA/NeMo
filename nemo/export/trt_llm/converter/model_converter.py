@@ -34,14 +34,14 @@ LOGGER = logging.getLogger("NeMo")
 
 
 def get_config(decoder_type, config):
-    decoder_config = {
+    DECODER_CONFIG = {
         "llama": tensorrt_llm.models.llama.config.LLaMAConfig,
         "gpt": tensorrt_llm.models.gpt.config.GPTConfig,
         "gptnext": tensorrt_llm.models.gpt.config.GPTConfig,
         "falcon": tensorrt_llm.models.falcon.config.FalconConfig,
         "gemma": tensorrt_llm.models.GemmaConfig,
     }
-    config_cls = decoder_config[decoder_type] if decoder_type in decoder_config else PretrainedConfig
+    config_cls = DECODER_CONFIG[decoder_type] if decoder_type in DECODER_CONFIG else PretrainedConfig
 
     return config_cls(**config)
 
