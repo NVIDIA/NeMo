@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Callable, Optional
-
+IGNORE_INDEX = -100
+IMAGE_TOKEN_INDEX = -200
 
 @dataclass
 class MultiModalToken:

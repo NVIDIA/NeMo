@@ -9,7 +9,7 @@ from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
-
+from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 
 class MockDataModule(pl.LightningDataModule):
     def __init__(
@@ -117,16 +117,16 @@ class _MockNevaDataset(Dataset):
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
-        tokens[2] = -200  # ImageToken token index
-        labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
+        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
+        tokens[2] = IMAGE_TOKEN_INDEX  # ImageToken token index
+        labels = tokens.clone()
         images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
-        images = rearrange(images, "c h w -> 1 1 c h w")  # T F c h w
+        tokens = tokens[:-1]
+        labels = labels[1:]
         return {
             "media": images,
             "tokens": tokens,
             "labels": labels,
-            # "attention_mask": self.attention_mask,
             "loss_mask": self.loss_mask,
             "position_ids": self.position_ids,
         }

@@ -28,13 +28,9 @@ from PIL import Image
 from torch.utils.data import Dataset, default_collate
 from transformers import CLIPImageProcessor, SiglipImageProcessor
 
-from nemo.collections.multimodal.data.neva.conversation import (
-    DEFAULT_IMAGE_TOKEN,
-)
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 
-MAX_NUM_IMAGES = 1
-IGNORE_INDEX = -100
 SPECIAL_TOKEN_MAP = [("<image>", -200), ("<video>", -300)]
 
 try:
@@ -294,9 +290,7 @@ class LazySupervisedDataset(Dataset):
         conversations = self._apply_prompt_templates(source, use_plain=self.conv_template == "plain")
         tokens, labels = self._tokenize_and_label(conversations)
 
-        crop_size = self._get_crop_size()
         media_tensors = self._process_images(source)
-        media_tensors = self._pad_media_tensors(media_tensors, crop_size)
         data_dict = dict(
             image=media_tensors,
             tokens=tokens,
@@ -359,8 +353,8 @@ class LazySupervisedDataset(Dataset):
             answer_start, answer_end = find_pattern_indices(tokens, answer_tokens)
             labels[answer_start:answer_end] = tokens[answer_start:answer_end]
 
-        tokens = tokens[:-1].contiguous()
-        labels = labels[1:].contiguous()
+        tokens = tokens[:, :-1].contiguous()
+        labels = labels[:, 1:].contiguous()
         return tokens, labels
 
     def _get_crop_size(self):
@@ -369,12 +363,6 @@ class LazySupervisedDataset(Dataset):
         else:
             raise NotImplementedError
 
-    def _pad_media_tensors(self, media_tensors, crop_size):
-        if media_tensors.shape[0] < MAX_NUM_IMAGES:
-            padding_size = MAX_NUM_IMAGES - media_tensors.shape[0]
-            zero_padding = torch.zeros((padding_size, 3, crop_size[0], crop_size[1]), dtype=torch.float)
-            media_tensors = torch.cat((media_tensors, zero_padding), dim=0)
-        return media_tensors
 
 
 class NevaDataset(LazySupervisedDataset):
@@ -478,13 +466,13 @@ class NevaDataset(LazySupervisedDataset):
 
         loss_mask[labels == IGNORE_INDEX] = 0.0
 
-        if media is None:
-            raise NotImplementedError
-        else:
-            if media_type == 'image':
-                media = rearrange(media, "b T c h w -> b T 1 c h w")
-            elif media_type == 'video':
-                media = rearrange(media, "b T F c h w -> b T F c h w")
+        # if media is None:
+        #     raise NotImplementedError
+        # else:
+        #     if media_type == 'image':
+        #         media = rearrange(media, "b T c h w -> b T 1 c h w")
+        #     elif media_type == 'video':
+        #         media = rearrange(media, "b T F c h w -> b T F c h w")
 
         batch = {
             'tokens': tokens,
