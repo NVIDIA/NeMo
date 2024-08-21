@@ -128,7 +128,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         self.validated_consistency = True
 
         try:
-            return dist_checkpointing.save(sharded_state_dict=checkpoint,
+            return dist_checkpointing.save(
+                sharded_state_dict=checkpoint,
                 checkpoint_dir=checkpoint_dir,
                 sharded_strategy=self.save_sharded_strategy,
                 validate_access_integrity=validate_sharding_integrity,
@@ -138,6 +139,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             logging.error(f"Failed to save checkpoint to {checkpoint_dir}")
             # Do cleanup.
             import shutil
+
             shutil.rmtree(checkpoint_dir)
             raise
 
