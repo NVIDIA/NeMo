@@ -275,7 +275,7 @@ def get_trtllm_deployable(args):
         lora_ckpt_list=args.lora_ckpt,
         load_model=(args.nemo_checkpoint is None),
         use_python_runtime=(not args.use_cpp_runtime),
-        multi_block_mode=args.multi_block_mode
+        multi_block_mode=args.multi_block_mode,
     )
 
     if args.nemo_checkpoint is not None:
