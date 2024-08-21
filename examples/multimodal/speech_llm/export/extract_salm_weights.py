@@ -113,7 +113,7 @@ def save_llm_model(state_dict, nemo_config, output_path):
         keys = list(state_dict.keys())
         for key in keys:
             state_dict[key.replace('model.', 'model.module.', 1)] = state_dict['state_dict'].pop(key)
- 
+
     trainer = Trainer(accelerator='cpu', strategy=NLPDDPStrategy())
     model = load_state_dict_helper(MegatronGPTModel, nemo_config, trainer, state_dict)
     model._save_restore_connector = NLPSaveRestoreConnector()
