@@ -42,28 +42,6 @@ class PreemptionPlugin(run.Plugin):
         _merge_callbacks(task, callbacks=self.callbacks)
 
 
-def nsys_plugin(
-    partial: run.Partial,
-    executor: run.Executor,
-    start_step: int,
-    end_step: int,
-    ranks: Optional[list] = None,
-    nsys_trace: Optional[list[str]] = None,
-):
-    nsys_callback = run.Config(
-        NsysCallback,
-        start_step=start_step,
-        end_step=end_step,
-        ranks=ranks or [0],
-    )
-    callbacks: list[run.Config[Callback]] = [nsys_callback]  # type: ignore
-    _merge_callbacks(partial, callbacks=callbacks)
-
-    launcher = executor.get_launcher()
-    launcher.nsys_profile = True
-    launcher.nsys_trace = nsys_trace or ["nvtx", "cuda"]
-
-
 @dataclass(kw_only=True)
 class NsysPlugin(run.Plugin):
     start_step: int
