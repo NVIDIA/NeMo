@@ -93,8 +93,10 @@ def rename_key_dist_ckpt(old_key: str, layer: int) -> str:
 
     return rename_key(new_key)
 
+
 def is_scaling_factor(key: str) -> bool:
     return "extra_state" in key
+
 
 def load_scaling_factors(model: dict, num_layers: int, export_config: dict) -> dict:
     if not export_config.get('fp8_quantized', False):
