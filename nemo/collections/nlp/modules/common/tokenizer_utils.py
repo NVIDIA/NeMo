@@ -15,8 +15,8 @@
 import os.path
 from dataclasses import MISSING, dataclass
 from typing import Dict, List, Optional
-from nemo.utils import logging
 
+from nemo.utils import logging
 
 __all__ = ['get_tokenizer', 'get_tokenizer_list']
 
@@ -84,7 +84,11 @@ def get_tokenizer(
 
     if 'megatron' in tokenizer_name:
         try:
-            from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer, get_megatron_vocab_file, get_megatron_merges_file
+            from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
+                get_megatron_merges_file,
+                get_megatron_tokenizer,
+                get_megatron_vocab_file,
+            )
         except (ImportError, ModuleNotFoundError):
             raise ImportError(
                 "Megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
