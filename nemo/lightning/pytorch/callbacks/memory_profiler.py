@@ -8,6 +8,7 @@ from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.get_rank import get_rank
 
+from torch.utils.viz._cycles import warn_tensor_cycles
 
 class MemoryProfileCallback(Callback, io.IOMixin):
     """
@@ -24,11 +25,24 @@ class MemoryProfileCallback(Callback, io.IOMixin):
         >>> trainer = Trainer(callbacks=[callback])
     """
 
-    def __init__(self, dir: str = "/mem_profile"):
+    def __init__(self, dir: str = "/mem_profile", warn_cycles=True, ranks=[]):
 
         self.dir = dir
+        self.ranks = ranks
+
         os.makedirs(self.dir, exist_ok=True)
-        logging.info(f"Torch memory profiles will be written to: {self.dir},")
+        logging.info(f"Torch memory profiles will be written to: {self.dir}")
+
+        if warn_cycles:
+            logging.info("Enabling reference cycle detector")
+            warn_tensor_cycles()
+
+
+    def enable_on_rank(self) -> bool:
+        if not self.ranks:
+            return True
+        return get_rank() in self.ranks
+
 
     def setup(self, trainer, pl_module, stage) -> None:
         """PyTorch Lightning hook:
@@ -36,8 +50,14 @@ class MemoryProfileCallback(Callback, io.IOMixin):
         We use it here to start recording the memory profiler.
         """
 
-        if torch.distributed.is_initialized():
+        if trainer.max_steps > 1000:
+            logging.warning(f"Memory profiling creates snapshots during the entire training process, \
+            where every iteration increases the size of the snapshot. \
+            Try reducing trainer.max_steps to avoid running into issues")
+
+        if torch.distributed.is_initialized() and self.enable_on_rank():
             torch.cuda.memory._record_memory_history(max_entries=100000)
+
 
     def on_train_end(self, trainer, pl_module) -> None:
         """PyTorch Lightning hook:
@@ -46,11 +66,11 @@ class MemoryProfileCallback(Callback, io.IOMixin):
         """
 
         logging.info(
-            f"on_train_batch_end rank: {torch.distributed.get_rank()} mem: {torch.cuda.memory_allocated()/1024/1024/1024} / {torch.cuda.max_memory_reserved()/1024/1024/1024}"
+            f"on_train_batch_end rank: {get_rank()} mem: {torch.cuda.memory_allocated()/1024/1024/1024} / {torch.cuda.max_memory_reserved()/1024/1024/1024}"
         )
 
-        if torch.distributed.is_initialized():
-            rank = torch.distributed.get_rank()
+        if torch.distributed.is_initialized() and self.enable_on_rank():
+            rank = get_rank()
             _snapshot_path = f"{self.dir}/memory_snapshot-rank{rank}.pickle"
             logging.info(f"Writing memory profile snapshot to {_snapshot_path}")
             torch.cuda.memory._dump_snapshot(f"{_snapshot_path}")
