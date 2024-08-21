@@ -20,6 +20,7 @@ def make_parser():
 
     return parser
 
+
 def wrap_config(config, trainer):
     class ConfigWrapper(type(config)):
         def configure_model(self, tokenizer) -> "MCoreGPTModel":

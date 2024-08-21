@@ -23,17 +23,13 @@ def pl_check_param_hashes_across_dp_replicas(trainer):
         for opt in self.optimizers:
             opt.disable_pre_hook()
     import megatron.core.parallel_state as mp
+
     res = check_param_hashes_across_dp_replicas([trainer.strategy.model])
     torch.distributed.barrier()
 
-    all_res = [
-        False
-        for _ in range(mp.get_data_parallel_world_size())
-    ]
+    all_res = [False for _ in range(mp.get_data_parallel_world_size())]
 
-    torch.distributed.all_gather_object(
-        all_res, res, group=mp.get_data_parallel_group_gloo()
-    )
+    torch.distributed.all_gather_object(all_res, res, group=mp.get_data_parallel_group_gloo())
 
     if pl_has_dist_opt_with_ovelap(trainer):
         for opt in self.optimizers:
