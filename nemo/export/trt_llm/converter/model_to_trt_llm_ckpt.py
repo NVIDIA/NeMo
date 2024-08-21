@@ -93,6 +93,8 @@ def rename_key_dist_ckpt(old_key: str, layer: int) -> str:
 
     return rename_key(new_key)
 
+def is_scaling_factor(key: str) -> bool:
+    return "extra_state" in key
 
 def load_scaling_factors(model: dict, num_layers: int, export_config: dict) -> dict:
     if not export_config.get('fp8_quantized', False):
@@ -100,12 +102,10 @@ def load_scaling_factors(model: dict, num_layers: int, export_config: dict) -> d
 
     scaling_factors = {}
     for key, val in model.items():
-        if 'extra_state' not in key:
-            continue
-
-        for layer in range(num_layers):
-            renamed_key = rename_key_dist_ckpt(key, layer)
-            scaling_factors = save_scaling_factor(scaling_factors, renamed_key, val[layer], export_config)
+        if is_scaling_factor(key):
+            for layer in range(num_layers):
+                renamed_key = rename_key_dist_ckpt(key, layer)
+                scaling_factors = save_scaling_factor(scaling_factors, renamed_key, val[layer], export_config)
 
     return scaling_factors
 
@@ -194,18 +194,16 @@ def convert_model_to_trt_llm_ckpt(
 
     starmap_args = []
     for key, val in model.items():
-        if 'extra_state' in key:
-            continue
+        if not is_scaling_factor(key):
+            # Let's rename/map the key to the old layer name previously.
+            # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
+            layer_vals = [(l, val[l]) for l in range(num_layers)] if len(val.size()) != 1 else [(0, val)]
 
-        # Let's rename/map the key to the old layer name previously.
-        # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
-        layer_vals = [(l, val[l]) for l in range(num_layers)] if len(val.size()) != 1 else [(0, val)]
-
-        for l, v in layer_vals:
-            k = rename_key_dist_ckpt(key, l)
-            starmap_args.append(
-                (tp_rank, out_dir, split_factor, k, [v], storage_type, None, export_config, scaling_factors)
-            )
+            for l, v in layer_vals:
+                k = rename_key_dist_ckpt(key, l)
+                starmap_args.append(
+                    (tp_rank, out_dir, split_factor, k, [v], storage_type, None, export_config, scaling_factors)
+                )
 
     starmap_args = tqdm(starmap_args, desc="saving weights")
 

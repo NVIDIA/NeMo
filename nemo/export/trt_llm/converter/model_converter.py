@@ -15,7 +15,7 @@
 
 import csv
 import logging
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import tensorrt_llm
@@ -108,7 +108,7 @@ def model_to_trtllm_ckpt(
     use_embedding_sharing: bool = False,
     use_distributed_convert: bool = False,
     model_parallel_rank: int = None,
-    vocab_size: int | None = None,
+    vocab_size: Optional[int] = None,
     fp8_quantized: bool = False,
     fp8_kvcache: bool = False,
 ) -> Tuple[List[Dict], List[PretrainedConfig]]:

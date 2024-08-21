@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 import numpy as np
 import tensorrt_llm
 import torch
@@ -326,7 +326,7 @@ def split_val_gate(vals: List[np.ndarray], convert_on_device: bool):
 # Note: in multi_query_mode, only query heads are split between multiple GPUs, while key/value head
 # are not split as there is only one head per key/value.
 @torch.no_grad()
-def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_type, act_range, config, sf):
+def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_type, act_range, config, scaling_factors):
     use_attention_nemo_shape = config.get("use_attention_nemo_shape", False)
     split_gated_activation = config.get("split_gated_activation", False)
     num_attention_heads = config.get("num_attention_heads", 0)
@@ -349,7 +349,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     if "layernorm.weight" in key and config.get("apply_layernorm_1p", False):
         vals = [val.float() + 1.0 for val in vals]
 
-    vals = cast_val_datatype(vals, trt_llm_key, storage_type, is_fp8_model, sf)
+    vals = cast_val_datatype(vals, trt_llm_key, storage_type, is_fp8_model, scaling_factors)
     if convert_on_device:
         assert len(vals) == 1  # Should only convert a single device param per call
         assert torch.is_tensor(vals[0])
@@ -555,7 +555,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     return weights_dict
 
 
-def split(v: np.ndarray | torch.Tensor, tp_size: int, idx: int, dim: int = 0):
+def split(v: Union[np.ndarray, torch.Tensor], tp_size: int, idx: int, dim: int = 0):
     """Splits the np tensor v on dim and return the idx's slice."""
     if tp_size == 1:
         return v

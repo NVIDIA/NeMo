@@ -204,6 +204,8 @@ class TensorRTLLM(ITritonDeployable):
             multiple_profiles: (bool): enables multiple profiles feature of TRT-LLM. Default = False
             gpt_attention_plugin (str): enable the gpt attention plugin. Default = "auto"
             gemm_plugin (str): enable the gpt plugin. Default = "auto"
+            fp8_quantized (bool): enables exporting to FP8 TRT-LLM checkpoints
+            fp8_kvcache (bool): enables FP8 KV-cache quantization
         """
 
         if n_gpus is not None:
