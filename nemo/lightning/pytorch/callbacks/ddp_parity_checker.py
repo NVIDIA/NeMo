@@ -22,15 +22,23 @@ def pl_check_param_hashes_across_dp_replicas(trainer):
     if pl_has_dist_opt_with_ovelap(trainer):
         for opt in self.optimizers:
             opt.disable_pre_hook()
-
-    torch.distributed.barrier()
+    import megatron.core.parallel_state as mp
     res = check_param_hashes_across_dp_replicas([trainer.strategy.model])
     torch.distributed.barrier()
 
+    all_res = [
+        False
+        for _ in range(mp.get_data_parallel_world_size())
+    ]
+
+    torch.distributed.all_gather_object(
+        all_res, res, group=mp.get_data_parallel_group_gloo()
+    )
+
     if pl_has_dist_opt_with_ovelap(trainer):
         for opt in self.optimizers:
-            opt.disable_pre_hook()
-    return res
+            opt.enable_pre_hook()
+    return all(all_res)
 
 
 class DdpParityChecker(Callback, io.IOMixin):
@@ -60,7 +68,9 @@ class DdpParityChecker(Callback, io.IOMixin):
             if pl_check_param_hashes_across_dp_replicas(trainer):
                 logging.info(f"DDP Param parity check passed for batch-id= {batch_idx}")
             else:
-                raise RuntimeError(f"DDP Param parity check FAILED for batch-id= {batch_idx}")
+                trainer.should_stop = True
+                trainer.limit_val_batches = 0
+                logging.info(f"DDP Param parity check FAILED for batch-id= {batch_idx}")
         self.step = (self.step + 1) % self.interval
 
     def on_train_end(self, trainer, pl_module) -> None:
