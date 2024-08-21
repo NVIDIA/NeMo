@@ -20,7 +20,6 @@ def make_parser():
 
     return parser
 
-
 def wrap_config(config, trainer):
     class ConfigWrapper(type(config)):
         def configure_model(self, tokenizer) -> "MCoreGPTModel":
@@ -111,10 +110,10 @@ def make_trainer_optim(args):
 @pytest.mark.skip(reason="tested with GH")
 def main():
     args = make_parser().parse_args()
-    try:
-        test_failing(*make_trainer_optim(args))
-    except RuntimeError:
-        print("DDP parity checking worked as expected.")
+    trainer, ddp_parity, optim, data, tokenizer = make_trainer_optim(args)
+    test_failing(trainer, ddp_parity, optim, data, tokenizer)
+    if trainer.should_stop != True:
+        raise ValueError("DDP parity checking failed.")
 
     try:
         test_working(*make_trainer_optim(args))
