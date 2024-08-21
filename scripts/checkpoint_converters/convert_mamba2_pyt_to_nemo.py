@@ -57,13 +57,21 @@ def get_args():
     parser.add_argument(
         "--tokenizer_model_dir", type=str, default=None, help="Path to the tokenizer.model, required for 8b models"
     )
+    parser.add_argument(
+        "--tokenizer_vocab_file", type=str, default=None, help="Path to the tokenize vocab, required for tiktokenizer"
+    )
+    parser.add_argument(
+        "--tokenizer_type", type=str, default='tiktoken', help="tokenizer type (tiktoken, megatron etc...)"
+    )
+    parser.add_argument(
+        "--tokenizer_library", type=str, default='tiktoken', help="tokenizer library (tiktoken, megatron, huggingface etc..)"
     args = parser.parse_args()
     return args
 
 
 def convert(args):
 
-    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')
+    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')["model"]
     new_state_dict = {}
 
     if 'backbone' in list(checkpoint_weights.keys())[0]:
@@ -103,11 +111,6 @@ def convert(args):
                     old_key = f'backbone.layers.{i}.{attr}'
                 new_state_dict[new_key] = checkpoint_weights[old_key]
 
-        # Tokenizer settings
-        tokenizer_library = 'huggingface'
-        tokenizer_type = 'EleutherAI/gpt-neox-20b'
-        tokenizer_model = None
-
     else:
 
         layer_keys = [key for key in checkpoint_weights.keys() if re.match(r'decoder\.layers\.\d+\.', key)]
@@ -119,17 +122,20 @@ def convert(args):
                 key = key[:-11] + 'mixer.in_proj.layer_norm_weight'
             new_state_dict["model." + key] = value
 
-        # Tokenizer settings
-        tokenizer_library = 'megatron'
-        tokenizer_type = 'GPTSentencePieceTokenizer'
-        tokenizer_model = args.tokenizer_model_dir
-
-        # Tokenizer settings
-        tokenizer_library = 'megatron'
-        tokenizer_type = 'GPTSentencePieceTokenizer'
-        tokenizer_model = args.tokenizer_model_dir
-
     layers = defaultdict(list)
+
+
+    # Tokenizer settings
+    if args.tokenizer_type == "tiktoken":
+        tokenizer_library = 'tiktoken'
+        tokenizer_type = 'tiktoken' #'GPTSentencePieceTokenizer'
+        tokenizer_model = None
+        tokenizer_vocab = args.tokenizer_vocab_file
+    else:
+        tokenizer_library = args.tokenizer_library #'huggingface'
+        tokenizer_type = args.tokenizer_type #'EleutherAI/gpt-neox-20b'
+        tokenizer_model = args.tokenizer_model_dir
+        tokenizer_vocab = None
 
     for key in new_state_dict.keys():
         match = re.match(r'model\.decoder\.layers\.(\d+)\.(\w+)', key)
@@ -161,6 +167,7 @@ def convert(args):
     nemo_config.model.tokenizer.library = tokenizer_library
     nemo_config.model.tokenizer.type = tokenizer_type
     nemo_config.model.tokenizer.model = tokenizer_model
+    nemo_config.model.tokenizer.vocab_file = tokenizer_vocab
 
     if "-" in layer_pattern:
         nemo_config.model.ffn_hidden_size = new_state_dict[
