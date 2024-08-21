@@ -32,13 +32,6 @@ CUDA_VISIBLE_DEVICES="0" python /opt/NeMo/scripts/checkpoint_converters/convert_
                                 --mamba_ssm_ngroups 8 \
                                 --precision bf16 \
                                 --tokenizer_model_dir <path to tokenizer.model, only set for 8b models, otherwise defaults to None>
-
-CUDA_VISIBLE_DEVICES="0" python /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
-                                --input_name_or_path /home/ataghibakhsh/checkpoints/mamba2-130m/model_optim_rng.pt \
-                                --output_path /home/ataghibakhsh/checkpoints/mamba2-130m/mamba2_130m.nemo \
-                                --mamba_ssm_ngroups 1 \
-                                --precision bf16 \
-                                --tokenizer_model_dir <path to tokenizer.model, only set for 8b models, otherwise defaults to None>
 '''
 
 

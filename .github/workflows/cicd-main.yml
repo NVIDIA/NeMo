@@ -167,7 +167,9 @@ jobs:
       SCRIPT: |
           python scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py  \
           --input_name_or_path /home/TestData/nlp/megatron_mamba/model_optim_rng.pt \
-          --output_path /home/TestData/nlp/megatron_mamba/converted_mamba.nemo
+          --output_path /home/TestData/nlp/megatron_mamba/converted_mamba.nemo \
+          --precision=bf16 \
+          --mamba_ssm_ngroups 1
       AFTER_SCRIPT: |
         rm -f /home/TestData/nlp/megatron_mamba/converted_mamba.nemo
         rm -rf /home/TestData/nlp/megatron_mamba/model_weights
