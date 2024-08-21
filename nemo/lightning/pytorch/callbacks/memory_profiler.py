@@ -18,9 +18,11 @@ class MemoryProfileCallback(Callback, io.IOMixin):
 
     Args:
         dir (Optional[str]): Directory to store the memory profile dump
+        warn_cycles (Optional[bool]): Whether to enable [reference cycle detection](https://pytorch.org/blog/understanding-gpu-memory-2/)
+        rank (Optional[list[int]]): List of ranks to collect snapshot on, defaults to all if list is empty
 
     Example:
-        >>> callback = MemoryProfileCallback(dir="/mem_profile")
+        >>> callback = MemoryProfileCallback(dir="/mem_profile", ranks=[0])
         >>> trainer = Trainer(callbacks=[callback])
     """
 
