@@ -81,7 +81,12 @@ class SentencePieceTokenizer:
 
         return self.tokenizer.encode_as_pieces(text)
 
-    def encode(self, text):
+    def encode(self, text, return_tensors=None, max_length=None, **kwargs):
+        """ Arguments: return_tensors, max_length and kwargs were introduced for the consistency with HF API
+
+        Note: kwargs are ignored.
+        """
+
         if self.legacy:
             ids = []
             idx = 0
@@ -106,9 +111,23 @@ class SentencePieceTokenizer:
                 idx = next_idx + len(next_token)
 
             ids.extend(self.tokenizer.encode_as_ids(text[idx:]))
-            return ids
+            output = ids
+        else:
+            output = self.tokenizer.encode_as_ids(text)
 
-        return self.tokenizer.encode_as_ids(text)
+        if max_length is not None:
+            if isinstance(text, str):
+                output = output[:max_length]
+            if isinstance(text, list):
+                output = [x[:max_length] for x in output]
+        if return_tensors == "pt":
+            # Only plain text input is supported since for list of strings some padding needs to be introduced
+            assert isinstance(
+                text, str
+            ), "Returning 'pt' tensors is only supported for simple text input"
+            output = torch.LongTensor(output).reshape((1, -1))
+        return output
+
 
     def tokens_to_text(self, tokens):
         if isinstance(tokens, np.ndarray):
@@ -116,7 +135,9 @@ class SentencePieceTokenizer:
 
         return self.tokenizer.decode_pieces(tokens)
 
-    def batch_decode(self, ids):
+
+    def batch_decode(self, ids, **kwargs):
+        # Kwargs are ignored, introduced for consistency with HF tokenizer API
         if isinstance(ids, np.ndarray) or torch.is_tensor(ids):
             ids = ids.tolist()
 
@@ -265,3 +286,22 @@ class SentencePieceTokenizer:
 
     def get_added_vocab(self):
         return None
+
+    ### Below are methods introduced for the consistency with HF tokenizer API
+
+    @property
+    def pad_token_id(self):
+        return self.pad_id
+
+    def batch_encode_plus(self, texts, *args, **kwargs):
+        # Note: kwargs are ignored.
+        assert not self.legacy, "Legacy implementation is not available."
+        assert isinstance(texts, list), f"Expected list of texts, got {type(texts).__name__}: {texts}"
+        return {"input_ids": self.tokenizer.encode_as_ids(texts)}
+
+
+    def decode(self, ids, **kwargs):
+        # Note: kwargs are ignored.
+        if isinstance(ids, np.ndarray) or torch.is_tensor(ids):
+            ids = ids.tolist()
+        return self.tokenizer.decode(ids)
