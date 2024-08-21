@@ -11,10 +11,12 @@ from nemo.utils import logging
 __all__ = ["FLOPsMeasurementCallback"]
 
 
-class DummyCallback(Callback):
+class NoOpCallback(Callback):
+    """
+    Callback used as a placeholder when FLOPsMeasurementCallback cannot be instantiated due to missing parameters.
+    """
     def __init__(self):
-        logging.debug("DummyCallback created")
-
+        logging.debug("NoOpCallback created")
 
 class FLOPsMeasurementCallback(Callback):
     """
@@ -42,10 +44,13 @@ class FLOPsMeasurementCallback(Callback):
 
     def __new__(cls, model_config, *args, **kwargs):
         create_tensorboard_logger = model_config.get('exp_manager', {}).get("create_tensorboard_logger", False)
+        # Currently, supports TensorBoard logger only. Add check for new loggers when supported
         if not create_tensorboard_logger:
-            logging.warning("TensorBoard Logger should be enabled for computing TFLOPs per sec per gpu")
-            logging.info("Enable TensorBoard Logger using 'create_tensorboard_logger=True' in 'exp_manager'")
-            return DummyCallback()
+            logging.warning(
+                "TensorBoard logger is not enabled. FLOPsMeasurementCallback currently supports Tensorboard logger only"
+                )
+            logging.info("Enable TensorBoard logger using 'exp_manager.create_tensorboard_logger=True'")
+            return NoOpCallback()
 
         instance = super().__new__(cls)
         return instance
