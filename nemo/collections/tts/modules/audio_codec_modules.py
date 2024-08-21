@@ -326,9 +326,14 @@ class MultiPeriodDiscriminator(NeuralModule):
 class DiscriminatorSTFT(NeuralModule):
     """
     Discriminator network from EnCodec for Complex STFT input, but without dilations.
+
+    Args:
+        filters: number of filters to use in Conv2d layers
+        lrelu_slope: Slope to use for activations. Leaky relu with slope of 0.1 or 0.2 is recommended for the
+           stability of the feature matching loss
     """
 
-    def __init__(self, lrelu_slope=0.1, filters=32):
+    def __init__(self, filters: int = 32, lrelu_slope: float = 0.1):
         super().__init__()
 
         self.activation = nn.LeakyReLU(lrelu_slope)
@@ -381,9 +386,16 @@ class MultiBandDiscriminatorSTFT(NeuralModule):
 
     Computes the complex STFT for a given resolution and splits it into sub-bands,
     which are given to separate discriminator networks.
+
+    Args:
+        resolution: STFT resolution, provided as a tuple of 3 integers ordered (num_fft, hop_length, window_length)
+        stft_bands: List of tuples, with each tuple having 2 float values (band_start, band_end).
+            The floats are in the range [0, 1] representing the fraction of all stft bands.
+            For example for n_fft=1024, the stft output has 513 dimensions.
+            For band input [(0, 0.25), (0.25, 1.0)] it would use stft dimensions [0 through 127] and [128 through 512].
     """
 
-    def __init__(self, resolution, stft_bands):
+    def __init__(self, resolution: Tuple[int], stft_bands: Iterable[Tuple[int]]):
         super().__init__()
 
         self.n_fft, self.hop_length, self.win_length = resolution
@@ -439,9 +451,17 @@ class MultiBandDiscriminatorSTFT(NeuralModule):
 class MultiResolutionDiscriminatorSTFT(NeuralModule):
     """
     Multi-resolution discriminator which creates a multi-band discriminator for each input resolution.
+
+    Args:
+        resolutions: List of STFT resolutions, each resolution provided as a tuple of 3 integers ordered
+            (num_fft, hop_length, window_length)
+        stft_bands: List of tuples, with each tuple having 2 float values (band_start, band_end).
+            The floats are in the range [0, 1] representing the fraction of all stft bands.
+            For example for n_fft=1024, the stft output has 513 dimensions.
+            For band input [(0, 0.25), (0.25, 1.0)] it would use stft dimensions [0 through 127] and [128 through 512].
     """
 
-    def __init__(self, resolutions, stft_bands):
+    def __init__(self, resolutions: Iterable[Tuple[int]], stft_bands: Iterable[Tuple[int]]):
         super().__init__()
         self.discriminators = nn.ModuleList(
             [MultiBandDiscriminatorSTFT(resolution=resolution, stft_bands=stft_bands) for resolution in resolutions]
@@ -1030,7 +1050,19 @@ class HiFiGANResLayer(NeuralModule):
 
 class HiFiGANEncoder(NeuralModule):
     """
-    Encoder created by inverting the HiFi-GAN decoder
+    Audio encoder created by inverting the HiFi-GAN decoder.
+
+    Args:
+        encoded_dim: Dimension of encoder output.
+        down_sample_rates: Rate to upsample for each decoder block. The product of the downsample rates will
+            determine the output token rate. For example 2 * 2 * 8 * 8 = 256 samples per token.
+        base_channels: Number of filters in the first convolution. The number of channels will be doubled after each
+            downsample layer.
+        in_kernel_size: Kernel size of the input convolution.
+        out_kernel_size: Kernel size of the output convolution.
+        resblock_kernel_sizes: List of kernel sizes to use in each residual block.
+        resblock_dilation_sizes: List of dilations to use in each residual block.
+        activation: Activation to use in residual and downsample layers, defaults to leaky relu.
     """
 
     def __init__(
@@ -1138,8 +1170,9 @@ class HiFiGANDecoder(NeuralModule):
 
     Args:
         input_dim: Input dimension.
-        up_sample_rates: Rate to upsample for each decoder block. The product of the upsample rates will
-            determine the output frame rate. For example 8 * 8 * 2 * 2 = 256 samples per token.
+        up_sample_rates: Rate to upsample for each decoder block. The product of the upsample rates should be the same
+            as the overall downsample rate for your encoder. For example, a symmetric encoder/decoder can be created
+            with encoder downsample rates [2, 2, 8, 8] and decoder upsample rates [8, 8, 2, 2].
         base_channels: Number of filters in the first convolution. The number of channels will be cut in
             half after each upsample layer.
         in_kernel_size: Kernel size of the input convolution.
@@ -1147,6 +1180,8 @@ class HiFiGANDecoder(NeuralModule):
         resblock_kernel_sizes: List of kernel sizes to use in each residual block.
         resblock_dilation_sizes: List of dilations to use in each residual block.
         activation: Activation to use in residual and upsample layers, defaults to leaky relu.
+        output_activation: Activation to apply to output. To produce a valid audio signal, it should output values in
+         the range [-1.0, 1.0]. Supports "tanh" and "clamp".
     """
 
     def __init__(
