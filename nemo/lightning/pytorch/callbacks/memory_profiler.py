@@ -2,12 +2,12 @@ import os
 
 import torch
 from pytorch_lightning.callbacks.callback import Callback
-from nemo.lightning import io
+from torch.utils.viz._cycles import warn_tensor_cycles
 
+from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.get_rank import get_rank
 
-from torch.utils.viz._cycles import warn_tensor_cycles
 
 class MemoryProfileCallback(Callback, io.IOMixin):
     """
@@ -36,12 +36,10 @@ class MemoryProfileCallback(Callback, io.IOMixin):
             logging.info("Enabling reference cycle detector")
             warn_tensor_cycles()
 
-
     def enable_on_rank(self) -> bool:
         if not self.ranks:
             return True
         return get_rank() in self.ranks
-
 
     def setup(self, trainer, pl_module, stage) -> None:
         """PyTorch Lightning hook:
@@ -50,13 +48,14 @@ class MemoryProfileCallback(Callback, io.IOMixin):
         """
 
         if trainer.max_steps > 1000:
-            logging.warning(f"Memory profiling creates snapshots during the entire training process, \
+            logging.warning(
+                f"Memory profiling creates snapshots during the entire training process, \
             where every iteration increases the size of the snapshot. \
-            Try reducing trainer.max_steps to avoid running into issues")
+            Try reducing trainer.max_steps to avoid running into issues"
+            )
 
         if torch.distributed.is_initialized() and self.enable_on_rank():
             torch.cuda.memory._record_memory_history(max_entries=100000)
-
 
     def on_train_end(self, trainer, pl_module) -> None:
         """PyTorch Lightning hook:
