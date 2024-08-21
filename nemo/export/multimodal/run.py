@@ -25,13 +25,13 @@ except Exception:
 
 import einops
 import numpy as np
+import soundfile as sf
 import tensorrt as trt
 import tensorrt_llm
 import tensorrt_llm.profiler as profiler
 import torch
 import yaml
 from PIL import Image
-import soundfile as sf
 from tensorrt_llm import logger
 from tensorrt_llm._utils import str_dtype_to_trt, torch_dtype_to_trt
 from tensorrt_llm.runtime import ModelRunner, Session, TensorInfo
@@ -886,7 +886,7 @@ class SpeechllmModelRunner(MultimodalModelRunner):
         feature_extractor_path = os.path.join(perception_engine_dir, 'feature_extractor.ts')
         self.feature_extractor = self.init_speech_preprocessor(feature_extractor_path)
         self.init_modality_encoder(perception_engine_dir)
-        
+
     def init_modality_encoder(self, engine_dir):
         """
         Initialize the modality encoder session from the prebuilt engine directory
@@ -904,19 +904,19 @@ class SpeechllmModelRunner(MultimodalModelRunner):
             engine_buffer = f.read()
         logger.info(f'Creating session from engine {encoder_path}')
         self.modality_encoder_session = Session.from_serialized_engine(engine_buffer)
-    
+
     def init_speech_preprocessor(self, feature_extractor_path):
         feature_extractor = torch.jit.load(feature_extractor_path)
         feature_extractor.eval()
         return feature_extractor
-    
+
     def process_audio(self, input_signal, input_signal_length):
         """
         Args:
             input_signal: audio signal in numpy array
             input_signal_length: length of the audio signal in numpy array
-        
-        Returns: 
+
+        Returns:
             processed_signal: torch.tensor [B, 80, T]
             processed_signal_length [B]
         """
@@ -924,7 +924,7 @@ class SpeechllmModelRunner(MultimodalModelRunner):
         input_signal_length = torch.tensor(input_signal_length, dtype=torch.int32)
         processed_signal, processed_signal_length = self.feature_extractor(input_signal, input_signal_length)
         return processed_signal, processed_signal_length
-    
+
     def setup_inputs(self, input_text, input_media, batch_size):
         """
         Args:
@@ -933,7 +933,7 @@ class SpeechllmModelRunner(MultimodalModelRunner):
                 input_signal: audio signal in numpy array [b, -1]
                 input_signal_length: length of the audio signal in numpy array [b]
             batch_size: int
-        
+
         """
         input_signal, input_signal_length = input_media
         processed_signal, processed_signal_length = self.process_audio(input_signal, input_signal_length)
@@ -941,20 +941,28 @@ class SpeechllmModelRunner(MultimodalModelRunner):
         processed_signal_length = processed_signal_length.to(self.device)
         if input_text is None:
             input_text = "Q: what's the transcription of the audio? A:"
-        
+
         if isinstance(input_text, str):
             input_text = [input_text] * batch_size
-        
+
         assert len(input_text) == batch_size
         pre_prompt = [''] * batch_size
         post_prompt = input_text
         decoder_input_ids = None
         attention_mask = None
-        return input_text, pre_prompt, post_prompt, processed_signal, processed_signal_length, decoder_input_ids, attention_mask
-    
+        return (
+            input_text,
+            pre_prompt,
+            post_prompt,
+            processed_signal,
+            processed_signal_length,
+            decoder_input_ids,
+            attention_mask,
+        )
+
     def load_test_media(self, input_media_path):
         """
-        Args: 
+        Args:
             input_media_path: str, path to the audio file
         Returns:
             input_signal: np.array [1, -1]
@@ -964,7 +972,7 @@ class SpeechllmModelRunner(MultimodalModelRunner):
         input_signal = np.array([waveform], dtype=np.float32)
         input_signal_length = np.array([len(waveform)], dtype=np.int32)
         return input_signal, input_signal_length
-    
+
     def get_modality_encoder_features(self, modality_features, attention_mask):
         """
         Do inference on the modality encoder engine
@@ -973,10 +981,10 @@ class SpeechllmModelRunner(MultimodalModelRunner):
             attention_mask: None
         Returns:
         """
-        
+
         if attention_mask is not None:
             modality_features['attention_mask'] = attention_mask
-        
+
         tensor_info = []
         for key, tensor in modality_features.items():
             tensor_info.append(TensorInfo(key, torch_dtype_to_trt(tensor.dtype), tensor.shape))
@@ -993,7 +1001,7 @@ class SpeechllmModelRunner(MultimodalModelRunner):
         self.stream.synchronize()
 
         return outputs
-        
+
     def preprocess(self, warmup, pre_prompt, post_prompt, processed_features, attention_mask, batch_size):
         """
         Args:
@@ -1016,12 +1024,14 @@ class SpeechllmModelRunner(MultimodalModelRunner):
 
         if not warmup:
             profiler.stop(self.modality.capitalize())
-        
+
         assert self.model_type == 'salm'
-        
+
         processed_signal, processed_signal_length = processed_features
-        processed_features = {"processed_signal": processed_signal,
-                              "processed_signal_length": processed_signal_length.to(torch.int32)}
+        processed_features = {
+            "processed_signal": processed_signal,
+            "processed_signal_length": processed_signal_length.to(torch.int32),
+        }
         encoded_outputs = self.get_modality_encoder_features(processed_features, attention_mask)
         encoded_features, encoded_length = encoded_outputs['encoded'], encoded_outputs['encoded_length']
         pre_input_ids = self.tokenizer(pre_prompt).input_ids
@@ -1040,17 +1050,20 @@ class SpeechllmModelRunner(MultimodalModelRunner):
 
         max_length = max(input_lengths)
         # convert input_ids to torch tensor with padding
-        input_ids = [np.pad(ids, (0, max_length - len(ids)), 'constant', constant_values=self.tokenizer.pad_token_id) for ids in input_ids]
+        input_ids = [
+            np.pad(ids, (0, max_length - len(ids)), 'constant', constant_values=self.tokenizer.pad_token_id)
+            for ids in input_ids
+        ]
         input_ids = torch.tensor(input_ids, dtype=torch.int32)
         input_lengths = torch.tensor(input_lengths, dtype=torch.int32)
         ptuning_args = self.ptuning_setup(encoded_features, input_ids, input_lengths)
-        
+
         return input_ids, input_lengths, ptuning_args, encoded_features
-        
+
     def run(
         self,
         input_text,
-        input_media = None,
+        input_media=None,
         max_new_tokens: int = 30,
         batch_size: int = 1,
         top_k: int = 1,
@@ -1060,8 +1073,8 @@ class SpeechllmModelRunner(MultimodalModelRunner):
         num_beams: int = 1,
         run_profiling=False,
         check_accuracy=False,
-        input_signal = None,
-        input_signal_length = None
+        input_signal=None,
+        input_signal_length=None,
     ):
         """
         Args:
@@ -1083,9 +1096,15 @@ class SpeechllmModelRunner(MultimodalModelRunner):
             assert input_signal is not None and input_signal_length is not None
             input_media = (input_signal, input_signal_length)
 
-        input_text, pre_prompt, post_prompt, processed_signal, processed_signal_length, decoder_input_ids, attention_mask = self.setup_inputs(
-            input_text, input_media, batch_size
-        )
+        (
+            input_text,
+            pre_prompt,
+            post_prompt,
+            processed_signal,
+            processed_signal_length,
+            decoder_input_ids,
+            attention_mask,
+        ) = self.setup_inputs(input_text, input_media, batch_size)
         processed_media = (processed_signal, processed_signal_length)
 
         self.generate(
@@ -1123,4 +1142,3 @@ class SpeechllmModelRunner(MultimodalModelRunner):
         if self.runtime_rank == 0:
             self.print_result(input_text, output_text, batch_size, num_beams, run_profiling, check_accuracy)
         return output_text
-    

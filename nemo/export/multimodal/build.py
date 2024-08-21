@@ -23,11 +23,12 @@ from time import time
 import tensorrt as trt
 import torch
 import yaml
+from omegaconf import OmegaConf
 from tensorrt_llm.builder import Builder
 from transformers import AutoModel
+
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import AudioPerceptionModule
 from nemo.core.classes.common import typecheck
-from omegaconf import OmegaConf
 from nemo.export.tensorrt_llm import TensorRTLLM
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
 
@@ -77,14 +78,19 @@ def export_visual_wrapper_onnx(
         dynamic_axes=dynamic_axes,
     )
 
+
 def export_perception_wrapper_onnx(
-    perception_wrapper, input, output_dir, \
+    perception_wrapper,
+    input,
+    output_dir,
     input_names=['processed_signal', 'processed_signal_length'],
     output_names=['encoded', 'encoded_length'],
-    dynamic_axes={'processed_signal': {0: 'batch', 2: 'time'},
-                  'processed_signal_length': {0: 'batch'},
-                  'encoded': {0: 'batch', 1: 'time'},
-                  'encoded_length': {0: 'batch'}}
+    dynamic_axes={
+        'processed_signal': {0: 'batch', 2: 'time'},
+        'processed_signal_length': {0: 'batch'},
+        'encoded': {0: 'batch', 1: 'time'},
+        'encoded_length': {0: 'batch'},
+    },
 ):
     logger.log(trt.Logger.INFO, "Exporting onnx")
     os.makedirs(f'{output_dir}/onnx', exist_ok=True)
@@ -108,7 +114,7 @@ def build_trt_engine(
     image_size=None,
     num_frames=None,
     nemo_config=None,
-    part_name='visual_encoder'
+    part_name='visual_encoder',
 ):
     onnx_file = '%s/onnx/%s.onnx' % (output_dir, part_name)
     engine_file = '%s/%s.engine' % (output_dir, part_name)
@@ -154,10 +160,10 @@ def build_trt_engine(
 
     # input sizes can be a list of ints (e.g., [3, H, W]) when inputs are images,
     # or a list of three int lists (e.g., [[1, 1, 2700], [1, 500, 2700], [1, 4096, 2700]]).
-    # or a list of three list of lists 
+    # or a list of three list of lists
     # (e.g., [{input1: min_shape, input2: min_shape, }, \
-        #     {input1: opt_shape, input2: opt_shape}, \
-            # {input1: max_shape, input2: max_shape}] )
+    #     {input1: opt_shape, input2: opt_shape}, \
+    # {input1: max_shape, input2: max_shape}] )
     assert isinstance(input_sizes, list), "input_sizes must be a list"
     if isinstance(input_sizes[0], int):
         logger.log(trt.Logger.INFO, f"Processed input sizes {input_sizes}")
@@ -182,7 +188,7 @@ def build_trt_engine(
             profile.set_shape(input_name, min_size, opt_size, max_size)
     else:
         profile.set_shape(inputT.name, [nMinBS, *min_size], [nOptBS, *opt_size], [nMaxBS, *max_size])
-    
+
     config.add_optimization_profile(profile)
 
     t0 = time()
@@ -414,6 +420,7 @@ def build_perception_engine(
     max_batch_size: int = 1,
 ):
     assert model_type == "salm", f"Invalid model type {model_type}"
+
     def load_perception_model(perception_checkpoint_path):
         weights = "model_weights.ckpt"
         perception_state_dict = torch.load(os.path.join(perception_checkpoint_path, weights))
@@ -423,16 +430,18 @@ def build_perception_engine(
         perception.load_state_dict(perception_state_dict)
         perception.eval()
         return perception
-    
+
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
     # load perception model
     perception_model = load_perception_model(perception_checkpoint_path)
     feature_extractor = perception_model.preprocessor
-    input_signal=torch.randn(1, 1000, dtype=torch.float32)
-    input_signal_length=torch.tensor([1000], dtype=torch.int32)
-    
-    processed_signal, processed_signal_length = feature_extractor(input_signal=input_signal, length=input_signal_length)
+    input_signal = torch.randn(1, 1000, dtype=torch.float32)
+    input_signal_length = torch.tensor([1000], dtype=torch.int32)
+
+    processed_signal, processed_signal_length = feature_extractor(
+        input_signal=input_signal, length=input_signal_length
+    )
     processed_signal_length = processed_signal_length.to(torch.int32)
     dump_path = model_dir + "/feature_extractor.ts"  # dump the feature extractor as torchscript
     feature_extractor.export(dump_path, (input_signal, input_signal_length))
@@ -458,9 +467,11 @@ def build_perception_engine(
     # export the onnx perception model to tensorrt engine
     # 512 -> 5.12 sec, 3072 -> 30.72 sec
     opt_batch_size = max(1, max_batch_size // 2)
-    shapes = [{"processed_signal": [1, 80, 64], "processed_signal_length":[1]},
-              {"processed_signal": [opt_batch_size, 80, 512], "processed_signal_length":[opt_batch_size]},
-              {"processed_signal": [max_batch_size,80, 3072], "processed_signal_length":[max_batch_size]}]
+    shapes = [
+        {"processed_signal": [1, 80, 64], "processed_signal_length": [1]},
+        {"processed_signal": [opt_batch_size, 80, 512], "processed_signal_length": [opt_batch_size]},
+        {"processed_signal": [max_batch_size, 80, 3072], "processed_signal_length": [max_batch_size]},
+    ]
     build_trt_engine(
         model_type,
         shapes,
@@ -470,7 +481,7 @@ def build_perception_engine(
         nemo_config=None,
         part_name='perception_encoder',
     )
-    
+
 
 def build_visual_engine(
     model_dir: str,
@@ -485,4 +496,3 @@ def build_visual_engine(
         build_video_neva_engine(model_dir, visual_checkpoint_path, vision_max_batch_size)
     else:
         raise RuntimeError(f"Invalid model type {model_type}")
-

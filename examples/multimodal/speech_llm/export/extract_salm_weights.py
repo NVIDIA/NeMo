@@ -18,6 +18,7 @@ import os
 import tempfile
 
 import torch
+from megatron.core import dist_checkpointing
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -28,7 +29,6 @@ from nemo.collections.nlp.parts.utils_funcs import load_state_dict_helper
 from nemo.utils import logging
 from nemo.utils.model_utils import inject_model_parallel_rank
 
-from megatron.core import dist_checkpointing
 
 def get_config_and_state_dict_from_nemo(filepath, map_location, output_dir, sharded_state_dict=None):
     cwd = os.getcwd()

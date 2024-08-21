@@ -21,7 +21,7 @@ import numpy as np
 import wrapt
 
 from nemo.deploy import ITritonDeployable
-from nemo.export.multimodal.build import build_trtllm_engine, build_visual_engine, build_perception_engine
+from nemo.export.multimodal.build import build_perception_engine, build_trtllm_engine, build_visual_engine
 from nemo.export.multimodal.run import MultimodalModelRunner, SpeechllmModelRunner
 
 use_deploy = True
@@ -170,20 +170,23 @@ class TensorRTMMExporter(ITritonDeployable):
             repetition_penalty,
             num_beams,
         )
-    
+
     def get_input_media_tensors(self):
         if self.modality == "vision":
             return [Tensor(name="input_media", shape=(-1, -1, -1, 3), dtype=np.uint8)]
         elif self.modality == "speech":
-            return [Tensor(name="input_signal", shape=(-1,), dtype=np.single),
-                    Tensor(name="input_signal_length", shape=(1,), dtype=np.int_)]
+            return [
+                Tensor(name="input_signal", shape=(-1,), dtype=np.single),
+                Tensor(name="input_signal_length", shape=(1,), dtype=np.int_),
+            ]
         return []
-    
+
     @property
     def get_triton_input(self):
-        inputs = [Tensor(name="input_text", shape=(-1,), dtype=bytes)] + \
-            self.get_input_media_tensors() + \
-            [
+        inputs = (
+            [Tensor(name="input_text", shape=(-1,), dtype=bytes)]
+            + self.get_input_media_tensors()
+            + [
                 Tensor(name="batch_size", shape=(-1,), dtype=np.int_, optional=True),
                 Tensor(name="max_output_len", shape=(-1,), dtype=np.int_, optional=True),
                 Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
@@ -192,6 +195,7 @@ class TensorRTMMExporter(ITritonDeployable):
                 Tensor(name="repetition_penalty", shape=(-1,), dtype=np.single, optional=True),
                 Tensor(name="num_beams", shape=(-1,), dtype=np.int_, optional=True),
             ]
+        )
         inputs = tuple(inputs)
         return inputs
 
@@ -248,4 +252,3 @@ class TensorRTMMExporter(ITritonDeployable):
         elif self.modality == "speech":
             perception_dir = os.path.join(self.model_dir, "perception_engine")
             self.runner = SpeechllmModelRunner(perception_dir, llm_dir, self.modality)
-        
