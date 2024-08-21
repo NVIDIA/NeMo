@@ -41,7 +41,6 @@ def build_and_save_engine(
     max_lora_rank=64,
     lora_target_modules=None,
     max_prompt_embedding_table_size=0,
-    enable_multi_block_mode: bool = False,
     paged_kv_cache: bool = True,
     remove_input_padding: bool = True,
     paged_context_fmha: bool = False,
