@@ -67,13 +67,13 @@ def make_trainer_optim(args):
     ddp_parity = DdpParityChecker(1)
     trainer = nl.Trainer(
         devices=2,
-        max_steps=3,
+        max_steps=4,
         accelerator="gpu",
         strategy=nl.MegatronStrategy(
             ckpt_include_optimizer=False,
         ),
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-        limit_val_batches=0.0,
+        limit_val_batches=1,
         num_sanity_val_steps=0,
         log_every_n_steps=1,
         logger=None,
