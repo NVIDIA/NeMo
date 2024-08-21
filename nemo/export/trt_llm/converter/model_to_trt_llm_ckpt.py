@@ -187,7 +187,6 @@ def convert_model_to_trt_llm_ckpt(
             model_level_weights["lm_head.weight"].append(val)
 
     weights_dict = {}
-
     tp_rank = 0
 
     handle_model_level_weights(model, 0, 0)
