@@ -22,8 +22,7 @@ def get_args():
     parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
     parser.add_argument('--experiment-dir', type=str, help="directory to write results and checkpoints to")
     parser.add_argument('--data-path', type=str, help="Path to data file")
-    parser.add_argument('--vocab-path', type=str, help="Path to vocab file")
-    parser.add_argument('--merges-path', type=str, help="Path to merges file")
+    parser.add_argument('--tokenizer-path', type=str, help="Path to tokenizer model")
     parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
 
     return parser.parse_args()
@@ -33,17 +32,17 @@ if __name__ == '__main__':
 
     args = get_args()
 
-    seq_length = 2048
+    seq_length = 128
 
     tokenizer = get_nmt_tokenizer(
-        "megatron",
-        "GPT2BPETokenizer",
-        vocab_file=args.vocab_path,
-        merges_file=args.merges_path,
+        "huggingface",
+        "EleutherAI/gpt-neox-20b",
+        tokenizer_model=None,
+        use_fast=True,
     )
     data = PreTrainingDataModule(
         paths=args.data_path,
-        seq_length=2048,
+        seq_length=128,
         global_batch_size=4,
         seed=1234,
         tokenizer=tokenizer,
@@ -51,9 +50,9 @@ if __name__ == '__main__':
     ssm_config = llm.SSMConfig(
         hybrid_override_pattern="M",
         num_layers=1,
-        hidden_size=4096,
-        ffn_hidden_size=4096,
-        num_attention_heads=8,
+        hidden_size=1024,
+        ffn_hidden_size=1024,
+        num_attention_heads=4,
         seq_length=seq_length,
         init_method_std=0.02,
         hidden_dropout=0.0,
@@ -99,7 +98,12 @@ if __name__ == '__main__':
     nemo_logger = NeMoLogger(
         dir=args.experiment_dir,
     )
-
+    # from nemo.collections.llm.gpt.model.ssm import PyTorchSSMImporter
+    # aa = PyTorchSSMImporter("/home/ataghibakhsh/checkpoints/mamba2-370m/pytorch_model.bin", None, None)
+    # bb = aa.init()
+    # cc = aa.apply("/home/ataghibakhsh/checkpoints/mamba_convertd.nemo")
+    # import pdb
+    # pdb.set_trace()
     train(
         model=model,
         data=data,

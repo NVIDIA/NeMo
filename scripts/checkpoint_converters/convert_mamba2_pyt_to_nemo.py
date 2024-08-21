@@ -26,12 +26,19 @@ from nemo.utils import logging
 '''
 Example
 
-CUDA_VISIBLE_DEVICES="0" python /NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
+CUDA_VISIBLE_DEVICES="0" python /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
                                 --input_name_or_path <path to the source pytorch model> \
                                 --output_path <path to target .nemo model> \
                                 --mamba_ssm_ngroups 8 \
                                 --precision bf16 \
                                 --tokenizer_model_dir <path to tokenizer.model, only set for 8b models, otherwise defaults to None>
+
+CUDA_VISIBLE_DEVICES="0" torchrun --nproc_per_node=1 /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
+                                --input_name_or_path /home/ataghibakhsh/checkpoints/mamba2-370m/pytorch_model.bin \
+                                --output_path /home/ataghibakhsh/checkpoints/mamba370m.nemo \
+                                --mamba_ssm_ngroups 1 \
+                                --precision bf16 \
+                                --tokenizer_model_dir /lustre/fs4/portfolios/coreai/users/ataghibakhsh/checkpoints/mamba2-hybrid-8b-3t-4k/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model
 '''
 
 
@@ -63,10 +70,24 @@ def get_args():
 
 def convert(args):
 
-    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')
+    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')#['model']
     new_state_dict = {}
 
     if 'backbone' in list(checkpoint_weights.keys())[0]:
+        if 'model' in list(checkpoint_weights.keys())[0]:
+            checkpoint_weights = {key.replace('model.', '', 1): value for key, value in checkpoint_weights.items()}
+
+            # Codestral Mamba Model Tokenizer Settings
+            tokenizer_library = 'megatron'
+            tokenizer_type = 'GPTSentencePieceTokenizer'
+            tokenizer_model = args.tokenizer_model_dir
+
+        else:
+
+            # Tri Dao and Albert Gu Mamba Model Tokenizer Settings
+            tokenizer_library = 'huggingface'
+            tokenizer_type = 'EleutherAI/gpt-neox-20b'
+            tokenizer_model = None
 
         layer_keys = [key for key in checkpoint_weights.keys() if re.match(r'backbone\.layers\.\d+\.', key)]
         layer_numbers = set(int(re.search(r'backbone\.layers\.(\d+)\.', key).group(1)) for key in layer_keys)
@@ -103,11 +124,6 @@ def convert(args):
                     old_key = f'backbone.layers.{i}.{attr}'
                 new_state_dict[new_key] = checkpoint_weights[old_key]
 
-        # Tokenizer settings
-        tokenizer_library = 'huggingface'
-        tokenizer_type = 'EleutherAI/gpt-neox-20b'
-        tokenizer_model = None
-
     else:
 
         layer_keys = [key for key in checkpoint_weights.keys() if re.match(r'decoder\.layers\.\d+\.', key)]
@@ -117,12 +133,7 @@ def convert(args):
         for key, value in checkpoint_weights.items():
             if '.norm.weight' in key and 'mixer' not in key:
                 key = key[:-11] + 'mixer.in_proj.layer_norm_weight'
-            new_state_dict["model." + key] = value
-
-        # Tokenizer settings
-        tokenizer_library = 'megatron'
-        tokenizer_type = 'GPTSentencePieceTokenizer'
-        tokenizer_model = args.tokenizer_model_dir
+            new_state_dict["model." + key] = value       
 
         # Tokenizer settings
         tokenizer_library = 'megatron'
@@ -177,7 +188,7 @@ def convert(args):
     nemo_model_from_pyt = MegatronMambaModel(nemo_config.model, trainer)
 
     # Setting strict=False for the _extra_state
-
+    import pdb; pdb.set_trace()
     nemo_model_from_pyt.load_state_dict(new_state_dict, strict=False)
     dtype = torch_dtype_from_precision(args.precision)
     nemo_model_from_pyt = nemo_model_from_pyt.to(dtype=dtype)

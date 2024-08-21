@@ -40,6 +40,7 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
         num_workers: int = 8,
         pin_memory: bool = True,
         persistent_workers: bool = False,
+        pad_to_max_length: bool = False,
     ):
         self.force_redownload = force_redownload
         self.delete_raw = delete_raw
@@ -56,6 +57,7 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
             num_workers=num_workers,
             pin_memory=pin_memory,
             persistent_workers=persistent_workers,
+            pad_to_max_length=pad_to_max_length,
         )
 
     def prepare_data(self) -> None:
