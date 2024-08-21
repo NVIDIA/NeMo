@@ -111,9 +111,11 @@ class WandbPlugin(run.Plugin):
                         "id": self.experiment_id,
                         "task_name": self.name,
                         "executor": executor.info(),
-                        "remote_directory": os.path.join(executor.tunnel.job_dir, Path(executor.job_dir).name)
-                        if isinstance(executor, run.SlurmExecutor)
-                        else None,
+                        "remote_directory": (
+                            os.path.join(executor.tunnel.job_dir, Path(executor.job_dir).name)
+                            if isinstance(executor, run.SlurmExecutor)
+                            else None
+                        ),
                         "local_directory": executor.job_dir,
                     }
                     task.log.wandb.config = partial_config
