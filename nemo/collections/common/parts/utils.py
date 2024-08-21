@@ -12,10 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import math
 import os
 from typing import Iterable, List
 
+logger = logging.getLogger(__name__)
+
+import einops
+import torch
 import torch.nn as nn
 
 __all__ = ['if_exist', '_compute_softmax', 'flatten']
@@ -105,3 +110,52 @@ def extend_instance(obj, mixin):
     obj.__class__ = type(
         base_cls_name, (mixin, base_cls), {}
     )  # mixin needs to go first for our forward() logic to work
+
+
+def apply_rope_scaling(freqs):
+    # Apply scaling for RoPE frequencies
+    logger.info("apply rope scaling ...")
+    # Values obtained from grid search
+    scale_factor = 8
+    low_freq_factor = 1
+    high_freq_factor = 4
+    old_context_len = 8192  # original llama3 length
+
+    low_freq_wavelen = old_context_len / low_freq_factor
+    high_freq_wavelen = old_context_len / high_freq_factor
+    new_freqs = []
+    for freq in freqs:
+        wavelen = 2 * math.pi / freq
+        if wavelen < high_freq_wavelen:
+            new_freqs.append(freq)
+        elif wavelen > low_freq_wavelen:
+            new_freqs.append(freq / scale_factor)
+        else:
+            assert low_freq_wavelen != high_freq_wavelen
+            smooth = (old_context_len / wavelen - low_freq_factor) / (high_freq_factor - low_freq_factor)
+            new_freqs.append((1 - smooth) * freq / scale_factor + smooth * freq)
+    return torch.tensor(new_freqs, dtype=freqs.dtype, device=freqs.device)
+
+
+def mask_sequence_tensor(tensor: torch.Tensor, lengths: torch.Tensor):
+    """
+    For tensors containing sequences, zero out out-of-bound elements given lengths of every element in the batch.
+
+    tensor: tensor of shape (B, L), (B, D, L) or (B, D1, D2, L),
+    lengths: LongTensor of shape (B,)
+    """
+    batch_size, *_, max_lengths = tensor.shape
+
+    if len(tensor.shape) == 2:
+        mask = torch.ones(batch_size, max_lengths).cumsum(dim=-1).type_as(lengths)
+        mask = mask <= einops.rearrange(lengths, 'B -> B 1')
+    elif len(tensor.shape) == 3:
+        mask = torch.ones(batch_size, 1, max_lengths).cumsum(dim=-1).type_as(lengths)
+        mask = mask <= einops.rearrange(lengths, 'B -> B 1 1')
+    elif len(tensor.shape) == 4:
+        mask = torch.ones(batch_size, 1, 1, max_lengths).cumsum(dim=-1).type_as(lengths)
+        mask = mask <= einops.rearrange(lengths, 'B -> B 1 1 1')
+    else:
+        raise ValueError('Can only mask tensors of shape B x L, B x D x L and B x D1 x D2 x L')
+
+    return tensor * mask

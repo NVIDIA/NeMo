@@ -35,10 +35,47 @@ class MistralConfig7B(GPTConfig):
     num_query_groups: int = 8
     ffn_hidden_size: int = 14336
     seq_length: int = 32768
+    attention_dropout: float = 0.0
+    hidden_dropout: float = 0.0
+    share_embeddings_and_output_weights: bool = False
 
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
     window_size: List[int] = field(default_factory=lambda: [4096, 0])
+
+
+@dataclass
+class MistralNeMo2407Config12B(MistralConfig7B):
+    """
+    https://mistral.ai/news/mistral-nemo/
+    """
+
+    num_layers: int = 40
+    hidden_size: int = 5120
+    kv_channels: int = 128
+    seq_length: int = 4096  # but   "max_position_embeddings": 1024000,
+
+    window_size: List[int] = None
+    rotary_percent: float = 1.0
+    rotary_base: float = 1000000.0
+
+
+@dataclass
+class MistralNeMo2407Config123B(MistralConfig7B):
+    """
+    https://mistral.ai/news/mistral-large-2407/
+    """
+
+    num_layers: int = 88
+    hidden_size: int = 12288
+    ffn_hidden_size: int = 28672
+    num_attention_heads: int = 96
+    kv_channels: int = 128
+    seq_length: int = 4096  # but   "max_position_embeddings": 131072,
+
+    window_size: List[int] = None
+    rotary_percent: float = 1.0
+    rotary_base: float = 1000000.0
 
 
 class MistralModel(GPTModel):
@@ -106,11 +143,15 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
                 base //= 2
             return base
 
+        window_size = None
+        if getattr(source, 'sliding_window', None) is not None:
+            window_size = [source.sliding_window, 0]
         output = MistralConfig7B(
             seq_length=source.sliding_window,
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
+            kv_channels=getattr(source, 'head_dim', source.hidden_size // source.num_attention_heads),
             num_attention_heads=source.num_attention_heads,
             # max_position_embeddings=source.max_position_embeddings,
             init_method_std=source.initializer_range,
@@ -119,7 +160,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            window_size=[source.sliding_window, 0],
+            window_size=window_size,
             share_embeddings_and_output_weights=False,
         )
 
@@ -172,7 +213,7 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
         from transformers import MistralConfig as HfMistralConfig
 
         return HfMistralConfig(
-            sliding_window=source.window_size[0],
+            sliding_window=source.window_size[0] if source.window_size is not None else None,
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
@@ -183,6 +224,7 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
             num_key_value_heads=source.num_query_groups,
             rope_theta=source.rotary_base,
             vocab_size=self.tokenizer.vocab_size,
+            head_dim=source.kv_channels,
         )
 
 
@@ -202,7 +244,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
     head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -244,7 +286,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
     head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])

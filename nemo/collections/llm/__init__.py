@@ -15,6 +15,13 @@ from nemo.collections.llm.gpt.data import (
 )
 from nemo.collections.llm.gpt.data.api import dolly, mock, squad
 from nemo.collections.llm.gpt.model import (
+    Baichuan2Config,
+    Baichuan2Config7B,
+    Baichuan2Model,
+    ChatGLM2Config6B,
+    ChatGLM3Config6B,
+    ChatGLMConfig,
+    ChatGLMModel,
     CodeGemmaConfig2B,
     CodeGemmaConfig7B,
     CodeLlamaConfig7B,
@@ -37,12 +44,21 @@ from nemo.collections.llm.gpt.model import (
     MaskedTokenLossReduction,
     MistralConfig7B,
     MistralModel,
+    MixtralConfig8x3B,
     MixtralConfig8x7B,
+    MixtralConfig8x22B,
     MixtralModel,
     gpt_data_step,
     gpt_forward_step,
 )
 from nemo.collections.llm.recipes import *  # noqa
+from nemo.utils import logging
+
+try:
+    from nemo.collections.llm.api import deploy
+except ImportError as error:
+    deploy = None
+    logging.warning(f"The deploy module could not be imported: {error}")
 
 __all__ = [
     "MockDataModule",
@@ -53,7 +69,9 @@ __all__ = [
     "MaskedTokenLossReduction",
     "MistralConfig7B",
     "MistralModel",
+    "MixtralConfig8x3B",
     "MixtralConfig8x7B",
+    "MixtralConfig8x22B",
     "MixtralModel",
     "LlamaConfig",
     "Llama2Config7B",
@@ -72,6 +90,13 @@ __all__ = [
     "CodeGemmaConfig2B",
     "CodeGemmaConfig7B",
     "GemmaModel",
+    "Baichuan2Config",
+    "Baichuan2Config7B",
+    "Baichuan2Model",
+    "ChatGLMConfig",
+    "ChatGLM2Config6B",
+    "ChatGLM3Config6B",
+    "ChatGLMModel",
     "PreTrainingDataModule",
     "FineTuningDataModule",
     "SquadDataModule",
@@ -88,3 +113,7 @@ __all__ = [
     "dolly",
     "peft",
 ]
+
+# add 'deploy' to __all__ if it was successfully imported
+if deploy is not None:
+    __all__.append("deploy")

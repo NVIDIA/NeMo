@@ -132,7 +132,7 @@ def load_config(mistral_config, tokenizer, config_path):
     # Tokenizer config
     if hasattr(tokenizer, 'vocab_file'):
         nemo_config.tokenizer.model = tokenizer.vocab_file
-    else:
+    elif os.path.exists(os.path.join(config_path, 'tekken.json')):
         # Load tekken.json, extract the 'vocab' field & write it to file.
         vocab_path = os.path.join(config_path, 'tekken.json')
         assert os.path.exists(vocab_path), f"Expected {vocab_path} to exist"
@@ -154,6 +154,14 @@ def load_config(mistral_config, tokenizer, config_path):
             'merge_file': None,
             'delimiter': None,
             'sentencepiece_legacy': False,
+        }
+        nemo_config.tokenizer = tokenizer_dict
+    else:
+        # Otherwise use HF
+        tokenizer_dict = {
+            'library': 'huggingface',
+            'type': args.input_name_or_path,
+            'use_fast': True,
         }
         nemo_config.tokenizer = tokenizer_dict
 
@@ -448,18 +456,19 @@ def save_to_nemo(args, checkpoint):
     if getattr(tokenizer, 'chat_template', None) is not None:
         import hashlib
 
-        assert (
-            hashlib.md5(tokenizer.chat_template.encode('utf-8')).hexdigest() == "0b629f783db54e02509999196956ff40"
-        ), "Got unkown chat template"
-        from omegaconf import OmegaConf, open_dict
+        template_hash = hashlib.md5(tokenizer.chat_template.encode('utf-8')).hexdigest()
+        if template_hash != "0b629f783db54e02509999196956ff40":
+            logging.warning("Got unkown chat template")
+        else:
+            from omegaconf import OmegaConf, open_dict
 
-        with open_dict(model.cfg):
-            model.cfg.tokenizer.chat_template = OmegaConf.create(
-                {
-                    'prefix': "{_bos_}",
-                    'roles': {'User': "[INST] {_content_} [/INST]", 'Assistant': "{_content_}{_eos_}"},
-                }
-            )
+            with open_dict(model.cfg):
+                model.cfg.tokenizer.chat_template = OmegaConf.create(
+                    {
+                        'prefix': "{_bos_}",
+                        'roles': {'User': "[INST] {_content_} [/INST]", 'Assistant': "{_content_}{_eos_}"},
+                    }
+                )
 
     model.save_to(args.output_path)
     logging.info(f'NeMo model saved to: {args.output_path}')

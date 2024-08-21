@@ -252,6 +252,7 @@ class vLLMExporter(ITritonDeployable):
             speculative_config=None,
             decoding_config=None,
             observability_config=None,
+            prompt_adapter_config=None,
             executor_class=executor_class,
             log_stats=log_stats,
         )
