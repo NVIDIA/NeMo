@@ -224,6 +224,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if _maybe_mcore_config:
             self._mcore_config = _maybe_mcore_config
 
+        dtype_config = getattr(self._precision_plugin, 'dtype_config', None)
+        if dtype_config:
+            from nemo.lightning.pytorch.plugins.mixed_precision import update_config_with_dtype_overrides
+
+            model.config = update_config_with_dtype_overrides(dtype_config, model.config)
+
         has_optim = getattr(model, "optim", None)
         if has_optim:
             opt_config = getattr(model.optim, "config", None)
@@ -232,6 +238,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 if not self.ddp_config:
                     raise ValueError("PyTorch DDP is not enabled for mcore optimizer")
                 ddp_config = cast(DistributedDataParallelConfig, self.ddp_config)
+
+                if dtype_config:
+                    model.optim.config = update_config_with_dtype_overrides(dtype_config, model.optim.config)
+                    self.ddp_config = update_config_with_dtype_overrides(dtype_config, self.ddp_config)
 
                 if mcore_opt_config.use_distributed_optimizer != ddp_config.use_distributed_optimizer:
                     from nemo.utils import logging
@@ -455,12 +465,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 )
 
             if self.log_train_loss:
-                # p2p now, broadcast later at ckpt
+                # p2p now, broadcast later at ckpt. only with pp, some ranks will log 0.0
+                # WHICH IS OK because we broadcast later at checkpoint time
                 _strategy_lib._sync_from_last_pipeline_stage(out, broadcast=False)
-                if torch.distributed.get_rank() == 0:
-                    self.lightning_module.log(
-                        'reduced_train_loss', out, prog_bar=True, rank_zero_only=True, batch_size=1
-                    )
+                self.lightning_module.log('reduced_train_loss', out, prog_bar=True, batch_size=1, sync_dist=False)
 
             return out
 
