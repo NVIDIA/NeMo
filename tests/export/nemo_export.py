@@ -968,5 +968,7 @@ if __name__ == '__main__':
         run_inference_tests(args)
     except UsageError as e:
         LOGGER.error(f"{e}")
+        raise e
     except argparse.ArgumentError as e:
         LOGGER.error(f"{e}")
+        raise e
