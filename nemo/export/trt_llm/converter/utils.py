@@ -326,7 +326,9 @@ def split_val_gate(vals: List[np.ndarray], convert_on_device: bool):
 # Note: in multi_query_mode, only query heads are split between multiple GPUs, while key/value head
 # are not split as there is only one head per key/value.
 @torch.no_grad()
-def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_type, act_range, config, scaling_factors):
+def split_and_save_weight(
+    tp_rank, saved_dir, split_factor, key, vals, storage_type, act_range, config, scaling_factors
+):
     use_attention_nemo_shape = config.get("use_attention_nemo_shape", False)
     split_gated_activation = config.get("split_gated_activation", False)
     num_attention_heads = config.get("num_attention_heads", 0)

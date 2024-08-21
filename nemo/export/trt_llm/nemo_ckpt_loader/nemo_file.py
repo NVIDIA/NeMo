@@ -17,6 +17,7 @@ import functools
 import json
 import logging
 import os
+from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -25,7 +26,6 @@ import tensorstore  # This is important even though not used. Otherwise zarr rai
 import torch
 import yaml
 import zarr
-from io import BytesIO
 from tensorrt_llm._utils import np_bfloat16, str_dtype_to_torch
 from torch.distributed.checkpoint import FileSystemReader
 from torch.distributed.checkpoint.metadata import BytesStorageMetadata, TensorStorageMetadata
@@ -81,14 +81,13 @@ def unpack_extra_state_key(key: str) -> Tuple[str, int]:
 
 
 def clear_loaded_extra_states(state_dict: dict, basename: str) -> dict:
-    """ The scaling factors are originally saved to state_dict under the keynames 'basename/*'
+    """The scaling factors are originally saved to state_dict under the keynames 'basename/*'
     The standardized representation is saved to 'basename.*'. This function clears the former from the state.
     """
     to_remove = [k for k in state_dict.keys() if basename + '/' in k]
     for key in to_remove:
         state_dict.pop(key)
     return state_dict
-
 
 
 def retrieve_scale(bytes: BytesIO) -> Optional[torch.Tensor]:
@@ -136,11 +135,9 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch
         if isinstance(tp, TensorStorageMetadata)
     }
 
-    state_dict.update({
-        k: {}
-        for k, tp in metadata.state_dict_metadata.items()
-        if isinstance(tp, BytesStorageMetadata)
-    })
+    state_dict.update(
+        {k: {} for k, tp in metadata.state_dict_metadata.items() if isinstance(tp, BytesStorageMetadata)}
+    )
 
     load_state_dict(
         state_dict,
@@ -190,6 +187,7 @@ def load_extra_state_from_pickle(sharded_state_dict: dict, subdir: Union[Path, T
         sharded_state_dict[key] = scales
 
     return sharded_state_dict
+
 
 def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
     sharded_state_dict = {}
