@@ -133,7 +133,7 @@ def convert(args):
         for key, value in checkpoint_weights.items():
             if '.norm.weight' in key and 'mixer' not in key:
                 key = key[:-11] + 'mixer.in_proj.layer_norm_weight'
-            new_state_dict["model." + key] = value       
+            new_state_dict["model." + key] = value
 
         # Tokenizer settings
         tokenizer_library = 'megatron'
