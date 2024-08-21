@@ -15,8 +15,10 @@ class NoOpCallback(Callback):
     """
     Callback used as a placeholder when FLOPsMeasurementCallback cannot be instantiated due to missing parameters.
     """
+
     def __init__(self):
         logging.debug("NoOpCallback created")
+
 
 class FLOPsMeasurementCallback(Callback):
     """
@@ -48,7 +50,7 @@ class FLOPsMeasurementCallback(Callback):
         if not create_tensorboard_logger:
             logging.warning(
                 "TensorBoard logger is not enabled. FLOPsMeasurementCallback currently supports Tensorboard logger only"
-                )
+            )
             logging.info("Enable TensorBoard logger using 'exp_manager.create_tensorboard_logger=True'")
             return NoOpCallback()
 
