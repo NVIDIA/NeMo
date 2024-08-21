@@ -1201,7 +1201,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 # check if the batch is not in THD format
                 if 'cu_seqlens' not in batch:
                     for key, val in batch.items():
-                        if val is not None:
+                        if val is not None and key != "context_lengths":
                             seq_dim = 1 if key != 'attention_mask' else 2
                             val = val.view(
                                 *val.shape[0:seq_dim],
