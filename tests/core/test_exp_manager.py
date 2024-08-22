@@ -1065,7 +1065,7 @@ class TestExpManager:
             isdir=False,
             add_unfinished_marker=True,
         )  # incomplete last
-    
+
         restored_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
 
         with pytest.raises(Exception):
@@ -1080,7 +1080,7 @@ class TestExpManager:
         Ensure that if the last distributed checkpoint is unfinished it wont silently start from scratch.
         This is to avoid a training that is not actually making any progress.
         """
- 
+
         test_dir = tmp_path / "test"
         checkpoints_dir = test_dir / "checkpoints"
 
