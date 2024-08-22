@@ -49,6 +49,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import adapter_mixins
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import AppState, logging, model_utils
 
 try:
@@ -364,7 +365,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
     def forward(
         self,
-        audio_batch,
+        batch,
         checkpoint_activations_all_layers,
     ):
         """Forward pass of the model.
@@ -372,39 +373,64 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         We prepend audio embeddings to the instruction and label text tokens
         as the LLM input.
         """
-        if 'audio_ratio' in audio_batch:
-            self.log(
-                'audio_ratio', audio_batch['audio_ratio'].mean(), prog_bar=True, batch_size=1, rank_zero_only=False
-            )
-            self.log(
-                'local_batch_size',
-                audio_batch['audio_ratio'].shape[0],
-                prog_bar=True,
-                batch_size=1,
-                rank_zero_only=False,
-            )
 
-        encoder_input, attention_mask, enc_mask = self.prepare_llm_input(audio_batch)
-        # enc_input = speech and text prompt
-        # dec_input and label = text output label
-        b = audio_batch['answers'].shape[0]
-        device = audio_batch['answers'].device
-        dec_input = audio_batch['masked_answer_ids'] if 'masked_answer_ids' in audio_batch else audio_batch['answers']
-        dec_input = torch.cat([torch.full([b, 1], self.bos_id, device=device), dec_input[:, :-1]], dim=-1)
-        labels = audio_batch['answers']
-        dec_mask = (dec_input != self.tokenizer.pad_id).long().contiguous()
-        output = self.frozen_model.enc_dec_model(
-            enc_input_ids=None,
-            enc_attn_mask=enc_mask,
-            dec_input_ids=dec_input,
-            dec_attn_mask=dec_mask,
-            token_type_ids=None,
-            labels=labels,
-            output_enc_hidden_only=False,
-            enc_input=encoder_input,
-        )
-        loss_mask = dec_mask
-        return output, loss_mask
+        audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_")}
+        text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
+
+        multimodal_output = {}
+
+        if 'audio_signal' in audio_batch:
+            encoder_input, attention_mask, enc_mask = self.prepare_llm_input(audio_batch)
+            # enc_input = speech and text prompt
+            # dec_input and label = text output label
+            b = audio_batch['answers'].shape[0]
+            device = audio_batch['answers'].device
+            dec_input = (
+                audio_batch['masked_answer_ids'] if 'masked_answer_ids' in audio_batch else audio_batch['answers']
+            )
+            dec_input = torch.cat([torch.full([b, 1], self.bos_id, device=device), dec_input[:, :-1]], dim=-1)
+            labels = audio_batch['answers']
+            dec_mask = (dec_input != self.tokenizer.pad_id).long().contiguous()
+            output = self.frozen_model.enc_dec_model(
+                enc_input_ids=None,
+                enc_attn_mask=enc_mask,
+                dec_input_ids=dec_input,
+                dec_attn_mask=dec_mask,
+                token_type_ids=None,
+                labels=labels,
+                output_enc_hidden_only=False,
+                enc_input=encoder_input,
+            )
+            loss_mask = dec_mask
+            multimodal_output['audio_text'] = (output, loss_mask)
+
+        if text_batch:
+            b = text_batch['text_answer_ids'].shape[0]
+            encoder_input_ids = text_batch["text_context_ids"]
+            enc_mask = (encoder_input_ids != self.tokenizer.pad_id).long().contiguous()
+            decoder_input_ids = torch.cat(
+                [
+                    torch.full([b, 1], self.bos_id, device=encoder_input_ids.device),
+                    text_batch["text_answer_ids"][:, :-1],
+                ],
+                dim=-1,
+            )
+            labels = text_batch["text_answer_ids"]
+            dec_mask = (decoder_input_ids != self.tokenizer.pad_id).long().contiguous()
+            loss_mask = dec_mask
+            output = self.frozen_model.enc_dec_model(
+                enc_input_ids=encoder_input_ids,
+                enc_attn_mask=enc_mask,
+                dec_input_ids=decoder_input_ids,
+                dec_attn_mask=dec_mask,
+                token_type_ids=None,
+                labels=labels,
+                output_enc_hidden_only=False,
+                enc_input=None,
+            )
+            multimodal_output['text'] = (output, loss_mask)
+
+        return multimodal_output
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
@@ -446,21 +472,42 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             batch = next(dataloader_iter)
             batch = {key: val.cuda(non_blocking=True) for key, val in batch.items()}
-            output_tensor, loss_mask = self.forward(
+            multimodal_output = self.forward(
                 batch, checkpoint_activations_all_layers=checkpoint_activations_all_layers
             )
 
-            def loss_func(output_tensor):
+            def loss_func(multimodal_output):
                 # Loss for a micro-batch (ub)
-                if 'audio_ratio' in batch:
-                    text_loss_weight = self.cfg.get('text_loss_weight', 1.0)
-                    audio_ratio = batch['audio_ratio']
-                    scaled_loss_mask = loss_mask * torch.unsqueeze(
-                        (1 * audio_ratio + text_loss_weight * (1 - audio_ratio)), 1
+                loss_for_ub = None
+
+                modality_weights = self.cfg.get("modality_loss_weights")
+
+                for key, (output, loss_mask) in multimodal_output.items():
+                    cur_loss = self.loss_func(loss_mask.contiguous(), output.contiguous())
+                    if modality_weights is not None:
+                        assert (
+                            key in modality_weights
+                        ), f"Expected cfg.modality_loss_weights={modality_weights} to contain key {key}"
+                        cur_loss = cur_loss * modality_weights[key]
+                    if loss_for_ub is None:
+                        loss_for_ub = cur_loss
+                    else:
+                        loss_for_ub += cur_loss
+                    self.log(
+                        f'{key}_loss',
+                        cur_loss.mean(),
+                        prog_bar=True,
+                        batch_size=1,
+                        rank_zero_only=False,
                     )
-                    loss_for_ub = self.loss_func(scaled_loss_mask, output_tensor)
-                else:
-                    loss_for_ub = self.loss_func(loss_mask, output_tensor)
+                    self.log(
+                        f'{key}_batch_size',
+                        loss_mask.shape[0],
+                        prog_bar=True,
+                        batch_size=1,
+                        rank_zero_only=False,
+                    )
+
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['loss_mask'].sum()
                     if loss_for_ub.isnan():
@@ -484,9 +531,19 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
                     return loss_for_ub, {'avg': reduced_loss}
 
-            return output_tensor, loss_func
+            return multimodal_output, loss_func
 
         return fwd_output_and_loss_func
+
+    def on_train_epoch_start(self) -> None:
+        app_state = AppState()
+        reconfigure_num_microbatches_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.cfg.data.train_ds.global_batch_size,
+            micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
 
     def _build_dataset(self, data_cfg, is_train=True):
         return build_speechllm_dataset(self, data_cfg, is_train)
@@ -920,6 +977,8 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         return outputs
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
+        # TODO: support text-only part of mini-batch
+        # the following supports STT (audio-text) inference
 
         batch = move_to_device(batch, device=self.device)
         encoder_input, attention_mask, enc_mask = self.prepare_llm_input(batch)
@@ -1172,68 +1231,97 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         batch = next(dataloader_iter)
         # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
         batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
-        _, seq_length = batch['tokens'].shape
-        # handle the case where the batch size from dynamic bucketting is not divisible in lhotse
-        data_iter = get_iterator_k_split(batch, get_num_microbatches(), enforce_divisible_batch=False)
 
-        # handle asynchronous grad reduction
-        no_sync_func = None
-        grad_sync_func = None
-        param_sync_func = None
-        if not forward_only and self.with_distributed_adam:
-            no_sync_func = partial(
-                self._optimizer.no_sync,
-                greedy_grad_copy=self.megatron_amp_O2,
-            )
-            grad_sync_func = self.reduce_overlap_gradients
-            param_sync_func = self.sync_overlap_parameters
+        audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_")}
+        text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
 
-        self.model.config.no_sync_func = no_sync_func
-        self.model.config.grad_sync_func = grad_sync_func
-        self.model.config.param_sync_func = param_sync_func
+        # Note: We want to perform full fwd+bwd separately for each modality,
+        #       as it allows us to save GPU memory. Otherwise, we'd have to
+        #       hold the activations from one modality in memory while running
+        #       forward for the other.
+        batch_losses = []
+        for batch in (audio_batch, text_batch):
+            if not batch:
+                continue
 
-        fwd_bwd_function = get_forward_backward_func()
+            # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
+            batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
 
-        dec_seq_length = batch['answers'].shape[1]
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=data_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=forward_only,
-            seq_length=seq_length,
-            micro_batch_size=get_micro_batch_size(),
-            decoder_seq_length=dec_seq_length,
-        )
-
-        # only the last stages of the pipeline return losses
-        if losses_reduced_per_micro_batch:
-            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
-                # average loss across micro batches
-                loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-                loss_tensor = torch.concat(loss_tensors_list)
-                loss_mean = loss_tensor.mean()
+            # TODO(pzelasko): For the prototype, computing seq_length as a max from both modalities,
+            #                 but I feel like this needs larger refactoring
+            if 'tokens' in batch and 'text_input_ids' in batch:
+                seq_length = max(batch['tokens'].shape[1], batch['text_input_ids'].shape[1])
+                dec_seq_length = max(batch['answers'].shape[1], batch['text_answer_ids'].shape[1])
+            elif 'tokens' in batch:
+                seq_length = batch['tokens'].shape[1]
+                dec_seq_length = batch['answers'].shape[1]
+            elif 'text_input_ids' in batch:
+                seq_length = batch['text_input_ids'].shape[1]
+                dec_seq_length = batch['text_answer_ids'].shape[1]
             else:
-                # Get the total loss since micro batches sizes are not uniform
-                loss_sum_tensors_list = [
-                    loss_sum['loss_sum_and_ub_size']
-                    for loss_sum in losses_reduced_per_micro_batch
-                    if loss_sum['loss_sum_and_ub_size'][1] > 0
-                ]
-                loss_sum = (
-                    torch.vstack(loss_sum_tensors_list).sum(axis=0)
-                    if len(loss_sum_tensors_list) > 0
-                    else torch.tensor([0.0, 0.0]).cuda()
+                seq_length = None  # TODO(pzelasko): not sure if it is even needed ???
+                dec_seq_length = None
+
+            # handle the case where the batch size from dynamic bucketting is not divisible in lhotse
+            data_iter = get_iterator_k_split(batch, get_num_microbatches(), enforce_divisible_batch=False)
+
+            # handle asynchronous grad reduction
+            no_sync_func = None
+            grad_sync_func = None
+            param_sync_func = None
+            if not forward_only and self.with_distributed_adam:
+                no_sync_func = partial(
+                    self._optimizer.no_sync,
+                    greedy_grad_copy=self.megatron_amp_O2,
                 )
-                return loss_sum
-        else:
-            # we're not on the last pipeline stage so no losses
-            if forward_only:
-                loss_mean = []
-            else:
-                loss_mean = torch.tensor(0.0).cuda()
+                grad_sync_func = self.reduce_overlap_gradients
+                param_sync_func = self.sync_overlap_parameters
 
+            self.model.config.no_sync_func = no_sync_func
+            self.model.config.grad_sync_func = grad_sync_func
+            self.model.config.param_sync_func = param_sync_func
+
+            fwd_bwd_function = get_forward_backward_func()
+
+            losses_reduced_per_micro_batch = fwd_bwd_function(
+                forward_step_func=self.get_forward_output_and_loss_func(validation_step=forward_only),
+                data_iterator=data_iter,
+                model=[self.model],
+                num_microbatches=get_num_microbatches(),
+                forward_only=forward_only,
+                seq_length=seq_length,
+                micro_batch_size=get_micro_batch_size(),
+                decoder_seq_length=dec_seq_length,
+            )
+
+            # only the last stages of the pipeline return losses
+            if losses_reduced_per_micro_batch:
+                if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+                    # average loss across micro batches
+                    loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+                    loss_tensor = torch.concat(loss_tensors_list)
+                    loss_mean = loss_tensor.mean()
+                else:
+                    # Get the total loss since micro batches sizes are not uniform
+                    loss_sum_tensors_list = [
+                        loss_sum['loss_sum_and_ub_size']
+                        for loss_sum in losses_reduced_per_micro_batch
+                        if loss_sum['loss_sum_and_ub_size'][1] > 0
+                    ]
+                    loss_mean = (
+                        torch.vstack(loss_sum_tensors_list).sum(axis=0)
+                        if len(loss_sum_tensors_list) > 0
+                        else torch.tensor([0.0, 0.0]).cuda()
+                    )
+            else:
+                # we're not on the last pipeline stage so no losses
+                if forward_only:
+                    loss_mean = []
+                else:
+                    loss_mean = torch.tensor(0.0).cuda()
+            batch_losses.append(loss_mean)
+
+        loss_mean = torch.cat(batch_losses).mean()
         return loss_mean
 
     def loss_func(self, loss_mask, output_tensor):
@@ -1267,6 +1355,74 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         """Set up mcore distributed data parallel called by configure_ddp in nlp_overrides."""
         if self.with_distributed_adam and self.use_mcore_dist_optim:
             raise ValueError("T5 does not support both distributed adam and mcore distributed data parallel.")
+
+    def oomptimizer_schema(self, schema: str = "audio") -> dict:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+
+        if schema == "audio":
+            return {
+                "cls": dict,
+                "inputs": [
+                    {"name": "audio_signal", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                    {"name": "audio_signal_length", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                    {
+                        "name": "tokens",
+                        "type": NeuralType(("B", "T"), LabelsType()),
+                        "seq_length": "output",
+                        "vocab_size": self.tokenizer.vocab_size,
+                    },
+                    {
+                        "name": "tokens_length",
+                        "type": NeuralType(("B",), LengthsType()),
+                        "seq_length": "output",
+                    },
+                    {
+                        "name": "labels",
+                        "type": NeuralType(("B", "T"), LabelsType()),
+                        "seq_length": "output",
+                        "vocab_size": self.tokenizer.vocab_size,
+                    },
+                    {
+                        "name": "loss_mask",
+                        "type": NeuralType(("B", "T"), MaskType()),
+                        "seq_length": "output",
+                    },
+                    {
+                        "name": "context_start_idx",
+                        "type": "constant",
+                        "value": 0,
+                    },
+                ],
+            }
+        elif schema == "text":
+            # TODO: add support for text
+            # input_ids = text_batch["text_input_ids"][:, :-1]
+            # labels = text_batch["text_input_ids"][:, 1:]
+            # attention_mask = self._create_attention_mask(input_ids)
+            # loss_mask = text_batch["text_masks"][:, 1:]
+
+            return {
+                "cls": dict,
+                "inputs": [
+                    {
+                        "name": "text_context_ids",
+                        "type": NeuralType(("B", "T"), LabelsType()),
+                        "seq_length": "input",
+                        "vocab_size": self.tokenizer.vocab_size,
+                    },
+                    {
+                        "name": "text_answer_ids",
+                        "type": NeuralType(("B", "T"), LabelsType()),
+                        "seq_length": "output",
+                        "vocab_size": self.tokenizer.vocab_size,
+                    },
+                ],
+            }
+        else:
+            raise RuntimeError(f"Unknown schema type for oomptimizer of class {type(self)}: '{schema}'")
 
 
 class DecoderTextPromptModularizedAudioT5Model(ModularizedAudioT5Model):
