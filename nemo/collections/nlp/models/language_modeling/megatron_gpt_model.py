@@ -133,6 +133,7 @@ except (ImportError, ModuleNotFoundError):
 
 import torch.nn.functional as F
 import wandb
+from megatron.core.parallel_state import get_tensor_model_parallel_group
 
 
 @cache
@@ -1307,6 +1308,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         attention_mask = forward_args['attention_mask'],
                         labels = None,
                     )
+
+                if not parallel_state.is_pipeline_last_stage():
+                    output_logits = output_logits.to(dtype=self.autocast_dtype)
+                    ref_logits = ref_logits.to(dtype=self.autocast_dtype)
+                
+                output_logits_max = torch.max(output_logits, dim=-1)[0]
+                torch.distributed.all_reduce(output_logits_max,
+                                             op=torch.distributed.ReduceOp.MAX,
+                                             group=get_tensor_model_parallel_group())
+                output_logits = output_logits - output_logits_max.unsqueeze(dim=-1).detach()
+                output_logits = tensor_parallel.gather_from_tensor_model_parallel_region(output_logits)
+
+                ref_logits_max = torch.max(ref_logits, dim=-1)[0]
+                torch.distributed.all_reduce(ref_logits_max,
+                                             op=torch.distributed.ReduceOp.MAX,
+                                             group=get_tensor_model_parallel_group())
+                ref_logits = ref_logits - ref_logits_max.unsqueeze(dim=-1).detach()
+                ref_logits = tensor_parallel.gather_from_tensor_model_parallel_region(ref_logits)
 
                 kl_div = kl_loc_loss(
                     ref_logits.to(torch.float32),
