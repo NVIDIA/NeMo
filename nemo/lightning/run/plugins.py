@@ -26,6 +26,20 @@ def _merge_callbacks(partial: run.Partial, callbacks: list[run.Config[Callback]]
 
 @dataclass(kw_only=True)
 class PreemptionPlugin(run.Plugin):
+    """
+    A plugin for setting up Preemption callback and preemption signals.
+
+    Args:
+        preempt_time (int): The time, in seconds, before the task's time limit at which the executor
+                             will send a SIGTERM preemption signal. This allows tasks to be gracefully
+                             stopped before reaching their time limit, reducing waste and
+                             promoting fair resource usage. The default value is 300 seconds (5 minutes).
+                             This is only supported for ``run.SlurmExecutor``.
+        callbacks (list[run.Config[Callback]]): A list of callback configurations that the plugin
+                                                will merge with the task's existing callbacks.
+                                                By default, the list includes NeMo's preemption callback.
+    """
+    preempt_time: int = 300
     callbacks: list[run.Config[Callback]] = field(default_factory=lambda: [run.Config(PreemptionCallback)])
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
@@ -37,13 +51,28 @@ class PreemptionPlugin(run.Plugin):
 
         if isinstance(executor, run.SlurmExecutor):
             # Sends a SIGTERM 5 minutes before hitting time limit
-            executor.signal = "TERM@300"
+            executor.signal = f"TERM@{self.preempt_time}"
 
         _merge_callbacks(task, callbacks=self.callbacks)
 
 
 @dataclass(kw_only=True)
 class NsysPlugin(run.Plugin):
+    """
+    A plugin for nsys profiling.
+
+    The NsysPlugin allows you to profile your run using nsys.
+    You can specify when to start and end the profiling, on which ranks to run the profiling,
+    and what to trace during profiling.
+
+    Args:
+        start_step (int): The step at which to start the nsys profiling.
+        end_step (int): The step at which to end the nsys profiling.
+        ranks (Optional[list[int]]): The ranks on which to run the nsys profiling. If not specified,
+            profiling will be run on rank 0.
+        nsys_trace (Optional[list[str]]): The events to trace during profiling. If not specified,
+            'nvtx' and 'cuda' events will be traced.
+    """
     start_step: int
     end_step: int
     ranks: Optional[list[int]] = None
@@ -67,6 +96,29 @@ class NsysPlugin(run.Plugin):
 
 @dataclass(kw_only=True)
 class WandbPlugin(run.Plugin):
+    """
+    A plugin for setting up Weights & Biases.
+
+    This plugin sets a ``WandbLogger`` to ``NeMoLogger``'s ``wandb`` arg,
+    which in turn initializes the Pytorch Lightning `WandbLogger <https://lightning.ai/docs/pytorch/stable/extensions/generated/lightning.pytorch.loggers.WandbLogger.html>`_.
+
+    This plugin is only activated if the ``WANDB_API_KEY`` environment variable is set.
+    The ``WANDB_API_KEY`` environment variables will also be set in the executor's environment variables.
+    Follow https://docs.wandb.ai/quickstart to retrieve your ``WANDB_API_KEY``.
+
+    If `log_task_config` is True, the plugin will log the task configuration as a config dictionary
+    to the Weights and Biases logger.
+
+    Args:
+        name (str): The name for the Weights & Biases run.
+        logger_fn (Callable[..., run.Config[WandbLogger]]): A callable that returns a Config of ``WandbLogger``
+        log_task_config (bool, optional): Whether to log the task configuration to the logger.
+            Defaults to True.
+
+    Raises:
+        logging.warning: If the task is an instance of `run.Script`, as the plugin has no effect on such tasks.
+    """
+
     name: str
     logger_fn: Callable[..., run.Config[WandbLogger]]
     log_task_config: bool = True
