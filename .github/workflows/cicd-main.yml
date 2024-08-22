@@ -4859,6 +4859,7 @@ jobs:
       - Speech_Checkpoints_tests
       #- OPTIONAL_L2_Stable_Diffusion_Training
       - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
+      - L2_NeMo_2_GPT_DDP_Param_Parity_check
     if: always()
     runs-on: ubuntu-latest
     steps:  
