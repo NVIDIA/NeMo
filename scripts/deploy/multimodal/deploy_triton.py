@@ -36,7 +36,15 @@ def get_args(argv):
         description=f"Deploy nemo models to Triton",
     )
     # default modality is vision, can be changed to audio
-    parser.add_argument("-mod", "--modality", type=str, required=False, default="vision", choices=["vision", "audio"], help="Modality of the model")
+    parser.add_argument(
+        "-mod",
+        "--modality",
+        type=str,
+        required=False,
+        default="vision",
+        choices=["vision", "audio"],
+        help="Modality of the model",
+    )
     parser.add_argument("-vc", "--visual_checkpoint", type=str, help="Source .nemo file for visual model")
     parser.add_argument(
         "-lc",
@@ -125,9 +133,7 @@ def get_trt_deployable(args):
         raise ValueError("Model type is required to be defined if a nemo checkpoint is provided.")
 
     exporter = TensorRTMMExporter(
-        model_dir=trt_path,
-        load_model=(args.visual_checkpoint is None),
-        modality = args.modality
+        model_dir=trt_path, load_model=(args.visual_checkpoint is None), modality=args.modality
     )
 
     if args.visual_checkpoint is not None:

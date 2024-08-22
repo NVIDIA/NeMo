@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import numpy as np
-from PIL import Image
 import soundfile as sf
+from PIL import Image
 
 from nemo.deploy.utils import str_list2numpy
 
@@ -76,10 +76,7 @@ class NemoQueryMultimodal:
             waveform, sample_rate = sf.read(input_media, dtype=np.float32)
             input_signal = np.array([waveform], dtype=np.float32)
             input_signal_length = np.array([[len(waveform)]], dtype=np.int32)
-            return {
-                "input_signal": input_signal,
-                "input_signal_length": input_signal_length
-            }
+            return {"input_signal": input_signal, "input_signal_length": input_signal_length}
         else:
             raise RuntimeError(f"Invalid model type {self.model_type}")
 
