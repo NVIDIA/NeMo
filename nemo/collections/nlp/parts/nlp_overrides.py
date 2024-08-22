@@ -76,7 +76,7 @@ from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, unin
 try:
 
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
-    from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
+    from nemo.core.optim.mcore_optim import make_mcore_dist_opt_wrapper
 
     HAVE_APEX = True
 
@@ -316,7 +316,8 @@ class NLPDDPStrategy(DDPStrategy):
         model_sharded_state_dict = {
             key: value for key, value in model_sharded_state_dict.items() if not key.endswith('_extra_state')
         }
-        if isinstance(optimizer, McoreDistributedOptimizer):
+        from megatron.core.optimizer import MegatronOptimizer
+        if isinstance(optimizer, MegatronOptimizer):
             return optimizer.sharded_state_dict(
                 model_sharded_state_dict,
                 unsharded_optim_state,

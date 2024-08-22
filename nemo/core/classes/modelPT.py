@@ -43,7 +43,7 @@ from nemo import package_info
 from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-from nemo.core.optim import McoreDistributedOptimizer, prepare_lr_scheduler
+from nemo.core.optim import make_mcore_dist_opt_wrapper, prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
@@ -777,7 +777,7 @@ class ModelPT(LightningModule, Model):
                     megatron_optim_config,
                     self.model,
                 )
-                optimizer = McoreDistributedOptimizer(_megatron_optimizer)
+                optimizer = make_mcore_dist_opt_wrapper(_megatron_optimizer)
 
             else:
                 optimizer = optim.get_optimizer(optimizer_name)
