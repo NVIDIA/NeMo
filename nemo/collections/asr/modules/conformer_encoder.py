@@ -453,13 +453,19 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
     def set_dropout(self, dropout):
         """
-        Set the dropout rate for all layers in the encoder.
+        Set the dropout rate for all layers in the encoder..
 
         Parameters:
             dropout (float): Dropout rate between 0 and 1.
         """
-        for layer in self.layers:
-            layer.set_dropout(dropout)
+        def recursive_set_dropout(module):
+            for _, child in module.named_children():
+                if isinstance(child, nn.Dropout):
+                    child.p = dropout
+                else:
+                    recursive_set_dropout(child)
+        
+        recursive_set_dropout(self)
 
     def forward_for_export(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
