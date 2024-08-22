@@ -69,7 +69,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         train_time_interval: Optional[timedelta] = None,
         save_best_model: bool = False,
         save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
-        enable_nemo_ckpt_io: bool = True,
+        enable_nemo_ckpt_io: bool = False,
         try_restore_best_ckpt: bool = True,
         **kwargs,
     ):
@@ -411,6 +411,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
     def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
+        ckpt_filepath = ckpt_to_dir(filepath) / "model_weights"
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
         ema_callback = self._ema_callback(trainer)
 
@@ -420,15 +421,15 @@ class ModelCheckpoint(PTLModelCheckpoint):
             if self.async_save:
                 raise ValueError('async_save with EMA not supported')
             with ema_callback.save_original_optimizer_state(trainer):
-                super()._save_checkpoint(trainer, filepath)
+                super()._save_checkpoint(trainer, ckpt_filepath)
 
             # save EMA copy of the model as well.
             with ema_callback.save_ema_model(trainer):
-                rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
-                filepath = self._ema_format_filepath(filepath)
+                rank_zero_info(f"Saving EMA weights to separate checkpoint {ckpt_filepath}")
+                ckpt_filepath = self._ema_format_filepath(ckpt_filepath)
                 if self.verbose:
-                    rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
-                super()._save_checkpoint(trainer, filepath)
+                    rank_zero_info(f"Saving EMA weights to separate checkpoint {ckpt_filepath}")
+                super()._save_checkpoint(trainer, ckpt_filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
             # Async save passes the finalization function to checkpoint_io,
@@ -445,13 +446,13 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 self.deferred_ckpts_to_remove.append([])
             else:
                 storage_options = None
-            trainer.save_checkpoint(filepath, self.save_weights_only, storage_options=storage_options)
+            trainer.save_checkpoint(ckpt_filepath, self.save_weights_only, storage_options=storage_options)
 
             ## NOTE: saving context happens synchronously always
             from nemo.utils.get_rank import is_global_rank_zero
 
             if self.enable_nemo_ckpt_io and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath))
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "artifacts")
             if self.async_save:
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:

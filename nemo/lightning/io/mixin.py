@@ -136,7 +136,7 @@ class IOMixin:
                            will be stored.
         """
         output_path = Path(output)
-        artifacts_dir = output_path / "artifacts"
+        artifacts_dir = output_path
         artifacts_dir.mkdir(parents=True, exist_ok=True)
 
         # Store artifacts directory in thread-local storage

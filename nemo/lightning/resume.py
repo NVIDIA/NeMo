@@ -151,7 +151,7 @@ class AutoResume(Resume, io.IOMixin):
         if checkpoint:
             if self.adapter_path:
                 return AdapterPath(checkpoint, adapter_path=Path(self.adapter_path))
-            return Path(checkpoint)
+            return Path(checkpoint) / "model_weights"
 
         return None
 
