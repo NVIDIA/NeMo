@@ -1170,7 +1170,9 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
         seq_length = batch['tokens'].shape[1]
         # handle the case where the batch size from dynamic bucketting is not divisible in lhotse
-        data_iter = get_iterator_k_split(batch, get_num_microbatches(), enforce_divisible_batch=False)
+        batch_size = batch['tokens'].shape[0]
+        num_microbatches = min(batch_size, get_num_microbatches())
+        data_iter = get_iterator_k_split(batch, num_microbatches, enforce_divisible_batch=False)
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -1196,7 +1198,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             forward_step_func=self.get_forward_output_and_loss_func(),
             data_iterator=data_iter,
             model=[self.model],
-            num_microbatches=get_num_microbatches(),
+            num_microbatches=num_microbatches,
             forward_only=forward_only,
             seq_length=seq_length,
             micro_batch_size=get_micro_batch_size(),
@@ -1534,7 +1536,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         dec_input = audio_batch['tokens']
         labels = audio_batch['labels']
 
-        dec_mask = (dec_input[:, :, 0] != self.tokenizer.eos_id) * (dec_input[:, :, 0] != self.tokenizer.pad_id).long().contiguous()
+        dec_mask = (dec_input[:, :, 0] != self.tokenizer.pad_id).long().contiguous()
         output = self.frozen_model.enc_dec_model(
             enc_input_ids=None,
             enc_attn_mask=enc_mask,
@@ -1557,7 +1559,9 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
         seq_length = batch['tokens'].shape[1]
         # handle the case where the batch size from dynamic bucketting is not divisible in lhotse
-        data_iter = get_iterator_k_split(batch, get_num_microbatches(), enforce_divisible_batch=False)
+        batch_size = batch['tokens'].shape[0]
+        num_microbatches = min(batch_size, get_num_microbatches())
+        data_iter = get_iterator_k_split(batch, num_microbatches, enforce_divisible_batch=False)
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -1583,7 +1587,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             forward_step_func=self.get_forward_output_and_loss_func(),
             data_iterator=data_iter,
             model=[self.model],
-            num_microbatches=get_num_microbatches(),
+            num_microbatches=num_microbatches,
             forward_only=forward_only,
             seq_length=seq_length,
             micro_batch_size=get_micro_batch_size(),
