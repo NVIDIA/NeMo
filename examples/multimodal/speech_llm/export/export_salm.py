@@ -18,7 +18,7 @@ from nemo.export.tensorrt_mm_exporter import TensorRTMMExporter
 
 @hydra_runner(config_path='conf', config_name='salm_export')
 def main(cfg):
-    exporter = TensorRTMMExporter(model_dir=cfg.infer.output_dir, load_model=False, modality='speech')
+    exporter = TensorRTMMExporter(model_dir=cfg.infer.output_dir, load_model=False, modality='audio')
     exporter.export(
         visual_checkpoint_path=cfg.model.perception_model_path,
         llm_checkpoint_path=cfg.model.llm_model_path,

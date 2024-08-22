@@ -894,10 +894,12 @@ class SpeechllmModelRunner(MultimodalModelRunner):
             engine_dir: str, path to the engine directory
         """
         # find file with .engine extension
+        engine_file = None
         for file in os.listdir(engine_dir):
             if file.endswith('.engine'):
                 engine_file = file
                 break
+        assert engine_file is not None, f"Engine file not found in {engine_dir}"
         encoder_path = os.path.join(engine_dir, engine_file)
         logger.info(f'Loading engine from {encoder_path}')
         with open(encoder_path, 'rb') as f:
@@ -1025,12 +1027,11 @@ class SpeechllmModelRunner(MultimodalModelRunner):
         if not warmup:
             profiler.stop(self.modality.capitalize())
 
-        assert self.model_type == 'salm'
+        assert self.model_type == 'salm', f"Invalid model type {self.model_type}"
 
-        processed_signal, processed_signal_length = processed_features
         processed_features = {
-            "processed_signal": processed_signal,
-            "processed_signal_length": processed_signal_length.to(torch.int32),
+            "processed_signal": processed_features[0],
+            "processed_signal_length": processed_features[1].to(torch.int32),
         }
         encoded_outputs = self.get_modality_encoder_features(processed_features, attention_mask)
         encoded_features, encoded_length = encoded_outputs['encoded'], encoded_outputs['encoded_length']

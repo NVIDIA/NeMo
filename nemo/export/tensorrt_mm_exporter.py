@@ -78,7 +78,8 @@ class TensorRTMMExporter(ITritonDeployable):
     ):
         self.model_dir = model_dir
         self.runner = None
-        assert modality in ["vision", "speech"]
+        # vision modality is for image and video
+        assert modality in ["vision", "audio"]
         self.modality = modality
 
         if load_model:
@@ -174,10 +175,10 @@ class TensorRTMMExporter(ITritonDeployable):
     def get_input_media_tensors(self):
         if self.modality == "vision":
             return [Tensor(name="input_media", shape=(-1, -1, -1, 3), dtype=np.uint8)]
-        elif self.modality == "speech":
+        elif self.modality == "audio":
             return [
                 Tensor(name="input_signal", shape=(-1,), dtype=np.single),
-                Tensor(name="input_signal_length", shape=(1,), dtype=np.int_),
+                Tensor(name="input_signal_length", shape=(1,), dtype=np.intc),
             ]
         return []
 
@@ -249,6 +250,6 @@ class TensorRTMMExporter(ITritonDeployable):
         if self.modality == "vision":
             visual_dir = os.path.join(self.model_dir, "visual_engine")
             self.runner = MultimodalModelRunner(visual_dir, llm_dir, self.modality)
-        elif self.modality == "speech":
+        elif self.modality == "audio":
             perception_dir = os.path.join(self.model_dir, "perception_engine")
             self.runner = SpeechllmModelRunner(perception_dir, llm_dir, self.modality)

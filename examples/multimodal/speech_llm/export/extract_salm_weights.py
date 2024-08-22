@@ -19,7 +19,7 @@ import tempfile
 
 import torch
 from megatron.core import dist_checkpointing
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import OmegaConf
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import AudioPerceptionModule
@@ -46,10 +46,13 @@ def get_config_and_state_dict_from_nemo(filepath, map_location, output_dir, shar
             model_weights_ckpt = "model_weights.ckpt"
 
             # find file in tmpdir that endswith "tokenizer.model"
+            tokenizer = None
             for file in os.listdir(tmpdir):
                 if file.endswith("tokenizer.model"):
                     tokenizer = file
                     break
+            if tokenizer is None:
+                raise ValueError(f"Tokenizer not found in {tmpdir}")
             tokenizer_path = os.path.join(tmpdir, tokenizer)
             # copy tokenizer_path to current directory
             os.system(f"cp {tokenizer_path} {output_dir}")
