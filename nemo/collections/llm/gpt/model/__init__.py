@@ -30,14 +30,6 @@ from nemo.collections.llm.gpt.model.llama import (
     LlamaConfig,
     LlamaModel,
 )
-from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
-from nemo.collections.llm.gpt.model.starcoder2 import (
-    Starcoder2Config,
-    Starcoder2Config3B,
-    Starcoder2Config7B,
-    Starcoder2Config15B,
-    Starcoder2Model,
-)
 from nemo.collections.llm.gpt.model.mixtral import (
     MixtralConfig8x3B,
     MixtralConfig8x7B,
@@ -52,6 +44,14 @@ from nemo.collections.llm.gpt.model.nemotron import (
     Nemotron4Config340B,
     NemotronConfig,
     NemotronModel,
+)
+from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
+from nemo.collections.llm.gpt.model.starcoder2 import (
+    Starcoder2Config,
+    Starcoder2Config3B,
+    Starcoder2Config7B,
+    Starcoder2Config15B,
+    Starcoder2Model,
 )
 
 __all__ = [
