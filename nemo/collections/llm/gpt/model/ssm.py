@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+
 @dataclass
 class SSMConfig(TransformerConfig, io.IOMixin):
     # From megatron.core.models.mamba.mamba_model.MambaModel
@@ -40,7 +41,8 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     make_vocab_size_divisible_by: int = 128
     gated_linear_unit: bool = False
     fp32_residual_connections: bool = False
-
+    normalization: str = 'RMSNorm'
+    add_bias_linear: bool = False
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
     
@@ -81,7 +83,7 @@ class SSMModel(GPTModel):
 @io.model_importer(SSMModel, "pytorch")
 class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
 
-    def __new__(cls, path: str, param1, param2, *args, **kwargs):
+    def __new__(cls, path: str, param1=None, param2=None, *args, **kwargs):
         instance = super().__new__(cls, path, *args, **kwargs)
         instance.param1 = param1
         instance.param2 = param2
@@ -172,7 +174,20 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
 
         return output
 
+@dataclass
+class Mamba2Config370m(SSMConfig):
+    hybrid_override_pattern: str = "M"*48
+    num_layers: int = 48
+    hidden_size: int = 1024
+    mamba_ssm_ngroups: int = 1
+    ffn_hidden_size: int = 1024
+    num_attention_heads: int = 1
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    layernorm_epsilon: float = 1e-5
+
 __all__ = [
     "SSMModel",
     "SSMConfig",
+    "Mamba2Config370m",
 ]
