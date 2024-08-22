@@ -155,4 +155,3 @@ class WandbPlugin(run.Plugin):
             logging.warning(
                 f"The {self.__class__.__name__} will have no effect as WANDB_API_KEY environment variable is not set."
             )
-
