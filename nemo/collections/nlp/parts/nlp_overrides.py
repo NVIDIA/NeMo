@@ -316,6 +316,7 @@ class NLPDDPStrategy(DDPStrategy):
             key: value for key, value in model_sharded_state_dict.items() if not key.endswith('_extra_state')
         }
         from megatron.core.optimizer import MegatronOptimizer
+
         if isinstance(optimizer, MegatronDistributedFusedAdam):
             return optimizer.sharded_state_dict(model_sharded_state_dict, unsharded_optim_state)
         elif isinstance(optimizer, MegatronOptimizer):

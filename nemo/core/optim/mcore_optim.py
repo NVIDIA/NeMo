@@ -23,6 +23,7 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+
 def make_mcore_dist_opt_wrapper(optim):
 
     class McoreDistributedOptimizerWrapper(type(optim)):
@@ -32,6 +33,7 @@ def make_mcore_dist_opt_wrapper(optim):
         Arguments:
             optim: distributed optimizer from Megatron core.
         """
+
         def sharded_state_dict(
             self, model_sharded_state_dict, optimizer_state_dict=None, is_loading=False, dist_ckpt_parallel_save=False
         ):
