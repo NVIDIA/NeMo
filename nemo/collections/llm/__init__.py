@@ -44,6 +44,7 @@ from nemo.collections.llm.gpt.model import (
     MaskedTokenLossReduction,
     MistralConfig7B,
     MistralModel,
+    MixtralConfig8x3B,
     MixtralConfig8x7B,
     MixtralConfig8x22B,
     MixtralModel,
@@ -55,10 +56,24 @@ from nemo.collections.llm.gpt.model import (
     StarcoderConfig,
     StarcoderConfig15B,
     StarcoderModel,
+    Nemotron3Config4B,
+    Nemotron3Config8B,
+    Nemotron4Config15B,
+    Nemotron4Config22B,
+    Nemotron4Config340B,
+    NemotronConfig,
+    NemotronModel,
     gpt_data_step,
     gpt_forward_step,
 )
 from nemo.collections.llm.recipes import *  # noqa
+from nemo.utils import logging
+
+try:
+    from nemo.collections.llm.api import deploy
+except ImportError as error:
+    deploy = None
+    logging.warning(f"The deploy module could not be imported: {error}")
 
 __all__ = [
     "MockDataModule",
@@ -69,12 +84,20 @@ __all__ = [
     "MaskedTokenLossReduction",
     "MistralConfig7B",
     "MistralModel",
+    "MixtralConfig8x3B",
     "MixtralConfig8x7B",
     "MixtralConfig8x22B",
     "MixtralModel",
     "Starcoder2Config15B",
     "Starcoder2Config",
     "Starcoder2Model",
+    "NemotronModel",
+    "Nemotron3Config4B",
+    "Nemotron3Config8B",
+    "Nemotron4Config15B",
+    "Nemotron4Config22B",
+    "Nemotron4Config340B",
+    "NemotronConfig",
     "LlamaConfig",
     "Llama2Config7B",
     "Llama2Config13B",
@@ -115,3 +138,7 @@ __all__ = [
     "dolly",
     "peft",
 ]
+
+# add 'deploy' to __all__ if it was successfully imported
+if deploy is not None:
+    __all__.append("deploy")

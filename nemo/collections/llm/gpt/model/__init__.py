@@ -30,8 +30,6 @@ from nemo.collections.llm.gpt.model.llama import (
     LlamaConfig,
     LlamaModel,
 )
-from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
-from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralConfig8x22B, MixtralModel
 from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
 from nemo.collections.llm.gpt.model.starcoder2 import (
     Starcoder2Config,
@@ -39,6 +37,20 @@ from nemo.collections.llm.gpt.model.starcoder2 import (
     Starcoder2Config7B,
     Starcoder2Config15B,
     Starcoder2Model,
+from nemo.collections.llm.gpt.model.mixtral import (
+    MixtralConfig8x3B,
+    MixtralConfig8x7B,
+    MixtralConfig8x22B,
+    MixtralModel,
+)
+from nemo.collections.llm.gpt.model.nemotron import (
+    Nemotron3Config4B,
+    Nemotron3Config8B,
+    Nemotron4Config15B,
+    Nemotron4Config22B,
+    Nemotron4Config340B,
+    NemotronConfig,
+    NemotronModel,
 )
 
 __all__ = [
@@ -46,7 +58,9 @@ __all__ = [
     "GPTModel",
     "MistralConfig7B",
     "MistralModel",
+    "MixtralConfig8x3B",
     "MixtralConfig8x7B",
+    "MixtralConfig8x22B",
     "MixtralModel",
     "Starcoder2Config",
     "Starcoder2Model",
@@ -62,6 +76,13 @@ __all__ = [
     "Llama2Config70B",
     "Llama3Config8B",
     "Llama3Config70B",
+    "NemotronConfig",
+    "Nemotron3Config4B",
+    "Nemotron3Config8B",
+    "Nemotron4Config15B",
+    "Nemotron4Config22B",
+    "Nemotron4Config340B",
+    "NemotronModel",
     "CodeLlamaConfig7B",
     "CodeLlamaConfig13B",
     "CodeLlamaConfig34B",
