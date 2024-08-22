@@ -3,6 +3,7 @@ from functools import partial
 from typing import Any, Optional
 
 import nemo_run as run
+
 from nemo.collections import llm
 
 
@@ -30,7 +31,7 @@ def get_parser():
     parser.add_argument(
         "--local",
         action="store_true",
-        help="Do a dryrun and exit",
+        help="Run locally using run.LocalExecutor",
         default=False,
     )
     return parser
@@ -139,7 +140,8 @@ def main():
         ckpt_dir=f"/{exp_name}/checkpoints",
     )
 
-    # dataloader =
+    # TODO: Overwrite the dataloader in the recipe.
+    # dataloader = set_your_custom_dataloader
     # pretrain.data = dataloader
 
     pretrain.trainer.val_check_interval = 400
@@ -153,6 +155,7 @@ def main():
     if args.local:
         executor = local_executor_torchrun(nodes=pretrain.trainer.num_nodes, devices=pretrain.trainer.devices)
     else:
+        # TODO: Set your custom parameters for the Slurm Executor.
         executor = slurm_executor(
             user="",
             host="",
