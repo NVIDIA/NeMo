@@ -157,6 +157,7 @@ class LazyNeMoIterator:
             # incurring IO penalty (note that Lhotse manifests contain more information than
             # NeMo manifests, so for actual dataloading we have to fill it using the audio file).
             sr = ifnone(sampling_rate, 16000)  # fake sampling rate
+            offset = ifnone(offset, 0.0)
             cut = MonoCut(
                 id=audio_path,
                 start=offset,
