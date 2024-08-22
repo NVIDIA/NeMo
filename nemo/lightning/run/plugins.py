@@ -151,3 +151,8 @@ class WandbPlugin(run.Plugin):
                         "local_directory": executor.job_dir,
                     }
                     task.log.wandb.config = partial_config
+        else:
+            logging.warning(
+                f"The {self.__class__.__name__} will have no effect as WANDB_API_KEY environment variable is not set."
+            )
+
