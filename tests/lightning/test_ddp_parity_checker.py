@@ -49,14 +49,14 @@ def make_byzantine_model_wrapper(model, trainer):
     model.__class__ = ByzantineModel
     return model
 
-
+@pytest.mark.skip(reason="tested with GH")
 def test_failing(trainer, ddp_parity, optim, data, tokenizer):
     config = llm.Llama2Config7B(num_layers=2)
     config = wrap_config(config, trainer)
     model = llm.LlamaModel(config, tokenizer=tokenizer, optim=optim)
     trainer.fit(model, data)
 
-
+@pytest.mark.skip(reason="tested with GH")
 def test_working(trainer, ddp_parity, optim, data, tokenizer):
     config = llm.Llama2Config7B(num_layers=2)
     model = llm.LlamaModel(config, tokenizer=tokenizer, optim=optim)
