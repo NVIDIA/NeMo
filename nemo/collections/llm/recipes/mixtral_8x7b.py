@@ -9,19 +9,18 @@ from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
+from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
 from nemo.collections.llm.utils import Config, Partial
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "llama3_8b"
+NAME = "mixtral_8x7b"
 
 
 def model() -> Config[pl.LightningModule]:
-    return Config(LlamaModel, config=Config(Llama3Config8B))
+    return Config(MixtralModel, config=Config(MixtralConfig8x7B))
 
 
 def trainer(
@@ -31,6 +30,7 @@ def trainer(
     virtual_pipeline_parallelism: Optional[int],
     context_parallelism: int,
     sequence_parallelism: bool,
+    expert_parallelism: int,
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
@@ -44,10 +44,16 @@ def trainer(
         virtual_pipeline_model_parallel_size=virtual_pipeline_parallelism,
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
+        expert_model_parallel_size=expert_parallelism,
         gradient_as_bucket_view=True,
         ckpt_include_optimizer=True,
         ckpt_async_save=True,
         ckpt_parallel_load=True,
+        ddp=Config(
+            DistributedDataParallelConfig,
+            check_for_nan_in_grad=True,
+            grad_reduce_in_fp32=True,
+        ),
     )
 
     trainer = Config(
@@ -62,7 +68,7 @@ def trainer(
         log_every_n_steps=10,
         max_steps=max_steps,
         num_nodes=num_nodes,
-        plugins=bf16_mixed_plugin(),
+        plugins=Config(nl.MegatronMixedPrecision, precision="bf16-mixed"),
         strategy=strategy,
         use_distributed_sampler=False,
         val_check_interval=2000,
@@ -78,12 +84,13 @@ def pretrain_recipe(
         fn,
         model=model(),
         trainer=trainer(
-            tensor_parallelism=1,
+            tensor_parallelism=8,
             pipeline_parallelism=1,
             pipeline_parallelism_type=None,
             virtual_pipeline_parallelism=None,
-            context_parallelism=2,
-            sequence_parallelism=False,
+            context_parallelism=1,
+            sequence_parallelism=True,
+            expert_parallelism=1,
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[Config(TimingCallback)],
@@ -96,7 +103,7 @@ def pretrain_recipe(
 
 
 def hf_resume() -> Config[nl.AutoResume]:
-    return Config(nl.AutoResume, import_path="hf://meta-llama/Meta-Llama-3.1-8B")
+    return Config(nl.AutoResume, import_path="hf://mistralai/Mixtral-8x7B-v0.1")
 
 
 def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int) -> Partial:
@@ -104,6 +111,6 @@ def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node:
         name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
     )
     recipe.resume = hf_resume()
-    recipe.peft = Config(LoRA)
+    recipe.peft = Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
     recipe.data = Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
     return recipe
