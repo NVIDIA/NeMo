@@ -5,6 +5,7 @@ import shutil
 import threading
 import types
 import uuid
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from dataclasses import is_dataclass
 from pathlib import Path
@@ -32,7 +33,78 @@ _enable_ext()
 _thread_local = threading.local()
 
 
-class IOMixin:
+class NeedsIOMixin(ABC):
+    """Allows you to set the ABC on a parent class"""
+
+    @abstractmethod
+    def io_transform_args(self, init_fn, *args, **kwargs) -> Dict[str, Any]:
+        """
+        Transforms and captures the arguments passed to the `__init__` method, filtering out
+        any arguments that are instances of `IOProtocol` or are dataclass fields with default
+        factories.
+
+        Args:
+            init_fn (Callable): The original `__init__` method of the class.
+            *args: Variable length argument list for the `__init__` method.
+            **kwargs: Arbitrary keyword arguments for the `__init__` method.
+
+        Returns
+        -------
+            Dict[str, Any]: A dictionary of the captured and transformed arguments.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def mutate_hparam(self, attribute: str, value: Any, also_change_value: bool = True) -> None:
+        """
+        Mutates the saved hyper-parameter for the io mixed class. If you would like to only change the saved hyper-param
+            for example in the case of loading a dataclass where the same variables are mutated to other non-savable
+            entities by deterministic rules after init, then use `also_change_value=False` to only update the
+            hyper-parameter.
+        Args:
+            attribute: The element name to modify within the saved init settings for self
+            value: New parameter for the saved init settings
+            also_change_value: If you also want to mutate the attribute of this same name in self to be the desired
+                value, set this to True, otherwise if the init arg and self arg are expected to be divergent, then
+                do not set this and modify the self attribute separately in the normal pythonic way.
+        Returns:
+            None
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def io_init(self, **kwargs) -> fdl.Config[Self]:
+        """
+        Initializes the configuration object (`__io__`) with the captured arguments.
+
+        Args:
+            **kwargs: A dictionary of arguments that were captured during object initialization.
+
+        Returns
+        -------
+            fdl.Config[Self]: The initialized configuration object.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def io_artifacts(cls) -> List[Artifact]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def io_dump(self, output: Path):
+        """
+        Serializes the configuration object (`__io__`) to a file, allowing the object state to be
+        saved and later restored. Also creates an artifacts directory and stores it in a thread-local
+        global variable. If the artifacts directory is empty at the end, it is deleted.
+
+        Args:
+            output (Path): The path to the directory where the configuration object and artifacts
+                           will be stored.
+        """
+        raise NotImplementedError()
+
+
+class IOMixin(NeedsIOMixin):
     """
     A mixin class designed to capture the arguments passed to the `__init__` method,
     facilitating the re-creation of the object through `io.reinit` method using stored configurations.
@@ -111,6 +183,26 @@ class IOMixin:
             Dict[str, Any]: A dictionary of the captured and transformed arguments.
         """
         return _io_transform_args(self, init_fn, *args, **kwargs)
+
+    def mutate_hparam(self, attribute: str, value: Any, also_change_value: bool = True) -> None:
+        """
+        Mutates the saved hyper-parameter for the io mixed class. If you would like to only change the saved hyper-param
+            for example in the case of loading a dataclass where the same variables are mutated to other non-savable
+            entities by deterministic rules after init, then use `also_change_value=False` to only update the
+            hyper-parameter.
+        Args:
+            attribute: The element name to modify within the saved init settings for self
+            value: New parameter for the saved init settings
+            also_change_value: If you also want to mutate the attribute of this same name in self to be the desired
+                value, set this to True, otherwise if the init arg and self arg are expected to be divergent, then
+                do not set this and modify the self attribute separately in the normal pythonic way.
+        Returns:
+            None
+        """
+        # Change the attribute of self and also change the io tracker so it gets updated in the config
+        if also_change_value:
+            setattr(self, attribute, value)
+        setattr(self.__io__, attribute, value)
 
     def io_init(self, **kwargs) -> fdl.Config[Self]:
         """
