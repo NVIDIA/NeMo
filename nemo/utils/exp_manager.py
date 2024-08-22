@@ -768,7 +768,8 @@ def check_resume(
                     raise ValueError(
                         "Last checkpoint is unfinished and cannot be used to resume the training."
                         " Please remove the checkpoint manually to avoid unexpected cosequences, such as"
-                        " restarting from scratch."
+                        " restarting from scratch. Hint: Iteration number can be added to the checkpoint name pattern"
+                        " to maximize chance that there is at least one finished last checkpoint to resume from."
                     )
 
             if not checkpoint_dir_exists or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
