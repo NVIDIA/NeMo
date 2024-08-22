@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
 from lhotse import AudioSource, CutSet, MonoCut, Recording, SupervisionSegment
-from lhotse.audio import AudioLoadingError
 from lhotse.serialization import save_to_jsonl
 from lhotse.testing.dummies import DummyManifest
 
@@ -67,12 +66,16 @@ def test_lazy_nemo_iterator(nemo_manifest_path):
 
 @pytest.fixture
 def nemo_offset_manifest_path(tmp_path_factory):
-    """2 utterances of length 1s as a NeMo manifest."""
+    """
+    4 utterances of length 0.5s as a NeMo manifest.
+    They are dervied from two audio files of 1s duration, so
+    two of them have offset 0 and the other two have offset 0.5.
+    """
     tmpdir = tmp_path_factory.mktemp("nemo_data_offset")
     cuts = (
         DummyManifest(CutSet, begin_id=0, end_id=2, with_data=True)
         .save_audios(tmpdir, progress_bar=False)
-        .cut_into_windows(0.5, 0.5)
+        .cut_into_windows(duration=0.5, hop=0.5)
     )
     nemo = []
     for c in cuts:
