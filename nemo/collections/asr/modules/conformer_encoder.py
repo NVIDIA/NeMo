@@ -458,13 +458,14 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         Parameters:
             dropout (float): Dropout rate between 0 and 1.
         """
+
         def recursive_set_dropout(module):
             for _, child in module.named_children():
                 if isinstance(child, nn.Dropout):
                     child.p = dropout
                 else:
                     recursive_set_dropout(child)
-        
+
         recursive_set_dropout(self)
 
     def forward_for_export(
