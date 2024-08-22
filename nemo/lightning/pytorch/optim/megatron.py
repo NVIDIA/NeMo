@@ -83,24 +83,7 @@ class MegatronOptimizerModule(OptimizerModule):
         if not isinstance(model, MegatronParallel):
             raise ValueError("Model must be an instance of MegatronParallel")
 
-        from nemo.core.optim import McoreDistributedOptimizer
-
-        class McoreOpt(McoreDistributedOptimizer):
-            def sharded_state_dict(
-                self,
-                model_sharded_state_dict,
-                optimizer_state_dict=None,
-                is_loading=False,
-                sharding_type='fully_sharded_model_space',
-            ):
-                mcore_optimizer_sig = inspect.signature(self.mcore_optimizer.sharded_state_dict).parameters
-                distrib_optim_kwargs = {}
-                if "sharding_type" in mcore_optimizer_sig:
-                    distrib_optim_kwargs["sharding_type"] = sharding_type
-                state_dict = self.mcore_optimizer.sharded_state_dict(
-                    model_sharded_state_dict, is_loading=is_loading, **distrib_optim_kwargs
-                )
-                return state_dict
+        from nemo.core.optim import make_mcore_dist_opt_wrapper
 
         mcore_opt = get_megatron_optimizer(
             self.config,
@@ -121,7 +104,7 @@ class MegatronOptimizerModule(OptimizerModule):
             for module in model:
                 module.config.param_sync_func = param_sync_func
 
-        return [McoreOpt(mcore_opt)]
+        return [make_mcore_dist_opt_wrapper(mcore_opt)]
 
     def finalize_model_grads(self, *args, **kwargs):
         return finalize_model_grads(*args, **kwargs)
