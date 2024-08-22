@@ -748,12 +748,25 @@ def check_resume(
                 end_checkpoints = (
                     end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.rglob("*end.ckpt"))
                 )
+                end_chkpt_cnt = len(end_checkpoints)
                 end_checkpoints = _filter_out_unfinished_checkpoints(end_checkpoints)
+                finished_end_chkpt_cnt = len(end_checkpoints)
+                if end_chkpt_cnt > 0 and finished_end_chkpt_cnt == 0:
+                    raise ValueError("End checkpoint is unfinished and cannot be used to resume the training."
+                                     " Please remove the checkpoint manually to avoid unexpected cosequences, such as"
+                                     " restarting from scratch.")
+                
                 last_checkpoints = (
                     last_dist_checkpoints if last_dist_checkpoints else list(checkpoint_dir.rglob("*last.ckpt"))
                 )
+                last_chkpt_cnt = len(last_checkpoints)
                 last_checkpoints = _filter_out_unfinished_checkpoints(last_checkpoints)
-
+                finished_last_chkpt_cnt = len(last_checkpoints)
+                if last_chkpt_cnt > 0 and finished_last_chkpt_cnt == 0:
+                    raise ValueError("Last checkpoint is unfinished and cannot be used to resume the training."
+                                     " Please remove the checkpoint manually to avoid unexpected cosequences, such as"
+                                     " restarting from scratch.")
+                
             if not checkpoint_dir_exists or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
                 if resume_ignore_no_checkpoint:
                     warn = f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir :{checkpoint_dir}. "
