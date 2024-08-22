@@ -1289,8 +1289,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         qkv_format='thd',
                     )
 
-            # _output_tensor = model(**forward_args)
-            output_tensor = model(
+            output_tensor = model(**forward_args)
+            output_logits = model(
                 input_ids = forward_args['input_ids'],
                 position_ids = forward_args['position_ids'],
                 attention_mask = forward_args['attention_mask'],
@@ -1301,7 +1301,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             kl_div = torch.tensor(0.0, device=loss_mask.device)
             if (self.c_kl is not None and self.c_kl > 0)and self.trainer.state.fn == 'fit':
                 with torch.no_grad():      
-                    ref_outputs = self.ref_model.model(
+                    ref_logits = self.ref_model.model(
                         input_ids = forward_args['input_ids'],
                         position_ids = forward_args['position_ids'],
                         attention_mask = forward_args['attention_mask'],
@@ -1309,8 +1309,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     )
 
                 kl_div = kl_loc_loss(
-                    ref_outputs.to(torch.float32),
-                    output_tensor.to(torch.float32),
+                    ref_logits.to(torch.float32),
+                    output_logits.to(torch.float32),
                     loss_mask, #forward_args['attention_mask'],
                     self.kl_penalty,
                 )
@@ -1318,14 +1318,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if wandb.run:
                     wandb.log({'kl-div': kl_div})
 
-            def loss_func(output_tensor, forward_args, c_kl_p_kl_div):
-                # Loss for a micro-batch (ub)
-                # loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
-                target_label_logits = torch.gather(output_tensor, dim=-1, index=forward_args['labels'].unsqueeze(-1)).squeeze(-1)
-                log_sum_exp_logits = torch.logsumexp(output_tensor, dim=-1)
-                target_label_logprobs = target_label_logits - log_sum_exp_logits
-                loss_for_ub = - torch.sum(target_label_logprobs * batch['loss_mask']) / torch.sum(batch['loss_mask']).clamp(min=1.)
-
+            def loss_func(output_tensor, forward_args, c_kl_p_kl_div): # forward_args not used for now...
+                loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
                 loss_for_ub += c_kl_p_kl_div
                 cp_size = parallel_state.get_context_parallel_world_size()
                 if self.return_output_tensors:
