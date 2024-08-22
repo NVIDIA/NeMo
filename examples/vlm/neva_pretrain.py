@@ -4,18 +4,20 @@
 import argparse
 
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import TensorBoardLogger
+from nemo.lightning.pytorch.optim import (
+    CosineAnnealingScheduler,
+    MegatronOptimizerModule,
+    OptimizerModule,
+)
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.api import train
 from nemo.collections import vlm
-from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.collections.llm.recipes.log.default import default_log, default_resume
-gbs = 8
-mbs = 2
-seq_length = 1024
+gbs = 256
+mbs = 4
+seq_length = 2048
 
 log_dir = "/opt/nemo_runs"
 strategy = nl.MegatronStrategy(tensor_model_parallel_size=1)
@@ -24,7 +26,7 @@ checkpoint_callback = nl.ModelCheckpoint(
     save_last=True,
     monitor="reduced_train_loss",
     save_top_k=2,
-    every_n_train_steps=10,
+    every_n_train_steps=2,
     enable_nemo_ckpt_io=False,
     dirpath=log_dir,
 )
@@ -33,30 +35,58 @@ callbacks = [checkpoint_callback]
 
 trainer = nl.Trainer(
     devices=1,
-    max_steps=1000,
+    max_steps=2170,
     accelerator="gpu",
     strategy=strategy,
     callbacks=callbacks,
-    plugins=nl.MegatronMixedPrecision(precision="bf16-mixed", ),
+    plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
     val_check_interval=1000,
     log_every_n_steps=1,
+    num_sanity_val_steps=0,
 )
 
 opt_config = OptimizerConfig(
     optimizer='adam',
-    lr=6e-4,
-    min_lr=6e-5,
+    lr=0.001,
+    adam_beta1=0.9,
+    adam_beta2=0.95,
     use_distributed_optimizer=False,
     bf16=True,
 )
-opt = MegatronOptimizerModule(config=opt_config)
+sched = CosineAnnealingScheduler(
+    max_steps=trainer.max_steps,
+    warmup_steps=70,
+    constant_steps=0,
+    min_lr=2.0e-05,
+)
+
+opt = MegatronOptimizerModule(opt_config, sched)
+
+from pytorch_lightning.loggers import Logger, TensorBoardLogger, WandbLogger
 
 nemo_logger = nl.NeMoLogger(
         dir=log_dir,
-        # wandb=WandbLogger(entity="nvidia", project="nemo-ux-demo")
+        # wandb=WandbLogger(project="neva_demo", name="nemo_2.0_vicuna7b")
     )
 
-data = vlm.MockDataModule(
+# data = vlm.MockDataModule(
+#     seq_length=seq_length,
+#     global_batch_size=gbs,
+#     micro_batch_size=mbs,
+#     tokenizer=None,
+#     image_processor=None,
+#     num_workers=0,
+# )
+
+from nemo.collections.vlm.neva.data.config import ImageDataConfig, DataConfig
+
+data_config = ImageDataConfig(
+    image_folder="/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Pretrain-LCS-558K/images",
+    conv_template="plain",
+)
+data = vlm.NevaLazyDataModule(
+    paths="/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Pretrain-LCS-558K/blip_laion_cc_sbu_558k.json",
+    data_config=data_config,
     seq_length=seq_length,
     global_batch_size=gbs,
     micro_batch_size=mbs,
@@ -76,7 +106,7 @@ neva_config = vlm.NevaConfig(
     language_transformer_config=language_transformer_config,
     vision_transformer_config=vision_transformer_config,
     vision_projection_config=vision_projection_config,
-    language_model_from_pretrained="/root/.cache/nemo/models/lmsys/vicuna-7b-v1.5/",
+    language_model_from_pretrained="/root/.cache/nemo/models/lmsys/vicuna-7b-v1.5",
 )
 
 model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)

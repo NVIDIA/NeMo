@@ -106,7 +106,7 @@ class Conversation:
         elif self.sep_style == SeparatorStyle.TWO:
             """
             <s>[INST] <<SYS>>
-            You are a helpful language and vision assistant. You are able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language.
+            A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.
             <</SYS>>
             
             {{ user_message_1 }} [/INST] {{ model_answer_1 }} </s><s>[INST] {{ user_message_2 }} [/INST]
@@ -539,6 +539,7 @@ conv_llava_plain = Conversation(
     sep_style=SeparatorStyle.PLAIN,
     sep="",
     sep2="\n",
+    stop_str="\n",
 )
 
 conv_llava_v0 = Conversation(

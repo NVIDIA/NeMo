@@ -98,6 +98,13 @@ from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from megatron.core.transformer.enums import AttnMaskType, ModelType
 
+import os
+from transformers import CLIPVisionConfig, CLIPVisionModel
+
+
+def set_input_tensor(self, tensor):
+    pass
+
 
 @dataclass
 class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
@@ -110,6 +117,7 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
     hidden_size: int = 1024
     ffn_hidden_size: int = 1024
     activation_func: Callable = F.gelu
+    bias_activation_fusion: bool = True
     num_layers: int = 1  # placeholder, NOT used!
     num_attention_heads: int = 8  # placeholder, NOT used!
 
@@ -124,6 +132,8 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
                     ),
                 )
                 self.layer_spec = self.layer_spec.submodules
+            else:
+                raise NotImplementedError
 
         return MCoreMultimodalProjector(
             self,
@@ -131,14 +141,20 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
             projector_type=self.projector_type,
             input_size=self.input_size,
         )
-
-
-import os
-from transformers import CLIPVisionConfig, CLIPVisionModel
-
-
-def set_input_tensor(self, tensor):
-    pass
+        # adapter_type = "mlp2x_gelu"
+        # import re
+        # mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', adapter_type)
+        # if mlp_gelu_match:
+        #     mlp_depth = int(mlp_gelu_match.group(1))
+        #     modules = [torch.nn.Linear(self.input_size, self.hidden_size, bias=True)]
+        #     for _ in range(1, mlp_depth):
+        #         modules.append(torch.nn.GELU())
+        #         modules.append(torch.nn.Linear(self.hidden_size, self.hidden_size, bias=True))
+        #     model = torch.nn.Sequential(*modules)
+        #     from types import MethodType
+        #     model.set_input_tensor = MethodType(set_input_tensor, model)
+        # import pdb; pdb.set_trace()
+        # return model
 
 
 @dataclass
@@ -567,7 +583,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             num_media_tiles = torch.ones(media.shape[0], dtype=torch.int, device=input_ids.device)
 
         # Preprocess input, labels and loss mask.
-        combined_embeddings, new_labels, new_loss_mask = self._preprocess_data(
+        combined_embeddings, final_labels, final_loss_mask = self._preprocess_data(
             media_embeddings,
             language_embeddings,
             input_ids,
@@ -583,14 +599,14 @@ class MCoreNevaModel(MCoreLLaVAModel):
             position_ids=None,
             attention_mask=attention_mask,
             decoder_input=combined_embeddings,
-            labels=new_labels,
+            labels=final_labels,
             inference_params=inference_params,
         )
 
         if labels is None or loss_mask is None:
             return output
 
-        return output, new_loss_mask
+        return output, final_loss_mask
 
 
 class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):

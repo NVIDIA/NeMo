@@ -352,9 +352,8 @@ class LazySupervisedDataset(Dataset):
                 return_tensors="pt")[0]
             answer_start, answer_end = find_pattern_indices(tokens, answer_tokens)
             labels[answer_start:answer_end] = tokens[answer_start:answer_end]
-
-        tokens = tokens[:, :-1].contiguous()
-        labels = labels[:, 1:].contiguous()
+        tokens = tokens[:-1]
+        labels = labels[1:]
         return tokens, labels
 
     def _get_crop_size(self):
@@ -401,7 +400,7 @@ class NevaDataset(LazySupervisedDataset):
                                 logging.warning(f"Image not found: {image_path}")
                                 continue
                             record['image'].append(image_name)  # url
-                        turn['value'] = re.sub('<img src="([^"]+)">', DEFAULT_IMAGE_TOKEN, turn['value'])
+                        turn['value'] = re.sub('<img src="([^"]+)">', IMAGE_TOKEN_INDEX, turn['value'])
 
                     self.list_data_dict.append(record)
 
@@ -415,7 +414,7 @@ class NevaDataset(LazySupervisedDataset):
         for instance in instances:
             pad_len = max_len - instance['tokens'].shape[0]
             instance['tokens'] = F.pad(instance['tokens'], (0, pad_len), 'constant', 0)
-            instance['labels'] = F.pad(instance['labels'], (0, pad_len), 'constant', -1)
+            instance['labels'] = F.pad(instance['labels'], (0, pad_len), 'constant', IGNORE_INDEX)
             if packed_sequence and instance["cu_seqlens"][-1] != max_len:
                 instance["cu_seqlens"] = torch.cat((instance["cu_seqlens"], torch.IntTensor([max_len])), 0)
 
@@ -464,13 +463,13 @@ class NevaDataset(LazySupervisedDataset):
                 reset_position_ids=data_config.reset_position_ids,
             )
 
-        loss_mask[labels == IGNORE_INDEX] = 0.0
+        loss_mask[labels < 0] = 0.0
 
-        # if media is None:
-        #     raise NotImplementedError
-        # else:
-        #     if media_type == 'image':
-        #         media = rearrange(media, "b T c h w -> b T 1 c h w")
+        if media is None:
+            raise NotImplementedError
+        else:
+            if media_type == 'image':
+                media = rearrange(media, "b T c h w -> (b T) c h w")
         #     elif media_type == 'video':
         #         media = rearrange(media, "b T F c h w -> b T F c h w")
 
@@ -532,6 +531,7 @@ class NevaLazyDataModule(pl.LightningDataModule):
         self.init_global_step = 0
 
         if tokenizer is None or image_processor is None:
+            logging.warning(f"Processor and tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
             from transformers import AutoProcessor
             processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
             self.tokenizer = tokenizer or processor.tokenizer
@@ -541,7 +541,7 @@ class NevaLazyDataModule(pl.LightningDataModule):
             seq_len=self.seq_length,
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
-            dataloader_type="cyclic",
+            dataloader_type="single",
         )
 
     def setup(self, stage: str = "") -> None:
