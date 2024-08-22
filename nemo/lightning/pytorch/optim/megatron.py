@@ -1,3 +1,4 @@
+import functools
 import inspect
 from typing import Callable, List, Optional
 
@@ -111,13 +112,13 @@ class MegatronOptimizerModule(OptimizerModule):
         )
 
         if getattr(model.ddp_config, "overlap_param_sync", False) and getattr(
-            model.ddp_config, "delay_param_gather", False
+            model.ddp_config, "align_param_gather", False
         ):
             param_sync_func = [
-                lambda x, model_index=model_index: mcore_opt.finish_param_sync(model_index, x)
-                for model_index in range(len(pipeline))
+                functools.partial(mcore_opt.start_param_sync, model_index)
+                for model_index in range(len(model))
             ]
-            param_sync_func = param_sync_func[0] if len(pipeline) == 1 else param_sync_func
+            param_sync_func = param_sync_func[0] if len(model) == 1 else param_sync_func
             for module in model:
                 module.config.param_sync_func = param_sync_func
 

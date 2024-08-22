@@ -107,8 +107,11 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
 
     param_groups = property(_get_param_groups, _set_param_groups)
 
-    def finish_param_sync(self, model_index):
-        self.mcore_optimizer.finish_param_sync(model_index)
+    def finish_param_sync(self, model_index, *unused):
+        self.mcore_optimizer.finish_param_sync(model_index, *unused)
+
+    def start_param_sync(self, model_index, *unused):
+        self.mcore_optimizer.start_param_sync(model_index, *unused)
 
     def disable_pre_hook(self):
         self.mcore_optimizer.disable_pre_hook()

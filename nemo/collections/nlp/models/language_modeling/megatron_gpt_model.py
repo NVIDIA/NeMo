@@ -18,6 +18,7 @@ import queue
 import warnings
 from contextlib import nullcontext
 from dataclasses import fields
+import functools
 from functools import cache, partial
 from importlib.metadata import version
 from typing import Any, Dict, Iterator, List, Optional, Union
@@ -562,6 +563,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 bucket_size=self.cfg.optim.get('ddp_bucket_size', None),
                 average_in_collective=self.cfg.optim.get('average_in_collective', True),
             )
+            if self.cfg.get('fp8_params', False):
+                if not hasattr(ddp_config, "use_fp8_params"):
+                    mcore_version = packaging.version.Version(version('megatron-core'))
+                    raise ValueError(
+                        f"megatron-core v{mcore_version} doesn't support FP8 param optimizer."
+                    )
+                ddp_config.use_fp8_params = True
             self.model = [
                 McoreDDP(
                     config,
@@ -569,7 +577,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     model_chunk,
                     # Turn off bucketing for model_chunk 2 onwards, since communication for these
                     # model chunks is overlapped with compute anyway.
-                    disable_bucketing=(model_chunk_idx > 0),
+                    disable_bucketing=(model_chunk_idx > 0) or self.cfg.optim.get('overlap_param_gather_with_optimizer_step', False),
                 )
                 for (model_chunk_idx, model_chunk) in enumerate(self.model)
             ]
@@ -688,12 +696,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     no_sync_func = [model_chunk.no_sync for model_chunk in self.model]
                     no_sync_func = no_sync_func[0] if len(self.model) == 1 else no_sync_func
 
-                    if self.cfg.optim.get("delay_grad_reduce", True):
+                    if self.cfg.optim.get("align_grad_reduce", True):
                         grad_sync_func = [model_chunk.start_grad_sync for model_chunk in self.model]
                         grad_sync_func = grad_sync_func[0] if len(self.model) == 1 else grad_sync_func
-                if self.cfg.optim.get("overlap_param_sync", False) and self.cfg.optim.get("delay_param_gather", False):
+                if self.cfg.optim.get("overlap_param_sync", False) and self.cfg.optim.get("align_param_gather", False):
                     param_sync_func = [
-                        lambda x, model_index=model_index: self._optimizer.finish_param_sync(model_index, x)
+                        functools.partial(self._optimizer.start_param_sync, model_index)
                         for model_index in range(len(self.model))
                     ]
                     param_sync_func = param_sync_func[0] if len(self.model) == 1 else param_sync_func

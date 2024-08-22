@@ -18,12 +18,14 @@ import inspect
 import os
 import uuid
 from abc import abstractmethod
+from importlib.metadata import version
 from os import path
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import hydra
 import torch
+from pkg_resources import packaging
 
 try:
     from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
@@ -618,6 +620,22 @@ class ModelPT(LightningModule, Model):
             overlap_grad_reduce=self.cfg.optim.get('overlap_grad_sync', False),
             overlap_param_gather=self.cfg.optim.get('overlap_param_sync', False),
         )
+        if self.cfg.optim.get('overlap_param_gather_with_optimizer_step', False):
+            if not hasattr(megatron_optim_config, "overlap_param_gather_with_optimizer_step"):
+                mcore_version = packaging.version.Version(version('megatron-core'))
+                raise ValueError(
+                    f"megatron-core v{mcore_version} doesn't support the overlap of a param "
+                    "allgather chunk with the optimizer step."
+                )
+            megatron_optim_config.overlap_param_gather_with_optimizer_step = True
+        if self.cfg.optim.get('align_param_gather', False):
+            if not hasattr(megatron_optim_config, "align_param_gather"):
+                mcore_version = packaging.version.Version(version('megatron-core'))
+                raise ValueError(
+                    f"megatron-core v{mcore_version} doesn't support aligning param all-gathers "
+                    "across pipeline-parallel ranks."
+                )
+            megatron_optim_config.align_param_gather = True
         return megatron_optim_config
 
     def setup_optimization(

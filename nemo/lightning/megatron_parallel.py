@@ -86,7 +86,7 @@ def extract_ddp_funcs(ddp_config, pipeline):
         no_sync_func = [model_chunk.no_sync for model_chunk in pipeline]
         no_sync_func = no_sync_func[0] if len(pipeline) == 1 else no_sync_func
         # TODO(@akoumparouli): why is True default here?
-        if getattr(ddp_config, "delay_grad_reduce", True):
+        if getattr(ddp_config, "align_grad_reduce", True):
             grad_sync_func = [model_chunk.start_grad_sync for model_chunk in pipeline]
             grad_sync_func = grad_sync_func[0] if len(pipeline) == 1 else grad_sync_func
 
