@@ -1,18 +1,17 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, Optional, List
+from typing import TYPE_CHECKING, Annotated, Callable, List, Optional
 
 import torch
-from torch import nn
-
 import torch.nn.functional as F
+from torch import nn
+from transformers import Starcoder2Config as HFStarcoder2Config
+from transformers import Starcoder2ForCausalLM
+
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
-
-from transformers import Starcoder2Config as HFStarcoder2Config
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from transformers import Starcoder2ForCausalLM
 
 if TYPE_CHECKING:
     from transformers import Starcoder2Config as HFStarcoder2Config
@@ -86,7 +85,9 @@ class Starcoder2Model(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or Starcoder2Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or Starcoder2Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+        )
 
 
 @io.model_importer(Starcoder2Model, "hf")
@@ -231,7 +232,7 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
         "model.layers.*.self_attn.k_proj.weight",
         "model.layers.*.self_attn.v_proj.weight",
     ),
-    target_key="decoder.layers.*.self_attention.linear_qkv.weight"
+    target_key="decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_qkv_weight(ctx: io.TransformCTX, q, k, v):
     megatron_config = ctx.target.config
@@ -267,13 +268,14 @@ def _import_qkv_weight(ctx: io.TransformCTX, q, k, v):
 
     return qkv_weights
 
+
 @io.state_transform(
     source_key=(
         "model.layers.*.self_attn.q_proj.bias",
         "model.layers.*.self_attn.k_proj.bias",
         "model.layers.*.self_attn.v_proj.bias",
     ),
-    target_key="decoder.layers.*.self_attention.linear_qkv.bias"
+    target_key="decoder.layers.*.self_attention.linear_qkv.bias",
 )
 def _import_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
     megatron_config = ctx.target.config
@@ -293,14 +295,14 @@ def _import_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
     vb = vb.view(*new_kv_bias_tensor_shape)
 
     qkv_bias_l = []
-    for i in range(num_query_groups):     
+    for i in range(num_query_groups):
         qkv_bias_l.append(qb[i * heads_per_group : (i + 1) * heads_per_group, :])
         qkv_bias_l.append(kb[i : i + 1, :])
         qkv_bias_l.append(vb[i : i + 1, :])
 
     qkv_bias = torch.cat(qkv_bias_l)
     qkv_bias = qkv_bias.reshape([head_size * (head_num + 2 * num_query_groups)])
-    
+
     return qkv_bias
 
 

@@ -32,8 +32,14 @@ from nemo.collections.llm.gpt.model.llama import (
 )
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralConfig8x22B, MixtralModel
-from nemo.collections.llm.gpt.model.starcoder2 import Starcoder2Config, Starcoder2Model, Starcoder2Config15B, Starcoder2Config3B, Starcoder2Config7B
-from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderModel, StarcoderConfig15B
+from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
+from nemo.collections.llm.gpt.model.starcoder2 import (
+    Starcoder2Config,
+    Starcoder2Config3B,
+    Starcoder2Config7B,
+    Starcoder2Config15B,
+    Starcoder2Model,
+)
 
 __all__ = [
     "GPTConfig",

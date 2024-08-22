@@ -1,18 +1,17 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, Optional, List
+from typing import TYPE_CHECKING, Annotated, Callable, List, Optional
 
 import torch
-from torch import nn
-
 import torch.nn.functional as F
+from torch import nn
+from transformers import GPTBigCodeConfig as HFStarcoderConfig
+from transformers import GPTBigCodeForCausalLM
+
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
-
-from transformers import GPTBigCodeConfig as HFStarcoderConfig
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from transformers import GPTBigCodeForCausalLM
 
 if TYPE_CHECKING:
     from transformers import GPTBigCodeConfig as HFStarcoderConfig
@@ -59,7 +58,9 @@ class StarcoderModel(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or StarcoderConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or StarcoderConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+        )
 
 
 @io.model_importer(StarcoderModel, "hf")
