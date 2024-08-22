@@ -88,8 +88,6 @@ def apply_transforms(
     _source = source
     if hasattr(source, "module") and isinstance(source.module, MegatronModule):
         _source = source.module
-    if hasattr(_source, "module") and isinstance(_source.module, MegatronModule):
-        _source = _source.module
     _target = target
     if hasattr(target, "module") and isinstance(target.module, MegatronModule):
         _target = target.module
@@ -256,10 +254,7 @@ class StateDictTransform(Generic[F]):
 
             if multiple_sources:
                 for target_index, target_match in np.ndenumerate(target_matches):
-                    try:
-                        source_match = source_matches[target_index]
-                    except Exception as e:
-                        breakpoint()
+                    source_match = source_matches[target_index]
                     if accepts_var_args:
                         source_values = [source_dict[k] for k in source_match]
                         target_dict[target_match] = self.call_transform(ctx, *source_values)
