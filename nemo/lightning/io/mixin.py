@@ -273,7 +273,7 @@ class ConnectorMixin:
         """
         return cls._get_connector(ext, path, importer=False)
 
-    def import_ckpt(self, path: str, overwrite: bool = False, base_path: Optional[Path] = None) -> Path:
+    def import_ckpt(self, path: str, overwrite: bool = False, base_path: Optional[Path] = None, **kwargs) -> Path:
         """
         Imports a checkpoint from a specified path, potentially overwriting existing files.
 
@@ -291,7 +291,7 @@ class ConnectorMixin:
         ------
             FileNotFoundError: If the checkpoint file does not exist at the specified path.
         """
-        connector = self._get_connector(path)
+        connector = self._get_connector(path, **kwargs)
         ckpt_path: Path = connector.local_path(base_path=base_path)
         # If already in multiproc environment (e.g. due to torchrun invocation) run only on RANK = 0
         from nemo.utils.get_rank import is_global_rank_zero
@@ -303,7 +303,7 @@ class ConnectorMixin:
         return ckpt_path
 
     @classmethod
-    def _get_connector(cls, ext, path=None, importer=True) -> ModelConnector:
+    def _get_connector(cls, ext, path=None, importer=True, **kwargs) -> ModelConnector:
         """
         Retrieves the appropriate model connector based on the file extension and path,
         distinguishing between importers and exporters.
@@ -338,7 +338,7 @@ class ConnectorMixin:
 
             return connector()
 
-        return connector(_path)
+        return connector(_path, **kwargs)
 
 
 def track_io(target, artifacts: Optional[List[Artifact]] = None):

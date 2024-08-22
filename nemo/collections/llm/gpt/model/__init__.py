@@ -41,6 +41,7 @@ from nemo.collections.llm.gpt.model.ssm import (
     SSMConfig, 
     SSMModel,
     Mamba2Config370m,
+    HybridConfig8b,
     )
 __all__ = [
     "GPTConfig",
@@ -77,6 +78,7 @@ __all__ = [
     "SSMConfig",
     "SSMModel",
     "Mamba2Config370m",
+    "HybridConfig8b",
     "MaskedTokenLossReduction",
     "gpt_data_step",
     "gpt_forward_step",

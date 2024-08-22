@@ -83,18 +83,19 @@ class SSMModel(GPTModel):
 @io.model_importer(SSMModel, "pytorch")
 class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
 
-    def __new__(cls, path: str, param1=None, param2=None, *args, **kwargs):
-        instance = super().__new__(cls, path, *args, **kwargs)
-        instance.param1 = param1
-        instance.param2 = param2
+    def __new__(cls, path: str, tokenizer_config=None):
+        instance = super().__new__(cls, path)
+        instance.tokenizer_config = tokenizer_config
         return instance
     def init(self) -> SSMModel:
 
         return SSMModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
-
-        source = torch.load(str(self), map_location='cpu')#['model']
+        
+        source = torch.load(str(self), map_location='cpu')
+        if 'model' in source:
+            source = source['model']
 
         class ModelState:
             def __init__(self, state_dict):
@@ -110,7 +111,7 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
                     }
             def state_dict(self):
                 return self._state_dict
-            
+
         source = ModelState(source)
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -127,6 +128,7 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
     def convert_state(self, source, target):
         mapping = {
                 'backbone.embedding.weight': 'embedding.word_embeddings.weight',
+                # 'embedding.word_embeddings.weight': 'embedding.word_embeddings.weight',
                 'backbone.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log', 
                 'backbone.layers.*.mixer.D': 'decoder.layers.*.mixer.D', 
                 'backbone.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
@@ -135,7 +137,24 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
                 'backbone.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',  
                 'backbone.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
                 'backbone.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
-                'backbone.layers.*.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',   
+                'backbone.layers.*.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',  
+                # 'decoder.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log', 
+                # 'decoder.layers.*.mixer.D': 'decoder.layers.*.mixer.D', 
+                # 'decoder.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
+                # 'decoder.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
+                # 'decoder.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
+                # 'decoder.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',  
+                # 'decoder.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
+                # 'decoder.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
+                # 'decoder.layers.*.mixer.in_proj.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
+                # 'decoder.layers.*.mlp.linear_fc1.layer_norm_weight': 'decoder.layers.*.mlp.linear_fc1.layer_norm_weight', 
+                # 'decoder.layers.*.mlp.linear_fc1.weight': 'decoder.layers.*.mlp.linear_fc1.weight', 
+                # 'decoder.layers.*.mlp.linear_fc2.weight': 'decoder.layers.*.mlp.linear_fc2.weight',
+                # 'decoder.layers.*.self_attention.linear_proj.weight': 'decoder.layers.*.self_attention.linear_proj.weight', 
+                # 'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight': 'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight', 
+                # 'decoder.layers.*.self_attention.linear_qkv.weight': 'decoder.layers.*.self_attention.linear_qkv.weight',
+                # 'decoder.final_norm.weight': 'decoder.final_norm.weight',
+                # 'output_layer.weight': 'output_layer.weight',
                 'backbone.norm_f.weight': 'decoder.final_norm.weight',
                 'lm_head.weight': 'output_layer.weight',
         }
@@ -147,15 +166,13 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
         tokenizer = get_nmt_tokenizer(
-        "huggingface",
-        "EleutherAI/gpt-neox-20b",
-        tokenizer_model=self.param2,
-        use_fast=True)
+            library=self.tokenizer_config['library'],
+            model_name=self.tokenizer_config['name'],
+            tokenizer_model=self.tokenizer_config['model'],
+            use_fast=self.tokenizer_config['use_fast'],
+        )
 
         return tokenizer
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-
-        return AutoTokenizer("gpt2")
 
     @property
     def config(self) -> SSMConfig:
@@ -178,6 +195,7 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
 class Mamba2Config370m(SSMConfig):
     hybrid_override_pattern: str = "M"*48
     num_layers: int = 48
+    seq_length: int = 2048
     hidden_size: int = 1024
     mamba_ssm_ngroups: int = 1
     ffn_hidden_size: int = 1024
@@ -185,9 +203,25 @@ class Mamba2Config370m(SSMConfig):
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
     layernorm_epsilon: float = 1e-5
+    make_vocab_size_divisible_by: int = 16
+
+@dataclass
+class HybridConfig8b(SSMConfig):
+    hybrid_override_pattern: str = "M-M-M--M-M*-M-M-M-M--M*-M-M-M-M-M*--M-M-M-M-M*-M--M-M-M-"
+    num_layers: int = 56
+    seq_length: int = 4096
+    hidden_size: int = 4096
+    mamba_ssm_ngroups: int = 8
+    ffn_hidden_size: int = 16384
+    num_attention_heads: int = 32
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    layernorm_epsilon: float = 1e-5
+    make_vocab_size_divisible_by: int = 128
 
 __all__ = [
     "SSMModel",
     "SSMConfig",
     "Mamba2Config370m",
+    "HybridConfig8b"
 ]
