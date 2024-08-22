@@ -39,6 +39,7 @@ class PreemptionPlugin(run.Plugin):
                                                 will merge with the task's existing callbacks.
                                                 By default, the list includes NeMo's preemption callback.
     """
+
     preempt_time: int = 300
     callbacks: list[run.Config[Callback]] = field(default_factory=lambda: [run.Config(PreemptionCallback)])
 
@@ -73,6 +74,7 @@ class NsysPlugin(run.Plugin):
         nsys_trace (Optional[list[str]]): The events to trace during profiling. If not specified,
             'nvtx' and 'cuda' events will be traced.
     """
+
     start_step: int
     end_step: int
     ranks: Optional[list[int]] = None
