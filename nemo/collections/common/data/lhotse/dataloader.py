@@ -671,7 +671,7 @@ class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
             return super().select_bucket(buckets=buckets, example=example, example_len=example_len)
         if example_len is None:
             example_len = self.measure_length(example)
-        bucket_idx = bisect.bisect_right(buckets, example_len)
+        bucket_idx = bisect.bisect_left(buckets, example_len)
         # For 2D bucketing we have to refine the initially found bucket_idx, as bisect
         # looks primarily at the first index of a tuple (i.e. duration).
         # For example, with buckets [(1, 1), (1, 2), (2, 2), (2, 4)] and example (1.5, 3)
