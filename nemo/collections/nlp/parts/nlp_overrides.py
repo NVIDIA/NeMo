@@ -76,7 +76,6 @@ from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, unin
 try:
 
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
-    from nemo.core.optim.mcore_optim import make_mcore_dist_opt_wrapper
 
     HAVE_APEX = True
 
@@ -317,15 +316,15 @@ class NLPDDPStrategy(DDPStrategy):
             key: value for key, value in model_sharded_state_dict.items() if not key.endswith('_extra_state')
         }
         from megatron.core.optimizer import MegatronOptimizer
-        if isinstance(optimizer, MegatronOptimizer):
+        if isinstance(optimizer, MegatronDistributedFusedAdam):
+            return optimizer.sharded_state_dict(model_sharded_state_dict, unsharded_optim_state)
+        elif isinstance(optimizer, MegatronOptimizer):
             return optimizer.sharded_state_dict(
                 model_sharded_state_dict,
                 unsharded_optim_state,
                 is_loading=is_loading,
                 dist_ckpt_parallel_save=self._dist_ckpt_parallel_save,
             )
-        elif isinstance(optimizer, MegatronDistributedFusedAdam):
-            return optimizer.sharded_state_dict(model_sharded_state_dict, unsharded_optim_state)
         elif not isinstance(optimizer, MainParamsOptimizerWrapper):
             # Regular optimizer, e.g. Adam or FusedAdam
             init_optimizer_states(optimizer)
