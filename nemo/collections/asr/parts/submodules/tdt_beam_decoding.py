@@ -488,8 +488,6 @@ class BeamTDTInfer(Typing):
             raise NotImplementedError("Support for `partial_hypotheses` is not implemented.")
 
         beam = min(self.beam_size, self.vocab_size)
-        duration_beam = min(self.max_candidates, len(self.durations))
-
         beam_state = self.decoder.initialize_state(
             torch.zeros(beam, device=encoder_outputs.device, dtype=encoder_outputs.dtype)
         )  # [L, B, H], [L, B, H] for LSTMS
@@ -557,8 +555,8 @@ class BeamTDTInfer(Typing):
                 # Then, select the top `max_candidates` pairs of (token, duration) based on the highest combined probabilities.
                 # Note that indices are obtained in flattened array.
                 beam_logp_topks, beam_idx_topks = beam_logp.topk(self.max_candidates, dim=-1)
-                beam_duration_logp_topks, beam_duration_idx_topks = beam_duration_logp.topk(duration_beam, dim=-1)
-                beam_total_logp = (beam_duration_logp_topks[:, :, None] + beam_logp_topks[:, None, :]).view(
+                # beam_duration_logp_topks, beam_duration_idx_topks = beam_duration_logp.topk(duration_beam, dim=-1)
+                beam_total_logp = (beam_duration_logp[:, :, None] + beam_logp_topks[:, None, :]).view(
                     len(hyps), -1
                 )  # [B, MAX_CANDIDATES*DURATION_BEAM]
                 beam_total_logp_topks, beam_total_logp_topk_idxs = beam_total_logp.topk(
@@ -578,18 +576,13 @@ class BeamTDTInfer(Typing):
                     for idx in beam_kexpansions_idxs[hyp_idx]:  # For all expansions within this hypothesis
                         # Restore indices in logp and durations_logp arrays from flattened indices.
                         k = int(beam_idx_topks[hyp_idx][idx % self.max_candidates])
-                        duration_idx = int(beam_duration_idx_topks[hyp_idx][idx // self.max_candidates])
+                        duration = self.durations[int(idx // self.max_candidates)]
                         total_logp = float(beam_total_logp[hyp_idx][idx])
+                        
                         # Forcing blank token to have non-zero duration
                         # Possible duplicates are removed further
-                        if (
-                            k == self.blank
-                            and self.zero_duration_idx != None
-                            and duration_idx == self.zero_duration_idx
-                        ):
-                            duration_idx = int(self.min_non_zero_duration_idx)
-
-                        duration = self.durations[duration_idx]
+                        if (k == self.blank and duration == 0):
+                            duration = self.durations[int(self.min_non_zero_duration_idx)]
 
                         new_hyp = Hypothesis(
                             score=hyp.score + total_logp,
