@@ -30,6 +30,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+import torch.profiler as profiler
 from tqdm import tqdm
 
 from nemo.collections.asr.modules import rnnt_abstract
@@ -38,8 +39,6 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypothe
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
-
-import torch.profiler as profiler
 
 try:
     import kenlm
@@ -564,7 +563,9 @@ class BeamTDTInfer(Typing):
                 # Then, select the top `max_candidates` pairs of (token, duration) based on the highest combined probabilities.
                 # Note that indices are obtained in flattened array.
                 beam_logp_topks, beam_idx_topks = beam_logp.topk(self.max_candidates, dim=-1)
-                beam_total_logp = (beam_duration_logp[:, :, None] + beam_logp_topks[:, None, :]).view(len(hyps), -1)  # [B, MAX_CANDIDATES*DURATION_BEAM]
+                beam_total_logp = (beam_duration_logp[:, :, None] + beam_logp_topks[:, None, :]).view(
+                    len(hyps), -1
+                )  # [B, MAX_CANDIDATES*DURATION_BEAM]
                 beam_total_logp_topks, beam_total_logp_topk_idxs = beam_total_logp.topk(
                     self.max_candidates, dim=-1
                 )  # [B, MAX_CANDIDATES]
@@ -690,7 +691,7 @@ class BeamTDTInfer(Typing):
         """
         Merges hypotheses with identical token sequences and lengths.
         The combined hypothesis's probability is the sum of the probabilities of all duplicates.
-        Duplicate hypotheses occur when two consecutive blank tokens are predicted 
+        Duplicate hypotheses occur when two consecutive blank tokens are predicted
         and their duration values sum up to the same number.
 
         Args:
