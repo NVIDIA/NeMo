@@ -41,3 +41,33 @@ python3 export_salm.py \
     model.perception_model_path=output/speechllm_fc_llama2_7b_perception \
     model.llm_model_path=output/speechllm_fc_llama2_7b_llm_merged.nemo
 ```
+
+You should be able to get the generated engines under `./salm` folder.
+
+## Deploy
+If you want to generate the engines and deploy them with Triton Inference Server, you may also run:
+
+```
+python3 NeMo/scripts/deploy/multimodal/deploy_triton.py \
+        --modality="audio" \
+        --visual_checkpoint=NeMo/examples/multimodal/speech_llm/export/output/speechllm_fc_llama2_7b_perception \
+        --llm_checkpoint=NeMo/examples/multimodal/speech_llm/export/output/speechllm_fc_llama2_7b_llm_merged.nemo \
+        --llm_model_type="llama" \
+        --model_type="salm" \
+        --triton_model_name="salm" \
+        --max_input_len=4096 \
+        --max_output_len=256 \
+        --max_multimodal_len=3072 \
+        --triton_model_repository=/tmp/trt_model_dir/
+```
+
+And on client side, you may run:
+```
+python3 NeMo/scripts/deploy/multimodal/query.py \
+        --model_name="salm" \
+        --model_type="salm" \
+        --input_text="Q: what's the transcription of the audio? A:" \
+        --input_media=/ws/data/test_audio.wav
+```
+
+For more details, please check `NeMo/scripts/deploy/multimodal/deploy_triton.py` and ` NeMo/scripts/deploy/multimodal/query.py`.
