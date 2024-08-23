@@ -46,7 +46,10 @@ try:
     import transformer_engine
 
     HAVE_TE = True
-
+    if os.environ.get("USE_TE_LAYERNORM", "0") == "1":
+        from transformer_engine.pytorch.module import LayerNorm
+    else:
+        from torch.nn import LayerNorm
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
@@ -67,7 +70,7 @@ def convert_module_to_dtype(module, dtype, enable_norm_layers=False):
             module.bias.data = module.bias.data.to(dtype)
 
     if enable_norm_layers:
-        if isinstance(module, (nn.LayerNorm, nn.GroupNorm, GroupNorm)):
+        if isinstance(module, (LayerNorm, nn.GroupNorm, GroupNorm)):
             module.weight.data = module.weight.data.to(dtype)
             if module.bias is not None:
                 module.bias.data = module.bias.data.to(dtype)

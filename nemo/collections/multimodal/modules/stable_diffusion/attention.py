@@ -45,6 +45,10 @@ try:
     from transformer_engine.pytorch.module import LayerNormLinear, LayerNormMLP
 
     HAVE_TE = True
+    if os.environ.get("USE_TE_LAYERNORM", "0") == "1":
+        from transformer_engine.pytorch.module import LayerNorm
+    else:
+        from torch.nn import LayerNorm
 
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
@@ -128,7 +132,7 @@ class FeedForward(nn.Module):
                 activation=activation,
             )
         else:
-            norm = nn.LayerNorm(dim)
+            norm = LayerNorm(dim)
             project_in = nn.Sequential(LinearWrapper(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
             self.net = nn.Sequential(norm, project_in, nn.Dropout(dropout), LinearWrapper(inner_dim, dim_out))
 
@@ -266,6 +270,12 @@ class CrossAttention(nn.Module):
             assert (
                 use_flash_attention == False
             ), 'use_te_dpa and use_flash_attention cannot be True together. Please specify the attention you want to use.'
+            if not HAVE_TE:
+                use_te_dpa = False
+                logging.info(
+                    f"WARNING: Transformer Engine is not unstalled, DotProductAttention will not be used,"
+                    f"falling back to naive attention."
+                )
 
         self.inner_dim = dim_head * heads
         if context_dim is None:
@@ -292,7 +302,7 @@ class CrossAttention(nn.Module):
                 query_dim, self.inner_dim, bias=False, return_layernorm_output=return_layernorm_output
             )
         else:
-            self.norm = nn.LayerNorm(query_dim)
+            self.norm = LayerNorm(query_dim)
             self.to_q = LinearWrapper(query_dim, self.inner_dim, bias=False)
 
         self.to_out = nn.Sequential(
@@ -308,7 +318,7 @@ class CrossAttention(nn.Module):
                     self.flash_attn = FlashCrossAttention(softmax_scale=self.scale)
             else:
                 self.te_dpa = DotProductAttention(
-                    k_channels=dim_head,
+                    kv_channels=dim_head,
                     num_attention_heads=self.inner_dim // dim_head,
                     attn_mask_type='no_mask',
                     attention_type='self' if context_dim == query_dim else 'cross',
