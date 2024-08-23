@@ -210,6 +210,12 @@ model:
   # 'validation' or 'inference'
   attention_map_mode: 'validation'
 
+  sampling:
+    # sampling_method: 'greedy-search'
+    sampling_method: 'top-k'
+    top_k: 80
+    temperature: 0.85
+
   data:
     train_ds:
       # Example of how to specify paths to multiple datasets

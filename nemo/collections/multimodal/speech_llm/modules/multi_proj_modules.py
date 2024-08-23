@@ -8,7 +8,7 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
@@ -161,7 +161,13 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
             tuple of tensors [batch_size, seq_len +1], [batch_size, seq_len] for predicted tokens and their log probs.
         """
         # Setting up the sampling strategy
-        sample_token_fn, sampling_kwargs = get_sampling_token_fn(sampling_method, {})
+        if sampling_method == "greedy-search":
+            sample_token_fn, sampling_kwargs = get_sampling_token_fn("greedy-search", [])
+        elif sampling_method == "top-k":
+            top_k = self.cfg.sampling.get('top_k', 80)
+            temperature = self.cfg.sampling.get('temperature', 0.85)
+        else:
+            raise NotImplementedError
         logging.info(f'Decoding using the {sampling_method} method...')
 
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
@@ -262,6 +268,7 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
             if parallel_state.is_pipeline_last_stage():
                 output_tensor, attention_probs = output_tensor[0]['logits'], output_tensor[0]['attention_probs']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+                # output_tensor: (batch_size, seq_length, vocab_size, n_speech_codebooks+1)
                 # make sure it won't sample outside the vocab_size range
                 # ignore selected indices
                 if ignore_ids:
@@ -270,11 +277,42 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
                     )
 
                 all_log_probs, all_token_ids = [], []
-                for i in range(output_tensor.shape[-1]):
-                    log_probs, token_ids = sample_token_fn(logits=output_tensor[:, -1, :, i])
-                    # enforce valid range of token ids
-                    all_log_probs.append(log_probs)
-                    all_token_ids.append(token_ids)
+
+                if sampling_method == "greedy-search":
+                    for i in range(output_tensor.shape[-1]):
+                        log_probs, token_ids = sample_token_fn(logits=output_tensor[:, -1, :, i])
+                        # enforce valid range of token ids
+                        all_log_probs.append(log_probs)
+                        all_token_ids.append(token_ids)
+                elif sampling_method == "top-k":
+                    for i in range(output_tensor.shape[-1]):
+                        output_tensor_currtimestep = output_tensor[:, -1, :, i]
+                        # output_logits_topk is (batch_size, vocab_size)
+                        output_logits_topk = torch.topk(output_tensor_currtimestep, top_k, dim=1)[0]
+
+                        # find indices which are not top k
+                        indices_to_remove = output_tensor_currtimestep < output_logits_topk[:, -1].unsqueeze(1)
+
+                        output_logits_currtimestep_rescored = output_tensor_currtimestep.clone()
+                        output_logits_currtimestep_rescored[indices_to_remove] = -float('Inf')
+
+                        output_logits_currtimestep_rescored = output_logits_currtimestep_rescored / temperature
+                        output_logits_currtimestep_rescored = torch.nn.functional.softmax(
+                            output_logits_currtimestep_rescored, dim=1
+                        )
+
+                        token_ids = torch.multinomial(
+                            output_logits_currtimestep_rescored, num_samples=1
+                        )  # (batch_size, 1)
+                        log_probs = torch.gather(output_tensor_currtimestep, 1, token_ids)
+
+                        # enforce valid range of token ids
+                        all_log_probs.append(log_probs.squeeze(1))
+                        all_token_ids.append(token_ids.squeeze(1))
+                        
+                else:
+                    raise NotImplementedError
+                
                 all_log_probs = torch.stack(all_log_probs, axis=-1)
                 all_token_ids = torch.stack(all_token_ids, axis=-1)
 

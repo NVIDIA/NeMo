@@ -1482,6 +1482,9 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             attention_map_mode = cfg.model.get('attention_map_mode', None)
             if attention_map_mode is not None:
                 gpt_cfg.attention_map_mode = attention_map_mode
+            sampling = cfg.model.get('sampling', None)
+            if sampling is not None:
+                gpt_cfg.sampling = sampling
             # This is needed when modifying a hparam file directly to load `.ckpt` files.
             # This is not needed to modify the cfg in `.nemo` files.
             if add_cfg_to_tree:
@@ -1776,6 +1779,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             tokenizer=self.tokenizer,
             bos_id=self.bos_id,
             predicted_tokens_dec=batch["tokens"][:, 0:1, :],
+            sampling_method=self.cfg.sampling.get("sampling_method", "greedy-search")
         )
 
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
