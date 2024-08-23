@@ -62,11 +62,13 @@ def gpt_forward_step(model, batch) -> torch.Tensor:
     }
 
     if 'attention_mask' not in batch:
-        assert HAVE_TE, "The dataloader did not provide an attention mask, however Transformer Engine was not detected. \
+        assert (
+            HAVE_TE
+        ), "The dataloader did not provide an attention mask, however Transformer Engine was not detected. \
             This requires Transformer Engine's implementation of fused or flash attention."
     else:
         forward_args["attention_mask"] = batch['attention_mask']
-            
+
     if 'cu_seqlens' in batch:
         forward_args['packed_seq_params'] = get_packed_seq_params(batch)
 

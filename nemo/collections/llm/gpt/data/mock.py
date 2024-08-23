@@ -88,7 +88,7 @@ class _MockGPTDataset(Dataset):
         num_samples: int,
         seq_length: int,
         seed: int = 42,
-        create_attention_mask: bool = False
+        create_attention_mask: bool = False,
     ) -> None:
         super().__init__()
         self.name = name
@@ -128,7 +128,7 @@ class _MockGPTDataset(Dataset):
         if self.create_attention_mask:
             batch["attention_mask"] = self.attention_mask
 
-        return batch 
+        return batch
 
     def _collate_fn(self, batch):
         """
