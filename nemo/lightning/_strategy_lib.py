@@ -127,13 +127,12 @@ def set_model_parallel_attributes(model, parallelism):
     # Right now mcore sub-classes ModelParellelConfig, we should remove that
     # Given Lightning's structure it would be better if parallelism is a different object
     # Since then it can be passed to the Strategy
-
-    from megatron.core.model_parallel_config import ModelParallelConfig
+    # Note: Importing nemo.lightning.pytorch.strategies creates an import cycle.
     from megatron.core.transformer.transformer_config import TransformerConfig
 
-    assert isinstance(
-        parallelism, ModelParallelConfig
-    ), f"Expected parallelism config to be of type ModelParallelConfig, but got {type(parallelism)}"
+    assert (
+        type(parallelism).__name__ == 'ParallelismConfig'
+    ), f"Expected parallelism config to be of type ParallelismConfig, but got {type(parallelism)}"
     has_mcore_config = isinstance(getattr(model, "config", None), TransformerConfig)
     if has_mcore_config and hasattr(model, "configure_model"):
         config: TransformerConfig = model.config
@@ -141,6 +140,8 @@ def set_model_parallel_attributes(model, parallelism):
             if not hasattr(config, attr_name):
                 continue
             setattr(config, attr_name, getattr(parallelism, attr_name))
+            if hasattr(config, "__io__"):
+                setattr(config.__io__, attr_name, getattr(parallelism, attr_name))
 
         return config
 
@@ -524,3 +525,33 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
                 _state_dict[key] = value
 
         module.load_state_dict(_state_dict, strict=strict)
+
+
+def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False):
+    """
+    When pipeline parallelism is enabled, casts a tensor defined on the last pipeline stage to other ranks.
+
+        Args:
+            value (torch.Tensor): A tensor to be casted from the final pipeline stage of a pipeline parallelism group (e.g. loss).
+                Note that this tensor should already be defined on the target rank(s) to fill with received data.
+            broadcast (bool): When True, broadcasts value from the final pipeline stage rank to all ranks in its group.
+                When False, only rank zero receives value from the final pipeline stage rank in its group.
+                This mode exists to avoid slow one-to-many communication when not necessary. Defaults to False.
+    """
+    from megatron.core import parallel_state
+
+    if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+        src_rank = parallel_state.get_pipeline_model_parallel_last_rank()
+
+        if not broadcast:
+            pp_ranks = torch.distributed.get_process_group_ranks(parallel_state.get_pipeline_model_parallel_group())
+            if torch.distributed.get_rank() == src_rank and 0 in pp_ranks:
+                torch.distributed.send(value, 0)
+            elif torch.distributed.get_rank() == 0:
+                torch.distributed.recv(value, src_rank)
+        else:
+            torch.distributed.broadcast(
+                value,
+                src_rank,
+                group=parallel_state.get_pipeline_model_parallel_group(),
+            )

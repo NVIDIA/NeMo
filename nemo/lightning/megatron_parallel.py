@@ -230,6 +230,37 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         _num_microbatches: int = num_microbatches or self.infer_num_microbatches(data)
 
         pipeline = self.pipeline
+
+        # FIXME: cleanup the following code block which is here for backwards compatibility with nemo1. The "batch"
+        #  sampler is a nemo1 sampler. It requires some custom code here to use (if use_global_batch_sampler).
+        #  by default we shouldn't use this "batch" sampler probably.
+        if getattr(self.trainer, "datamodule", None) is not None:
+            use_global_batch_sampler = self.trainer.datamodule.data_sampler.dataloader_type == 'batch'
+        elif getattr(self.trainer, "predict_dataloaders", None) is not None:
+            from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (  # noqa: I001
+                MegatronPretrainingBatchSampler,
+            )
+
+            # The batch_sampler gets injected into the dataloader by the data_sampler. When doing predict without a
+            #  datamodule we can look inside the dataloader's batch_sampler to see if it is the nemo1 style sampler
+            #  that we need to handle specially below.
+            use_global_batch_sampler = isinstance(
+                self.trainer.predict_dataloaders.batch_sampler, MegatronPretrainingBatchSampler
+            )
+        else:
+            raise ValueError("Unsure how to check for nemo1 global_batch_sampler status. TODO maybe default to False?")
+        if use_global_batch_sampler:
+            from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+
+            # The current way of using a batch sampler + split to micro iterator results in
+            # extraneous padding, and is only implemented to ensure bit-exactness with NeMo 1.
+            # This part in NeMo 1 was written when megatron fwd_bwd_function did not support unequal
+            # sequence lengths, but it does now. Hence this part should be revisited in the future.
+            batch = next(data)
+            if isinstance(batch, tuple) and len(batch) == 3:
+                batch = batch[0]
+            data = get_iterator_k_split(batch, _num_microbatches, True)
+
         data_iterator: List[Iterator[DataT]] = self.to_data_iterator_list(data)
         context = self._build_context({**locals()})
 
@@ -272,16 +303,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             self.callbacks.event("on_megatron_reduce_microbatches_end", **context)
         else:
             # we're not on the last pipeline stage so no losses
-            if forward_only:
-                loss_mean = cast(torch.Tensor, [])
-            else:
-                loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
+            loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
 
         self.callbacks.event("on_megatron_log_step_end", **context)
         self.callbacks.event("on_megatron_step_end", **context)
-
-        if loss_mean == []:
-            loss_mean = None
 
         return loss_mean
 
