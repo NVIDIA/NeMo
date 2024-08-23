@@ -68,6 +68,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         pin_memory: bool = True,
         persistent_workers: bool = False,
         reset_position_ids: bool = False,
+        create_attention_mask: bool = False,
         reset_attention_mask: bool = False,
         eod_mask_loss: bool = False,
         seed: int = 1234,
@@ -105,6 +106,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
         self.reset_position_ids = reset_position_ids
+        self.create_attention_mask = create_attention_mask
         self.reset_attention_mask = reset_attention_mask
         self.eod_mask_loss = eod_mask_loss
         self.seed = seed
@@ -212,6 +214,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             tokenizer=self.tokenizer,
             path_to_cache=self.index_mapping_dir,
             reset_position_ids=self.reset_position_ids,
+            create_attention_mask=self.create_attention_mask,
             reset_attention_mask=self.reset_attention_mask,
             eod_mask_loss=self.eod_mask_loss,
             **self.build_kwargs,

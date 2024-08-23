@@ -27,6 +27,7 @@ class MockDataModule(pl.LightningDataModule):
         num_workers: int = 8,
         pin_memory: bool = True,
         persistent_workers: bool = False,
+        create_attention_mask: bool = False,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -36,6 +37,7 @@ class MockDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
+        self.create_attention_mask = create_attention_mask
 
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -86,6 +88,7 @@ class _MockGPTDataset(Dataset):
         num_samples: int,
         seq_length: int,
         seed: int = 42,
+        create_attention_mask: bool = False
     ) -> None:
         super().__init__()
         self.name = name
@@ -93,9 +96,12 @@ class _MockGPTDataset(Dataset):
         self.vocab_size = tokenizer.vocab_size
         self.length = num_samples
         self.seed = seed
+        self.create_attention_mask = create_attention_mask
 
-        self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
-        self.attention_mask = self.attention_mask < 0.5
+        if create_attention_mask:
+            self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length), device='cpu')).unsqueeze(0)
+            self.attention_mask = self.attention_mask < 0.5
+
         self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
@@ -112,13 +118,17 @@ class _MockGPTDataset(Dataset):
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
         labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
 
-        return {
+        batch = {
             "tokens": tokens,
             "labels": labels,
-            "attention_mask": self.attention_mask,
             "loss_mask": self.loss_mask,
             "position_ids": self.position_ids,
         }
+
+        if self.create_attention_mask:
+            batch["attention_mask"] = self.attention_mask
+
+        return batch 
 
     def _collate_fn(self, batch):
         """
