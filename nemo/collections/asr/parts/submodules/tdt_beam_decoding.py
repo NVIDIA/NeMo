@@ -538,6 +538,14 @@ class BeamTDTInfer(Typing):
                 continue
 
             beam_encoder_output = encoder_outputs[:, time_idx : time_idx + 1]  # [1, 1, D]
+            # Perform prefix search to update hypothesis scores.
+            if self.zero_duration_idx != None:
+                hyps = self.prefix_search(
+                    sorted(hyps, key=lambda x: len(x.y_sequence), reverse=True),
+                    beam_encoder_output,
+                    prefix_alpha=self.maes_prefix_alpha,
+                )  # type: List[Hypothesis]
+
 
             list_b = []  # List that contains the blank token emissions
             list_nb = []  # List that contains the non-zero duration non-blank token emissions
@@ -714,6 +722,66 @@ class BeamTDTInfer(Typing):
             from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 
             self.token_offset = DEFAULT_TOKEN_OFFSET
+
+    def prefix_search(
+            self, hypotheses: List[Hypothesis], encoder_output: torch.Tensor, prefix_alpha: int
+        ) -> List[Hypothesis]:
+        """
+        Performs a prefix search and updates the scores of the hypotheses in place.
+        Based on https://arxiv.org/pdf/1211.3711.pdf.
+
+        Args:
+            hypotheses: a list of hypotheses sorted by the length from the longest to the shortest.
+            encoder_output: encoder output.
+            prefix_alpha: maximum allowable length difference between hypothesis and a prefix.
+
+        Returns:
+            hypotheses: list of hypotheses with updated scores.
+        """
+        # Iterate over hypotheses.
+        for curr_idx, curr_hyp in enumerate(hypotheses[:-1]):
+            # For each hypothesis, iterate over the subsequent hypotheses.
+            # If a hypothesis is a prefix of the current one, update current score.
+            for pref_hyp in hypotheses[(curr_idx + 1) :]:
+                curr_hyp_length = len(curr_hyp.y_sequence)
+                pref_hyp_length = len(pref_hyp.y_sequence)
+
+                if (
+                    is_prefix(curr_hyp.y_sequence, pref_hyp.y_sequence)
+                    and (curr_hyp_length - pref_hyp_length) <= prefix_alpha
+                ):
+                    # Compute the score of the first token that follows the prefix hypothesis tokens in current hypothesis.
+                    # Use the decoder output, which is stored in the prefix hypothesis.
+                    logits = self.joint.joint(encoder_output, pref_hyp.dec_out[-1]) / self.softmax_temperature
+                    logp = torch.log_softmax(logits[0, 0, 0, : -len(self.durations)], dim=-1)
+                    duration_logp = torch.log_softmax(logits[0, 0, 0, -len(self.durations) :], dim=-1)
+                    curr_score = pref_hyp.score + float(
+                        logp[curr_hyp.y_sequence[pref_hyp_length]] + duration_logp[self.zero_duration_idx]
+                    )
+
+                    if self.ngram_lm:
+                        lm_score, next_state = self.compute_ngram_score(
+                            pref_hyp.ngram_lm_state, int(curr_hyp.y_sequence[pref_hyp_length])
+                        )
+                        curr_score += self.ngram_lm_alpha * lm_score
+
+                    for k in range(pref_hyp_length, (curr_hyp_length - 1)):
+                        # Compute the score of the next token.
+                        # Approximate decoder output with the one that is stored in current hypothesis.
+                        logits = self.joint.joint(encoder_output, curr_hyp.dec_out[k]) / self.softmax_temperature
+                        logp = torch.log_softmax(logits[0, 0, 0, : -len(self.durations)], dim=-1)
+                        duration_logp = torch.log_softmax(logits[0, 0, 0, -len(self.durations) :], dim=-1)
+                        curr_score += float(logp[curr_hyp.y_sequence[k + 1]] + duration_logp[self.zero_duration_idx])
+
+                        if self.ngram_lm:
+                            lm_score, next_state = self.compute_ngram_score(
+                                next_state, int(curr_hyp.y_sequence[k + 1])
+                            )
+                            curr_score += self.ngram_lm_alpha * lm_score
+
+                    # Update current hypothesis score
+                    curr_hyp.score = np.logaddexp(curr_hyp.score, curr_score)
+        return hypotheses
 
     def compute_ngram_score(self, current_lm_state: "kenlm.State", label: int) -> Tuple[float, "kenlm.State"]:
         """
