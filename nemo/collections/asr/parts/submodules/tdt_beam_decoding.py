@@ -717,6 +717,7 @@ class BeamTDTInfer(Typing):
             is_present = False
             for kept_hyp in kept_hyps:
                 if kept_hyp.y_sequence == hyp.y_sequence and kept_hyp.last_frame == hyp.last_frame:
+                    kept_hyp.score = torch.logaddexp(torch.tensor(kept_hyp.score), torch.tensor(hyp.score))
                     is_present = True
                     break
             if not is_present:
