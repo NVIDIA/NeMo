@@ -164,9 +164,13 @@ def test_lazy_nemo_iterator_with_offset_metadata_only(nemo_offset_manifest_path)
         # but we don't have to perform any I/O to read the file for info.
         assert c.has_recording
         assert isinstance(c.recording, Recording)
-        assert c.recording.duration == 0.5
+        if is_even:
+            assert c.recording.duration == 0.5
+            assert c.recording.num_samples == 8000
+        else:
+            assert c.recording.duration == 1.0
+            assert c.recording.num_samples == 16000
         assert c.recording.num_channels == 1
-        assert c.recording.num_samples == 8000
         assert len(c.recording.sources) == 1
         assert isinstance(c.recording.sources[0], AudioSource)
         assert c.recording.sources[0].type == "dummy"

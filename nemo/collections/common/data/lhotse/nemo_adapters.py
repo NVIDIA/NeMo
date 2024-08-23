@@ -169,7 +169,7 @@ class LazyNeMoIterator:
                     sources=[AudioSource(type="dummy", channels=[0], source="")],
                     sampling_rate=sr,
                     duration=offset + duration,
-                    num_samples=compute_num_samples(duration, sr),
+                    num_samples=compute_num_samples(offset + duration, sr),
                 ),
             )
         return cut
