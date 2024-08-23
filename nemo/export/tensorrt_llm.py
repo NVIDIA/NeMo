@@ -309,28 +309,34 @@ class TensorRTLLM(ITritonDeployable):
                 USE_NEW_CODE = True
 
                 if USE_NEW_CODE:
-                    from megatron.core.export.model_type import ModelType
-                    from megatron.core.export.model_config import ModelConfig
                     from megatron.core.export.data_type import DataType
                     from megatron.core.export.export_config import ExportConfig
+                    from megatron.core.export.model_config import ModelConfig
+                    from megatron.core.export.model_type import ModelType
+                    from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import (
+                        DEFAULT_CONVERSION_DICT,
+                    )
                     from megatron.core.export.trtllm.trtllm_helper import TRTLLMHelper
-                    from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import DEFAULT_CONVERSION_DICT
                     from tensorrt_llm.layers import MoeConfig
 
                     def get_model_config(nemo_model_config):
                         conf = ModelConfig()
-                        conf.share_embeddings_and_output_weights = nemo_model_config.get("share_embeddings_and_output_weights", False)
+                        conf.share_embeddings_and_output_weights = nemo_model_config.get(
+                            "share_embeddings_and_output_weights", False
+                        )
                         conf.activation = nemo_model_config.get('activation')
                         conf.nemo_model_config = nemo_model_config.get('num_moe_experts', 0)
                         conf.num_layers = nemo_model_config.get('num_layers')
-                        conf.moe_router_topk =  nemo_model_config.get('moe_router_topk', 0)
+                        conf.moe_router_topk = nemo_model_config.get('moe_router_topk', 0)
                         conf.num_attention_heads = nemo_model_config.get('num_attention_heads')
-                        conf.num_query_groups = nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads'])
+                        conf.num_query_groups = nemo_model_config.get(
+                            'num_query_groups', nemo_model_config['num_attention_heads']
+                        )
                         conf.kv_channels = nemo_model_config.get("kv_channels", None)
                         conf.hidden_size = nemo_model_config.get('hidden_size')
                         conf.ffn_hidden_size = nemo_model_config.get('ffn_hidden_size')
                         conf.layernorm_epsilon = nemo_model_config.get('layernorm_epsilon')
-                        conf.position_embedding_type =  nemo_model_config.get('position_embedding_type')
+                        conf.position_embedding_type = nemo_model_config.get('position_embedding_type')
                         conf.max_position_embeddings = nemo_model_config.get('max_position_embeddings')
                         conf.bias = nemo_model_config.get('bias')
                         conf.rotary_percentage = nemo_model_config.get('rotary_percentage', 1.0)
@@ -342,25 +348,43 @@ class TensorRTLLM(ITritonDeployable):
                         conf.moe_tp_mode = nemo_model_config.get('moe_tp_mode', 2)
                         conf.seq_len_interpolation_factor = nemo_model_config.get("seq_len_interpolation_factor")
                         conf.mcore_gpt = nemo_model_config.get("mcore_gpt", False)
-                        conf.share_embeddings_and_output_weights = nemo_model_config.get("share_embeddings_and_output_weights", False)
+                        conf.share_embeddings_and_output_weights = nemo_model_config.get(
+                            "share_embeddings_and_output_weights", False
+                        )
                         conf.apply_embedding_scaling = nemo_model_config.get("apply_embedding_scaling", False)
                         conf.multi_query_mode = nemo_model_config.get("multi_query_mode", False)
                         conf.normalization = nemo_model_config.get("normalization", "")
                         conf.precision = nemo_model_config.get("precision")
                         return conf
-                    
-                    input_model_config = get_model_config(model_configs)       
+
+                    input_model_config = get_model_config(model_configs)
                     input_model_type = getattr(ModelType, model_type)
                     mcore_model_conversion_dict = DEFAULT_CONVERSION_DICT[input_model_type]
-                    nemo_model_conversion_dict = {f'model.{key}':value for key, value in mcore_model_conversion_dict.items()}
-                    trtllm_helper = TRTLLMHelper(input_model_config, input_model_type, trtllm_conversion_dict = nemo_model_conversion_dict)
+                    nemo_model_conversion_dict = {
+                        f'model.{key}': value for key, value in mcore_model_conversion_dict.items()
+                    }
+                    trtllm_helper = TRTLLMHelper(
+                        input_model_config, input_model_type, trtllm_conversion_dict=nemo_model_conversion_dict
+                    )
 
                     input_dtype = getattr(DataType, dtype)
-                    export_config = ExportConfig(tensor_parallelism_size, pipeline_parallelism_size, use_parallel_embedding, use_embedding_sharing, gpus_per_node)
-                   
-                    trtllm_model_weights_list, trtllm_model_config_list = trtllm_helper.get_trtllm_pretrained_config_and_model_weights(model_state_dict = model, export_config = export_config, dtype = input_dtype)
+                    export_config = ExportConfig(
+                        tensor_parallelism_size,
+                        pipeline_parallelism_size,
+                        use_parallel_embedding,
+                        use_embedding_sharing,
+                        gpus_per_node,
+                    )
 
-                    for trtllm_model_weights, trtllm_model_config in zip(trtllm_model_weights_list, trtllm_model_config_list):
+                    trtllm_model_weights_list, trtllm_model_config_list = (
+                        trtllm_helper.get_trtllm_pretrained_config_and_model_weights(
+                            model_state_dict=model, export_config=export_config, dtype=input_dtype
+                        )
+                    )
+
+                    for trtllm_model_weights, trtllm_model_config in zip(
+                        trtllm_model_weights_list, trtllm_model_config_list
+                    ):
                         trtllm_helper.build_and_save_engine(
                             max_input_len=max_input_len,
                             max_output_len=max_output_len,
@@ -388,12 +412,12 @@ class TensorRTLLM(ITritonDeployable):
                             gpt_attention_plugin=gpt_attention_plugin,
                             gemm_plugin=gemm_plugin,
                         )
-                else : 
+                else:
                     if model_type == "gpt" or model_type == "starcoder":
                         model_type = "gptnext"
 
                     if model_type == "mixtral":
-                        model_type = "llama"                   
+                        model_type = "llama"
                     weights_dicts, model_configs = model_to_trtllm_ckpt(
                         model=model,
                         nemo_model_config=model_configs,
