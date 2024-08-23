@@ -99,7 +99,7 @@ def main(cfg) -> None:
             cfg.exp_manager.exp_dir,
             cfg.exp_manager.name,
             'checkpoints',
-            f"{cfg.exp_manager.name}--validation_loss=0.0-step=0-consumed_samples=0.0.nemo",
+            f"{cfg.exp_manager.name}--validation_loss-0.0-step-0-consumed_samples-0.0.nemo",
         )
     )
 
