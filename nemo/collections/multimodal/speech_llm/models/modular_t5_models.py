@@ -387,7 +387,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         dec_input = audio_batch['masked_answer_ids'] if 'masked_answer_ids' in audio_batch else audio_batch['answers']
         dec_input = torch.cat([torch.full([b, 1], self.bos_id, device=device), dec_input[:, :-1]], dim=-1)
         labels = audio_batch['answers']
-        dec_mask = (dec_input != self.tokenizer.pad_id).long().contiguous()
+        dec_mask = (dec_input != self.tokenizer.eos_id) * (dec_input != self.tokenizer.pad_id).long().contiguous()
         output = self.frozen_model.enc_dec_model(
             enc_input_ids=None,
             enc_attn_mask=enc_mask,
@@ -1170,9 +1170,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
         seq_length = batch['tokens'].shape[1]
         # handle the case where the batch size from dynamic bucketting is not divisible in lhotse
-        batch_size = batch['tokens'].shape[0]
-        num_microbatches = min(batch_size, get_num_microbatches())
-        data_iter = get_iterator_k_split(batch, num_microbatches, enforce_divisible_batch=False)
+        data_iter = get_iterator_k_split(batch, get_num_microbatches(), enforce_divisible_batch=False)
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -1198,7 +1196,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             forward_step_func=self.get_forward_output_and_loss_func(),
             data_iterator=data_iter,
             model=[self.model],
-            num_microbatches=num_microbatches,
+            num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
             seq_length=seq_length,
             micro_batch_size=get_micro_batch_size(),
@@ -1559,9 +1557,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
         seq_length = batch['tokens'].shape[1]
         # handle the case where the batch size from dynamic bucketting is not divisible in lhotse
-        batch_size = batch['tokens'].shape[0]
-        num_microbatches = min(batch_size, get_num_microbatches())
-        data_iter = get_iterator_k_split(batch, num_microbatches, enforce_divisible_batch=False)
+        data_iter = get_iterator_k_split(batch, get_num_microbatches(), enforce_divisible_batch=False)
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -1587,7 +1583,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             forward_step_func=self.get_forward_output_and_loss_func(),
             data_iterator=data_iter,
             model=[self.model],
-            num_microbatches=num_microbatches,
+            num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
             seq_length=seq_length,
             micro_batch_size=get_micro_batch_size(),
@@ -1950,7 +1946,8 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         
         # Remove padded parts of speech tokens
         speech_pad_pos = (torch.sum(speech_tokens == 1001, axis=1) == n_speech_codebook)
-        speech_pad_mask = (torch.cumsum(speech_pad_pos, 0) == 0)
+        # speech_pad_mask = (torch.cumsum(speech_pad_pos, 0) == 0)
+        speech_pad_mask = (speech_pad_pos == 0)
         return text_tokens, speech_tokens[speech_pad_mask]
 
     # consistent with speech models
