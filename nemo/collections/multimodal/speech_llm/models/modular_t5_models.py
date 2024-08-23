@@ -39,6 +39,7 @@ from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
     MultiAudioPerceptionModule,
 )
 from  nemo.collections.multimodal.speech_llm.modules.multi_proj_modules import SumMultiEmbedding
+from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import token_id_to_speech_codec_id
 from nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model import MegatronT5LoraModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
@@ -1939,10 +1940,12 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         speech_tokens = decoder_output[first_sep_pos+1:, 1:]
 
         # Get speech token ids
-        vocab_sizes = self.frozen_model.proj_head_dims
         n_speech_codebook = self.frozen_model.n_proj_heads-1
-        for i in range(n_speech_codebook):
-            speech_tokens[:, i:] -= vocab_sizes[i]
+        speech_tokens = token_id_to_speech_codec_id(
+            speech_tokens.unsqueeze(0), 
+            n_speech_codebooks=n_speech_codebook, 
+            codebook_sizes=self.frozen_model.proj_head_dims
+        ).squeeze(0)
         
         # Remove padded parts of speech tokens
         speech_pad_pos = (torch.sum(speech_tokens == 1001, axis=1) == n_speech_codebook)

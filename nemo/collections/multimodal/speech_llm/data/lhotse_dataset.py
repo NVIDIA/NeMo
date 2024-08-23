@@ -238,9 +238,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             for i in range(len(tokens)):
                 loss_mask[i, :target_text_lengths[i]-1, 0] = 1
 
-        
-        for i in range(self.n_speech_codebooks):
-            tokens[:,:,i+1] += sum(self.vocab_sizes[:i+1])
+        tokens[:,:,1:] = speech_codec_id_to_token_id(tokens[:,:,1:], self.n_speech_codebooks, self.vocab_sizes)
 
         # Merge batch
         return_batch = {
@@ -323,3 +321,29 @@ def collate_text_data(
 
 def as_dict(arg: list[dict]) -> dict[str, list]:
     return {k: [item[k] for item in arg] for k in arg[0].keys()}
+
+def speech_codec_id_to_token_id(speech_codec, n_speech_codebooks, codebook_sizes):
+    """
+    Convert raw speech codec ids to tokens ids -- the token table size will be sum(codebook_sizes)
+
+    Args:
+        speech_codec: a tensor of shape [batch_size, seq_len, n_speech_codebooks] that contains raw speech codec which takes values from 0 to 1023 if NeMo codec is used
+        n_speech_codebooks: the number of speech codebooks
+        codebook_sizes: a list of integers of length n_speech_codebooks+1, with codebook_sizes[0] being the size of text vocab and codebook_sizes[1:] being the size of the speech codebooks
+    """    
+    for i in range(n_speech_codebooks):
+        speech_codec[:, :, i] += sum(codebook_sizes[:i+1])
+    return speech_codec
+
+def token_id_to_speech_codec_id(speech_tokens, n_speech_codebooks, codebook_sizes):
+    """
+    Convert tokens ids back to raw speech codec ids
+
+    Args:
+        speech_tokens: a tensor of shape [batch_size, seq_len, n_speech_codebooks]
+        n_speech_codebooks: the number of speech codebooks
+        codebook_sizes: a list of integers of length n_speech_codebooks+1, with codebook_sizes[0] being the size of text vocab and codebook_sizes[1:] being the size of the speech codebooks
+    """    
+    for i in range(n_speech_codebooks):
+        speech_tokens[:, :, i:] -= codebook_sizes[i]
+    return speech_tokens
