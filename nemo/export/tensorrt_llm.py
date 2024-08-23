@@ -167,8 +167,8 @@ class TensorRTLLM(ITritonDeployable):
         multiple_profiles: bool = False,
         gpt_attention_plugin: str = "auto",
         gemm_plugin: str = "auto",
-        fp8_quantized: bool = False,
-        fp8_kvcache: bool = False,
+        fp8_quantized: Optional[bool] = None,
+        fp8_kvcache: Optional[bool] = None,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -204,8 +204,8 @@ class TensorRTLLM(ITritonDeployable):
             multiple_profiles: (bool): enables multiple profiles feature of TRT-LLM. Default = False
             gpt_attention_plugin (str): enable the gpt attention plugin. Default = "auto"
             gemm_plugin (str): enable the gpt plugin. Default = "auto"
-            fp8_quantized (bool): enables exporting to FP8 TRT-LLM checkpoints
-            fp8_kvcache (bool): enables FP8 KV-cache quantization
+            fp8_quantized (Optional[bool]): enables exporting to FP8 TRT-LLM checkpoints. If not set, autodetects the type.
+            fp8_kvcache (Optional[bool]): enables FP8 KV-cache quantization. If not set, autodetects the type.
         """
 
         if n_gpus is not None:

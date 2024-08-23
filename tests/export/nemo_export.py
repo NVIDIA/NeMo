@@ -759,27 +759,30 @@ def get_args():
     parser.add_argument(
         "-fp8",
         "--export_fp8_quantized",
-        default="False",
+        default="auto",
         type=str,
         help="Enables exporting to a FP8-quantized TRT LLM checkpoint",
     )
     parser.add_argument(
         "-kv_fp8",
         "--use_fp8_kv_cache",
-        default="False",
+        default="auto",
         type=str,
         help="Enables exporting with FP8-quantizatized KV-cache",
     )
 
     args = parser.parse_args()
 
-    def str_to_bool(name: str, s: str) -> bool:
+    def str_to_bool(name: str, s: str, optional: bool = False) -> Optional[bool]:
+        s = s.lower()
         true_strings = ["true", "1"]
         false_strings = ["false", "0"]
-        if s.lower() in true_strings:
+        if s in true_strings:
             return True
-        if s.lower() in false_strings:
+        if s in false_strings:
             return False
+        if optional and s == 'auto':
+            return None
         raise UsageError(f"Invalid boolean value for argument --{name}: '{s}'")
 
     args.test_cpp_runtime = str_to_bool("test_cpp_runtime", args.test_cpp_runtime)
@@ -790,8 +793,8 @@ def get_args():
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
     args.use_parallel_embedding = str_to_bool("use_parallel_embedding", args.use_parallel_embedding)
     args.in_framework = str_to_bool("in_framework", args.in_framework)
-    args.export_fp8_quantized = str_to_bool("export_fp8_quantized", args.export_fp8_quantized)
-    args.use_fp8_kv_cache = str_to_bool("use_fp8_kv_cache", args.use_fp8_kv_cache)
+    args.export_fp8_quantized = str_to_bool("export_fp8_quantized", args.export_fp8_quantized, optional=True)
+    args.use_fp8_kv_cache = str_to_bool("use_fp8_kv_cache", args.use_fp8_kv_cache, optional=True)
 
     return args
 

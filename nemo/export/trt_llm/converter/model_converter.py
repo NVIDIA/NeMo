@@ -39,11 +39,10 @@ LOGGER = logging.getLogger("NeMo")
 def get_config(decoder_type, config):
     if decoder_type == "llama":
         return LLaMAConfig(**config)
-
-    if decoder_type in ["gpt", "gptnext"]:
+    elif decoder_type == "gpt" or decoder_type == "gptnext":
         return GPTConfig(**config)
-
-    return PretrainedConfig(**config)
+    else:
+        return PretrainedConfig(**config)
 
 
 def prompt_convert(prompt_config, prompt_weights):
@@ -95,6 +94,16 @@ def create_common_export_config(nemo_model_config, decoder_type, fp8_quantized=F
     }
 
 
+def determine_quantization_settings(nemo_model_config, fp8_quantized: Optional[bool] = None, fp8_kvcache: Optional[bool] = None) -> Tuple[bool, bool]:
+    is_nemo_quantized = nemo_model_config.get('fp8', False)
+    if fp8_quantized is None:
+        fp8_quantized = is_nemo_quantized
+    if fp8_kvcache is None:
+        fp8_kvcache = is_nemo_quantized
+
+    return fp8_quantized, fp8_kvcache
+
+
 def model_to_trtllm_ckpt(
     model,
     nemo_model_config,
@@ -109,8 +118,8 @@ def model_to_trtllm_ckpt(
     use_distributed_convert: bool = False,
     model_parallel_rank: int = None,
     vocab_size: Optional[int] = None,
-    fp8_quantized: bool = False,
-    fp8_kvcache: bool = False,
+    fp8_quantized: Optional[bool] = None,
+    fp8_kvcache: Optional[bool] = None,
 ) -> Tuple[List[Dict], List[PretrainedConfig]]:
     if nemo_model_config.get("share_embeddings_and_output_weights", False) and not use_embedding_sharing:
         LOGGER.info(
@@ -118,6 +127,7 @@ def model_to_trtllm_ckpt(
         )
         use_embedding_sharing = True
 
+    fp8_quantized, fp8_kvcache = determine_quantization_settings(nemo_model_config, fp8_quantized, fp8_kvcache)
     export_config = create_common_export_config(nemo_model_config, decoder_type, fp8_quantized, fp8_kvcache)
     # If the model has been sharded with model parallelism, convert the model in a gpu-distributed manner
     if use_distributed_convert:
