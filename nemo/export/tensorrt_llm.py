@@ -204,7 +204,6 @@ class TensorRTLLM(ITritonDeployable):
             gpt_attention_plugin (str): enable the gpt attention plugin. Default = "auto"
             gemm_plugin (str): enable the gpt plugin. Default = "auto"
         """
-
         if n_gpus is not None:
             warnings.warn(
                 "Parameter n_gpus is deprecated and will be removed in the next release. "
@@ -306,50 +305,131 @@ class TensorRTLLM(ITritonDeployable):
                         "Supported model types are: {1}.".format(model_type, self.get_supported_models_list)
                     )
 
-                if model_type == "gpt" or model_type == "starcoder":
-                    model_type = "gptnext"
-
-                if model_type == "mixtral":
-                    model_type = "llama"
-
                 model, model_configs, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir)
-                weights_dicts, model_configs = model_to_trtllm_ckpt(
-                    model=model,
-                    nemo_model_config=model_configs,
-                    nemo_export_dir=nemo_export_dir,
-                    decoder_type=model_type,
-                    dtype=dtype,
-                    tensor_parallel_size=tensor_parallelism_size,
-                    pipeline_parallel_size=pipeline_parallelism_size,
-                    gpus_per_node=gpus_per_node,
-                    use_parallel_embedding=use_parallel_embedding,
-                    use_embedding_sharing=use_embedding_sharing,
-                )
+                USE_NEW_CODE = True
 
-                for weight_dict, model_config in zip(weights_dicts, model_configs):
-                    build_and_save_engine(
-                        max_input_len=max_input_len,
-                        max_output_len=max_output_len,
-                        max_batch_size=max_batch_size,
-                        model_config=model_config,
-                        model_weights=weight_dict,
-                        model_dir=self.model_dir,
-                        model_type=model_type,
-                        lora_ckpt_list=self.lora_ckpt_list,
-                        use_lora_plugin=use_lora_plugin,
-                        max_lora_rank=max_lora_rank,
-                        lora_target_modules=lora_target_modules,
-                        max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-                        paged_kv_cache=paged_kv_cache,
-                        remove_input_padding=remove_input_padding,
-                        paged_context_fmha=paged_context_fmha,
-                        max_num_tokens=max_num_tokens,
-                        opt_num_tokens=opt_num_tokens,
-                        max_seq_len=max_seq_len,
-                        multiple_profiles=multiple_profiles,
-                        gpt_attention_plugin=gpt_attention_plugin,
-                        gemm_plugin=gemm_plugin,
+                if USE_NEW_CODE:
+                    from megatron.core.export.model_type import ModelType
+                    from megatron.core.export.model_config import ModelConfig
+                    from megatron.core.export.data_type import DataType
+                    from megatron.core.export.export_config import ExportConfig
+                    from megatron.core.export.trtllm.trtllm_helper import TRTLLMHelper
+                    from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import DEFAULT_CONVERSION_DICT
+                    from tensorrt_llm.layers import MoeConfig
+
+                    def get_model_config(nemo_model_config):
+                        conf = ModelConfig()
+                        conf.share_embeddings_and_output_weights = nemo_model_config.get("share_embeddings_and_output_weights", False)
+                        conf.activation = nemo_model_config.get('activation')
+                        conf.nemo_model_config = nemo_model_config.get('num_moe_experts', 0)
+                        conf.num_layers = nemo_model_config.get('num_layers')
+                        conf.moe_router_topk =  nemo_model_config.get('moe_router_topk', 0)
+                        conf.num_attention_heads = nemo_model_config.get('num_attention_heads')
+                        conf.num_query_groups = nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads'])
+                        conf.kv_channels = nemo_model_config.get("kv_channels", None)
+                        conf.hidden_size = nemo_model_config.get('hidden_size')
+                        conf.ffn_hidden_size = nemo_model_config.get('ffn_hidden_size')
+                        conf.layernorm_epsilon = nemo_model_config.get('layernorm_epsilon')
+                        conf.position_embedding_type =  nemo_model_config.get('position_embedding_type')
+                        conf.max_position_embeddings = nemo_model_config.get('max_position_embeddings')
+                        conf.bias = nemo_model_config.get('bias')
+                        conf.rotary_percentage = nemo_model_config.get('rotary_percentage', 1.0)
+                        conf.rotary_base = nemo_model_config.get('rotary_base', 10000)
+                        conf.num_moe_experts = nemo_model_config.get('num_moe_experts', 0)
+                        conf.moe_renorm_model = nemo_model_config.get(
+                            'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
+                        )
+                        conf.moe_tp_mode = nemo_model_config.get('moe_tp_mode', 2)
+                        conf.seq_len_interpolation_factor = nemo_model_config.get("seq_len_interpolation_factor")
+                        conf.mcore_gpt = nemo_model_config.get("mcore_gpt", False)
+                        conf.share_embeddings_and_output_weights = nemo_model_config.get("share_embeddings_and_output_weights", False)
+                        conf.apply_embedding_scaling = nemo_model_config.get("apply_embedding_scaling", False)
+                        conf.multi_query_mode = nemo_model_config.get("multi_query_mode", False)
+                        conf.normalization = nemo_model_config.get("normalization", "")
+                        conf.precision = nemo_model_config.get("precision")
+                        return conf
+                    
+                    input_model_config = get_model_config(model_configs)       
+                    input_model_type = getattr(ModelType, model_type)
+                    mcore_model_conversion_dict = DEFAULT_CONVERSION_DICT[input_model_type]
+                    nemo_model_conversion_dict = {f'model.{key}':value for key, value in mcore_model_conversion_dict.items()}
+                    trtllm_helper = TRTLLMHelper(input_model_config, input_model_type, trtllm_conversion_dict = nemo_model_conversion_dict)
+
+                    input_dtype = getattr(DataType, dtype)
+                    export_config = ExportConfig(tensor_parallelism_size, pipeline_parallelism_size, use_parallel_embedding, use_embedding_sharing, gpus_per_node)
+                   
+                    trtllm_model_weights_list, trtllm_model_config_list = trtllm_helper.get_trtllm_pretrained_config_and_model_weights(model_state_dict = model, export_config = export_config, dtype = input_dtype)
+
+                    for trtllm_model_weights, trtllm_model_config in zip(trtllm_model_weights_list, trtllm_model_config_list):
+                        trtllm_helper.build_and_save_engine(
+                            max_input_len=max_input_len,
+                            max_output_len=max_output_len,
+                            max_batch_size=max_batch_size,
+                            engine_dir=self.model_dir,
+                            trtllm_model_weights=trtllm_model_weights,
+                            trtllm_model_config=trtllm_model_config,
+                            lora_ckpt_list=self.lora_ckpt_list,
+                            use_lora_plugin=use_lora_plugin,
+                            max_lora_rank=max_lora_rank,
+                            lora_target_modules=lora_target_modules,
+                            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+                            enable_multi_block_mode=False,
+                            paged_kv_cache=paged_kv_cache,
+                            remove_input_padding=remove_input_padding,
+                            paged_context_fmha=paged_context_fmha,
+                            use_custom_all_reduce=True,
+                            use_refit=False,
+                            max_num_tokens=max_num_tokens,
+                            max_seq_len=max_seq_len,
+                            opt_num_tokens=opt_num_tokens,
+                            max_beam_width=1,
+                            tokens_per_block=128,
+                            multiple_profiles=multiple_profiles,
+                            gpt_attention_plugin=gpt_attention_plugin,
+                            gemm_plugin=gemm_plugin,
+                        )
+                else : 
+                    if model_type == "gpt" or model_type == "starcoder":
+                        model_type = "gptnext"
+
+                    if model_type == "mixtral":
+                        model_type = "llama"                   
+                    weights_dicts, model_configs = model_to_trtllm_ckpt(
+                        model=model,
+                        nemo_model_config=model_configs,
+                        nemo_export_dir='/tmp/shan',
+                        decoder_type=model_type,
+                        dtype=dtype,
+                        tensor_parallel_size=tensor_parallelism_size,
+                        pipeline_parallel_size=pipeline_parallelism_size,
+                        gpus_per_node=gpus_per_node,
+                        use_parallel_embedding=use_parallel_embedding,
+                        use_embedding_sharing=use_embedding_sharing,
                     )
+                    for weight_dict, model_config in zip(weights_dicts, model_configs):
+                        build_and_save_engine(
+                            max_input_len=max_input_len,
+                            max_output_len=max_output_len,
+                            max_batch_size=max_batch_size,
+                            model_config=model_config,
+                            model_weights=weight_dict,
+                            model_dir=self.model_dir,
+                            model_type=model_type,
+                            lora_ckpt_list=self.lora_ckpt_list,
+                            use_lora_plugin=use_lora_plugin,
+                            max_lora_rank=max_lora_rank,
+                            lora_target_modules=lora_target_modules,
+                            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+                            paged_kv_cache=paged_kv_cache,
+                            remove_input_padding=remove_input_padding,
+                            paged_context_fmha=paged_context_fmha,
+                            max_num_tokens=max_num_tokens,
+                            opt_num_tokens=opt_num_tokens,
+                            max_seq_len=max_seq_len,
+                            multiple_profiles=multiple_profiles,
+                            gpt_attention_plugin=gpt_attention_plugin,
+                            gemm_plugin=gemm_plugin,
+                        )
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
             if os.path.exists(tokenizer_path):
@@ -429,7 +509,6 @@ class TensorRTLLM(ITritonDeployable):
                     weight_dict[k] = numpy_to_torch(v)
 
                 safetensors.torch.save_file(weight_dict, os.path.join(self.model_dir, f'rank{rank}.safetensors'))
-
             model_configs[0].to_json_file(os.path.join(self.model_dir, 'config.json'))
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
@@ -544,7 +623,7 @@ class TensorRTLLM(ITritonDeployable):
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
-
+f
         Args:
             input_texts (List(str)): list of sentences.
             max_output_len (int): max generated tokens.
