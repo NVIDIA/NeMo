@@ -94,7 +94,9 @@ def create_common_export_config(nemo_model_config, decoder_type, fp8_quantized=F
     }
 
 
-def determine_quantization_settings(nemo_model_config, fp8_quantized: Optional[bool] = None, fp8_kvcache: Optional[bool] = None) -> Tuple[bool, bool]:
+def determine_quantization_settings(
+    nemo_model_config, fp8_quantized: Optional[bool] = None, fp8_kvcache: Optional[bool] = None
+) -> Tuple[bool, bool]:
     is_nemo_quantized = nemo_model_config.get('fp8', False)
     if fp8_quantized is None:
         fp8_quantized = is_nemo_quantized

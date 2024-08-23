@@ -21,8 +21,10 @@ from nemo.export.tensorrt_llm import TensorRTLLM
 
 LOGGER = logging.getLogger("NeMo")
 
+
 class UsageError(Exception):
     pass
+
 
 def get_args(argv):
     parser = argparse.ArgumentParser(
