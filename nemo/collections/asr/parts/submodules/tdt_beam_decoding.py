@@ -571,8 +571,9 @@ class BeamTDTInfer(Typing):
                 beam_kexpansions_idxs = [
                     sum_logp_topk_idxs[mask] for sum_logp_topk_idxs, mask in zip(beam_total_logp_topk_idxs, beam_masks)
                 ]
-
+                
                 list_exp = []  # List that contains the hypothesis expansion
+                list_nb_exp = []  # List that contains the hypothesis expansion
                 for hyp_idx, hyp in enumerate(hyps):  # For all hypothesis
                     for idx in beam_kexpansions_idxs[hyp_idx]:  # For all expansions within this hypothesis
                         # Restore indices in logp and durations_logp arrays from flattened indices.
@@ -618,10 +619,10 @@ class BeamTDTInfer(Typing):
                             if duration == 0:
                                 list_exp.append(new_hyp)
                             else:
-                                list_nb.append(new_hyp)
+                                list_nb_exp.append(new_hyp)
 
                 # Update states for hypothesis that do not end with blank
-                hyps_to_update = list_nb + list_exp
+                hyps_to_update = list_nb_exp + list_exp
                 if len(hyps_to_update) > 0:
                     # Initialize the beam states for the hypotheses in the expannsion list
                     beam_state = self.decoder.batch_initialize_states(
@@ -638,9 +639,10 @@ class BeamTDTInfer(Typing):
                         # Preserve the decoder logits for the current beam
                         hyp.dec_out.append(beam_decoder_output[hyp_idx])
                         hyp.dec_state = self.decoder.batch_select_state(beam_state, hyp_idx)
-
+                        
                 # If there were no token expansions in any of the hypotheses,
                 # Early exit
+                list_nb += list_nb_exp
                 if not list_exp:
                     kept_hyps = kept_hyps + list_b + list_nb
                     kept_hyps = self.remove_duplicate_hypotheses(kept_hyps)
