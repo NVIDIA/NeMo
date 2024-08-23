@@ -82,9 +82,11 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
+        print(f"Converted Llava model to Nemo, saving to {output_path}")
+
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Llava model to Nemo, model saved to {output_path}")
+        print(f"Converted Llava model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target

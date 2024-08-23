@@ -164,13 +164,10 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
     """
     pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None
 
-    def __init__(self, *args, pretrained_model_name_or_path=None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def configure_hf_config(self, *args, **kwargs) -> None:
+        CLIPVisionConfig.__init__(self, *args, **kwargs)
 
-        if pretrained_model_name_or_path is not None:
-            self.pretrained_model_name_or_path = pretrained_model_name_or_path
-
-    def configure_model(self) -> "MCoreCLIPViTModel":
+    def configure_model(self) -> "CLIPVisionModel":
         # Monkey patch the method to the vision encoder
         CLIPVisionModel.set_input_tensor = set_input_tensor
 
