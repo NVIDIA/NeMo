@@ -29,6 +29,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
+from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
 from nemo.lightning import _strategy_lib, io
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import ModelTransform
@@ -471,6 +472,22 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 self.lightning_module.log('reduced_train_loss', out, prog_bar=True, batch_size=1, sync_dist=False)
 
             return out
+
+    @override
+    def optimizer_step(
+        self,
+        optimizer: Optimizer,
+        closure: Callable[[], Any],
+        model: Optional[Union["pl.LightningModule", Module]] = None,
+        **kwargs: Any,
+    ) -> Any:
+        optimizer_output = super().optimizer_step(optimizer, closure, model, **kwargs)
+
+        if isinstance(optimizer, McoreDistributedOptimizer):
+            _, grad_norm = optimizer_output
+            self.lightning_module.log('grad_norm', grad_norm, batch_size=1)
+
+        return optimizer_output
 
     @override
     def validation_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
