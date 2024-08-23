@@ -574,16 +574,11 @@ class BeamTDTInfer(Typing):
 
                 list_exp = []  # List that contains the hypothesis expansion
                 for hyp_idx, hyp in enumerate(hyps):  # For all hypothesis
-                    # Restore indices in logp and durations_logp arrays from flattened indices.
-                    hyp_expansions = [
-                        (
-                            int(beam_idx_topks[hyp_idx][idx % self.max_candidates]),
-                            int(beam_duration_idx_topks[hyp_idx][idx // self.max_candidates]),
-                            float(beam_total_logp[hyp_idx][idx]),
-                        )
-                        for idx in beam_kexpansions_idxs[hyp_idx]
-                    ]
-                    for k, duration_idx, total_logp in hyp_expansions:  # For all expansions within this hypothesis
+                    for idx in beam_kexpansions_idxs[hyp_idx]:  # For all expansions within this hypothesis
+                        # Restore indices in logp and durations_logp arrays from flattened indices.
+                        k = int(beam_idx_topks[hyp_idx][idx % self.max_candidates])
+                        duration_idx = int(beam_duration_idx_topks[hyp_idx][idx // self.max_candidates])
+                        total_logp = float(beam_total_logp[hyp_idx][idx])
                         # Forcing blank token to have non-zero duration
                         # Possible duplicates are removed further
                         if (
