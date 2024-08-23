@@ -1289,16 +1289,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         qkv_format='thd',
                     )
 
-            # _output_tensor = model(**forward_args)
-            output_tensor = model(
-                input_ids = forward_args['input_ids'],
-                position_ids = forward_args['position_ids'],
-                attention_mask = forward_args['attention_mask'],
-                labels = None,
-            )
-            
+            # output_tensor = model(**forward_args)
             loss_mask = batch['loss_mask']
-            kl_div = torch.tensor(0.0, device=loss_mask.device)
             if (self.c_kl is not None and self.c_kl > 0)and self.trainer.state.fn == 'fit':
                 with torch.no_grad():      
                     ref_outputs = self.ref_model.model(
@@ -1308,25 +1300,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         labels = None,
                     )
 
-                kl_div = kl_loc_loss(
-                    ref_outputs.to(torch.float32),
-                    output_tensor.to(torch.float32),
-                    loss_mask, #forward_args['attention_mask'],
-                    self.kl_penalty,
+                output_tensor = model(
+                    input_ids = forward_args['input_ids'],
+                    position_ids = forward_args['position_ids'],
+                    attention_mask = forward_args['attention_mask'],
+                    labels = (forward_args['labels'], ref_outputs, self.c_kl, self.kl_penalty),
                 )
-                
-                if wandb.run:
-                    wandb.log({'kl-div': kl_div})
+                # write a test checking kl-div and loss values implementing here and in megatron-lm
+            else:
+                output_tensor = model(**forward_args)
 
-            def loss_func(output_tensor, forward_args, c_kl_p_kl_div):
+            def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
-                # loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
-                target_label_logits = torch.gather(output_tensor, dim=-1, index=forward_args['labels'].unsqueeze(-1)).squeeze(-1)
-                log_sum_exp_logits = torch.logsumexp(output_tensor, dim=-1)
-                target_label_logprobs = target_label_logits - log_sum_exp_logits
-                loss_for_ub = - torch.sum(target_label_logprobs * batch['loss_mask']) / torch.sum(batch['loss_mask']).clamp(min=1.)
+                loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
 
-                loss_for_ub += c_kl_p_kl_div
                 cp_size = parallel_state.get_context_parallel_world_size()
                 if self.return_output_tensors:
                     # TODO: need a better way to check if loss_func is returning more stuff than just loss... (@adithyare)
@@ -1372,10 +1359,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
                     return loss_for_ub * cp_size, {'avg': reduced_loss}
 
-            if self.c_kl is None:
-                return output_tensor, loss_func, forward_args, loss_mask, 0.
-            else:   
-                return output_tensor, loss_func, forward_args, loss_mask, self.c_kl * kl_div
+            return output_tensor, loss_func
 
         return fwd_output_and_loss_func
 

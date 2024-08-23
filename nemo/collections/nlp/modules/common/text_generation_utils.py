@@ -884,8 +884,7 @@ def sample_sequence_batch(
                         # for Mcore RETRO inference, disimilar to GPT, we will get the logits of the (context_length - 1)th token, instead of the last token
                         logits = output[0]['logits'][:, context_length - 1].contiguous()
                     else:
-                        # temporary fix for kl-div
-                        logits = output[0][0]['logits'][:, -1].contiguous()
+                        logits = output[0]['logits'][:, -1].contiguous()
                     logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
                     assert logits is not None
                     logits = logits.view(batch_size, -1)
