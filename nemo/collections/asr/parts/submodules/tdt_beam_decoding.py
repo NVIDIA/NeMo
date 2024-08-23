@@ -39,6 +39,8 @@ from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
 
+import torch.profiler as profiler
+
 try:
     import kenlm
 
@@ -446,7 +448,7 @@ class BeamTDTInfer(Typing):
                 # Remove duplicate hypotheses.
                 # If two consecutive blank tokens are predicted and their duration values sum up to the same number,
                 # it will produce two hypotheses with the same token sequence but different scores.
-                kept_hyps = self.remove_duplicate_hypotheses(kept_hyps)
+                kept_hyps = self.merge_duplicate_hypotheses(kept_hyps)
 
                 if len(hyps) > 0:
                     # Keep those hypothesis that have scores greater than next search generation
@@ -562,10 +564,7 @@ class BeamTDTInfer(Typing):
                 # Then, select the top `max_candidates` pairs of (token, duration) based on the highest combined probabilities.
                 # Note that indices are obtained in flattened array.
                 beam_logp_topks, beam_idx_topks = beam_logp.topk(self.max_candidates, dim=-1)
-                # beam_duration_logp_topks, beam_duration_idx_topks = beam_duration_logp.topk(duration_beam, dim=-1)
-                beam_total_logp = (beam_duration_logp[:, :, None] + beam_logp_topks[:, None, :]).view(
-                    len(hyps), -1
-                )  # [B, MAX_CANDIDATES*DURATION_BEAM]
+                beam_total_logp = (beam_duration_logp[:, :, None] + beam_logp_topks[:, None, :]).view(len(hyps), -1)  # [B, MAX_CANDIDATES*DURATION_BEAM]
                 beam_total_logp_topks, beam_total_logp_topk_idxs = beam_total_logp.topk(
                     self.max_candidates, dim=-1
                 )  # [B, MAX_CANDIDATES]
@@ -587,7 +586,6 @@ class BeamTDTInfer(Typing):
                         total_logp = float(beam_total_logp[hyp_idx][idx])
 
                         # Forcing blank token to have non-zero duration
-                        # Possible duplicates are removed further
                         if k == self.blank and duration == 0:
                             duration = self.durations[int(self.min_non_zero_duration_idx)]
 
@@ -645,7 +643,7 @@ class BeamTDTInfer(Typing):
                 list_nb += list_nb_exp
                 if not list_exp:
                     kept_hyps = kept_hyps + list_b + list_nb
-                    kept_hyps = self.remove_duplicate_hypotheses(kept_hyps)
+                    kept_hyps = self.merge_duplicate_hypotheses(kept_hyps)
                     kept_hyps = sorted(kept_hyps, key=lambda x: x.score, reverse=True)[:beam]
 
                     break
@@ -653,7 +651,7 @@ class BeamTDTInfer(Typing):
                     # If this isn't the last mAES step
                     if n < (self.maes_num_steps - 1):
                         # Copy the expanded hypothesis for the next iteration
-                        hyps = self.remove_duplicate_hypotheses(list_exp)
+                        hyps = self.merge_duplicate_hypotheses(list_exp)
                     else:
                         # If this is the last mAES step add probabilities of the blank token to the end.
                         # Extract the log probabilities
@@ -682,17 +680,17 @@ class BeamTDTInfer(Typing):
 
                         # Finally, update the kept hypothesis of sorted top Beam candidates
                         kept_hyps = kept_hyps + list_b + list_exp + list_nb
-                        kept_hyps = self.remove_duplicate_hypotheses(kept_hyps)
+                        kept_hyps = self.merge_duplicate_hypotheses(kept_hyps)
                         kept_hyps = sorted(kept_hyps, key=lambda x: x.score, reverse=True)[:beam]
 
         # Sort the hypothesis with best scores
         return self.sort_nbest(kept_hyps)
 
-    def remove_duplicate_hypotheses(self, hypotheses):
+    def merge_duplicate_hypotheses(self, hypotheses):
         """
-        Removes hypotheses that have identical token sequences and lengths.
-        Among duplicate hypotheses, only the one with the lowest score is kept.
-        Duplicate hypotheses occur when two consecutive blank tokens are predicted,
+        Merges hypotheses with identical token sequences and lengths.
+        The combined hypothesis's probability is the sum of the probabilities of all duplicates.
+        Duplicate hypotheses occur when two consecutive blank tokens are predicted 
         and their duration values sum up to the same number.
 
         Args:
