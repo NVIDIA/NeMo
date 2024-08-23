@@ -546,7 +546,6 @@ class BeamTDTInfer(Typing):
                     prefix_alpha=self.maes_prefix_alpha,
                 )  # type: List[Hypothesis]
 
-
             list_b = []  # List that contains the blank token emissions
             list_nb = []  # List that contains the non-zero duration non-blank token emissions
             # Repeat for number of mAES steps
@@ -577,7 +576,7 @@ class BeamTDTInfer(Typing):
                 beam_kexpansions_idxs = [
                     sum_logp_topk_idxs[mask] for sum_logp_topk_idxs, mask in zip(beam_total_logp_topk_idxs, beam_masks)
                 ]
-                
+
                 list_exp = []  # List that contains the hypothesis expansion
                 list_nb_exp = []  # List that contains the hypothesis expansion
                 for hyp_idx, hyp in enumerate(hyps):  # For all hypothesis
@@ -586,10 +585,10 @@ class BeamTDTInfer(Typing):
                         k = int(beam_idx_topks[hyp_idx][idx % self.max_candidates])
                         duration = self.durations[int(idx // self.max_candidates)]
                         total_logp = float(beam_total_logp[hyp_idx][idx])
-                        
+
                         # Forcing blank token to have non-zero duration
                         # Possible duplicates are removed further
-                        if (k == self.blank and duration == 0):
+                        if k == self.blank and duration == 0:
                             duration = self.durations[int(self.min_non_zero_duration_idx)]
 
                         new_hyp = Hypothesis(
@@ -640,7 +639,7 @@ class BeamTDTInfer(Typing):
                         # Preserve the decoder logits for the current beam
                         hyp.dec_out.append(beam_decoder_output[hyp_idx])
                         hyp.dec_state = self.decoder.batch_select_state(beam_state, hyp_idx)
-                        
+
                 # If there were no token expansions in any of the hypotheses,
                 # Early exit
                 list_nb += list_nb_exp
@@ -724,8 +723,8 @@ class BeamTDTInfer(Typing):
             self.token_offset = DEFAULT_TOKEN_OFFSET
 
     def prefix_search(
-            self, hypotheses: List[Hypothesis], encoder_output: torch.Tensor, prefix_alpha: int
-        ) -> List[Hypothesis]:
+        self, hypotheses: List[Hypothesis], encoder_output: torch.Tensor, prefix_alpha: int
+    ) -> List[Hypothesis]:
         """
         Performs a prefix search and updates the scores of the hypotheses in place.
         Based on https://arxiv.org/pdf/1211.3711.pdf.
