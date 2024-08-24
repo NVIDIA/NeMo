@@ -861,11 +861,10 @@ class ASRPredictionWriter(BasePredictionWriter):
     ):
         import lhotse
 
-        if isinstance(prediction, tuple):
-            texts, cuts = prediction
-            for idx, transcribed_text in enumerate(texts):
-                item = {}
-                sample = cuts[idx]
+        for sample_id, transcribed_text in prediction:
+            item = {}
+            if isinstance(sample_id, lhotse.cut.Cut):
+                sample = sample_id
                 if isinstance(sample, lhotse.cut.MixedCut):
                     sample = sample.first_non_padding_cut
                 item["audio_filepath"] = sample.recording.sources[0].source
@@ -875,9 +874,7 @@ class ASRPredictionWriter(BasePredictionWriter):
                 item["pred_text"] = transcribed_text
                 self.outf.write(json.dumps(item) + "\n")
                 self.samples_num += 1
-        else:
-            for sample_id, transcribed_text in prediction:
-                item = {}
+            else:
                 sample = self.dataset.get_manifest_sample(sample_id)
                 item["audio_filepath"] = sample.audio_file
                 item["offset"] = sample.offset
