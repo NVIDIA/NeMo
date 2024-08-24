@@ -239,9 +239,10 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
 
         for i in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
+            if i % 100 == 0:
+                logging.info(f'Decoding step {i}...')
             decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec[:, :, 0] != tokenizer.pad_id
-            dec_mask[:, 0] = 1  # Make sure you never mask the first token even if it is <pad>.
 
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, batch_data]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'batch_data']
