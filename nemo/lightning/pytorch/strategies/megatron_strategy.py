@@ -75,7 +75,7 @@ class ParallelismConfig:
     expert_model_parallel_size: int
     moe_extended_tp: bool
     pipeline_dtype: torch.dtype
-    tp_comm_overlap: bool # Tensor parallel gemm+communication overlap
+    tp_comm_overlap: bool  # Tensor parallel gemm+communication overlap
     tp_comm_overlap_cfg: dict
 
 

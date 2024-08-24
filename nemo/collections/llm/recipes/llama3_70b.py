@@ -16,8 +16,8 @@ from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
 from nemo.collections.llm.utils import Config, Partial
-from nemo.utils.exp_manager import TimingCallback
 from nemo.utils.env_var_parsing import get_envint
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "llama3_70b"
 

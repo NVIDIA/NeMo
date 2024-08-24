@@ -120,7 +120,6 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
 
-
     def configure_model(self, tokenizer) -> "MCoreGPTModel":
 
         vp_size = self.virtual_pipeline_model_parallel_size
