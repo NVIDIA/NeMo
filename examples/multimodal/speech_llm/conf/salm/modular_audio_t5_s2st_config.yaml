@@ -266,6 +266,9 @@ model:
       prompt_template: "{context}\n{answer}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       vocab_sizes: [64000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024] # This should match proj_head_dims
       speech_pad_id: 1001
+      speech_unk_id: 1002
+      speech_bos_id: 1003
+      speech_eos_id: 1004
       filter_by_source_target_text_ratio: True # If the length of the source and target texts differ too much, the instance will be discarded
       source_target_text_ratio_limit: 4.0
       # ASR configs
@@ -329,6 +332,9 @@ model:
       tokens_to_generate: 128
       vocab_sizes: [64000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024] # This should match proj_head_dims
       speech_pad_id: 1001
+      speech_unk_id: 1002
+      speech_bos_id: 1003
+      speech_eos_id: 1004
       filter_by_source_target_text_ratio: True # If the length of the source and target texts differ too much, the instance will be discarded
       source_target_text_ratio_limit: 4.0
       # ASR configs

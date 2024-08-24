@@ -58,6 +58,9 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         default_context_key: str = "default_context",
         vocab_sizes: list[int] = [-1],
         speech_pad_id: int = 1001,
+        speech_unk_id: int = 1002,
+        speech_bos_id: int = 1003,
+        speech_eos_id: int = 1004,
         filter_by_source_target_text_ratio: bool = False,
         source_target_text_ratio_limit: float = 1.0,
     ):
@@ -78,6 +81,9 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.vocab_sizes = vocab_sizes
         self.n_speech_codebooks = len(self.vocab_sizes) - 1
         self.speech_pad_id = speech_pad_id
+        self.speech_unk_id = speech_unk_id
+        self.speech_bos_id = speech_bos_id
+        self.speech_eos_id = speech_eos_id
         self.filter_by_source_target_text_ratio = filter_by_source_target_text_ratio
         self.source_target_text_ratio_limit = source_target_text_ratio_limit
 
@@ -119,7 +125,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             target_text = self.text_processor._process_example(
                 context=cut.supervisions[2].text, output=""
             )
-            target_text, target_text_length = torch.as_tensor(target_text["input_ids"]), torch.as_tensor(len(target_text["input_ids"]))
+            # -1 to remove the eos token added by the text processor
+            target_text, target_text_length = torch.as_tensor(target_text["input_ids"][:-1]), torch.as_tensor(len(target_text["input_ids"])-1)
 
             if self.filter_by_source_target_text_ratio:
                 if source_text_length / target_text_length > self.source_target_text_ratio_limit or \
@@ -153,15 +160,16 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             if hasattr(cut, self.ali_score_key):
                 cut.ali_score = getattr(cut, self.ali_score_key)
 
-        # Now handle TTS if any
         text_pad_id = self.text_processor.pad_id
-        text_unk_id = self.text_processor.unk_id # filled in the text axis when the model output speech codecs
+        text_unk_id = self.text_processor.unk_id
+        text_bos_id = self.text_processor.bos_id
+        text_eos_id = self.text_processor.eos_id
 
-        def get_3d_fully_padded_tensor(batch_size, length):
+        def get_3d_empty_tensor(batch_size, length, text_fill_id, speech_fill_id):
             return torch.cat(
                 [
-                    torch.full((batch_size, length, 1), text_pad_id),
-                    torch.full((batch_size, length, self.n_speech_codebooks), self.speech_pad_id),
+                    torch.full((batch_size, length, 1), text_fill_id),
+                    torch.full((batch_size, length, self.n_speech_codebooks), speech_fill_id),
                 ], axis=2
             )
         
@@ -177,15 +185,16 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
                 tokens = collate_vectors(inputs, max_length=max_length, padding_value=text_pad_id)
             else:
-                tokens = get_3d_fully_padded_tensor(len(inputs), max_length)
+                tokens = get_3d_empty_tensor(len(inputs), max_length, text_pad_id, self.speech_pad_id)
                 for i in range(len(tokens)):
                     tokens[i, :token_lengths[i], :] = inputs[i]
             return tokens, torch.LongTensor(token_lengths)
             
         features_lens = torch.tensor([cut.target_codes.shape[0] for cut in cuts], dtype=torch.int)
-        target_codec = get_3d_fully_padded_tensor(len(cuts), max(features_lens).item()+1)
-        eos_tensor = torch.full((1, self.n_speech_codebooks+1), self.speech_pad_id).to(torch.int)
-        eos_tensor[:,0] = self.text_processor.eos_id
+        # +1 for the eos tensor
+        target_codec = get_3d_empty_tensor(len(cuts), max(features_lens).item()+1, text_pad_id, self.speech_pad_id)
+        eos_tensor = torch.full((1, self.n_speech_codebooks+1), self.speech_eos_id).to(torch.int)
+        eos_tensor[:,0] = self.text_processor.unk_id
         # Loop through cuts and build target_codec, label, and context tensors
         speaker_context_list = []
         for i, cut in enumerate(cuts):
@@ -211,32 +220,39 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         source_texts, source_text_lengths = collate_and_pad(source_texts)
         # Just target text data
         target_texts, target_text_lengths = collate_and_pad(target_texts)
-        target_texts_expanded = get_3d_fully_padded_tensor(target_texts.shape[0], target_texts.shape[1])
-        target_texts_expanded[:, :, 0] = target_texts
-        target_texts = target_texts_expanded
+        # +1 for the bos tensor
+        target_texts_expanded = get_3d_empty_tensor(target_texts.shape[0], target_texts.shape[1]+1, text_pad_id, self.speech_pad_id)
+        for i, target_text_length in enumerate(target_text_lengths):
+            target_texts_expanded[i, :target_text_length, 0] = target_texts[i, :target_text_length]
+            target_texts_expanded[i, :target_text_length, 1:] = self.speech_unk_id
+            eos_tensor = torch.full((1, self.n_speech_codebooks+1), self.speech_bos_id).to(torch.int)
+            eos_tensor[:,0] = self.text_processor.eos_id
 
-        # bos_tensor = torch.full((len(cuts), 1, self.n_speech_codebooks+1), self.speech_pad_id).to(torch.int)
-        # bos_tensor[:,:,0] = self.text_processor.bos_id
+            target_texts_expanded[i, target_text_length, :] = eos_tensor
+        target_texts = target_texts_expanded
         
         # answers = torch.concat([speaker_context, bos_tensor, target_codec], 1)
 
         if getattr(cut, "s2st", False):
             # Add 1 for eos token
-            token_list = [torch.concat([tt[:ttl], tc[:tcl+1]], 0) for tt, ttl, tc, tcl in zip(target_texts, target_text_lengths, target_codec, features_lens)]
+            token_list = [torch.concat([tt[:ttl+1], tc[:tcl+1]], 0) for tt, ttl, tc, tcl in zip(target_texts, target_text_lengths, target_codec, features_lens)]
             tokens, _ = collate_and_pad(token_list)
-            # -1 since the first token will not be used as a label
-            loss_mask = torch.zeros(tokens.shape[0], tokens.shape[1]-1, tokens.shape[2])
-            for i in range(len(tokens)):
-                # loss_mask[i, :target_text_lengths[i]-1, 0] = 1
-                # loss_mask[i, target_text_lengths[i]-1:target_text_lengths[i]+features_lens[i], 1:] = 1
-                loss_mask[i, :target_text_lengths[i]-1, :] = 1
-                loss_mask[i, target_text_lengths[i]-1:target_text_lengths[i]+features_lens[i], :] = 1
+
+            speech_loss_mask = torch.logical_and((tokens[:, :, 1:] != self.speech_unk_id), (tokens[:, :, 1:] != self.speech_pad_id))
+            text_loss_mask = torch.logical_and((tokens[:, :, 0:1] != text_unk_id), (tokens[:, :, 0:1] != text_pad_id))
+            # speech_loss_mask = (tokens[:, :, 1:] != self.speech_pad_id)
+            # text_loss_mask = (tokens[:, :, 0:1] != text_pad_id)
+            loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
         elif getattr(cut, "s2tt", False):
-            token_list = [tt[:ttl] for tt, ttl in zip(target_texts, target_text_lengths)]
+            # Add 1 for eos token
+            token_list = [tt[:ttl+1] for tt, ttl in zip(target_texts, target_text_lengths)]
             tokens, _ = collate_and_pad(token_list)
-            loss_mask = torch.zeros(tokens.shape[0], tokens.shape[1]-1, tokens.shape[2])
-            for i in range(len(tokens)):
-                loss_mask[i, :target_text_lengths[i]-1, 0] = 1
+
+            speech_loss_mask = torch.zeros(tokens.shape[0], tokens.shape[1]-1, tokens.shape[2])
+            text_loss_mask = (tokens[:, :, 0:1] != text_pad_id)
+            loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
+        # Start from index 1 since the first token will not be used as a label
+        loss_mask = loss_mask[:, 1:, :]
 
         tokens[:,:,1:] = speech_codec_id_to_token_id(tokens[:,:,1:], self.n_speech_codebooks, self.vocab_sizes)
 

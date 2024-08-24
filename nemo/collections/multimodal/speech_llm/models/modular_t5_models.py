@@ -1873,8 +1873,8 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
                             inp_label_set.add(key)
                             # Remove leading BOS
                             pred = pred[1:]
-                            text_pred, speech_pred = self.parse_decoder_outputs(pred, self.tokenizer.eos_id)
-                            text_answer, speech_answer = self.parse_decoder_outputs(answer, self.tokenizer.eos_id)
+                            text_pred, speech_pred = self.parse_decoder_outputs(pred, self.tokenizer.eos_id, self.cfg.data.train_ds.speech_pad_id)
+                            text_answer, speech_answer = self.parse_decoder_outputs(answer, self.tokenizer.eos_id, self.cfg.data.train_ds.speech_pad_id)
                             deduplicated_outputs['text_preds'].append(MegatronT5SFTModel.ids_to_text(text_pred.unsqueeze(0), self.tokenizer))
                             deduplicated_outputs['text_answers'].append(MegatronT5SFTModel.ids_to_text(text_answer.unsqueeze(0), self.tokenizer))
                             deduplicated_outputs['speech_preds'].append(speech_pred.cpu().numpy())
@@ -1937,9 +1937,9 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
 
         return averaged_loss, averaged_loss
     
-    def parse_decoder_outputs(self, decoder_output, separator, speecn_pad_id=1001):
+    def parse_decoder_outputs(self, decoder_output, text_separator, speech_pad_id=1001):
         # Split text and speech part based on the position of the first separator token
-        first_sep_pos = torch.argmax((decoder_output[:, 0] == separator).long())
+        first_sep_pos = torch.argmax((decoder_output[:, 0] == text_separator).long())
         text_tokens = decoder_output[:first_sep_pos, 0]
         speech_tokens = decoder_output[first_sep_pos+1:, 1:]
 
@@ -1952,7 +1952,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         ).squeeze(0)
         
         # Remove padded parts of speech tokens
-        speech_pad_pos = (torch.sum(speech_tokens == 1001, axis=1) == n_speech_codebook)
+        speech_pad_pos = (torch.sum(speech_tokens == speech_pad_id, axis=1) == n_speech_codebook)
         # speech_pad_mask = (torch.cumsum(speech_pad_pos, 0) == 0)
         speech_pad_mask = (speech_pad_pos == 0)
         return text_tokens, speech_tokens[speech_pad_mask]

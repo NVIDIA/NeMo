@@ -87,6 +87,9 @@ def build_speechllm_dataset(model_instance, data_cfg, is_train):
             default_context_key=data_cfg.get('default_context_key', "default_context"),
             vocab_sizes=data_cfg.get('vocab_sizes', [-1]),
             speech_pad_id=data_cfg.get('speech_pad_id', 1001),
+            speech_unk_id=data_cfg.get('speech_unk_id', 1002),
+            speech_bos_id=data_cfg.get('speech_bos_id', 1003),
+            speech_eos_id=data_cfg.get('speech_eos_id', 1004),
             filter_by_source_target_text_ratio=data_cfg.get('filter_by_source_target_text_ratio', False),
             source_target_text_ratio_limit=data_cfg.get('source_target_text_ratio_limit', 1.0),
         )
