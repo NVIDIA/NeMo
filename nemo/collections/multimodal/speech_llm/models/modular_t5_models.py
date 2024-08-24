@@ -1380,10 +1380,9 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         # use the incoming cfg updated by _modify_config
         t5_cfg = copy.deepcopy(cfg)
         t5_cfg.target = cfg.t5_target if 't5_target' in cfg else t5_cfg_base.target
-        if 'n_proj_heads' in cfg:
-            t5_cfg.n_proj_heads = cfg.n_proj_heads
-        if 'proj_head_dims' in cfg:
-            t5_cfg.proj_head_dims = cfg.proj_head_dims
+        if 'vocab_sizes' in cfg:
+            t5_cfg.proj_head_dims = cfg.vocab_sizes
+            t5_cfg.vocab_sizes = cfg.vocab_sizes
         if 'proj_head_loss_weights' in cfg:
             t5_cfg.proj_head_loss_weights = cfg.proj_head_loss_weights
         self.frozen_model = MegatronT5Model.restore_from(
@@ -1470,12 +1469,11 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             t5_target = cfg.model.get('t5_target', None)
             if t5_target is not None:
                 gpt_cfg.t5_target = t5_target
-            n_proj_heads = cfg.model.get('n_proj_heads', None)
-            if n_proj_heads is not None:
-                gpt_cfg.n_proj_heads = n_proj_heads
-            proj_head_dims = cfg.model.get('proj_head_dims', None)
-            if proj_head_dims is not None:
-                gpt_cfg.proj_head_dims = proj_head_dims
+            vocab_sizes = cfg.model.get('vocab_sizes', None)
+            if vocab_sizes is not None:
+                gpt_cfg.proj_head_dims = vocab_sizes
+                gpt_cfg.vocab_sizes = vocab_sizes
+                assert sum(gpt_cfg.proj_head_dims) == gpt_cfg.override_vocab_size, "vocab size should equal to the sum of projection head sizes"
             proj_head_loss_weights = cfg.model.get('proj_head_loss_weights', None)
             if proj_head_loss_weights is not None:
                 gpt_cfg.proj_head_loss_weights = proj_head_loss_weights

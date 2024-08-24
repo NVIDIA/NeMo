@@ -104,12 +104,11 @@ model:
   ffn_dropout: 0.0
 
   # use_am_tokenizer: True
-  override_vocab_size: 72192 # This should be equal to the sum of proj_head_dims
+  override_vocab_size: 72192 # This should be equal to the sum of vocab_sizes
 
   # for MegatronNMTMultiProjModel
-  n_proj_heads: 9
-  proj_head_dims: [64000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024]
-  proj_head_loss_weights: [8, 1, 1, 1, 1, 1, 1, 1, 1]
+  vocab_sizes: [64000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024]
+  proj_head_loss_weights: [1, 1, 1, 1, 1, 1, 1, 1, 1]
 
   lora_tuning:
     kqv_adapter_dim: 128
@@ -235,7 +234,7 @@ model:
       #     lang: en
       #     pnc: no
       - type: lhotse_shar
-        shar_path: /workspace/data/s2s_shars/es_mini/
+        shar_path: /workspace/data/s2s_shars/es_small/
         weight: 1.0
         tags:
           lang: en
@@ -264,7 +263,6 @@ model:
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: "{context}\n{answer}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-      vocab_sizes: [64000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024] # This should match proj_head_dims
       speech_pad_id: 1001
       speech_unk_id: 1002
       speech_bos_id: 1003
@@ -304,7 +302,7 @@ model:
             s2st: True
           input_cfg:
             - type: lhotse_shar
-              shar_path: /workspace/data/s2s_shars/es_mini/
+              shar_path: /workspace/data/s2s_shars/es_small/
               weight: 1.0
               tags:
                 lang: en
@@ -329,8 +327,7 @@ model:
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-      tokens_to_generate: 128
-      vocab_sizes: [64000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024] # This should match proj_head_dims
+      tokens_to_generate: 1000
       speech_pad_id: 1001
       speech_unk_id: 1002
       speech_bos_id: 1003

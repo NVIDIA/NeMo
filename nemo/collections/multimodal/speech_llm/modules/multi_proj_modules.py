@@ -87,15 +87,12 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
             embedding_dropout = self.cfg.encoder.hidden_dropout
         else:
             embedding_dropout = self.cfg.embedding_dropout
-        
-        if not hasattr(self.cfg, 'n_proj_heads'):
-            self.n_proj_heads = 1
-        else:
-            self.n_proj_heads = self.cfg.n_proj_heads
         if not hasattr(self.cfg, 'proj_head_dims'):
             self.proj_head_dims = [self.padded_vocab_size]
+            self.n_proj_heads = 1
         else:
             self.proj_head_dims = self.cfg.proj_head_dims
+            self.n_proj_heads = len(self.proj_head_dims)
         if not hasattr(self.cfg, 'proj_head_loss_weights'):
             self.proj_head_loss_weights = [self.padded_vocab_size]
         else:
