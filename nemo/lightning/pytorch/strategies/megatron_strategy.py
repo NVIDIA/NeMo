@@ -75,6 +75,8 @@ class ParallelismConfig:
     expert_model_parallel_size: int
     moe_extended_tp: bool
     pipeline_dtype: torch.dtype
+    tp_comm_overlap: bool # Tensor parallel gemm+communication overlap
+    tp_comm_overlap_cfg: dict
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -154,6 +156,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         sequence_parallel: bool = False,
         expert_model_parallel_size: int = 1,
         moe_extended_tp: bool = False,
+        tp_comm_overlap: bool = False,
+        tp_comm_overlap_cfg: dict = None,
         data_sampler: Optional['DataSampler'] = None,
         parallel_devices: Optional[List[torch.device]] = None,
         cluster_environment=None,  # TODO: Add type-hint
@@ -189,12 +193,15 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.megatron_callbacks = CallbackConnector()
         self.data_sampler: Optional['DataSampler'] = data_sampler
         self.tensor_model_parallel_size = tensor_model_parallel_size
+        self.tp_comm_overlap = tp_comm_overlap
+        self.tp_comm_overlap_cfg = tp_comm_overlap_cfg
         self.pipeline_model_parallel_size = pipeline_model_parallel_size
         self.context_parallel_size = context_parallel_size
         self.expert_model_parallel_size = expert_model_parallel_size
         self.moe_extended_tp = moe_extended_tp
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
+
         self.lazy_init = lazy_init
         self.ckpt_include_optimizer = ckpt_include_optimizer
         self.pipeline_dtype = pipeline_dtype
@@ -750,6 +757,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             expert_model_parallel_size=self.expert_model_parallel_size,
             moe_extended_tp=self.moe_extended_tp,
             pipeline_dtype=self.pipeline_dtype,
+            tp_comm_overlap=self.tp_comm_overlap,
+            tp_comm_overlap_cfg=self.tp_comm_overlap_cfg,
         )
 
     @contextmanager

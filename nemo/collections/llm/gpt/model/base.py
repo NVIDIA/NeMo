@@ -114,12 +114,12 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     attention_softmax_in_fp32: bool = False
     masked_softmax_fusion: bool = True
     deallocate_pipeline_outputs = True
+    tp_comm_overlap_cfg: dict = None
 
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
-    enable_tensor_parallel_overlap: bool = False
-    tensor_parallel_overlap_config: dict = None
+
 
     def configure_model(self, tokenizer) -> "MCoreGPTModel":
 

@@ -14,8 +14,10 @@ from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
 from nemo.collections.llm.utils import Config, Partial
 from nemo.utils.exp_manager import TimingCallback
+from nemo.utils.env_var_parsing import get_envint
 
 NAME = "llama3_70b"
 
@@ -36,6 +38,7 @@ def trainer(
     max_steps: int = 1168251,
     callbacks: Optional[list[Config[Callback]]] = None,
 ) -> Config[nl.Trainer]:
+    tp_comm_overlap = get_envint("NEMO_ENABLE_TP_COMM_OVERLAP", False)
     strategy = Config(
         nl.MegatronStrategy,
         tensor_model_parallel_size=tensor_parallelism,
@@ -44,6 +47,8 @@ def trainer(
         virtual_pipeline_model_parallel_size=virtual_pipeline_parallelism,
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
+        tp_comm_overlap=tp_comm_overlap,
+        tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
         gradient_as_bucket_view=True,
         ckpt_include_optimizer=True,
         ckpt_async_save=True,

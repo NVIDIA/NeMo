@@ -189,7 +189,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.loss_reduction: MegatronLossReduction = loss_reduction
         self.ddp_config = ddp_config
         self.convert_module_fn = convert_module_fn
-        self.tensor_parallel_overlap_need_init = self.config.enable_tensor_parallel_overlap
+        self.tensor_parallel_overlap_need_init = self.config.tp_comm_overlap
 
     def forward(
         self,
@@ -488,7 +488,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         hidden_size = self.config.hidden_size
         fp8 = self.config.fp8
-        ub_cfgs = self.config.tensor_parallel_overlap_config
+        ub_cfgs = self.config.tp_comm_overlap_cfg
         cp_size = parallel_state.get_context_parallel_world_size()
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
 
@@ -508,9 +508,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 use_fp8=fp8,
                 ub_cfgs=ub_cfgs,
             )
-            self.tensor_parallel_overlap_need_init = False
         except Exception as error:
             raise Exception(f"Tensor parallel overlap: userbuffer initialization failed with {error}")
+
+        self.tensor_parallel_overlap_need_init = False
 
     def init_model_parallel(self):
         from megatron.core import parallel_state
