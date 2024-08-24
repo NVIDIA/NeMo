@@ -75,9 +75,12 @@ class ParallelismConfig:
     expert_model_parallel_size: int
     moe_extended_tp: bool
     pipeline_dtype: torch.dtype
-    tp_comm_overlap: bool  # Tensor parallel gemm+communication overlap
+    # Tensor parallel communication overlap
+    tp_comm_overlap: bool 
     tp_comm_overlap_cfg: dict
-
+    # Pipeline parallel communication overlap
+    overlap_p2p_comm: bool 
+    batch_p2p_comm: bool 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
     """Megatron plugin for Pytorch Lightning.
@@ -201,6 +204,13 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.moe_extended_tp = moe_extended_tp
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
+
+        if self.pipeline_model_parallel_size > 1 and self.virtual_pipeline_model_parallel_size > 1:
+            self.overlap_p2p_comm = True
+            self.batch_p2p_comm = False
+        else:
+            self.overlap_p2p_comm = False
+            self.batch_p2p_comm = True    
 
         self.lazy_init = lazy_init
         self.ckpt_include_optimizer = ckpt_include_optimizer
@@ -759,6 +769,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             pipeline_dtype=self.pipeline_dtype,
             tp_comm_overlap=self.tp_comm_overlap,
             tp_comm_overlap_cfg=self.tp_comm_overlap_cfg,
+            overlap_p2p_comm=self.overlap_p2p_comm,
+            batch_p2p_comm=self.batch_p2p_comm,
         )
 
     @contextmanager
