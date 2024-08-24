@@ -7,7 +7,20 @@ from collections import OrderedDict
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ContextManager, Dict, List, Literal, Mapping, Optional, TypeVar, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ContextManager,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    TypeVar,
+    Union,
+    cast,
+)
 
 import pytorch_lightning as pl
 import torch
@@ -476,9 +489,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @override
     def optimizer_step(
         self,
-        optimizer: Optimizer,
+        optimizer: torch.optim.Optimizer,
         closure: Callable[[], Any],
-        model: Optional[Union["pl.LightningModule", Module]] = None,
+        model: Optional[Union["pl.LightningModule", nn.Module]] = None,
         **kwargs: Any,
     ) -> Any:
         optimizer_output = super().optimizer_step(optimizer, closure, model, **kwargs)
