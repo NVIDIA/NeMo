@@ -31,6 +31,7 @@ from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import ckpt_to_dir
 
+
 class ModelCheckpoint(PTLModelCheckpoint):
     """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
     Adds support for asyncronous checkpointing and provides some additional logic to clean up invalid checkpoints
@@ -292,7 +293,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
             else:
                 if os.path.isdir(self.best_model_path.split('.ckpt')[0]):
-                    self.best_model_path = Path(self.best_model_path.split('.ckpt')[0])  / ModelCheckpoint.MODEL_WEIGHTS_PATH
+                    self.best_model_path = (
+                        Path(self.best_model_path.split('.ckpt')[0]) / ModelCheckpoint.MODEL_WEIGHTS_PATH
+                    )
                 if self.try_restore_best_ckpt:
                     self.best_model_path = trainer.strategy.broadcast(self.best_model_path)
                     trainer._checkpoint_connector.restore(self.best_model_path)
