@@ -159,6 +159,21 @@ jobs:
         rm -f /home/TestData/nlp/megatron_ir/sbert/sbert.nemo
         rm -rf /home/TestData/nlp/megatron_ir/sbert/model_weights
 
+  L2_Community_LLM_Checkpoints_tests_Mamba2:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+          python scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py  \
+          --input_name_or_path /home/TestData/nlp/megatron_mamba/model_optim_rng.pt \
+          --output_path /home/TestData/nlp/megatron_mamba/converted_mamba.nemo \
+          --precision=bf16 \
+          --mamba_ssm_ngroups 1
+      AFTER_SCRIPT: |
+        rm -f /home/TestData/nlp/megatron_mamba/converted_mamba.nemo
+        rm -rf /home/TestData/nlp/megatron_mamba/model_weights
+
   L2_Community_LLM_Checkpoints_tests_Llama:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -4738,6 +4753,22 @@ jobs:
         rm -rf examples/llm/gpt_pretrain_results
         rm -rf examples/llm/gpt_index_mappings
 
+  L2_NeMo_2_GPT_DDP_Param_Parity_check:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+
+        python tests/lightning/test_ddp_parity_checker.py \
+        --vocab-path=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        --merges-path=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        --data-path=/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document
+
+      AFTER_SCRIPT: |
+        rm -rf examples/llm/gpt_pretrain_results
+        rm -rf examples/llm/gpt_index_mappings
+
   Nemo_CICD_Test:
     needs: 
       - gpu-test
@@ -4745,6 +4776,7 @@ jobs:
       - L0_Unit_Tests_GPU
       #- OPTIONAL_L0_Unit_Tests_CPU
       - L2_Community_LLM_Checkpoints_tests_Bert
+      - L2_Community_LLM_Checkpoints_tests_Mamba2
       - L2_Community_LLM_Checkpoints_tests_Llama
       - L2_Community_LLM_Checkpoints_tests_StarCoder
       - L2_Community_LLM_Checkpoints_tests_Falcon
@@ -4843,6 +4875,7 @@ jobs:
       - Speech_Checkpoints_tests
       #- OPTIONAL_L2_Stable_Diffusion_Training
       - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
+      - L2_NeMo_2_GPT_DDP_Param_Parity_check
     if: always()
     runs-on: ubuntu-latest
     steps:  
