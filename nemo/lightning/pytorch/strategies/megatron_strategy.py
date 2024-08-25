@@ -83,11 +83,12 @@ class ParallelismConfig:
     moe_extended_tp: bool
     pipeline_dtype: torch.dtype
     # Tensor parallel communication overlap
-    tp_comm_overlap: bool 
+    tp_comm_overlap: bool
     tp_comm_overlap_cfg: dict
     # Pipeline parallel communication overlap
-    overlap_p2p_comm: bool 
-    batch_p2p_comm: bool 
+    overlap_p2p_comm: bool
+    batch_p2p_comm: bool
+
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
     """Megatron plugin for Pytorch Lightning.
@@ -259,7 +260,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.batch_p2p_comm = False
         else:
             self.overlap_p2p_comm = False
-            self.batch_p2p_comm = True 
+            self.batch_p2p_comm = True
 
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
