@@ -178,7 +178,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         
         def collate_and_pad(inputs):
             token_lengths = [len(seq) for seq in inputs]
-            max_length = self.tokens_to_generate + max(token_lengths)
+            max_length = max(token_lengths)
             assert len(inputs[0].shape) < 3
             if len(inputs[0].shape) < 2:
                 if self.pad_to_max_length:
