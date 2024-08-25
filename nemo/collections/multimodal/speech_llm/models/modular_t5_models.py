@@ -1385,6 +1385,8 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             t5_cfg.vocab_sizes = cfg.vocab_sizes
         if 'proj_head_loss_weights' in cfg:
             t5_cfg.proj_head_loss_weights = cfg.proj_head_loss_weights
+        if 'decoder_reduction_factor' in cfg:
+            t5_cfg.decoder_reduction_factor = cfg.decoder_reduction_factor
         self.frozen_model = MegatronT5Model.restore_from(
             cfg.get('language_model_path'),
             trainer=trainer,
@@ -1473,10 +1475,12 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
             if vocab_sizes is not None:
                 gpt_cfg.proj_head_dims = vocab_sizes
                 gpt_cfg.vocab_sizes = vocab_sizes
-                assert sum(gpt_cfg.proj_head_dims) == gpt_cfg.override_vocab_size, "vocab size should equal to the sum of projection head sizes"
             proj_head_loss_weights = cfg.model.get('proj_head_loss_weights', None)
             if proj_head_loss_weights is not None:
                 gpt_cfg.proj_head_loss_weights = proj_head_loss_weights
+            decoder_reduction_factor = cfg.model.get('decoder_reduction_factor', 1)
+            gpt_cfg.decoder_reduction_factor = decoder_reduction_factor
+            assert gpt_cfg.proj_head_dims[0] + sum(gpt_cfg.proj_head_dims[1:]) * decoder_reduction_factor == gpt_cfg.override_vocab_size, "vocab size should equal to the sum of projection head sizes"
             attention_map_mode = cfg.model.get('attention_map_mode', None)
             if attention_map_mode is not None:
                 gpt_cfg.attention_map_mode = attention_map_mode
@@ -1942,7 +1946,7 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         speech_tokens = decoder_output[first_sep_pos+1:, 1:]
 
         # Get speech token ids
-        n_speech_codebook = self.frozen_model.n_proj_heads-1
+        n_speech_codebooks = self.frozen_model.n_proj_heads-1
         speech_tokens = token_id_to_speech_codec_id(
             speech_tokens.unsqueeze(0), 
             n_speech_codebooks=n_speech_codebook, 
@@ -1951,10 +1955,12 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         
         # Remove padded parts of speech tokens
         speech_eos_pos = (torch.sum(speech_tokens == speech_eos_id, axis=1) == n_speech_codebook)
-        speech_pad_pos = (torch.sum(speech_tokens == speech_pad_id, axis=1) == n_speech_codebook)
-        # speech_pad_mask = (torch.cumsum(speech_pad_pos, 0) == 0)
-        speech_mask = torch.logical_and((speech_eos_pos == 0), (speech_pad_pos == 0))
-        return text_tokens, speech_tokens[speech_mask]
+        speech_mask = (torch.cumsum(speech_eos_pos, 0) == 0)
+        speech_tokens = speech_tokens[speech_mask]
+        # Revert decoder output reduction
+        new_shape = (speech_tokens.shape[0]*self.frozen_model.decoder_reduction_factor, speech_tokens.shape[1] // self.frozen_model.decoder_reduction_factor)
+        speech_tokens = speech_tokens.reshape(new_shape)
+        return text_tokens, speech_tokens
 
     # consistent with speech models
     def write_predictions_to_file(self, outputs, output_file_path_prefix, output_dir):

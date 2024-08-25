@@ -97,6 +97,15 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
             self.proj_head_loss_weights = [self.padded_vocab_size]
         else:
             self.proj_head_loss_weights = self.cfg.proj_head_loss_weights
+        if not hasattr(self.cfg, 'decoder_reduction_factor'):
+            self.decoder_reduction_factor = 1
+        else:
+            self.decoder_reduction_factor = self.cfg.decoder_reduction_factor
+        
+        if self.decoder_reduction_factor != 1:
+            self.n_proj_heads = (self.n_proj_heads-1) * self.decoder_reduction_factor + 1
+            self.proj_head_dims = [self.proj_head_dims[0]] + self.proj_head_dims[1:] * self.decoder_reduction_factor
+            self.proj_head_loss_weights = [self.proj_head_loss_weights[0]] + self.proj_head_loss_weights[1:] * self.decoder_reduction_factor
 
         model = MegatronTokenLevelEncoderDecoderMultiProjModule(
             config=self.model_parallel_config,
@@ -122,6 +131,7 @@ class MegatronNMTMultiProjModel(MegatronNMTModel):
             n_proj_heads=self.n_proj_heads,
             proj_head_dims=self.proj_head_dims,
             proj_head_loss_weights=self.proj_head_loss_weights,
+            decoder_reduction_factor=self.decoder_reduction_factor,
         )
         return model
 
@@ -493,6 +503,7 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
         n_proj_heads=1,
         proj_head_dims=[64000],
         proj_head_loss_weights=[1],
+        decoder_reduction_factor=1,
     ):
         super().__init__(
             config,
@@ -517,6 +528,7 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
             hiddens_cfg,
         )
 
+        self.decoder_reduction_factor = decoder_reduction_factor
         self.n_proj_heads = n_proj_heads
         self.proj_head_dims = proj_head_dims
         self.proj_head_loss_weights = proj_head_loss_weights
@@ -526,7 +538,7 @@ class MegatronTokenLevelEncoderDecoderMultiProjModule(MegatronTokenLevelEncoderD
             self.tokens_heads = torch.nn.ModuleList([
                 tensor_parallel.ColumnParallelLinear(
                     input_size=decoder_cfg.hidden_size,
-                    output_size=proj_head_dims[i],
+                    output_size=self.proj_head_dims[i],
                     config=config,
                     bias=tokens_head_bias,
                     gather_output=not self.parallel_output,

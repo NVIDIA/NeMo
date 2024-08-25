@@ -104,11 +104,12 @@ model:
   ffn_dropout: 0.0
 
   # use_am_tokenizer: True
-  override_vocab_size: 72192 # This should be equal to the sum of vocab_sizes
+  override_vocab_size: 104960 # This should be equal to the vocab_sizes[0] + decoder_reduction_factor * sum(vocab_sizes[1:])
 
-  # for MegatronNMTMultiProjModel
+  # for MegatronNMTMultiProjModel and datasets
   vocab_sizes: [64000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024]
   proj_head_loss_weights: [1, 1, 1, 1, 1, 1, 1, 1, 1]
+  decoder_reduction_factor: 5
 
   lora_tuning:
     kqv_adapter_dim: 128
@@ -234,7 +235,7 @@ model:
       #     lang: en
       #     pnc: no
       - type: lhotse_shar
-        shar_path: /workspace/data/s2s_shars/es_small/
+        shar_path: /workspace/data/s2s_shars/es_mini/
         weight: 1.0
         tags:
           lang: en
@@ -244,7 +245,7 @@ model:
       shuffle: True
       num_workers: 0
       pin_memory: True
-      max_seq_length: 2048
+      max_seq_length: 512
       min_seq_length: 1
       drop_last: True
       # Notably, the data weights are controlled by either bucketing_weights
@@ -302,7 +303,7 @@ model:
             s2st: True
           input_cfg:
             - type: lhotse_shar
-              shar_path: /workspace/data/s2s_shars/es_small/
+              shar_path: /workspace/data/s2s_shars/es_mini/
               weight: 1.0
               tags:
                 lang: en
@@ -327,7 +328,7 @@ model:
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-      tokens_to_generate: 1000
+      tokens_to_generate: 200
       speech_pad_id: 1001
       speech_unk_id: 1002
       speech_bos_id: 1003
