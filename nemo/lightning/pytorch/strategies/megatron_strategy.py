@@ -59,6 +59,13 @@ from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, Asyn
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
 
+HAVE_TE = True
+try:
+    import transformer_engine
+except (ImportError, ModuleNotFoundError):
+    HAVE_TE = False
+
+
 ConfigT = TypeVar("ConfigT")
 
 
@@ -205,13 +212,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
 
-        if self.pipeline_model_parallel_size > 1 and self.virtual_pipeline_model_parallel_size > 1:
-            self.overlap_p2p_comm = True
-            self.batch_p2p_comm = False
-        else:
-            self.overlap_p2p_comm = False
-            self.batch_p2p_comm = True    
-
         self.lazy_init = lazy_init
         self.ckpt_include_optimizer = ckpt_include_optimizer
         self.pipeline_dtype = pipeline_dtype
@@ -243,6 +243,23 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.no_ddp_communication_hook = False
         else:
             raise ValueError(f"Invalid DDP type: {ddp}")
+
+        if self.tp_comm_overlap:
+            if (
+                self.tensor_model_parallel_size < 2
+                or not self.sequence_parallel
+                or not HAVE_TE
+                or not transformer_engine.pytorch.cpp_extensions.userbuf_comm_available()
+            ):
+                logging.warning("Disabling tensor parallel overlap due to incompatible setup.")
+                self.tp_comm_overlap = False
+
+        if self.pipeline_model_parallel_size > 1 and self.virtual_pipeline_model_parallel_size > 1:
+            self.overlap_p2p_comm = True
+            self.batch_p2p_comm = False
+        else:
+            self.overlap_p2p_comm = False
+            self.batch_p2p_comm = True 
 
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
