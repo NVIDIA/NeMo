@@ -254,8 +254,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             )
         else:
             raise ValueError("Unsure how to check for nemo1 global_batch_sampler status. TODO maybe default to False?")
-
-        use_global_batch_sampler = self.trainer.datamodule.data_sampler.dataloader_type == 'batch'
         if use_global_batch_sampler:
             from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 
