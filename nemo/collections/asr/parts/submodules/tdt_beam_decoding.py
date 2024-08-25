@@ -231,7 +231,7 @@ class BeamTDTInfer(Typing):
             self.zero_duration_idx = self.durations.index(0)
         except ValueError:
             self.zero_duration_idx = None
-        self.min_non_zero_duration_idx = np.argmin(np.ma.masked_where(np.array(self.durations) == 0, self.durations))
+        self.min_non_zero_duration_idx = int(np.argmin(np.ma.masked_where(np.array(self.durations) == 0, self.durations)))
 
         if ngram_lm_model:
             if search_type != "maes":
@@ -434,7 +434,7 @@ class BeamTDTInfer(Typing):
                         else:
                             continue
 
-                    duration = self.durations[int(duration_idx)]
+                    duration = self.durations[duration_idx]
                     new_hyp = Hypothesis(
                         score=float(max_hyp.score + logp[self.blank] + durations_logp[duration_idx]),  # update score
                         y_sequence=max_hyp.y_sequence[:],  # no need to update sequence
@@ -587,7 +587,7 @@ class BeamTDTInfer(Typing):
 
                         # Forcing blank token to have non-zero duration
                         if k == self.blank and duration == 0:
-                            duration = self.durations[int(self.min_non_zero_duration_idx)]
+                            duration = self.durations[self.min_non_zero_duration_idx]
 
                         new_hyp = Hypothesis(
                             score=hyp.score + total_logp,
@@ -596,7 +596,7 @@ class BeamTDTInfer(Typing):
                             dec_state=hyp.dec_state,
                             timestep=hyp.timestep[:],
                             length=time_idx,
-                            last_frame=int(hyp.last_frame + duration),
+                            last_frame=hyp.last_frame + duration,
                         )
 
                         if self.ngram_lm:
@@ -606,7 +606,7 @@ class BeamTDTInfer(Typing):
                         if k == self.blank:
                             list_b.append(new_hyp)
                         else:
-                            new_hyp.y_sequence.append(int(k))
+                            new_hyp.y_sequence.append(k)
                             new_hyp.timestep.append(time_idx)
 
                             if self.ngram_lm:
@@ -676,7 +676,7 @@ class BeamTDTInfer(Typing):
                                 beam_logp[hyp_idx, self.blank] + beam_duration_logp[hyp_idx, duration_idx]
                             )
                             hyp.score += total_logp
-                            hyp.last_frame += self.durations[int(duration_idx)]
+                            hyp.last_frame += self.durations[duration_idx]
 
                         # Finally, update the kept hypothesis of sorted top Beam candidates
                         kept_hyps = kept_hyps + list_b + list_exp + list_nb
@@ -700,17 +700,15 @@ class BeamTDTInfer(Typing):
             hypotheses: list if hypotheses without duplicates.
         """
         sorted_hyps = sorted(hypotheses, key=lambda x: x.score, reverse=True)
-        kept_hyps = []
+        kept_hyps = {}
         for hyp in sorted_hyps:
-            is_present = False
-            for kept_hyp in kept_hyps:
-                if kept_hyp.y_sequence == hyp.y_sequence and kept_hyp.last_frame == hyp.last_frame:
-                    kept_hyp.score = torch.logaddexp(torch.tensor(kept_hyp.score), torch.tensor(hyp.score))
-                    is_present = True
-                    break
-            if not is_present:
-                kept_hyps.append(hyp)
-        return kept_hyps
+            hyp_key=(tuple(hyp.y_sequence), int(hyp.last_frame))
+            if hyp_key in kept_hyps:
+                kept_hyp=kept_hyps[hyp_key]
+                kept_hyp.score = float(torch.logaddexp(torch.tensor(kept_hyp.score), torch.tensor(hyp.score)))
+            else:
+                kept_hyps[hyp_key] = hyp
+        return kept_hyps.values()
 
     def set_decoding_type(self, decoding_type: str):
         # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
