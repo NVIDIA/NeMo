@@ -313,7 +313,7 @@ model:
       shuffle: False
       num_workers: 0
       pin_memory: True
-      max_seq_length: 2048
+      max_seq_length: 512
       min_seq_length: 1
       drop_last: False
       context_key: ${model.data.train_ds.context_key}

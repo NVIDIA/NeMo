@@ -1949,12 +1949,12 @@ class MultiProjModularizedAudioT5Model(ModularizedAudioT5Model):
         n_speech_codebooks = self.frozen_model.n_proj_heads-1
         speech_tokens = token_id_to_speech_codec_id(
             speech_tokens.unsqueeze(0), 
-            n_speech_codebooks=n_speech_codebook, 
+            n_speech_codebooks=n_speech_codebooks, 
             codebook_sizes=self.frozen_model.proj_head_dims
         ).squeeze(0)
         
         # Remove padded parts of speech tokens
-        speech_eos_pos = (torch.sum(speech_tokens == speech_eos_id, axis=1) == n_speech_codebook)
+        speech_eos_pos = (torch.sum(speech_tokens == speech_eos_id, axis=1) == n_speech_codebooks)
         speech_mask = (torch.cumsum(speech_eos_pos, 0) == 0)
         speech_tokens = speech_tokens[speech_mask]
         # Revert decoder output reduction
