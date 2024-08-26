@@ -13,9 +13,10 @@ from nemo.lightning import OptimizerModule, io, teardown
 if TYPE_CHECKING:
     from transformers import AutoModelForCausalLM
     from transformers import Qwen2Config as HFQwen2Config
-    
+
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+
 
 @dataclass
 class Qwen2Config(GPTConfig):
@@ -52,7 +53,7 @@ class Qwen2Config1P5B(Qwen2Config):
     num_attention_heads: int = 12
     num_query_groups: int = 2
     ffn_hidden_size: int = 8960
-    
+
 
 @dataclass
 class Qwen2Config7B(Qwen2Config):
@@ -84,9 +85,7 @@ class Qwen2Model(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(
-            config or Qwen2Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
-        )
+        super().__init__(config or Qwen2Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
 
 @io.model_importer(Qwen2Model, "hf")
@@ -96,7 +95,7 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
 
     def apply(self, output_path: Path) -> Path:
         from transformers import AutoModelForCausalLM
-        
+
         source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True)
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -121,7 +120,9 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
             "lm_head.weight": "output_layer.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_qkv_bias, _import_linear_fc1])
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=[_import_qkv, _import_qkv_bias, _import_linear_fc1]
+        )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -132,7 +133,7 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
     @property
     def config(self) -> Qwen2Config:
         from transformers import AutoConfig as HFAutoConfig
-        
+
         source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
 
         def make_vocab_size_divisible_by(vocab_size):
@@ -162,7 +163,7 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
 class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
     def init(self) -> "AutoModelForCausalLM":
         from transformers import AutoModelForCausalLM
-        
+
         return AutoModelForCausalLM.from_config(self.config, trust_remote_code=True)
 
     def apply(self, output_path: Path) -> Path:
@@ -187,7 +188,9 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
             "output_layer.weight": "lm_head.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_qkv_bias, _export_linear_fc1])
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=[_export_qkv, _export_qkv_bias, _export_linear_fc1]
+        )
 
     @property
     def tokenizer(self):
@@ -196,7 +199,7 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
     @property
     def config(self) -> "HFQwen2Config":
         from transformers import Qwen2Config as HFQwen2Config
-        
+
         source: Qwen2Config = io.load_context(str(self)).model.config
 
         return HFQwen2Config(
@@ -288,11 +291,12 @@ def _import_qkv_bias(ctx: io.TransformCTX, q, k, v):
         qkv_bias = torch.cat((qkv_bias, k[i : i + 1, :]))
         qkv_bias = torch.cat((qkv_bias, v[i : i + 1, :]))
     qkv_bias = qkv_bias.reshape(
-            [
-                head_size * (head_num + 2 * num_query_groups),
-            ]
-        )
+        [
+            head_size * (head_num + 2 * num_query_groups),
+        ]
+    )
     return qkv_bias
+
 
 @io.state_transform(
     source_key="decoder.layers.*.self_attention.linear_qkv.weight",
