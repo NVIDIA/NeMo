@@ -11,18 +11,19 @@ class GarbageCollectionCallback(pl.Callback):
     one process might hog or straggle all the rest of the processes.
 
     Migration from NeMo 1.0:
-        When mitrating from NeMo1, 
+        When mitrating from NeMo1,
             - gc_interval = 0 implied no GC, simply do not add this callback to the trainer
             - gc_interval > 0, this config is maps => gc_interval_train
 
             - env-var:NEMO_MANUAL_GC_IN_VALIDATION=0 or doesn't exist => Set gc_interval_val to a very high value that it does not practically run.
             - env-var:NEMO_MANUAL_GC_IN_VALIDATION=1 => Set gc_interval_val to the same value as gc_interval
 
-        Moving from boolean flag (NEMO_MANUAL_GC_IN_VALIDATION) to integer is to allow user to set any value based on the size of the 
+        Moving from boolean flag (NEMO_MANUAL_GC_IN_VALIDATION) to integer is to allow user to set any value based on the size of the
         validation datasets.
 
     Note: This callback does not run gc at the start or the end of training or validation.
     """
+
     def __init__(self, gc_interval_train, gc_interval_val) -> None:
         """_summary_
 
@@ -65,5 +66,5 @@ class GarbageCollectionCallback(pl.Callback):
         if self.validation_global_step % self.gc_interval_val == 0:
             logging.info(f"Running garbage collection at validation step: {self.validation_global_step}")
             gc.collect()
-        #else:
+        # else:
         #    logging.info(f"Skipping garbage collection at validation step: {self.validation_global_step}")
