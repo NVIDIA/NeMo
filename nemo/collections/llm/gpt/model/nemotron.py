@@ -11,11 +11,11 @@ from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 
 if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from transformers import NemotronConfig as HFNemotronConfig
     from transformers import NemotronForCausalLM
-    
+
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 @dataclass
@@ -125,7 +125,7 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
 
     def apply(self, output_path: Path) -> Path:
         from transformers import NemotronForCausalLM
-        
+
         source = NemotronForCausalLM.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -165,7 +165,7 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
     @property
     def config(self) -> NemotronConfig:
         from transformers import NemotronConfig as HFNemotronConfig
-        
+
         source = HFNemotronConfig.from_pretrained(str(self))
 
         def make_vocab_size_divisible_by(vocab_size):
@@ -232,7 +232,7 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
     @property
     def config(self) -> "HFNemotronConfig":
         from transformers import NemotronConfig as HFNemotronConfig
-        
+
         source: NemotronConfig = io.load_context(str(self)).model.config
 
         return HFNemotronConfig(
