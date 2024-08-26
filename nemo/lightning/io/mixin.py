@@ -55,7 +55,7 @@ class NeedsIOMixin(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def mutate_hparam(self, attribute: str, value: Any, also_change_value: bool = True) -> None:
+    def set_hparam(self, attribute: str, value: Any, also_change_value: bool = True) -> None:
         """
         Mutates the saved hyper-parameter for the io mixed class. If you would like to only change the saved hyper-param
             for example in the case of loading a dataclass where the same variables are mutated to other non-savable
@@ -69,6 +69,28 @@ class NeedsIOMixin(ABC):
                 do not set this and modify the self attribute separately in the normal pythonic way.
         Returns:
             None
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_hparam(self, attribute: str) -> Any:
+        """
+        Looks up the saved hyper-parameter for the io mixed class.
+        Args:
+            attribute: The element name to look up within the saved init settings for self
+        Returns:
+            Value
+        Raises:
+            KeyError if the attribute does not exist in the saved init settings
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_hparams(self) -> Dict[str, Any]:
+        """
+        Returns the hyper-parameters of init in a dictionary format.
+        Returns:
+            Dict[str, Any]: A dictionary of the init hyper-parameters on this object.
         """
         raise NotImplementedError()
 
@@ -185,7 +207,7 @@ class IOMixin(NeedsIOMixin):
         """
         return _io_transform_args(self, init_fn, *args, **kwargs)
 
-    def mutate_hparam(self, attribute: str, value: Any, also_change_value: bool = True) -> None:
+    def set_hparam(self, attribute: str, value: Any, also_change_value: bool = True) -> None:
         """
         Mutates the saved hyper-parameter for the io mixed class. If you would like to only change the saved hyper-param
             for example in the case of loading a dataclass where the same variables are mutated to other non-savable
@@ -204,6 +226,38 @@ class IOMixin(NeedsIOMixin):
         if also_change_value:
             setattr(self, attribute, value)
         setattr(self.__io__, attribute, value)
+
+    def get_hparam(self, attribute: str) -> Any:
+        """
+        Looks up the saved hyper-parameter for the io mixed class.
+        Args:
+            attribute: The element name to look up within the saved init settings for self
+        Returns:
+            Value
+        Raises:
+            KeyError if the attribute does not exist in the saved init settings
+        """
+        if attribute not in dir(self.__io__):
+            raise KeyError(
+                f"Attribute '{attribute}' not found in hyper-parameters. Options: {sorted(self.get_hparams().keys())}"
+            )
+        return getattr(self.__io__, attribute)
+
+    def get_non_default_hparams(self) -> List[str]:
+        """
+        Returns a list of hyper-parameters that have been changed from their default values.
+        Returns:
+            List[str]: A list of hyper-parameters that have been changed from their default values.
+        """
+        return [k for k in self.__io__.__dict__['__argument_history__'].keys() if k != '__fn_or_cls__']
+
+    def get_hparams(self) -> Dict[str, Any]:
+        """
+        Returns the hyper-parameters of init in a dictionary format.
+        Returns:
+            Dict[str, Any]: A dictionary of the init hyper-parameters on this object.
+        """
+        return {k: getattr(self.__io__, k) for k in self.get_non_default_hparams()}
 
     def io_init(self, **kwargs) -> fdl.Config[Self]:
         """

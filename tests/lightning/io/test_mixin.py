@@ -1,4 +1,6 @@
 from dataclasses import dataclass, field
+
+import pytest
 from nemo.lightning import io
 
 
@@ -14,7 +16,7 @@ class BaseDataClass(io.NeedsIOMixin):
     b: int = 3
 
     def lazy_update(self):
-        self.mutate_hparam('b', self.b + 2)
+        self.set_hparam('b', self.b + 2)
         # Will update the value of b set later on making use of a future subclass IOMixin
 
 
@@ -78,3 +80,33 @@ class TestIOMixin:
         assert v2.a == coppied_v2.a
         assert v2.b == coppied_v2.b
         assert v2.c == coppied_v2.c
+
+    def test_dataclass_out_of_sync(self):
+        v1 = OverrideModelDataClass1()
+        v1.set_hparam('b', 7, also_change_value=False)
+        assert v1.b == 3, "Also change value False should not update the object in self."
+        v1_copy = io.reinit(v1)
+        assert v1_copy.b == 7, "V1 should re-initialize with the updated hyper-parameter."
+
+        # Make sure looking up a non-existant hyper-parameter raises an error
+        with pytest.raises(KeyError):
+            v1.get_hparam('q')
+
+        # Make sure we can get all hyper-parameters that are not defaultfactory objects
+        assert v1.get_hparams() == {'b': 7, 'c': 3}
+
+        # Make sure by default we can change botht he hyper-parameter and the attribute.
+        v1_copy.set_hparam('b', 8)
+        assert v1_copy.b == 8
+        assert v1_copy.get_hparam('b') == 8
+
+    def test_dataclass_hparam_modify_parent_default(self):
+        v1 = OverrideModelDataClass1()
+        v1.set_hparam('a', 7)
+        assert v1.a == 7
+        # Make sure we can get all hyper-parameters
+        assert v1.get_hparams() == {'a': 7, 'b': 3, 'c': 3}
+
+        v1_copy = io.reinit(v1)
+        assert v1_copy.a == 7, "V1 should re-initialize with the updated hyper-parameter."
+        assert v1_copy.get_hparam('a') == 7
