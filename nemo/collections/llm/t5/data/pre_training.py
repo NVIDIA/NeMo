@@ -70,7 +70,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         micro_batch_size: int = 64,
         global_batch_size: int = 512,
         rampup_batch_size: Optional[List[int]] = None,
-        num_workers: int = 4,
+        num_workers: int = 8,
         pin_memory: bool = True,
         persistent_workers: bool = False,
         masking_probability: float = 0.15,

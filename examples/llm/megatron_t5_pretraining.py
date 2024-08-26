@@ -5,7 +5,9 @@ import argparse
 
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import WandbLogger
 import torch
+import os
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -15,16 +17,17 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-
+from nemo.lightning.pytorch.optim.lr_scheduler import WarmupAnnealingScheduler
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train a small T5 model using NeMo 2.0')
     parser.add_argument('--devices', type=int, help="Number of devices to use for training")
     parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
     parser.add_argument('--experiment-dir', type=str, help="directory to write results and checkpoints to")
+    parser.add_argument('--experiment-name', type=str, help="name of experiment")
+    parser.add_argument('--wandb-project', type=str, help="wandb project name")
     parser.add_argument('--data-path', type=str, help="Path to data file")
     parser.add_argument('--vocab-path', type=str, help="Path to vocab file")
-    parser.add_argument('--merges-path', type=str, help="Path to merges file")
     parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
 
     return parser.parse_args()
@@ -34,13 +37,12 @@ if __name__ == '__main__':
 
     args = get_args()
 
-    seq_length = 2048
-
     tokenizer = get_nmt_tokenizer(
         "megatron",
         "BertWordPieceCase",
         vocab_file=args.vocab_path,
     )
+    # DEBUGGING
     additional_tokens = {
         'additional_special_tokens': [
             f'<extra_id_{i}>' for i in range(100)
@@ -57,6 +59,7 @@ if __name__ == '__main__':
         seed=1234,
         tokenizer=tokenizer,
         split="99982,9,9",
+        index_mapping_dir=args.index_mapping_dir,
     )
     t5_config = llm.t5.model.t5.T5Config(
         num_layers=12,
@@ -70,7 +73,7 @@ if __name__ == '__main__':
         attention_dropout=0.1,
         layernorm_epsilon=1e-5,
         make_vocab_size_divisible_by=128,
-        max_position_embeddings=seq_length,
+        max_position_embeddings=512,
     )
     model = llm.t5.model.t5.T5Model(t5_config, tokenizer=data.tokenizer)
     strategy = nl.MegatronStrategy(
@@ -79,44 +82,61 @@ if __name__ == '__main__':
         pipeline_dtype=torch.bfloat16,
     )
     checkpoint_callback = ModelCheckpoint(
-        every_n_train_steps=5000,
+        every_n_train_steps=1000,
         enable_nemo_ckpt_io=False,
     )
     callbacks = [checkpoint_callback]
 
-    loggers = []
-    tensorboard_logger = TensorBoardLogger(
-        save_dir='dummy',  ## NOTE: this gets overwritten by default
+    resume = nl.AutoResume(
+        resume_if_exists=True,
+        resume_ignore_no_checkpoint=True,
     )
-    loggers.append(tensorboard_logger)
 
     opt_config = OptimizerConfig(
         optimizer='adam',
         lr=0.0001,
-        min_lr=0.00001,
         use_distributed_optimizer=False,
         bf16=True,
+        weight_decay=1e-2,
     )
-    opt = MegatronOptimizerModule(config=opt_config)
+    lr_scheduler = WarmupAnnealingScheduler(
+        warmup_steps=None,
+        warmup_ratio=0.01,
+        max_steps=args.max_steps,
+        min_lr=0.00001,
+    )
+    opt = MegatronOptimizerModule(
+        config=opt_config,
+        lr_scheduler=lr_scheduler,
+        )
+
 
     trainer = nl.Trainer(
         devices=args.devices,
         max_steps=args.max_steps,
         accelerator="gpu",
         strategy=strategy,
-        logger=loggers,
         callbacks=callbacks,
-        log_every_n_steps=100,
+        log_every_n_steps=1,
         limit_val_batches=2,
+        val_check_interval=1000,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed", amp_O2=False),
     )
 
+    wandb_logger = WandbLogger(
+        project=args.wandb_project,
+        log_model="all",
+    )
     nemo_logger = NeMoLogger(
+        name=args.experiment_name,
+        use_datetime_version=False,
         dir=args.experiment_dir,
+        wandb=wandb_logger,
     )
 
     train(
         model=model,
+        resume=resume,
         data=data,
         trainer=trainer,
         log=nemo_logger,

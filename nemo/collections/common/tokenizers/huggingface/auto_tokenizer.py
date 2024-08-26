@@ -159,6 +159,7 @@ class AutoTokenizer(TokenizerSpec):
             )
         self.add_special_tokens(special_tokens_dict)
         self.space_sensitive = self.text_to_tokens('x y') != self.text_to_tokens('x') + self.text_to_tokens('y')
+        self._inv_vocab_dict = {}
 
     @property
     def vocab_size(self):
@@ -225,6 +226,12 @@ class AutoTokenizer(TokenizerSpec):
     def vocab(self):
         id2vocab = {v: k for k, v in self.tokenizer.vocab.items()}
         return [id2vocab[i] for i in range(len(id2vocab))]
+
+    @property
+    def inv_vocab(self):
+        if self._inv_vocab_dict == {}:
+            self._inv_vocab_dict = {v: k for k, v in self.tokenizer.vocab.items()}
+        return self._inv_vocab_dict
 
     @property
     def pad_id(self):

@@ -35,20 +35,30 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     batch = next(dataloader_iter)
 
+    # # DEBUGGING
+    # print("[nemo/collections/llm/t5/model/t5.py] batch: ", batch)
+
     _batch: dict
+    # TODO: to fix for running inferencing
     if isinstance(batch, tuple) and len(batch) == 3:
         _batch = batch[0]
     else:
         _batch = batch
 
+    # convert attention mask values from int to True/False
+    _batch['enc_mask'] = _batch['enc_mask'] < 0.5
+    _batch['dec_mask'] = _batch['dec_mask'] < 0.5
+    _batch['enc_dec_mask'] = _batch['enc_dec_mask'] < 0.5
+
     required_keys = set()
-    required_keys.add("attention_mask")
+    required_keys.update(["enc_mask", "dec_mask", "enc_dec_mask"])
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("tokens", "position_ids"))
+        required_keys.update(("text_enc", "text_dec"))
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
     # if self.get_attention_mask_from_fusion:
     #     required_keys.remove('attention_mask')
+
 
     output = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
 
@@ -64,6 +74,10 @@ def t5_forward_step(model, batch) -> torch.Tensor:
         "encoder_decoder_attn_mask": batch["enc_dec_mask"],
         "lm_labels": batch["labels"],
     }
+
+    # # DEBUGGING
+    # print("batch (t5_forward_step): ")
+    # print(batch)
 
     return model(**forward_args)
 
@@ -142,7 +156,24 @@ class T5Config(TransformerConfig, io.IOMixin):
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(encoder_config=encoder_config, decoder_config=self)
 
-        return MCoreT5Model(
+        # DEBUGGING
+        if torch.distributed.get_rank()==0:
+            print("config: ", self)
+            print("encoder_config: ", encoder_config)
+            print("transformer_encoder_layer_spec: ", transformer_layer_spec[0])
+            print("transformer_decoder_layer_spec: ", transformer_layer_spec[1])
+            print("vocab_size: ", get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),)
+            print("max_sequence_length: ", self.max_position_embeddings)
+            print("pre_process: ", parallel_state.is_pipeline_first_stage())
+            print("post_process: ", parallel_state.is_pipeline_last_stage())
+            print("fp16_lm_cross_entropy: ", self.fp16_lm_cross_entropy)
+            print("parallel_output: ", self.parallel_output)
+            print("share_embeddings_and_output_weights: ", self.share_embeddings_and_output_weights)
+            print("position_embedding_type: ", self.position_embedding_type)
+            print("rotary_percent: ", self.rotary_percent)
+            print("seq_len_interpolation_factor: ", self.seq_len_interpolation_factor)
+
+        model = MCoreT5Model(
             config=self,
             encoder_config=encoder_config,
             transformer_encoder_layer_spec=transformer_layer_spec[0],
@@ -158,6 +189,15 @@ class T5Config(TransformerConfig, io.IOMixin):
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
         )
+
+        # DEBUGGING
+        print("model: ")
+        print(model)
+        for name, param in model.named_parameters():
+            print("{}: {}".format(name, param.shape))
+        # print(stop_here)        
+
+        return model
 
 
 class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
