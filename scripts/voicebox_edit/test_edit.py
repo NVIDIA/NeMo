@@ -1,20 +1,25 @@
 #%%
 import os
 import sys
+import traceback
 import re
+import random
 import json
 import jiwer
 import soundfile as sf
 import librosa
 import numpy as np
+import pandas as pd
 from textgrid import TextGrid, IntervalTier
 import matplotlib.pyplot as plt
 from omegaconf import OmegaConf, open_dict
 
 import torch
+import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence,pack_padded_sequence,pack_sequence,pad_packed_sequence
 
 from einops import rearrange
+from jiwer import wer
 
 # get audio files from Meta's Voicebox demo page
 sampling_rate = 24000
@@ -273,6 +278,45 @@ class DataProcessor:
         batch["cond"] = cond
         return batch
 
+    def get_word_edit_data(self):
+        datas = {
+            "libriheavy": [
+                {
+                    "sample_id": 4,
+                    "edit_from": "last",
+                    "edit_to": "first",
+                },
+                {
+                    "sample_id": 6,
+                    "edit_from": "private",
+                    "edit_to": "public",
+                },
+            ],
+            "gigaspeech": [
+                {
+                    "sample_id": 0,
+                    "edit_from": "biggest",
+                    "edit_to": "smallest",
+                },
+                {
+                    "sample_id": 1,
+                    "edit_from": "include",
+                    "edit_to": "exclude",
+                },
+                {
+                    "sample_id": 2,
+                    "edit_from": "address",
+                    "edit_to": "password",
+                },
+                {
+                    "sample_id": 5,
+                    "edit_from": "percentage",
+                    "edit_to": "amount",
+                },
+            ],
+        }
+        return datas
+
     def get_span_edit_data(self, output_dir="nemo_experiments/span_edit"):
         os.makedirs(output_dir, exist_ok=True)
         datas = [
@@ -381,15 +425,15 @@ class DataProcessor:
     def get_internal_demo_data(self, output_dir="nemo_experiments/internal_demo_gen"):
         os.makedirs(output_dir, exist_ok=True)
         datas = [
-            {
-                "audio_path": "nemo_experiments/MOVIE/I'm Bat man.wav",
-                "text": "Im Bat man",
-                "from": "man",
-                "to": "man any question",
-                "out_ori_path": f"{output_dir}/I'm Bat man_ori.wav",
-                "out_gen_path": f"{output_dir}/I'm Bat man any question_gen.wav",
-                "out_tts_path": f"{output_dir}/I'm Bat man any question_tts.wav",
-            },
+            # {
+            #     "audio_path": "nemo_experiments/MOVIE/I'm Bat man.wav",
+            #     "text": "Im Bat man",
+            #     "from": "man",
+            #     "to": "any question",
+            #     "out_ori_path": f"{output_dir}/I'm Bat man_ori.wav",
+            #     "out_gen_path": f"{output_dir}/I'm Bat any question_gen.wav",
+            #     "out_tts_path": f"{output_dir}/I'm Bat any question_tts.wav",
+            # },
             # {
             #     "audio_path": "nemo_experiments/MOVIE/I'm Bat man.wav",
             #     "text": "Im Bat man",
@@ -504,16 +548,16 @@ class DataProcessor:
             #     "out_gen_path": f"{output_dir}/by doubling every six months if you double the size of the model although this is a generated speech i like this cool demo you need twice as much information to go fill it_gen.wav",
             #     "out_tts_path": f"{output_dir}/by doubling every six months if you double the size of the model although this is a generated speech i like this cool demo you need twice as much information to go fill it_tts.wav",
             # },
-            # {
-            #     "audio_path": "nemo_experiments/internal_demo/SEMamba_you know the lady gaga song at the end of Maverick_ori.wav",
-            #     "text": "you know the lady gaga song at the end of Maverick",
-            #     # "textgrid_path": "nemo_experiments/internal_demo_mfa/yoy know the lage gaga song at the end of Maverick/yoy know the lage gaga song at the end of Maverick.TextGrid",
-            #     "from": "maverick",
-            #     "to": "although this is a generated speech i like this cool demo",
-            #     "out_ori_path": f"{output_dir}/SE_you know the lady gaga song at the end of Maverick_ori.wav",
-            #     "out_gen_path": f"{output_dir}/SE_you know the lady gaga song at the end of although this is a generated speech i like this cool demo_gen.wav",
-            #     "out_tts_path": f"{output_dir}/SE_you know the lady gaga song at the end of although this is a generated speech i like this cool demo_tts.wav",
-            # },
+            {
+                "audio_path": "nemo_experiments/internal_demo/SEMamba_you know the lady gaga song at the end of Maverick_ori.wav",
+                "text": "you know the lady gaga song at the end of Maverick",
+                # "textgrid_path": "nemo_experiments/internal_demo_mfa/yoy know the lage gaga song at the end of Maverick/yoy know the lage gaga song at the end of Maverick.TextGrid",
+                "from": "maverick",
+                "to": "although this is a generated speech i like this cool demo",
+                "out_ori_path": f"{output_dir}/SE_you know the lady gaga song at the end of Maverick_ori.wav",
+                "out_gen_path": f"{output_dir}/SE_you know the lady gaga song at the end of although this is a generated speech i like this cool demo_gen.wav",
+                "out_tts_path": f"{output_dir}/SE_you know the lady gaga song at the end of although this is a generated speech i like this cool demo_tts.wav",
+            },
             # {
             #     "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.wav",
             #     # "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_gen_SE.wav",
@@ -765,45 +809,42 @@ class DataProcessor:
 
         return data
 
+    def get_RealEdit_data(self, filepath="nemo_experiments/RealEdit/RealEdit.tsv", output_dir="nemo_experiments/RealEdit/gen"):
+        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(f"{output_dir}_ori", exist_ok=True)
+        df = pd.read_csv(filepath, sep='\t')
 
-    def get_word_edit_data(self):
-        datas = {
-            "libriheavy": [
-                {
-                    "sample_id": 4,
-                    "edit_from": "last",
-                    "edit_to": "first",
-                },
-                {
-                    "sample_id": 6,
-                    "edit_from": "private",
-                    "edit_to": "public",
-                },
-            ],
-            "gigaspeech": [
-                {
-                    "sample_id": 0,
-                    "edit_from": "biggest",
-                    "edit_to": "smallest",
-                },
-                {
-                    "sample_id": 1,
-                    "edit_from": "include",
-                    "edit_to": "exclude",
-                },
-                {
-                    "sample_id": 2,
-                    "edit_from": "address",
-                    "edit_to": "password",
-                },
-                {
-                    "sample_id": 5,
-                    "edit_from": "percentage",
-                    "edit_to": "amount",
-                },
-            ],
-        }
-        return datas
+        data = []
+        for row in df.itertuples():
+            # multi-span checking
+            if '|' in row.orig_transcript:
+                assert '|' in row.new_transcript
+                assert '|' in row.orig_masked_span
+                assert '|' in row.new_masked_span
+                assert '|' in row.type
+
+            data.append({
+                "audio_path": f"nemo_experiments/RealEdit/Original/{row.wav_fn}",
+                "VC_audio_path": f"nemo_experiments/RealEdit/e6_2_20_400_beam1_topp0.8_temp1_topk0_selected/{row.wav_fn[:-4]}_new_seed1.wav",
+                "text": row.orig_transcript,
+                "target": row.new_transcript,
+                "edit_pos": row.orig_masked_span,
+                "target_pos": row.new_masked_span,
+                "edit_type": row.type,
+                "out_ori_path": f"{output_dir}_ori/{row.wav_fn}",
+                "out_gen_path": f"{output_dir}/{row.wav_fn}",
+                "out_tts_path": f"{output_dir}/tts_{row.wav_fn}",
+            })
+            
+            textgrid_path = f"nemo_experiments/RealEdit/Original_MFA/{row.wav_fn[:-4]}.TextGrid"
+            if os.path.exists(textgrid_path):
+                data[-1].update({
+                    "textgrid_path": textgrid_path,
+                })
+            else:
+                print(row.wav_fn)
+
+        return data
 
 class Inference:
     def __init__(self, model: VoiceboxModel, sample_std=0.9):
@@ -894,7 +935,7 @@ class Inference:
     def internal_demo(self, data, ztts=False):
         # shape: (1, L), (1,), scalar
         audio_data, _sr = librosa.load(data["audio_path"], sr=self.model.voicebox.audio_enc_dec.sampling_rate)
-        audio_data = Eval.preprocess_wav(audio_data, _sr)
+        audio_data = Eval.preprocess_wav(audio_data, _sr, -20)
         audio = torch.tensor(audio_data, dtype=torch.float, device=self.model.device).unsqueeze(0)
         audio_len = torch.tensor(audio.shape[1], device=self.model.device).unsqueeze(0)
         
@@ -958,6 +999,119 @@ class Inference:
             ztts_audio = edit_pred["ztts_audio"][0].cpu().numpy()
             sf.write(data["out_tts_path"], ztts_audio, samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
         return edit_pred["ori_mel"], edit_pred["edit_mel"]
+
+    def RealEdit(self, data, ztts=False, tag="", margin=3, redit=True, tune_vol=False):
+        def get_span(span):
+            span = span.split(',')
+            if len(span) == 1:
+                span = span * 2
+            return [int(sp) for sp in span]
+
+        def apply_span(trans, span):
+            trans = trans.split(' ')
+            span = get_span(span)
+            return ' '.join(trans[span[0]: span[1]+1])
+
+        def span_shift(from_spans, to_spans, edit_types, orig_len):
+            """
+            Return:
+                thres: id <= thres: keep
+            """
+            ids = list(range(orig_len))
+            outputs = []
+            for from_span, to_span, edit_type in zip(from_spans, to_spans, edit_types):
+                assert edit_type in ["insertion", "deletion", "substitution"]
+                from_span = [ids.index(from_span[0]), ids.index(from_span[1])]
+                outputs.append(from_span)
+
+                if edit_type == "insertion":
+                    ids = ids[:from_span[0]+1] + [-1]*(to_span[1]-to_span[0]+1) + ids[from_span[1]:]
+                elif edit_type == "deletion":
+                    ids = ids[:from_span[0]] + ids[from_span[1]+1:]
+                elif edit_type == "substitution":
+                    ids = ids[:from_span[0]] + [-1]*(to_span[1]-to_span[0]+1) + ids[from_span[1]+1:]
+
+            return outputs
+
+        # shape: (1, L), (1,), scalar
+        audio_data, _sr = librosa.load(data["audio_path"], sr=self.model.voicebox.audio_enc_dec.sampling_rate)
+        audio_data = Eval.preprocess_wav(audio_data, _sr)
+        audio = torch.tensor(audio_data, dtype=torch.float, device=self.model.device).unsqueeze(0)
+        audio_len = torch.tensor(audio.shape[1], device=self.model.device).unsqueeze(0)
+        if tune_vol:
+            int16_max = ((2 ** 15) - 1)
+            rms = np.sqrt(np.mean((audio_data * int16_max) ** 2))
+
+        # multi-span
+        text_list = data["text"].split('|')
+        edit_pos_list = data["edit_pos"].split('|')
+        edit_type_list = data["edit_type"].split('|')
+        target_list = data["target"].split('|')
+        tgt_pos_list = data["target_pos"].split('|')
+        from_list = [apply_span(text_list[0], edit_pos) for edit_pos in edit_pos_list]
+        to_list = [apply_span(target, tgt_pos) for target, tgt_pos in zip(target_list, tgt_pos_list)]
+
+        from_spans = [get_span(edit_pos) for edit_pos in edit_pos_list]
+        to_spans = [get_span(tgt_pos) for tgt_pos in tgt_pos_list]
+        shifted_spans = span_shift(from_spans, to_spans, edit_type_list, len(text_list[0].split(' ')))
+
+        edit_pred = None
+        for i, (_text, _from, _to, _e_pos, _e_type) in enumerate(zip(text_list, from_list, to_list, edit_pos_list, edit_type_list)):
+            _text = DataGen.normalize_text(_text).strip()
+            _from = DataGen.normalize_text(_from).strip()
+            _to = DataGen.normalize_text(_to).strip()
+            _e_pos = f"{shifted_spans[i][0]},{shifted_spans[i][1]}"
+            if edit_pred is not None:
+                audio = edit_pred["redit_audio"]
+                audio_len = edit_pred["new_audio_lens"]
+                if tune_vol:
+                    _rms = torch.sqrt(torch.mean((edit_pred["redit_audio"][0, edit_pred["new_cond_st_idx"].item():edit_pred["new_cond_ed_idx"].item()] * int16_max) ** 2))
+                    with torch.no_grad():
+                        audio = audio.clone()
+                        audio[0, edit_pred["new_cond_st_idx"].item():edit_pred["new_cond_ed_idx"].item()] = edit_pred["redit_audio"][0, edit_pred["new_cond_st_idx"].item():edit_pred["new_cond_ed_idx"].item()] * rms / _rms
+
+            edit_pred = self.model.forward(
+                audio=audio,
+                audio_lens=audio_len,
+                texts=[_text,],
+                textgrids=None if (edit_pred is not None or "textgrid_path" not in data) else [data["textgrid_path"],],
+                edit_from=[_from,],
+                edit_to=[_to,],
+                steps=64,
+                cond_scale=1.0,
+                sample_std=self.sample_std,
+                dp_scale=1.2,
+                ztts=ztts,
+                edit_alignments=None,
+                edit_positions=[_e_pos,],
+                edit_types=[_e_type,],
+                mfa_en_dict=self.mfa_en_dict,
+                margin=margin,
+            )
+
+        sf.write(data["out_ori_path"], audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+
+        data["_out_gen_path"] = data["out_gen_path"][:-4]+f"{tag}.wav"
+        edit_audio = edit_pred["edit_audio"][0].cpu().numpy()
+        if tune_vol:
+            _rms = np.sqrt(np.mean((edit_audio[edit_pred["new_cond_st_idx"].item():edit_pred["new_cond_ed_idx"].item()] * int16_max) ** 2))
+            edit_audio[edit_pred["new_cond_st_idx"].item():edit_pred["new_cond_ed_idx"].item()] = edit_audio[edit_pred["new_cond_st_idx"].item():edit_pred["new_cond_ed_idx"].item()] * rms / _rms
+        sf.write(data["_out_gen_path"], edit_audio, samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+        if ztts:
+            data["_out_tts_path"] = data["out_tts_path"][:-4]+f"{tag}.wav"
+            ztts_audio = edit_pred["ztts_audio"][0].cpu().numpy()
+            sf.write(data["_out_tts_path"], ztts_audio, samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+        if redit:
+            data["_out_redit_path"] = data["out_gen_path"][:-4]+f".redit{tag}.wav"
+            redit_audio = edit_pred["redit_audio"][0].cpu().numpy()
+            if tune_vol:
+                _rms = np.sqrt(np.mean((redit_audio[edit_pred["new_cond_st_idx"].item():edit_pred["new_cond_ed_idx"].item()] * int16_max) ** 2))
+                redit_audio[edit_pred["new_cond_st_idx"].item():edit_pred["new_cond_ed_idx"].item()] = redit_audio[edit_pred["new_cond_st_idx"].item():edit_pred["new_cond_ed_idx"].item()] * rms / _rms
+            sf.write(data["_out_redit_path"], redit_audio, samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+            data["_out_edit_path"] = data["_out_gen_path"]
+            data["_out_gen_path"] = data["_out_redit_path"]
+
+        return data, edit_pred
 
 class DataGen:
     def __init__(self, model: VoiceboxModel, sample_std=.95):
@@ -1059,10 +1213,14 @@ class DataGen:
                 continue
             ori_audio_lens = batch["audio_lens"]
             gen_audio_lens = torch.clamp(ori_audio_lens, max=gen_audio.shape[-1])
-            ori_ls = ori_audio_lens / 24000
-            gen_ls = gen_audio_lens / 24000
+            ori_ls = ori_audio_lens / self.model.voicebox.audio_enc_dec.sampling_rate
+            gen_ls = gen_audio_lens / self.model.voicebox.audio_enc_dec.sampling_rate
             gen_st = gen_ls * cond_st / ori_mel_lens
             gen_ed = gen_ls * cond_ed / ori_mel_lens
+            # gen_st_idx = gen_audio["new_cond_st_idx"]
+            # gen_ed_idx = gen_audio["new_cond_ed_idx"]
+            # gen_st = gen_st_idx / self.model.voicebox.audio_enc_dec.sampling_rate
+            # gen_ed = gen_ed_idx / self.model.voicebox.audio_enc_dec.sampling_rate
 
             for i in range(cond.shape[0]):
                 new_id = '-'.join(cuts[i].id.split('/'))
@@ -1163,7 +1321,6 @@ class DataGen:
                     mfa_en_dict[wrd] = phns
 
         from collections import Counter
-        import random
         out_dict = {}
         with open(json_filename, 'r') as f:
             lines = f.readlines()
@@ -1205,7 +1362,6 @@ class DataGen:
         return out_dict
 
     def gen_v3_dataset_from_val_set(self, edit_dict, out_dir, ztts=False, redit=True):
-        import random
         val_dl = self.model._validation_dl
 
         os.makedirs(f"{out_dir}/combine", exist_ok=True)
@@ -1328,8 +1484,40 @@ class DataGen:
         return label
 
 class Eval:
-    def __init__(self,):
-        self.voice_encoder = VoiceEncoder()
+    def __init__(self, wavlm_ckpt="nemo_experiments/checkpoints/wavlm_large_finetune.pth"):
+        self.wavlm_ckpt = wavlm_ckpt
+
+    @property
+    def voice_encoder(self):
+        if not hasattr(self, "_voice_encoder"):
+            self._voice_encoder = VoiceEncoder()
+        return self._voice_encoder
+
+    @property
+    def whisper_model(self):
+        import whisper
+        if not hasattr(self, "_whisper_model"):
+            # self._whisper_model = whisper.load_model("small.en")
+            self._whisper_model = whisper.load_model("medium.en")
+            # self._whisper_model = whisper.load_model("large-v2")
+        return self._whisper_model
+
+    @property
+    def wavlm_model(self):
+        from scripts.voicebox_edit.speaker_verification.models.ecapa_tdnn import ECAPA_TDNN_SMALL
+
+        if not hasattr(self, "_wavlm_model"):
+            self._wavlm_model = ECAPA_TDNN_SMALL(feat_dim=1024, feat_type='wavlm_large', config_path=None)
+            if self.wavlm_ckpt is not None:
+                state_dict = torch.load(self.wavlm_ckpt, map_location='cpu')
+                self._wavlm_model.load_state_dict(state_dict['model'], strict=False)
+            self._wavlm_model = self._wavlm_model.to(self.device)
+        return self._wavlm_model
+
+    @property
+    def device(self):
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        return device
 
     @staticmethod
     def create_plot(data, xlabel, ylabel):
@@ -1346,7 +1534,7 @@ class Eval:
         Eval.create_plot(data.T.cpu(), 'frame', 'freq')
 
     @staticmethod
-    def preprocess_wav(fpath_or_wav: str | np.ndarray, source_sr: int | None = None):
+    def preprocess_wav(fpath_or_wav: str | np.ndarray, source_sr: int | None = None, db=-30):
         """modified from resemblyzer.process_wav, remove trimming process"""
         from resemblyzer.audio import normalize_volume
         # Load the wav from disk if needed
@@ -1356,11 +1544,11 @@ class Eval:
             wav = fpath_or_wav
         
         # Resample the wav
-        if source_sr is not None:
-            wav = librosa.resample(wav, orig_sr=source_sr, target_sr=16000)
+        # if source_sr is not None:
+        #     wav = librosa.resample(wav, orig_sr=source_sr, target_sr=16000)
             
         # Apply the preprocessing: normalize volume and shorten long silences 
-        wav = normalize_volume(wav, -30, increase_only=True)
+        wav = normalize_volume(wav, db, increase_only=True)
         # wav = trim_long_silences(wav)
         
         return wav
@@ -1444,6 +1632,66 @@ class Eval:
         _bin_edges = np.arange(.5, 1.01, .05)
         diff_hist = np.histogram(diff_sims, _bin_edges)
 
+    def calc_wer(self, audio_path, text):
+        whisper_list = []
+        gt_list = []
+        _whisper_txt = self.whisper_model.transcribe(audio_path)['text']
+        whisper_txt = DataGen.normalize(_whisper_txt)
+        gt_txt = DataGen.normalize(text)
+
+        whisper_list.append(whisper_txt)
+        gt_list.append(gt_txt)
+
+        whisper_wer = round(wer(gt_list, whisper_list), 5)
+        return whisper_wer, _whisper_txt, whisper_txt
+
+    def calc_wers(self, audio_paths, texts, output_file=None):
+        whisper_list = []
+        gt_list = []
+        if output_file is not None:
+            fo = open(output_file, 'w')
+            fo.write("gt_txt\twhisper.txt\twer\n")
+        for audio_path, text in zip(audio_paths, texts):
+            whisper_txt = DataGen.normalize(self.whisper_model.transcribe(audio_path)['text'])
+            gt_txt = DataGen.normalize(text)
+
+            whisper_list.append(whisper_txt)
+            gt_list.append(gt_txt)
+
+            # print(whisper_txt)
+            # print(gt_txt)
+            if output_file is not None:
+                fo.write(f"{gt_txt}\t{whisper_txt}\t{round(wer([gt_txt], [whisper_txt]), 5)}\n")
+                # fo.write(f"{round(wer([gt_txt], [whisper_txt]), 5)}\n")
+
+        whisper_wer = round(wer(gt_list, whisper_list), 5)
+        if output_file is not None:
+            fo.close()
+        return whisper_wer
+
+    def calc_wavlm_sim(self, wav1, wav2):
+        from torchaudio.transforms import Resample
+        wav1, sr1 = sf.read(wav1)
+        wav2, sr2 = sf.read(wav2)
+
+        wav1 = torch.from_numpy(wav1).unsqueeze(0).float()
+        wav2 = torch.from_numpy(wav2).unsqueeze(0).float()
+        resample1 = Resample(orig_freq=sr1, new_freq=16000)
+        resample2 = Resample(orig_freq=sr2, new_freq=16000)
+        wav1 = resample1(wav1)
+        wav2 = resample2(wav2)
+
+        model = self.wavlm_model
+        wav1 = wav1.to(self.device)
+        wav2 = wav2.to(self.device)
+
+        model.eval()
+        with torch.no_grad():
+            emb1 = model(wav1)
+            emb2 = model(wav2)
+
+        sim = F.cosine_similarity(emb1, emb2)
+        return sim.cpu().item()
 
 class MainExc:
     def __init__(self, vb_ckpt_path=None, dp_ckpt_path=None, gen_data_dir="data/gen_dataset", sample_std=0.9):
@@ -1455,8 +1703,10 @@ class MainExc:
 
     def load_model(self,):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # model = VoiceboxModel.load_from_checkpoint(self.vb_ckpt_path, map_location=device)
         model = VoiceboxModel.load_from_checkpoint(self.vb_ckpt_path, map_location=device, strict=False)
 
+        # dp_model = VoiceboxModel.load_from_checkpoint(self.dp_ckpt_path, map_location=device)
         dp_model = VoiceboxModel.load_from_checkpoint(self.dp_ckpt_path, map_location=device, strict=False)
 
         del model.duration_predictor, model.cfm_wrapper.duration_predictor
@@ -1500,9 +1750,15 @@ class MainExc:
         return self._eval
 
     def gen_val_v1(self,):
-        self.dataprocessor.prepare_val_dl(manifest_filepath="data/parsed/LibriHeavy/libriheavy_cuts_dev.jsonl.gz")
-        self.datagen.gen_v1_dataset_from_val_set("/datasets/LibriLight_aligned/gen_dataset/dev-v1")
-        self.eval.gen_val_frame_spk_sim(data_dir="/datasets/LibriLight_aligned/gen_dataset/dev", subset="dev", audio_type="fake", file_type="label")
+        # self.dataprocessor.prepare_val_dl(manifest_filepath="data/parsed/LibriHeavy/libriheavy_cuts_dev.jsonl.gz")
+        # self.dataprocessor.prepare_val_dl(manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz")
+        ds_name="gigaspeech"
+        corpus_dir="data/download/GigaSpeech"
+        manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_DEV_with_jensen.speech.jsonl.gz"
+        # output_dir="nemo_experiments/edit_gen/"
+        self.dataprocessor.prepare_val_dl(ds_name=ds_name, corpus_dir=corpus_dir, manifest_filepath=manifest_filepath, old_prefix="/home/sungfengh/.cache/huggingface/datasets")
+        self.datagen.gen_v1_dataset_from_val_set("nemo_experiments/gen_dataset/dev-v1")
+        # self.eval.gen_val_frame_spk_sim(data_dir="/datasets/LibriLight_aligned/gen_dataset/dev", subset="dev", audio_type="fake", file_type="label")
 
     def gen_v3_transcript_json(self):
         """generate json for LLM transcript editing"""
@@ -1531,6 +1787,10 @@ class MainExc:
         self.eval.gen_val_frame_spk_sim(data_dir=f"{self.gen_data_dir}/medium-v3{tag}/split-{split_id}", subset="medium", audio_type="edit")
         # self.eval.gen_val_frame_spk_sim(data_dir=f"{self.gen_data_dir}/medium-v3{tag}/split-{split_id}", subset="medium", audio_type="cut_paste")
 
+    def calc_dac_stats(self, ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz", shuffle=False):
+        self.dataprocessor.prepare_val_dl(ds_name=ds_name, corpus_dir=corpus_dir, manifest_filepath=manifest_filepath, old_prefix="/home/sungfengh/.cache/huggingface/datasets", shuffle=shuffle)
+        self.datagen.get_dac_statistics()
+
     def v4_gs_val_word_edit(self, ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz", output_dir="nemo_experiments/edit_gen/"):
         self.dataprocessor.prepare_val_dl(ds_name=ds_name, corpus_dir=corpus_dir, manifest_filepath=manifest_filepath, old_prefix="/home/sungfengh/.cache/huggingface/datasets")
         self.infer.word_edit(dataprocessor=self.dataprocessor, output_dir=output_dir)
@@ -1552,10 +1812,111 @@ class MainExc:
         for data in datas:
             ori_mel, edit_mel = self.infer.riva_demo(data)
 
-    def calc_dac_stats(self, ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz", shuffle=False):
-        self.dataprocessor.prepare_val_dl(ds_name=ds_name, corpus_dir=corpus_dir, manifest_filepath=manifest_filepath, old_prefix="/home/sungfengh/.cache/huggingface/datasets", shuffle=shuffle)
-        self.datagen.get_dac_statistics()
+    def gen_RealEdit(self, output_dir="nemo_experiments/RealEdit/gen", regen=False, tune_vol=False):
+        datas = self.dataprocessor.get_RealEdit_data(filepath="nemo_experiments/RealEdit/RealEdit.tsv", output_dir=output_dir)
+        rounds = 5
+        text_list = []
+        audio_file_list = []
+        # VC_audio_file_list = []
+        gen_audio_file_list = []
+        # VC_sims = []
+        gen_sims = []
+        gt_txt_list = []
+        whisper_list = []
+        for i in range(rounds):
+            whisper_list.append([])
 
+        os.makedirs(f"{output_dir}/metadata", exist_ok=True)
+        loaded = False if regen else os.path.exists(f"{output_dir}/metadata/metadata.tsv")
+        if loaded:
+            df = pd.read_csv(f"{output_dir}/metadata/metadata.tsv", sep='\t')
+            with open(f"{output_dir}/metadata/metadata.tsv", 'r') as f:
+                lines = f.readlines()
+                for i, line in enumerate(lines):
+                    if i == 0:
+                        continue
+                    line = line.strip('\n').split('\t')
+                    for j in range(rounds):
+                        gen_audio_file_list.append(line[0])
+            f = open(f"{output_dir}/metadata/metadata.tsv", 'a')
+            row_id = 0
+        else:
+            f = open(f"{output_dir}/metadata/metadata.tsv", 'w')
+            for i in range(rounds):
+                f.write(f"wav_fn_{i}\twhisper_txt_{i}\tnorm_whisper_txt_{i}\twer_{i}\tsim_{i}\t")
+            f.write(f"gt_txt\tnorm_gt_txt\n")
+
+        for i, data in tqdm(enumerate(datas)):
+            # if i < 19:
+            #     continue
+            target_list = data["target"].split('|')
+            text_list.append(target_list[-1])
+            gt_txt = DataGen.normalize(target_list[-1])
+            gt_txt_list.append(gt_txt)
+
+            audio_file_list.append(data["out_ori_path"])
+            # VC_audio_file_list.append(data["VC_audio_path"])
+
+            gen_audio_path = None
+
+            if loaded and i < len(gen_audio_file_list):
+                gen_audio_path = gen_audio_file_list[i]
+                gen_sim = self.eval.calc_wavlm_sim(data["out_ori_path"], gen_audio_path)
+                gen_sims.append(gen_sim)
+                # for j in range(rounds):
+            else:
+                _gen_sims = []
+                _gen_audio_paths = []
+                for j in range(rounds):
+                    try:
+                        data, edit_pred = self.infer.RealEdit(data, tag=f".round-{j}", tune_vol=tune_vol)
+                    except:
+                        raise
+                        continue
+
+                    gen_sim = self.eval.calc_wavlm_sim(data["out_ori_path"], data["_out_gen_path"])
+                    _gen_sims.append(gen_sim)
+                    _gen_audio_paths.append(data["_out_gen_path"])
+
+                    gen_wer, whisper_txt, norm_whisper_txt = self.eval.calc_wer(audio_path=data["_out_gen_path"], text=target_list[-1])
+                    whisper_list[j].append(whisper_txt)
+                    f.write(f"{data['_out_gen_path']}\t{whisper_txt}\t{norm_whisper_txt}\t{gen_wer:.5f}\t{gen_sim:.5f}\t")
+
+                max_id = _gen_sims.index(max(_gen_sims))
+                _gen_sims.pop(max_id)
+                _gen_audio_paths.pop(max_id)
+                min_id = _gen_sims.index(min(_gen_sims))
+                _gen_sims.pop(min_id)
+                _gen_audio_paths.pop(min_id)
+                _id = random.randrange(len(_gen_sims))
+                gen_sim = _gen_sims[_id]
+                gen_audio_path = _gen_audio_paths[_id]
+
+                gen_sims.append(gen_sim)
+                gen_audio_file_list.append(gen_audio_path)
+
+                # f.write(f"wav_fn_{i}\twhisper_txt_{i}\twer_{i}\tsim_{i}\t")
+                f.write(f"{target_list[-1]}\t{gt_txt}\n")
+                f.flush()
+
+            # vc_sim = self.eval.calc_wavlm_sim(data["out_ori_path"], data["VC_audio_path"])
+            # VC_sims.append(vc_sim)
+
+        avg_wer = self.eval.calc_wers(audio_paths=gen_audio_file_list, texts=text_list, output_file=f"{output_dir}.tsv")
+        avg_sim = sum(gen_sims) / len(gen_sims)
+
+        # VC_wer = self.eval.calc_wers(audio_paths=VC_audio_file_list, texts=text_list, output_file="nemo_experiments/RealEdit/RealEdit_VC.tsv")
+        # print(f"WER: {avg_wer}, {VC_wer}")
+        # VC_sim = sum(VC_sims) / len(VC_sims)
+        # print(f"SIM: {avg_sim}, {VC_sim}")
+        print(f"WER: {avg_wer}")
+        print(f"SIM: {avg_sim}")
+
+        # if not loaded:
+        with open(f"{output_dir}/metadata/score.tsv", 'w') as fs:
+            fs.write(f"wer\tsim\n")
+            fs.write(f"{avg_wer}\t{avg_sim:.5f}")
+        f.close()
 
 #%%
 if __name__ == "__main__":
@@ -1626,16 +1987,90 @@ if __name__ == "__main__":
                 },
                 "span_edit": {"output_dir": "nemo_experiments/span_edit_gs_unet"},
                 "riva_demo": {"output_dir": "nemo_experiments/riva_demo_gen_gs_unet"},
+                "RealEdit": {"output_dir": "nemo_experiments/RealEdit/gen_gs_unet"},
+            },
+            "unet_noCE": {
+                "main_exc": {
+                    "vb_ckpt_path": "nemo_experiments/checkpoints/a100-GS_XL-DAC_noCE-pymha-unet-warmup/checkpoints/vb-val_loss/vb=0.2933-epoch=167-step=500000-last.ckpt",
+                    "dp_ckpt_path": "nemo_experiments/checkpoints/dp_no_sil_spn=1.4410-epoch=8.ckpt",
+                },
+                "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen_gs_unet_noCE"},
+                "v4_gs_val_word_edit": {
+                    "ds_name": "gigaspeech",
+                    "corpus_dir": "data/download/GigaSpeech",
+                    "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
+                    "output_dir": "nemo_experiments/edit_gen_gs_unet_noCE/",
+                },
+                "span_edit": {"output_dir": "nemo_experiments/span_edit_gs_unet_noCE"},
+                "riva_demo": {"output_dir": "nemo_experiments/riva_demo_gen_gs_unet_noCE"},
+                "RealEdit": {"output_dir": "nemo_experiments/RealEdit/gen_gs_unet_noCE"},
+            },
+            "unet-mel": {
+                "main_exc": {
+                    "vb_ckpt_path": "nemo_experiments/checkpoints/a100-GS_XL-mel-pymha-unet-warmup/checkpoints/vb-val_loss/vb=0.2564-epoch=153-step=462000.ckpt",
+                    "dp_ckpt_path": "nemo_experiments/checkpoints/1b_oci_voicebox--val_loss_total=3.2725-epoch=61.ckpt",
+                },
+                "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen_gs_unet-mel"},
+                "v4_gs_val_word_edit": {
+                    "ds_name": "gigaspeech",
+                    "corpus_dir": "data/download/GigaSpeech",
+                    "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
+                    "output_dir": "nemo_experiments/edit_gen_gs_unet-mel/",
+                },
+                "span_edit": {"output_dir": "nemo_experiments/span_edit_gs_unet-mel"},
+                "riva_demo": {"output_dir": "nemo_experiments/riva_demo_gen_gs_unet-mel"},
+                "RealEdit": {"output_dir": "nemo_experiments/RealEdit/gen_gs_unet-mel"},
+            },
+            "unet-lh-mel": {
+                "main_exc": {
+                    "vb_ckpt_path": "nemo_experiments/checkpoints/a100-LH_M-mel-pymha-unet-warmup/checkpoints/vb-val_loss/vb=0.2742-epoch=167-step=500000-last.ckpt",
+                    "dp_ckpt_path": "nemo_experiments/checkpoints/1b_oci_voicebox--val_loss_total=3.2725-epoch=61.ckpt",
+                },
+                "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen_gs_unet-lh-mel"},
+                "v4_gs_val_word_edit": {
+                    "ds_name": "gigaspeech",
+                    "corpus_dir": "data/download/GigaSpeech",
+                    "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
+                    "output_dir": "nemo_experiments/edit_gen_gs_unet-lh-mel/",
+                },
+                "span_edit": {"output_dir": "nemo_experiments/span_edit_gs_unet-lh-mel"},
+                "riva_demo": {"output_dir": "nemo_experiments/riva_demo_gen_gs_unet-lh-mel"},
+                "RealEdit": {"output_dir": "nemo_experiments/RealEdit/gen_gs_unet-lh-mel"},
+            },
+            "unet_postq": {
+                "main_exc": {
+                    "vb_ckpt_path": "nemo_experiments/checkpoints/a100-GS_XL-DAC_postq-pymha-unet-warmup/checkpoints/vb-val_loss/vb=0.4783-epoch=167-step=500000-last.ckpt",
+                    "dp_ckpt_path": "nemo_experiments/checkpoints/dp_no_sil_spn=1.4410-epoch=8.ckpt",
+                },
+                "internal_demo": {"output_dir": "nemo_experiments/internal_demo_gen_gs_unet_postq"},
+                "v4_gs_val_word_edit": {
+                    "ds_name": "gigaspeech",
+                    "corpus_dir": "data/download/GigaSpeech",
+                    "manifest_filepath": "data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
+                    "output_dir": "nemo_experiments/edit_gen_gs_unet_postq/",
+                },
+                "span_edit": {"output_dir": "nemo_experiments/span_edit_gs_unet_postq"},
+                "riva_demo": {"output_dir": "nemo_experiments/riva_demo_gen_gs_unet_postq"},
+                "RealEdit": {"output_dir": "nemo_experiments/RealEdit/gen_gs_unet_postq"},
             },
         }
-        exp = "unet"
-        main_exc = MainExc(**(kwargs[exp]["main_exc"]), gen_data_dir="nemo_experiments/gen_dataset", sample_std=0.95)
+        # exp = "unet-mel"
+        # main_exc = MainExc(**(kwargs[exp]["main_exc"]), gen_data_dir="nemo_experiments/gen_dataset", sample_std=0.95)
         # main_exc.gen_val_v1()
         # main_exc._internal_demo(**(kwargs[exp]["internal_demo"]))
-        # main_exc.v4_gs_val_word_edit(**(kwargs[exp]["v4_gs_val_word_edit"]))
+        # # main_exc.v4_gs_val_word_edit(**(kwargs[exp]["v4_gs_val_word_edit"]))
         # main_exc.span_edit(**(kwargs[exp]["span_edit"]))
         # main_exc.riva_demo(**(kwargs[exp]["riva_demo"]))
-        main_exc.gen_v3(split_id=None, tag="-unet-500k")
+        # main_exc.gen_v3(split_id=None, tag="-unet-500k")
+        # for exp in ["unet-mel"]:
+        # for exp in [ "unet_postq", "unet-mel", "unet-lh-mel"]:
+        for exp in ["unet", "unet_noCE", "unet_postq", "unet-lh-mel", "unet-mel"]:
+            main_exc = MainExc(**(kwargs[exp]["main_exc"]), gen_data_dir="nemo_experiments/gen_dataset", sample_std=0.95)
+            # main_exc.model.voicebox.audio_enc_dec.normalize=False
+            # main_exc.model.silence_value = -4.5252
+            # main_exc.model.cap_vocode = False
+            main_exc.gen_RealEdit(**(kwargs[exp]["RealEdit"]), regen=True, tune_vol=exp in ["unet-mel", "unet-lh-mel"])
+            del main_exc
 
         # main_exc.calc_dac_stats(ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_XL.speech.jsonl.gz", shuffle=True)
         exit()

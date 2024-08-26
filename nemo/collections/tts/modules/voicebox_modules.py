@@ -15,6 +15,7 @@ from einops.layers.torch import Rearrange
 from einops import rearrange, repeat, reduce, pack, unpack
 
 from encodec import EncodecModel
+from vocos import Vocos
 import dac
 
 from pytorch_lightning import LightningModule
@@ -1345,7 +1346,7 @@ class VoiceBox(LightningModule):
         text_enc_frame_concat = False,
         text_enc_vb_masked = True,
         text_enc_rec_loss = True,
-        pytorch_mha = False,
+        pytorch_mha = True,
         **kwargs
     ):
         """

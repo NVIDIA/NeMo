@@ -896,10 +896,62 @@ class VoiceboxModel(TextToWaveform):
             with open(temp_text_path, 'w') as temp_file:
                 temp_file.write(texts)
 
-            os.system(f"conda run -n aligner bash -c \"mfa align {temp_dir} english_us_arpa english_us_arpa {temp_dir}/MFA \"")
+            try:
+                os.system(f"conda run -n aligner bash -c \"mfa align {temp_dir} english_us_arpa english_us_arpa {temp_dir}/MFA \"")
 
-            alignment = parse_mfa_textgrid(temp_tg_path, seg=None)
+                alignment = parse_mfa_textgrid(temp_tg_path, seg=None)
+            except:
+                os.system(f"conda run -n aligner bash -c \"mfa align {temp_dir} english_us_arpa english_us_arpa {temp_dir}/MFA --beam 100 --retry_beam 400\"")
+
+                alignment = parse_mfa_textgrid(temp_tg_path, seg=None)
         return alignment
+
+    def parse_dp_input_from_ali(self, alignment, mel_len, ed_f, ed_t, edit_ali=None, edit_pos=None, edit_type="substitution", mfa_en_dict=None):
+        alignment = fix_alignment(alignment=alignment)
+
+        # group phone alignments by words
+        ori_w2p_alis = map_word_phn_alignment(alignment=alignment)
+        ori_w2p_alis = resample_ali(ori_w2p_alis, mel_len.unsqueeze(0))
+
+        if edit_ali is not None:
+            edit_ali = fix_alignment(alignment=edit_ali)
+            edit_ali = map_word_phn_alignment(alignment=edit_ali)
+            edit_ali = resample_ali(edit_ali, sec_to_frames=self.voicebox.audio_enc_dec.sampling_rate / self.voicebox.audio_enc_dec.downsample_factor)
+
+        # edit w2p_alignment, also return new-to-origin mapping for later new_cond construction.
+        new_w2p_alis, n2o_mapping = edit_w2p_alignment(w2p_alis=ori_w2p_alis, edit_from=ed_f, edit_to=ed_t, edit_ali=edit_ali, edit_pos=edit_pos, edit_type=edit_type, mfa_en_dict=mfa_en_dict)
+
+        # post processing phones, adding word postfix and ghost silence, also return phone-to-phone mapping for later new_cond construction.
+        ori_phn_alis, ori_p2p_mapping = process_alignment(
+            w2p_alis=ori_w2p_alis,
+            use_word_postfix=self.cfg.ds_kwargs.use_word_postfix,
+            use_word_ghost_silence=self.cfg.ds_kwargs.use_word_ghost_silence,
+        )
+        new_phn_alis, new_p2p_mapping = process_alignment(
+            w2p_alis=new_w2p_alis,
+            use_word_postfix=self.cfg.ds_kwargs.use_word_postfix,
+            use_word_ghost_silence=self.cfg.ds_kwargs.use_word_ghost_silence,
+        )
+
+        # get required duration prediction inputs
+        phoneme = [ali.symbol for ali in new_phn_alis]
+        dp_cond_mask = torch.tensor([ali.start == -1 for ali in new_phn_alis], device=self.device).bool()
+        dp_cond = torch.tensor([ali.duration for ali in new_phn_alis], device=self.device)
+        ori_dp_cond = torch.tensor([ali.duration for ali in ori_phn_alis], device=self.device)
+
+        tokens = torch.tensor(self.tokenizer.text_to_ids(phoneme)[0], device=self.device, dtype=torch.long)
+        # token_lens = torch.tensor([tokens.shape[0]], dtype=torch.long, device=self.device)
+        phoneme_mask = torch.ones_like(tokens)
+        return {
+            "dp_cond": dp_cond,
+            "dp_cond_mask": dp_cond_mask,
+            "tokens": tokens,
+            "phoneme_mask": phoneme_mask,
+            "ori_dp_cond": ori_dp_cond,
+            "n2o_mapping": n2o_mapping,
+            "ori_p2p_mapping": ori_p2p_mapping,
+            "new_p2p_mapping": new_p2p_mapping,
+        }
 
     @torch.inference_mode()
     def forward(
@@ -921,7 +973,10 @@ class VoiceboxModel(TextToWaveform):
         dp_scale = 1.0,
         ztts = True,
         edit_alignments = None,
+        edit_positions = None,
+        edit_types: List[str] | None = None,
         mfa_en_dict = None,
+        margin: int = 0,
     ):
         """
         Args:
@@ -960,58 +1015,16 @@ class VoiceboxModel(TextToWaveform):
             else:
                 alignments = [parse_mfa_textgrid(tg, None) for tg in textgrids]
 
-        def parse_dp_input_from_ali(alignment, mel_len, ed_f, ed_t, edit_ali=None):
-            alignment = fix_alignment(alignment=alignment)
-
-            # group phone alignments by words
-            ori_w2p_alis = map_word_phn_alignment(alignment=alignment)
-            ori_w2p_alis = resample_ali(ori_w2p_alis, mel_len.unsqueeze(0))
-
-            if edit_ali is not None:
-                edit_ali = fix_alignment(alignment=edit_ali)
-                edit_ali = map_word_phn_alignment(alignment=edit_ali)
-                edit_ali = resample_ali(edit_ali, sec_to_frames=self.voicebox.audio_enc_dec.sampling_rate / self.voicebox.audio_enc_dec.downsample_factor)
-
-            # edit w2p_alignment, also return new-to-origin mapping for later new_cond construction.
-            new_w2p_alis, n2o_mapping = edit_w2p_alignment(w2p_alis=ori_w2p_alis, edit_from=ed_f, edit_to=ed_t, edit_ali=edit_ali, mfa_en_dict=mfa_en_dict)
-
-            # post processing phones, adding word postfix and ghost silence, also return phone-to-phone mapping for later new_cond construction.
-            ori_phn_alis, ori_p2p_mapping = process_alignment(
-                w2p_alis=ori_w2p_alis,
-                use_word_postfix=self.cfg.ds_kwargs.use_word_postfix,
-                use_word_ghost_silence=self.cfg.ds_kwargs.use_word_ghost_silence,
-            )
-            new_phn_alis, new_p2p_mapping = process_alignment(
-                w2p_alis=new_w2p_alis,
-                use_word_postfix=self.cfg.ds_kwargs.use_word_postfix,
-                use_word_ghost_silence=self.cfg.ds_kwargs.use_word_ghost_silence,
-            )
-
-            # get required duration prediction inputs
-            phoneme = [ali.symbol for ali in new_phn_alis]
-            dp_cond_mask = torch.tensor([ali.start == -1 for ali in new_phn_alis], device=self.device).bool()
-            dp_cond = torch.tensor([ali.duration for ali in new_phn_alis], device=self.device)
-            ori_dp_cond = torch.tensor([ali.duration for ali in ori_phn_alis], device=self.device)
-
-            tokens = torch.tensor(self.tokenizer.text_to_ids(phoneme)[0], device=self.device, dtype=torch.long)
-            # token_lens = torch.tensor([tokens.shape[0]], dtype=torch.long, device=self.device)
-            phoneme_mask = torch.ones_like(tokens)
-            return {
-                "dp_cond": dp_cond,
-                "dp_cond_mask": dp_cond_mask,
-                "tokens": tokens,
-                "phoneme_mask": phoneme_mask,
-                "ori_dp_cond": ori_dp_cond,
-                "n2o_mapping": n2o_mapping,
-                "ori_p2p_mapping": ori_p2p_mapping,
-                "new_p2p_mapping": new_p2p_mapping,
-            }
-
         if edit_alignments is None:
             edit_alignments = [None for _ in range(len(alignments))]
         else:
             edit_alignments = [parse_mfa_textgrid(tg, None) for tg in edit_alignments]
-        batch = [parse_dp_input_from_ali(alignment, mel_lens[i], edit_from[i], edit_to[i], edit_alignments[i]) for i, alignment in enumerate(alignments)]
+        if edit_positions is None:
+            edit_positions = [None for _ in range(len(alignments))]
+        if edit_types is None:
+            edit_types = [None for _ in range(len(alignments))]
+
+        batch = [self.parse_dp_input_from_ali(alignment, mel_lens[i], edit_from[i], edit_to[i], edit_alignments[i], edit_positions[i], edit_types[i], mfa_en_dict) for i, alignment in enumerate(alignments)]
 
         tokens = [dp_in["tokens"] for dp_in in batch]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long, device=self.device)
@@ -1043,61 +1056,76 @@ class VoiceboxModel(TextToWaveform):
         new_cond_mask = get_mask_from_lengths(new_mel_lens)
         self_attn_mask = get_mask_from_lengths(new_mel_lens)
         new_cond = torch.zeros((*new_cond_mask.shape, mel.shape[-1]), device=self.device)
+        # margin_mask = torch.
 
         new_cum_dur = new_dur.cumsum(dim=-1)
         ori_cum_dur = ori_dp_cond.int().cumsum(dim=-1)
+        cond_st_idx = []
+        cond_ed_idx = []
         for bi, dp_in in enumerate(batch):
+            new_slice = None
+            ori_slice = None
+            edited = False
+            cnt_span_tokens = 0
+
             n2o_mapping = dp_in["n2o_mapping"]
             new_p2p_mapping = dp_in["new_p2p_mapping"]
             ori_p2p_mapping = dp_in["ori_p2p_mapping"]
             for i, j in enumerate(n2o_mapping):
                 # new i-th phn to ori j-th phn
 
-                # not preserving
-                if j == -1: continue
+                # editing span; not preserving
+                if j == -1:
+                    continue
 
-                # ghost silence mapping
-                i = new_p2p_mapping[i]
-                j = ori_p2p_mapping[j]
+                # start of span
+                elif j == -2:
+                    cnt_span_tokens += 1
+                    # pre margin
+                    cond_st_idx.append(new_slice.stop if new_slice is not None else 0)
+                    # if i > 0:
+                    #     margin_slice = slice(new_slice.stop - margin, new_slice.stop)
+                    #     new_cond_mask[bi, margin_slice] = 1
+                    continue
 
-                new_slice = slice(0, new_cum_dur[bi, i].item()) if i == 0 else slice(new_cum_dur[bi, i-1].item(), new_cum_dur[bi, i].item())
-                ori_slice = slice(0, ori_cum_dur[bi, j].item()) if j == 0 else slice(ori_cum_dur[bi, j-1].item(), ori_cum_dur[bi, j].item())
-                new_cond[bi, new_slice] = mel[bi, ori_slice]
-                new_cond_mask[bi, new_slice] = 0
+                # end of span
+                elif j == -3:
+                    cnt_span_tokens += 1
+                    edited = True
+                    continue
 
-        cond_st_idx = torch.arange(new_cond.shape[1], 0, -1, device=self.device).reshape(1, -1) * new_cond_mask
-        cond_st_idx = cond_st_idx.argmax(dim=1)
-        cond_ed_idx = torch.arange(new_cond.shape[1], device=self.device).reshape(1, -1) * new_cond_mask
-        cond_ed_idx = cond_ed_idx.argmax(dim=1) + 1
+                # unmasked preserving
+                else:
+                    # ghost silence mapping
+                    i = new_p2p_mapping[i - cnt_span_tokens]
+                    j = ori_p2p_mapping[j]
+
+                    new_slice = slice(0, new_cum_dur[bi, i].item()) if i == 0 else slice(new_cum_dur[bi, i-1].item(), new_cum_dur[bi, i].item())
+                    ori_slice = slice(0, ori_cum_dur[bi, j].item()) if j == 0 else slice(ori_cum_dur[bi, j-1].item(), ori_cum_dur[bi, j].item())
+                    new_cond[bi, new_slice] = mel[bi, ori_slice]
+                    new_cond_mask[bi, new_slice] = 0
+
+                    # post margin
+                    if edited:
+                    #     margin_slice = slice(new_slice.start, min(new_slice.start + margin, new_mel_lens))
+                    #     new_cond_mask[bi, margin_slice] = 1
+                        cond_ed_idx.append(new_slice.start)
+                        edited = False
+
+        # cond_st_idx = torch.arange(new_cond.shape[1], 0, -1, device=self.device).reshape(1, -1) * new_cond_mask
+        # cond_st_idx = cond_st_idx.argmax(dim=1)
+        cond_st_idx = torch.tensor(cond_st_idx, device=self.device)
+        cond_st_idx = torch.clamp(cond_st_idx - margin, min=0)
+        # cond_ed_idx = torch.arange(new_cond.shape[1], device=self.device).reshape(1, -1) * new_cond_mask
+        # cond_ed_idx = cond_ed_idx.argmax(dim=1) + 1
+        cond_ed_idx = torch.tensor(cond_ed_idx, device=self.device)
+        cond_ed_idx = torch.clamp(cond_ed_idx + margin, max=new_mel_lens)
+        for bi in range(new_cond_mask.shape[0]):
+            new_cond_mask[bi, cond_st_idx[bi]:cond_ed_idx[bi]] = 1
 
         # zero-shot TTS
-        def parse_zero_shot_TTS(cond, cond_mask, self_attn_mask, tokens, durs):
-            # mel lens
-            m_lens = self_attn_mask.sum(-1)
-
-            # tail padding
-            new_cond_ = torch.cat([cond, torch.ones_like(cond) * self.silence_value], dim=1)
-            self_attn_mask_ = torch.cat([self_attn_mask, torch.zeros_like(self_attn_mask)], dim=1).bool()
-            new_cond_mask_ = torch.cat([cond_mask, torch.zeros_like(cond_mask)], dim=1).bool()
-
-            new_self_attn_mask = get_mask_from_lengths(m_lens * 2)
-            ztts_mask = new_self_attn_mask & ~self_attn_mask_
-
-            new_cond = new_cond_
-            new_cond_mask = new_cond_mask_ | ztts_mask
-
-            new_tokens = torch.cat([tokens, tokens], dim=1)
-            new_dur = torch.cat([durs, durs], dim=1)
-            aligned_tokens = self.duration_predictor.align_phoneme_ids_with_durations(new_tokens, new_dur)
-            return {
-                "cond": new_cond,
-                "cond_mask": new_cond_mask.bool(),
-                "self_attn_mask": new_self_attn_mask.bool(),
-                "aligned_tokens": aligned_tokens,
-            }
-
         if ztts:    
-            args = parse_zero_shot_TTS(new_cond, new_cond_mask, self_attn_mask, tokens, new_dur)
+            args = parse_zero_shot_TTS(new_cond, new_cond_mask, self_attn_mask, tokens, new_dur, self.silence_value, self.duration_predictor.align_phoneme_ids_with_durations)
         else:
             args = {
                 "cond": new_cond,
@@ -1709,123 +1737,194 @@ def fix_alignment(alignment: Dict[str, List[AlignmentItem]]) -> Dict[str, List[A
 
 def map_word_phn_alignment(alignment: Dict[str, List[AlignmentItem]]):
     """group phone alignments according to words"""
+    import math
+
+    def _ge(a, b):
+        # greater or equal
+        return a > b or math.isclose(a, b)
+
+    def _in(a, b):
+        # a in b
+        return (
+            _ge(a.start, b.start) and _ge(b.start + b.duration, a.start + a.duration)
+        )
+
     phn_alis: List[AlignmentItem] = alignment["phones"]
     word_alis: List[AlignmentItem] = alignment["words"]
     w2p_alis: List[Tuple[str, List[AlignmentItem]]] = []
     phn_id = 0
-    for ali in word_alis:
-        wrd = ali.symbol
-        w2p_alis.append((wrd, []))
+    word_id = 0
+    while phn_id < len(phn_alis) and word_id < len(word_alis):
+        if _in(phn_alis[phn_id], word_alis[word_id]):
+            wrd = word_alis[word_id].symbol
+            w2p_alis.append((wrd, []))
+            while phn_id < len(phn_alis) and _in(phn_alis[phn_id], word_alis[word_id]):
+                w2p_alis[-1][-1].append(phn_alis[phn_id])
 
-        wrd_st = ali.start
-        wrd_ed = wrd_st + ali.duration
-
-        phn_st = phn_alis[phn_id].start
-        phn_ed = phn_st + phn_alis[phn_id].duration
-        while phn_st >= wrd_st and phn_ed <= wrd_ed:
-            w2p_alis[-1][-1].append(phn_alis[phn_id])
-
+                phn_id += 1
+            word_id += 1
+        elif _in(word_alis[word_id], phn_alis[phn_id]):
+            while word_id < len(word_alis) and _in(word_alis[word_id], phn_alis[phn_id]):
+                wrd = word_alis[word_id].symbol
+                w2p_alis.append((wrd, []))
+                w2p_alis[-1][-1].append(AlignmentItem(symbol="sil", start=word_alis[word_id].start, duration=word_alis[word_id].duration))
+                word_id += 1
             phn_id += 1
-            if phn_id >= len(phn_alis):
-                break
-            phn_st = phn_alis[phn_id].start
-            phn_ed = phn_st + phn_alis[phn_id].duration
 
     return w2p_alis
 
-def edit_w2p_alignment(w2p_alis=None, edit_from="", edit_to="", edit_ali=None, mfa_en_dict=None):
+def edit_w2p_alignment(w2p_alis=None, edit_from="", edit_to="", edit_ali=None, edit_pos=None, edit_type="substitute", mfa_en_dict=None):
     """edit a word from alignment
     Return:
         - new_w2p_alis
         - n2o_mapping: new word position in new_w2p_alis to original word position in w2p_alis. For edited words, no mapped word position, so fill in -1 instead.
     """
-    # mfa_en_dict = {}
-    # with open("/root/Documents/MFA/pretrained_models/dictionary/english_us_arpa.dict", 'r') as f:
-    #     for line in tqdm(f):
-    #         wrd, _, _, _, _, phns = line.strip().split('\t')
-    #         if wrd not in mfa_en_dict:
-    #             mfa_en_dict[wrd] = phns
-
     import random
     words = [wrd for wrd, _ in w2p_alis]
+    words = [(i, wrd) for i, wrd in enumerate(words) if wrd not in ["<eps>", "<unk>", ""]]
 
     word_edit = ' ' not in edit_from
+    edit_tos = edit_to.split(' ')
 
-    if word_edit:
-        if edit_from is None:
-            edit_from = random.choice([wrd for wrd in words if wrd not in ["<eps>", "<unk>"]])
-            edit_to = edit_from
-        edit_pos = [i for i, wrd in enumerate(words) if wrd == edit_from]
-        edit_pos = [random.choice(edit_pos)]
-    else:
-        words = [(i, wrd) for i, wrd in enumerate(words) if wrd not in ["<eps>", "<unk>", ""]]
+    def map_edit_pos(edit_pos):
+        edit_pos = edit_pos.split(',')
+        # given edit position (word count without silence)
+        if len(edit_pos) == 2:
+            edit_pos = [int(edit_pos[0]), int(edit_pos[1])]
+        elif len(edit_pos) == 1:
+            edit_pos = [int(edit_pos[0]), int(edit_pos[0])]
+        edit_pos = list(range(words[edit_pos[0]][0], words[edit_pos[1]][0]+1))
+        return edit_pos
+
+    def get_edit_pos(edit_from, edit_to, edit_pos):
         edit_froms = edit_from.split(' ')
-        edit_tos = edit_to.split(' ')
-        edit_pos = []
-        for i , (j, wrd) in enumerate(words):
-            for k in range(len(edit_froms)):
-                if words[i+k][1] != edit_froms[k]:
+
+        # given edit_pos
+        if edit_pos is not None:
+            # map from word-count w/o silence (transcript word split) to word-count w/ silence (MFA word textgrid)
+            edit_pos = map_edit_pos(edit_pos)
+
+        # word regenerate
+        elif edit_from is None:
+            # randomly select a word to regenerate
+            edit_pos, edit_from = random.choice(words)
+            edit_to = edit_from
+            edit_pos = [edit_pos]
+
+        # word edit
+        elif len(edit_froms) == 1:
+            # randomly select one if multiple matches
+            edit_pos = [i for i, wrd in words if wrd == edit_from]
+            edit_pos = [random.choice(edit_pos)]
+
+        # span edit
+        else:
+            # get first matching span
+            edit_pos = []
+            for i , (j, wrd) in enumerate(words):
+                for k in range(len(edit_froms)):
+                    if words[i+k][1] != edit_froms[k]:
+                        break
+                else:
+                    edit_pos = list(range(words[i][0], words[i+k][0]+1))
                     break
+            assert len(edit_pos) > 0
+        
+        return edit_pos
+
+    edit_pos = get_edit_pos(edit_from, edit_to, edit_pos)
+
+    def get_edit_ali(edit_to, edit_ali):
+        # word edit, gen_v3, pre-g2p-ed
+        if isinstance(edit_to, Tuple):
+            assert isinstance(edit_to[0], str) and isinstance(edit_to[1], List)
+            wrd, phns = edit_to
+            phn_alis = [AlignmentItem(symbol=phn, start=-1, duration=0) for phn in phns]
+            return [(wrd, phn_alis)]
+
+        assert isinstance(edit_to, str)
+
+        # with reference alignment
+        if edit_ali:
+            if edit_ali[-1][0] == "<eps>":
+                edit_ali = edit_ali[:-1]
+            return edit_ali
+
+        edit_ali = []
+        for wrd in edit_to.split(' '):
+            if mfa_en_dict is not None and wrd in mfa_en_dict:
+                phns = mfa_en_dict[wrd].split(' ')
             else:
-                edit_pos = list(range(words[i][0], words[i+k][0]+1))
-                break
-        assert len(edit_pos) > 0
+                phns = os.popen(f"conda run -n aligner bash -c \"echo '{wrd}' | mfa g2p -n 1 - english_us_arpa - 2> /dev/null\"").read().split('\t')[1].strip().split(' ')
 
-    new_w2p_alis: List[Tuple[str, List[AlignmentItem]]] = []
-    ori_phn_alis = []
-    n2o_mapping: List[int] = []
-    edited = False
-    for i, (wrd, phn_alis) in enumerate(w2p_alis):
-        # store for calculate masked interval
-        ori_phn_alis += phn_alis
+            # start=-1 to note masked
+            phn_alis = [AlignmentItem(symbol=phn, start=-1, duration=0) for phn in phns]
+            edit_ali.append((wrd, phn_alis))
 
-        if i in edit_pos:
-            if word_edit:
-                assert wrd == edit_from
+        return edit_ali
 
-                if isinstance(edit_to, str):
-                    # MFA G2P
-                    wrd = edit_to
-                    phns = os.popen(f"conda run -n aligner bash -c \"echo '{edit_to}' | mfa g2p -n 1 - english_us_arpa - 2> /dev/null\"").read().split('\t')[1].strip().split(' ')
-                elif isinstance(edit_to, Tuple):
-                    assert isinstance(edit_to[0], str) and isinstance(edit_to[1], List)
-                    wrd, phns = edit_to
+    def edit_word_or_span(w2p_alis, edit_to, edit_ali, edit_pos, edit_type):
+        if edit_type is None:
+            edit_type = "substitution"
+        new_w2p_alis: List[Tuple[str, List[AlignmentItem]]] = []
+        n2o_mapping: List[int] = []
 
-                # start=-1 to note masked
-                phn_alis = [AlignmentItem(symbol=phn, start=-1, duration=0) for phn in phns]
+        ori_phn_alis = []
+        edited = False
+
+        for i, (wrd, phn_alis) in enumerate(w2p_alis):
+            # store for calculate masked interval
+            ori_phn_alis += phn_alis
+
+            if edit_type == "insertion" and i == edit_pos[1]:
+                assert edit_pos[1] - edit_pos[0] == 1
+                # start of edit span
+                n2o_mapping.append(-2)
+
+                edit_ali = get_edit_ali(edit_to, edit_ali)
+                for _wrd, _phn_alis in edit_ali:
+                    new_w2p_alis.append((_wrd, _phn_alis))
+                    n2o_mapping += [-1] * len(_phn_alis)
+
                 new_w2p_alis.append((wrd, phn_alis))
-                n2o_mapping += [-1] * len(phn_alis)
+                n2o_mapping += list(range(len(ori_phn_alis)-len(phn_alis), len(ori_phn_alis)))
+                # end of edit span
+                n2o_mapping.append(-3)
 
-            elif edited:
+            elif edit_type == "deletion" and i in edit_pos:
+                if edited:
+                    continue
+                # start/end of edit span, for margin notation
+                # if i == edit_pos[0]:
+                #     n2o_mapping += [-2]
+                # elif i == edit_pos[1]:
+                #     n2o_mapping += [-3]
+                n2o_mapping += [-2, -3]
+                edited = True
                 continue
 
-            elif edit_ali:
-                if edit_ali[-1][0] == "<eps>":
-                    edit_ali = edit_ali[:-1]
-                # edit_ali = edit_ali[2:]
-                for wrd, phn_alis in edit_ali:
-                    new_w2p_alis.append((wrd, phn_alis))
-                    n2o_mapping += [-1] * len(phn_alis)
+            elif edit_type == "substitution" and i in edit_pos:
+                if edited:
+                    continue
+                # start of edit span
+                n2o_mapping.append(-2)
+
+                edit_ali = get_edit_ali(edit_to, edit_ali)
+                for _wrd, _phn_alis in edit_ali:
+                    new_w2p_alis.append((_wrd, _phn_alis))
+                    n2o_mapping += [-1] * len(_phn_alis)
                 edited = True
+                # end of edit span
+                n2o_mapping.append(-3)
+
             else:
-                for wrd in edit_tos:
-                    if mfa_en_dict is not None and wrd in mfa_en_dict:
-                        phns = mfa_en_dict[wrd].split(' ')
-                    else:
-                        phns = os.popen(f"conda run -n aligner bash -c \"echo '{wrd}' | mfa g2p -n 1 - english_us_arpa - 2> /dev/null\"").read().split('\t')[1].strip().split(' ')
-                    # start=-1 to note masked
-                    phn_alis = [AlignmentItem(symbol=phn, start=-1, duration=0) for phn in phns]
-                    new_w2p_alis.append((wrd, phn_alis))
-                    n2o_mapping += [-1] * len(phn_alis)
-
-                edited = True
-        else:
-            if edited:
                 edited = False
-            new_w2p_alis.append((wrd, phn_alis))
-            n2o_mapping += list(range(len(ori_phn_alis)-len(phn_alis), len(ori_phn_alis)))
+                new_w2p_alis.append((wrd, phn_alis))
+                n2o_mapping += list(range(len(ori_phn_alis)-len(phn_alis), len(ori_phn_alis)))
 
-    return new_w2p_alis, n2o_mapping
+        return new_w2p_alis, n2o_mapping
+
+    return edit_word_or_span(w2p_alis, edit_to, edit_ali, edit_pos, edit_type)
 
 def resample_ali(w2p_alis, mel_lens=None, sec_to_frames=None):
     """resample the time unit from second to number of frames"""
@@ -1894,6 +1993,31 @@ def process_alignment(w2p_alis: List[Tuple[str, List[AlignmentItem]]]=None, use_
             new_phn_alis.append(AlignmentItem(symbol=p_ali.symbol + postfix, start=p_ali.start, duration=p_ali.duration))
 
     return new_phn_alis, new_p2p_mapping
+
+def parse_zero_shot_TTS(cond, cond_mask, self_attn_mask, tokens, durs, silence_value, align_fn):
+    # mel lens
+    m_lens = self_attn_mask.sum(-1)
+
+    # tail padding
+    new_cond_ = torch.cat([cond, torch.ones_like(cond) * silence_value], dim=1)
+    self_attn_mask_ = torch.cat([self_attn_mask, torch.zeros_like(self_attn_mask)], dim=1).bool()
+    new_cond_mask_ = torch.cat([cond_mask, torch.zeros_like(cond_mask)], dim=1).bool()
+
+    new_self_attn_mask = get_mask_from_lengths(m_lens * 2)
+    ztts_mask = new_self_attn_mask & ~self_attn_mask_
+
+    new_cond = new_cond_
+    new_cond_mask = new_cond_mask_ | ztts_mask
+
+    new_tokens = torch.cat([tokens, tokens], dim=1)
+    new_dur = torch.cat([durs, durs], dim=1)
+    aligned_tokens = align_fn(new_tokens, new_dur)
+    return {
+        "cond": new_cond,
+        "cond_mask": new_cond_mask.bool(),
+        "self_attn_mask": new_self_attn_mask.bool(),
+        "aligned_tokens": aligned_tokens,
+    }
 
 
 @torch.no_grad()
