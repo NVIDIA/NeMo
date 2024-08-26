@@ -213,7 +213,7 @@ class ExpManagerConfig:
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
-    log_step_timing_on_end: Optional[bool] = False
+    log_on_train_end: Optional[bool] = False
     step_timing_kwargs: Optional[StepTimingParams] = field(default_factory=lambda: StepTimingParams())
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
@@ -317,7 +317,7 @@ class DeltaTimingCallback(Callback):
         if self._sync_cuda and torch.cuda.is_initialized():
             torch.cuda.synchronize()
 
-        self.timers[name]["values"] = []
+        self.timers[name]["values"] = [0, []]
         self.timers[name]["start"] = time.time()
 
     def _on_batch_end(self, name, trainer, pl_module):
@@ -327,8 +327,9 @@ class DeltaTimingCallback(Callback):
 
         end = time.time()
         dt = end - self.timers[name]["start"]
-        logging.info(f'Step {len(self.timers[name]["values"])}: {name} in s={dt}')
-        self.timers[name]["values"].append(dt)
+        logging.info(f'Step {self.timers[name]["values"][0]}: {name} in s={dt}')
+        self.timers[name]["values"][1].append(dt)
+        self.timers[name]["values"][0] += 1
         self.timers[name]["start"] = end
 
     def on_train_epoch_start(self, trainer, pl_module):
@@ -344,11 +345,12 @@ class DeltaTimingCallback(Callback):
         self._on_batch_end("validation_step_timing", trainer, pl_module)
 
     def on_train_end(self, trainer, pl_module):
-        if self._tb_logger is not None:
-            for timer_name, timer_data in self.timers.items():
-                step_times = timer_data["values"]
-                for step_time in step_times:
-                    self._tb_logger.add_scalar(timer_name + " in s", step_time)
+        for timer_name, timer_data in self.timers.items():
+            step_times = timer_data["values"][1]
+            logging.info(f"{timer_name} in s: {step_times}")
+            if self._tb_logger is not None:
+                metric_dict = {f"step_{i}": val for i, val in enumerate(step_times)}
+                self._tb_logger.add_scalars(timer_name + " in s", metric_dict)
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
@@ -567,11 +569,11 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         )
 
     # add loggers timing callbacks
-    if cfg.log_step_timing:
-        if cfg.log_step_timing_on_end:
-            timing_callback = DeltaTimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
-        else:
-            timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
+    if cfg.log_on_train_end or trainer.barebones:
+        timing_callback = DeltaTimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
+        trainer.callbacks.insert(0, timing_callback)
+    elif cfg.log_step_timing:
+        timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
         trainer.callbacks.insert(0, timing_callback)
 
     if cfg.ema.enable:
