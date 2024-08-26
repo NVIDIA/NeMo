@@ -3,163 +3,136 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
-import torch.nn.functional as F
 from torch import nn
 
+from nemo.collections.llm.fn.activation import squared_relu
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 
 if TYPE_CHECKING:
-    from transformers import LlamaConfig as HFLlamaConfig
-    from transformers import LlamaForCausalLM
+    from transformers import NemotronConfig as HFNemotronConfig
+    from transformers import NemotronForCausalLM
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
-# Note: these Llama configs are copied from the corresponding HF model. You may need to modify the parameter for
-# your own needs, in particular: seq_length and rotary_base.
 @dataclass
-class LlamaConfig(GPTConfig):
+class NemotronConfig(GPTConfig):
     # configs that are common across model sizes
-    normalization: str = "RMSNorm"
-    activation_func: Callable = F.silu
-    gated_linear_unit: bool = True
+    normalization: str = "LayerNorm"
+    activation_func: Callable = squared_relu
     position_embedding_type: str = "rope"
-    add_bias_linear: bool = False
-    seq_length: int = 4096
-    attention_dropout: float = 0.0
-    hidden_dropout: float = 0.0
     share_embeddings_and_output_weights: bool = False
+    add_bias_linear: bool = False
 
-
-@dataclass
-class Llama2Config7B(LlamaConfig):
-    num_layers: int = 32
-    hidden_size: int = 4096
-    num_attention_heads: int = 32
-    num_query_groups: int = 32
-    ffn_hidden_size: int = 11008
-
-
-@dataclass
-class Llama2Config13B(LlamaConfig):
-    num_layers: int = 40
-    hidden_size: int = 5120
-    num_attention_heads: int = 40
-    num_query_groups: int = 40
-    ffn_hidden_size: int = 13824
-
-
-@dataclass
-class Llama2Config70B(LlamaConfig):
-    num_layers: int = 80
-    hidden_size: int = 8192
-    num_attention_heads: int = 64
-    num_query_groups: int = 8
-    ffn_hidden_size: int = 28672
-
-
-@dataclass
-class Llama3Config(GPTConfig):
-    num_query_groups: int = 8
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
-    normalization = "RMSNorm"
-    init_method_std: float = 0.01
-    layernorm_epsilon: float = 1.0e-05
-    add_bias_linear: bool = False
-    activation_func: Callable = F.silu
-    gated_linear_unit: bool = True
-    apply_query_key_layer_scaling: bool = False
-    # Fusions
-    bias_activation_fusion: bool = True
+    apply_query_key_layer_scaling: bool = True
+    rotary_percent: float = 0.5
     masked_softmax_fusion: bool = True
     persist_layer_norm: bool = True
-    bias_dropout_fusion: bool = True
-    apply_rope_fusion: bool = True
-    share_embeddings_and_output_weights: bool = False
-    position_embedding_type = "rope"
-    rotary_percent: float = 1.0
+    bias_dropout_add_fusion: bool = False
+    layernorm_zero_centered_gamma: bool = True
 
-
-@dataclass
-class Llama3Config8B(Llama3Config):
-    rotary_base: int = 500_000
-    seq_length: int = 8192
+    # Nemotron3Config4B as default configs
     num_layers: int = 32
-    hidden_size: int = 4096
-    ffn_hidden_size: int = 14336
-    num_attention_heads: int = 32
+    seq_length: int = 4096
+    hidden_size: int = 3072
+    ffn_hidden_size: int = 9216
+    num_attention_heads: int = 24
+    num_query_groups: Optional[int] = 8
+    kv_channels: Optional[int] = 128
+    init_method_std: float = 0.0134
 
 
 @dataclass
-class Llama3Config70B(Llama3Config):
-    rotary_base: int = 500_000
-    seq_length: int = 8192
-    num_layers: int = 80
-    hidden_size: int = 8192
-    ffn_hidden_size: int = 28672
-    num_attention_heads: int = 64
-    init_method_std: float = 0.008944
-    make_vocab_size_divisible_by: int = 128
-
-
-@dataclass
-class CodeLlamaConfig7B(Llama2Config7B):
-    rotary_base: int = 1_000_000
-    seq_length: int = 16384
-
-
-@dataclass
-class CodeLlamaConfig13B(Llama2Config13B):
-    rotary_base: int = 1_000_000
-    seq_length: int = 16384
-
-
-@dataclass
-class CodeLlamaConfig34B(LlamaConfig):
-    num_layers: int = 48
-    hidden_size: int = 8192
-    num_attention_heads: int = 64
+class Nemotron3Config4B(NemotronConfig):
+    num_layers: int = 32
+    seq_length: int = 4096
+    hidden_size: int = 3072
+    ffn_hidden_size: int = 9216
+    num_attention_heads: int = 24
     num_query_groups: int = 8
-    ffn_hidden_size: int = 22016
-    rotary_base: int = 1_000_000
-    seq_length: int = 16384
+    kv_channels: Optional[int] = 128
+    init_method_std: float = 0.0134
 
 
 @dataclass
-class CodeLlamaConfig70B(Llama2Config70B):
-    pass
+class Nemotron3Config8B(NemotronConfig):
+    num_layers: int = 32
+    seq_length: int = 4096
+    hidden_size: int = 4096
+    ffn_hidden_size: int = 16384
+    num_attention_heads: int = 32
+    num_query_groups: Optional[int] = None
+    kv_channels: Optional[int] = None
+    init_method_std: float = 0.010
 
 
-class LlamaModel(GPTModel):
+@dataclass
+class Nemotron4Config15B(NemotronConfig):
+    num_layers: int = 32
+    seq_length: int = 4096
+    hidden_size: int = 6144
+    ffn_hidden_size: int = 24576
+    num_attention_heads: int = 48
+    num_query_groups: Optional[int] = 8
+    kv_channels: Optional[int] = None
+    init_method_std: float = 0.0134
+
+
+@dataclass
+class Nemotron4Config22B(NemotronConfig):
+    num_layers: int = 40
+    seq_length: int = 4096
+    hidden_size: int = 6144
+    ffn_hidden_size: int = 24576
+    num_attention_heads: int = 48
+    num_query_groups: Optional[int] = None
+    kv_channels: Optional[int] = None
+    init_method_std: float = 0.008
+
+
+@dataclass
+class Nemotron4Config340B(NemotronConfig):
+    num_layers: int = 96
+    seq_length: int = 4096
+    hidden_size: int = 18432
+    ffn_hidden_size: int = 73728
+    num_attention_heads: int = 96
+    num_query_groups: Optional[int] = 8
+    kv_channels: Optional[int] = None
+    init_method_std: float = 0.0063
+
+
+class NemotronModel(GPTModel):
     def __init__(
         self,
-        config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
+        config: Annotated[Optional[NemotronConfig], Config[NemotronConfig]] = None,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(config or NemotronConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
 
-@io.model_importer(LlamaModel, "hf")
-class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
-    def init(self) -> LlamaModel:
-        return LlamaModel(self.config, tokenizer=self.tokenizer)
+@io.model_importer(NemotronModel, "hf")
+class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]):
+    def init(self) -> NemotronModel:
+        return NemotronModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
-        from transformers import LlamaForCausalLM
+        from transformers import NemotronForCausalLM
 
-        source = LlamaForCausalLM.from_pretrained(str(self))
+        source = NemotronForCausalLM.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Llama model to Nemo, model saved to {output_path}")
+        print(f"Converted Nemotron model to Nemo, model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
@@ -170,14 +143,18 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         mapping = {
             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
             "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
+            "model.layers.*.mlp.up_proj.weight": "decoder.layers.*.mlp.linear_fc1.weight",
             "model.layers.*.mlp.down_proj.weight": "decoder.layers.*.mlp.linear_fc2.weight",
             "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+            "model.layers.*.input_layernorm.bias": "decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
             "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+            "model.layers.*.post_attention_layernorm.bias": "decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
             "model.norm.weight": "decoder.final_layernorm.weight",
+            "model.norm.bias": "decoder.final_layernorm.bias",
             "lm_head.weight": "output_layer.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_linear_fc1])
+        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv])
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -186,10 +163,10 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         return AutoTokenizer(str(self))
 
     @property
-    def config(self) -> LlamaConfig:
-        from transformers import LlamaConfig as HFLlamaConfig
+    def config(self) -> NemotronConfig:
+        from transformers import NemotronConfig as HFNemotronConfig
 
-        source = HFLlamaConfig.from_pretrained(str(self))
+        source = HFNemotronConfig.from_pretrained(str(self))
 
         def make_vocab_size_divisible_by(vocab_size):
             base = 128
@@ -197,16 +174,17 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
                 base //= 2
             return base
 
-        output = LlamaConfig(
+        output = NemotronConfig(
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
             num_attention_heads=source.num_attention_heads,
             init_method_std=source.initializer_range,
-            layernorm_epsilon=source.rms_norm_eps,
+            seq_length=source.max_position_embeddings,
+            layernorm_epsilon=source.norm_eps,
             num_query_groups=source.num_key_value_heads,
             rotary_base=source.rope_theta,
-            gated_linear_unit=True,
+            rotary_percent=source.partial_rotary_factor,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
             share_embeddings_and_output_weights=False,
         )
@@ -214,12 +192,10 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         return output
 
 
-@io.model_exporter(LlamaModel, "hf")
-class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
-    def init(self) -> "LlamaForCausalLM":
-        from transformers import AutoModelForCausalLM
-
-        return AutoModelForCausalLM.from_config(self.config)
+@io.model_exporter(NemotronModel, "hf")
+class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]):
+    def init(self) -> "NemotronForCausalLM":
+        return NemotronForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
         target = self.init()
@@ -236,35 +212,46 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         mapping = {
             "embedding.word_embeddings.weight": "model.embed_tokens.weight",
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
+            "decoder.layers.*.mlp.linear_fc1.weight": "model.layers.*.mlp.up_proj.weight",
             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
+            "decoder.layers.*.self_attention.linear_qkv.layer_norm_bias": "model.layers.*.input_layernorm.bias",
             "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
+            "decoder.layers.*.mlp.linear_fc1.layer_norm_bias": "model.layers.*.post_attention_layernorm.bias",
             "decoder.final_layernorm.weight": "model.norm.weight",
+            "decoder.final_layernorm.bias": "model.norm.bias",
             "output_layer.weight": "lm_head.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
+        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv])
 
     @property
     def tokenizer(self):
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
-    def config(self) -> "HFLlamaConfig":
-        source: LlamaConfig = io.load_context(str(self)).model.config
+    def config(self) -> "HFNemotronConfig":
+        from transformers import NemotronConfig as HFNemotronConfig
 
-        from transformers import LlamaConfig as HFLlamaConfig
+        source: NemotronConfig = io.load_context(str(self)).model.config
 
-        return HFLlamaConfig(
+        return HFNemotronConfig(
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
+            head_dim=(
+                source.kv_channels
+                if source.kv_channels is not None
+                else source.hidden_size // source.num_attention_heads
+            ),
+            tie_word_embeddings=source.share_embeddings_and_output_weights,
             max_position_embeddings=source.seq_length,
             initializer_range=source.init_method_std,
-            rms_norm_eps=source.layernorm_epsilon,
+            norm_eps=source.layernorm_epsilon,
             num_key_value_heads=source.num_query_groups,
             rope_theta=source.rotary_base,
+            partial_rotary_factor=source.rotary_percent,
             vocab_size=self.tokenizer.vocab_size,
         )
 
@@ -347,34 +334,12 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     return q_proj, k_proj, v_proj
 
 
-@io.state_transform(
-    source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-    target_key="decoder.layers.*.mlp.linear_fc1.weight",
-)
-def _import_linear_fc1(down, gate):
-    return torch.cat((down, gate), axis=0).float()
-
-
-@io.state_transform(
-    source_key="decoder.layers.*.mlp.linear_fc1.weight",
-    target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-)
-def _export_linear_fc1(linear_fc1):
-    gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
-
-    return gate_proj, up_proj
-
-
 __all__ = [
-    "LlamaConfig",
-    "Llama2Config7B",
-    "Llama2Config13B",
-    "Llama2Config70B",
-    "Llama3Config8B",
-    "Llama3Config70B",
-    "CodeLlamaConfig7B",
-    "CodeLlamaConfig13B",
-    "CodeLlamaConfig34B",
-    "CodeLlamaConfig70B",
-    "LlamaModel",
+    "NemotronConfig",
+    "Nemotron3Config4B",
+    "Nemotron3Config8B",
+    "Nemotron4Config15B",
+    "Nemotron4Config22B",
+    "Nemotron4Config340B",
+    "NemotronModel",
 ]
