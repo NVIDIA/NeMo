@@ -48,10 +48,10 @@ from nemo.collections.llm.gpt.model.nemotron import (
 )
 from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config,
-    Qwen2Config500M,
     Qwen2Config1P5B,
     Qwen2Config7B,
     Qwen2Config72B,
+    Qwen2Config500M,
     Qwen2Model,
 )
 

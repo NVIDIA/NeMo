@@ -5,17 +5,16 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
-
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
-from nemo.collections.llm.utils import Config
-from nemo.lightning import OptimizerModule, io, teardown
-
-from transformers import AutoConfig, AutoModelForCausalLM
-from transformers import Qwen2Config as HFQwen2Config
+from transformers import AutoConfig
 from transformers import AutoConfig as HFAutoConfig
+from transformers import AutoModelForCausalLM
+from transformers import Qwen2Config as HFQwen2Config
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.utils import Config
+from nemo.lightning import OptimizerModule, io, teardown
 
 
 @dataclass
@@ -53,7 +52,7 @@ class Qwen2Config1P5B(Qwen2Config):
     num_attention_heads: int = 12
     num_query_groups: int = 2
     ffn_hidden_size: int = 8960
-    
+
 
 @dataclass
 class Qwen2Config7B(Qwen2Config):
@@ -85,9 +84,7 @@ class Qwen2Model(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(
-            config or Qwen2Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
-        )
+        super().__init__(config or Qwen2Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
 
 @io.model_importer(Qwen2Model, "hf")
@@ -120,7 +117,9 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
             "lm_head.weight": "output_layer.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_qkv_bias, _import_linear_fc1])
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=[_import_qkv, _import_qkv_bias, _import_linear_fc1]
+        )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -182,7 +181,9 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
             "output_layer.weight": "lm_head.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_qkv_bias, _export_linear_fc1])
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=[_export_qkv, _export_qkv_bias, _export_linear_fc1]
+        )
 
     @property
     def tokenizer(self):
@@ -281,11 +282,12 @@ def _import_qkv_bias(ctx: io.TransformCTX, q, k, v):
         qkv_bias = torch.cat((qkv_bias, k[i : i + 1, :]))
         qkv_bias = torch.cat((qkv_bias, v[i : i + 1, :]))
     qkv_bias = qkv_bias.reshape(
-            [
-                head_size * (head_num + 2 * num_query_groups),
-            ]
-        )
+        [
+            head_size * (head_num + 2 * num_query_groups),
+        ]
+    )
     return qkv_bias
+
 
 @io.state_transform(
     source_key="decoder.layers.*.self_attention.linear_qkv.weight",
