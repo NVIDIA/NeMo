@@ -55,7 +55,6 @@ class Qwen2Config1P5B(Qwen2Config):
     ffn_hidden_size: int = 8960
     
 
-
 @dataclass
 class Qwen2Config7B(Qwen2Config):
     num_layers: int = 28
