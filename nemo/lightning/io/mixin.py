@@ -86,6 +86,7 @@ class NeedsIOMixin(ABC):
         """
         raise NotImplementedError()
 
+    @classmethod
     @abstractmethod
     def io_artifacts(cls) -> List[Artifact]:
         raise NotImplementedError()
