@@ -154,7 +154,7 @@ class MultiHeadAttention(nn.Module):
 
                 dropout_rate = self.dropout_rate if self.training else 0
                 out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=dropout_rate)
-                
+
                 # this IF block can be deleted when https://github.com/pytorch/pytorch/pull/131863 is in the stable version
                 if mask is not None:
                     all_masked_rows = torch.all(~mask, dim=-1)
@@ -191,7 +191,15 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
     """
 
     def __init__(
-        self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v, max_cache_len=0, use_bias=True, use_pytorch_sdpa=True
+        self,
+        n_head,
+        n_feat,
+        dropout_rate,
+        pos_bias_u,
+        pos_bias_v,
+        max_cache_len=0,
+        use_bias=True,
+        use_pytorch_sdpa=True,
     ):
         """Construct an RelPositionMultiHeadedAttention object."""
         super().__init__(
@@ -293,7 +301,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
                     all_masked_rows.unsqueeze_(-1)
                     all_masked_rows = all_masked_rows.expand(-1, out.size(1), -1, out.size(-1))
                     out = out.masked_fill(all_masked_rows, 0.0)
-                
+
                 out = out.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
                 out = self.linear_out(out)  # (batch, time1, d_model)
             else:

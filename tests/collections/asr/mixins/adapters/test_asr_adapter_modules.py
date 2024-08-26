@@ -204,7 +204,7 @@ class TestASRAdapterModules:
             _, pos_emb = relpos_enc(x)
             out = adapter(x, x, x, att_mask, pos_emb)
             out_sdpa = adapter_torch_sdpa(x, x, x, att_mask, pos_emb)
-            assert torch.allclose(out_sdpa, out, atol=1e-5) 
+            assert torch.allclose(out_sdpa, out, atol=1e-5)
 
     @pytest.mark.unit
     def test_mha_adapter_with_torch_sdpa(self):
@@ -229,7 +229,7 @@ class TestASRAdapterModules:
         with torch.no_grad():
             out = adapter(x, x, x, att_mask)
             out_sdpa = adapter_torch_sdpa(x, x, x, att_mask)
-            assert torch.allclose(out_sdpa, out, atol=1e-5) 
+            assert torch.allclose(out_sdpa, out, atol=1e-5)
 
     @pytest.mark.unit
     def test_abspos_encoding_init(self):

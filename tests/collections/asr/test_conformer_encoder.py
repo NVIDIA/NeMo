@@ -74,7 +74,11 @@ class TestStochasticDepth:
         for start_layer in [-1, 0, 5]:
             with pytest.raises(ValueError, match="stochastic_depth_start_layer has to be in"):
                 ConformerEncoder(
-                    feat_in=10, n_layers=n_layers, d_model=4, feat_out=8, stochastic_depth_start_layer=start_layer,
+                    feat_in=10,
+                    n_layers=n_layers,
+                    d_model=4,
+                    feat_out=8,
+                    stochastic_depth_start_layer=start_layer,
                 )
 
     @pytest.mark.pleasefixme

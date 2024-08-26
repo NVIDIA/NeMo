@@ -136,7 +136,9 @@ class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.AdapterM
         adapter_strategy: MHAResidualAddAdapterStrategy = None,
         use_pytorch_sdpa: bool = True,
     ):
-        super().__init__(n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, max_cache_len=0, use_pytorch_sdpa=use_pytorch_sdpa)
+        super().__init__(
+            n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, max_cache_len=0, use_pytorch_sdpa=use_pytorch_sdpa
+        )
 
         self.pre_norm = nn.LayerNorm(n_feat)
 
@@ -230,7 +232,13 @@ class RelPositionMultiHeadAttentionAdapter(mha.RelPositionMultiHeadAttention, ad
         use_pytorch_sdpa: bool = False,
     ):
         super().__init__(
-            n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, pos_bias_u=None, pos_bias_v=None, max_cache_len=0, use_pytorch_sdpa=use_pytorch_sdpa
+            n_head=n_head,
+            n_feat=n_feat,
+            dropout_rate=dropout_rate,
+            pos_bias_u=None,
+            pos_bias_v=None,
+            max_cache_len=0,
+            use_pytorch_sdpa=use_pytorch_sdpa,
         )
 
         self.pre_norm = nn.LayerNorm(n_feat)
