@@ -125,6 +125,7 @@ class Llama3Config70B(Llama3Config):
     hidden_size: int = 8192
     ffn_hidden_size: int = 28672
     num_attention_heads: int = 64
+    init_method_std: float = 0.008944
     make_vocab_size_divisible_by: int = 128
 
 
