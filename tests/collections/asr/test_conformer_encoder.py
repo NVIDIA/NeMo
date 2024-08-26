@@ -81,7 +81,7 @@ class TestStochasticDepth:
     def test_stochastic_depth_forward(self):
         """Testing that forward works and we get randomness during training, but not during eval."""
         random_input = torch.rand((1, 2, 2))
-        random_length = torch.tensor([2, 2], dtype=torch.int64)
+        random_length = torch.tensor([2], dtype=torch.int64)
 
         model = ConformerEncoder(
             feat_in=2,

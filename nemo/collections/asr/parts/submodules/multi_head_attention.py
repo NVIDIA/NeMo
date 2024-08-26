@@ -48,6 +48,8 @@ __all__ = [
     'PositionalEncoding',
 ]
 
+inf_val = 10000.0
+
 
 class MultiHeadAttention(nn.Module):
     """Multi-Head Attention layer of Transformer.
@@ -111,7 +113,7 @@ class MultiHeadAttention(nn.Module):
         n_batch = value.size(0)
         if mask is not None:
             mask = mask.unsqueeze(1)  # (batch, 1, time1, time2)
-            scores = scores.masked_fill(mask, -10000.0)
+            scores = scores.masked_fill(mask, -inf_val)
             attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, time1, time2)
         else:
             attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
@@ -145,16 +147,20 @@ class MultiHeadAttention(nn.Module):
             q, k, v = self.forward_qkv(query, key, value)
 
             if self.use_pytorch_sdpa:
-                scale = 1 / self.s_d_k
                 n_batch = value.size(0)
 
                 if mask is not None:
-                    mask = mask.unsqueeze(1)
+                    mask = ~mask.unsqueeze(1)
 
                 dropout_rate = self.dropout_rate if self.training else 0
-                out = torch.nn.functional.scaled_dot_product_attention(
-                    q, k, v, attn_mask=mask, dropout_p=dropout_rate, scale=scale
-                )
+                out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=dropout_rate)
+                
+                # this IF block can be deleted when https://github.com/pytorch/pytorch/pull/131863 is in the stable version
+                if mask is not None:
+                    all_masked_rows = torch.all(~mask, dim=-1)
+                    all_masked_rows.unsqueeze_(-1)
+                    out = out.masked_fill(all_masked_rows, 0.0)
+
                 out = out.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
                 out = self.linear_out(out)  # (batch, time1, d_model)
             else:
@@ -274,12 +280,20 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
                 if mask is not None:
                     mask = mask.unsqueeze(1)
-                    matrix_bd.masked_fill_(mask, -10000.0)
+                    matrix_bd.masked_fill_(mask, -inf_val)
 
                 dropout_rate = self.dropout_rate if self.training else 0
                 out = torch.nn.functional.scaled_dot_product_attention(
-                    q_with_bias_u, k, v, attn_mask=matrix_bd, dropout_p=dropout_rate, scale=scale_factor
+                    q_with_bias_u, k, v, attn_mask=matrix_bd, dropout_p=dropout_rate
                 )
+
+                # this IF block can be deleted when https://github.com/pytorch/pytorch/pull/131863 is in the stable version
+                if mask is not None:
+                    all_masked_rows = torch.all(mask, dim=-1)
+                    all_masked_rows.unsqueeze_(-1)
+                    all_masked_rows = all_masked_rows.expand(-1, out.size(1), -1, out.size(-1))
+                    out = out.masked_fill(all_masked_rows, 0.0)
+                
                 out = out.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
                 out = self.linear_out(out)  # (batch, time1, d_model)
             else:
@@ -328,6 +342,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         global_tokens_spacing=1,
         global_attn_separate=False,
         use_bias=True,
+        use_pytorch_sdpa=False,
     ):
         """Construct an RelPositionMultiHeadAttentionLongformer object."""
         super().__init__(
@@ -338,7 +353,12 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             pos_bias_v=pos_bias_v,
             max_cache_len=max_cache_len,
             use_bias=use_bias,
+            use_pytorch_sdpa=use_pytorch_sdpa,
         )
+
+        if use_pytorch_sdpa:
+            raise NotImplementedError("Not implemented for Longformer yet")
+
         self.att_context_size = att_context_size
         self.global_tokens = global_tokens
         self.global_tokens_spacing = global_tokens_spacing
@@ -410,14 +430,14 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             # (batch, head, time, 2w + 1)
 
             # mask invalid positions
-            scores[:, :, :, :start_pos] = -10000.0
-            scores[:, :, :, end_pos + 1 :] = -10000.0
+            scores[:, :, :, :start_pos] = -inf_val
+            scores[:, :, :, end_pos + 1 :] = -inf_val
 
             # This implementation is fast and takes very little memory because num_heads x hidden_size = 1
             # from (bsz x seq_len) to (bsz x num_heads x seqlen x hidden_size)
             mask = mask.unsqueeze(dim=1).unsqueeze(dim=-1)
             # cast to float/half then replace 1's with -inf
-            float_mask = mask.type_as(scores).masked_fill(mask, -10000.0)
+            float_mask = mask.type_as(scores).masked_fill(mask, -inf_val)
             ones = float_mask.new_ones(size=float_mask.size())  # tensor of ones
             # diagonal mask with zeros everywhere and -inf inplace of padding
             d_mask = self.sliding_chunks_matmul_qk(ones, float_mask, w, padding_value=0.0)
@@ -950,7 +970,7 @@ class PositionalEncoding(torch.nn.Module):
         pe = torch.zeros(pos_length, self.d_model, device=positions.device)
         div_term = torch.exp(
             torch.arange(0, self.d_model, 2, dtype=torch.float32, device=positions.device)
-            * -(math.log(10000.0) / self.d_model)
+            * -(math.log(inf_val) / self.d_model)
         )
         pe[:, 0::2] = torch.sin(positions * div_term)
         pe[:, 1::2] = torch.cos(positions * div_term)

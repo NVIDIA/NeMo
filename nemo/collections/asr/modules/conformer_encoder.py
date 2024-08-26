@@ -1044,7 +1044,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                         att_context_size=att_context_size,
                         pos_bias_u=None,
                         pos_bias_v=None,
-                        # use_pytorch_sdpa=self.use_pytorch_sdpa,
+                        use_pytorch_sdpa=self.use_pytorch_sdpa,
                     )
                 elif self_attention_model == 'abs_pos':
                     new_attn = MultiHeadAttention(
