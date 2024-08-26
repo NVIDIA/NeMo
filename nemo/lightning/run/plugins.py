@@ -53,7 +53,9 @@ class PreemptionPlugin(run.Plugin):
 
         if isinstance(executor, run.SlurmExecutor):
             # Sends a SIGTERM self.preempt_time seconds before hitting time limit
-            logging.info(f"{self.__class__.__name__} will send a SIGTERM {self.preempt_time} seconds before the job's time limit for your Slurm executor.")
+            logging.info(
+                f"{self.__class__.__name__} will send a SIGTERM {self.preempt_time} seconds before the job's time limit for your Slurm executor."
+            )
             executor.signal = f"TERM@{self.preempt_time}"
 
         _merge_callbacks(task, callbacks=self.callbacks)
