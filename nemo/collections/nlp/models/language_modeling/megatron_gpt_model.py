@@ -564,12 +564,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 average_in_collective=self.cfg.optim.get('average_in_collective', True),
             )
             if self.cfg.get('fp8_params', False):
-                if not hasattr(ddp_config, "use_fp8_params"):
+                if not hasattr(ddp_config, "fp8_param_gather"):
                     mcore_version = packaging.version.Version(version('megatron-core'))
                     raise ValueError(
                         f"megatron-core v{mcore_version} doesn't support FP8 param optimizer."
                     )
-                ddp_config.use_fp8_params = True
+                ddp_config.fp8_param_gather = True
             self.model = [
                 McoreDDP(
                     config,
