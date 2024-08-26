@@ -12,6 +12,7 @@ from pytorch_lightning import Callback
 from pytorch_lightning.loggers import WandbLogger
 
 from nemo.lightning.pytorch.callbacks import NsysCallback, PreemptionCallback
+from nemo.utils import logging
 
 
 def _merge_callbacks(partial: run.Partial, callbacks: list[run.Config[Callback]]):
@@ -51,7 +52,8 @@ class PreemptionPlugin(run.Plugin):
             return
 
         if isinstance(executor, run.SlurmExecutor):
-            # Sends a SIGTERM 5 minutes before hitting time limit
+            # Sends a SIGTERM self.preempt_time seconds before hitting time limit
+            logging.info(f"{self.__class__.__name__} will send a SIGTERM {self.preempt_time} seconds before the job's time limit for your Slurm executor.")
             executor.signal = f"TERM@{self.preempt_time}"
 
         _merge_callbacks(task, callbacks=self.callbacks)
