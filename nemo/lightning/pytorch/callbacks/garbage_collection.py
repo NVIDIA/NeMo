@@ -53,7 +53,7 @@ class GarbageCollectionCallback(pl.Callback):
             logging.info(f"Running garbage collection at train global_step: {trainer.global_step}")
             gc.collect()
 
-    def on_validation_batch_end(        
+    def on_validation_batch_end(
         self,
         trainer: pl.Trainer,
         pl_module: pl.LightningModule,
