@@ -1,8 +1,8 @@
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
-from nemo.utils import logging
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -10,8 +10,7 @@ from torch import nn
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
-import math
-
+from nemo.utils import logging
 
 if TYPE_CHECKING:
     from transformers import LlamaConfig as HFLlamaConfig
@@ -93,7 +92,7 @@ class Llama31Config(Llama3Config):
     low_freq_factor: int = 1
     high_freq_factor: int = 4
     old_context_len: int = 8192
-    
+
     def configure_model(self, tokenizer) -> "MCoreGPTModel":
         model = super().configure_model(tokenizer)
         # Apply rope scaling for Llama3.1 model
@@ -105,7 +104,7 @@ class Llama31Config(Llama3Config):
             old_context_len=self.old_context_len,
         )
         return model
-        
+
 
 @dataclass
 class Llama3Config8B(Llama3Config):
@@ -429,7 +428,9 @@ def apply_rope_scaling(
     high_freq_factor: int = 4,
     old_context_len: int = 8192,
 ):
-    logging.info(f"Apply rope scaling with factor={factor}, low_freq_factor={low_freq_factor}, high_freq_factor={high_freq_factor}, old_context_len={old_context_len}.")
+    logging.info(
+        f"Apply rope scaling with factor={factor}, low_freq_factor={low_freq_factor}, high_freq_factor={high_freq_factor}, old_context_len={old_context_len}."
+    )
 
     low_freq_wavelen = old_context_len / low_freq_factor
     high_freq_wavelen = old_context_len / high_freq_factor
@@ -443,7 +444,7 @@ def apply_rope_scaling(
     smoothed_inv_freq = (1 - smooth_factor) * inv_freq_llama / factor + smooth_factor * inv_freq_llama
     is_medium_freq = ~(wavelen < high_freq_wavelen) * ~(wavelen > low_freq_wavelen)
     inv_freq_llama = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
-    
+
     return inv_freq_llama
 
 
