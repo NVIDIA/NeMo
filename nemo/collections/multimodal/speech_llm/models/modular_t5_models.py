@@ -345,7 +345,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         input_ids, input_length, labels, loss_mask = (
             audio_batch['contexts'],
             audio_batch['context_lengths'],
-            audio_batch['labels'],
+            audio_batch['answers'],
             audio_batch['loss_mask'],
         )
 
@@ -1319,6 +1319,8 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                     loss_mean = []
                 else:
                     loss_mean = torch.tensor(0.0).cuda()
+            if loss_mean.ndim == 0:
+                loss_mean = loss_mean.unsqueeze(0)
             batch_losses.append(loss_mean)
 
         loss_mean = torch.cat(batch_losses).mean()
@@ -1348,7 +1350,12 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         return self.inference_step(dataloader_iter, 'test')
 
     def training_step(self, dataloader_iter):
-        batch, batch_idx, dataloader_idx = next(dataloader_iter)
+        ans = next(dataloader_iter)
+        if isinstance(ans, tuple) and len(ans) == 3:
+            batch, batch_idx, dataloader_idx = ans
+        else:
+            batch = ans
+            batch_idx = 0
         return super().training_step(itertools.chain([batch]), batch_idx=batch_idx)
 
     def setup_mcore_distributed_parallel(self):
@@ -1369,18 +1376,18 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                     {"name": "audio_signal", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
                     {"name": "audio_signal_length", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
                     {
-                        "name": "tokens",
+                        "name": "contexts",
                         "type": NeuralType(("B", "T"), LabelsType()),
                         "seq_length": "output",
                         "vocab_size": self.tokenizer.vocab_size,
                     },
                     {
-                        "name": "tokens_length",
+                        "name": "context_lengths",
                         "type": NeuralType(("B",), LengthsType()),
                         "seq_length": "output",
                     },
                     {
-                        "name": "labels",
+                        "name": "answers",
                         "type": NeuralType(("B", "T"), LabelsType()),
                         "seq_length": "output",
                         "vocab_size": self.tokenizer.vocab_size,
@@ -1389,11 +1396,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                         "name": "loss_mask",
                         "type": NeuralType(("B", "T"), MaskType()),
                         "seq_length": "output",
-                    },
-                    {
-                        "name": "context_start_idx",
-                        "type": "constant",
-                        "value": 0,
                     },
                 ],
             }

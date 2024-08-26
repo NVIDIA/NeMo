@@ -392,6 +392,12 @@ def oomptimizer(
     model.init_consumed_samples = 0
     model._compute_consumed_samples_after_training_step = lambda *args, **kwargs: 1
 
+    from megatron.core.parallel_state import initialize_model_parallel
+    from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+    initialize_model_parallel_for_nemo(world_size=1, global_rank=0, local_rank=0, micro_batch_size=16, global_batch_size=16)
+    torch.distributed.init_process_group("nccl", world_size=1, rank=0)
+    initialize_model_parallel()
+
     if not hasattr(model, "oomptimizer_schema"):
         click.secho(
             f"We read model of type {type(model)} which doesn't seem to support OOMptimizer "
