@@ -95,7 +95,7 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
 
     def apply(self, output_path: Path) -> Path:
         from transformers import Starcoder2ForCausalLM
-        
+
         source = Starcoder2ForCausalLM.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -166,7 +166,7 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
 class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCausalLM"]):
     def init(self) -> "Starcoder2ForCausalLM":
         from transformers import Starcoder2ForCausalLM
-        
+
         return Starcoder2ForCausalLM._from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
@@ -207,7 +207,7 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
     @property
     def config(self) -> "HFStarcoder2Config":
         from transformers import Starcoder2Config as HFStarcoder2Config
-        
+
         source: Starcoder2Config = io.load_context(str(self)).model.config
 
         return HFStarcoder2Config(
