@@ -136,12 +136,6 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
 
         source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
 
-        def make_vocab_size_divisible_by(vocab_size):
-            base = 128
-            while vocab_size % base != 0:
-                base //= 2
-            return base
-
         output = Qwen2Config(
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
