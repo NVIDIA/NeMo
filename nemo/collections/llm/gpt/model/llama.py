@@ -68,7 +68,7 @@ class Llama3Config(GPTConfig):
     num_query_groups: int = 8
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
-    normalization: float = "RMSNorm"
+    normalization: str = "RMSNorm"
     init_method_std: float = 0.01
     layernorm_epsilon: float = 1.0e-05
     add_bias_linear: bool = False
