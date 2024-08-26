@@ -37,6 +37,15 @@ from nemo.collections.llm.gpt.model.mixtral import (
     MixtralConfig8x22B,
     MixtralModel,
 )
+from nemo.collections.llm.gpt.model.nemotron import (
+    Nemotron3Config4B,
+    Nemotron3Config8B,
+    Nemotron4Config15B,
+    Nemotron4Config22B,
+    Nemotron4Config340B,
+    NemotronConfig,
+    NemotronModel,
+)
 
 __all__ = [
     "GPTConfig",
@@ -45,6 +54,7 @@ __all__ = [
     "MistralModel",
     "MixtralConfig8x3B",
     "MixtralConfig8x7B",
+    "MixtralConfig8x22B",
     "MixtralModel",
     "LlamaConfig",
     "Llama2Config7B",
@@ -52,6 +62,13 @@ __all__ = [
     "Llama2Config70B",
     "Llama3Config8B",
     "Llama3Config70B",
+    "NemotronConfig",
+    "Nemotron3Config4B",
+    "Nemotron3Config8B",
+    "Nemotron4Config15B",
+    "Nemotron4Config22B",
+    "Nemotron4Config340B",
+    "NemotronModel",
     "CodeLlamaConfig7B",
     "CodeLlamaConfig13B",
     "CodeLlamaConfig34B",
