@@ -1,12 +1,9 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, List, Optional
+from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
-import torch
 import torch.nn.functional as F
 from torch import nn
-from transformers import GPTBigCodeConfig as HFStarcoderConfig
-from transformers import GPTBigCodeForCausalLM
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
@@ -69,6 +66,8 @@ class HFStarcoderImporter(io.ModelConnector["GPTBigCodeForCausalLM", StarcoderMo
         return StarcoderModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
+        from transformers import GPTBigCodeForCausalLM
+        
         source = GPTBigCodeForCausalLM.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -111,6 +110,7 @@ class HFStarcoderImporter(io.ModelConnector["GPTBigCodeForCausalLM", StarcoderMo
 
     @property
     def config(self) -> StarcoderConfig:
+        from transformers import GPTBigCodeConfig as HFStarcoderConfig
 
         source = HFStarcoderConfig.from_pretrained(str(self))
 
@@ -139,6 +139,8 @@ class HFStarcoderImporter(io.ModelConnector["GPTBigCodeForCausalLM", StarcoderMo
 @io.model_exporter(StarcoderModel, "hf")
 class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausalLM"]):
     def init(self) -> "GPTBigCodeForCausalLM":
+        from transformers import GPTBigCodeForCausalLM
+        
         return GPTBigCodeForCausalLM._from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
@@ -181,6 +183,8 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
 
     @property
     def config(self) -> "HFStarcoderConfig":
+        from transformers import sGPTBigCodeConfig as HFStarcoderConfig
+
         source: StarcoderConfig = io.load_context(str(self)).model.config
 
         return HFStarcoderConfig(
