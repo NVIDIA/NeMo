@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import itertools
 import os
 import queue
 import warnings
 from contextlib import nullcontext
 from dataclasses import fields
-import functools
 from functools import cache, partial
 from importlib.metadata import version
 from typing import Any, Dict, Iterator, List, Optional, Union
@@ -566,9 +566,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if self.cfg.get('fp8_params', False):
                 if not hasattr(ddp_config, "fp8_param_gather"):
                     mcore_version = packaging.version.Version(version('megatron-core'))
-                    raise ValueError(
-                        f"megatron-core v{mcore_version} doesn't support FP8 param optimizer."
-                    )
+                    raise ValueError(f"megatron-core v{mcore_version} doesn't support FP8 param optimizer.")
                 ddp_config.fp8_param_gather = True
             self.model = [
                 McoreDDP(
@@ -577,7 +575,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     model_chunk,
                     # Turn off bucketing for model_chunk 2 onwards, since communication for these
                     # model chunks is overlapped with compute anyway.
-                    disable_bucketing=(model_chunk_idx > 0) or self.cfg.optim.get('overlap_param_gather_with_optimizer_step', False),
+                    disable_bucketing=(model_chunk_idx > 0)
+                    or self.cfg.optim.get('overlap_param_gather_with_optimizer_step', False),
                 )
                 for (model_chunk_idx, model_chunk) in enumerate(self.model)
             ]

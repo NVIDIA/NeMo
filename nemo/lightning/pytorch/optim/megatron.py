@@ -115,8 +115,7 @@ class MegatronOptimizerModule(OptimizerModule):
             model.ddp_config, "align_param_gather", False
         ):
             param_sync_func = [
-                functools.partial(mcore_opt.start_param_sync, model_index)
-                for model_index in range(len(model))
+                functools.partial(mcore_opt.start_param_sync, model_index) for model_index in range(len(model))
             ]
             param_sync_func = param_sync_func[0] if len(model) == 1 else param_sync_func
             for module in model:
