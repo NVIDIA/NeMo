@@ -7,7 +7,7 @@ from nemo.utils import logging
 
 class GarbageCollectionCallback(pl.Callback):
     """Callback for synchronized manual Garbage Collection. This is required for distributed training
-    as all processes need to synchronize to garbage collect at the same time, without which
+    as all processes on different rank need to synchronize to garbage collect at the same time, without which
     one process might hog or straggle all the rest of the processes.
 
     Migration from NeMo 1.0:
@@ -18,7 +18,7 @@ class GarbageCollectionCallback(pl.Callback):
             - env-var:NEMO_MANUAL_GC_IN_VALIDATION=0 or doesn't exist => Set gc_interval_val to a very high value that it does not practically run.
             - env-var:NEMO_MANUAL_GC_IN_VALIDATION=1 => Set gc_interval_val to the same value as gc_interval
 
-        Moving from boolean flag (NEMO_MANUAL_GC_IN_VALIDATION) to integer is to allow user to set any value based on the size of the
+        Moving from boolean flag (NEMO_MANUAL_GC_IN_VALIDATION) to integer is to allow user to set a specific value based on the size of the
         validation datasets.
 
     Note: This callback does not run gc at the start or the end of training or validation.
@@ -29,7 +29,7 @@ class GarbageCollectionCallback(pl.Callback):
 
         Args:
             gc_interval (int, mandatory): Number of global train steps at which garbage collection is done.
-            gc_interval_val (int, mandatory): Number of global validatino steps at which garbage collection is done.
+            gc_interval_val (int, mandatory): Number of global validation steps at which garbage collection is done.
         """
         assert gc_interval_train > 0, "gc_interval_train should be an integer value larger than 0."
         assert gc_interval_val > 0, "gc_interval_val should be an integer value larger than 0."
@@ -39,7 +39,7 @@ class GarbageCollectionCallback(pl.Callback):
         self.gc_interval_val = gc_interval_val
         # As garbage collection is manually controlled, disable automatic garbage collector.
         gc.disable()
-        # This counter is required as pl does not have a native way of doing this.
+        # This counter is required as pl does not have a native way to track the validation step counter.
         self.validation_global_step = 0
 
     def on_train_batch_end(
@@ -66,5 +66,3 @@ class GarbageCollectionCallback(pl.Callback):
         if self.validation_global_step % self.gc_interval_val == 0:
             logging.info(f"Running garbage collection at validation step: {self.validation_global_step}")
             gc.collect()
-        # else:
-        #    logging.info(f"Skipping garbage collection at validation step: {self.validation_global_step}")
