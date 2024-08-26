@@ -18,6 +18,7 @@ from nemo.utils import logging
 # Plugins operate both on a configured task and an executor at the same time, and are specific to NeMo-Run.
 # If you are adding functionality that goes directly into the Pytorch Lightning trainer, you may consider adding a callback instead of a plugin.
 
+
 def _merge_callbacks(partial: run.Partial, callbacks: list[run.Config[Callback]]):
     if hasattr(partial, "trainer"):
         if hasattr(partial.trainer, "callbacks"):
