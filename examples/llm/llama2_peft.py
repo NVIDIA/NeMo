@@ -19,8 +19,9 @@ def get_args():
     parser.add_argument('--experiment-dir', type=str, help="directory to write results and checkpoints to")
     parser.add_argument('--gbs', type=int, default=128, help="Global batch size.")
     parser.add_argument('--mbs', type=int, default=1, help="Micro batch size.")
-    parser.add_argument('--hf-ckpt-path', type=str, default="hf://meta-llama/Llama-2-7b-hf", help="HF checkpoint path to import.")
-
+    parser.add_argument(
+        '--hf-ckpt-path', type=str, default="hf://meta-llama/Llama-2-7b-hf", help="HF checkpoint path to import."
+    )
 
     return parser.parse_args()
 
@@ -50,7 +51,7 @@ if __name__ == '__main__':
             masked_softmax_fusion=False,
         ),
         model_transform=lora,
-        optim=optim
+        optim=optim,
     )
     # Import the checkpoint.
     ckpt_path = model.import_ckpt(args.hf_ckpt_path)
