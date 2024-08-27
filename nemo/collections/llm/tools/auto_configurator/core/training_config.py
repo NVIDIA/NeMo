@@ -626,7 +626,7 @@ class T5GridSearch:
     cp = [None]
     ep = [None]
     mbs = [1, 2, 4, 6, 8, 12, 16]
-    
+
     gbs: int = 1920
     min_model_parallel: int = 1
     max_model_parallel: int = 8
@@ -775,7 +775,7 @@ class BertGridSearch:
     cp = [None]
     ep = [None]
     mbs = [1, 2, 4, 6, 8, 12, 16]
-    
+
     gbs: int = 1920
     min_model_parallel: int = 1
     max_model_parallel: int = 8
@@ -950,12 +950,20 @@ def _calculate_tp_pp_mbs_grid(
         params.init_params()
     elif model_name in ["t5", "mt5"]:
         params = T5GridSearch(
-            model_size_in_b=model_size_in_b, valid_pp=valid_pp, seq_length=seq_length, model_measure=model_measure, gpu_size=gpu_memory_gb
+            model_size_in_b=model_size_in_b,
+            valid_pp=valid_pp,
+            seq_length=seq_length,
+            model_measure=model_measure,
+            gpu_size=gpu_memory_gb,
         )
         params.init_params()
     elif model_name == "bert":
         params = BertGridSearch(
-            model_size_in_b=model_size_in_b, valid_pp=valid_pp, seq_length=seq_length, model_measure=model_measure, gpu_size=gpu_memory_gb
+            model_size_in_b=model_size_in_b,
+            valid_pp=valid_pp,
+            seq_length=seq_length,
+            model_measure=model_measure,
+            gpu_size=gpu_memory_gb,
         )
         params.init_params()
     else:
