@@ -70,7 +70,7 @@ def get_args():
 
 def convert(args):
 
-    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')#['model']
+    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')['model']
     new_state_dict = {}
 
     if 'backbone' in list(checkpoint_weights.keys())[0]:
@@ -134,11 +134,6 @@ def convert(args):
             if '.norm.weight' in key and 'mixer' not in key:
                 key = key[:-11] + 'mixer.in_proj.layer_norm_weight'
             new_state_dict["model." + key] = value       
-
-        # Tokenizer settings
-        tokenizer_library = 'megatron'
-        tokenizer_type = 'GPTSentencePieceTokenizer'
-        tokenizer_model = args.tokenizer_model_dir
 
     layers = defaultdict(list)
 

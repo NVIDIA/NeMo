@@ -159,6 +159,21 @@ jobs:
         rm -f /home/TestData/nlp/megatron_ir/sbert/sbert.nemo
         rm -rf /home/TestData/nlp/megatron_ir/sbert/model_weights
 
+  L2_Community_LLM_Checkpoints_tests_Mamba2:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+          python scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py  \
+          --input_name_or_path /home/TestData/nlp/megatron_mamba/model_optim_rng.pt \
+          --output_path /home/TestData/nlp/megatron_mamba/converted_mamba.nemo \
+          --precision=bf16 \
+          --mamba_ssm_ngroups 1
+      AFTER_SCRIPT: |
+        rm -f /home/TestData/nlp/megatron_mamba/converted_mamba.nemo
+        rm -rf /home/TestData/nlp/megatron_mamba/model_weights
+
   L2_Community_LLM_Checkpoints_tests_Llama:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -221,6 +236,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
+        mkdir /home/TestData/multimodal/video_neva/llama3-ci-hf/${{ github.run_id }}
         export PYTHONPATH=/home/TestData/multimodal/video_neva/LLaVA:$PYTHONPATH
         CUDA_VISIBLE_DEVICES=0 python examples/multimodal/multimodal_llm/neva/convert_llava_to_neva.py \
           --in-file /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/llm \
@@ -228,12 +244,11 @@ jobs:
           --mm-vision-tower /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/vision_tower \
           --tokenizer-model /home/TestData/multimodal/video_neva/vita-tokenizer/ \
           --config-file vita_config.yaml \
-          --out-file=/home/TestData/multimodal/video_neva/llama3-ci-hf/llama3_ci.nemo \
+          --out-file=/home/TestData/multimodal/video_neva/llama3-ci-hf/${{ github.run_id }}/llama3_ci.nemo \
           --model-type VITA \
           --conv-template llama_3
       AFTER_SCRIPT: |
-        rm -f /home/TestData/multimodal/video_neva/llama3-ci-hf/llama3_ci.nemo
-        rm -rf /home/TestData/multimodal/video_neva/llama3-ci-hf/model_weights
+        rm -rf /home/TestData/multimodal/video_neva/llama3-ci-hf/${{ github.run_id }}
   
   # this test is using a 7B model which is too large for GitHub CI
   # replace the model in this test with a toy model or move the test
@@ -2046,7 +2061,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+        python examples/nlp/language_modeling/megatron_bert_pretraining.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
@@ -2076,7 +2091,7 @@ jobs:
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
         model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
 
-        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+        python examples/nlp/language_modeling/megatron_bert_pretraining.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
@@ -2113,7 +2128,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+        python examples/nlp/language_modeling/megatron_bert_pretraining.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
@@ -2144,7 +2159,7 @@ jobs:
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
         model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
 
-        NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+        python examples/nlp/language_modeling/megatron_bert_pretraining.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
@@ -2184,7 +2199,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+        python examples/nlp/language_modeling/megatron_bert_pretraining.py \
           trainer.devices=2 \
           trainer.accelerator=gpu \
           trainer.log_every_n_steps=1 \
@@ -2214,7 +2229,7 @@ jobs:
           model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
           model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
 
-          NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+          python examples/nlp/language_modeling/megatron_bert_pretraining.py \
           trainer.devices=2 \
           trainer.accelerator=gpu \
           trainer.log_every_n_steps=1 \
@@ -4722,7 +4737,8 @@ jobs:
         --vocab-path=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
         --merges-path=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
         --data-path=/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
-        --index-mapping-dir=examples/llm/gpt_index_mappings
+        --index-mapping-dir=examples/llm/gpt_index_mappings \
+        --no-masked-softmax-fusion
 
         python examples/llm/megatron_gpt_pretraining.py \
         --devices=2 \
@@ -4731,7 +4747,24 @@ jobs:
         --vocab-path=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
         --merges-path=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
         --data-path=/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
-        --index-mapping-dir=examples/llm/gpt_index_mappings
+        --index-mapping-dir=examples/llm/gpt_index_mappings \
+        --no-masked-softmax-fusion
+      AFTER_SCRIPT: |
+        rm -rf examples/llm/gpt_pretrain_results
+        rm -rf examples/llm/gpt_index_mappings
+
+  L2_NeMo_2_GPT_DDP_Param_Parity_check:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+
+        python tests/lightning/test_ddp_parity_checker.py \
+        --vocab-path=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        --merges-path=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        --data-path=/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document
+
       AFTER_SCRIPT: |
         rm -rf examples/llm/gpt_pretrain_results
         rm -rf examples/llm/gpt_index_mappings
@@ -4743,6 +4776,7 @@ jobs:
       - L0_Unit_Tests_GPU
       #- OPTIONAL_L0_Unit_Tests_CPU
       - L2_Community_LLM_Checkpoints_tests_Bert
+      - L2_Community_LLM_Checkpoints_tests_Mamba2
       - L2_Community_LLM_Checkpoints_tests_Llama
       - L2_Community_LLM_Checkpoints_tests_StarCoder
       - L2_Community_LLM_Checkpoints_tests_Falcon
@@ -4841,6 +4875,7 @@ jobs:
       - Speech_Checkpoints_tests
       #- OPTIONAL_L2_Stable_Diffusion_Training
       - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
+      - L2_NeMo_2_GPT_DDP_Param_Parity_check
     if: always()
     runs-on: ubuntu-latest
     steps:  
