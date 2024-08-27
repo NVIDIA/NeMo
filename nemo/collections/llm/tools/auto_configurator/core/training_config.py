@@ -294,7 +294,7 @@ class GPT3GridSearch:
 
     model_size_in_b: int
     seq_length: int
-    gpu_size: int
+    gpu_memory_gb: int
     valid_pp: List[int]
     model_measure: str
 
@@ -310,10 +310,10 @@ class GPT3GridSearch:
 
     def init_params(self):
         model_size_in_b = self.model_size_in_b / 1000 if self.model_measure == "M" else self.model_size_in_b
-        gpu_size = self.gpu_size
+        gpu_memory_gb = self.gpu_memory_gb
         seq_length = self.seq_length
 
-        if gpu_size == 80:
+        if gpu_memory_gb == 80:
             if seq_length == 2048:
                 if model_size_in_b <= 1.0:
                     self.tp = [1, 2]
@@ -517,7 +517,7 @@ class GPT3GridSearch:
                     self.min_model_parallel = 16
                     self.max_model_parallel = 32
                     self.gbs = 64
-        elif gpu_size == 40:
+        elif gpu_memory_gb == 40:
             if model_size_in_b <= 1.0:
                 self.tp = [1, 2, 4]
                 self.mbs = [1, 2, 4, 8]
@@ -617,7 +617,7 @@ class T5GridSearch:
 
     model_size_in_b: int
     seq_length: int
-    gpu_size: int
+    gpu_memory_gb: int
     valid_pp: List[int]
     model_measure: str
 
@@ -633,10 +633,10 @@ class T5GridSearch:
 
     def init_params(self):
         model_size_in_b = self.model_size_in_b / 1000 if self.model_measure == "M" else self.model_size_in_b
-        gpu_size = self.gpu_size
+        gpu_memory_gb = self.gpu_memory_gb
         seq_length = self.seq_length
 
-        if gpu_size == 80:
+        if gpu_memory_gb == 80:
             if model_size_in_b <= 1.0:
                 self.tp = [1, 2]
                 self.mbs = [16, 32, 64, 128]
@@ -688,7 +688,7 @@ class T5GridSearch:
                 self.min_model_parallel = 64
                 self.max_model_parallel = 256
                 self.gbs = 1920
-        elif gpu_size == 40:
+        elif gpu_memory_gb == 40:
             if model_size_in_b <= 1.0:
                 self.tp = [1, 2]
                 self.mbs = [16, 32, 64, 128]
@@ -766,7 +766,7 @@ class BertGridSearch:
 
     model_size_in_b: int
     seq_length: int
-    gpu_size: int
+    gpu_memory_gb: int
     valid_pp: List[int]
     model_measure: str
 
@@ -782,10 +782,10 @@ class BertGridSearch:
 
     def init_params(self):
         model_size_in_b = self.model_size_in_b / 1000 if self.model_measure == "M" else self.model_size_in_b
-        gpu_size = self.gpu_size
+        gpu_memory_gb = self.gpu_memory_gb
         seq_length = self.seq_length
 
-        if gpu_size == 80:
+        if gpu_memory_gb == 80:
             if model_size_in_b <= 1.0:
                 self.tp = [1, 2]
                 self.gbs = 256
@@ -836,7 +836,7 @@ class BertGridSearch:
                 self.gbs = 2048
             else:
                 raise ValueError("No BERT model larger than 250B parameters is supported.")
-        elif gpu_size == 40:
+        elif gpu_memory_gb == 40:
             if model_size_in_b <= 1.0:
                 self.tp = [1, 2, 4]
                 self.gbs = 256
@@ -939,35 +939,25 @@ def _calculate_tp_pp_mbs_grid(
         multiplier * x for x in range(1, num_layers + 1) if num_layers % x == 0
     ]  # Only divisors of num_layers are possible.
 
+    kwargs = {
+        "model_size_in_b": model_size_in_b,
+        "valid_pp": valid_pp,
+        "seq_length": seq_length,
+        "model_measure": model_measure,
+        "gpu_memory_gb": gpu_memory_gb,
+    }
+
     if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
-        params = GPT3GridSearch(
-            model_size_in_b=model_size_in_b,
-            valid_pp=valid_pp,
-            seq_length=seq_length,
-            model_measure=model_measure,
-            gpu_size=gpu_memory_gb,
-        )
-        params.init_params()
+        search_class = GPT3GridSearch
     elif model_name in ["t5", "mt5"]:
-        params = T5GridSearch(
-            model_size_in_b=model_size_in_b,
-            valid_pp=valid_pp,
-            seq_length=seq_length,
-            model_measure=model_measure,
-            gpu_size=gpu_memory_gb,
-        )
-        params.init_params()
+        search_class = T5GridSearch
     elif model_name == "bert":
-        params = BertGridSearch(
-            model_size_in_b=model_size_in_b,
-            valid_pp=valid_pp,
-            seq_length=seq_length,
-            model_measure=model_measure,
-            gpu_size=gpu_memory_gb,
-        )
-        params.init_params()
+        search_class = BertGridSearch
     else:
         raise NotImplementedError("Model name not implemented.")
+    
+    params = search_class(**kwargs)
+    params.init_params()
 
     # Override the tp, pp, mbs search if indicated in the config params.
     if tp_sizes is not None and tp_sizes != "auto":
