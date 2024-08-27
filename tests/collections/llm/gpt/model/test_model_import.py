@@ -12,7 +12,7 @@ config_name_to_hf_id = {
     # 'Nemotron3Config4B': 'nvidia/Minitron-4B-Base',
     'Llama2Config7B': 'meta-llama/Llama-2-7b-hf',
     'Llama3Config8B': 'meta-llama/Meta-Llama-3-8B',
-    'MixtralConfig8x7B': 'mistralai/Mixtral-8x7B-v0.1',
+    # 'MixtralConfig8x7B': 'mistralai/Mixtral-8x7B-v0.1',
     # 'ChatGLM2Config6B': 'THUDM/chatglm2-6b',
     'GemmaConfig2B': 'google/gemma-2b',
     # 'Baichuan2Config7B': 'baichuan-inc/Baichuan2-7B-Base',
