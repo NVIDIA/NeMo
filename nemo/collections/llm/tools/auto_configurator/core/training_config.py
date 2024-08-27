@@ -17,8 +17,8 @@
 import os
 import shutil
 import subprocess
-from typing import List, Tuple
 from dataclasses import dataclass, field
+from typing import List, Tuple
 
 from nemo.collections.llm.tools.auto_configurator.core import utils
 
@@ -280,6 +280,7 @@ def _set_activations_checkpoint_params(
         act_ckpt_layers_per_pipeline,
     )
 
+
 @dataclass
 class GPT3GridSearch80gb:
     """
@@ -299,6 +300,7 @@ class GPT3GridSearch80gb:
         int max_model_parallel is max Model parallel size to use for training.
         int gbs is the Global Batch Size to use for training.
     """
+
     model_size_in_b: int = 5
     valid_pp: List[int]
     seq_length: int = 2048
@@ -518,6 +520,7 @@ class GPT3GridSearch80gb:
             min_model_parallel = 16
             max_model_parallel = 32
             gbs = 64
+
 
 def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b: float, valid_pp: List[int], model_measure: str) -> Tuple[int, int, int]:
     """
@@ -996,7 +999,9 @@ def _calculate_tp_pp_mbs_grid(
     if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
         if gpu_memory_gb == 80:
             print(model_size_in_b, valid_pp, seq_length, model_measure)
-            params = GPT3GridSearch80gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp, seq_length=seq_length, model_measure=model_measure)
+            params = GPT3GridSearch80gb(
+                model_size_in_b=model_size_in_b, valid_pp=valid_pp, seq_length=seq_length, model_measure=model_measure
+            )
         elif gpu_memory_gb == 40:
             (
                 tp,
