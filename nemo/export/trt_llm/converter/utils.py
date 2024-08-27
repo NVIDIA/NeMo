@@ -63,10 +63,9 @@ activation_scaling_suffix = '.activation_scaling_factor'
 
 
 def save_val(val, dir, key, tp_num=None):
-    suffix = f".{tp_num}.bin" if tp_num else ''
-    tp_key = key + suffix
-
+    suffix = "" if tp_num is None else f".{tp_num}.bin"
     global weights_dict
+
     # Transpose linear layer weights to the correct shape.
     if torch.is_tensor(val):
         val = val.detach().contiguous()
@@ -74,14 +73,14 @@ def save_val(val, dir, key, tp_num=None):
             val = val.reshape(val.shape[0], -1)
             val = torch.transpose(val, 0, 1)
         if key not in weights_dict:
-            weights_dict[tp_key] = torch.empty(
+            weights_dict[f"{key}{suffix}"] = torch.empty(
                 val.size(), dtype=val.dtype, layout=val.layout, device="cpu", pin_memory=True
             )
-        weights_dict[tp_key].copy_(val, non_blocking=True)
+        weights_dict[f"{key}{suffix}"].copy_(val, non_blocking=True)
     else:
         if len(val.shape) >= 2:
             val = np.ascontiguousarray(np.transpose(val.reshape(val.shape[0], -1), [1, 0]))
-        weights_dict[tp_key] = val
+        weights_dict[f"{key}{suffix}"] = val
 
 
 def save_split(split_vals, dir, key, i, split_factor):
@@ -92,10 +91,10 @@ def save_split(split_vals, dir, key, i, split_factor):
 def save_expert_split(split_vals, dir, key, i, split_factor):
     for j, val in enumerate(split_vals):
         tp_num = i * split_factor + j
-        suffix = f".{tp_num}.bin" if tp_num else ''
+        suffix = "" if tp_num is None else f".{tp_num}.bin"
 
         global weights_dict
-        weights_dict[key + suffix] = val
+        weights_dict[f"{key}{suffix}"] = val
 
 
 def generate_int8(weights, act_range, is_qkv=False, multi_query_mode=False):
@@ -483,12 +482,13 @@ def split_and_save_weight(
             qkv = np.split(val, [q_num, q_num + 1], axis=2)
 
             query_groups_shape = qkv[0].shape
-            if len(query_groups_shape) > 1 and ((query_groups_shape[1] % split_factor) != 0):
-                raise Exception(
-                    "Number of query groups of the models is {0}. Please select tensor parallelism size "
-                    "that can split the number of query groups to equal number of query matrices in the "
-                    "each GPU.".format(query_groups_shape[1])
-                )
+            if len(query_groups_shape) > 1:
+                if (query_groups_shape[1] % split_factor) != 0:
+                    raise Exception(
+                        "Number of query groups of the models is {0}. Please select tensor parallelism size "
+                        "that can split the number of query groups to equal number of query matrices in the "
+                        "each GPU.".format(query_groups_shape[1])
+                    )
 
             q_split = np.split(qkv[0], split_factor, axis=1)
             k_split = np.split(qkv[1], split_factor, axis=1)

@@ -69,7 +69,7 @@ def get_layer_prefix(layer_names, is_mcore):
     return model_prefix, transformer_layer_prefix
 
 
-def rename_key(new_key: str) -> str:
+def rename_key(new_key: str):
     if "self_attention" in new_key:
         new_key = new_key.replace("self_attention", "attention")
     if "attention.linear_qkv.layer_norm_weight" in new_key:
@@ -84,7 +84,7 @@ def rename_key(new_key: str) -> str:
     return new_key
 
 
-def rename_key_dist_ckpt(old_key: str, layer: int) -> str:
+def rename_key_dist_ckpt(old_key: str, layer: int):
     new_key = old_key
     if "layers." in old_key:
         split_key = old_key.split(".")
@@ -195,16 +195,42 @@ def convert_model_to_trt_llm_ckpt(
 
     starmap_args = []
     for key, val in model.items():
-        if not is_scaling_factor(key):
-            # Let's rename/map the key to the old layer name previously.
-            # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
-            layer_vals = [(l, val[l]) for l in range(num_layers)] if len(val.size()) != 1 else [(0, val)]
-
-            for l, v in layer_vals:
-                k = rename_key_dist_ckpt(key, l)
+        if "_extra_state" not in key:
+            if len(val.size()) == 1:
                 starmap_args.append(
-                    (tp_rank, out_dir, split_factor, k, [v], storage_type, None, export_config, scaling_factors)
+                    (
+                        tp_rank,
+                        out_dir,
+                        split_factor,
+                        # Let's rename/map the key to the old layer name previously. You can try printing out
+                        # the rename_key output of the old llama checkpoint and compare.
+                        rename_key_dist_ckpt(key, 0),
+                        # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
+                        [val],
+                        storage_type,
+                        None,
+                        export_config,
+                        scaling_factors,
+                    )
                 )
+            else:
+                for i in range(num_layers):
+                    starmap_args.append(
+                        (
+                            tp_rank,
+                            out_dir,
+                            split_factor,
+                            # Let's rename/map the key to the old layer name previously. You can try printing out
+                            # the rename_key output of the old llama checkpoint and compare.
+                            rename_key_dist_ckpt(key, i),
+                            # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
+                            [val[i]],
+                            storage_type,
+                            None,
+                            export_config,
+                            scaling_factors,
+                        )
+                    )
 
     starmap_args = tqdm(starmap_args, desc="saving weights")
 
