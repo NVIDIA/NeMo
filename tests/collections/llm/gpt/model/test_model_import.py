@@ -40,7 +40,7 @@ def generate_twolayer_checkpoints(config_name, hf_id):
     from transformers import AutoConfig, AutoModel, AutoTokenizer
 
     config = AutoConfig.from_pretrained(hf_id, trust_remote_code=True)
-    # Redune number of layers to two.
+    # Reduce number of layers to two.
     if hasattr(config, 'num_hidden_layers'):
         print(config.num_hidden_layers)
         config.num_hidden_layers = 2
