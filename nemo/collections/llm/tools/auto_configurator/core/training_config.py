@@ -18,6 +18,7 @@ import os
 import shutil
 import subprocess
 from typing import List, Tuple
+from dataclasses import dataclass, field
 
 from nemo.collections.llm.tools.auto_configurator.core import utils
 
@@ -279,10 +280,8 @@ def _set_activations_checkpoint_params(
         act_ckpt_layers_per_pipeline,
     )
 
-
-def _tp_pp_mbs_grid_gpt3_80gb(
-    model_size_in_b: float, valid_pp: List[int], seq_length: int, model_measure: str
-) -> Tuple[int, int, int]:
+@dataclass
+class GPT3GridSearch80gb:
     """
     Selects grid search space for TP, PP, MBS parameters for GPT-3 and 80GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
@@ -300,15 +299,22 @@ def _tp_pp_mbs_grid_gpt3_80gb(
         int max_model_parallel is max Model parallel size to use for training.
         int gbs is the Global Batch Size to use for training.
     """
-    tp = [1, 2, 4, 8]
-    pp = [1]
-    cp = [1]
-    ep = [1]
-    mbs = [1, 2, 3, 4, 6, 8]
-    min_model_parallel = 1
-    max_model_parallel = 8
-    gbs = 1024
+    model_size_in_b: int = 5
+    valid_pp: List[int]
+    seq_length: int = 2048
+    model_measure: str = "B"
+
+    tp: List[int] = field(default_factory=lambda: [1, 2, 4, 8])
+    pp: List[int] = field(default_factory=lambda: [1])
+    cp: List[int] = field(default_factory=lambda: [1])
+    ep: List[int] = field(default_factory=lambda: [1])
+    mbs: List[int] = field(default_factory=lambda: [1, 2, 3, 4, 6, 8])
+    min_model_parallel: int = 1
+    max_model_parallel: int = 8
+    gbs: int = 1024
+
     model_size_in_b = model_size_in_b / 1000 if model_measure == "M" else model_size_in_b
+
     if seq_length == 2048:
         if model_size_in_b <= 1.0:
             tp = [1, 2]
@@ -512,9 +518,6 @@ def _tp_pp_mbs_grid_gpt3_80gb(
             min_model_parallel = 16
             max_model_parallel = 32
             gbs = 64
-
-    return tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs
-
 
 def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b: float, valid_pp: List[int], model_measure: str) -> Tuple[int, int, int]:
     """
@@ -992,21 +995,8 @@ def _calculate_tp_pp_mbs_grid(
 
     if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
         if gpu_memory_gb == 80:
-            (
-                tp,
-                pp,
-                cp,
-                ep,
-                mbs,
-                min_model_parallel,
-                max_model_parallel,
-                gbs,
-            ) = _tp_pp_mbs_grid_gpt3_80gb(
-                model_size_in_b=model_size_in_b,
-                valid_pp=valid_pp,
-                seq_length=seq_length,
-                model_measure=model_measure,
-            )
+            print(model_size_in_b, valid_pp, seq_length, model_measure)
+            params = GPT3GridSearch80gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp, seq_length=seq_length, model_measure=model_measure)
         elif gpu_memory_gb == 40:
             (
                 tp,
@@ -1094,4 +1084,4 @@ def _calculate_tp_pp_mbs_grid(
         min_model_parallel = min_model_parallel_size
     if max_model_parallel_size is not None and max_model_parallel_size != "auto":
         max_model_parallel = max_model_parallel_size
-    return tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs
+    return params
