@@ -24,7 +24,7 @@ from nemo.collections.llm.tools.auto_configurator.core import utils
 
 
 def search_training_config(
-        base_cfg: dict,
+    base_cfg: dict,
     train_cfg: dict,
 ) -> None:
     """
@@ -41,7 +41,7 @@ def search_training_config(
 
 
 def generate_grid_search_configs(
-        base_cfg: dict,
+    base_cfg: dict,
     train_cfg: dict,
 ) -> Tuple[str, List[int], int]:
     """
