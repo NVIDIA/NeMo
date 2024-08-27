@@ -169,7 +169,7 @@ class TensorRTLLM(ITritonDeployable):
         multiple_profiles: bool = False,
         gpt_attention_plugin: str = "auto",
         gemm_plugin: str = "auto",
-        use_mcore_path: bool = False, 
+        use_mcore_path: bool = False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
