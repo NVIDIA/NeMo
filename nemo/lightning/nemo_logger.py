@@ -157,7 +157,6 @@ class NeMoLogger(IOMixin):
                 if isinstance(logger, TensorBoardLogger):
                     logger._version = version or ""
                     logger._root_dir = Path(dir) / os.path.relpath(logger.save_dir)
-                    trainer.logger._name = self.name
                     logging.warning(
                         f'"update_logger_directory" is True. Overwriting tensorboard logger "save_dir" to {logger._root_dir}'
                     )
