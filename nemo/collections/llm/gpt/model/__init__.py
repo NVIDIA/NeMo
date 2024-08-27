@@ -1,3 +1,4 @@
+from nemo.collections.llm.gpt.model.baichuan import Baichuan2Config, Baichuan2Config7B, Baichuan2Model
 from nemo.collections.llm.gpt.model.base import (
     GPTConfig,
     GPTModel,
@@ -7,6 +8,7 @@ from nemo.collections.llm.gpt.model.base import (
     local_layer_spec,
     transformer_engine_layer_spec,
 )
+from nemo.collections.llm.gpt.model.chatglm import ChatGLM2Config6B, ChatGLM3Config6B, ChatGLMConfig, ChatGLMModel
 from nemo.collections.llm.gpt.model.gemma import (
     CodeGemmaConfig2B,
     CodeGemmaConfig7B,
@@ -29,14 +31,30 @@ from nemo.collections.llm.gpt.model.llama import (
     LlamaModel,
 )
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
-from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralConfig8x22B, MixtralModel
+from nemo.collections.llm.gpt.model.mixtral import (
+    MixtralConfig8x3B,
+    MixtralConfig8x7B,
+    MixtralConfig8x22B,
+    MixtralModel,
+)
+from nemo.collections.llm.gpt.model.nemotron import (
+    Nemotron3Config4B,
+    Nemotron3Config8B,
+    Nemotron4Config15B,
+    Nemotron4Config22B,
+    Nemotron4Config340B,
+    NemotronConfig,
+    NemotronModel,
+)
 
 __all__ = [
     "GPTConfig",
     "GPTModel",
     "MistralConfig7B",
     "MistralModel",
+    "MixtralConfig8x3B",
     "MixtralConfig8x7B",
+    "MixtralConfig8x22B",
     "MixtralModel",
     "LlamaConfig",
     "Llama2Config7B",
@@ -44,6 +62,13 @@ __all__ = [
     "Llama2Config70B",
     "Llama3Config8B",
     "Llama3Config70B",
+    "NemotronConfig",
+    "Nemotron3Config4B",
+    "Nemotron3Config8B",
+    "Nemotron4Config15B",
+    "Nemotron4Config22B",
+    "Nemotron4Config340B",
+    "NemotronModel",
     "CodeLlamaConfig7B",
     "CodeLlamaConfig13B",
     "CodeLlamaConfig34B",
@@ -55,6 +80,13 @@ __all__ = [
     "CodeGemmaConfig7B",
     "GemmaModel",
     "LlamaModel",
+    "Baichuan2Config",
+    "Baichuan2Config7B",
+    "Baichuan2Model",
+    "ChatGLMConfig",
+    "ChatGLM2Config6B",
+    "ChatGLM3Config6B",
+    "ChatGLMModel",
     "MaskedTokenLossReduction",
     "gpt_data_step",
     "gpt_forward_step",
