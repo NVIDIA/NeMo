@@ -24,7 +24,8 @@ model:
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   restore_from_path: llama2-7b-fp16.nemo # Nemo file path
-  precision: ${export.dtype}
+  precision: ${export.dtype} # Model weights data type
+  megatron_amp_O2: true # Enable Megatron O2-style half-precision
 
   ## Activation Checkpoint
   activations_checkpoint_granularity: null # 'selective' or 'full'
