@@ -200,13 +200,7 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
             "output_layer.weight": "lm_head.weight",
         }
 
-        target.load_state_dict(
-            StateDictTransformer(
-                source.state_dict(), mapping, transforms, transforms=[_export_qkv, _export_linear_fc1]
-            )
-        )
-        return target
-        # return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
+        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
 
     @property
     def tokenizer(self):
