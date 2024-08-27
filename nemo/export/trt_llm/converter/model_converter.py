@@ -38,6 +38,8 @@ def get_config(decoder_type, config):
         "llama": tensorrt_llm.models.llama.config.LLaMAConfig,
         "gpt": tensorrt_llm.models.gpt.config.GPTConfig,
         "gptnext": tensorrt_llm.models.gpt.config.GPTConfig,
+        "falcon": tensorrt_llm.models.falcon.config.FalconConfig,
+        "gemma": tensorrt_llm.models.GemmaConfig,
     }
     config_cls = DECODER_CONFIG[decoder_type] if decoder_type in DECODER_CONFIG else PretrainedConfig
 
@@ -179,7 +181,6 @@ def model_to_trtllm_ckpt(
         'tp_size': tensor_parallel_size,
         'pp_size': pipeline_parallel_size,
     }
-
     model_configs = []
     weights_dicts = []
     num_layers = nemo_model_config.get('num_layers')
