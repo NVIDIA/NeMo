@@ -372,7 +372,6 @@ def _export_moe_w1_w3(linear_fc1):
     return gate_proj, up_proj
 
 
-
 __all__ = [
     "MixtralConfig",
     "MixtralConfig8x3B",

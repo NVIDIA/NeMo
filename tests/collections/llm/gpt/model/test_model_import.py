@@ -1,6 +1,6 @@
 import torch
-torch.set_grad_enabled(False)
 
+torch.set_grad_enabled(False)
 
 
 config_name_to_hf_id = {
@@ -14,23 +14,27 @@ config_name_to_hf_id = {
     # 'Baichuan2Config7B': 'baichuan-inc/Baichuan2-7B-Base',
 }
 
+
 def strip_digits_from_end(s):
     s = list(s)
     while s and s[-1].isdigit():
         s = s[:-1]
     return ''.join(s)
 
+
 def get_modulename_from_config_name(config_name):
     # Finds name of model class from config class name.
     # Llama2Config7B -> Llama2Model (fail) -> LlamaModel
     import nemo.collections.llm.gpt.model as nemo_ux_llms
+
     assert 'Config' in config_name, 'Expected config_name to contain "Config".'
-    module_name = config_name.split('Config')[0]+"Model"
+    module_name = config_name.split('Config')[0] + "Model"
     if not hasattr(nemo_ux_llms, module_name):
         module_name = strip_digits_from_end(config_name.split('Config')[0]) + "Model"
     if not hasattr(nemo_ux_llms, module_name):
         raise ValueError("Failed to get modulename")
     return module_name
+
 
 def generate_twolayer_checkpoints(config_name, hf_id):
     from transformers import AutoConfig, AutoModel, AutoTokenizer
@@ -56,13 +60,12 @@ def generate_twolayer_checkpoints(config_name, hf_id):
     # Fill state-dict with i/n
     n = len(state.items())
     for i, key in enumerate(state.keys()):
-        value = torch.empty_like(state[key]).fill_(i/n)
+        value = torch.empty_like(state[key]).fill_(i / n)
         state[key] = value
     model_2l.load_state_dict(state)
     model_2l.save_pretrained(f'hf_ckpts/{config_name}/', safe_serialization=False)
     hf_tokenizer = AutoTokenizer.from_pretrained(hf_id, trust_remote_code=True)
     hf_tokenizer.save_pretrained(f'hf_ckpts/{config_name}/', trust_remote_code=True)
-
 
 
 def import_from_hf(config_name, hf_path):
@@ -75,8 +78,8 @@ def import_from_hf(config_name, hf_path):
     model = model_cls(config_cls())
     import_ckpt(model=model, source=hf_path)
 
+
 if __name__ == '__main__':
     for config_name, hf_id in config_name_to_hf_id.items():
         src = f'hf:///mnt/datadrive/TestData/nemo2_ckpt/{config_name}'
         import_from_hf(config_name, src)
-

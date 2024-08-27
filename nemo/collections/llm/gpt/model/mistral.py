@@ -200,7 +200,8 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
             "output_layer.weight": "lm_head.weight",
         }
 
-        target.load_state_dict(StateDictTransformer(
+        target.load_state_dict(
+            StateDictTransformer(
                 source.state_dict(), mapping, transforms, transforms=[_export_qkv, _export_linear_fc1]
             )
         )
