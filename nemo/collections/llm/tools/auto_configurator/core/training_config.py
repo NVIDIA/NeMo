@@ -596,7 +596,8 @@ class GPT3GridSearch:
                 self.gbs = 2048
 
 
-def _tp_pp_mbs_grid_t5_80gb(model_size_in_b: float, valid_pp: List[int], model_measure: str) -> Tuple[int, int, int]:
+@dataclass
+class T5GridSearch:
     """
     Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 80GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
@@ -613,153 +614,139 @@ def _tp_pp_mbs_grid_t5_80gb(model_size_in_b: float, valid_pp: List[int], model_m
         int max_model_parallel is max Model parallel size to use for training.
         int gbs is the Global Batch Size to use for training.
     """
+
+    model_size_in_b: int
+    seq_length: int
+    gpu_size: int
+    valid_pp: List[int]
+    model_measure: str
+
     tp = [1, 2, 4, 8]
     pp = [1]
     cp = [None]
     ep = [None]
     mbs = [1, 2, 4, 6, 8, 12, 16]
-    min_model_parallel = 1
-    max_model_parallel = 8
-    gbs = 1920
-    model_size_in_b = model_size_in_b / 1000 if model_measure == "M" else model_size_in_b
-    if model_size_in_b <= 1.0:
-        tp = [1, 2]
-        mbs = [16, 32, 64, 128]
-        gbs = 2048
-    elif model_size_in_b <= 4.0:
-        tp = [1, 2, 4]
-        mbs = [4, 6, 8, 12, 16, 24, 32, 48]
-        gbs = 1920
-    elif model_size_in_b <= 8.0:
-        tp = [2, 4, 8]
-        mbs = [4, 6, 8, 12, 16, 24, 32]
-        gbs = 1920
-    elif model_size_in_b <= 14.5:
-        tp = [4, 8]
-        mbs = [2, 4, 6, 8, 12, 16, 24]
-        gbs = 1920
-    elif model_size_in_b <= 25.9:
-        tp = [4, 8]
-        pp = [x for x in valid_pp if 1 <= x <= 2]
-        mbs = [1, 2, 4, 6, 8]
-        min_model_parallel = 4
-        max_model_parallel = 16
-        gbs = 1920
-    elif model_size_in_b <= 43.0:
-        tp = [4, 8]
-        pp = [x for x in valid_pp if 1 <= x <= 4]
-        mbs = [1, 2, 4, 6, 8]
-        min_model_parallel = 8
-        max_model_parallel = 32
-        gbs = 1920
-    elif model_size_in_b <= 85.5:
-        tp = [4, 8]
-        pp = [x for x in valid_pp if 2 <= x <= 8]
-        mbs = [1, 2, 4, 6, 8]
-        min_model_parallel = 16
-        max_model_parallel = 64
-        gbs = 1920
-    elif model_size_in_b <= 165.5:
-        tp = [8]
-        pp = [x for x in valid_pp if 4 <= x <= 16]
-        mbs = [1, 2, 4, 6]
-        min_model_parallel = 32
-        max_model_parallel = 128
-        gbs = 1920
-    elif model_size_in_b <= 250:
-        tp = [8]
-        pp = [x for x in valid_pp if 4 <= x <= 32]
-        mbs = [1, 2, 4, 6, 8]
-        min_model_parallel = 64
-        max_model_parallel = 256
-        gbs = 1920
-    return tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs
+    
+    gbs: int = 1920
+    min_model_parallel: int = 1
+    max_model_parallel: int = 8
+
+    def init_params(self):
+        model_size_in_b = self.model_size_in_b / 1000 if self.model_measure == "M" else self.model_size_in_b
+        gpu_size = self.gpu_size
+        seq_length = self.seq_length
+
+        if gpu_size == 80:
+            if model_size_in_b <= 1.0:
+                self.tp = [1, 2]
+                self.mbs = [16, 32, 64, 128]
+                self.gbs = 2048
+            elif model_size_in_b <= 4.0:
+                self.tp = [1, 2, 4]
+                self.mbs = [4, 6, 8, 12, 16, 24, 32, 48]
+                self.gbs = 1920
+            elif model_size_in_b <= 8.0:
+                self.tp = [2, 4, 8]
+                self.mbs = [4, 6, 8, 12, 16, 24, 32]
+                self.gbs = 1920
+            elif model_size_in_b <= 14.5:
+                self.tp = [4, 8]
+                self.mbs = [2, 4, 6, 8, 12, 16, 24]
+                self.gbs = 1920
+            elif model_size_in_b <= 25.9:
+                self.tp = [4, 8]
+                self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
+                self.mbs = [1, 2, 4, 6, 8]
+                self.min_model_parallel = 4
+                self.max_model_parallel = 16
+                self.gbs = 1920
+            elif model_size_in_b <= 43.0:
+                self.tp = [4, 8]
+                self.pp = [x for x in self.valid_pp if 1 <= x <= 4]
+                self.mbs = [1, 2, 4, 6, 8]
+                self.min_model_parallel = 8
+                self.max_model_parallel = 32
+                self.gbs = 1920
+            elif model_size_in_b <= 85.5:
+                self.tp = [4, 8]
+                self.pp = [x for x in self.valid_pp if 2 <= x <= 8]
+                self.mbs = [1, 2, 4, 6, 8]
+                self.min_model_parallel = 16
+                self.max_model_parallel = 64
+                self.gbs = 1920
+            elif model_size_in_b <= 165.5:
+                self.tp = [8]
+                self.pp = [x for x in self.valid_pp if 4 <= x <= 16]
+                self.mbs = [1, 2, 4, 6]
+                self.min_model_parallel = 32
+                self.max_model_parallel = 128
+                self.gbs = 1920
+            elif model_size_in_b <= 250:
+                self.tp = [8]
+                self.pp = [x for x in self.valid_pp if 4 <= x <= 32]
+                self.mbs = [1, 2, 4, 6, 8]
+                self.min_model_parallel = 64
+                self.max_model_parallel = 256
+                self.gbs = 1920
+        elif gpu_size == 40:
+            if model_size_in_b <= 1.0:
+                self.tp = [1, 2]
+                self.mbs = [16, 32, 64, 128]
+                self.gbs = 2048
+            elif model_size_in_b <= 4.0:
+                self.tp = [1, 2, 4]
+                self.mbs = [4, 8, 12, 16, 24, 32, 48]
+                self.gbs = 1920
+            elif model_size_in_b <= 8.0:
+                self.tp = [2, 4, 8]
+                self.mbs = [4, 6, 8, 12, 16, 24]
+                self.gbs = 1920
+            elif model_size_in_b <= 14.5:
+                self.tp = [4, 8]
+                self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
+                self.mbs = [2, 4, 6, 8, 12, 16]
+                self.min_model_parallel = 4
+                self.max_model_parallel = 16
+                self.gbs = 1920
+            elif model_size_in_b <= 25.9:
+                self.tp = [4, 8]
+                self.pp = [x for x in self.valid_pp if 1 <= x <= 8]
+                self.mbs = [1, 2, 4, 6, 8]
+                self.min_model_parallel = 8
+                self.max_model_parallel = 32
+                self.gbs = 1920
+            elif model_size_in_b <= 43.0:
+                self.tp = [4, 8]
+                self.pp = [x for x in self.valid_pp if 1 <= x <= 8]
+                self.mbs = [1, 2, 4, 6, 8]
+                self.min_model_parallel = 16
+                self.max_model_parallel = 32
+                self.gbs = 1920
+            elif model_size_in_b <= 85.5:
+                self.tp = [8]
+                self.pp = [x for x in self.valid_pp if 2 <= x <= 8]
+                self.mbs = [1, 2, 4, 6, 8]
+                self.min_model_parallel = 32
+                self.max_model_parallel = 64
+                self.gbs = 1920
+            elif model_size_in_b <= 165.5:
+                self.tp = [8]
+                self.pp = [x for x in self.valid_pp if 4 <= x <= 32]
+                self.mbs = [1, 2, 4]
+                self.min_model_parallel = 64
+                self.max_model_parallel = 128
+                self.gbs = 1920
+            elif model_size_in_b <= 250:
+                self.tp = [8]
+                self.pp = [x for x in self.valid_pp if 8 <= x <= 64]
+                self.mbs = [1, 2, 4]
+                self.min_model_parallel = 128
+                self.max_model_parallel = 256
+                self.gbs = 1920
 
 
-def _tp_pp_mbs_grid_t5_40gb(model_size_in_b: float, valid_pp: List[int], model_measure: str) -> Tuple[int, int, int]:
-    """
-    Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 40GB GPUs.
-    :param float model_size_in_b: number of parameters in the model.
-    :param List[int] valid_pp: list of valid Pipeline Parallelism (PP) values for this config.
-    :param str model_measure: measure of model size (millions or billions).
-    :returns: tuple (tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs)
-        WHERE
-        int tp is the Tensor Parallelism value to use for training.
-        int pp is the Pipeline Parallelism value to use for training.
-        int cp is the Context Parallelism value to use for training.
-        int ep is the Expert Parallelism value to use for training.
-        int mbs is the Micro Batch Size to use for training.
-        int min_model_parallel is min Model parallel size to use for training.
-        int max_model_parallel is max Model parallel size to use for training.
-        int gbs is the Global Batch Size to use for training.
-    """
-    tp = [1, 2, 4, 8]
-    pp = [1]
-    cp = [None]
-    ep = [None]
-    mbs = [1, 2, 4, 6, 8, 12, 16]
-    min_model_parallel = 1
-    max_model_parallel = 8
-    gbs = 1920
-    model_size_in_b = model_size_in_b / 1000 if model_measure == "M" else model_size_in_b
-    if model_size_in_b <= 1.0:
-        tp = [1, 2]
-        mbs = [16, 32, 64, 128]
-        gbs = 2048
-    elif model_size_in_b <= 4.0:
-        tp = [1, 2, 4]
-        mbs = [4, 8, 12, 16, 24, 32, 48]
-        gbs = 1920
-    elif model_size_in_b <= 8.0:
-        tp = [2, 4, 8]
-        mbs = [4, 6, 8, 12, 16, 24]
-        gbs = 1920
-    elif model_size_in_b <= 14.5:
-        tp = [4, 8]
-        pp = [x for x in valid_pp if 1 <= x <= 2]
-        mbs = [2, 4, 6, 8, 12, 16]
-        min_model_parallel = 4
-        max_model_parallel = 16
-        gbs = 1920
-    elif model_size_in_b <= 25.9:
-        tp = [4, 8]
-        pp = [x for x in valid_pp if 1 <= x <= 8]
-        mbs = [1, 2, 4, 6, 8]
-        min_model_parallel = 8
-        max_model_parallel = 32
-        gbs = 1920
-    elif model_size_in_b <= 43.0:
-        tp = [4, 8]
-        pp = [x for x in valid_pp if 1 <= x <= 8]
-        mbs = [1, 2, 4, 6, 8]
-        min_model_parallel = 16
-        max_model_parallel = 32
-        gbs = 1920
-    elif model_size_in_b <= 85.5:
-        tp = [8]
-        pp = [x for x in valid_pp if 2 <= x <= 8]
-        mbs = [1, 2, 4, 6, 8]
-        min_model_parallel = 32
-        max_model_parallel = 64
-        gbs = 1920
-    elif model_size_in_b <= 165.5:
-        tp = [8]
-        pp = [x for x in valid_pp if 4 <= x <= 32]
-        mbs = [1, 2, 4]
-        min_model_parallel = 64
-        max_model_parallel = 128
-        gbs = 1920
-    elif model_size_in_b <= 250:
-        tp = [8]
-        pp = [x for x in valid_pp if 8 <= x <= 64]
-        mbs = [1, 2, 4]
-        min_model_parallel = 128
-        max_model_parallel = 256
-        gbs = 1920
-    return tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs
-
-
-def _tp_pp_mbs_grid_bert_80gb(model_size_in_b: float, valid_pp: List[int], model_measure: str) -> Tuple[int, int, int]:
+@dataclass
+class BertGridSearch:
     """
     Selects grid search space for TP, PP, MBS parameters for BERT and 80GB GPUs.
     :param float model_size_in_b: number of parameters in the model.
@@ -776,144 +763,131 @@ def _tp_pp_mbs_grid_bert_80gb(model_size_in_b: float, valid_pp: List[int], model
         int max_model_parallel is max Model parallel size to use for training.
         int gbs is the Global Batch Size to use for training.
     """
+
+    model_size_in_b: int
+    seq_length: int
+    gpu_size: int
+    valid_pp: List[int]
+    model_measure: str
+
+    tp = [1, 2, 4, 8]
     pp = [1]
     cp = [None]
     ep = [None]
-    mbs = [1, 2, 3, 4, 6, 8]
-    min_model_parallel = 1
-    max_model_parallel = 8
-    gbs = 1024
-    model_size_in_b = model_size_in_b / 1000 if model_measure == "M" else model_size_in_b
-    if model_size_in_b <= 1.0:
-        tp = [1, 2]
-        gbs = 256
-    elif model_size_in_b <= 4.0:
-        tp = [1, 2, 4]
-        gbs = 1024
-    elif model_size_in_b <= 8.0:
-        tp = [2, 4, 8]
-        min_model_parallel = 2
-        gbs = 2048
-    elif model_size_in_b <= 13.0:
-        tp = [2, 4, 8]
-        mbs = [1, 2, 3, 4, 6]
-        min_model_parallel = 2
-        gbs = 2048
-    elif model_size_in_b <= 25.0:
-        tp = [4, 8]
-        mbs = [1, 2, 3, 4]
-        min_model_parallel = 4
-        gbs = 2048
-    elif model_size_in_b <= 46.5:
-        tp = [4, 8]
-        pp = [1, 2, 4]
-        mbs = [1, 2, 3, 4]
-        min_model_parallel = 4
-        max_model_parallel = 16
-        gbs = 2048
-    elif model_size_in_b <= 87.5:
-        tp = [4, 8]
-        pp = [2, 4, 6, 8]
-        mbs = [1, 2, 3, 4]
-        min_model_parallel = 8
-        max_model_parallel = 32
-        gbs = 2048
-    elif model_size_in_b <= 165.5:
-        tp = [4, 8]
-        pp = [4, 6, 8, 16]
-        mbs = [2, 4, 6, 8]
-        min_model_parallel = 16
-        max_model_parallel = 128
-        gbs = 2048
-    elif model_size_in_b <= 250.5:
-        tp = [8]
-        pp = [4, 8, 16, 32]
-        mbs = [1, 2, 3, 4]
-        min_model_parallel = 32
-        max_model_parallel = 256
-        gbs = 2048
-    else:
-        raise ValueError("No BERT model larger than 250B parameters is supported.")
-    return tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs
+    mbs = [1, 2, 4, 6, 8, 12, 16]
+    
+    gbs: int = 1920
+    min_model_parallel: int = 1
+    max_model_parallel: int = 8
 
+    def init_params(self):
+        model_size_in_b = self.model_size_in_b / 1000 if self.model_measure == "M" else self.model_size_in_b
+        gpu_size = self.gpu_size
+        seq_length = self.seq_length
 
-def _tp_pp_mbs_grid_bert_40gb(model_size_in_b: float, valid_pp: List[int], model_measure: str) -> Tuple[int, int, int]:
-    """
-    Selects grid search space for TP, PP, MBS parameters for BERT and 40GB GPUs.
-    :param float model_size_in_b: number of parameters in the model.
-    :param List[int] valid_pp: list of valid Pipeline Parallelism (PP) values for this config.
-    :param str model_measure: measure of model size (millions or billions).
-    :returns: tuple (tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs)
-        WHERE
-        int tp is the Tensor Parallelism value to use for training.
-        int pp is the Pipeline Parallelism value to use for training.
-        int cp is the Context Parallelism value to use for training.
-        int ep is the Expert Parallelism value to use for training.
-        int mbs is the Micro Batch Size to use for training.
-        int min_model_parallel is min Model parallel size to use for training.
-        int max_model_parallel is max Model parallel size to use for training.
-        int gbs is the Global Batch Size to use for training.
-    """
-    pp = [1]
-    cp = [None]
-    ep = [None]
-    mbs = [1, 2, 4, 6, 8]
-    min_model_parallel = 1
-    max_model_parallel = 8
-    gbs = 1024
-    model_size_in_b = model_size_in_b / 1000 if model_measure == "M" else model_size_in_b
-    if model_size_in_b <= 1.0:
-        tp = [1, 2, 4]
-        gbs = 256
-    elif model_size_in_b <= 4.0:
-        tp = [1, 2, 4, 8]
-        gbs = 1024
-    elif model_size_in_b <= 8.0:
-        tp = [2, 4, 8]
-        mbs = [1, 2, 4]
-        gbs = 2048
-    elif model_size_in_b <= 13.0:
-        tp = [2, 4, 8]
-        mbs = [1, 2, 4]
-        gbs = 2048
-    elif model_size_in_b <= 25.0:
-        tp = [2, 4, 8]
-        pp = [1, 2]
-        mbs = [1, 2, 4]
-        min_model_parallel = 2
-        max_model_parallel = 16
-        gbs = 2048
-    elif model_size_in_b <= 46.5:
-        tp = [4, 8]
-        pp = [1, 2, 4, 8]
-        mbs = [1, 2, 3]
-        min_model_parallel = 8
-        max_model_parallel = 32
-        gbs = 2048
-    elif model_size_in_b <= 87.5:
-        tp = [4, 8]
-        pp = [2, 4, 6, 8]
-        mbs = [1, 2, 3]
-        min_model_parallel = 16
-        max_model_parallel = 64
-        gbs = 2048
-    elif model_size_in_b <= 165.5:
-        tp = [8]
-        pp = [4, 6, 8, 16]
-        mbs = [1, 2]
-        min_model_parallel = 32
-        max_model_parallel = 256
-        gbs = 2048
-    elif model_size_in_b <= 250.5:
-        tp = [8]
-        pp = [8, 16, 32]
-        mbs = [1, 2]
-        min_model_parallel = 64
-        max_model_parallel = 512
-        gbs = 2048
-    else:
-        raise ValueError("No BERT model larger than 250B parameters is supported.")
-    return tp, pp, cp, ep, mbs, min_model_parallel, max_model_parallel, gbs
+        if gpu_size == 80:
+            if model_size_in_b <= 1.0:
+                self.tp = [1, 2]
+                self.gbs = 256
+            elif model_size_in_b <= 4.0:
+                self.tp = [1, 2, 4]
+                self.gbs = 1024
+            elif model_size_in_b <= 8.0:
+                self.tp = [2, 4, 8]
+                self.min_model_parallel = 2
+                self.gbs = 2048
+            elif model_size_in_b <= 13.0:
+                self.tp = [2, 4, 8]
+                self.mbs = [1, 2, 3, 4, 6]
+                self.min_model_parallel = 2
+                self.gbs = 2048
+            elif model_size_in_b <= 25.0:
+                self.tp = [4, 8]
+                self.mbs = [1, 2, 3, 4]
+                self.min_model_parallel = 4
+                self.gbs = 2048
+            elif model_size_in_b <= 46.5:
+                self.tp = [4, 8]
+                self.pp = [1, 2, 4]
+                self.mbs = [1, 2, 3, 4]
+                self.min_model_parallel = 4
+                self.max_model_parallel = 16
+                self.gbs = 2048
+            elif model_size_in_b <= 87.5:
+                self.tp = [4, 8]
+                self.pp = [2, 4, 6, 8]
+                self.mbs = [1, 2, 3, 4]
+                self.min_model_parallel = 8
+                self.max_model_parallel = 32
+                self.gbs = 2048
+            elif model_size_in_b <= 165.5:
+                self.tp = [4, 8]
+                self.pp = [4, 6, 8, 16]
+                self.mbs = [2, 4, 6, 8]
+                self.min_model_parallel = 16
+                self.max_model_parallel = 128
+                self.gbs = 2048
+            elif model_size_in_b <= 250.5:
+                self.tp = [8]
+                self.pp = [4, 8, 16, 32]
+                self.mbs = [1, 2, 3, 4]
+                self.min_model_parallel = 32
+                self.max_model_parallel = 256
+                self.gbs = 2048
+            else:
+                raise ValueError("No BERT model larger than 250B parameters is supported.")
+        elif gpu_size == 40:
+            if model_size_in_b <= 1.0:
+                self.tp = [1, 2, 4]
+                self.gbs = 256
+            elif model_size_in_b <= 4.0:
+                self.tp = [1, 2, 4, 8]
+                self.gbs = 1024
+            elif model_size_in_b <= 8.0:
+                self.tp = [2, 4, 8]
+                self.mbs = [1, 2, 4]
+                self.gbs = 2048
+            elif model_size_in_b <= 13.0:
+                self.tp = [2, 4, 8]
+                self.mbs = [1, 2, 4]
+                self.gbs = 2048
+            elif model_size_in_b <= 25.0:
+                self.tp = [2, 4, 8]
+                self.pp = [1, 2]
+                self.mbs = [1, 2, 4]
+                self.min_model_parallel = 2
+                self.max_model_parallel = 16
+                self.gbs = 2048
+            elif model_size_in_b <= 46.5:
+                self.tp = [4, 8]
+                self.pp = [1, 2, 4, 8]
+                self.mbs = [1, 2, 3]
+                self.min_model_parallel = 8
+                self.max_model_parallel = 32
+                self.gbs = 2048
+            elif model_size_in_b <= 87.5:
+                self.tp = [4, 8]
+                self.pp = [2, 4, 6, 8]
+                self.mbs = [1, 2, 3]
+                self.min_model_parallel = 16
+                self.max_model_parallel = 64
+                self.gbs = 2048
+            elif model_size_in_b <= 165.5:
+                self.tp = [8]
+                self.pp = [4, 6, 8, 16]
+                self.mbs = [1, 2]
+                self.min_model_parallel = 32
+                self.max_model_parallel = 256
+                self.gbs = 2048
+            elif model_size_in_b <= 250.5:
+                self.tp = [8]
+                self.pp = [8, 16, 32]
+                self.mbs = [1, 2]
+                self.min_model_parallel = 64
+                self.max_model_parallel = 512
+                self.gbs = 2048
+            else:
+                raise ValueError("No BERT model larger than 250B parameters is supported.")
 
 
 def _calculate_tp_pp_mbs_grid(
@@ -975,59 +949,15 @@ def _calculate_tp_pp_mbs_grid(
         )
         params.init_params()
     elif model_name in ["t5", "mt5"]:
-        if gpu_memory_gb == 80:
-            (
-                tp,
-                pp,
-                cp,
-                ep,
-                mbs,
-                min_model_parallel,
-                max_model_parallel,
-                gbs,
-            ) = _tp_pp_mbs_grid_t5_80gb(
-                model_size_in_b=model_size_in_b, valid_pp=valid_pp, model_measure=model_measure
-            )
-        elif gpu_memory_gb == 40:
-            (
-                tp,
-                pp,
-                cp,
-                ep,
-                mbs,
-                min_model_parallel,
-                max_model_parallel,
-                gbs,
-            ) = _tp_pp_mbs_grid_t5_40gb(
-                model_size_in_b=model_size_in_b, valid_pp=valid_pp, model_measure=model_measure
-            )
+        params = T5GridSearch(
+            model_size_in_b=model_size_in_b, valid_pp=valid_pp, seq_length=seq_length, model_measure=model_measure, gpu_size=gpu_memory_gb
+        )
+        params.init_params()
     elif model_name == "bert":
-        if gpu_memory_gb == 80:
-            (
-                tp,
-                pp,
-                cp,
-                ep,
-                mbs,
-                min_model_parallel,
-                max_model_parallel,
-                gbs,
-            ) = _tp_pp_mbs_grid_bert_80gb(
-                model_size_in_b=model_size_in_b, valid_pp=valid_pp, model_measure=model_measure
-            )
-        elif gpu_memory_gb == 40:
-            (
-                tp,
-                pp,
-                cp,
-                ep,
-                mbs,
-                min_model_parallel,
-                max_model_parallel,
-                gbs,
-            ) = _tp_pp_mbs_grid_bert_40gb(
-                model_size_in_b=model_size_in_b, valid_pp=valid_pp, model_measure=model_measure
-            )
+        params = BertGridSearch(
+            model_size_in_b=model_size_in_b, valid_pp=valid_pp, seq_length=seq_length, model_measure=model_measure, gpu_size=gpu_memory_gb
+        )
+        params.init_params()
     else:
         raise NotImplementedError("Model name not implemented.")
 
