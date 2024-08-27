@@ -200,7 +200,12 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
             "output_layer.weight": "lm_head.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
+        target.load_state_dict(StateDictTransformer(
+                source.state_dict(), mapping, transforms, transforms=[_export_qkv, _export_linear_fc1]
+            )
+        )
+        return target
+        # return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
 
     @property
     def tokenizer(self):
@@ -322,3 +327,11 @@ def _export_linear_fc1(linear_fc1):
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
 
     return gate_proj, up_proj
+
+
+__all__ = [
+    "MistralConfig7B",
+    "MistralNeMo2407Config12B",
+    "MistralNeMo2407Config123B",
+    "MistralModel",
+]
