@@ -28,6 +28,7 @@ from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
+from nemo.utils import logging
 from pytorch_lightning.utilities import move_data_to_device
 from torch import Tensor, nn
 from typing_extensions import override
@@ -497,7 +498,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         try:
             if ub_cfgs is None:
-                logging.warn(
+                logging.warning(
                     "Tensor parallel overlap: No overlap config provided. Initializing TP comm overlap with the default config."
                 )
             transformer_engine.pytorch.module.base.initialize_ub(
@@ -532,7 +533,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
             # Print number of parameters.
             if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
-                from nemo.utils import logging
 
                 num_params = _calc_number_of_params(list(self))
                 num_trainable_params = _calc_number_of_trainable_params(list(self))
