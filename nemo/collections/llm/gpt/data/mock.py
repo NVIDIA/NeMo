@@ -9,6 +9,12 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
+HAVE_TE = True
+try:
+    import transformer_engine
+except (ImportError, ModuleNotFoundError):
+    HAVE_TE = False
+
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
@@ -37,7 +43,7 @@ class MockDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
-        self.create_attention_mask = create_attention_mask
+        self.create_attention_mask = create_attention_mask or not HAVE_TE
 
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 

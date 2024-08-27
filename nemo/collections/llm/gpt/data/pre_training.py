@@ -11,6 +11,12 @@ from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
+HAVE_TE = True
+try:
+    import transformer_engine
+except (ImportError, ModuleNotFoundError):
+    HAVE_TE = False
+
 if TYPE_CHECKING:
     from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
 
@@ -106,7 +112,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
         self.reset_position_ids = reset_position_ids
-        self.create_attention_mask = create_attention_mask
+        self.create_attention_mask = create_attention_mask or not HAVE_TE
         self.reset_attention_mask = reset_attention_mask
         self.eod_mask_loss = eod_mask_loss
         self.seed = seed
