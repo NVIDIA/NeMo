@@ -14,8 +14,6 @@
 import re
 from typing import List
 
-from pangu import spacing
-
 try:
     import ipadic
     import MeCab
@@ -82,6 +80,7 @@ class JaMecabProcessor:
         self.mecab_tokenizer = MeCab.Tagger(ipadic.MECAB_ARGS + " -Owakati")
 
     def detokenize(self, text: List[str]) -> str:
+        from pangu import spacing
         RE_WS_IN_FW = re.compile(
             r'([\u2018\u2019\u201c\u201d\u2e80-\u312f\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef])\s+(?=[\u2018\u2019\u201c\u201d\u2e80-\u312f\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef])'
         )
