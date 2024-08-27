@@ -25,6 +25,7 @@ import torch.nn as nn
 import torch.nn.init as init
 
 import thunder
+import os
 
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
@@ -237,7 +238,13 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             self.layer_norm = None
 
         if dropout > 0.0:
-            self.dropout = thunder.jit(nn.Dropout(dropout))
+            def dropout_fn(x):
+                return nn.functional.dropout(x, p=dropout, training=self.training)
+            use_memory_saving_dropout = bool(int(os.getenv("NEMO_LORA_MEMORY_SAVING_DROPOUT", 0)))
+            if use_memory_saving_dropout:
+                self.dropout = thunder.jit(dropout_fn)
+            else:
+                self.dropout = dropout_fn
         else:
             self.dropout = None
 
