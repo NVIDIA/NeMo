@@ -169,6 +169,7 @@ class TensorRTLLM(ITritonDeployable):
         multiple_profiles: bool = False,
         gpt_attention_plugin: str = "auto",
         gemm_plugin: str = "auto",
+        use_mcore_path: bool = True, 
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -203,6 +204,7 @@ class TensorRTLLM(ITritonDeployable):
             multiple_profiles: (bool): enables multiple profiles feature of TRT-LLM. Default = False
             gpt_attention_plugin (str): enable the gpt attention plugin. Default = "auto"
             gemm_plugin (str): enable the gpt plugin. Default = "auto"
+            use_mcore_path (bool) : Use the more recent mcore path for export
         """
         if n_gpus is not None:
             warnings.warn(
@@ -306,9 +308,10 @@ class TensorRTLLM(ITritonDeployable):
                     )
 
                 model, model_configs, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir)
-                USE_NEW_CODE = True
 
-                if USE_NEW_CODE:
+                if use_mcore_path:
+                    from megatron.core.export.model_type import ModelType
+                    from megatron.core.export.model_config import ModelConfig
                     from megatron.core.export.data_type import DataType
                     from megatron.core.export.export_config import ExportConfig
                     from megatron.core.export.model_config import ModelConfig
@@ -347,40 +350,26 @@ class TensorRTLLM(ITritonDeployable):
                         )
                         conf.moe_tp_mode = nemo_model_config.get('moe_tp_mode', 2)
                         conf.seq_len_interpolation_factor = nemo_model_config.get("seq_len_interpolation_factor")
-                        conf.mcore_gpt = nemo_model_config.get("mcore_gpt", False)
-                        conf.share_embeddings_and_output_weights = nemo_model_config.get(
-                            "share_embeddings_and_output_weights", False
-                        )
+                        conf.share_embeddings_and_output_weights = nemo_model_config.get("share_embeddings_and_output_weights", False)
                         conf.apply_embedding_scaling = nemo_model_config.get("apply_embedding_scaling", False)
                         conf.multi_query_mode = nemo_model_config.get("multi_query_mode", False)
-                        conf.normalization = nemo_model_config.get("normalization", "")
-                        conf.precision = nemo_model_config.get("precision")
                         return conf
-
-                    input_model_config = get_model_config(model_configs)
+                    
+                    # We use a unified model config to support nemo and mcore. So we convert nemo config to this model config
+                    input_model_config = get_model_config(model_configs)   
                     input_model_type = getattr(ModelType, model_type)
+
+                    # MCore export supports some default conversion dictionaries
                     mcore_model_conversion_dict = DEFAULT_CONVERSION_DICT[input_model_type]
-                    nemo_model_conversion_dict = {
-                        f'model.{key}': value for key, value in mcore_model_conversion_dict.items()
-                    }
-                    trtllm_helper = TRTLLMHelper(
-                        input_model_config, input_model_type, trtllm_conversion_dict=nemo_model_conversion_dict
-                    )
+                    # All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models start with "model.decoder.layers.4.blahblah". so we append model. to the keys
+                    nemo_model_conversion_dict = {f'model.{key}':value for key, value in mcore_model_conversion_dict.items()}
+
+                    trtllm_helper = TRTLLMHelper(input_model_config, input_model_type, trtllm_conversion_dict = nemo_model_conversion_dict)
 
                     input_dtype = getattr(DataType, dtype)
-                    export_config = ExportConfig(
-                        tensor_parallelism_size,
-                        pipeline_parallelism_size,
-                        use_parallel_embedding,
-                        use_embedding_sharing,
-                        gpus_per_node,
-                    )
-
-                    trtllm_model_weights_list, trtllm_model_config_list = (
-                        trtllm_helper.get_trtllm_pretrained_config_and_model_weights(
-                            model_state_dict=model, export_config=export_config, dtype=input_dtype
-                        )
-                    )
+                    export_config = ExportConfig(tensor_parallelism_size, pipeline_parallelism_size, use_parallel_embedding, use_embedding_sharing)
+                   
+                    trtllm_model_weights_list, trtllm_model_config_list = trtllm_helper.get_trtllm_pretrained_config_and_model_weights(model_state_dict = model, export_config = export_config, dtype = input_dtype, num_process = 1)
 
                     for trtllm_model_weights, trtllm_model_config in zip(
                         trtllm_model_weights_list, trtllm_model_config_list
@@ -397,11 +386,9 @@ class TensorRTLLM(ITritonDeployable):
                             max_lora_rank=max_lora_rank,
                             lora_target_modules=lora_target_modules,
                             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-                            enable_multi_block_mode=False,
                             paged_kv_cache=paged_kv_cache,
                             remove_input_padding=remove_input_padding,
                             paged_context_fmha=paged_context_fmha,
-                            use_custom_all_reduce=True,
                             use_refit=False,
                             max_num_tokens=max_num_tokens,
                             max_seq_len=max_seq_len,
@@ -425,7 +412,7 @@ class TensorRTLLM(ITritonDeployable):
                         decoder_type=model_type,
                         dtype=dtype,
                         tensor_parallel_size=tensor_parallelism_size,
-                        pipeline_parallel_size=pipeline_parallelism_size,
+                        pipeline_parallel_size=2,
                         gpus_per_node=gpus_per_node,
                         use_parallel_embedding=use_parallel_embedding,
                         use_embedding_sharing=use_embedding_sharing,
