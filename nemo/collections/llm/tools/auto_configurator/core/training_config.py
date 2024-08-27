@@ -303,7 +303,7 @@ class GPT3GridSearch:
     cp = [1]
     ep = [1]
     mbs = [1, 2, 4, 8]
-    
+
     gbs: int = 1024
     min_model_parallel: int = 1
     max_model_parallel: int = 8
@@ -314,7 +314,7 @@ class GPT3GridSearch:
         seq_length = self.seq_length
 
         if gpu_size == 80:
-            if seq_length== 2048:
+            if seq_length == 2048:
                 if model_size_in_b <= 1.0:
                     self.tp = [1, 2]
                     self.gbs = 256
@@ -383,7 +383,7 @@ class GPT3GridSearch:
                     self.min_model_parallel = 256
                     self.max_model_parallel = 2048
                     self.gbs = 2048
-            elif seq_length== 4096:
+            elif seq_length == 4096:
                 if model_size_in_b <= 1.0:
                     self.tp = [1, 2, 4]
                     self.mbs = [1, 2, 4, 8]
@@ -423,7 +423,7 @@ class GPT3GridSearch:
                     self.min_model_parallel = 8
                     self.max_model_parallel = 64
                     self.gbs = 1024
-            elif seq_length== 8192:
+            elif seq_length == 8192:
                 if model_size_in_b <= 1.0:
                     self.tp = [1, 2]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
@@ -458,7 +458,7 @@ class GPT3GridSearch:
                     self.min_model_parallel = 32
                     self.max_model_parallel = 64
                     self.gbs = 256
-            elif seq_length== 16384:
+            elif seq_length == 16384:
                 if model_size_in_b <= 1.0:
                     self.tp = [2, 4]
                     self.mbs = [1, 2]
@@ -485,7 +485,7 @@ class GPT3GridSearch:
                     self.min_model_parallel = 8
                     self.max_model_parallel = 32
                     self.gbs = 128
-            elif seq_length== 32768:
+            elif seq_length == 32768:
                 if model_size_in_b <= 1.0:
                     self.tp = [2, 4]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
@@ -594,6 +594,7 @@ class GPT3GridSearch:
                 self.min_model_parallel = 512
                 self.max_model_parallel = 8192
                 self.gbs = 2048
+
 
 def _tp_pp_mbs_grid_t5_80gb(model_size_in_b: float, valid_pp: List[int], model_measure: str) -> Tuple[int, int, int]:
     """
@@ -966,7 +967,11 @@ def _calculate_tp_pp_mbs_grid(
 
     if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
         params = GPT3GridSearch(
-            model_size_in_b=model_size_in_b, valid_pp=valid_pp, seq_length=seq_length, model_measure=model_measure, gpu_size=gpu_memory_gb
+            model_size_in_b=model_size_in_b,
+            valid_pp=valid_pp,
+            seq_length=seq_length,
+            model_measure=model_measure,
+            gpu_size=gpu_memory_gb,
         )
         params.init_params()
     elif model_name in ["t5", "mt5"]:
