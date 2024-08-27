@@ -43,16 +43,18 @@ def init_model_parallel(pl_module: pl.LightningModule):
 
 def setup_data_sampler(trainer: pl.Trainer):
     datamodule = getattr(trainer, "datamodule", None)
-    if hasattr(trainer.strategy, "data_sampler") and trainer.strategy.data_sampler is not None:
-        datamodule.data_sampler = trainer.strategy.data_sampler
-    elif hasattr(datamodule, "data_sampler"):
-        trainer.strategy.data_sampler = datamodule.data_sampler
-        trainer.strategy.data_sampler.setup(trainer.strategy.cluster_environment.global_rank())
-        if hasattr(datamodule, "reconfigure_limit_batches"):
-            datamodule.reconfigure_limit_batches()
+    if datamodule is not None:
+        if hasattr(trainer.strategy, "data_sampler") and trainer.strategy.data_sampler is not None:
+            datamodule.data_sampler = trainer.strategy.data_sampler
+        elif hasattr(datamodule, "data_sampler"):
+            trainer.strategy.data_sampler = datamodule.data_sampler
 
     if trainer.strategy.data_sampler is not None:
+        trainer.strategy.data_sampler.setup(trainer.strategy.cluster_environment.global_rank())
         trainer.strategy.data_sampler.connect(trainer)
+
+    if hasattr(datamodule, "reconfigure_limit_batches"):
+        datamodule.reconfigure_limit_batches()
 
 
 def fix_progress_bar(trainer: pl.Trainer, replace_progress_bar: bool = True, progress_interval: int = 1) -> None:
