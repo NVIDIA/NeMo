@@ -302,19 +302,24 @@ class GPT3GridSearch80gb:
     """
 
     model_size_in_b: int = 5
-    valid_pp: List[int]
+    valid_pp: List[int] = field(default_factory=lambda: [])
     seq_length: int = 2048
     model_measure: str = "B"
 
-    tp: List[int] = field(default_factory=lambda: [1, 2, 4, 8])
-    pp: List[int] = field(default_factory=lambda: [1])
-    cp: List[int] = field(default_factory=lambda: [1])
-    ep: List[int] = field(default_factory=lambda: [1])
-    mbs: List[int] = field(default_factory=lambda: [1, 2, 3, 4, 6, 8])
+    #tp: List[int] = "1, 2, 4, 8"
+    #pp: List[int] = field(default_factory=lambda: [1])
+    #cp: List[int] = field(default_factory=lambda: [1])
+    #ep: List[int] = field(default_factory=lambda: [1])
+    #mbs: List[int] = field(default_factory=lambda: [1, 2, 3, 4, 6, 8])
     min_model_parallel: int = 1
     max_model_parallel: int = 8
     gbs: int = 1024
 
+    tp = [1, 2, 4, 8]
+    pp = [1]
+    cp = [1]
+    ep = [1]
+    mbs = [1, 2, 4, 8]
     model_size_in_b = model_size_in_b / 1000 if model_measure == "M" else model_size_in_b
 
     if seq_length == 2048:
