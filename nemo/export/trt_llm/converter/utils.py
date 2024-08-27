@@ -327,7 +327,7 @@ def split_val_gate(vals: List[np.ndarray], convert_on_device: bool):
 # are not split as there is only one head per key/value.
 @torch.no_grad()
 def split_and_save_weight(
-    tp_rank, saved_dir, split_factor, key, vals, storage_type, act_range, config, scaling_factors
+    tp_rank, saved_dir, split_factor, key, vals, storage_type, act_range, config, scaling_factors = {}
 ):
     use_attention_nemo_shape = config.get("use_attention_nemo_shape", False)
     split_gated_activation = config.get("split_gated_activation", False)
