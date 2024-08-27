@@ -108,6 +108,8 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     attention_softmax_in_fp32: bool = False
     masked_softmax_fusion: bool = True
     deallocate_pipeline_outputs = True
+    global_batch_size: Optional[int] = 256
+    activations_checkpoint_method: Optional[int] = None
 
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
