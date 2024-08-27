@@ -955,7 +955,7 @@ def _calculate_tp_pp_mbs_grid(
         search_class = BertGridSearch
     else:
         raise NotImplementedError("Model name not implemented.")
-    
+
     params = search_class(**kwargs)
     params.init_params()
 
