@@ -56,9 +56,9 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
-        self._train_ds = _MockGPTDataset(self.tokenizer, "train", self.num_train_samples, self.seq_length)
-        self._validation_ds = _MockGPTDataset(self.tokenizer, "valid", self.num_val_samples, self.seq_length)
-        self._test_ds = _MockGPTDataset(self.tokenizer, "test", self.num_test_samples, self.seq_length)
+        self._train_ds = _MockGPTDataset(self.tokenizer, "train", self.num_train_samples, self.seq_length, self.create_attention_mask)
+        self._validation_ds = _MockGPTDataset(self.tokenizer, "valid", self.num_val_samples, self.seq_length, self.create_attention_mask)
+        self._test_ds = _MockGPTDataset(self.tokenizer, "test", self.num_test_samples, self.seq_length, self.create_attention_mask)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         if not hasattr(self, "_train_ds"):
