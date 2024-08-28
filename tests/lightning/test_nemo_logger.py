@@ -125,7 +125,7 @@ class TestNeMoLogger:
                 dirpath=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
                 resume_if_exists=True,
                 resume_past_end=True,
-                resume_ignore_no_checkpoint=True
+                resume_ignore_no_checkpoint=True,
             ).setup(trainer)
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end").rmdir()
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end-unfinished").unlink()
@@ -137,7 +137,7 @@ class TestNeMoLogger:
             nl.AutoResume(
                 dirpath=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
                 resume_if_exists=True,
-                resume_ignore_no_checkpoint=True
+                resume_ignore_no_checkpoint=True,
             ).setup(trainer)
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last").rmdir()
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last-unfinished").unlink()
