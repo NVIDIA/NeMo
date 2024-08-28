@@ -62,7 +62,7 @@ jobs:
   cicd-cluster-clean:
     runs-on: self-hosted-azure-builder
     needs: [pre-flight]
-    if: ${{ github.event.label.name == 'Run CICD' }}
+    if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
     steps:
     - name: Clean server from old files
       run: |
