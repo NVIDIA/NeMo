@@ -240,6 +240,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
             def dropout_fn(x):
                 return nn.functional.dropout(x, p=dropout, training=self.training)
+
             use_memory_saving_dropout = bool(int(os.getenv("NEMO_LORA_USE_THUNDER_DROPOUT", 0)))
             if use_memory_saving_dropout:
                 self.dropout = thunder.jit(dropout_fn)
