@@ -49,14 +49,6 @@ from nemo.collections.llm.gpt.model.nemotron import (
     NemotronConfig,
     NemotronModel,
 )
-from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
-from nemo.collections.llm.gpt.model.starcoder2 import (
-    Starcoder2Config,
-    Starcoder2Config3B,
-    Starcoder2Config7B,
-    Starcoder2Config15B,
-    Starcoder2Model,
-)
 from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config,
     Qwen2Config1P5B,
@@ -64,6 +56,14 @@ from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config72B,
     Qwen2Config500M,
     Qwen2Model,
+)
+from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
+from nemo.collections.llm.gpt.model.starcoder2 import (
+    Starcoder2Config,
+    Starcoder2Config3B,
+    Starcoder2Config7B,
+    Starcoder2Config15B,
+    Starcoder2Model,
 )
 
 __all__ = [
