@@ -30,12 +30,16 @@ class NeMoLogger(IOMixin):
         log_global_rank_0_only (bool): Log only on global rank 0.
         files_to_copy (Optional[List[str]]): List of files to copy to log directory.
         update_logger_directory (bool): Whether to update logger directory to write to `exp_dir`.
-            If True, the `save_dir` passed to the logger will be treated as a relative path and
-            the logger will be reconfigured to write to `exp_dir / save_dir`. This ensures that
-            all output from an experiment is written to a common directory. If False, the logger's
-            save_dir will not be overwritten. This argument applies only to TensorBoardLogger and
-            WandbLogger instances.
+            If True, the `save_dir` passed to the logger will be reconfigured to write to `exp_dir / save_dir`.
+            This ensures that all output from an experiment is written to a common directory.
+            If False, the logger's save_dir will not be overwritten.
+            This argument applies only to TensorBoardLogger and WandbLogger instances.
         ckpt (Optional[ModelCheckpoint]): Model checkpoint callback.
+        tensorboard: (Optional[TensorBoardLogger]): A PyTorch Lightning TensorBoardLogger instance
+            to add to the trainer.
+        wandb (Optional[WandbLogger]): A PyTorch Lightning WandBLogger instance
+            to add to the trainer.
+        extra_loggers(Optional[List[Logger]]): Any additional loggers to add to the trainer.
     """
 
     name: str = "default"
@@ -102,14 +106,15 @@ class NeMoLogger(IOMixin):
                 self.name = "default"
 
             version = self.version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
-            if is_global_rank_zero():
-                if self.use_datetime_version:
-                    version = time.strftime('%Y-%m-%d_%H-%M-%S')
-            if resume_if_exists:
-                logging.warning(
-                    "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
-                )
-                version = None
+            if not version:
+                if resume_if_exists:
+                    logging.warning(
+                        "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
+                    )
+                    version = None
+                elif is_global_rank_zero():
+                    if self.use_datetime_version:
+                        version = time.strftime('%Y-%m-%d_%H-%M-%S')
             if version:
                 if is_global_rank_zero():
                     os.environ[NEMO_ENV_VARNAME_VERSION] = version
@@ -152,7 +157,7 @@ class NeMoLogger(IOMixin):
             for logger in trainer.loggers:
                 if isinstance(logger, TensorBoardLogger):
                     logger._version = version or ""
-                    logger._root_dir = Path(dir) / logger.save_dir
+                    logger._root_dir = Path(dir) / os.path.relpath(logger.save_dir)
                     trainer.logger._name = self.name
                     logging.warning(
                         f'"update_logger_directory" is True. Overwriting tensorboard logger "save_dir" to {logger._root_dir}'
