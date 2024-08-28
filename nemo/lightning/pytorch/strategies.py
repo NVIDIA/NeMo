@@ -177,7 +177,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
         self.lazy_init = lazy_init
-        self.ckpt_include_optimizer = ckpt_include_optimizer
+        self._ckpt_include_optimizer = ckpt_include_optimizer
         self.pipeline_dtype = pipeline_dtype
         self._setup_optimizers = setup_optimizers
         self._init_model_parallel = init_model_parallel
@@ -601,6 +601,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         return _strategy_lib.optimizer_sharded_state_dict(
             self.megatron_parallel, optimizer, is_loading=is_loading, sharding_type=sharding_type
         )
+
+    @property
+    def ckpt_include_optimizer(self):
+        return self._ckpt_include_optimizer
+
+    @ckpt_include_optimizer.setter
+    def ckpt_include_optimizer(self, val):
+        self._ckpt_include_optimizer = val
 
     @override
     def save_checkpoint(

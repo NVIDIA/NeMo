@@ -263,6 +263,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
         if trainer.fast_dev_run:
             return None
 
+        ## Do not include optimizer states in final checkpoint
+        trainer.strategy.ckpt_include_optimizer = False
+
         # check if we need to save a last checkpoint manually as validation isn't always run based on the interval
         if self.save_last and trainer.val_check_interval != 0:
             should_save_last_checkpoint = False
@@ -426,6 +429,10 @@ class ModelCheckpoint(PTLModelCheckpoint):
         ema_callback = self._ema_callback(trainer)
 
         self._last_global_step_saved = trainer.global_step
+
+        ## Do not include optimizer states in final checkpoint
+        if trainer.global_step == trainer.max_steps:
+            trainer.strategy.ckpt_include_optimizer = False
 
         if ema_callback is not None:
             if self.async_save:
