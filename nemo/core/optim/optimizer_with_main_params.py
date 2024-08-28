@@ -29,7 +29,11 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core.parallel_state import get_data_parallel_group, get_data_parallel_world_size
+    from megatron.core.parallel_state import (
+        get_data_modulo_expert_parallel_group,
+        get_data_parallel_group,
+        get_data_parallel_world_size,
+    )
     from megatron.core.tensor_parallel import copy_tensor_model_parallel_attributes
 
     HAVE_MEGATRON_CORE = True
@@ -68,12 +72,20 @@ def _multi_tensor_copy_this_to_that(this, that, overflow_buf):
             that_.copy_(this_)
 
 
+def _get_grad_data_group(is_expert_group):
+    if is_expert_group:
+        data_group = get_data_modulo_expert_parallel_group()
+    else:
+        data_group = get_data_parallel_group(with_context_parallel=True)
+    return data_group
+
+
 class GradBucket(object):
     """
     Persistent buffer for main gradients that remains allocated between training iterations
     """
 
-    def __init__(self, numel, chunk_size_mb):
+    def __init__(self, numel, chunk_size_mb, data_group):
         if not HAVE_APEX:
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
@@ -87,6 +99,7 @@ class GradBucket(object):
         self.numel = numel
         self.data = torch.zeros(self.numel, dtype=torch.float, device=torch.cuda.current_device(), requires_grad=False)
 
+        self._data_group = data_group
         self.chunk_size_mb = chunk_size_mb
         if self.chunk_size_mb > 0:
             chunk_size_bytes = chunk_size_mb * 1024 * 1024
@@ -106,9 +119,9 @@ class GradBucket(object):
         self.data.zero_()
 
     def allreduce_buffer(self):
-        """Synchronous buffer data allreduce """
-        self.data.div_(get_data_parallel_world_size(with_context_parallel=True))
-        torch.distributed.all_reduce(self.data, group=get_data_parallel_group(with_context_parallel=True))
+        """Synchronous buffer data allreduce"""
+        self.data.div_(get_data_parallel_world_size())
+        torch.distributed.all_reduce(self.data, group=self._data_group)
 
     def get(self, shape, start_index):
         """Return a tensor with the input `shape` as a view into the
@@ -162,7 +175,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     Arguments:
         optimizer: base optimizer such as Adam or SGD.
         fp32_grad_accum: to enable the use of fp32 in gradient accumulation and allreduce.
-        contiguous_grad_bucket: to enable allocating the master gradients in the 
+        contiguous_grad_bucket: to enable allocating the master gradients in the
             contiguous memory space to reduce memory fragmentation.
         async_grad_allreduce: enable asynchronous gradient allreduce that is executed
             along with the training step backprop.
@@ -208,7 +221,6 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         self._async_grad_allreduce = (
             async_grad_allreduce and get_data_parallel_world_size(with_context_parallel=True) > 1
         )
-        self._grad_divisor = 1 / get_data_parallel_world_size(with_context_parallel=True)
 
         if self._async_grad_allreduce:
             # use @no_sync to disable backward grad sync during gradient accumulation
@@ -232,13 +244,17 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
             # get the size of buffers
             num_elements = {}
             for i, param_group in enumerate(self.optimizer.param_groups):
-                for param in param_group['params']:
-                    if param.requires_grad:
-                        num_elements[i] = num_elements.get(i, 0) + param.data.nelement()
+                num_elements[i] = sum(
+                    map(lambda x: x.data.nelement(), filter(lambda p: p.requires_grad, param_group['params']))
+                )
 
                 # Allocate gradient memory buffers for each data type
-                if any(param.requires_grad for param in param_group['params']):
-                    self._main_grad_buffers[i] = GradBucket(num_elements[i], self._grad_allreduce_chunk_size_mb)
+                if num_elements[i] > 0:
+                    self._main_grad_buffers[i] = GradBucket(
+                        num_elements[i],
+                        self._grad_allreduce_chunk_size_mb,
+                        _get_grad_data_group(param_group.get('is_expert', False)),
+                    )
 
         # Three groups of parameters:
         self.float16_groups = []  # original float16 parameters
@@ -255,6 +271,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
             fp32_params_this_group = []
             fp32_from_float16_params_this_group = []
             # For all the parameters in this group:
+            is_expert_group = param_group.get('is_expert', False)
             for j, param in enumerate(param_group['params']):
                 main_param = None
                 if param.requires_grad:
@@ -269,6 +286,8 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         copy_tensor_model_parallel_attributes(main_param, param)
                         if hasattr(param, 'shared'):
                             main_param.shared = param.shared
+                        if hasattr(param, 'allreduce'):
+                            main_param.allreduce = param.allreduce
 
                         # Assign the grad buffer offset to main parameters
                         if self._contiguous_grad_bucket:
@@ -305,7 +324,9 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                     param_tmp = param.expand_as(param)
                     # Get the gradient accumulator function.
                     grad_acc = param_tmp.grad_fn.next_functions[0][0]
-                    grad_acc.register_hook(self._make_param_hook(param, main_param, i, grad_chunk_info))
+                    grad_acc.register_hook(
+                        self._make_param_hook(param, main_param, i, grad_chunk_info, is_expert_group)
+                    )
                     self.grad_accs.append(grad_acc)
 
             self.float16_groups.append(float16_params_this_group)
@@ -316,8 +337,9 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         # recast preexisting per-param state tensors
         self.optimizer.load_state_dict(self.optimizer.state_dict())
 
-    def _make_param_hook(self, param, main_param, i, grad_chunk_info):
+    def _make_param_hook(self, param, main_param, i, grad_chunk_info, is_expert_group):
         """Create the grad accumulation and all-reduce hook for backprop."""
+
         # Hook used for back-prop.
         def param_hook(*unused):
             # Accumulates gradients on main gradients
@@ -329,41 +351,35 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                 # Deallocate grad memory.
                 param.grad = None
 
+            def allreduce_grads(use_fused_div, tensor, data_group, grad_mult):
+                if use_fused_div:
+                    torch.distributed.all_reduce(
+                        tensor,
+                        group=data_group,
+                        async_op=True,
+                        op=torch.distributed._make_nccl_premul_sum(1 / grad_mult),
+                    )
+                else:
+                    tensor.div_(grad_mult)
+                    torch.distributed.all_reduce(
+                        tensor,
+                        group=data_group,
+                        async_op=True,
+                    )
+
             # Asynchronous gradients allreduce accross data_parallel ranks
+            grad_mult = get_data_parallel_world_size()
             if self._require_backward_grad_sync:
+                data_group = _get_grad_data_group(is_expert_group)
                 if self._grad_allreduce_chunk_size_mb > 0:
                     self._main_grad_buffers[i].update_chunk_info(grad_chunk_info)
                     while True:
                         allreduce_tensor = self._main_grad_buffers[i].get_allreduce_tensor()
                         if allreduce_tensor is None:
                             break
-                        if self._grad_div_ar_fusion:
-                            torch.distributed.all_reduce(
-                                allreduce_tensor,
-                                group=get_data_parallel_group(with_context_parallel=True),
-                                async_op=True,
-                                op=torch.distributed._make_nccl_premul_sum(self._grad_divisor),
-                            )
-                        else:
-                            allreduce_tensor.div_(get_data_parallel_world_size(with_context_parallel=True))
-                            torch.distributed.all_reduce(
-                                allreduce_tensor,
-                                group=get_data_parallel_group(with_context_parallel=True),
-                                async_op=True,
-                            )
+                        allreduce_grads(self._grad_div_ar_fusion, allreduce_tensor, data_group, grad_mult)
                 else:
-                    if self._grad_div_ar_fusion:
-                        torch.distributed.all_reduce(
-                            main_param.grad,
-                            group=get_data_parallel_group(with_context_parallel=True),
-                            async_op=True,
-                            op=torch.distributed._make_nccl_premul_sum(self._grad_divisor),
-                        )
-                    else:
-                        main_param.grad.div_(get_data_parallel_world_size(with_context_parallel=True))
-                        torch.distributed.all_reduce(
-                            main_param.grad, group=get_data_parallel_group(with_context_parallel=True), async_op=True,
-                        )
+                    allreduce_grads(self._grad_div_ar_fusion, main_param.grad, data_group, grad_mult)
 
         return param_hook
 
@@ -460,12 +476,16 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         if optimizer_key not in state_dict:
             optimizer_key = 'optimizer_state_dict'
             logging.info('***WARNING*** loading optimizer from ' 'an old checkpoint ...')
+        if 'state' not in state_dict[optimizer_key]:
+            state_dict[optimizer_key]['state'] = {}
         self.optimizer.load_state_dict(state_dict[optimizer_key])
 
         # Copy data for the main params.
         fp32_from_float16_params_key = 'fp32_from_fp16_params'
         if fp32_from_float16_params_key not in state_dict:
             fp32_from_float16_params_key = 'fp32_from_fp16'
+        if fp32_from_float16_params_key not in state_dict:
+            state_dict[fp32_from_float16_params_key] = []
         for current_group, saved_group in zip(self.fp32_from_float16_groups, state_dict[fp32_from_float16_params_key]):
             for current_param, saved_param in zip(current_group, saved_group):
                 current_param.data.copy_(saved_param.data)
@@ -476,7 +496,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
     @contextmanager
     def no_sync(self):
-        """ A context manager to disable gradient synchronizations across
+        """A context manager to disable gradient synchronizations across
         data-parallel ranks."""
         old_require_backward_grad_sync = self._require_backward_grad_sync
         self._require_backward_grad_sync = False

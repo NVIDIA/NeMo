@@ -14,8 +14,13 @@ Add a one line overview of what this PR aims to accomplish.
 # Add a code snippet demonstrating how to use this 
 ```
 
-# Jenkins CI
-To run Jenkins, a NeMo User with write access must comment `jenkins` on the PR.
+# GitHub Actions CI
+
+The Jenkins CI system has been replaced by GitHub Actions self-hosted runners.
+
+The GitHub Actions CI will run automatically when the "Run CICD" label is added to the PR.
+To re-run CI remove and add the label again.
+To run CI on an untrusted fork, a NeMo user with write access must first click "Approve and run".
 
 # Before your PR is "Ready for review"
 **Pre checks**:

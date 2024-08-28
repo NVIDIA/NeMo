@@ -16,7 +16,8 @@ import contextlib
 import glob
 import json
 import os
-from dataclasses import dataclass, is_dataclass
+import time
+from dataclasses import dataclass, field, is_dataclass
 from tempfile import NamedTemporaryFile
 from typing import List, Optional, Union
 
@@ -25,10 +26,12 @@ import torch
 from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, EncDecMultiTaskModel
+from nemo.collections.asr.models.aed_multitask_models import parse_multitask_prompt
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
+from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import GreedyBatchedRNNTInferConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.transcribe_utils import (
@@ -82,6 +85,8 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   langid: Str used for convert_num_to_words during groundtruth cleaning
   use_cer: Bool to use Character Error Rate (CER)  or Word Error Rate (WER)
 
+  calculate_rtfx: Bool to calculate the RTFx throughput to transcribe the input dataset.
+
 # Usage
 ASR model can be specified by either "model_path" or "pretrained_name".
 Data for transcription can be defined with either "audio_dir" or "dataset_manifest".
@@ -111,7 +116,7 @@ python transcribe_speech.py \
 class ModelChangeConfig:
 
     # Sub-config for changes specific to the Conformer Encoder
-    conformer: ConformerChangeConfig = ConformerChangeConfig()
+    conformer: ConformerChangeConfig = field(default_factory=ConformerChangeConfig)
 
 
 @dataclass
@@ -121,9 +126,9 @@ class TranscriptionConfig:
     pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: Optional[str] = None  # Path to a directory which contains audio files
     dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
-    channel_selector: Optional[
-        Union[int, str]
-    ] = None  # Used to select a single channel from multichannel audio, or use average across channels
+    channel_selector: Optional[Union[int, str]] = (
+        None  # Used to select a single channel from multichannel audio, or use average across channels
+    )
     audio_key: str = 'audio_filepath'  # Used to override the default audio key in dataset_manifest
     eval_config_yaml: Optional[str] = None  # Path to a yaml file of config of evaluation
     presort_manifest: bool = True  # Significant inference speedup on short-form data due to padding reduction
@@ -151,6 +156,7 @@ class TranscriptionConfig:
     allow_mps: bool = False  # allow to select MPS device (Apple Silicon M-series GPU)
     amp: bool = False
     amp_dtype: str = "float16"  # can be set to "float16" or "bfloat16" when using amp
+    compute_dtype: str = "float32"
     matmul_precision: str = "highest"  # Literal["highest", "high", "medium"]
     audio_type: str = "wav"
 
@@ -158,13 +164,22 @@ class TranscriptionConfig:
     overwrite_transcripts: bool = True
 
     # Decoding strategy for CTC models
-    ctc_decoding: CTCDecodingConfig = CTCDecodingConfig()
+    ctc_decoding: CTCDecodingConfig = field(default_factory=CTCDecodingConfig)
 
     # Decoding strategy for RNNT models
-    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
+    # enable CUDA graphs for transcription
+    rnnt_decoding: RNNTDecodingConfig = field(default_factory=lambda: RNNTDecodingConfig(fused_batch_size=-1))
 
     # Decoding strategy for AED models
-    multitask_decoding: MultiTaskDecodingConfig = MultiTaskDecodingConfig()
+    multitask_decoding: MultiTaskDecodingConfig = field(default_factory=MultiTaskDecodingConfig)
+    # Prompt slots for prompted models, e.g. Canary-1B. Examples of acceptable prompt inputs:
+    # Implicit single-turn assuming default role='user' (works with Canary-1B)
+    #  +prompt.source_lang=en +prompt.target_lang=es +prompt.task=asr +prompt.pnc=yes
+    # Explicit single-turn prompt:
+    #  +prompt.role=user +prompt.slots.source_lang=en +prompt.slots.target_lang=es +prompt.slots.task=s2t_translation +prompt.slots.pnc=yes
+    # Explicit multi-turn prompt:
+    #  +prompt.turns='[{role:user,slots:{source_lang:en,target_lang:es,task:asr,pnc:yes}}]'
+    prompt: dict = field(default_factory=dict)
 
     # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Hybrid RNNT/CTC models
     decoder_type: Optional[str] = None
@@ -172,7 +187,7 @@ class TranscriptionConfig:
     att_context_size: Optional[list] = None
 
     # Use this for model-specific changes before transcription
-    model_change: ModelChangeConfig = ModelChangeConfig()
+    model_change: ModelChangeConfig = field(default_factory=ModelChangeConfig)
 
     # Config for word / character error rate calculation
     calculate_wer: bool = True
@@ -195,6 +210,9 @@ class TranscriptionConfig:
     # Only use transcribe_partial_audio() when the audio is too long to fit in memory
     # Your manifest input should have `offset` field to use transcribe_partial_audio()
     allow_partial_transcribe: bool = False
+    extract_nbest: bool = False  # Extract n-best hypotheses from the model
+
+    calculate_rtfx: bool = False
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -254,6 +272,14 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
 
+    if cfg.compute_dtype != "float32" and cfg.amp:
+        raise ValueError("amp=true is mutually exclusive with a compute_dtype other than float32")
+
+    amp_dtype = torch.float16 if cfg.amp_dtype == "float16" else torch.bfloat16
+
+    if cfg.compute_dtype != "float32":
+        asr_model.to(getattr(torch, cfg.compute_dtype))
+
     # we will adjust this flag if the model does not support it
     compute_timestamps = cfg.compute_timestamps
     compute_langs = cfg.compute_langs
@@ -279,6 +305,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         if isinstance(asr_model.decoding, MultiTaskDecoding):
             cfg.multitask_decoding.compute_langs = cfg.compute_langs
             cfg.multitask_decoding.preserve_alignments = cfg.preserve_alignment
+            if cfg.extract_nbest:
+                cfg.multitask_decoding.beam.return_best_hypothesis = False
+                cfg.return_hypotheses = True
             asr_model.change_decoding_strategy(cfg.multitask_decoding)
         elif cfg.decoder_type is not None:
             # TODO: Support compute_langs in CTC eventually
@@ -286,6 +315,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 raise ValueError("CTC models do not support `compute_langs` at the moment")
 
             decoding_cfg = cfg.rnnt_decoding if cfg.decoder_type == 'rnnt' else cfg.ctc_decoding
+            if cfg.extract_nbest:
+                decoding_cfg.beam.return_best_hypothesis = False
+                cfg.return_hypotheses = True
             decoding_cfg.compute_timestamps = cfg.compute_timestamps  # both ctc and rnnt support it
             if 'preserve_alignments' in decoding_cfg:
                 decoding_cfg.preserve_alignments = preserve_alignment
@@ -298,6 +330,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
         # Check if ctc or rnnt model
         elif hasattr(asr_model, 'joint'):  # RNNT model
+            if cfg.extract_nbest:
+                cfg.rnnt_decoding.beam.return_best_hypothesis = False
+                cfg.return_hypotheses = True
             cfg.rnnt_decoding.fused_batch_size = -1
             cfg.rnnt_decoding.compute_timestamps = cfg.compute_timestamps
             cfg.rnnt_decoding.compute_langs = cfg.compute_langs
@@ -309,6 +344,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             if cfg.compute_langs:
                 raise ValueError("CTC models do not support `compute_langs` at the moment.")
             cfg.ctc_decoding.compute_timestamps = cfg.compute_timestamps
+            if cfg.extract_nbest:
+                cfg.ctc_decoding.beam.return_best_hypothesis = False
+                cfg.return_hypotheses = True
 
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
@@ -318,6 +356,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             isinstance(asr_model, EncDecHybridRNNTCTCModel) and cfg.decoder_type == "ctc"
         ):
             cfg.decoding = cfg.ctc_decoding
+        elif isinstance(asr_model.decoding, MultiTaskDecoding):
+            cfg.decoding = cfg.multitask_decoding
         else:
             cfg.decoding = cfg.rnnt_decoding
 
@@ -352,7 +392,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     else:
 
         @contextlib.contextmanager
-        def autocast(dtype=None):
+        def autocast(dtype=None, enabled=True):
             yield
 
     # Compute output filename
@@ -368,10 +408,22 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     # transcribe audio
 
-    amp_dtype = torch.float16 if cfg.amp_dtype == "float16" else torch.bfloat16
+    if cfg.calculate_rtfx:
+        total_duration = 0.0
 
-    with autocast(dtype=amp_dtype):
+        with open(cfg.dataset_manifest, "rt") as fh:
+            for line in fh:
+                item = json.loads(line)
+                if "duration" not in item:
+                    raise ValueError(
+                        f"Requested calculate_rtfx=True, but line {line} in manifest {cfg.dataset_manifest} lacks a 'duration' field."
+                    )
+                total_duration += item["duration"]
+
+    with autocast(dtype=amp_dtype, enabled=cfg.amp):
         with torch.no_grad():
+            if cfg.calculate_rtfx:
+                start_time = time.time()
             if partial_audio:
                 transcriptions = transcribe_partial_audio(
                     asr_model=asr_model,
@@ -392,7 +444,15 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 override_cfg.augmentor = augmentor
                 override_cfg.text_field = cfg.gt_text_attr_name
                 override_cfg.lang_field = cfg.gt_lang_attr_name
-                transcriptions = asr_model.transcribe(audio=filepaths, override_config=override_cfg,)
+                if hasattr(override_cfg, "prompt"):
+                    override_cfg.prompt = parse_multitask_prompt(OmegaConf.to_container(cfg.prompt))
+
+                transcriptions = asr_model.transcribe(
+                    audio=filepaths,
+                    override_config=override_cfg,
+                )
+            if cfg.calculate_rtfx:
+                transcribe_time = time.time() - start_time
 
     if cfg.dataset_manifest is not None:
         logging.info(f"Finished transcribing from manifest file: {cfg.dataset_manifest}")
@@ -402,9 +462,14 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         logging.info(f"Finished transcribing {len(filepaths)} files !")
     logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
 
-    # if transcriptions form a tuple of (best_hypotheses, all_hypotheses), extract just best hypothesis
+    # if transcriptions form a tuple of (best_hypotheses, all_hypotheses)
     if type(transcriptions) == tuple and len(transcriptions) == 2:
-        transcriptions = transcriptions[0]
+        if cfg.extract_nbest:
+            # extract all hypotheses if exists
+            transcriptions = transcriptions[1]
+        else:
+            # extract just best hypothesis
+            transcriptions = transcriptions[0]
 
     if cfg.return_transcriptions:
         return transcriptions
@@ -438,6 +503,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         if output_manifest_w_wer:
             logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
             logging.info(f"{total_res}")
+
+    if cfg.calculate_rtfx:
+        logging.info(f"Dataset RTFx {(total_duration/transcribe_time)}")
 
     return cfg
 

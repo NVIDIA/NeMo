@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import os
+import tempfile
 
 import torch
+import torch.distributed as dist
 
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 try:
     from megatron.core import parallel_state
@@ -58,26 +62,26 @@ def gather_objects(partial_results_list, main_rank=None):
     """
     Collect objects (e.g., results) from all GPUs.
     Useful for inference over multiple GPUs with DDP.
-    
+
     Use main_rank to specify which rank will be used to gather results.
     This allows to continue execution on the main_rank only after the gather.
 
     Args:
         partial_results_list: list of partial results from each GPU
         main_rank: rank of the main process to collect results from all GPUs (useful for collecting results in a target rank)
-    
-    
+
+
     Example:
         predictions = gather_objects(predictions,main_rank=0)
         # all but rank 0 will return None
         if predictions is None:
             return
-        
+
         # from here only rank 0 should contiue
         pickle.dump(predictions, open(output_fname, "wb"))
     """
     # do not fail when DDP is not initialized
-    if parallel_state.is_unitialized():
+    if not parallel_state.is_initialized():
         return partial_results_list
 
     rank = parallel_state.get_data_parallel_rank()
@@ -100,3 +104,44 @@ def gather_objects(partial_results_list, main_rank=None):
         results_list.extend(r)
 
     return results_list
+
+
+@contextlib.contextmanager
+def temporary_directory():
+    """Create a shared temporary directory across ranks in distributed setup.
+
+    This function assumes that the distributed setup has been already
+    correctly initialized. It is intended to be used only in single-node
+    setup so that all ranks can access the directory created."""
+
+    if is_global_rank_zero():
+        tmp_dir = [tempfile.TemporaryDirectory()]
+    else:
+        tmp_dir = [None]
+    dist.broadcast_object_list(tmp_dir)
+    yield tmp_dir[0].name
+    # We use barrier below to make sure that rank zero won't exit
+    # and delete tmp_dir while other ranks may still use it
+    dist.barrier()
+    if is_global_rank_zero():
+        tmp_dir[0].cleanup()
+
+
+def webdataset_split_by_workers(src):
+    """
+    This is for latest webdataset>=0.2.6
+    This function will make sure that each worker gets a different subset of the dataset.
+    """
+    # group = torch.distributed.group.WORLD
+    # rank = torch.distributed.get_rank(group=group)
+    # world_size = torch.distributed.get_world_size(group=group)
+    worker_info = torch.utils.data.get_worker_info()
+    num_workers = 1
+    if worker_info is not None:
+        worker = worker_info.id
+        num_workers = worker_info.num_workers
+
+    if num_workers > 1:
+        yield from list(src)[worker::num_workers]
+    else:
+        yield from src

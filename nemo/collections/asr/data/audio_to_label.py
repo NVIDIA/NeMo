@@ -16,7 +16,7 @@ import os
 from typing import Dict, List, Optional, Union
 
 import torch
-import webdataset as wd
+import webdataset as wds
 
 from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_sharded_filepaths
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -25,9 +25,10 @@ from nemo.collections.common.parts.preprocessing import collections
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType, RegressionValuesType
 from nemo.utils import logging
+from nemo.utils.distributed import webdataset_split_by_workers
 
 # List of valid file formats (prioritized by order of importance)
-VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
+VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac', 'opus'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
 
 
 def repeat_signal(signal: torch.Tensor, sig_len: int, required_length: int) -> torch.Tensor:
@@ -117,12 +118,12 @@ def _speech_collate_fn(batch, pad_id):
 
 def _fixed_seq_collate_fn(self, batch):
     """collate batch of audio sig, audio len, tokens, tokens len
-        Args:
-            batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
-                LongTensor):  A tuple of tuples of signal, signal lengths,
-                encoded tokens, and encoded tokens length.  This collate func
-                assumes the signals are 1d torch tensors (i.e. mono audio).
-        """
+    Args:
+        batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
+            LongTensor):  A tuple of tuples of signal, signal lengths,
+            encoded tokens, and encoded tokens length.  This collate func
+            assumes the signals are 1d torch tensors (i.e. mono audio).
+    """
     _, audio_lengths, _, tokens_lengths = zip(*batch)
 
     has_audio = audio_lengths[0] is not None
@@ -231,19 +232,23 @@ target_label_n, "offset": offset_in_sec_n}
             Defaults to None.
         trim (bool): Whether to use trim silence from beginning and end of audio signal using librosa.effects.trim().
             Defaults to False.
+        channel selector (Union[str, int, List[int]]): string denoting the downmix mode, an integer denoting the channel to be selected, or an iterable
+            of integers denoting a subset of channels. Channel selector is using zero-based indexing.
+            If set to `None`, the original signal will be used.
     """
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
 
         output_types = {
             'audio_signal': NeuralType(
                 ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
+                (
+                    AudioSignal(freq=self._sample_rate)
+                    if self is not None and hasattr(self, '_sample_rate')
+                    else AudioSignal()
+                ),
             ),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
         }
@@ -258,7 +263,10 @@ target_label_n, "offset": offset_in_sec_n}
         else:
 
             output_types.update(
-                {'label': NeuralType(tuple('B'), LabelsType()), 'label_length': NeuralType(tuple('B'), LengthsType()),}
+                {
+                    'label': NeuralType(tuple('B'), LabelsType()),
+                    'label_length': NeuralType(tuple('B'), LengthsType()),
+                }
             )
 
         return output_types
@@ -272,6 +280,7 @@ target_label_n, "offset": offset_in_sec_n}
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim: bool = False,
+        channel_selector: Union[str, int, List[int]] = None,
         is_regression_task: bool = False,
         cal_labels_occurrence: Optional[bool] = False,
     ):
@@ -289,6 +298,7 @@ target_label_n, "offset": offset_in_sec_n}
 
         self.featurizer = featurizer
         self.trim = trim
+        self.channel_selector = channel_selector
         self.is_regression_task = is_regression_task
 
         if not is_regression_task:
@@ -324,7 +334,13 @@ target_label_n, "offset": offset_in_sec_n}
         if offset is None:
             offset = 0
 
-        features = self.featurizer.process(sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim)
+        features = self.featurizer.process(
+            sample.audio_file,
+            offset=offset,
+            duration=sample.duration,
+            trim=self.trim,
+            channel_selector=self.channel_selector,
+        )
         f, fl = features, torch.tensor(features.shape[0]).long()
 
         if not self.is_regression_task:
@@ -391,6 +407,9 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         trim (bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
+        channel selector (Union[str, int, List[int]]): string denoting the downmix mode, an integer denoting the channel to be selected, or an iterable
+            of integers denoting a subset of channels. Channel selector is using zero-based indexing.
+            If set to `None`, the original signal will be used.
         window_length_in_sec (float): length of window/slice (in seconds)
             Use this for speaker recognition and VAD tasks.
         shift_length_in_sec (float): amount of shift of window for generating the frame for VAD task in a batch
@@ -412,6 +431,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim: bool = False,
+        channel_selector: Optional[Union[str, int, List[int]]] = None,
         window_length_in_sec: Optional[float] = 8,
         shift_length_in_sec: Optional[float] = 1,
         normalize_audio: bool = False,
@@ -432,6 +452,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
             min_duration=min_duration,
             max_duration=max_duration,
             trim=trim,
+            channel_selector=channel_selector,
             is_regression_task=is_regression_task,
             cal_labels_occurrence=cal_labels_occurrence,
         )
@@ -567,18 +588,15 @@ class _TarredAudioLabelDataset(IterableDataset):
             global_rank=global_rank,
         )
         # Put together WebDataset
-        self._dataset = wd.WebDataset(urls=audio_tar_filepaths, nodesplitter=None)
-
-        if shuffle_n > 0:
-            self._dataset = self._dataset.shuffle(shuffle_n)
-        else:
-            logging.info("WebDataset will not shuffle files within the tar files.")
-
-        self._dataset = (
-            self._dataset.rename(audio=VALID_FILE_FORMATS, key='__key__')
-            .to_tuple('audio', 'key')
-            .pipe(self._filter)
-            .map(f=self._build_sample)
+        self._dataset = wds.DataPipeline(
+            wds.SimpleShardList(urls=audio_tar_filepaths),
+            webdataset_split_by_workers,
+            wds.shuffle(shuffle_n),
+            wds.tarfile_to_samples(),
+            wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),
+            wds.to_tuple('audio', 'key'),
+            self._filter,
+            wds.map(self._build_sample),
         )
 
     def _filter(self, iterator):
@@ -633,8 +651,7 @@ class _TarredAudioLabelDataset(IterableDataset):
         return TarredAudioFilter(self.collection, self.file_occurence)
 
     def _build_sample(self, tup):
-        """Builds the training sample by combining the data from the WebDataset with the manifest info.
-        """
+        """Builds the training sample by combining the data from the WebDataset with the manifest info."""
         audio_bytes, audio_filename = tup
         # Grab manifest entry from self.collection
         file_id, _ = os.path.splitext(os.path.basename(audio_filename))
@@ -649,7 +666,10 @@ class _TarredAudioLabelDataset(IterableDataset):
         # Convert audio bytes to IO stream for processing (for SoundFile to read)
         audio_filestream = io.BytesIO(audio_bytes)
         features = self.featurizer.process(
-            audio_filestream, offset=offset, duration=manifest_entry.duration, trim=self.trim,
+            audio_filestream,
+            offset=offset,
+            duration=manifest_entry.duration,
+            trim=self.trim,
         )
 
         audio_filestream.close()
@@ -881,9 +901,12 @@ class AudioToMultiLabelDataset(Dataset):
             All training files which have a duration more than max_duration
             are dropped. Note: Duration is read from the manifest JSON.
             Defaults to None.
-        trim (bool): Whether to use trim silence from beginning and end
+        trim_silence (bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
+        channel selector (Union[str, int, List[int]]): string denoting the downmix mode, an integer denoting the channel to be selected, or an iterable
+            of integers denoting a subset of channels. Channel selector is using zero-based indexing.
+            If set to `None`, the original signal will be used.
         window_length_in_sec (float): length of window/slice (in seconds)
             Use this for speaker recognition and VAD tasks.
         shift_length_in_sec (float): amount of shift of window for generating the frame for VAD task in a batch
@@ -900,15 +923,16 @@ class AudioToMultiLabelDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
 
         output_types = {
             'audio_signal': NeuralType(
                 ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
+                (
+                    AudioSignal(freq=self._sample_rate)
+                    if self is not None and hasattr(self, '_sample_rate')
+                    else AudioSignal()
+                ),
             ),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
         }
@@ -922,7 +946,10 @@ class AudioToMultiLabelDataset(Dataset):
             )
         else:
             output_types.update(
-                {'label': NeuralType(('B', 'T'), LabelsType()), 'label_length': NeuralType(tuple('B'), LengthsType()),}
+                {
+                    'label': NeuralType(('B', 'T'), LabelsType()),
+                    'label_length': NeuralType(tuple('B'), LengthsType()),
+                }
             )
 
         return output_types
@@ -938,6 +965,7 @@ class AudioToMultiLabelDataset(Dataset):
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim_silence: bool = False,
+        channel_selector: Optional[Union[str, int, List[int]]] = None,
         is_regression_task: bool = False,
         cal_labels_occurrence: Optional[bool] = False,
         delimiter: Optional[str] = None,
@@ -961,6 +989,7 @@ class AudioToMultiLabelDataset(Dataset):
 
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim_silence
+        self.channel_selector = channel_selector
         self.is_regression_task = is_regression_task
         self.id2occurrence = {}
         self.labels_occurrence = None
@@ -1018,6 +1047,7 @@ class AudioToMultiLabelDataset(Dataset):
             offset=offset,
             duration=sample.duration,
             trim=self.trim,
+            channel_selector=self.channel_selector,
             normalize_db=self.normalize_audio_db,
         )
 
@@ -1164,18 +1194,15 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
             global_rank=global_rank,
         )
         # Put together WebDataset
-        self._dataset = wd.WebDataset(urls=audio_tar_filepaths, nodesplitter=None)
-
-        if shuffle_n > 0:
-            self._dataset = self._dataset.shuffle(shuffle_n)
-        else:
-            logging.info("WebDataset will not shuffle files within the tar files.")
-
-        self._dataset = (
-            self._dataset.rename(audio=VALID_FILE_FORMATS, key='__key__')
-            .to_tuple('audio', 'key')
-            .pipe(self._filter)
-            .map(f=self._build_sample)
+        self._dataset = wds.DataPipeline(
+            wds.SimpleShardList(urls=audio_tar_filepaths),
+            webdataset_split_by_workers,
+            wds.shuffle(shuffle_n),
+            wds.tarfile_to_samples(),
+            wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),
+            wds.to_tuple('audio', 'key'),
+            self._filter,
+            wds.map(self._build_sample),
         )
 
     def _get_label_set(self):
@@ -1250,8 +1277,7 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
         return TarredAudioFilter(self.collection, self.file_occurence)
 
     def _build_sample(self, tup):
-        """Builds the training sample by combining the data from the WebDataset with the manifest info.
-        """
+        """Builds the training sample by combining the data from the WebDataset with the manifest info."""
         audio_bytes, audio_filename = tup
         # Grab manifest entry from self.collection
         file_id, _ = os.path.splitext(os.path.basename(audio_filename))

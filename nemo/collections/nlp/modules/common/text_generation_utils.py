@@ -31,20 +31,13 @@ from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IMAGE_PATCH_TOKEN,
+    DEFAULT_VID_END_TOKEN,
+    DEFAULT_VID_START_TOKEN,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
-from nemo.utils import AppState
-
-try:
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
+from nemo.utils import AppState, logging
 
 try:
     from megatron.core import parallel_state, tensor_parallel
@@ -54,6 +47,15 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
+    )
 
 __all__ = [
     "get_default_sampling_params",
@@ -122,38 +124,112 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
         compute_prob_response = get_computeprob_response(tokenizer, response, inputs)
         return compute_prob_response
 
-    if isinstance(inputs, (list, tuple)):
-        if isinstance(inputs[0], (str, torch.Tensor)):
-            output = generate(
-                model,
-                inputs=inputs,
-                tokens_to_generate=length_params['max_length'],
-                all_probs=sampling_params['all_probs'],
-                compute_logprob=sampling_params['compute_logprob'],
-                temperature=sampling_params['temperature'],
-                add_BOS=sampling_params['add_BOS'],
-                top_k=sampling_params['top_k'],
-                top_p=sampling_params['top_p'],
-                greedy=sampling_params['use_greedy'],
-                repetition_penalty=sampling_params['repetition_penalty'],
-                end_strings=sampling_params['end_strings'],
-                min_tokens_to_generate=length_params['min_length'],
-                **strategy_args,
-            )
-            return output
-        elif isinstance(inputs[0], dict):
-            raise NotImplementedError("json object not implemented")
-        else:
-            raise NotImplementedError("unknown type is not implemented")
-    else:
-        raise NotImplementedError("unknown type is not implemented")
+    if not isinstance(inputs, (list, tuple)):
+        raise NotImplementedError(f"unknown type {type(inputs)} is not implemented")
+
+    output = generate(
+        model,
+        inputs=inputs,
+        tokens_to_generate=length_params['max_length'],
+        all_probs=sampling_params['all_probs'],
+        compute_logprob=sampling_params['compute_logprob'],
+        temperature=sampling_params['temperature'],
+        add_BOS=sampling_params['add_BOS'],
+        top_k=sampling_params['top_k'],
+        top_p=sampling_params['top_p'],
+        greedy=sampling_params['use_greedy'],
+        repetition_penalty=sampling_params['repetition_penalty'],
+        end_strings=sampling_params['end_strings'],
+        min_tokens_to_generate=length_params['min_length'],
+        **strategy_args,
+    )
+    return output
+
+
+def decode_time_tokens(tokenizer, text: str, duration: float, time_tokens: list[str], time_token_ids: list[int]):
+    """Decode the time tokens <t0>....<t99> in the text to the actual time in seconds.
+       TO DO: to do time decoding on output ids instead of text
+
+    Args:
+        text (str): _description_
+        duration (float): the total length of the video in seconds
+        time_tokens (list[str]): list of time tokens [<t1>, <t2>, <t3>, ..]
+        time_token_ids (list[str]): list of time token ids [32004, 32005, ....]
+    """
+    output_ids = tokenizer.text_to_ids(text)
+    num_time_tokens = len(time_token_ids)
+    # the original code is len(output_ids) - 1
+    indices = [j for j in range(len(output_ids)) if output_ids[j] in time_token_ids]
+    last_processed = -1
+    new_output_ids = []
+    for j in range(len(indices)):
+        pred_seq = [int(output_ids[k]) for k in range(last_processed + 1, indices[j])]
+        new_output_ids.extend(pred_seq)
+        max_offset = num_time_tokens - 1
+        time_token = tokenizer.ids_to_tokens([output_ids[indices[j]]])[0]
+        time_idx = time_tokens.index(time_token)
+        time = float(time_idx) * duration / max_offset
+        time = min(max(time, 0), duration)
+        time = round(time, 2)
+        # time_str = '<' + str(time) + '>'
+        time_str = '<%s>' % str(time)
+        new_output_ids.extend(tokenizer.text_to_ids(time_str))
+
+        last_processed = indices[j]
+    pred_seq = [int(x) for x in output_ids[last_processed + 1 :]]
+    new_output_ids.extend(pred_seq)
+    output_ids = new_output_ids
+    decoded_text = tokenizer.ids_to_text(output_ids)
+    return decoded_text
+
+
+def encode_time_str(text: str, duration: float, num_time_tokens: int = 100, time_token_template: str = "<t{t}>"):
+    """
+    Encode the common time expression to its time token expression
+    """
+
+    def time_to_string(time):
+        # time is normalized in [0, 1]
+        max_offset = float(num_time_tokens - 1)
+        time = int(np.round(max_offset * time))
+        return time_token_template.format(t=time)
+
+    def repl(match):
+        value = float(match.group(1)) / duration
+        return time_to_string(value) + f"<!|t{value}t|!>"
+
+    text = re.sub(r"<([\d.]{1,20})s>", repl, text)
+    text = re.sub(r"\s([\d.]{1,20})s[\s|\.|,|>]", repl, text)
+    text = re.sub(r"\s([\d.]{1,20}) seconds", repl, text)
+    text = re.sub(r"\s([\d.]{1,20}) second", repl, text)
+
+    # This is to remove the timestamps from the text
+    text = re.sub(r"<!\|t([\d.]+)t\|!>", "", text)
+    return text.strip()
 
 
 def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_params, inference_config, **strategy_args):
+    use_lita = model.cfg.mm_cfg.get('use_lita', False)
+    if use_lita:
+        num_time_tokens = model.cfg.data.get('num_time_tokens', 100)
+        TIME_TOKEN_TEMPLATE = "<t{t}>"
+        time_tokens = [TIME_TOKEN_TEMPLATE.format(t=i) for i in range(num_time_tokens)]
+        time_token_ids = model.tokenizer.tokens_to_ids(time_tokens)
 
+    model_type = model.cfg.mm_cfg.llm.get("model_type", "nvgpt")
     conv_template = model.cfg.data.get("conv_template", "nvgpt")
     final_response = []
     for idx, prompt_dict in enumerate(prompt_dict_list):
+        # determine the media type in the prompt_dict
+        media_type_token = inference_config.inference.get("media_type", "image")
+        if use_lita:
+            if prompt_dict.get("duration") is not None:
+                duration = prompt_dict.get("duration")
+                prompt_dict['prompt'] = encode_time_str(
+                    prompt_dict['prompt'], duration, num_time_tokens, TIME_TOKEN_TEMPLATE
+                )
+            else:
+                print("duration field is not in prompt file, skipping time encoding.")
         response = generate(
             model,
             inputs=prompt_dict.get('prompt'),
@@ -169,15 +245,30 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
             end_strings=sampling_params['end_strings'],
             min_tokens_to_generate=length_params['min_length'],
             compute_attention_mask=sampling_params.get("compute_attention_mask", True),
-            image_list=prompt_dict.get('image'),
+            image_list=prompt_dict.get(media_type_token),
             **strategy_args,
         )
 
+        # Middle stages of PP will return None
+        if response is None:
+            continue
+
         # Regular expression pattern to match the sequence
-        pattern = re.compile(rf'{DEFAULT_IM_START_TOKEN}( ⁇ )+{DEFAULT_IM_END_TOKEN}')
-        pattern_nvgpt = re.compile(rf'{DEFAULT_IM_START_TOKEN}({DEFAULT_IMAGE_PATCH_TOKEN})+{DEFAULT_IM_END_TOKEN}')
-        combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}')
-        clean_text = re.sub(combined_pattern, '<image>', response['sentences'][0])
+        pattern = re.compile(
+            rf'{DEFAULT_IM_START_TOKEN[model_type]}( ⁇ )+{DEFAULT_IM_END_TOKEN[model_type]}'.replace(r'|', r'\|')
+        )
+        pattern_nvgpt = re.compile(
+            rf'{DEFAULT_IM_START_TOKEN[model_type]}({DEFAULT_IMAGE_PATCH_TOKEN[model_type]})+{DEFAULT_IM_END_TOKEN[model_type]}'.replace(
+                r'|', r'\|'
+            )
+        )
+
+        if use_lita:
+            pattern_lita = re.compile(rf'{DEFAULT_IM_START_TOKEN[model_type]}(.)+{DEFAULT_IM_END_TOKEN[model_type]}')
+            combined_pattern = re.compile(f'{pattern_lita.pattern}')
+        else:
+            combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}')
+        clean_text = re.sub(combined_pattern, f"<{media_type_token}>", response['sentences'][0])
 
         clean_response = clean_text
 
@@ -190,12 +281,24 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
                 clean_response = clean_response[last_match_end_position:]
             clean_response = clean_response.strip("<extra_id_1>")
         elif conv_template == 'nv_dpo':
-            clean_response = clean_response.split("<extra_id_1>")[-2][10:]  # [10:] for removing "Assistant\n"
+            clean_response = clean_response.split("<extra_id_1>Assistant\n")[-1]
+            clean_response = clean_response.strip("<extra_id_1>")
         elif conv_template == "llama_2":
             clean_response = clean_response.rsplit("[/INST] ", 1)[-1]
+        elif conv_template == "llama_3":
+            clean_response = clean_response.rsplit("assistant<|end_header_id|>\n\n", 1)[-1]
+            clean_response = re.sub(r"(<\|eot_id\|>)+$", "", clean_response)
         elif conv_template == "v1":
             clean_response = clean_response.rsplit("ASSISTANT: ", 1)[-1]
 
+        if use_lita:
+            if prompt_dict.get("duration", None) is not None:
+                duration = prompt_dict.get("duration")
+                clean_response = decode_time_tokens(
+                    model.tokenizer, clean_response, duration, time_tokens, time_token_ids
+                )
+            else:
+                print("duration field is not in prompt file, skipping time decoding.")
         clean_response = clean_response.strip()
         response["clean_text"] = clean_text
         response["clean_response"] = clean_response
@@ -281,17 +384,17 @@ def tab_logits(logits, min_id, max_id, filter_value=-float('Inf')):
 
 def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started=None):
     """
-       This function has been mostly taken from huggingface conversational
-         ai code at
-         https://medium.com/huggingface/how-to-build-a-state-of-the-art-
-              conversational-ai-with-transfer-learning-2d818ac26313
+    This function has been mostly taken from huggingface conversational
+      ai code at
+      https://medium.com/huggingface/how-to-build-a-state-of-the-art-
+           conversational-ai-with-transfer-learning-2d818ac26313
 
-        @param logits: logits tensor
-        @param top_k: keep only top k tokens with highest probability
-        @param top_p: keep the top tokens with cumulative probability
-        @filter_value: value to set filtered tokens to
-        @started: a tensor of bools indicating whether the text generation starts for the batch
-        returns the filtered logits
+     @param logits: logits tensor
+     @param top_k: keep only top k tokens with highest probability
+     @param top_p: keep the top tokens with cumulative probability
+     @filter_value: value to set filtered tokens to
+     @started: a tensor of bools indicating whether the text generation starts for the batch
+     returns the filtered logits
     """
     if top_k > 0:
         # Remove all tokens with a probability less than the
@@ -303,7 +406,7 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started
         else:
             logits[indices_to_remove] = filter_value
 
-    if top_p > 0.0:
+    if 0.0 < top_p < 1.0:
         # Cconvert to 1D
         sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
         cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
@@ -327,7 +430,7 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started
 
 
 def repetition_penalty(logits, repetition_penalty, used_tokens):
-    """ Implement the repetition penalty, check paper
+    """Implement the repetition penalty, check paper
     https://arxiv.org/pdf/1909.05858.pdf
     """
     if used_tokens is not None and repetition_penalty != 1.0:
@@ -473,6 +576,7 @@ def synced_generate(
     end_strings=[],
     min_tokens_to_generate=0,
     image_list=None,
+    **strategy_args,
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -488,6 +592,19 @@ def synced_generate(
             temperature=temperature,
         )
     else:
+
+        extra = {
+            "top_p": top_p,
+            "top_k": top_k,
+            "greedy": greedy,
+            "repetition_penalty": repetition_penalty,
+            "min_tokens_to_generate": min_tokens_to_generate,
+        }
+
+        # if input containing neighbors (for Mcore retrieval RETRO model)
+        if "neighbors_tokens" in strategy_args:
+            extra['neighbors_tokens'] = strategy_args['neighbors_tokens']
+
         batch_token_iterator = sample_sequence_batch(
             model,
             inference_strategy,
@@ -500,13 +617,7 @@ def synced_generate(
             temperature=temperature,
             end_strings=end_strings,
             image_list=image_list,
-            extra={
-                "top_p": top_p,
-                "top_k": top_k,
-                "greedy": greedy,
-                "repetition_penalty": repetition_penalty,
-                "min_tokens_to_generate": min_tokens_to_generate,
-            },
+            extra=extra,
         )
 
     for tokens, lengths, output_logits, full_logits in batch_token_iterator:
@@ -626,6 +737,22 @@ def generate(
             end_strings,
             random_seed,
         )
+
+        # tokenize neighbors and broadcast (for Mcore retrieval RETRO model)
+        if 'neighbors' in strategy_args:
+            # tokenize neighbors
+            neighbors_tokens_tensor, neighbors_tokens_tensor_shape = inference_strategy.tokenize_neighbors_batch(
+                strategy_args['neighbors'], strategy_args['retro_inference']
+            )
+
+            # send neighbors tensors to all ranks
+            model_parallel_group = parallel_state.get_model_parallel_group()
+            src = get_model_parallel_src_rank()
+            torch.distributed.broadcast(neighbors_tokens_tensor_shape, src, model_parallel_group)
+            torch.distributed.broadcast(neighbors_tokens_tensor, src, model_parallel_group)
+        else:
+            neighbors_tokens_tensor = None
+
     else:
         (
             context_length_tensor,
@@ -643,8 +770,32 @@ def generate(
             random_seed,
         ) = receive_generate_info()
 
+        # receive broadcast (for Mcore retrieval RETRO model)
+        if 'neighbors' in strategy_args:
+            # receive neighbors tensors to all ranks
+            model_parallel_group = parallel_state.get_model_parallel_group()
+            src = get_model_parallel_src_rank()
+            neighbors_tokens_tensor_shape = torch.empty(2, dtype=torch.float32, device=torch.cuda.current_device())
+            torch.distributed.broadcast(neighbors_tokens_tensor_shape, src, model_parallel_group)
+            neighbors_tokens_tensor = torch.empty(
+                neighbors_tokens_tensor_shape[0],
+                neighbors_tokens_tensor_shape[1],
+                dtype=torch.int64,
+                device=torch.cuda.current_device(),
+            )
+            torch.distributed.broadcast(neighbors_tokens_tensor, src, model_parallel_group)
+        else:
+            neighbors_tokens_tensor = None
+
+    # add neighbors to strategy_args (for retrieval RETRO model)
+    if 'neighbors' in strategy_args:
+        strategy_args['neighbors_tokens'] = neighbors_tokens_tensor
+
     if random_seed is not None:
         seed_everything(random_seed)
+
+    if hasattr(model, 'get_attention_mask_from_fusion') and model.get_attention_mask_from_fusion:
+        compute_attention_mask = False
 
     output = synced_generate(
         model,
@@ -663,6 +814,7 @@ def generate(
         end_strings=end_strings,
         min_tokens_to_generate=min_tokens_to_generate,
         image_list=image_list,
+        **strategy_args,
     )
     special_tokens = set()
     if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
@@ -753,7 +905,7 @@ def sample_sequence_batch(
 
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
-    _reconfigure_microbatch_calculator(
+    reconfigure_num_microbatches_calculator(
         rank=app_state.global_rank,
         rampup_batch_size=None,
         global_batch_size=micro_batch_size,
@@ -771,7 +923,15 @@ def sample_sequence_batch(
     # initialize the batch
     with torch.no_grad():
         context_length = context_lengths.min().item()
-        inference_strategy.init_batch(context_tokens, context_length, compute_attention_mask)
+        if 'neighbors_tokens' in extra:  # for Mcore retrieval RETRO model
+
+            # For Mcore retrieval RETRO model, context_tokens tensors are updated after init_batch() (the length is doubled after processing)
+            context_tokens = inference_strategy.init_batch(
+                context_tokens, context_length, compute_attention_mask, **extra
+            )
+
+        else:
+            inference_strategy.init_batch(context_tokens, context_length, compute_attention_mask)
         # added eos_id to support the function generate_samples_eval that passes
         # eos_id as an argument and needs termination when that id id found.
         eod_id = tokenizer.eos_id
@@ -809,7 +969,11 @@ def sample_sequence_batch(
                     logits = output[:, -1].view(batch_size, -1).contiguous()
 
                 else:
-                    logits = output[0]['logits'][:, -1].contiguous()
+                    if 'neighbors_tokens' in extra:  # for Mcore retrieval RETRO model
+                        # for Mcore RETRO inference, disimilar to GPT, we will get the logits of the (context_length - 1)th token, instead of the last token
+                        logits = output[0]['logits'][:, context_length - 1].contiguous()
+                    else:
+                        logits = output[0]['logits'][:, -1].contiguous()
                     logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
                     assert logits is not None
                     logits = logits.view(batch_size, -1)
@@ -933,7 +1097,7 @@ def tab_sample_sequence_batch(
 ):
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
-    _reconfigure_microbatch_calculator(
+    reconfigure_num_microbatches_calculator(
         rank=app_state.global_rank,
         rampup_batch_size=None,
         global_batch_size=micro_batch_size,

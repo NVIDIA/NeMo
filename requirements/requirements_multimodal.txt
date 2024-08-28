@@ -1,11 +1,12 @@
 addict
 clip
+decord
 diffusers>=0.19.3
 einops_exts
 imageio
 kornia
 nerfacc>=0.5.3
-open_clip_torch
+open_clip_torch==2.24.0
 PyMCubes
 taming-transformers
 torchdiffeq

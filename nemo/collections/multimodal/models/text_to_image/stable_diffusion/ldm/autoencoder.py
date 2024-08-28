@@ -16,6 +16,7 @@ from contextlib import contextmanager
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from nemo.utils import logging
 
 try:
     from taming.modules.vqvae.quantize import VectorQuantizer2 as VectorQuantizer
@@ -316,6 +317,7 @@ class AutoencoderKL(pl.LightningModule):
         ignore_keys=[],
         image_key="image",
         colorize_nlabels=None,
+        from_NeMo=False,
         monitor=None,
         from_pretrained: str = None,
     ):
@@ -337,15 +339,22 @@ class AutoencoderKL(pl.LightningModule):
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
 
         if from_pretrained is not None:
-            state_dict = torch.load(from_pretrained)
-            missed_key, unexpected_key, missmatched_key, err_msg = self._load_pretrained_model(state_dict)
+            logging.info(f"Attempting to load vae weights from {from_pretrained}")
+            if from_pretrained.endswith('safetensors'):
+                from safetensors.torch import load_file as load_safetensors
 
-            if len(missed_key) > 0:
+                state_dict = load_safetensors(from_pretrained)
+            else:
+                state_dict = torch.load(from_pretrained)
+            if 'state_dict' in state_dict:
+                state_dict = state_dict['state_dict']
+            missing_key, unexpected_key, _, _ = self._load_pretrained_model(state_dict, from_NeMo=from_NeMo)
+            if len(missing_key) > 0:
                 print(
-                    f'{self.__class__.__name__}: Following keys are missing during loading unet weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
+                    f'{self.__class__.__name__}: Following keys are missing during loading VAE weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
                 )
-                print("missed key: ", missed_key)
-                print("unexpected key: ", unexpected_key)
+                print(f'Missing:{missing_key}')
+                print(f'Unexpected:{unexpected_key}')
 
     def _state_key_mapping(self, state_dict: dict):
         import re
@@ -389,8 +398,9 @@ class AutoencoderKL(pl.LightningModule):
             res_dict[key_] = val_
         return res_dict
 
-    def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False):
-        state_dict = self._state_key_mapping(state_dict)
+    def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False, from_NeMo=False):
+        if not from_NeMo:
+            state_dict = self._state_key_mapping(state_dict)
         model_state_dict = self.state_dict()
         loaded_keys = [k for k in state_dict.keys()]
         expected_keys = list(model_state_dict.keys())
@@ -399,7 +409,10 @@ class AutoencoderKL(pl.LightningModule):
         unexpected_keys = list(set(loaded_keys) - set(expected_keys))
 
         def _find_mismatched_keys(
-            state_dict, model_state_dict, loaded_keys, ignore_mismatched_sizes,
+            state_dict,
+            model_state_dict,
+            loaded_keys,
+            ignore_mismatched_sizes,
         ):
             mismatched_keys = []
             if ignore_mismatched_sizes:
@@ -416,7 +429,9 @@ class AutoencoderKL(pl.LightningModule):
                         del state_dict[checkpoint_key]
             return mismatched_keys
 
-        if state_dict['encoder.mid.attn_1.q.weight'].shape == torch.Size([512, 512]):
+        if 'encoder.mid.attn_1.q.weight' in loaded_keys and (
+            state_dict['encoder.mid.attn_1.q.weight'].shape == torch.Size([512, 512])
+        ):
             for key in [
                 'encoder.mid.attn_1.q.weight',
                 'decoder.mid.attn_1.q.weight',
@@ -432,7 +447,10 @@ class AutoencoderKL(pl.LightningModule):
         if state_dict is not None:
             # Whole checkpoint
             mismatched_keys = _find_mismatched_keys(
-                state_dict, model_state_dict, original_loaded_keys, ignore_mismatched_sizes,
+                state_dict,
+                model_state_dict,
+                original_loaded_keys,
+                ignore_mismatched_sizes,
             )
             error_msgs = self._load_state_dict_into_model(state_dict)
         return missing_keys, unexpected_keys, mismatched_keys, error_msgs
@@ -592,6 +610,11 @@ class AutoencoderKL(pl.LightningModule):
         x = F.conv2d(x, weight=self.colorize)
         x = 2.0 * (x - x.min()) / (x.max() - x.min()) - 1.0
         return x
+
+
+class AutoencoderKLInferenceWrapper(AutoencoderKL):
+    def encode(self, x):
+        return super().encode(x).sample()
 
 
 class IdentityFirstStage(torch.nn.Module):
