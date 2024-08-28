@@ -145,6 +145,24 @@ class T5Config(TransformerConfig, io.IOMixin):
         from megatron.core import parallel_state
         from megatron.core.models.T5.t5_model import T5Model as MCoreT5Model
 
+
+        # DEBUGGING
+        if torch.distributed.get_rank()==0:
+            print("Debugging: matching NeMo 1.0 Transformers config.")
+        self.enable_autocast=True
+        self.autocast_dtype=torch.bfloat16
+        self.deallocate_pipeline_outputs=True
+        self.pipeline_model_parallel_split_rank=0
+        self.attention_softmax_in_fp32=False
+        self.bias_activation_fusion=True
+        self.masked_softmax_fusion=True
+        self.persist_layer_norm=True
+        self.bias_dropout_fusion=True
+        self.recompute_num_layers=1
+        self.num_moe_experts=1
+        self.distribute_saved_activations=False
+
+
         encoder_config = copy.deepcopy(self)
         encoder_config.num_layers = self.encoder_num_layers
         # move this check to strategies?
@@ -155,6 +173,9 @@ class T5Config(TransformerConfig, io.IOMixin):
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(encoder_config=encoder_config, decoder_config=self)
+
+
+
 
         # DEBUGGING
         if torch.distributed.get_rank()==0:
@@ -173,6 +194,7 @@ class T5Config(TransformerConfig, io.IOMixin):
             print("rotary_percent: ", self.rotary_percent)
             print("seq_len_interpolation_factor: ", self.seq_len_interpolation_factor)
 
+
         model = MCoreT5Model(
             config=self,
             encoder_config=encoder_config,
@@ -190,12 +212,12 @@ class T5Config(TransformerConfig, io.IOMixin):
             post_process=parallel_state.is_pipeline_last_stage(),
         )
 
-        # DEBUGGING
-        print("model: ")
-        print(model)
-        for name, param in model.named_parameters():
-            print("{}: {}".format(name, param.shape))
-        # print(stop_here)        
+        # # DEBUGGING
+        # print("model: ")
+        # print(model)
+        # for name, param in model.named_parameters():
+        #     print("{}: {}".format(name, param.shape))
+        # # print(stop_here)        
 
         return model
 

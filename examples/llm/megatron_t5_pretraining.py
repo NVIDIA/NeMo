@@ -82,7 +82,7 @@ if __name__ == '__main__':
         pipeline_dtype=torch.bfloat16,
     )
     checkpoint_callback = ModelCheckpoint(
-        every_n_train_steps=1000,
+        every_n_train_steps=5000,
         enable_nemo_ckpt_io=False,
     )
     callbacks = [checkpoint_callback]

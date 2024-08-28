@@ -287,6 +287,24 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             en_block_spec = enc_dec_spec_fns[0](self.cfg.encoder.num_layers)
             de_block_spec = enc_dec_spec_fns[1](self.cfg.decoder.num_layers)
 
+
+            # # DEBUGGING
+            # # set up to match config of NeMo 2.0
+            # self.transformer_config.bf16=False
+            # self.transformer_config.params_dtype=torch.float32
+            # self.transformer_config.autocast_dtype=torch.float32
+            # self.transformer_config.deallocate_pipeline_outputs=False
+            # self.transformer_config.pipeline_model_parallel_split_rank=None
+            # self.transformer_config.num_moe_experts=None
+            # self.transformer_config.attention_softmax_in_fp32=True
+            # self.transformer_config.bias_activation_fusion=False
+            # self.transformer_config.masked_softmax_fusion=False
+            # self.transformer_config.persist_layer_norm=False
+            # self.transformer_config.bias_dropout_fusion=False
+            # self.transformer_config.recompute_num_layers=None
+            # self.transformer_config.distribute_saved_activations=None
+
+
             encoder_config = copy.deepcopy(self.transformer_config)
             encoder_config.num_layers = self.cfg.encoder.num_layers
             if self.cfg.pipeline_model_parallel_size > 1:
@@ -294,6 +312,22 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     self.cfg.pipeline_model_parallel_split_rank is not None
                 ), "Need to know how to shard the encoder & decoder."
                 encoder_config.pipeline_model_parallel_size = self.cfg.pipeline_model_parallel_split_rank
+
+            # DEBUGGING
+            print("config: ", self.transformer_config)
+            print("encoder_config: ", encoder_config)
+            print("transformer_encoder_layer_spec: ", en_block_spec)
+            print("transformer_decoder_layer_spec: ", de_block_spec)
+            print("vocab_size: ", self.padded_vocab_size)
+            print("max_sequence_length: ", self.cfg.max_position_embeddings)
+            print("pre_process: ", pre_process)
+            print("post_process: ", post_process)
+            print("fp16_lm_cross_entropy: ", self.cfg.get('fp16_lm_cross_entropy', False))
+            print("parallel_output: ", True)
+            print("share_embeddings_and_output_weights: ", self.cfg.get('share_decoder_tokens_head_embeddings', True))
+            print("position_embedding_type: ", self.cfg.get('position_embedding_type', 'learned_absolute'))
+            print("rotary_percent: ", self.cfg.get('rotary_percentage', 1.0))
+            print("seq_len_interpolation_factor: ", self.cfg.get('seq_len_interpolation_factor', None))
 
             model = MCoreT5Model(
                 config=self.transformer_config,
@@ -311,6 +345,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
             )
+
+            # DEBUGGING
+            print("model: ")
+            print(model)
+            for name, param in model.named_parameters():
+                print("{}: {}".format(name, param.shape))
+
 
         else:
             if not hasattr(self.cfg, 'embedding_init_method_std'):
@@ -664,6 +705,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         def fwd_output_and_loss_func(dataloader_iter, model):
             # If tuple, 1st element in it is the batch since dataloader_iter returns batch, batch_idx, dataloader_idx
             batch = next(dataloader_iter)
+
+            # # DEBUGGING
+            # print("batch: ")
+            # print(batch)
+
+
             if isinstance(batch, tuple):
                 batch = batch[0]
             # convert to list if not already converted.
@@ -1112,7 +1159,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}\n'
             f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}\n'
             f'Number of model parameters on device: {num_parameters_on_device:.2e}\n'
-            f'Total number of model parameters: {total_num_parameters:.2e}\n'
+            f'Total number of model parameters: {total_num_parameters}\n'
         )
         resume_checkpoint_path = self.trainer.ckpt_path
 
