@@ -262,10 +262,13 @@ class CrossAttention(nn.Module):
     ):
         super().__init__()
 
+        assert not (use_te_dpa and use_flash_attention), \
+            'use_te_dpa and use_flash_attention cannot be True together. Please specify the attention you want to use.'
+
+        if use_flash_attention:
+            assert flash_attn_installed, 'Flash-attention must be installed.'
         if use_te_dpa:
-            assert (
-                use_flash_attention == False
-            ), 'use_te_dpa and use_flash_attention cannot be True together. Please specify the attention you want to use.'
+            assert HAVE_TE, 'TransformerEngine is required to run with TE DPA.'
 
         self.inner_dim = dim_head * heads
         if context_dim is None:
@@ -300,13 +303,13 @@ class CrossAttention(nn.Module):
         )
         self.use_flash_attention = use_flash_attention
 
-        if dim_head <= 160 and (dim_head % 8) == 0 and flash_attn_installed:
-            if not self.use_te_dpa:
+        if dim_head <= 160 and (dim_head % 8) == 0:
+            if self.use_flash_attention:
                 if context_dim == query_dim:
                     self.flash_attn = FlashSelfAttention(softmax_scale=self.scale)
                 else:
                     self.flash_attn = FlashCrossAttention(softmax_scale=self.scale)
-            else:
+            elif self.use_te_dpa:
                 self.te_dpa = DotProductAttention(
                     k_channels=dim_head,
                     num_attention_heads=self.inner_dim // dim_head,
