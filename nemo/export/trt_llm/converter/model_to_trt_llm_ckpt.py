@@ -119,10 +119,13 @@ def convert_model_to_trt_llm_ckpt(
     nemo_export_dir,
     storage_type,
     inference_tp_size,
+    decoder_type,
     use_parallel_embedding,
     processes,
-    export_config,
+    fp8_quantized=False,
+    fp8_kvcache=False,
 ):
+
     # if checkpoints files could be found - start preparing output dir
     out_dir = create_export_dir(nemo_export_dir)
     storage_type = str_dtype_to_torch(storage_type)
@@ -135,6 +138,9 @@ def convert_model_to_trt_llm_ckpt(
 
     has_position_embedding = get_layer_name("position_embedding", prefix) in model_state_dict
     has_lm_head = get_layer_name("output_layer", prefix) in model_state_dict
+    share_embeddings_and_output = nemo_model_config.get("share_embeddings_and_output_weights", False)
+    embedding_scaling = nemo_model_config.get("apply_embedding_scaling", False)
+    hidden_size = nemo_model_config["hidden_size"]
 
     num_layers = nemo_model_config["num_layers"]
     training_tp_size = 1
@@ -142,6 +148,7 @@ def convert_model_to_trt_llm_ckpt(
     num_kv_heads = nemo_model_config.get("num_query_groups", 0)
     multi_query_mode = nemo_model_config.get("multi_query_mode", False)
     num_attention_heads = nemo_model_config["num_attention_heads"]
+    kv_channels = nemo_model_config.get("kv_channels", None)
 
     if num_kv_heads == 0:
         if multi_query_mode:
@@ -149,14 +156,21 @@ def convert_model_to_trt_llm_ckpt(
         else:
             num_kv_heads = num_attention_heads
 
-    export_config.update(
-        {
-            "tp_size": training_tp_size,
-            "num_kv_heads": num_kv_heads,
-            "kv_channels": nemo_model_config.get("kv_channels", None),
-            "use_parallel_embedding": use_parallel_embedding,
-        }
-    )
+    export_config = {
+        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
+        "tp_size": training_tp_size,
+        "split_gated_activation": nemo_model_config.get("activation", "gelu")
+        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"]
+        and (decoder_type == "gptnext" or is_mcore),
+        "num_attention_heads": num_attention_heads,
+        "num_kv_heads": num_kv_heads,
+        "kv_channels": kv_channels,
+        "use_attention_nemo_shape": True,
+        "transpose_weights": True,
+        "use_parallel_embedding": use_parallel_embedding,
+        "fp8_quantized": fp8_quantized,
+        "fp8_kvcache": fp8_kvcache,
+    }
 
     # split_factor: in how many parts a TP training node is split
     split_factor = inference_tp_size
@@ -275,7 +289,13 @@ def get_layer_num(param_name):
 
 @torch.no_grad()
 def dist_model_to_trt_llm_ckpt(
-    model, nemo_model_config, inference_tp_size, inference_pp_size, tokenizer_vocab_size, export_config
+    model,
+    nemo_model_config,
+    inference_tp_size,
+    inference_pp_size,
+    tokenizer_vocab_size,
+    fp8_quantized=False,
+    fp8_kvcache=False,
 ):
     from megatron.core import parallel_state
     from megatron.core.tensor_parallel.utils import VocabUtility
@@ -311,13 +331,19 @@ def dist_model_to_trt_llm_ckpt(
     prefix, transformer_layer_prefix = get_layer_prefix(sample_state_dict, is_mcore)
     assert is_mcore, "Only megatron-core inflight model conversion is supported"
 
-    export_config.update(
-        {
-            "tp_size": tp_size,
-            "num_kv_heads": nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads']),
-            "convert_on_device": True,
-        }
-    )
+    export_config = {
+        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
+        "tp_size": tp_size,
+        "split_gated_activation": nemo_model_config.get("activation", "gelu")
+        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"],
+        "num_attention_heads": nemo_model_config["num_attention_heads"],
+        "num_kv_heads": nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads']),
+        "convert_on_device": True,
+        "use_attention_nemo_shape": True,
+        "transpose_weights": True,
+        "fp8_quantized": fp8_quantized,
+        "fp8_kvcache": fp8_kvcache,
+    }
 
     starmap_config = {
         "tp_rank": None,

@@ -79,21 +79,6 @@ def prompt_convert(prompt_config, prompt_weights):
     return vtokens_embeddings
 
 
-def create_common_export_config(nemo_model_config, decoder_type, fp8_quantized=False, fp8_kvcache=False):
-    is_mcore = nemo_model_config.get("mcore_gpt", False)
-    return {
-        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
-        "split_gated_activation": nemo_model_config.get("activation", "gelu")
-        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"]
-        and (decoder_type == "gptnext" or is_mcore),
-        "num_attention_heads": nemo_model_config["num_attention_heads"],
-        "use_attention_nemo_shape": True,
-        "transpose_weights": True,
-        "fp8_quantized": fp8_quantized,
-        "fp8_kvcache": fp8_kvcache,
-    }
-
-
 def determine_quantization_settings(
     nemo_model_config, fp8_quantized: Optional[bool] = None, fp8_kvcache: Optional[bool] = None
 ) -> Tuple[bool, bool]:
@@ -130,7 +115,6 @@ def model_to_trtllm_ckpt(
         use_embedding_sharing = True
 
     fp8_quantized, fp8_kvcache = determine_quantization_settings(nemo_model_config, fp8_quantized, fp8_kvcache)
-    export_config = create_common_export_config(nemo_model_config, decoder_type, fp8_quantized, fp8_kvcache)
     # If the model has been sharded with model parallelism, convert the model in a gpu-distributed manner
     if use_distributed_convert:
         weights_dict = dist_model_to_trt_llm_ckpt(
@@ -139,7 +123,8 @@ def model_to_trtllm_ckpt(
             inference_tp_size=tensor_parallel_size,
             inference_pp_size=pipeline_parallel_size,
             tokenizer_vocab_size=vocab_size,
-            export_config=export_config,
+            fp8_quantized=fp8_quantized,
+            fp8_kvcache=fp8_kvcache
         )
         vocab_size_padded = vocab_size
     else:
@@ -151,7 +136,9 @@ def model_to_trtllm_ckpt(
             processes=1,
             storage_type=dtype,
             use_parallel_embedding=use_parallel_embedding,
-            export_config=export_config,
+            decoder_type=decoder_type,
+            fp8_quantized=fp8_quantized,
+            fp8_kvcache=fp8_kvcache
         )
 
         has_lm_head = "lm_head.weight" in weights_dict
