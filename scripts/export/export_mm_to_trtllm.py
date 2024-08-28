@@ -23,9 +23,11 @@ For multimodal model, it supports the following models:
 - SALM
 """
 
-from nemo.export.tensorrt_mm_exporter import TensorRTMMExporter
-import os
 import argparse
+import os
+
+from nemo.export.tensorrt_mm_exporter import TensorRTMMExporter
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Export multimodal model to TensorRT')
