@@ -21,6 +21,20 @@ from typing import List, Tuple
 from nemo.collections.llm.tools.auto_configurator.core import utils
 
 
+GPT_BASED_MODELS = [
+    "gpt3",
+    "bert",
+    "llama",
+    "baichuan2",
+    "chatglm",
+    "qwen2",
+    "mixtral",
+    "mistral",
+    "gemma",
+    "nemotron",
+]
+
+
 def generate_grid_search_configs(
     base_cfg: dict,
     train_cfg: dict,
@@ -43,28 +57,18 @@ def generate_grid_search_configs(
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = (
         1
-        if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]
+        if model_name in GPT_BASED_MODELS
         else 2
     )
 
     seq_length = base_cfg["model"].seq_length
     num_layers = (
         base_cfg["model"].num_layers
-        if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]
+        if model_name in GPT_BASED_MODELS
         else base_cfg["model"].encoder.num_layers
     )
 
-    if model_name in [
-        "gpt3",
-        "bert",
-        "llama",
-        "baichuan2",
-        "chatglm",
-        "qwen2",
-        "mixtral",
-        "mistral",
-        "gemma",
-    ]:
+    if model_name in GPT_BASED_MODELS:
         act_method = base_cfg["model"].activations_checkpoint_method
     else:
         act_method = base_cfg["model"].encoder.activations_checkpoint_method
@@ -89,17 +93,7 @@ def generate_grid_search_configs(
                     for mbs in params.mbs:
                         num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["devices"]
                         base_cfg["model"].global_batch_size = params.gbs
-                        if model_name in [
-                            "gpt3",
-                            "bert",
-                            "llama",
-                            "baichuan2",
-                            "chatglm",
-                            "qwen2",
-                            "mixtral",
-                            "mistral",
-                            "gemma",
-                        ]:
+                        if model_name in GPT_BASED_MODELS:
                             att_heads = base_cfg["model"].num_attention_heads
                             num_layers = base_cfg["model"].num_layers
                         else:
@@ -205,7 +199,7 @@ def _set_activations_checkpoint_params(
     max_layers_per_pipe = num_layers
     interval_layers_per_pipe = act_multiple
     if (
-        model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]
+        model_name in GPT_BASED_MODELS
         and pp > 2
     ):  # Interleaved pipeline scheduling.
         virtual_pipelines = num_layers // pp  # TODO: verify that this is the best value.
@@ -226,17 +220,7 @@ def _set_activations_checkpoint_params(
         else:
             act_ckpt_layers = range(0, multiplier * num_layers // pp // virtual_pipelines + 1, act_multiple)
 
-        if pp > 1 and model_name in [
-            "gpt3",
-            "bert",
-            "llama",
-            "baichuan2",
-            "chatglm",
-            "qwen2",
-            "mixtral",
-            "mistral",
-            "gemma",
-        ]:
+        if pp > 1 and model_name in GPT_BASED_MODELS:
             # Num micro batches with partial act ckpt
             num_micro_batches_partial_act_ckpt = list(range(min_micro_b, max_micro_b + 1, interval_micro_b))
             if num_micro_batches_partial_act_ckpt[0] == 0:
@@ -886,11 +870,11 @@ def _calculate_tp_pp_mbs_grid(
     model_measure = train_cfg.get("model_measure")
     multiplier = (
         1
-        if model_name in ["gpt3", "bert", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]
+        if model_name in GPT_BASED_MODELS
         else 2
     )
     init_pp = (
-        [] if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"] else [1]
+        [] if model_name in GPT_BASED_MODELS else [1]
     )
     valid_pp = init_pp + [
         multiplier * x for x in range(1, num_layers + 1) if num_layers % x == 0
@@ -904,7 +888,7 @@ def _calculate_tp_pp_mbs_grid(
         "gpu_memory_gb": gpu_memory_gb,
     }
 
-    if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
+    if model_name in GPT_BASED_MODELS:
         search_class = GPT3GridSearch
     elif model_name in ["t5", "mt5"]:
         search_class = T5GridSearch

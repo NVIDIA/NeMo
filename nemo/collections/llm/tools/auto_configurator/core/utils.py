@@ -24,7 +24,21 @@ MODULES = {
     "mixtral": "Mixtral",
     "mistral": "Mistral",
     "gemma": "Gemma",
+    "nemotron": "NeMotron",
 }
+
+GPT_BASED_MODELS = [
+    "gpt3",
+    "bert",
+    "llama",
+    "baichuan2",
+    "chatglm",
+    "qwen2",
+    "mixtral",
+    "mistral",
+    "gemma",
+    "nemotron",
+]
 
 
 @dataclass
@@ -58,7 +72,7 @@ class ModelSizeParams:
     def init_params(self):
         model_name = self.model_name
         model_size_in_b = self.model_size_in_b
-        if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
+        if model_name in GPT_BASED_MODELS:
             self.ffn = 4 * self.hs
             if model_size_in_b < 0.25:
                 self.hs, self.att_h, self.lr = 768, 12, 6e-4
@@ -297,7 +311,7 @@ def _calculate_model_size(
         NotImplementedError: if the model name is not valid.
     """
 
-    if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
+    if model_name in GPT_BASED_MODELS:
         model_size = (
             12
             * num_layers
@@ -385,7 +399,7 @@ def generic_base_config(
             model_name,
         ).init_params()
 
-        if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
+        if model_name in GPT_BASED_MODELS:
             base_cfg["model"].num_layers = params.layers
             base_cfg["model"].hidden_size = params.hs
             base_cfg["model"].num_attention_heads = params.att_h
@@ -437,62 +451,22 @@ def modify_cfg(
     Returns:
         dict: dictionary containing the updated model configuration parameters.
     """
-
+    
     new_cfg = copy.deepcopy(base_cfg)
     if act is not None:
-        if model_name in [
-            "gpt3",
-            "bert",
-            "llama",
-            "baichuan2",
-            "chatglm",
-            "qwen2",
-            "mixtral",
-            "mistral",
-            "gemma",
-        ]:
+        if model_name in GPT_BASED_MODELS:
             new_cfg["auto_config"]["activations_checkpoint_num_layers"] = act
         else:
             new_cfg["auto_config"]["encoder"]["activations_checkpoint_num_layers"] = act // 2
             new_cfg["auto_config"]["decoder"]["activations_checkpoint_num_layers"] = act // 2
 
-    if num_mbs_act is not None and model_name in [
-        "gpt3",
-        "bert",
-        "llama",
-        "baichuan2",
-        "chatglm",
-        "qwen2",
-        "mixtral",
-        "mistral",
-        "gemma",
-    ]:
+    if num_mbs_act is not None and model_name in GPT_BASED_MODELS:
         new_cfg["auto_config"]["num_micro_batches_with_partial_activation_checkpoints"] = num_mbs_act
 
-    if act_per_pipe is not None and model_name in [
-        "gpt3",
-        "bert",
-        "llama",
-        "baichuan2",
-        "chatglm",
-        "qwen2",
-        "mixtral",
-        "mistral",
-        "gemma",
-    ]:
+    if act_per_pipe is not None and model_name in GPT_BASED_MODELS:
         new_cfg["auto_config"]["activations_checkpoint_layers_per_pipeline"] = act_per_pipe
 
-    if virtual_pipelines is not None and model_name in [
-        "gpt3",
-        "bert",
-        "llama",
-        "baichuan2",
-        "chatglm",
-        "qwen2",
-        "mixtral",
-        "mistral",
-        "gemma",
-    ]:
+    if virtual_pipelines is not None and model_name in GPT_BASED_MODELS:
         new_cfg["auto_config"]["virtual_pipeline_model_parallel_size"] = virtual_pipelines
 
     new_cfg["auto_config"]["tensor_model_parallel_size"] = tp
@@ -506,17 +480,7 @@ def modify_cfg(
     if ep is not None:
         new_cfg["auto_config"]["expert_model_parallel_size"] = ep
 
-    if model_name in [
-        "gpt3",
-        "bert",
-        "llama",
-        "baichuan2",
-        "chatglm",
-        "qwen2",
-        "mixtral",
-        "mistral",
-        "gemma",
-    ]:
+    if model_name in GPT_BASED_MODELS:
         att_heads = new_cfg["model"].num_attention_heads
         num_layers = new_cfg["model"].num_layers
     else:

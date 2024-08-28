@@ -33,6 +33,7 @@ SUPPORTED_MODELS = [
     "mixtral",
     "mistral",
     "gemma",
+    "nemotron",
 ]
 
 SUPPORTED_TOKENIZERS = [
@@ -54,7 +55,6 @@ class AutoConfigurator:
         tokenizer_type: Optional[str] = "autotokenizer",
         tokenizer_path: Optional[str] = "GPT2BPETokenizer",
         model_size: Optional[int] = None,
-        model_version: Optional[int] = None,
         gpus_per_node: Optional[int] = 8,
         gpu_memory_gb: Optional[int] = 80,
         model_measure: Optional[str] = "B",
@@ -73,7 +73,6 @@ class AutoConfigurator:
         max_training_days: Optional[int] = 2,
         max_steps_per_run: Optional[int] = 50,
         vocab_size: Optional[int] = 51200,
-        custom_model: Optional[bool] = False,
     ):
         """
         Args:
@@ -84,10 +83,8 @@ class AutoConfigurator:
             tokenizer_type (Optional[str]): tokenizer type.
             tokenizer_path (Optional[str]): path to the tokenizer model.
             model_size (Optional[int]): size of model to be trained.
-            model_version (Optional[int]): version of model. 3 for GPT3, 2 for Llama2.
             gpus_per_node (Optional[int]): number of GPUs per node to be used.
             gpu_memory_gb (Optional[int]): memory per GPU, in GB. Currently 40GB and 80GB A100s/H100s supported.
-            model_measure (Optional[str]): "M" if model_size is specified in millions. "B" if in billions.
             seq_length (Optional[int]): model sequence length. Available seq_length list for GPT-based models: [2048, 4096, 8192, 16384, 32768].
             global_batch_size (Optional[int]): model global batch size. Set to "auto" if you want auto configurator to find optimal gbs.
             tensor_parallel_sizes (Optional[List[int]]): set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
@@ -103,7 +100,6 @@ class AutoConfigurator:
             max_training_days (Optional[int]): number of days expected model to be trained.
             max_steps_per_run (Optional[int]): maximum number of steps per run for the grid search.
             vocab_size (Optional[int]): size of tokenizer vocabulary.
-            custom_model (Optional[bool]): set to True if you want to use custom model.
         """
 
         model_type = self._get_model_type(model.__class__.__name__)
@@ -291,5 +287,7 @@ class AutoConfigurator:
             return "mistral"
         elif "Gemma" in model:
             return "gemma"
+        elif "Nemotron" in model:
+            return "nemotron"
         else:
             return None

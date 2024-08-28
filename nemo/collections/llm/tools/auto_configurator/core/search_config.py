@@ -24,6 +24,7 @@ SUPPORTED_MODELS = [
     "mixtral",
     "mistral",
     "gemma",
+    "nemotron",
 ]
 
 
