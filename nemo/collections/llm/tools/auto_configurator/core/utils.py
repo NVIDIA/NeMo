@@ -367,7 +367,7 @@ def generic_base_config(
     elif custom_model:
         model = base_configs.custom(name=MODULES[model_name], cfg=cfg)
     else:
-        model = model_cls(version=model_version, size=model_size_in_b, measure=model_measure, cfg=cfg)
+        model = model_cls(model=cfg.get("model"), cfg=cfg)
 
     base_cfg = {
         "model": model.get_model_config(),

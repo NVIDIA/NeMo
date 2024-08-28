@@ -47,7 +47,7 @@ class AutoConfigurator:
 
     def __init__(
         self,
-        model_type: str = None,
+        model: Config = None,
         num_nodes: int = None,
         data_paths: List = None,
         path_to_logs: Optional[str] = None,
@@ -73,13 +73,11 @@ class AutoConfigurator:
         max_training_days: Optional[int] = 2,
         max_steps_per_run: Optional[int] = 50,
         vocab_size: Optional[int] = 51200,
-        model_args: Optional[dict] = {},
         custom_model: Optional[bool] = False,
-        nemo_run: Optional[bool] = False,
     ):
         """
         Args:
-            model_type (str): model type to be used for training.
+            model_type (Config): model type to be used for training.
             num_nodes (int): number of nodes to be used for training.
             data_paths (List): list of datafiles to be used for training.
             path_to_logs (str): path to the directory where the logs will be stored.
@@ -105,50 +103,24 @@ class AutoConfigurator:
             max_training_days (Optional[int]): number of days expected model to be trained.
             max_steps_per_run (Optional[int]): maximum number of steps per run for the grid search.
             vocab_size (Optional[int]): size of tokenizer vocabulary.
-            model_args (Optional[dict]): additional args to add to mdoel config.
             custom_model (Optional[bool]): set to True if you want to use custom model.
-            nemo_sdk (Optional[bool]): set to True if you want to run Auto Configurator with nemo-sdk.
         """
 
+        model_type = self._get_model_type(model.__class__.__name__)
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {SUPPORTED_MODELS}."
         assert tokenizer_type in SUPPORTED_TOKENIZERS, f"tokenizer_type must be set to one of {SUPPORTED_TOKENIZERS}."
         assert num_nodes, "num_nodes value must be specified."
         assert data_paths, "training data must be specified."
-        if nemo_run:
-            assert path_to_logs, f"path_to_logs parameter must be specified."
+        assert path_to_logs, f"path_to_logs parameter must be specified."
 
         self.config = locals()
         self.config.pop('self')
+        self.config["model_type"] = model_type
 
         # Print the config
         logging.info(self._get_message(self.config))
 
     def generate_configs(self) -> dict:
-        """
-        :return: dictionary of generated configs.
-            key: model config name, type: str.
-            value: model config values, type: dict.
-        :rtype: dict.
-        """
-
-        configs = search_configs(self.config)
-        if self.config["nemo_run"]:
-            configs = self._generate_nemo_run_configs(
-                configs,
-                self.config["tokenizer_type"],
-                self.config["tokenizer_path"],
-                self.config["path_to_logs"],
-            )
-
-        return configs
-
-    def _generate_nemo_run_configs(
-        self,
-        configs: dict,
-        tokenizer_type: str,
-        tokenizer_path: str,
-        path_to_logs: str,
-    ) -> dict:
         """
         Function that returns a dictionary of Partial configs.
         : dict config: runner config.
@@ -158,6 +130,11 @@ class AutoConfigurator:
         :return: dictionary of Partial configs.
         :rtype: dict.
         """
+
+        configs = search_configs(self.config)
+        tokenizer_type = self.config.get("tokenizer_type")
+        tokenizer_path = self.config.get("tokenizer_path")
+        path_to_logs = self.config.get("path_to_logs")
 
         tokenizer = self._get_tokenizer(tokenizer_type, tokenizer_path)
         for name, config in configs.items():
@@ -302,3 +279,17 @@ class AutoConfigurator:
             message += f"{key}: {value}\n"
 
         return message
+
+    def _get_model_type(self, model: str) -> str:
+        if "GPT" in model:
+            return "gpt3"
+        elif "Llama" in model:
+            return "Llama"
+        elif "Mixtral" in model:
+            return "mixtral"
+        elif "Mistral" in model:
+            return "mistral"
+        elif "Gemma" in model:
+            return "gemma"
+        else:
+            return None

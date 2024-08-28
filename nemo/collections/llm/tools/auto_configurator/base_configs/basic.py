@@ -20,10 +20,7 @@ from nemo.collections.llm.utils import Config
 class Basic:
     def __init__(
         self,
-        name: str = None,
-        version: int = None,
-        size: int = None,
-        measure: str = "B",
+        model: Config = None,
         cfg: dict = {},
     ):
         """
@@ -35,19 +32,13 @@ class Basic:
             cfg (dict): auto configurator runner config.
         """
 
-        self.name = name
-        self.version = version
-        self.size = size
-        self.measure = measure
-        self.cfg = cfg
+        self.model = model
         self.num_nodes = cfg.get("num_nodes")
         self.num_gpus = cfg.get("num_gpus")
         self.max_steps = cfg.get("max_steps_per_run")
         self.seq_length = cfg.get("seq_length")
         self.global_batch_size = cfg.get("global_batch_size")
-        self.tokenizer_path = cfg.get("tokenizer_path")
         self.data_paths = cfg.get("data_paths")
-        self.nemo_run = cfg.get("nemo_run")
         self.max_minutes_per_run = cfg.get("max_minutes_per_run")
 
     def model_config(self):
@@ -73,15 +64,10 @@ class Basic:
             "overlap_param_gather": True,
         }
 
-        if self.nemo_run:
-            optim_config = Config(
-                OptimizerConfig,
-                **optim_params,
-            )
-        else:
-            optim_config = OptimizerConfig(
-                **optim_params,
-            )
+        optim_config = Config(
+            OptimizerConfig,
+            **optim_params,
+        )
 
         return optim_config
 
@@ -122,7 +108,6 @@ class Basic:
             "seq_length": self.seq_length,
             "global_batch_size": self.global_batch_size,
             "num_workers": 2,
-            # "split": "99990,8,2",
             "index_mapping_dir": None,
         }
 
@@ -136,7 +121,7 @@ class Basic:
         """
 
         run_config = {
-            "name": f"{self.name}_{self.size}{self.measure}",
+            "name": self.model.__class__.__name__,
             "results_dir": None,
             "time_limit": f"0-00:{self.max_minutes_per_run}:00",
         }

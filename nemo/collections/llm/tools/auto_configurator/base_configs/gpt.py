@@ -21,23 +21,16 @@ from .basic import Basic
 class GPT(Basic):
     def __init__(
         self,
-        name: str = "GPT",
-        version: int = 3,
-        size: int = 5,
-        measure: str = "B",
+        model: Config = None,
         cfg: dict = {},
     ):
         """
         Args:
             name (str): model name.
-            version (int): model version.
-            size (int): model size.
-            measure (str): meausre of model size. "M" if model size in millions, "B" if in billions.
             cfg (dict): auto configurator runner config.
         """
 
-        super().__init__(name=name, version=version, size=size, measure=measure, cfg=cfg)
-        self.config_name = f"{self.name}Config{self.size}{self.measure}"
+        super().__init__(model=model, cfg=cfg)
 
     def get_model_config(self) -> Config:
         """Function that returns model config.
@@ -46,15 +39,7 @@ class GPT(Basic):
             Config: model config.
         """
 
-        model_class = getattr(llm, self.config_name)
-        kwargs = self.cfg.get("model_args", {})
+        self.model.global_batch_size = self.global_batch_size
+        self.model.seq_length = self.seq_length
 
-        if self.nemo_run:
-            model_config = Config(model_class, **kwargs)
-        else:
-            model_config = model_class(**kwargs)
-
-        model_config.global_batch_size = self.global_batch_size
-        model_config.seq_length = self.seq_length
-
-        return model_config
+        return self.model

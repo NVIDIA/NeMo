@@ -21,23 +21,16 @@ from .basic import Basic
 class Mistral(Basic):
     def __init__(
         self,
-        name: str = "Mistral",
-        version: int = None,
-        size: int = 7,
-        measure: str = "B",
+        model: Config = None,
         cfg: dict = {},
     ):
         """
         Args:
-            name (str): model name.
-            version (int): model version.
-            size (int): model size.
-            measure (str): meausre of model size. "M" if model size in millions, "B" if in billions.
+            model (Config): model config.
             cfg (dict): auto configurator runner config.
         """
 
-        super().__init__(name=name, version=version, size=size, measure=measure, cfg=cfg)
-        self.config_name = f"{self.name}Config{self.size}{self.measure}"
+        super().__init__(model=model, cfg=cfg)
 
     def get_model_config(self) -> Config:
         """Function that returns model config.
@@ -46,15 +39,8 @@ class Mistral(Basic):
             Config: model config.
         """
 
-        model_class = getattr(llm, self.config_name)
-        kwargs = self.cfg.get("model_args", {})
+        self.model.global_batch_size = self.global_batch_size
+        self.model.seq_length = self.seq_length
+        self.model.pipeline_dtype = torch.bfloat16
 
-        if self.nemo_run:
-            model_config = Config(model_class, **kwargs)
-        else:
-            model_config = model_class(**kwargs)
-
-        model_config.global_batch_size = self.global_batch_size
-        model_config.seq_length = self.seq_length
-
-        return model_config
+        return self.model
