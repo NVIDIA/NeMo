@@ -81,5 +81,5 @@ def import_from_hf(config_name, hf_path):
 
 if __name__ == '__main__':
     for config_name, hf_id in config_name_to_hf_id.items():
-        src = f'hf:///mnt/datadrive/TestData/nemo2_ckpt/{config_name}'
+        src = f'hf:///home/TestData/nemo2_ckpt/{config_name}'
         import_from_hf(config_name, src)
