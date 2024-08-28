@@ -26,7 +26,7 @@ except (ImportError, ModuleNotFoundError):
 
 def make_mcore_dist_opt_wrapper(optim):
 
-    class McoreDistributedOptimizerWrapper(type(optim)):
+    class McoreDistributedOptimizerWrapper(type(optim), torch.optim.Optimizer):
         """
         A wrapper for Mcore distributed optimizer.
 
