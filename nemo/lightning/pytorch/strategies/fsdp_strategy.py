@@ -63,7 +63,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         **kwargs,
     ):
         super().__init__(auto_wrap_policy=auto_wrap_policy, state_dict_type=state_dict_type, **kwargs)
-        
+
         self.data_sampler = data_sampler
         self.ckpt_include_optimizer = ckpt_include_optimizer
 
