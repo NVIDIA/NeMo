@@ -54,6 +54,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         split (str): A string of 3 comma-separated integers denoting how much of the distribution
             to allocate to train, validation, and test sets, respectively. Unused if ``paths`` is a dict.
         index_mapping_dir (Optional[str]): Path to a directory to write index mapping files.
+        num_dataset_builder_threads (int): The number of threads to use for dataset building.
     """
 
     def __init__(
