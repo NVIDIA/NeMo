@@ -19,9 +19,7 @@ from torch.distributed.checkpoint.state_dict import (  # get_state_dict,
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.lightning import io
-from nemo.lightning.megatron_parallel import masked_token_loss
 from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
     fix_progress_bar,

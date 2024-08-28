@@ -292,7 +292,6 @@ def pyt_to_mcore_state_dict(
     for k in state_dict:
         if k.startswith("module.decoder.layers."):
             num_layers = max(num_layers, int(k.split('.')[3]) + 1)
-    assert num_layers != 0
 
     for k, v in state_dict.items():
         prepend_offsets = []
