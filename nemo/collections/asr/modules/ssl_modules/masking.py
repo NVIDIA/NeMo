@@ -33,11 +33,11 @@ class RandomBlockMasking(NeuralModule):
 
     def __init__(
         self,
+        feat_in: int,
         mask_prob: float = 0.5,
         block_size: int = 48,
         mask_value: Optional[float] = None,
-        feat_in: Optional[int] = None,
-        freeze: bool = False,
+        freeze: bool = True,
         allow_overlap: bool = False,
         max_mask_ratio: float = 0.8,
     ):
@@ -48,12 +48,10 @@ class RandomBlockMasking(NeuralModule):
         self.max_mask_ratio = max_mask_ratio
 
         if mask_value is None:
-            if feat_in is None:
-                raise ValueError("Either mask_value or feat_in must be specified")
             self.mask_embedding = nn.Parameter(torch.FloatTensor(feat_in))
             nn.init.normal_(self.mask_embedding, mean=0.0, std=0.1)
         else:
-            self.mask_embedding = nn.Parameter(torch.ones(feat_in) * mask_value)
+            self.mask_embedding = nn.Parameter(torch.ones(feat_in) * mask_value, requires_grad=False)
         if freeze:
             self.freeze()
 
