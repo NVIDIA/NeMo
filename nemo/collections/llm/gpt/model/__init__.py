@@ -33,6 +33,9 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama2Config70B,
     Llama3Config8B,
     Llama3Config70B,
+    Llama31Config8B,
+    Llama31Config70B,
+    Llama31Config405B,
     LlamaConfig,
     LlamaModel,
 )
@@ -52,6 +55,14 @@ from nemo.collections.llm.gpt.model.nemotron import (
     NemotronConfig,
     NemotronModel,
 )
+from nemo.collections.llm.gpt.model.qwen2 import (
+    Qwen2Config,
+    Qwen2Config1P5B,
+    Qwen2Config7B,
+    Qwen2Config72B,
+    Qwen2Config500M,
+    Qwen2Model,
+)
 
 __all__ = [
     "GPTConfig",
@@ -68,6 +79,9 @@ __all__ = [
     "Llama2Config70B",
     "Llama3Config8B",
     "Llama3Config70B",
+    "Llama31Config8B",
+    "Llama31Config70B",
+    "Llama31Config405B",
     "NemotronConfig",
     "Nemotron3Config4B",
     "Nemotron3Config8B",
@@ -93,6 +107,12 @@ __all__ = [
     "ChatGLM2Config6B",
     "ChatGLM3Config6B",
     "ChatGLMModel",
+    "Qwen2Config",
+    "Qwen2Config500M",
+    "Qwen2Config1P5B",
+    "Qwen2Config7B",
+    "Qwen2Config72B",
+    "Qwen2Model",
     "MaskedTokenLossReduction",
     "gpt_data_step",
     "gpt_forward_step",
