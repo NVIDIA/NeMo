@@ -596,9 +596,7 @@ def run_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
                     unwrapped_trained_model, dataloaders=data_module.test_dataloader(), ckpt_path=ckpt_path
                 )
             )
-            import pdb
 
-            pdb.set_trace()
             assert set(forward_output.keys()) == {
                 "z",
                 "x_hat",
