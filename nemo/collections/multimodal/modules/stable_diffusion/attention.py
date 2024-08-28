@@ -41,8 +41,8 @@ from nemo.core import adapter_mixins
 from nemo.utils import logging
 
 try:
-    from transformer_engine.pytorch.module import LayerNormLinear, LayerNormMLP
     from transformer_engine.pytorch.attention import DotProductAttention
+    from transformer_engine.pytorch.module import LayerNormLinear, LayerNormMLP
 
     HAVE_TE = True
 
@@ -262,8 +262,9 @@ class CrossAttention(nn.Module):
     ):
         super().__init__()
 
-        assert not (use_te_dpa and use_flash_attention), \
-            'use_te_dpa and use_flash_attention cannot be True together. Please specify the attention you want to use.'
+        assert not (
+            use_te_dpa and use_flash_attention
+        ), 'use_te_dpa and use_flash_attention cannot be True together. Please specify the attention you want to use.'
 
         if use_flash_attention:
             assert flash_attn_installed, 'Flash-attention must be installed.'
@@ -315,7 +316,7 @@ class CrossAttention(nn.Module):
                     num_attention_heads=self.inner_dim // dim_head,
                     attn_mask_type='no_mask',
                     attention_type='self' if context_dim == query_dim else 'cross',
-                    qkv_format='bshd', # `sbhd`, `bshd`, `thd`
+                    qkv_format='bshd',  # `sbhd`, `bshd`, `thd`
                     softmax_scale=self.scale,
                 )
 
