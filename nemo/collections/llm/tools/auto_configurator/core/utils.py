@@ -36,7 +36,7 @@ class ModelSizeParams:
         seq_length (int): sequence length to be used during training.
         vocab_size (int): size of the vocabulary to use for training.
         model_name (str): name of the model to be trained, i.e. gpt3, t5, mt5...
-    
+
     Raises:
         ValueError: if the model size is larger than the max supported model size.
         NotImplementedError: if the model name is not supported.
@@ -263,7 +263,7 @@ class ModelSizeParams:
                 if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
                     self.layers = layers
             margin += 0.01  # Double margin of acceptable model sizes.
-        
+
         if not self.layers:
             raise Exception("Number of layers not found, config is not possible.")
 
@@ -289,10 +289,10 @@ def _calculate_model_size(
         kv_channels (int): number of KV channels in the transformer layers.
         att_heads (int): number of attention heads in the transformer layers.
         model_name (str): name of the model, i.e gpt3, t5, mt5...
-    
+
     Returns:
         float: size of the model in billions of parameters.
-    
+
     Raises:
         NotImplementedError: if the model name is not valid.
     """
@@ -341,7 +341,7 @@ def generic_base_config(
         model_size_in_b (int): model size.
         model_measure (str): model measure. Billions if "B", millions if "M".
         cfg (dict): dict config object for the Auto Configurator tool.
-    
+
     Returns:
         dict: dictionary containing the base configuration for the model.
     """
@@ -437,7 +437,7 @@ def modify_cfg(
     Returns:
         dict: dictionary containing the updated model configuration parameters.
     """
-    
+
     new_cfg = copy.deepcopy(base_cfg)
     if act is not None:
         if model_name in [

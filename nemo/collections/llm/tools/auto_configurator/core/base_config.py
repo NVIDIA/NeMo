@@ -30,17 +30,17 @@ def calculate_model_size(
     """Estimates a model size to be trained given the constraints. If the
        model_size is provided, it estimates the time to train it with the given
        constraints.
-    
+
     Example:
         output 5B params to train for 7 days with 160 GPUs.
-    
+
     Args:
         gpu_count (int): number of gpus to use (num_nodes * gpus_per_node).
         max_training_days (float): number of days to train the model for.
         model_size_in_b (float): number of parameters in the model, if known.
         tflops_per_gpu (int): estimated number of TFLOPS/s per GPU.
         num_tokens_in_b (int): number of tokens to train the model for.
-    
+
     Returns:
         float: number of parameters to use for training.
     """
@@ -88,10 +88,10 @@ def _estimate_model_size(
         tflops_per_gpu (int): estimated number of TFLOPS/s per GPU.
         num_tokens_in_b (int): number of tokens to train the model for.
         model_name (str): name of the model, such as gpt3, t5, mt5...
-    
+
     Returns:
         float: number of parameters to use for training.
-    
+
     Raises:
         NotImplementedError: if the model_name is not one of the supported models.
     """
@@ -136,11 +136,11 @@ def _estimate_training_time(
 
     Returns:
         float: number of days it will take to train the model.
-    
+
     Raises:
         NotImplementedError: if the model_name is not one of the supported models.
     """
-    
+
     model_penalty = 1.15 if model_name == "mt5" else 1.0
     valid_models = ["gpt3", "t5", "mt5", "bert", "llama", "mixtral", "mistral", "gemma"]
     try:

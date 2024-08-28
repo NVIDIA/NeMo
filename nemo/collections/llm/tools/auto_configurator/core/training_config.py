@@ -866,7 +866,7 @@ def _calculate_tp_pp_mbs_grid(
         model_name (str): name of the model to be used, such as gpt3, t5, mt5...
         seq_length (int): sequence length to use for training.
         train_cfg (dict): config of the model that will be launched.
-    
+
     Returns:
         dataclass object with model parallelism parameters.
 

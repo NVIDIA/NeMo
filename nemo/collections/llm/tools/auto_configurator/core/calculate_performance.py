@@ -61,7 +61,7 @@ def get_results(
         custom_model (Optional[bool]): set to True if custom model was used.
         output_top_n (Optional[int]): Number of configs to be printed out as best configs.
     """
-    
+
     # Get model architecture
     cfg = locals()
     cfg["gpu_count"] = num_nodes * gpus_per_node
@@ -254,12 +254,12 @@ def calculate_tflops(
 ):
     """Calculates model and hardware TFLOPS for each model.
 
-        GPT-3 Formulas:
-            Model FLOPs = (24𝐵𝑠ℎ^2 + 4𝐵��^2ℎ) x (3 x num_layers) + 6𝐵𝑠ℎ
-        T5/mT5 Formula:
-            Model FLOPs =
-        Bert Formula:
-            Model FLOPs = 72BLsh^2 * ( 1 + (s/6h) + (v/12hL))
+    GPT-3 Formulas:
+        Model FLOPs = (24𝐵𝑠ℎ^2 + 4𝐵��^2ℎ) x (3 x num_layers) + 6𝐵𝑠ℎ
+    T5/mT5 Formula:
+        Model FLOPs =
+    Bert Formula:
+        Model FLOPs = 72BLsh^2 * ( 1 + (s/6h) + (v/12hL))
     """
 
     if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"]:
@@ -320,7 +320,7 @@ def find_error(error_file: str, errors: list = ["CUDA out of memory"]):
     Args:
         :param list errors: list of "popular" errors.
         :param str error_file: path to the job output.
-    
+
     Returns:
         str: serror message if job has been failed because of one of listed errors or None if not.
     """
