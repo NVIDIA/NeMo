@@ -16,18 +16,17 @@
 import enum
 import logging
 import math
+import os
 import re
 from dataclasses import dataclass
 from typing import Optional
 
+import thunder
 import torch
 import torch.nn as nn
 import torch.nn.init as init
-
-import thunder
-import os
-
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
+
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
@@ -238,6 +237,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             self.layer_norm = None
 
         if dropout > 0.0:
+
             def dropout_fn(x):
                 return nn.functional.dropout(x, p=dropout, training=self.training)
             use_memory_saving_dropout = bool(int(os.getenv("NEMO_LORA_USE_THUNDER_DROPOUT", 0)))
