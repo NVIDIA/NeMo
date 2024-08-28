@@ -12,15 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import modelopt.torch.prune as mtp
 import torch
 import torch.multiprocessing as mp
 from datasets import load_dataset
+from modelopt.torch.utils import print_rank_0
 from omegaconf import OmegaConf
 from pytorch_lightning.trainer.trainer import Trainer
 from tqdm import tqdm
-
-import modelopt.torch.prune as mtp
-from modelopt.torch.utils import print_rank_0
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
@@ -69,6 +68,7 @@ def get_calib_data_iter(data="cnn_dailymail", batch_size=64, calib_size=512, max
         for j in range(len(batch)):
             batch[j] = batch[j][:max_sequence_length]
         yield batch
+
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_prune")
 def main(cfg) -> None:
@@ -143,6 +143,7 @@ def main(cfg) -> None:
     torch.distributed.barrier()
 
     # TODO: read back and run inference
+
 
 if __name__ == '__main__':
     main()
