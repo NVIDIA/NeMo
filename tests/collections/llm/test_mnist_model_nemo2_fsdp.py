@@ -34,18 +34,17 @@ from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.module import MegatronModule
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch import Tensor, nn
-from torch.utils.data import DataLoader
 from torch.optim import Adam
+from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.lightning.pytorch.optim import OptimizerModule
 from nemo.lightning import NeMoLogger, io, resume
 from nemo.lightning.megatron_parallel import DataT, MegatronLossReduction, ReductionT
 from nemo.lightning.pytorch import callbacks as nl_callbacks
-from nemo.lightning.pytorch.optim import MegatronOptimizerModule
+from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 TokenizerType = Any
@@ -220,7 +219,7 @@ class PassthroughLossReduction(MegatronLossReduction):
             ReductionT: _description_
         """  # noqa: D205
         return batch_collator(forward_out)
-    
+
 
 class TorchAdam(OptimizerModule):
     def __init__(self, config, lr_scheduler=None):
@@ -229,13 +228,15 @@ class TorchAdam(OptimizerModule):
         super().__init__(lr_scheduler)
 
     def optimizers(self, model):
-        return [Adam(
-            model.parameters(),
-            lr=self.conf.lr,
-            betas=(self.conf.adam_beta1, self.conf.adam_beta2),
-            eps=self.conf.adam_eps,
-            weight_decay=self.conf.weight_decay,
-        )]
+        return [
+            Adam(
+                model.parameters(),
+                lr=self.conf.lr,
+                betas=(self.conf.adam_beta1, self.conf.adam_beta2),
+                eps=self.conf.adam_eps,
+                weight_decay=self.conf.weight_decay,
+            )
+        ]
 
 
 class LitAutoEncoder(pl.LightningModule, io.IOMixin, io.ConnectorMixin):
@@ -595,7 +596,9 @@ def run_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
                     unwrapped_trained_model, dataloaders=data_module.test_dataloader(), ckpt_path=ckpt_path
                 )
             )
-            import pdb; pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
             assert set(forward_output.keys()) == {
                 "z",
                 "x_hat",
