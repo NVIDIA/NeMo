@@ -36,7 +36,7 @@ except (ImportError, ModuleNotFoundError) as e:
 try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
-    from megatron.core.transformer.graphs import CudaGraphManager
+    from megatron.core.transformer.cuda_graphs import CudaGraphManager
     from megatron.core.transformer.spec_utils import ModuleSpec
     from megatron.core.transformer.transformer_block import TransformerBlockSubmodules, get_num_layers_to_build
     from megatron.core.transformer.transformer_layer import BaseTransformerLayer

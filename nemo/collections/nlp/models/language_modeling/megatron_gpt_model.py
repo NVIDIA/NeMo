@@ -835,14 +835,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if not self.mcore_gpt:
                     module = module.language_model
 
-                # Cudagraphed model does not trigger param sync hooks, so manually trigger param syncs here.
-                if self.cfg.get('enable_cuda_graph', False):
-                    for param in module.parameters():
+                if hasattr(module, 'embedding'):
+                    for param in module.embedding.parameters():
                         param.data_ptr()
-                else:
-                    if hasattr(module, 'embedding'):
-                        for param in module.embedding.parameters():
-                            param.data_ptr()
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage(
             ignore_virtual=True
