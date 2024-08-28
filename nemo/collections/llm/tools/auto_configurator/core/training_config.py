@@ -23,23 +23,6 @@ from typing import List, Tuple
 from nemo.collections.llm.tools.auto_configurator.core import utils
 
 
-def search_training_config(
-    base_cfg: dict,
-    train_cfg: dict,
-) -> None:
-    """
-    Entry point for the Auto Configurator search. This function calls other functions
-    to generate the grid of possible configurations.
-    :param dict base_cfg: base configuration of the model to be trained.
-    :param dict base_cfg: config of the model that will be launched.
-    :return: dict with generated configs.
-    """
-    # Generate candidate configs.
-    configs = generate_grid_search_configs(base_cfg, train_cfg)
-
-    return configs
-
-
 def generate_grid_search_configs(
     base_cfg: dict,
     train_cfg: dict,

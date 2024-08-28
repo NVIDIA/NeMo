@@ -15,7 +15,7 @@
 import os
 from typing import Optional
 
-from nemo.collections.llm.tools.auto_configurator.core.training_config import search_training_config
+from nemo.collections.llm.tools.auto_configurator.core.training_config import generate_grid_search_configs
 from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config
 
 SUPPORTED_MODELS = [
@@ -79,6 +79,6 @@ def search_configs(cfg: dict):
     )
 
     # Launch grid search for training constraints
-    configs = search_training_config(base_cfg, train_cfg)
+    configs = generate_grid_search_configs(base_cfg, train_cfg)
 
     return configs
