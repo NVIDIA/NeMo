@@ -451,7 +451,7 @@ def modify_cfg(
     Returns:
         dict: dictionary containing the updated model configuration parameters.
     """
-    
+
     new_cfg = copy.deepcopy(base_cfg)
     if act is not None:
         if model_name in GPT_BASED_MODELS:
