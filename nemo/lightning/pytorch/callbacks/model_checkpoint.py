@@ -481,7 +481,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:
                 finalize_fn()
-    
+
     ## TODO: storage_options
     def _drop_optimizer_states(self, trainer, filepath: Union[str, Path]) -> None:
         # Get list of saved checkpoints
@@ -493,7 +493,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             checkpoint_path = checkpoints[checkpoint_index]
 
             logging.info(f"Loading '{checkpoint_path}' checkpoint to drop optimizer states...")
-            ## TODO: clean 
+            ## TODO: clean
             checkpoint = trainer.strategy.load_checkpoint(Path(checkpoint_path) / ModelCheckpoint.MODEL_WEIGHTS_PATH)
 
             # Remove the checkpoint version with optimizer states
@@ -526,14 +526,17 @@ class ModelCheckpoint(PTLModelCheckpoint):
         checkpoints = [
             d
             for d in os.listdir(checkpoint_dir)
-            if (os.path.isdir(os.path.join(checkpoint_dir, d)) and '-last' not in d
-            and os.path.join(checkpoint_dir, d) not in self.optimizerless_checkpoints)
+            if (
+                os.path.isdir(os.path.join(checkpoint_dir, d))
+                and '-last' not in d
+                and os.path.join(checkpoint_dir, d) not in self.optimizerless_checkpoints
+            )
         ]
         checkpoints = sorted(checkpoints, key=lambda x: (checkpoint_dir / Path(x)).lstat().st_mtime)
         checkpoints = [os.path.join(checkpoint_dir, checkpoint) for checkpoint in checkpoints]
 
         return checkpoints
-    
+
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
     ):
