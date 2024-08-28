@@ -16,6 +16,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
+from typing import List
 
 import numpy as np
 import wrapt
@@ -73,10 +74,12 @@ class TensorRTMMExporter(ITritonDeployable):
     def __init__(
         self,
         model_dir: str,
+        lora_ckpt_list: List[str] = None,
         load_model: bool = True,
         modality: str = "vision",
     ):
         self.model_dir = model_dir
+        self.lora_ckpt_list = lora_ckpt_list
         self.runner = None
         # vision modality is for image and video
         assert modality in ["vision", "audio"]
@@ -100,6 +103,9 @@ class TensorRTMMExporter(ITritonDeployable):
         dtype: str = "bfloat16",
         delete_existing_files: bool = True,
         load_model: bool = True,
+        use_lora_plugin: str = None,
+        lora_target_modules: List[str] = None,
+        max_lora_rank: int = 64,
     ):
         if Path(self.model_dir).exists():
             if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
@@ -130,6 +136,9 @@ class TensorRTMMExporter(ITritonDeployable):
             max_batch_size=max_batch_size,
             max_multimodal_len=max_multimodal_len,
             dtype=dtype,
+            use_lora_plugin=use_lora_plugin,
+            lora_target_modules=lora_target_modules,
+            max_lora_rank=max_lora_rank,
         )
 
         if model_type == "salm":
@@ -153,6 +162,7 @@ class TensorRTMMExporter(ITritonDeployable):
         temperature: float = 1.0,
         repetition_penalty: float = 1.0,
         num_beams: int = 1,
+        lora_uids: List[str] = None,
     ):
         if self.runner is None:
             raise Exception(
@@ -170,6 +180,7 @@ class TensorRTMMExporter(ITritonDeployable):
             temperature,
             repetition_penalty,
             num_beams,
+            lora_uids,
         )
 
     def get_input_media_tensors(self):
@@ -195,6 +206,7 @@ class TensorRTMMExporter(ITritonDeployable):
                 Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
                 Tensor(name="repetition_penalty", shape=(-1,), dtype=np.single, optional=True),
                 Tensor(name="num_beams", shape=(-1,), dtype=np.int_, optional=True),
+                Tensor(name="lora_uids", shape=(-1,), dtype=bytes, optional=True),
             ]
         )
         inputs = tuple(inputs)
@@ -236,6 +248,9 @@ class TensorRTMMExporter(ITritonDeployable):
                 infer_input["repetition_penalty"] = inputs.pop("repetition_penalty")[0][0]
             if "num_beams" in inputs:
                 infer_input["num_beams"] = inputs.pop("num_beams")[0][0]
+            if "lora_uids" in inputs:
+                lora_uids = np.char.decode(inputs.pop("lora_uids").astype("bytes"), encoding="utf-8")
+                infer_input["lora_uids"] = lora_uids[0].tolist()
 
             output_texts = self.runner.run(**infer_input)
             output = cast_output(output_texts, np.bytes_)
@@ -249,7 +264,7 @@ class TensorRTMMExporter(ITritonDeployable):
         llm_dir = os.path.join(self.model_dir, "llm_engine")
         if self.modality == "vision":
             visual_dir = os.path.join(self.model_dir, "visual_engine")
-            self.runner = MultimodalModelRunner(visual_dir, llm_dir, self.modality)
+            self.runner = MultimodalModelRunner(visual_dir, llm_dir, self.lora_ckpt_list, self.modality)
         elif self.modality == "audio":
             perception_dir = os.path.join(self.model_dir, "perception_engine")
             self.runner = SpeechllmModelRunner(perception_dir, llm_dir, self.modality)

@@ -19,6 +19,7 @@ import tarfile
 import tempfile
 from pathlib import Path
 from time import time
+from typing import List
 
 import tensorrt as trt
 import torch
@@ -47,6 +48,9 @@ def build_trtllm_engine(
     max_batch_size: int = 1,
     max_multimodal_len: int = 1024,
     dtype: str = "bfloat16",
+    use_lora_plugin: str = None,
+    lora_target_modules: List[str] = None,
+    max_lora_rank: int = 64,
 ):
     trt_llm_exporter = TensorRTLLM(model_dir=model_dir, load_model=False)
     visual_checkpoint_model = ['neva', 'lita', 'vila', 'vita']
@@ -60,6 +64,9 @@ def build_trtllm_engine(
         max_prompt_embedding_table_size=max_multimodal_len,
         dtype=dtype,
         load_model=False,
+        use_lora_plugin=use_lora_plugin,
+        lora_target_modules=lora_target_modules,
+        max_lora_rank=max_lora_rank,
     )
 
 
