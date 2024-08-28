@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
-import os
-
 from nemo.collections.llm.tools.auto_configurator import base_configs
 
 from .basic import Basic
