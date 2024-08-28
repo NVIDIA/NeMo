@@ -14,15 +14,6 @@
 
 import torch
 
-try:
-    from megatron.core.optimizer.optimizer import MegatronOptimizer
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
-
 
 def make_mcore_dist_opt_wrapper(optim):
 
