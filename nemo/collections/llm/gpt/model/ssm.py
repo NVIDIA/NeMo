@@ -54,7 +54,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
         return MCoreMambaModel(
             self,
             mamba_stack_spec=mamba_stack_spec,
-            vocab_size=50288, #get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
+            vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
             max_sequence_length=self.seq_length,
             mamba_ssm_ngroups=self.mamba_ssm_ngroups,
             hybrid_attention_ratio=self.hybrid_attention_ratio,
@@ -83,9 +83,10 @@ class SSMModel(GPTModel):
 @io.model_importer(SSMModel, "pytorch")
 class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
 
-    def __new__(cls, path: str, tokenizer_config=None):
+    def __new__(cls, path: str, tokenizer_config=None, model_config=None):
         instance = super().__new__(cls, path)
         instance.tokenizer_config = tokenizer_config
+        instance.model_config = model_config
         return instance
     def init(self) -> SSMModel:
 
@@ -103,10 +104,11 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
                 self.update_dict()
 
             def update_dict(self):
-                pattern = re.compile(r'backbone\.layers\.\d+\.norm\.weight')
+                # pattern = re.compile(r'backbone\.layers\.\d+\.norm\.weight')
+                pattern = re.compile(r'decoder\.layers\.\d+\.norm\.weight')
                 # Create a new dictionary with the updated keys
                 self._state_dict = {
-                    (re.sub(r'norm\.weight', 'layer_norm_weight', k) if pattern.match(k) else k): v
+                    (re.sub(r'norm\.weight', 'mixer.in_proj.layer_norm_weight', k) if pattern.match(k) else k): v
                     for k, v in self._state_dict.items()
                     }
             def state_dict(self):
@@ -118,7 +120,7 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Llama model to Nemo, model saved to {output_path}")
+        print(f"Converted Mamba model to Nemo, model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
@@ -127,36 +129,36 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
 
     def convert_state(self, source, target):
         mapping = {
-                'backbone.embedding.weight': 'embedding.word_embeddings.weight',
-                # 'embedding.word_embeddings.weight': 'embedding.word_embeddings.weight',
-                'backbone.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log', 
-                'backbone.layers.*.mixer.D': 'decoder.layers.*.mixer.D', 
-                'backbone.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
-                'backbone.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
-                'backbone.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
-                'backbone.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',  
-                'backbone.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
-                'backbone.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
-                'backbone.layers.*.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',  
-                # 'decoder.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log', 
-                # 'decoder.layers.*.mixer.D': 'decoder.layers.*.mixer.D', 
-                # 'decoder.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
-                # 'decoder.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
-                # 'decoder.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
-                # 'decoder.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',  
-                # 'decoder.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
-                # 'decoder.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
-                # 'decoder.layers.*.mixer.in_proj.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
-                # 'decoder.layers.*.mlp.linear_fc1.layer_norm_weight': 'decoder.layers.*.mlp.linear_fc1.layer_norm_weight', 
-                # 'decoder.layers.*.mlp.linear_fc1.weight': 'decoder.layers.*.mlp.linear_fc1.weight', 
-                # 'decoder.layers.*.mlp.linear_fc2.weight': 'decoder.layers.*.mlp.linear_fc2.weight',
-                # 'decoder.layers.*.self_attention.linear_proj.weight': 'decoder.layers.*.self_attention.linear_proj.weight', 
-                # 'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight': 'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight', 
-                # 'decoder.layers.*.self_attention.linear_qkv.weight': 'decoder.layers.*.self_attention.linear_qkv.weight',
-                # 'decoder.final_norm.weight': 'decoder.final_norm.weight',
-                # 'output_layer.weight': 'output_layer.weight',
-                'backbone.norm_f.weight': 'decoder.final_norm.weight',
-                'lm_head.weight': 'output_layer.weight',
+                # 'backbone.embedding.weight': 'embedding.word_embeddings.weight',
+                'embedding.word_embeddings.weight': 'embedding.word_embeddings.weight',
+                # 'backbone.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log', 
+                # 'backbone.layers.*.mixer.D': 'decoder.layers.*.mixer.D', 
+                # 'backbone.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
+                # 'backbone.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
+                # 'backbone.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
+                # 'backbone.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',  
+                # 'backbone.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
+                # 'backbone.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
+                # 'backbone.layers.*.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',  
+                'decoder.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log', 
+                'decoder.layers.*.mixer.D': 'decoder.layers.*.mixer.D', 
+                'decoder.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
+                'decoder.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
+                'decoder.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
+                'decoder.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',  
+                'decoder.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
+                'decoder.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
+                'decoder.layers.*.mixer.in_proj.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
+                'decoder.layers.*.mlp.linear_fc1.layer_norm_weight': 'decoder.layers.*.mlp.linear_fc1.layer_norm_weight', 
+                'decoder.layers.*.mlp.linear_fc1.weight': 'decoder.layers.*.mlp.linear_fc1.weight', 
+                'decoder.layers.*.mlp.linear_fc2.weight': 'decoder.layers.*.mlp.linear_fc2.weight',
+                'decoder.layers.*.self_attention.linear_proj.weight': 'decoder.layers.*.self_attention.linear_proj.weight', 
+                'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight': 'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight', 
+                'decoder.layers.*.self_attention.linear_qkv.weight': 'decoder.layers.*.self_attention.linear_qkv.weight',
+                'decoder.final_norm.weight': 'decoder.final_norm.weight',
+                'output_layer.weight': 'output_layer.weight',
+                # 'backbone.norm_f.weight': 'decoder.final_norm.weight',
+                # 'lm_head.weight': 'output_layer.weight',
         }
   
         return io.apply_transforms(source, target, mapping=mapping)
@@ -177,19 +179,7 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
     @property
     def config(self) -> SSMConfig:
 
-        output = SSMConfig(
-            hybrid_override_pattern="M"*48,
-            num_layers=48,
-            hidden_size=1024,
-            mamba_ssm_ngroups=1,
-            ffn_hidden_size=1024,
-            num_attention_heads=1,
-            hidden_dropout=0.0,
-            attention_dropout=0.0,
-            layernorm_epsilon=1e-5,
-        )
-
-        return output
+        return self.model_config
 
 @dataclass
 class Mamba2Config370m(SSMConfig):
@@ -214,6 +204,7 @@ class HybridConfig8b(SSMConfig):
     mamba_ssm_ngroups: int = 8
     ffn_hidden_size: int = 16384
     num_attention_heads: int = 32
+    num_query_groups: int = 8
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
     layernorm_epsilon: float = 1e-5
