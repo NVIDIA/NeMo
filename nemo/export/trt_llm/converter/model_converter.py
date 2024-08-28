@@ -124,7 +124,7 @@ def model_to_trtllm_ckpt(
             inference_pp_size=pipeline_parallel_size,
             tokenizer_vocab_size=vocab_size,
             fp8_quantized=fp8_quantized,
-            fp8_kvcache=fp8_kvcache
+            fp8_kvcache=fp8_kvcache,
         )
         vocab_size_padded = vocab_size
     else:
@@ -138,7 +138,7 @@ def model_to_trtllm_ckpt(
             use_parallel_embedding=use_parallel_embedding,
             decoder_type=decoder_type,
             fp8_quantized=fp8_quantized,
-            fp8_kvcache=fp8_kvcache
+            fp8_kvcache=fp8_kvcache,
         )
 
         has_lm_head = "lm_head.weight" in weights_dict
@@ -261,7 +261,9 @@ def model_to_trtllm_ckpt(
 
         if mapping.is_first_pp_rank():
             embedding_weight = (
-                np.ascontiguousarray(split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank))
+                np.ascontiguousarray(
+                    split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank)
+                )
                 if use_parallel_embedding
                 else weights_dict["transformer.vocab_embedding.weight"]
             )
