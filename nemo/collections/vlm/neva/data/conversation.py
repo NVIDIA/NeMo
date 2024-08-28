@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import dataclasses
-from collections import defaultdict
-from enum import auto, Enum
-from typing import List, Any, Dict, Union, Tuple, Optional
-import re
 import base64
+import dataclasses
+import re
+from collections import defaultdict
+from enum import Enum, auto
 from io import BytesIO
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 from PIL import Image
 from transformers import AutoTokenizer
 
@@ -108,7 +109,7 @@ class Conversation:
             <s>[INST] <<SYS>>
             A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.
             <</SYS>>
-            
+
             {{ user_message_1 }} [/INST] {{ model_answer_1 }} </s><s>[INST] {{ user_message_2 }} [/INST]
             """
             tokenizer_name_or_path = self.tokenizer_name_or_path or "lmsys/vicuna-7b-v1.5"
@@ -144,7 +145,7 @@ class Conversation:
             <s>[INST] <<SYS>>
             You are a helpful language and vision assistant. You are able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language.
             <</SYS>>
-            
+
             {{ user_message_1 }} [/INST] {{ model_answer_1 }} </s><s>[INST] {{ user_message_2 }} [/INST]
             """
             tokenizer_name_or_path = self.tokenizer_name_or_path or "meta-llama/Llama-2-7b-chat-hf"
@@ -529,7 +530,15 @@ You are a helpful assistant.""",
     sep="<|im_end|>",
 )
 
-conv_gemma_instruct = Conversation(system="", roles=("<start_of_turn>user\n", "<start_of_turn>model\n"), version="gemma", messages=[], offset=0, sep_style=SeparatorStyle.GEMMA, sep="<end_of_turn>\n")
+conv_gemma_instruct = Conversation(
+    system="",
+    roles=("<start_of_turn>user\n", "<start_of_turn>model\n"),
+    version="gemma",
+    messages=[],
+    offset=0,
+    sep_style=SeparatorStyle.GEMMA,
+    sep="<end_of_turn>\n",
+)
 
 conv_llava_plain = Conversation(
     system="",
@@ -598,7 +607,7 @@ conv_mistral_vila = Conversation(
     sep_style=SeparatorStyle.MISTRAL,
     sep="",
     sep2="</s>",
-    stop_str="</s>"
+    stop_str="</s>",
 )
 
 

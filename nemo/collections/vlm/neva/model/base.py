@@ -1,29 +1,26 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
-from einops import rearrange
 
 import pytorch_lightning as L
 import torch
 import torch.distributed
 import torch.nn.functional as F
-from torch import nn
-
+from einops import rearrange
+from megatron.core import dist_checkpointing
+from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core import dist_checkpointing
-from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
+from torch import nn
 
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
+from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
+from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
-from nemo.collections.llm.gpt.model import transformer_engine_layer_spec, local_layer_spec
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
-
-from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
-
 
 
 def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_token_len):
@@ -56,8 +53,7 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         required_keys.update(("labels", "loss_mask"))
 
     _batch = {
-        key: val.cuda(non_blocking=True)
-        if key in required_keys and val is not None else None
+        key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
         for key, val in _batch.items()
     }
     # slice batch along sequence dimension for context parallelism
@@ -82,8 +78,11 @@ def neva_forward_step(model, batch) -> torch.Tensor:
     return model(**forward_args)
 
 
-from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
+import os
+
+from megatron.core.inference_params import InferenceParams
 from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
+from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
     TEDotProductAttention,
@@ -91,15 +90,12 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
     TENorm,
     TERowParallelLinear,
 )
-
-from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
-from megatron.core.inference_params import InferenceParams
-from megatron.core.transformer.mlp import MLP, MLPSubmodules
-from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from megatron.core.transformer.enums import AttnMaskType, ModelType
-
-import os
+from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from transformers import CLIPVisionConfig, CLIPVisionModel
+
+from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
+from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 
 
 def set_input_tensor(self, tensor):
@@ -111,6 +107,7 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
     """
     For MLP, fc1 in shape of input_size, ffn_hidden_size, fc2 in shape of ffn_hidden_size, hidden_size
     """
+
     projector_type: str = "mlp"
     layer_spec: Optional[MLPSubmodules] = None
     input_size: Optional[int] = 1024
@@ -162,6 +159,7 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
     """
     https://github.com/huggingface/transformers/blob/v4.44.0/src/transformers/models/clip/configuration_clip.py#L261
     """
+
     pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None
 
     def configure_hf_config(self, *args, **kwargs) -> None:
@@ -235,8 +233,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         if self.language_model_from_pretrained is not None:
             sharded_state_dict = dict(state_dict=language_model.sharded_state_dict(prefix="module."))
             loaded_state_dict = dist_checkpointing.load(
-                sharded_state_dict=sharded_state_dict,
-                checkpoint_dir=self.language_model_from_pretrained
+                sharded_state_dict=sharded_state_dict, checkpoint_dir=self.language_model_from_pretrained
             )
             loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
             language_model.load_state_dict(loaded_state_dict)
@@ -258,20 +255,18 @@ class NevaConfig(TransformerConfig, io.IOMixin):
 
 class MCoreNevaModel(MCoreLLaVAModel):
     def __init__(
-            self,
-            transformer_config: TransformerConfig,
-            language_model: MegatronModule,
-            vision_model: MegatronModule,
-            vision_projection: MegatronModule,
-            pre_process: bool = True,
-            post_process: bool = True,
-            drop_vision_class_token: bool = False,
+        self,
+        transformer_config: TransformerConfig,
+        language_model: MegatronModule,
+        vision_model: MegatronModule,
+        vision_projection: MegatronModule,
+        pre_process: bool = True,
+        post_process: bool = True,
+        drop_vision_class_token: bool = False,
     ) -> None:
         super(MCoreLLaVAModel, self).__init__(config=transformer_config)
 
-        logging.warning(
-            "LLaVA model is under development and may be missing features."
-        )
+        logging.warning("LLaVA model is under development and may be missing features.")
 
         self.pre_process = pre_process
         self.post_process = post_process
@@ -285,9 +280,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
         self.share_embeddings_and_output_weights = False
         if self.language_model is not None:
-            self.share_embeddings_and_output_weights = (
-                self.language_model.share_embeddings_and_output_weights
-            )
+            self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
 
         if self.vision_model is not None:
             self._drop_vision_class_token = drop_vision_class_token
@@ -312,17 +305,17 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self._img_seq_len = 0
 
     def _preprocess_data(
-            self,
-            image_embeddings,
-            language_embeddings,
-            input_ids,
-            loss_mask,
-            labels,
-            use_inference_kv_cache,
-            image_token_index,
-            num_image_tiles,
+        self,
+        image_embeddings,
+        language_embeddings,
+        input_ids,
+        loss_mask,
+        labels,
+        use_inference_kv_cache,
+        image_token_index,
+        num_image_tiles,
     ):
-        #TODO (yuya): remove this and use the mcore method
+        # TODO (yuya): remove this and use the mcore method
         """Preprocess input data before input to language model.
 
         This function is adopted from
@@ -369,7 +362,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         has_labels = labels is not None
         if has_labels:
             assert (
-                    labels.shape == loss_mask.shape
+                labels.shape == loss_mask.shape
             ), f"mismatching labels shape {labels.shape} and loss mask shape {loss_mask.shape}"
 
         # Create indices for new text and label positions.
@@ -379,9 +372,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
             # Number of tiles per sample.
             num_image_tiles_batch = num_image_tiles.split(num_image_tokens.tolist(), dim=0)
-            num_image_tiles_batch = torch.tensor(
-                [x.sum() for x in num_image_tiles_batch], device=input_ids.device
-            )
+            num_image_tiles_batch = torch.tensor([x.sum() for x in num_image_tiles_batch], device=input_ids.device)
 
             # Sequence length for each sample is the image sequence length multiplied by the number of tiles for that image, minus image token indices,
             # plus text sequence length.
@@ -413,9 +404,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         # Create a mask for the image embedding positions.
         with torch.no_grad():
-            images_mask = torch.full(
-                (batch_size, max_seq_len), True, dtype=torch.bool, device=input_ids.device
-            )
+            images_mask = torch.full((batch_size, max_seq_len), True, dtype=torch.bool, device=input_ids.device)
             # No images in the text positions.
             images_mask[batch_indices, text_position_ids] = False
             # Samples can have different amount of images tokens. new_position_ids[:, -1] gives the last text position id for each sample.
@@ -424,7 +413,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             images_mask[
                 torch.arange(max_seq_len, device=first_padding_idx.device).repeat(batch_size, 1)
                 >= first_padding_idx.unsqueeze(1)
-                ] = False
+            ] = False
 
         # Create the final input embedding (if this is the first language model stage).
         final_embedding = None
@@ -439,9 +428,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             )
 
             # Put text embeddings to the text positions in the result tensor.
-            final_embedding[batch_indices, text_position_ids] = language_embeddings[
-                batch_indices, non_image_indices
-            ]
+            final_embedding[batch_indices, text_position_ids] = language_embeddings[batch_indices, non_image_indices]
 
             # Put image embeddings to image positions.
             final_embedding[images_mask] = image_embeddings.reshape(-1, embed_dim).contiguous()
@@ -452,18 +439,14 @@ class MCoreNevaModel(MCoreLLaVAModel):
             final_labels = torch.full(
                 (batch_size, max_seq_len), IGNORE_INDEX, dtype=labels.dtype, device=labels.device
             )
-            final_loss_mask = torch.full(
-                (batch_size, max_seq_len), 0, dtype=loss_mask.dtype, device=loss_mask.device
-            )
+            final_loss_mask = torch.full((batch_size, max_seq_len), 0, dtype=loss_mask.dtype, device=loss_mask.device)
 
             # Put text labels and loss mask to the text positions.
             final_labels[label_batch_indices, label_text_position_ids] = labels[
                 label_batch_indices, label_non_image_indices
             ]
 
-            final_loss_mask[batch_indices, text_position_ids] = loss_mask[
-                batch_indices, non_image_indices
-            ]
+            final_loss_mask[batch_indices, text_position_ids] = loss_mask[batch_indices, non_image_indices]
 
             # For labels, we need to pick the last label index that got dropped by the shift to left.
             label_extra_text_position_ids = seq_lens - 1
@@ -481,15 +464,13 @@ class MCoreNevaModel(MCoreLLaVAModel):
             valid_batch_image_indices = batch_image_indices[valid]
             valid_before_image_indices = before_image_indices[valid]
             # Map those indices those position ids.
-            valid_before_image_indices = new_position_ids[
-                valid_batch_image_indices, valid_before_image_indices
-            ]
+            valid_before_image_indices = new_position_ids[valid_batch_image_indices, valid_before_image_indices]
 
             final_loss_mask[valid_batch_image_indices, valid_before_image_indices] = 0
 
         if final_embedding is not None and has_labels:
             assert (
-                    final_embedding.shape[:2] == final_labels.shape == final_loss_mask.shape
+                final_embedding.shape[:2] == final_labels.shape == final_loss_mask.shape
             ), "unexpected shapes after data preprocessing"
 
         if final_embedding is not None:
@@ -497,16 +478,16 @@ class MCoreNevaModel(MCoreLLaVAModel):
         return final_embedding, final_labels, final_loss_mask
 
     def forward(
-            self,
-            input_ids: torch.Tensor,
-            position_ids: torch.Tensor,
-            loss_mask: Optional[torch.Tensor] = None,
-            attention_mask: Optional[torch.Tensor] = None,
-            media: Optional[torch.Tensor] = None,
-            labels: Optional[torch.Tensor] = None,
-            inference_params: Optional[InferenceParams] = None,
-            num_media_tiles: Optional[List[int]] = None,
-            media_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        loss_mask: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        media: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        inference_params: Optional[InferenceParams] = None,
+        num_media_tiles: Optional[List[int]] = None,
+        media_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
     ) -> torch.Tensor:
         """Forward function of the LLaVA model.
 
@@ -526,8 +507,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
         use_inference_kv_cache = (
-                inference_params is not None
-                and "image_tokens_count" in inference_params.key_value_memory_dict
+            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         # If running inference, we can skip media token computation if they were computed already earlier for this sample.
         if use_inference_kv_cache or media is None:
@@ -537,7 +517,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # note num_images_in_mbs is not mbs but total images in this mbs.
             if self.vision_model_from_hf:
                 media_embeddings = self.vision_model(media, output_hidden_states=True)  # [b, img_seq_len, h_vision]
-                media_embeddings = media_embeddings[-1][self.config.vision_feature_layer]  # take second from last layer
+                media_embeddings = media_embeddings[-1][
+                    self.config.vision_feature_layer
+                ]  # take second from last layer
             else:
                 media_embeddings = self.vision_model(media)
             if self._drop_vision_class_token:
@@ -545,15 +527,13 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 media_embeddings = media_embeddings[:, class_token_len:, :]
 
             # map vision model output size to language model input size.
-            media_embeddings = self.vision_projection(
-                media_embeddings
-            )  # [img_seq_len, num_tiles, h_vision]
+            media_embeddings = self.vision_projection(media_embeddings)  # [img_seq_len, num_tiles, h_vision]
 
             # If running inference, the language model KV cache will be updated for media token positions.
             # Here we store the media tokens sequence length, which can be used as an offset to the KV cache later.
             if inference_params is not None:
                 inference_params.key_value_memory_dict["media_tokens_count"] = (
-                        media_embeddings.shape[0] * media_embeddings.shape[1]
+                    media_embeddings.shape[0] * media_embeddings.shape[1]
                 )
         else:
             media_embeddings = self.encoder_hidden_state
@@ -571,9 +551,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             language_embeddings = self.language_model.embedding(
                 input_ids=input_ids_text, position_ids=position_ids
             )  # [text_seq_len, b, h_language]
-            language_embeddings = language_embeddings.transpose(
-                1, 0
-            ).contiguous()  # [b, text_seq_len, h_language]
+            language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
 
         # Assume 1 tile per image if the number of tiles is not provided.
         if num_media_tiles is None:
@@ -608,13 +586,13 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
 class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
-            self,
-            config: NevaConfig,
-            # TODO: Add transformer_layer_spec when we update mcore
-            optim: Optional[OptimizerModule] = None,
-            tokenizer: Optional["TokenizerSpec"] = None,
-            media_processor: Optional = None,  # TODO(yuya): add class type
-            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        self,
+        config: NevaConfig,
+        # TODO: Add transformer_layer_spec when we update mcore
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        media_processor: Optional = None,  # TODO(yuya): add class type
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
         self.config = config
@@ -629,14 +607,14 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             self.module = self.config.configure_model(self.tokenizer)
 
     def forward(
-            self,
-            input_ids: torch.Tensor,
-            position_ids: torch.Tensor,
-            loss_mask: Optional[torch.Tensor] = None,
-            attention_mask: Optional[torch.Tensor] = None,
-            media: Optional[torch.Tensor] = None,
-            labels: Optional[torch.Tensor] = None,
-            inference_params: InferenceParams = None,
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        loss_mask: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        media: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        inference_params: InferenceParams = None,
     ) -> torch.Tensor:
         output_tensor = self.module(
             media=media,

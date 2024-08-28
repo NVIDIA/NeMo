@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from transformers import AutoProcessor
+
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from transformers import AutoProcessor
 
 if __name__ == "__main__":
     gbs = 4
@@ -35,6 +36,7 @@ if __name__ == "__main__":
 
     language_transformer_config = llm.Llama2Config7B()
     from nemo.collections.vlm.neva.model.base import HFCLIPVisionConfig
+
     vision_transformer_config = HFCLIPVisionConfig(pretrained_model_name_or_path="openai/clip-vit-large-patch14-336")
     vision_projection_config = vlm.MultimodalProjectorConfig(input_size=1024, hidden_size=4096)
 

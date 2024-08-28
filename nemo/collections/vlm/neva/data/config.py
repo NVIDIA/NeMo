@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
-from .multimodal_tokens import MultiModalToken, ImageToken, VideoToken
+
+from .multimodal_tokens import ImageToken, MultiModalToken, VideoToken
+
 
 @dataclass
 class DataConfig:
