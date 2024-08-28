@@ -42,7 +42,7 @@ def make_mcore_dist_opt_wrapper(optim):
                 loss = closure()
 
             # return unused update_successful, grad_norm, num_zeros_in_grad
-            self.step()
+            super().step()
 
             return loss
 
