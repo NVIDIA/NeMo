@@ -615,7 +615,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
     @override
-    def load_checkpoint(self, checkpoint_path: Union[str, Path], include_optimizer_states: bool = False) -> Dict[str, Any]:
+    def load_checkpoint(
+        self, checkpoint_path: Union[str, Path], include_optimizer_states: bool = False
+    ) -> Dict[str, Any]:
         """PTL method which we override to integrate distributed checkpoints for model parallel models.
         In order to load distributed checkpoints we need to provide the sharded_state_dict to
         the distributed load function. We get the sharded_state_dict from self.lightning_module
@@ -641,13 +643,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         logging.info(f"Restoring model weights from {self.restore_path}")
 
-        checkpoint = self.load_checkpoint(checkpoint_path=self.restore_path, include_optimizer_states=self.restore_optimizer_states)
+        checkpoint = self.load_checkpoint(
+            checkpoint_path=self.restore_path, include_optimizer_states=self.restore_optimizer_states
+        )
 
         self.load_model_state_dict(checkpoint=checkpoint)
         if self.restore_optimizer_states:
             logging.info(f"Restoring optimizer states from {self.restore_path}")
-            self.load_optimizer_state_dict(checkpoint=checkpoint, include_optimizer_states=self.restore_optimizer_states)
-
+            self.load_optimizer_state_dict(
+                checkpoint=checkpoint, include_optimizer_states=self.restore_optimizer_states
+            )
 
         logging.info(f"Finished restoring from {self.restore_path}, cleaning up.")
         torch.cuda.empty_cache()
