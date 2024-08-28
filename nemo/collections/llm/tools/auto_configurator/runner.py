@@ -78,35 +78,36 @@ class AutoConfigurator:
         nemo_run: Optional[bool] = False,
     ):
         """
-        :param str model_type: model type to be used for training.
-        :param int num_nodes: number of nodes to be used for training.
-        :param List data_paths: list of datafiles to be used for training.
-        :param str path_to_logs: path to the directory where the logs will be stored.
-        :param Optional[str] tokenizer_type: tokenizer type.
-        :param Optional[str] tokenizer_path: path to the tokenizer model.
-        :param Optional[int] model_size: size of model to be trained.
-        :param Optional[int] model_version: version of model. 3 for GPT3, 2 for Llama2.
-        :param Optional[int] gpus_per_node: number of GPUs per node to be used.
-        :param Optional[int] gpu_memory_gb: memory per GPU, in GB. Currently 40GB and 80GB A100s/H100s supported.
-        :param Optional[str] model_measure: "M" if model_size is specified in millions. "B" if in billions.
-        :param Optional[int] seq_length: model sequence length. Available seq_length list for GPT-based models: [2048, 4096, 8192, 16384, 32768].
-        :param Optional[int] global_batch_size: model global batch size. Set to "auto" if you want auto configurator to find optimal gbs.
-        :param Optional[List[int]] tensor_parallel_sizes: set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
-        :param Optional[List[int]] pipeline_parallel_sizes: set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
-        :param Optional[List[int]] micro_batch_sizes: set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
-        :param Optional[List[int]] context_parallel_sizes: model context parallel size. A list, such as [1, 2, 4, 8].
-        :param Optional[List[int]] expert_parallel_sizes: model expert parallel size. A list, such as [1, 2, 4, 8].
-        :param Optional[int] min_model_parallel_size: set to "auto" to use our recommendation, or a value for the minimum desired parallelism.
-        :param Optional[int] max_model_parallel_size: set to "auto" to use our recommendation, or a value for the maximum desired parallelism.
-        :param Optional[int] num_tokens_in_b: number of tokens in billions in train dataset.
-        :param Optional[int] tflops_per_gpu: estimated tflops per GPU.
-        :param Optional[int] max_minutes_per_run: maximum number of minutes per run for the grid search.
-        :param Optional[int] max_training_days: number of days expected model to be trained.
-        :param Optional[int] max_steps_per_run: maximum number of steps per run for the grid search.
-        :param Optional[int] vocab_size: size of tokenizer vocabulary.
-        :param Optional[dict] model_args: additional args to add to mdoel config.
-        :param Optional[bool] custom_model: set to True if you want to use custom model.
-        :param Optional[bool] nemo_sdk: set to True if you want to run Auto Configurator with nemo-sdk.
+        Args:
+            model_type (str): model type to be used for training.
+            num_nodes (int): number of nodes to be used for training.
+            data_paths (List): list of datafiles to be used for training.
+            path_to_logs (str): path to the directory where the logs will be stored.
+            tokenizer_type (Optional[str]): tokenizer type.
+            tokenizer_path (Optional[str]): path to the tokenizer model.
+            model_size (Optional[int]): size of model to be trained.
+            model_version (Optional[int]): version of model. 3 for GPT3, 2 for Llama2.
+            gpus_per_node (Optional[int]): number of GPUs per node to be used.
+            gpu_memory_gb (Optional[int]): memory per GPU, in GB. Currently 40GB and 80GB A100s/H100s supported.
+            model_measure (Optional[str]): "M" if model_size is specified in millions. "B" if in billions.
+            seq_length (Optional[int]): model sequence length. Available seq_length list for GPT-based models: [2048, 4096, 8192, 16384, 32768].
+            global_batch_size (Optional[int]): model global batch size. Set to "auto" if you want auto configurator to find optimal gbs.
+            tensor_parallel_sizes (Optional[List[int]]): set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
+            pipeline_parallel_sizes (Optional[List[int]]): set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
+            micro_batch_sizes (Optional[List[int]]): set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
+            context_parallel_sizes (Optional[List[int]]): model context parallel size. A list, such as [1, 2, 4, 8].
+            expert_parallel_sizes (Optional[List[int]]): model expert parallel size. A list, such as [1, 2, 4, 8].
+            min_model_parallel_size (Optional[int]): set to "auto" to use our recommendation, or a value for the minimum desired parallelism.
+            max_model_parallel_size (Optional[int]): set to "auto" to use our recommendation, or a value for the maximum desired parallelism.
+            num_tokens_in_b (Optional[int]): number of tokens in billions in train dataset.
+            tflops_per_gpu (Optional[int]): estimated tflops per GPU.
+            max_minutes_per_run (Optional[int]): maximum number of minutes per run for the grid search.
+            max_training_days (Optional[int]): number of days expected model to be trained.
+            max_steps_per_run (Optional[int]): maximum number of steps per run for the grid search.
+            vocab_size (Optional[int]): size of tokenizer vocabulary.
+            model_args (Optional[dict]): additional args to add to mdoel config.
+            custom_model (Optional[bool]): set to True if you want to use custom model.
+            nemo_sdk (Optional[bool]): set to True if you want to run Auto Configurator with nemo-sdk.
         """
 
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {SUPPORTED_MODELS}."
@@ -150,10 +151,10 @@ class AutoConfigurator:
     ) -> dict:
         """
         Function that returns a dictionary of Partial configs.
-        :param: dict config: runner config.
-        :param: str tokenizer_type: tokenizer type.
-        :param: str tokenizer_path: path to the tokenizer.
-        :param: str path_to_logs: path to logs directory.
+        : dict config: runner config.
+        : str tokenizer_type: tokenizer type.
+        : str tokenizer_path: path to the tokenizer.
+        : str path_to_logs: path to logs directory.
         :return: dictionary of Partial configs.
         :rtype: dict.
         """
@@ -179,8 +180,8 @@ class AutoConfigurator:
     def _get_tokenizer(self, tokenizer_type: str, tokenizer_path: str) -> Config:
         """
         Function that returns the tokenizer config.
-        :param: str tokenizer_type: tokenizer type.
-        :param: str tokenizer_path: path to the tokenizer.
+        : str tokenizer_type: tokenizer type.
+        : str tokenizer_path: path to the tokenizer.
         :return: tokenizer config.
         :rtype: Config.
         """
@@ -193,7 +194,7 @@ class AutoConfigurator:
     def _get_data(self, data_config: dict, tokenizer_config: Config) -> Config:
         """
         Function that returns the data module.
-        :param: Config tokenizer: tokenizer config.
+        : Config tokenizer: tokenizer config.
         :return: data module.
         :rtype: Config.
         """
@@ -207,7 +208,7 @@ class AutoConfigurator:
     def _get_optim(self, optim_config: Config) -> Config:
         """
         Function that returns the optimizer.
-        :param: Config optim_config: optimizer config.
+        : Config optim_config: optimizer config.
         :return: optimizer.
         :rtype: Config.
         """
@@ -228,8 +229,8 @@ class AutoConfigurator:
     def _get_trainer(self, trainer_config: dict, strategy: Config) -> Config:
         """
         Function that returns the trainer.
-        :param: dict trainer_config: trainer config.
-        :param: Config strategy: training strategy.
+        : dict trainer_config: trainer config.
+        : Config strategy: training strategy.
         :return: trainer.
         :rtype: Config.
         """
@@ -245,7 +246,7 @@ class AutoConfigurator:
     def _get_startegy(self, auto_config: dict) -> Config:
         """
         Function that returns the training strategy.
-        :param: dict auto_config: model parallelism config.
+        : dict auto_config: model parallelism config.
         :return: training strategy.
         :rtype: Config.
         """
@@ -263,8 +264,8 @@ class AutoConfigurator:
     def _get_logger(self, run_name: str, path_to_logs: str) -> Config:
         """
         Function that returns the training strategy.
-        :param: str run_name: name of run.
-        :param: str path_to_logs: path to logs directory.
+        : str run_name: name of run.
+        : str path_to_logs: path to logs directory.
         :return: training logger.
         :rtype: Config.
         """
@@ -291,7 +292,7 @@ class AutoConfigurator:
     def _get_message(self, config: dict) -> str:
         """
         Function that returns runner config line by line.
-        :param: dict config: runner config.
+        : dict config: runner config.
         :return: runner config params.
         :rtype: str.
         """

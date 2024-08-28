@@ -27,11 +27,12 @@ class Basic:
         cfg: dict = {},
     ):
         """
-        :param str name: model name.
-        :param int version: model version.
-        :param int size: model size.
-        :param str measure: meausre of model size. "M" if model size in millions, "B" if in billions.
-        :param dict cfg: auto configurator runner config.
+        Args:
+            name (str): model name.
+            version (int): model version.
+            size (int):  model size.
+            measure (str): meausre of model size. "M" if model size in millions, "B" if in billions.
+            cfg (dict): auto configurator runner config.
         """
 
         self.name = name
@@ -55,10 +56,10 @@ class Basic:
         None
 
     def get_optim_config(self) -> OptimizerConfig:
-        """
-        Function that returns optimizer config.
-        :return: optim config.
-        :rtype: OptimizerConfig.
+        """Function that returns optimizer config.
+
+        Returns:
+            OptimizerConfig: optimizer config.
         """
         optim_params = {
             "optimizer": "adam",
@@ -85,10 +86,10 @@ class Basic:
         return optim_config
 
     def get_trainer_config(self) -> dict:
-        """
-        Function that returns config for PTL trainer.
-        :return: trainer config.
-        :rtype: dict.
+        """Function that returns config for PTL trainer.
+
+        Returns:
+            dict: trainer config.
         """
 
         trainer_config = {
@@ -110,10 +111,10 @@ class Basic:
         return trainer_config
 
     def get_data_config(self) -> dict:
-        """
-        Function that returns dataset config.
-        :return: data config.
-        :rtype: dict.
+        """Function that returns dataset config.
+
+        Returns:
+            dict: data config.
         """
 
         data_config = {
@@ -128,10 +129,10 @@ class Basic:
         return data_config
 
     def get_run_config(self) -> dict:
-        """
-        Function that returns config for cluster job.
-        :return: cluster job config.
-        :rtype: dict.
+        """Function that returns config for cluster job.
+
+        Returns:
+            dict: cluster job config.
         """
 
         run_config = {

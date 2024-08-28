@@ -41,24 +41,27 @@ def get_results(
     custom_model: Optional[bool] = False,
     output_top_n: Optional[int] = 10,
 ):
+    """Generates possible train configs.
+
+    Args:
+        training_logs (str): path to the dicrectory with training logs.
+        path_to_save (str): path where to save performance results.
+        model_name (str): model name used for auto conf search.
+        num_nodes (int): number of nodes used for auto conf search.
+        model_version (int): version of model. 3 for GPT3, 2 for Llama2.
+        seq_length (int): model sequence length.
+        global_batch_size (int): model global batch size.
+        vocab_size (int): size of tokenizer vocabulary.
+        model_size (Optional[int]): size of model used for auto conf search.
+        model_measure (Optional[str]): "M" if model_size is specified in millions. "B" if in billions.
+        gpus_per_node (Optional[int]): number of GPUs per node used for auto conf search.
+        max_training_days (Optional[int]): number of days expected model to be trained.
+        tflops_per_gpu (Optional[int]): estimated tflops per GPU.
+        num_tokens_in_b (Optional[int]): number of tokens in billions in train dataset.
+        custom_model (Optional[bool]): set to True if custom model was used.
+        output_top_n (Optional[int]): Number of configs to be printed out as best configs.
     """
-    :param str training_logs: path to the dicrectory with training logs.
-    :param str path_to_save: path where to save performance results.
-    :param str model_name: model name used for auto conf search.
-    :param int num_nodes: number of nodes used for auto conf search.
-    :param int model_version: version of model. 3 for GPT3, 2 for Llama2.
-    :param int seq_length: model sequence length.
-    :param int global_batch_size: model global batch size.
-    :param int vocab_size: size of tokenizer vocabulary.
-    :param Optional[int] model_size: size of model used for auto conf search.
-    :param Optional[str] model_measure: "M" if model_size is specified in millions. "B" if in billions.
-    :param Optional[int] gpus_per_node: number of GPUs per node used for auto conf search.
-    :param Optional[int] max_training_days: number of days expected model to be trained.
-    :param Optional[int] tflops_per_gpu: estimated tflops per GPU.
-    :param Optional[int] num_tokens_in_b: number of tokens in billions in train dataset.
-    :param Optional[bool] custom_model: set to True if custom model was used.
-    :param Optional[int] output_top_n: Number of configs to be printed out as best configs.
-    """
+    
     # Get model architecture
     cfg = locals()
     cfg["gpu_count"] = num_nodes * gpus_per_node
@@ -250,13 +253,15 @@ def calculate_tflops(
     time_per_step,
 ):
     """Calculates model and hardware TFLOPS for each model.
-    GPT-3 Formulas:
-        Model FLOPs = (24𝐵𝑠ℎ^2 + 4𝐵��^2ℎ) x (3 x num_layers) + 6𝐵𝑠ℎ
-    T5/mT5 Formula:
-        Model FLOPs =
-    Bert Formula:
-        Model FLOPs = 72BLsh^2 * ( 1 + (s/6h) + (v/12hL))
+
+        GPT-3 Formulas:
+            Model FLOPs = (24𝐵𝑠ℎ^2 + 4𝐵��^2ℎ) x (3 x num_layers) + 6𝐵𝑠ℎ
+        T5/mT5 Formula:
+            Model FLOPs =
+        Bert Formula:
+            Model FLOPs = 72BLsh^2 * ( 1 + (s/6h) + (v/12hL))
     """
+
     if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral"]:
         # Model FLOPS calculation
         model_flops = (
@@ -310,13 +315,16 @@ def calculate_tflops(
 
 
 def find_error(error_file: str, errors: list = ["CUDA out of memory"]):
+    """Finds the error among job output.
+
+    Args:
+        :param list errors: list of "popular" errors.
+        :param str error_file: path to the job output.
+    
+    Returns:
+        str: serror message if job has been failed because of one of listed errors or None if not.
     """
-    Finds the error among job output.
-    :param list errors: list of "popular" errors.
-    :param str error_file: path to the job output.
-    :return: str error if job has been failed because of one of listed errors and None if not.
-    :rtype: str
-    """
+
     error = None
     with open(error_file, "r") as f:
         output = f.read()

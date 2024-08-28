@@ -18,18 +18,24 @@ from .basic import Basic
 
 
 def custom(name, cfg):
+    """Function that return custom model class.
+
+    Args:
+        name (srt): model type.
+        cfg (dict): auto configurator runner config.
+
+    Returns
+        Custom: class object.
     """
-    Function taht return custom model class.
-    :param dict cfg: auto configurator runner config.
-    :return: Custom class object.
-    """
+
     basic_class = getattr(base_configs, name)
 
     class Custom(basic_class):
         def __init__(self, name, cfg):
             """
-            :param str name: model name.
-            :param dict cfg: auto configurator runner config.
+            Args:
+                name (srt): model type.
+                cfg (dict): auto configurator runner config.
             """
 
             super().__init__(name=name, cfg=cfg)

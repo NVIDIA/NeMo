@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utility functions for the Auto Configurator tool."""
 import copy
+from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 from nemo.collections.llm.tools.auto_configurator import base_configs
@@ -27,6 +27,247 @@ MODULES = {
 }
 
 
+@dataclass
+class ModelSizeParams:
+    """Calculates the parameters that affect model_size: hidden size, attention heads, KV channels, and FFN size. It also calculates the learning rate.
+
+    Args:
+        model_size_in_b (float): number of parameters in the desired model config, in billions.
+        seq_length (int): sequence length to be used during training.
+        vocab_size (int): size of the vocabulary to use for training.
+        model_name (str): name of the model to be trained, i.e. gpt3, t5, mt5...
+    
+    Raises:
+        ValueError: if the model size is larger than the max supported model size.
+        NotImplementedError: if the model name is not supported.
+    """
+
+    model_size_in_b: float
+    vocab_size: int
+    seq_length: int
+    model_name: str
+
+    # Model size params
+    layers: int = None
+    hs: int = None
+    att_h: int = None
+    ffn: int = None
+    kv: int = None
+    lr: float = None
+
+    def init_params(self):
+        model_name = self.model_name
+        model_size_in_b = self.model_size_in_b
+        if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
+            self.ffn = 4 * self.hs
+            if model_size_in_b < 0.25:
+                self.hs, self.att_h, self.lr = 768, 12, 6e-4
+            elif model_size_in_b < 0.5:
+                self.hs, self.att_h, self.lr = 1024, 16, 3e-4
+            elif model_size_in_b < 1:
+                self.hs, self.att_h, self.lr = 1536, 16, 2.5e-4
+            elif model_size_in_b < 2:
+                self.hs, self.att_h, self.lr = 2048, 16, 2e-4
+            elif model_size_in_b < 3:
+                self.hs, self.att_h, self.lr = 2560, 32, 1.6e-4
+            elif model_size_in_b < 4.5:
+                self.hs, self.att_h, self.lr = 3072, 32, 1.4e-4
+            elif model_size_in_b < 8:
+                self.hs, self.att_h, self.lr = 4096, 32, 1.2e-4
+            elif model_size_in_b < 15:
+                self.hs, self.att_h, self.lr = 5120, 40, 1e-4
+            elif model_size_in_b < 25:
+                self.hs, self.att_h, self.lr = 6144, 48, 1e-4
+            elif model_size_in_b < 52:
+                self.hs, self.att_h, self.lr = 8192, 64, 0.8e-4
+            elif model_size_in_b < 105:
+                self.hs, self.att_h, self.lr = 10240, 80, 0.7e-4
+            elif model_size_in_b < 205:
+                self.hs, self.att_h, self.lr = 12288, 96, 0.6e-4
+            elif model_size_in_b < 405:
+                self.hs, self.att_h, self.lr = 20480, 128, 0.5e-4
+            elif model_size_in_b < 805:
+                self.hs, self.att_h, self.lr = 20480, 128, 0.4e-4
+            elif model_size_in_b < 1105:
+                self.hs, self.att_h, self.lr = 25600, 160, 0.3e-4
+            else:
+                raise ValueError("Model_size for GPT-3 must be smaller than 1.1T parameters.")
+        elif model_name == "t5":
+            self.kv, self.lr = 64, 1e-4
+            if model_size_in_b < 0.1:
+                self.hs, self.att_h, self.ffn = 512, 6, 1024
+            elif model_size_in_b < 0.4:
+                self.hs, self.att_h, self.ffn = 768, 12, 2048
+            elif model_size_in_b < 1:
+                self.hs, self.att_h, self.ffn = 1024, 16, 2816
+            elif model_size_in_b < 5:
+                self.hs, self.att_h, self.ffn = 2048, 32, 5120
+            elif model_size_in_b < 15:
+                self.hs, self.att_h, self.ffn = 4096, 64, 10240
+            elif model_size_in_b < 25.9:
+                self.hs, self.att_h, self.ffn = 5120, 80, 10880
+            elif model_size_in_b < 43.0:
+                self.hs, self.att_h, self.ffn = 6144, 96, 10880
+            elif model_size_in_b <= 85.5:
+                self.hs, self.att_h, self.ffn = 6144, 96, 16384
+            elif model_size_in_b <= 165.5:
+                self.hs, self.att_h, self.ffn, kv = 7680, 96, 20480, 128
+            elif model_size_in_b <= 250:
+                self.hs, self.att_h, self.ffn, kv = 12288, 96, 32768, 128
+            else:
+                raise ValueError("Model_size for T5 must be smaller than 250B parameters.")
+        elif model_name == "mt5":
+            self.kv, self.lr = 64, 1e-4
+            if model_size_in_b < 0.25:
+                self.hs, self.att_h, self.ffn = 512, 6, 1024
+            elif model_size_in_b < 0.5:
+                self.hs, self.att_h, self.ffn = 768, 12, 2048
+            elif model_size_in_b < 1.2:
+                self.hs, self.att_h, self.ffn = 1024, 16, 2816
+            elif model_size_in_b < 5:
+                self.hs, self.att_h, self.ffn = 2048, 32, 5120
+            elif model_size_in_b < 15:
+                self.hs, self.att_h, self.ffn = 4096, 64, 10240
+            elif model_size_in_b < 25.9:
+                self.hs, self.att_h, self.ffn = 5120, 80, 10880
+            elif model_size_in_b < 43.0:
+                self.hs, self.att_h, self.ffn = 6144, 96, 10880
+            elif model_size_in_b <= 85.5:
+                self.hs, self.att_h, self.ffn = 6144, 96, 16384
+            elif model_size_in_b <= 165.5:
+                self.hs, self.att_h, self.ffn, kv = 7680, 96, 20480, 128
+            elif model_size_in_b <= 250:
+                self.hs, self.att_h, self.ffn, kv = 12288, 96, 32768, 128
+            else:
+                raise ValueError("Model_size for mT5 must be smaller than 250B parameters.")
+        elif model_name == "bert":
+            self.lr = 1e-4
+            if model_size_in_b < 0.25:
+                self.hs, self.att_h, self.lr = 768, 12, 2e-4
+            elif model_size_in_b < 0.5:
+                self.hs, self.att_h, self.lr = 1024, 16, 2e-4
+            elif model_size_in_b < 1:
+                self.hs, self.att_h = 1536, 16
+            elif model_size_in_b < 2:
+                self.hs, self.att_h = 2048, 16
+            elif model_size_in_b < 3:
+                self.hs, self.att_h = 2560, 32
+            elif model_size_in_b < 4.5:
+                self.hs, self.att_h = 2560, 32
+            elif model_size_in_b < 8:
+                self.hs, self.att_h = 4096, 32
+            elif model_size_in_b < 15:
+                self.hs, self.att_h = 5120, 40
+            elif model_size_in_b <= 25:
+                self.hs, self.att_h = 6144, 48
+            elif model_size_in_b <= 46.5:
+                self.hs, self.att_h = 7680, 48
+            elif model_size_in_b <= 87.5:
+                self.hs, self.att_h = 9216, 96
+            elif model_size_in_b <= 165.5:
+                self.hs, self.att_h = 9216, 96
+            elif model_size_in_b <= 250.5:
+                self.hs, self.att_h = 12288, 96
+            else:
+                raise ValueError("Model_size for BERT must be smaller than 25B parameters.")
+            self.ffn = 4 * self.hs
+        else:
+            raise NotImplementedError("Model name is not valid.")
+
+        # Try powers of 2
+        margin = 0.01
+        for attempt in range(0, 10):
+            for layers in (2**p for p in range(1, 10)):
+                out_size = _calculate_model_size(
+                    vocab_size=vocab_size,
+                    seq_length=seq_length,
+                    hidden_size=hs,
+                    num_layers=layers,
+                    ffn_size=ffn,
+                    kv_channels=kv,
+                    att_heads=att_h,
+                    model_name=model_name,
+                )
+                if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
+                    self.layers = layers
+            margin += 0.01  # Double margin of acceptable model sizes.
+
+        # Try multiples of 16
+        margin = 0.01
+        for attempt in range(0, 6):
+            for layers in range(16, 201, 16):
+                out_size = _calculate_model_size(
+                    vocab_size=vocab_size,
+                    seq_length=seq_length,
+                    hidden_size=hs,
+                    num_layers=layers,
+                    ffn_size=ffn,
+                    kv_channels=kv,
+                    att_heads=att_h,
+                    model_name=model_name,
+                )
+                if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
+                    self.layers = layers
+            margin += 0.01  # Double margin of acceptable model sizes.
+
+        # Try multiples of 2
+        margin = 0.01
+        for attempt in range(0, 6):
+            for layers in range(2, 201, 2):
+                out_size = _calculate_model_size(
+                    vocab_size=vocab_size,
+                    seq_length=seq_length,
+                    hidden_size=hs,
+                    num_layers=layers,
+                    ffn_size=ffn,
+                    kv_channels=kv,
+                    att_heads=att_h,
+                    model_name=model_name,
+                )
+                if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
+                    self.layers = layers
+            margin += 0.01  # Double margin of acceptable model sizes.
+
+        # Try multiples of 5
+        margin = 0.01
+        for attempt in range(0, 6):
+            for layers in range(5, 201, 5):
+                out_size = _calculate_model_size(
+                    vocab_size=vocab_size,
+                    seq_length=seq_length,
+                    hidden_size=hs,
+                    num_layers=layers,
+                    ffn_size=ffn,
+                    kv_channels=kv,
+                    att_heads=att_h,
+                    model_name=model_name,
+                )
+                if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
+                    self.layers = layers
+            margin += 0.01  # Double margin of acceptable model sizes.
+
+        # Try any valid number
+        margin = 0.01
+        for attempt in range(0, 10):
+            for layers in range(1, 200):
+                out_size = _calculate_model_size(
+                    vocab_size=vocab_size,
+                    seq_length=seq_length,
+                    hidden_size=hs,
+                    num_layers=layers,
+                    ffn_size=ffn,
+                    kv_channels=kv,
+                    att_heads=att_h,
+                    model_name=model_name,
+                )
+                if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
+                    self.layers = layers
+            margin += 0.01  # Double margin of acceptable model sizes.
+        
+        if not self.layers:
+            raise Exception("Number of layers not found, config is not possible.")
+
+
 def _calculate_model_size(
     vocab_size: int = None,
     seq_length: int = None,
@@ -37,21 +278,25 @@ def _calculate_model_size(
     att_heads: int = None,
     model_name: str = "gpt3",
 ):
+    """Calculates the model size (number of parameters in billions), given the model parameters and name.
+
+    Args:
+        vocab_size (int): vocabulary size to be used during training.
+        seq_length (int): input sequence length to be used during training.
+        hidden_size (int): size of the hidden layers of the model.
+        num_layers (int): number of layers in the model.
+        ffn_size (int): FFN size of the model.
+        kv_channels (int): number of KV channels in the transformer layers.
+        att_heads (int): number of attention heads in the transformer layers.
+        model_name (str): name of the model, i.e gpt3, t5, mt5...
+    
+    Returns:
+        float: size of the model in billions of parameters.
+    
+    Raises:
+        NotImplementedError: if the model name is not valid.
     """
-    Calculates the model size (number of parameters in billions), given the model parameters
-    and name.
-    :param int vocab_size: vocabulary size to be used during training.
-    :param int seq_length: input sequence length to be used during training.
-    :param int hidden_size: size of the hidden layers of the model.
-    :param int num_layers: number of layers in the model.
-    :param int ffn_size: FFN size of the model.
-    :param int kv_channels: number of KV channels in the transformer layers.
-    :param int att_heads: number of attention heads in the transformer layers.
-    :param str model_name: name of the model, i.e gpt3, t5, mt5...
-    :return: size of the model in billions of parameters.
-    :rtype: float
-    :raises NotImplementedError: if the model name is not valid.
-    """
+
     if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
         model_size = (
             12
@@ -81,238 +326,6 @@ def _calculate_model_size(
     return model_size
 
 
-def calculate_model_size_params(
-    model_size_in_b: float,
-    vocab_size: int = 51200,
-    seq_length: int = 2048,
-    model_name: str = "gpt3",
-) -> Tuple[int, int, float]:
-    """
-    Calculates the parameters that affect model_size: hidden size, attention heads,
-    KV channels, and FFN size. It also calculates the learning rate.
-    :param float model_size_in_b: float, number of parameters in the desired model config, in billions.
-    :param int seq_length: int, sequence length to be used during training.
-    :param int vocab_size: int, size of the vocabulary to use for training.
-    :param str model_name: str, name of the model to be trained, i.e. gpt3, t5, mt5...
-    :returns: tuple (layers, hs, att_h, ffn, kv, lr)
-        WHERE
-        int layers is the number of layers in the model.
-        int hs is the hidden size of the model.
-        int att_h is the number of attention heads in the model.
-        int ffn is the FFN hidden size of the model.
-        int kv is the number of KV channels in the model.
-        float lr is the learning rate used to train the model.
-    :raises ValueError: if the model size is larger than the max supported model size.
-    :raises NotImplementedError: if the model name is not supported.
-    """
-    ffn, kv = None, None  # Only needed for some models.
-    if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
-        if model_size_in_b < 0.25:
-            hs, att_h, lr = 768, 12, 6e-4
-        elif model_size_in_b < 0.5:
-            hs, att_h, lr = 1024, 16, 3e-4
-        elif model_size_in_b < 1:
-            hs, att_h, lr = 1536, 16, 2.5e-4
-        elif model_size_in_b < 2:
-            hs, att_h, lr = 2048, 16, 2e-4
-        elif model_size_in_b < 3:
-            hs, att_h, lr = 2560, 32, 1.6e-4
-        elif model_size_in_b < 4.5:
-            hs, att_h, lr = 3072, 32, 1.4e-4
-        elif model_size_in_b < 8:
-            hs, att_h, lr = 4096, 32, 1.2e-4
-        elif model_size_in_b < 15:
-            hs, att_h, lr = 5120, 40, 1e-4
-        elif model_size_in_b < 25:
-            hs, att_h, lr = 6144, 48, 1e-4
-        elif model_size_in_b < 52:
-            hs, att_h, lr = 8192, 64, 0.8e-4
-        elif model_size_in_b < 105:
-            hs, att_h, lr = 10240, 80, 0.7e-4
-        elif model_size_in_b < 205:
-            hs, att_h, lr = 12288, 96, 0.6e-4
-        elif model_size_in_b < 405:
-            hs, att_h, lr = 20480, 128, 0.5e-4
-        elif model_size_in_b < 805:
-            hs, att_h, lr = 20480, 128, 0.4e-4
-        elif model_size_in_b < 1105:
-            hs, att_h, lr = 25600, 160, 0.3e-4
-        else:
-            raise ValueError("Model_size for GPT-3 must be smaller than 1.1T parameters.")
-    elif model_name == "t5":
-        kv, lr = 64, 1e-4
-        if model_size_in_b < 0.1:
-            hs, att_h, ffn = 512, 6, 1024
-        elif model_size_in_b < 0.4:
-            hs, att_h, ffn = 768, 12, 2048
-        elif model_size_in_b < 1:
-            hs, att_h, ffn = 1024, 16, 2816
-        elif model_size_in_b < 5:
-            hs, att_h, ffn = 2048, 32, 5120
-        elif model_size_in_b < 15:
-            hs, att_h, ffn = 4096, 64, 10240
-        elif model_size_in_b < 25.9:
-            hs, att_h, ffn = 5120, 80, 10880
-        elif model_size_in_b < 43.0:
-            hs, att_h, ffn = 6144, 96, 10880
-        elif model_size_in_b <= 85.5:
-            hs, att_h, ffn = 6144, 96, 16384
-        elif model_size_in_b <= 165.5:
-            hs, att_h, ffn, kv = 7680, 96, 20480, 128
-        elif model_size_in_b <= 250:
-            hs, att_h, ffn, kv = 12288, 96, 32768, 128
-        else:
-            raise ValueError("Model_size for T5 must be smaller than 250B parameters.")
-    elif model_name == "mt5":
-        kv, lr = 64, 1e-4
-        if model_size_in_b < 0.25:
-            hs, att_h, ffn = 512, 6, 1024
-        elif model_size_in_b < 0.5:
-            hs, att_h, ffn = 768, 12, 2048
-        elif model_size_in_b < 1.2:
-            hs, att_h, ffn = 1024, 16, 2816
-        elif model_size_in_b < 5:
-            hs, att_h, ffn = 2048, 32, 5120
-        elif model_size_in_b < 15:
-            hs, att_h, ffn = 4096, 64, 10240
-        elif model_size_in_b < 25.9:
-            hs, att_h, ffn = 5120, 80, 10880
-        elif model_size_in_b < 43.0:
-            hs, att_h, ffn = 6144, 96, 10880
-        elif model_size_in_b <= 85.5:
-            hs, att_h, ffn = 6144, 96, 16384
-        elif model_size_in_b <= 165.5:
-            hs, att_h, ffn, kv = 7680, 96, 20480, 128
-        elif model_size_in_b <= 250:
-            hs, att_h, ffn, kv = 12288, 96, 32768, 128
-        else:
-            raise ValueError("Model_size for mT5 must be smaller than 250B parameters.")
-    elif model_name == "bert":
-        lr = 1e-4
-        if model_size_in_b < 0.25:
-            hs, att_h, lr = 768, 12, 2e-4
-        elif model_size_in_b < 0.5:
-            hs, att_h, lr = 1024, 16, 2e-4
-        elif model_size_in_b < 1:
-            hs, att_h = 1536, 16
-        elif model_size_in_b < 2:
-            hs, att_h = 2048, 16
-        elif model_size_in_b < 3:
-            hs, att_h = 2560, 32
-        elif model_size_in_b < 4.5:
-            hs, att_h = 2560, 32
-        elif model_size_in_b < 8:
-            hs, att_h = 4096, 32
-        elif model_size_in_b < 15:
-            hs, att_h = 5120, 40
-        elif model_size_in_b <= 25:
-            hs, att_h = 6144, 48
-        elif model_size_in_b <= 46.5:
-            hs, att_h = 7680, 48
-        elif model_size_in_b <= 87.5:
-            hs, att_h = 9216, 96
-        elif model_size_in_b <= 165.5:
-            hs, att_h = 9216, 96
-        elif model_size_in_b <= 250.5:
-            hs, att_h = 12288, 96
-        else:
-            raise ValueError("Model_size for BERT must be smaller than 25B parameters.")
-        ffn = 4 * hs
-    else:
-        raise NotImplementedError("Model name is not valid.")
-
-    # Try powers of 2
-    margin = 0.01
-    for attempt in range(0, 10):
-        for layers in (2**p for p in range(1, 10)):
-            out_size = _calculate_model_size(
-                vocab_size=vocab_size,
-                seq_length=seq_length,
-                hidden_size=hs,
-                num_layers=layers,
-                ffn_size=ffn,
-                kv_channels=kv,
-                att_heads=att_h,
-                model_name=model_name,
-            )
-            if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
-                return layers, hs, att_h, ffn, kv, lr
-        margin += 0.01  # Double margin of acceptable model sizes.
-
-    # Try multiples of 16
-    margin = 0.01
-    for attempt in range(0, 6):
-        for layers in range(16, 201, 16):
-            out_size = _calculate_model_size(
-                vocab_size=vocab_size,
-                seq_length=seq_length,
-                hidden_size=hs,
-                num_layers=layers,
-                ffn_size=ffn,
-                kv_channels=kv,
-                att_heads=att_h,
-                model_name=model_name,
-            )
-            if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
-                return layers, hs, att_h, ffn, kv, lr
-        margin += 0.01  # Double margin of acceptable model sizes.
-
-    # Try multiples of 2
-    margin = 0.01
-    for attempt in range(0, 6):
-        for layers in range(2, 201, 2):
-            out_size = _calculate_model_size(
-                vocab_size=vocab_size,
-                seq_length=seq_length,
-                hidden_size=hs,
-                num_layers=layers,
-                ffn_size=ffn,
-                kv_channels=kv,
-                att_heads=att_h,
-                model_name=model_name,
-            )
-            if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
-                return layers, hs, att_h, ffn, kv, lr
-        margin += 0.01  # Double margin of acceptable model sizes.
-
-    # Try multiples of 5
-    margin = 0.01
-    for attempt in range(0, 6):
-        for layers in range(5, 201, 5):
-            out_size = _calculate_model_size(
-                vocab_size=vocab_size,
-                seq_length=seq_length,
-                hidden_size=hs,
-                num_layers=layers,
-                ffn_size=ffn,
-                kv_channels=kv,
-                att_heads=att_h,
-                model_name=model_name,
-            )
-            if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
-                return layers, hs, att_h, ffn, kv, lr
-        margin += 0.01  # Double margin of acceptable model sizes.
-
-    # Try any valid number
-    margin = 0.01
-    for attempt in range(0, 10):
-        for layers in range(1, 200):
-            out_size = _calculate_model_size(
-                vocab_size=vocab_size,
-                seq_length=seq_length,
-                hidden_size=hs,
-                num_layers=layers,
-                ffn_size=ffn,
-                kv_channels=kv,
-                att_heads=att_h,
-                model_name=model_name,
-            )
-            if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
-                return layers, hs, att_h, ffn, kv, lr
-        margin += 0.01  # Double margin of acceptable model sizes.
-    raise Exception("Number of layers not found, config is not possible.")
-
-
 def generic_base_config(
     model_name: str = "llama",
     model_version: int = 2,
@@ -320,13 +333,19 @@ def generic_base_config(
     model_measure: str = "B",
     cfg: dict = {},
 ) -> dict:
+    """Generates a base config dictionary from a base config python file.
+
+    Args:
+        model_name (str): name of the model, i.e. gpt3, t5, mt5...
+        model_version (int): version of model.
+        model_size_in_b (int): model size.
+        model_measure (str): model measure. Billions if "B", millions if "M".
+        cfg (dict): dict config object for the Auto Configurator tool.
+    
+    Returns:
+        dict: dictionary containing the base configuration for the model.
     """
-    Generates a base config dictionary from a base config python file.
-    :param dict cfg: dict config object for the Auto Configurator tool.
-    :param str model_name: name of the model, i.e. gpt3, t5, mt5...
-    :returns: dictionary containing the base configuration for the model.
-    :rtype: dict
-    """
+
     from nemo.collections.llm.tools.auto_configurator.core.base_config import calculate_model_size
 
     default_model = False if model_size_in_b else True
@@ -359,22 +378,22 @@ def generic_base_config(
     }
 
     if default_model:
-        num_layers, hidden_size, num_attention_heads, ffn_hidden_size, kv_channels, _ = calculate_model_size_params(
+        params = ModelSizeParams(
             model_size_in_b,
             cfg.get("vocab_size"),
             cfg.get("seq_length"),
             model_name,
-        )
+        ).init_params()
 
         if model_name in ["gpt3", "llama", "baichuan2", "chatglm", "qwen2", "mixtral", "mistral", "gemma"]:
-            base_cfg["model"].num_layers = num_layers
-            base_cfg["model"].hidden_size = hidden_size
-            base_cfg["model"].num_attention_heads = num_attention_heads
-            base_cfg["model"].kv_channels = kv_channels if kv_channels else None
-            if not ffn_hidden_size:
-                base_cfg["model"].ffn_hidden_size = hidden_size * 4
+            base_cfg["model"].num_layers = params.layers
+            base_cfg["model"].hidden_size = params.hs
+            base_cfg["model"].num_attention_heads = params.att_h
+            base_cfg["model"].kv_channels = params.kv
+            if not params.ffn:
+                base_cfg["model"].ffn_hidden_size = params.hs * 4
             else:
-                base_cfg["model"].ffn_hidden_size = ffn_hidden_size
+                base_cfg["model"].ffn_hidden_size = params.ffn
 
     cfg["model_size_in_b"] = model_size_in_b
 
@@ -397,25 +416,28 @@ def modify_cfg(
     num_nodes: int,
     model_name: str,
 ) -> dict:
+    """Modify the base configuration for the model with the new parameters that are specific to the current model, which the Auto Configurator tool heuristics selected.
+
+    Args:
+        base_cfg (dict): base configuration for the current model, which will be modified in this function.
+        act (int): number of activation checkpointing layers to use for the model.
+        num_mbs_act (int): sets the number of micro-batches where only a partial number of Transformer layers get checkpointed and recomputed within a window of micro-batches.
+        act_per_pipe (int): sets the number of Transformer layers to skip checkpointing at later pipeline stages.
+        tp (int): Tensor Parallelism (TP) value to be set for the model.
+        pp (int): Pipeline Parallelism (PP) value to be set for the model.
+        cp (int): Context Parallelism (CP) value to be set for the model.
+        ep (int): Expert Parallelism (EP) value to be set for the model.
+        virtual_pipelines (int): Virtual Pipelines value to be set for the model.
+        mbs (int): Micro Batch Size (MBS) value to be set for the model.
+        max_minutes (int): maximum amount of time to run this model for.
+        max_steps (int): maximum number of steps to run this model for.
+        num_nodes (int): number of nodes to use for the training run.
+        model_name (str): name of the model, i.e. gpt3, t5, mt5...
+
+    Returns:
+        dict: dictionary containing the updated model configuration parameters.
     """
-    Modify the base configuration for the model with the new parameters that are specific to the current model, which the Auto Configurator tool heuristics selected.
-    :param dict base_cfg: base configuration for the current model, which will be modified in this function.
-    :param int act: number of activation checkpointing layers to use for the model.
-    :param int num_mbs_act: sets the number of micro-batches where only a partial number of Transformer layers get checkpointed and recomputed within a window of micro-batches.
-    :param int act_per_pipe: sets the number of Transformer layers to skip checkpointing at later pipeline stages.
-    :param int tp: Tensor Parallelism (TP) value to be set for the model.
-    :param int pp: Pipeline Parallelism (PP) value to be set for the model.
-    :param int cp: Context Parallelism (CP) value to be set for the model.
-    :param int ep: Expert Parallelism (EP) value to be set for the model.
-    :param int virtual_pipelines: Virtual Pipelines value to be set for the model.
-    :param int mbs: Micro Batch Size (MBS) value to be set for the model.
-    :param int max_minutes: maximum amount of time to run this model for.
-    :param int max_steps: maximum number of steps to run this model for.
-    :param int num_nodes: number of nodes to use for the training run.
-    :param str model_name: name of the model, i.e. gpt3, t5, mt5...
-    :return: dictionary containing the updated model configuration parameters.
-    :rtype: dict
-    """
+    
     new_cfg = copy.deepcopy(base_cfg)
     if act is not None:
         if model_name in [

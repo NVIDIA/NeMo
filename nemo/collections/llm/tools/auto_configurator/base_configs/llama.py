@@ -30,21 +30,22 @@ class Llama(Basic):
         cfg: dict = {},
     ):
         """
-        :param str name: model name.
-        :param int version: model version.
-        :param int size: model size.
-        :param str measure: meausre of model size. "M" if model size in millions, "B" if in billions.
-        :param dict cfg: auto configurator runner config.
+        Args:
+            name (str): model name.
+            version (int): model version.
+            size (int): model size.
+            measure (str): meausre of model size. "M" if model size in millions, "B" if in billions.
+            cfg (dict): auto configurator runner config.
         """
 
         super().__init__(name=name, version=version, size=size, measure=measure, cfg=cfg)
         self.config_name = f"{self.name}{self.version}Config{self.size}{self.measure}"
 
     def get_model_config(self) -> Config:
-        """
-        Function that returns model config.
-        :return: model config.
-        :rtype: Config.
+        """Function that returns model config.
+
+        Returns:
+            Config: model config.
         """
 
         model_class = getattr(llm, self.config_name)
