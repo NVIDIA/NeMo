@@ -473,7 +473,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 storage_options = None
             trainer.save_checkpoint(ckpt_filepath, self.save_weights_only, storage_options=storage_options)
 
-            print(f'{filepath=}')
             if self.always_save_artifacts and is_global_rank_zero():
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "artifacts")
 
@@ -487,7 +486,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # Get list of saved checkpoints
         checkpoints = self._get_checkpoints_list(filepath)
 
-        ## TODO: this doesn't work. ModelChck
         checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
         if len(checkpoints) > self.save_last_n_optim_states:
             checkpoint_path = checkpoints[checkpoint_index]
