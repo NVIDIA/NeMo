@@ -74,8 +74,8 @@ jobs:
     runs-on: self-hosted-azure-builder
     if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
     outputs:
-      test_to_run: ${{ needs.cicd-test-container-setup.outputs.test_to_run }}
-      all: ${{ needs.cicd-test-container-setup.outputs.all }}
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+      all: ${{ needs.pre-flight.outputs.all }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
