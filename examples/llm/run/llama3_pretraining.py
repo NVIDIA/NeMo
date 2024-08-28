@@ -1,3 +1,6 @@
+# This script is used for pretraining a Llama3 model, specifically for the 8b or 70b model variants, on local and slurm executors.
+# It uses NeMo 2.0 recipes (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/llama3_8b.py#L74) and NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
+
 import argparse
 from functools import partial
 from typing import Any, Optional
@@ -29,9 +32,9 @@ def get_parser():
         default=False,
     )
     parser.add_argument(
-        "--local",
+        "--slurm",
         action="store_true",
-        help="Run locally using run.LocalExecutor",
+        help="Run on slurm using run.SlurmExecutor",
         default=False,
     )
     return parser
@@ -140,7 +143,7 @@ def main():
         ckpt_dir=f"/{exp_name}/checkpoints",
     )
 
-    # TODO: Overwrite the dataloader in the recipe.
+    # Overwrite the dataloader in the recipe to use your custom dataloader.
     # dataloader = set_your_custom_dataloader
     # pretrain.data = dataloader
 
@@ -152,9 +155,7 @@ def main():
 
     executor: run.Executor
 
-    if args.local:
-        executor = local_executor_torchrun(nodes=pretrain.trainer.num_nodes, devices=pretrain.trainer.devices)
-    else:
+    if args.slurm:
         # TODO: Set your custom parameters for the Slurm Executor.
         executor = slurm_executor(
             user="",
@@ -165,6 +166,8 @@ def main():
             nodes=pretrain.trainer.num_nodes,
             devices=pretrain.trainer.devices,
         )
+    else:
+        executor = local_executor_torchrun(nodes=pretrain.trainer.num_nodes, devices=pretrain.trainer.devices)
 
     with run.Experiment(f"{exp_name}{args.tag}") as exp:
         pretrain.log.dir = f"/{exp_name}/checkpoints"
