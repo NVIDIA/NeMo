@@ -311,7 +311,7 @@ class CrossAttention(nn.Module):
                     self.flash_attn = FlashCrossAttention(softmax_scale=self.scale)
             elif self.use_te_dpa:
                 self.te_dpa = DotProductAttention(
-                    k_channels=dim_head,
+                    kv_channels=dim_head,
                     num_attention_heads=self.inner_dim // dim_head,
                     attn_mask_type='no_mask',
                     attention_type='self' if context_dim == query_dim else 'cross',
