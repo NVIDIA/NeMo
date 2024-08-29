@@ -296,9 +296,13 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     else:  # rnnt model, there could be other models needs to be addressed.
         if cfg.decoder_type and cfg.decoder_type != 'rnnt':
             raise ValueError('RNNT model only support rnnt decoding!')
-
-    if cfg.decoder_type and hasattr(asr_model.encoder, 'set_default_att_context_size'):
-        asr_model.encoder.set_default_att_context_size(cfg.att_context_size)
+    
+    if asr_model.encoder.att_context_style == 'chunked_limited':
+        if cfg.att_context_size is None:
+            logging.info(f"Using default att_context_size={asr_model.encoder.att_context_size}")
+        else :
+            logging.info(f"Setting provided att_context_size={cfg.att_context_size} for chunkaware encoder")
+            asr_model.encoder.set_default_att_context_size(cfg.att_context_size)
 
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy') and hasattr(asr_model, 'decoding'):
