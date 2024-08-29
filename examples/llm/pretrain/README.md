@@ -26,6 +26,20 @@ nemorun llm pretrain --factory "llama3_70b(num_nodes=128)"
 ![llama3_70b-128-nodes](img/llama3_70b_128nodes.png)
 
 
+The CLI allows you to overwrite any parameter. For example, to run the recipe with 2000 steps: 
+
+```bash
+nemorun llm pretrain --factory llama3_70b trainer.max_steps=2000
+```
+
+The syntax of the CLI is the same as the Python code. Which is great but in some cases you might want to inspect the recipe interactively. An easy way to do this using the cli is the use the `--repl` flag.
+
+```bash
+nemorun llm pretrain --factory llama3_70b --repl
+```
+
+![repl](img/repl.gif)
+
 
 ### Create and run a custom recipe
 
