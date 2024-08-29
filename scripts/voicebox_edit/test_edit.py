@@ -935,8 +935,11 @@ class Inference:
 
     def internal_demo(self, data, ztts=False):
         # shape: (1, L), (1,), scalar
-        audio_data, _sr = librosa.load(data["audio_path"], sr=self.model.voicebox.audio_enc_dec.sampling_rate)
-        audio_data = Eval.preprocess_wav(audio_data, _sr, -20)
+        wav_input, fs = torchaudio.load(data["audio_path"])
+        transform5 = torchaudio.transforms.Resample(fs, self.model.voicebox.audio_enc_dec.sampling_rate)
+        audio_data = transform5(wav_input).squeeze(0).numpy()
+        # audio_data, _sr = librosa.load(data["audio_path"], sr=self.model.voicebox.audio_enc_dec.sampling_rate)
+        # audio_data = Eval.preprocess_wav(audio_data, _sr, -20)
         audio = torch.tensor(audio_data, dtype=torch.float, device=self.model.device).unsqueeze(0)
         audio_len = torch.tensor(audio.shape[1], device=self.model.device).unsqueeze(0)
         
@@ -968,8 +971,11 @@ class Inference:
 
     def riva_demo(self, data, ztts=False):
         # shape: (1, L), (1,), scalar
-        audio_data, _sr = librosa.load(data["audio_path"], sr=self.model.voicebox.audio_enc_dec.sampling_rate)
-        audio_data = Eval.preprocess_wav(audio_data, _sr)
+        wav_input, fs = torchaudio.load(data["audio_path"])
+        transform5 = torchaudio.transforms.Resample(fs, self.model.voicebox.audio_enc_dec.sampling_rate)
+        audio_data = transform5(wav_input).squeeze(0).numpy()
+        # audio_data, _sr = librosa.load(data["audio_path"], sr=self.model.voicebox.audio_enc_dec.sampling_rate)
+        # audio_data = Eval.preprocess_wav(audio_data, _sr)
         audio = torch.tensor(audio_data, dtype=torch.float, device=self.model.device).unsqueeze(0)
         audio_len = torch.tensor(audio.shape[1], device=self.model.device).unsqueeze(0)
         
@@ -1035,8 +1041,11 @@ class Inference:
             return outputs
 
         # shape: (1, L), (1,), scalar
-        audio_data, _sr = librosa.load(data["audio_path"], sr=self.model.voicebox.audio_enc_dec.sampling_rate)
-        audio_data = Eval.preprocess_wav(audio_data, _sr)
+        wav_input, fs = torchaudio.load(data["audio_path"])
+        transform5 = torchaudio.transforms.Resample(fs, self.model.voicebox.audio_enc_dec.sampling_rate)
+        audio_data = transform5(wav_input).squeeze(0).numpy()
+        # audio_data, _sr = librosa.load(data["audio_path"], sr=self.model.voicebox.audio_enc_dec.sampling_rate)
+        # audio_data = Eval.preprocess_wav(audio_data, _sr)
         audio = torch.tensor(audio_data, dtype=torch.float, device=self.model.device).unsqueeze(0)
         audio_len = torch.tensor(audio.shape[1], device=self.model.device).unsqueeze(0)
         if tune_vol:
