@@ -22,7 +22,12 @@ def load_context(path: Path, subpath: Optional[str] = None) -> TrainerContext:
         TrainerContext: The loaded TrainerContext instance.
 
     Example:
+        # Load the entire context
         checkpoint: TrainerContext = load_ckpt("/path/to/checkpoint")
+
+        # Load a subpath of the context, for eg: model.config
+        checkpoint: TrainerContext = load_ckpt("/path/to/checkpoint", subpath="model.config")
+
     """
     return load(path, output_type=TrainerContext, subpath=subpath)
 
