@@ -35,6 +35,7 @@ from nemo.collections.multimodal.data.clip.augmentations.augmentations import im
 from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_BOS_TOKEN,
     DEFAULT_EOS_TOKEN,
+    DEFAULT_PAD_TOKEN,
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IMAGE_PATCH_TOKEN,
@@ -353,8 +354,14 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
         if use_plain:
             assert default_token in conversation[0]['value']
             conversation[0]['value'] = default_token
-        for turn in conversation:
-            turn["value"] = turn["value"].replace(default_token, replace_token)
+        if multimodal_cfg["conv_template"] == "interleaved":
+            # directly replace the default_token in the conversation,
+            # since we don't use the conversation template
+            updated_conversation = conversation.replace(default_token, replace_token)
+            source['conversations'] = updated_conversation
+        else:
+            for turn in conversation:
+                turn["value"] = turn["value"].replace(default_token, replace_token)
     return sources
 
 
@@ -390,7 +397,7 @@ def process_image(processor, image, image_aspect_ratio="square"):
             image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
     else:
         assert image_aspect_ratio == 'square', 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
-        image = processor(image)
+        image = processor(image,return_tensors='pt')['pixel_values'][0]
     return image
 
 
@@ -597,6 +604,92 @@ def preprocess_llama_2(
         labels=labels,
     )
 
+def preprocess_yi_34b(
+    sources: dict,
+    tokenizer,
+    cfg,
+) -> Dict:
+    """
+    Preprocess sources for Yi-1.5 34b model configuration.
+    The function applies prompt templates and tokenizes the conversations according to the Yi-1.5 34b model specifications.
+    It involves special handling of tokens, masking of labels, and adjustments based on configuration settings.
+    Parameters:
+    - sources (dict): A dictionary of sources containing conversations to be processed.
+    - tokenizer: The tokenizer to be used for processing the text.
+    - cfg: Configuration settings for preprocessing, including context length and additional tokens.
+    Returns:
+    - Dict: A dictionary containing tokenized and labeled data suitable for the LLaMA 2 model.
+      This includes tokens, labels, and any special processing as defined in the configuration.
+    """
+
+    """<|im_start|>user\n{prompt.strip()}<|im_end|>\n<|im_start|>assistant\n"""
+
+    conv = conversation_lib.conv_yi_34b.copy()
+
+    #apply prompt templates
+    conversations = []
+    for i, source in enumerate(sources):
+        source = source["conversations"]
+        strip_end_for_inference = False
+
+        for i, turn in enumerate(source):
+
+            if i % 2 == 1:
+                turn["from"] = conv.roles[1]
+                value = turn["value"]
+
+                conv.append_message(turn['from'], value)
+                if not turn["value"]:
+                    strip_end_for_inference = ( True )
+            else:
+                turn["from"] = conv.roles[0]
+                conv.append_message(turn["from"], turn["value"])
+        context = conv.get_prompt()
+        if strip_end_for_inference and context.endswith("\n<|im_end|>"):
+                context = context[: -len("\n<|im_end|>")] + "\n"
+        conversations.append(context)
+
+    add_extra_token = cfg.get("add_extra_token")
+
+    tokens = tokenize(
+        texts=conversations,
+        tokenizer=tokenizer,
+        context_length=cfg.get("context_length"),
+        add_extra_token=add_extra_token,
+    )
+    labels = tokens.clone().detach()
+
+    round_sep = "<|im_start|>user\n"
+    sep = "<|im_start|>assistant\n"
+    for conversation, target in zip(conversations, labels):
+        rounds = conversation.split(round_sep)
+        rounds = [round_sep.join(rounds[:2])] + [(round_sep + x) for x in rounds[2:]]
+        assert len(conversation) == sum(map(len, rounds))
+        cur_len = 0
+        for i, rou in enumerate(rounds):
+            if rou == "":
+                break
+            parts = rou.split(sep)
+            if len(parts) != 2:
+                break
+            instruction_len = len(tokenizer.text_to_ids(parts[0] + sep))   
+            round_len = len(tokenizer.text_to_ids(rou))
+            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+
+            cur_len += round_len
+        target[cur_len:] = IGNORE_INDEX
+
+    if add_extra_token:
+        tokens = tokens[:, :-1].contiguous()
+        labels = labels[:, 1:].contiguous()
+    else:
+        labels = torch.roll(labels, shifts=-1, dims=-1)
+        labels[:, -1] = IGNORE_INDEX
+
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
 
 def preprocess_v1(
     sources: dict,
@@ -692,6 +785,52 @@ def preprocess_v1(
         labels=labels,
     )
 
+def preprocess_interleaved_prompt(
+    sources: dict,
+    tokenizer,
+    cfg,
+) -> Dict:
+    
+    """tokenize the interleaved prompt and mask the text part of the prompt
+    """
+    conversations = []
+    for source in sources:
+        conversations.append(source['conversations'])
+    add_extra_token = cfg.get("add_extra_token")
+    tokens = tokenize(
+        texts=conversations,
+        tokenizer=tokenizer,
+        context_length=cfg.get("context_length"),
+        add_extra_token=add_extra_token,
+    )
+    
+    model_type = cfg['model_type']
+    image_patch_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type]
+    image_start_token = DEFAULT_IM_START_TOKEN[model_type]
+    image_end_token = DEFAULT_IM_END_TOKEN[model_type]
+    DEFAULT_TOKENS = [image_patch_token, image_start_token, image_end_token, DEFAULT_PAD_TOKEN]
+    img_patch_id, img_start_id, img_end_id, pad_id = get_tokens_ids(tokenizer, DEFAULT_TOKENS)
+    tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
+    
+    labels = tokens.clone().detach()
+
+    # Mask labels change for interleaved prompt
+    labels[labels == img_start_id] = IGNORE_INDEX
+    labels[labels == img_end_id] = IGNORE_INDEX
+    labels[labels == 0] = IGNORE_INDEX
+    labels[labels == pad_id] = IGNORE_INDEX
+    
+    if add_extra_token:
+        tokens = tokens[:, :-1].contiguous()
+        labels = labels[:, 1:].contiguous()
+    else:
+        labels = torch.roll(labels, shifts=-1, dims=-1)
+        labels[:, -1] = IGNORE_INDEX
+    
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
 
 def preprocess_nvgpt(
     sources: dict,
@@ -1160,6 +1299,12 @@ class LazySupervisedDataset(Dataset):
                 self.tokenizer,
                 self.multimodal_cfg,
             )
+        elif self.conv_template == "yi_34b":
+            data_dict = preprocess_yi_34b(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+            )  
         else:
             raise ValueError(f"Conversation template `{self.conv_template}` is not supported in Neva now.")
 

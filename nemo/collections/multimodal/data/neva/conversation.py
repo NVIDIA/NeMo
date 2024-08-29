@@ -33,6 +33,10 @@ DEFAULT_IM_END_TOKEN = defaultdict(lambda: "<extra_id_5>")
 DEFAULT_IMAGE_PATCH_TOKEN["llama_3"] = "<|reserved_special_token_3|>"
 DEFAULT_IM_START_TOKEN["llama_3"] = "<|reserved_special_token_4|>"
 DEFAULT_IM_END_TOKEN["llama_3"] = "<|reserved_special_token_5|>"
+#Update Yi_34B default
+DEFAULT_IMAGE_PATCH_TOKEN["yi_34b"] = "<|unused000|>"
+DEFAULT_IM_START_TOKEN["yi_34b"] = "<|unused001|>"
+DEFAULT_IM_END_TOKEN["yi_34b"] = "<|unused002|>"
 
 DEFAULT_VID_START_TOKEN = "<extra_id_8>"
 DEFAULT_VID_END_TOKEN = "<extra_id_9>"
@@ -49,6 +53,7 @@ class SeparatorStyle(Enum):
     LLAMA_3 = auto()
     MISTRAL = auto()
     NVGPT = auto()
+    YI34b = auto()
 
 
 @dataclasses.dataclass
@@ -156,6 +161,31 @@ class Conversation:
                 else:
                     ret += wrap_assistant(message) + (self.sep if message else "")
 
+        elif self.sep_style == SeparatorStyle.YI34b:
+            """
+            {{ if .System }}<|im_start|>system
+            {{ .System }}<|im_end|>
+            {{ end }}{{ if .Prompt }}<|im_start|>user
+            {{ .Prompt }}<|im_end|>
+            {{ end }}<|im_start|>assistant
+            {{ .Response }}<|im_end|>
+            """
+            wrap_sys = lambda msg: f"<|im_start|>system\n{msg}<|im_end|>"
+            wrap_user = lambda msg: f"<|im_start|>user\n{msg.strip()}<|im_end|>"
+            wrap_assistant = lambda msg: f"<|im_start|>assistant\n{msg}<|im_end|>"
+
+            ret = wrap_sys(self.system) if len(self.system) > 0 else ""
+            for i, (role, message) in enumerate(messages):
+                if i == 0:
+                    assert message, "first message should not be none"
+                    assert role == self.roles[0], "first message should come from user"
+                if type(message) is tuple:
+                    message, _, _ = message
+                elif i % 2 == 0:
+                    ret += wrap_user(message) + self.sep
+                else:
+                    ret += wrap_assistant(message) + (self.sep if message else "")
+            ret = ret.strip()
         elif self.sep_style == SeparatorStyle.PLAIN:
             seps = [self.sep, self.sep2]
             ret = self.system
@@ -470,6 +500,16 @@ conv_mistral = Conversation(
     sep_style=SeparatorStyle.MISTRAL,
     sep="",
     sep2=DEFAULT_EOS_TOKEN,
+)
+
+conv_yi_34b=Conversation(
+    system="Answer the questions.",
+    roles=('user', 'assistant'),
+    version="1.5",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.YI34b,
+    sep="\n"
 )
 
 default_conversation = conv_vicuna_v1
