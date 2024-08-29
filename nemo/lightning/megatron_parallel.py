@@ -234,7 +234,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         _num_microbatches: int = num_microbatches or self.infer_num_microbatches(data)
 
         pipeline = self.pipeline
-        
+
         if self.tp_comm_overlap_need_init:
             self.init_tp_comm_overlap(_micro_batch_size, _seq_length)
 

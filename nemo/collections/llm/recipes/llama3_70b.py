@@ -95,20 +95,18 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+
 def pretrain_recipe_performance(
-        name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
+    name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
 ) -> Partial:
     trainer = pretrain_recipe(
-        name=name,
-        ckpt_dir=ckpt_dir,
-        num_nodes=num_nodes,
-        num_gpus_per_node=num_gpus_per_node,
-        fn=fn
+        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
     )
     trainer.strategy.comm_overlap_cfg.tp_comm_overlap = True
     trainer.strategy.comm_overlap_cfg.tp_comm_overlap_cfg = userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
 
     return trainer
+
 
 def hf_resume() -> Config[nl.AutoResume]:
     return Config(nl.AutoResume, import_path="hf://meta-llama/Meta-Llama-3.1-70B")

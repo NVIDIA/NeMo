@@ -84,6 +84,7 @@ class ParallelismConfig:
     moe_extended_tp: bool
     pipeline_dtype: torch.dtype
 
+
 @dataclass
 class CommOverlapConfig:
     # Tensor parallel communication overlap (experimental)
@@ -222,7 +223,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
         self.comm_overlap_cfg = comm_overlap_cfg
-        
+
         self.lazy_init = lazy_init
         self.ckpt_include_optimizer = ckpt_include_optimizer
         self.pipeline_dtype = pipeline_dtype
@@ -272,15 +273,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 setattr(cfg, field.name, getattr(comm_overlap_cfg, field.name))
         return cfg
 
-    def _apply_model_comm_overlap_cfgs(
-            self, model_parallel_cfg: ModelParallelConfig) -> ModelParallelConfig:
+    def _apply_model_comm_overlap_cfgs(self, model_parallel_cfg: ModelParallelConfig) -> ModelParallelConfig:
         comm_overlap_cfg = CommOverlapConfig()
 
-        #TP overlap is disabled by default, can be overriden by user
+        # TP overlap is disabled by default, can be overriden by user
         comm_overlap_cfg.tp_comm_overlap = False
         comm_overlap_cfg.tp_comm_overlap_cfg = None
 
-        #PP overlap
+        # PP overlap
         if self.pipeline_model_parallel_size > 1:
             if self.virtual_pipeline_model_parallel_size > 1:
                 comm_overlap_cfg.overlap_p2p_comm = True
@@ -302,24 +302,29 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 logging.warning("Disabling tensor parallel communication overlap due to sequence_parallel=False.")
                 model_parallel_cfg.tp_comm_overlap = False
             elif not HAVE_TE:
-                logging.warning("Disabling tensor parallel communication overlap due to Tranformer Engine not detected.")
+                logging.warning(
+                    "Disabling tensor parallel communication overlap due to Tranformer Engine not detected."
+                )
                 model_parallel_cfg.tp_comm_overlap = False
             elif not transformer_engine.pytorch.cpp_extensions.userbuf_comm_available():
-                logging.warning("Disabling tensor parallel communication overlap due to \
-                    Transformer Engine userbuffer extensions not detected.")
+                logging.warning(
+                    "Disabling tensor parallel communication overlap due to \
+                    Transformer Engine userbuffer extensions not detected."
+                )
                 model_parallel_cfg.tp_comm_overlap = False
 
         return model_parallel_cfg
 
     def _apply_optimizer_overlap_cfgs(self, optim_cfg: OptimizerConfig) -> OptimizerConfig:
         from nemo.utils import AppState
+
         app_state = AppState()
 
         comm_overlap_cfg = CommOverlapConfig()
         comm_overlap_cfg.overlap_grad_reduce = False
         comm_overlap_cfg.overlap_param_gather = False
         comm_overlap_cfg.overlap_param_gather_with_optimizer_step = False
-        comm_overlap_cfg.align_param_gather = False   
+        comm_overlap_cfg.align_param_gather = False
 
         vp_size = app_state.virtual_pipeline_model_parallel_size
         if vp_size is None:
@@ -366,7 +371,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
                     logging.info("Fixing mis-match between ddp-config & mcore-optimizer config")
                     ddp_config.use_distributed_optimizer = mcore_opt_config.use_distributed_optimizer
-
 
     @override
     def setup(self, trainer: pl.Trainer) -> None:
