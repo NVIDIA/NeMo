@@ -86,8 +86,6 @@ def qnemo_to_tensorrt_llm(
     build_cmd += f"--max_input_len {max_input_len} "
     build_cmd += f"--max_output_len {max_output_len} "
     build_cmd += f"--max_beam_width {max_beam_width} "
-    build_cmd += f"--tp_size {config.mapping.tp_size} "
-    build_cmd += f"--pp_size {config.mapping.pp_size} "
     build_cmd += f"--max_prompt_embedding_table_size {max_prompt_embedding_table_size} "
     build_cmd += f"--builder_opt {builder_opt} "
     build_cmd += f"--gpt_attention_plugin {config.dtype} "
