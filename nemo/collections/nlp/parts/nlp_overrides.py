@@ -412,7 +412,7 @@ class NLPDDPStrategy(DDPStrategy):
             if self.is_global_zero or app_state.data_parallel_rank == 0:
                 self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
-        #if self.save_last_n_optim_states >= 0:
+        # if self.save_last_n_optim_states >= 0:
         #    self._drop_optimizer_states(filepath=filepath, storage_options=storage_options)
 
     # PTL 2.2 supports non strict loading of the ckpt with the strict arg (https://github.com/Lightning-AI/pytorch-lightning/pull/19404)

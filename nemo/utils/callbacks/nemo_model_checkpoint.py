@@ -365,8 +365,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             if isinstance(callback, EMA):
                 ema_callback = callback
         return ema_callback
-    
-    def _drop_optimizer_states(self, trainer, dirpath: Union[str, Path], storage_options: Optional[Any] = {"save_optim_states": False}) -> None:
+
+    def _drop_optimizer_states(
+        self, trainer, dirpath: Union[str, Path], storage_options: Optional[Any] = {"save_optim_states": False}
+    ) -> None:
         # Get list of saved checkpoints
         checkpoints = self._get_checkpoints_list(dirpath)
 
@@ -392,11 +394,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     def _get_checkpoints_list(self, dirpath: Union[str, Path]) -> List[str]:
         # Get a list of saved checkpoints
-        checkpoints = [
-            d
-            for d in os.listdir(dirpath)
-            if os.path.isdir(os.path.join(dirpath, d)) and '-last' not in d
-        ]
+        checkpoints = [d for d in os.listdir(dirpath) if os.path.isdir(os.path.join(dirpath, d)) and '-last' not in d]
         checkpoints = sorted(checkpoints, key=lambda x: int(x.split('-step=')[1].split('-')[0]))
         checkpoints = [os.path.join(dirpath, checkpoint) for checkpoint in checkpoints]
 
