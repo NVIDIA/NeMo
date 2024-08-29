@@ -583,18 +583,23 @@ def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] =
     if not _path.is_file():
         raise FileNotFoundError(f"No such file: '{_path}'")
 
+    if subpath:
+        subpath = "<root>." + subpath
+
     ## add IO functionality to custom objects present in the json file
     with open(_path) as f:
         j = json.load(f)
         for obj, val in j["objects"].items():
             clss = ".".join([val["type"]["module"], val["type"]["name"]])
+            if subpath and "paths" in val:
+                if all(map(lambda p: subpath not in p, val["paths"])):
+                    continue
+
             if not serialization.find_node_traverser(locate(clss)):
                 track_io(locate(clss))
 
     with open(_path, "rb") as f:
         json_config = json.loads(f.read())
-        if subpath:
-            subpath = "<root>." + subpath
 
         root_key = None
         for obj, val in json_config["objects"].items():
