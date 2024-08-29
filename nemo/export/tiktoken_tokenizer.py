@@ -64,11 +64,11 @@ def reload_mergeable_ranks(
 class TiktokenTokenizer:
     def __init__(self, vocab_file: str):
 
-        num_special_tokens = 1000
+        self.num_special_tokens = 1000
         vocab_size = DEFAULT_TIKTOKEN_MAX_VOCAB
         pattern = PATTERN_TIKTOKEN
         special_tokens = SPECIAL_TOKENS.copy()
-        inner_vocab_size = vocab_size - num_special_tokens
+        inner_vocab_size = vocab_size - self.num_special_tokens
 
         token2id = reload_mergeable_ranks(vocab_file, max_vocab=inner_vocab_size)
         self.tokenizer = tiktoken.Encoding(
@@ -84,10 +84,23 @@ class TiktokenTokenizer:
 
 
     def encode(self, text):
-        return self.tokenizer.encode(text)
+        tokens = self.tokenizer.encode(text)
+        tokens = [t + self.num_special_tokens for t in tokens]
+        return tokens
 
     def decode(self, tokens):
-        return self.model.decode(tokens)
+        # Filter out special tokens and adjust the remaining tokens
+        adjusted_tokens = [
+            t - self.num_special_tokens
+            for t in tokens
+            if t not in {self._bos_id, self._eos_id} and t >= self.num_special_tokens
+        ]
+
+        # Decode only if there are tokens left after filtering
+        if adjusted_tokens:
+            return self.tokenizer.decode(adjusted_tokens)
+        else:
+            return ""  # Return an empty string if all tokens were filtered out
 
     def batch_decode(self, ids):
         if isinstance(ids, np.ndarray) or torch.is_tensor(ids):
@@ -96,7 +109,7 @@ class TiktokenTokenizer:
         if isinstance(ids[0], list):
             ids = ids[0]
 
-        return self.tokenizer.decode(ids)
+        return self.decode(ids)
 
     @property
     def pad_id(self):
