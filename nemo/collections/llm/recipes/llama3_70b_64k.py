@@ -1,6 +1,7 @@
 from typing import Optional
 
 import torch
+import pytorch_lightning as pl
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
@@ -14,7 +15,7 @@ NAME = "llama3_70b_64k"
 
 
 @run.cli.factory(name=NAME)
-def model() -> run.Config:
+def model() -> run.Config[pl.LightningModule]:
     model_config = llama3_70b.model()
     model_config.config.seq_length = 65536
     return model_config
@@ -33,7 +34,7 @@ def trainer(
         sequence_parallelism=True,
         num_nodes=num_nodes,
         num_gpus_per_node=num_gpus_per_node,
-        callbacks=[Config(TimingCallback)],
+        callbacks=[run.Config(TimingCallback)],
     )
 
 

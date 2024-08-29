@@ -19,18 +19,19 @@ import nemo_run as run
 NAME = "mixtral_8x3b"
 
 
+@run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     return run.Config(MixtralModel, config=run.Config(MixtralConfig8x3B))
 
 
 def trainer(
-    tensor_parallelism: int,
-    pipeline_parallelism: int,
-    pipeline_parallelism_type: Optional[torch.dtype],
-    virtual_pipeline_parallelism: Optional[int],
-    context_parallelism: int,
-    sequence_parallelism: bool,
-    expert_parallelism: int,
+    tensor_parallelism: int = 4,
+    pipeline_parallelism: int = 1,
+    pipeline_parallelism_type: Optional[torch.dtype] = None,
+    virtual_pipeline_parallelism: Optional[int] = None,
+    context_parallelism: int = 1,
+    sequence_parallelism: bool = True,
+    expert_parallelism: int = 1,
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
@@ -70,6 +71,7 @@ def trainer(
     return trainer
 
 
+@run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
 ) -> run.Partial:
@@ -77,13 +79,6 @@ def pretrain_recipe(
         fn,
         model=model(),
         trainer=trainer(
-            tensor_parallelism=4,
-            pipeline_parallelism=1,
-            pipeline_parallelism_type=None,
-            virtual_pipeline_parallelism=None,
-            context_parallelism=1,
-            sequence_parallelism=True,
-            expert_parallelism=1,
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
@@ -102,9 +97,15 @@ def hf_resume() -> run.Config[nl.AutoResume]:
     )
 
 
-def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int) -> run.Partial:
+@run.cli.factory(target=finetune, name=NAME)
+def finetune_recipe(
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+) -> run.Partial:
     recipe = pretrain_recipe(
-        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
+        name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
     )
     recipe.resume = hf_resume()
     recipe.peft = run.Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
