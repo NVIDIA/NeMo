@@ -191,7 +191,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.loss_reduction: MegatronLossReduction = loss_reduction
         self.ddp_config = ddp_config
         self.convert_module_fn = convert_module_fn
-        self.tensor_parallel_overlap_need_init = self.config.tp_comm_overlap
+        self.tp_comm_overlap_need_init = self.config.tp_comm_overlap
 
     def forward(
         self,
@@ -234,9 +234,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         _num_microbatches: int = num_microbatches or self.infer_num_microbatches(data)
 
         pipeline = self.pipeline
-
-        if self.tensor_parallel_overlap_need_init:
-            self.init_tensor_parallel_overlap(_micro_batch_size, _seq_length)
+        
+        if self.tp_comm_overlap_need_init:
+            self.init_tp_comm_overlap(_micro_batch_size, _seq_length)
 
         # FIXME: cleanup the following code block which is here for backwards compatibility with nemo1. The "batch"
         #  sampler is a nemo1 sampler. It requires some custom code here to use (if use_global_batch_sampler).
@@ -482,7 +482,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         raise ValueError("Cannot infer `num_microbatches` from data, please specify it manually")
 
-    def init_tensor_parallel_overlap(self, micro_batch_size, sequence_length):
+    def init_tp_comm_overlap(self, micro_batch_size, sequence_length):
         import transformer_engine
         from megatron.core import parallel_state
 
@@ -511,7 +511,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         except Exception as error:
             raise Exception(f"Tensor parallel overlap: userbuffer initialization failed with {error}")
 
-        self.tensor_parallel_overlap_need_init = False
+        self.tp_comm_overlap_need_init = False
 
     def init_model_parallel(self):
         from megatron.core import parallel_state
