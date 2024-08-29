@@ -180,6 +180,20 @@ class MegatronMixedPrecision(Precision):
         finally:
             pass
 
+    def clip_gradients(
+        self,
+        optimizer: Optimizer,
+        clip_val: Union[int, float] = 0.0,
+        gradient_clip_algorithm: GradClipAlgorithmType = GradClipAlgorithmType.NORM,
+    ) -> None:
+        """ Gradient clipping is handled in Mcore's optimizer """
+        return
+
+    def clip_grad_by_value(self, optimizer: Optimizer, clip_val: Union[int, float]) -> None:
+        return
+
+    def clip_grad_by_norm(self, optimizer: Optimizer, clip_val: Union[int, float]) -> None:
+        return
 
 def update_config_with_dtype_overrides(dtype_config, config):
     if hasattr(config, "__io__"):
