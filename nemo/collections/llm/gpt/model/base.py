@@ -13,6 +13,7 @@ from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.utils import logging
 
 HAVE_TE = True
 try:
@@ -105,6 +106,9 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     rotary_percent: float = 1.0
     seq_len_interpolation_factor: Optional[float] = None
     seq_length: int = 1024
+    attention_softmax_in_fp32: bool = False
+    masked_softmax_fusion: bool = True
+    deallocate_pipeline_outputs = True
 
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
@@ -128,10 +132,19 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(self)
 
+        if hasattr(self, 'vocab_size'):
+            vocab_size = self.vocab_size
+            logging.info(
+                f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
+                f" {vocab_size - tokenizer.vocab_size}."
+            )
+        else:
+            vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
+
         return MCoreGPTModel(
             self,
             transformer_layer_spec=transformer_layer_spec,
-            vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
+            vocab_size=vocab_size,
             max_sequence_length=self.seq_length,
             fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
             parallel_output=self.parallel_output,
