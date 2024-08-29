@@ -19,7 +19,6 @@ from nemo.collections.multimodal.data.neva.neva_dataset import (
     preprocess_v1,
     preprocess_llama_2,
     preprocess_llama_3,
-    preprocess_yi_34b,
     preprocess_plain,
     DEFAULT_IMAGE_TOKEN,
     preprocess_interleaved_prompt
@@ -444,8 +443,6 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             return preprocess_llama_3(sources, self.tokenizer, self.multimodal_cfg)
         elif self.conv_template == "mistral":
             return preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg, is_mistral=True)
-        elif self.conv_template == "yi_34b":
-            return preprocess_yi_34b(sources, self.tokenizer, self.multimodal_cfg)
         elif self.conv_template == "plain":
             return preprocess_plain(sources, self.tokenizer, self.multimodal_cfg)
         elif self.conv_template == "interleaved":

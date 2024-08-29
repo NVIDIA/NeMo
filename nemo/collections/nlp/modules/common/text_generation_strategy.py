@@ -426,7 +426,6 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
         preprocess_nv_dpo,
         preprocess_nvgpt,
         preprocess_v1,
-        preprocess_yi_34b,
     )
 
     list_data_dict = []
@@ -500,27 +499,6 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
                 },
             ],
         }
-    elif multimodal_cfg["conv_template"] == "yi_34b":
-        record = {
-            'conversations': [
-                {
-                    'from': 'human',
-                    'value': prompt,
-                },
-                {
-                    'from': 'gpt',
-                    'value': '',
-                },
-            ],
-        }
-        for turn in record['conversations']:
-            if turn.get('value') is not None:
-                turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
-        list_data_dict.append(record)
-        sources = preprocess_multimodal(
-            copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
-        )  # HARDCODED FOR NOW
-        data_dict = preprocess_yi_34b(sources, tokenizer, multimodal_cfg)
 
         for turn in record['conversations']:
             if turn.get('value') is not None:
@@ -530,6 +508,7 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
             copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
         )  # HARDCODED FOR NOW
         data_dict = preprocess_llama_3(sources, tokenizer, multimodal_cfg)
+
     elif multimodal_cfg["conv_template"] == "mistral":
         record = {
             'conversations': [
@@ -551,6 +530,7 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
             copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
         )  # HARDCODED FOR NOW
         data_dict = preprocess_llama_2(sources, tokenizer, multimodal_cfg, is_mistral=True)
+        
     elif multimodal_cfg["conv_template"] == "v1":
         record = {
             'conversations': [
