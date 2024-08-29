@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Tuple
 import numpy as np
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -94,32 +95,39 @@ def tokenize_dataset(cfg: 'DictConfig'):
     else:
         tokenizer = get_nmt_tokenizer(library="sentencepiece", tokenizer_model=cfg.tokenizer_path)
 
-    dataset = GPTSFTDataset(
-        file_path=data_cfg.file_names[0],
-        tokenizer=tokenizer,
-        max_seq_length=data_cfg.max_seq_length,
-        min_seq_length=data_cfg.min_seq_length,
-        pad_seq_length_to_mult=16,  # adds padding in collate_fn so this value is irrelevant here
-        add_bos=data_cfg.get('add_bos', False),
-        add_eos=data_cfg.get('add_eos', True),
-        add_sep=data_cfg.get('add_sep', False),
-        sep_id=cfg.get('sep_id', 49704),
-        max_num_samples=None,
-        seed=data_cfg.get('seed', 1234),
-        label_key=data_cfg.get('label_key', 'answer'),
-        answer_only_loss=cfg.get('answer_only_loss', True),
-        truncation_field=data_cfg.get('truncation_field', 'text'),
-        pad_to_max_length=data_cfg.get('pad_to_max_length', False),
-        index_mapping_dir=data_cfg.get('index_mapping_dir', None),
-        prompt_template=data_cfg.get('prompt_template', None),
-        virtual_tokens=0,
-        tokens_to_generate=data_cfg.get('tokens_to_generate', 0),
-        memmap_workers=data_cfg.get('memmap_workers', None),
-        hf_dataset=data_cfg.get('hf_dataset', False),
-        truncation_method=data_cfg.get('truncation_method', 'right'),
-        special_tokens=data_cfg.get('chat_prompt_tokens', None),
-        is_test=True,
-    )
+    kwargs = {
+      "file_path": data_cfg.file_names[0],
+      "tokenizer": tokenizer,
+      "max_seq_length": data_cfg.max_seq_length,
+      "min_seq_length": data_cfg.min_seq_length,
+      "pad_seq_length_to_mult": 16,  # adds padding in collate_fn so this value is irrelevant here
+      "add_bos": data_cfg.get('add_bos', False),
+      "add_eos": data_cfg.get('add_eos', True),
+      "add_sep": data_cfg.get('add_sep', False),
+      "sep_id": cfg.get('sep_id', 49704),
+      "max_num_samples": None,
+      "seed": data_cfg.get('seed', 1234),
+      "label_key": data_cfg.get('label_key', 'answer'),
+      "answer_only_loss": cfg.get('answer_only_loss', True),
+      "truncation_field": data_cfg.get('truncation_field', 'text'),
+      "pad_to_max_length": data_cfg.get('pad_to_max_length', False),
+      "index_mapping_dir": data_cfg.get('index_mapping_dir', None),
+      "prompt_template": data_cfg.get('prompt_template', None),
+      "virtual_tokens": 0,
+      "tokens_to_generate": data_cfg.get('tokens_to_generate', 0),
+      "memmap_workers": data_cfg.get('memmap_workers', None),
+      "hf_dataset": data_cfg.get('hf_dataset', False),
+      "truncation_method": data_cfg.get('truncation_method', 'right'),
+      "special_tokens": data_cfg.get('chat_prompt_tokens', None),
+      "is_test": True,
+    }
+
+    if cfg.is_chat:
+      dataset_cls = GPTSFTChatDataset
+    else:
+      dataset_cls = GPTSFTDatasetgs
+
+    dataset = dataset_cls(**kwargs)
 
     return np.array([dataset[i] for i in range(len(dataset))])
 
@@ -129,6 +137,7 @@ class PackingArgs:
     output_dir: str = "output"
     pack_sizes: Tuple[int] = (2048,)
     packing_algorithm: str = "first_fit_shuffle"
+    is_chat: bool = False
     seed: int = 0
 
     def from_config(self, cfg: 'DictConfig'):
