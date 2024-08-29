@@ -300,7 +300,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     if hasattr(asr_model.encoder,'att_context_style') and asr_model.encoder.att_context_style == 'chunked_limited':
         if cfg.att_context_size is None:
             logging.info(f"Using default att_context_size={asr_model.encoder.att_context_size}")
-        else :
+        else:
             logging.info(f"Setting provided att_context_size={cfg.att_context_size} for chunkaware encoder")
             asr_model.encoder.set_default_att_context_size(cfg.att_context_size)
 
