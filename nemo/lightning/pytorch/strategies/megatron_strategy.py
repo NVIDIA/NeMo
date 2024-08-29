@@ -497,7 +497,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         optimizer_output = super().optimizer_step(optimizer, closure, model, **kwargs)
 
         if isinstance(optimizer, McoreDistributedOptimizer):
-            _, grad_norm = optimizer_output
+            optimizer_output, grad_norm = optimizer_output
             self.lightning_module.log('grad_norm', grad_norm, batch_size=1)
 
         return optimizer_output
