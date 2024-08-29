@@ -297,7 +297,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         if cfg.decoder_type and cfg.decoder_type != 'rnnt':
             raise ValueError('RNNT model only support rnnt decoding!')
     
-    if asr_model.encoder.att_context_style == 'chunked_limited':
+    if hasattr(asr_model.encoder,'att_context_style') and asr_model.encoder.att_context_style == 'chunked_limited':
         if cfg.att_context_size is None:
             logging.info(f"Using default att_context_size={asr_model.encoder.att_context_size}")
         else :
