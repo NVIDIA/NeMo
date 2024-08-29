@@ -1,20 +1,23 @@
-import torch
 import time
-from pytorch_lightning.callbacks.callback import Callback
-from nemo.lightning import io
 
+import torch
+from pytorch_lightning.callbacks.callback import Callback
+
+from nemo.lightning import io
 
 
 def dump_thread_stacks():
     for th in threading.enumerate():
-       print(th)
-       traceback.print_stack(sys._current_frames()[th.ident])
+        print(th)
+        traceback.print_stack(sys._current_frames()[th.ident])
+
 
 def hangman_main(interval_ms):
     assert interval_ms > 0
     while True:
-       time.sleep(interval_ms / 1000)
-       dump_thread_stacks()
+        time.sleep(interval_ms / 1000)
+        dump_thread_stacks()
+
 
 class Hangman(Callback, io.IOMixin):
     """
@@ -35,5 +38,5 @@ class Hangman(Callback, io.IOMixin):
         """
         assert interval_ms > 0, "Expected interval to be > 0. A zero interval makes DdpParityChecker a no-op."
 
-        self.thread = Thread(target=hangman_main, args = (interval_ms, ))
+        self.thread = Thread(target=hangman_main, args=(interval_ms,))
         self.thread.start()
