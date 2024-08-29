@@ -21,7 +21,7 @@ def pretrain_recipe(
         pipeline_parallelism=4,
         pipeline_parallelism_type=torch.bfloat16,
         virtual_pipeline_parallelism=5,
-        context_parallelism=2,
+        context_parallelism=4,
         sequence_parallelism=True,
         num_nodes=num_nodes,
         num_gpus_per_node=num_gpus_per_node,
