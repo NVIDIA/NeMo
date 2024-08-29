@@ -70,7 +70,7 @@ class SSLModel(NeuralModule):
 class SLMDiscriminator(NeuralModule):
     """SLM Discriminator as in StyleTTS2 paper.
     Adapted from https://github.com/yl4579/StyleTTS2/blob/5cedc71c333f8d8b8551ca59378bdcc7af4c9529/losses.py#L193
-    
+
     Args:
         slm_model_name: Hugging Face Speech Language Models name.
         slm_sr: Speech Language Models input sampling rate.
@@ -82,14 +82,16 @@ class SLMDiscriminator(NeuralModule):
 
     """
 
-    def __init__(self,
-                slm_model_name="microsoft/wavlm-base-plus",
-                slm_sr=16000,
-                input_sr=22050,
-                slm_hidden=768, 
-                slm_layers=13, 
-                initial_channel=64, 
-                use_spectral_norm=False):
+    def __init__(
+        self,
+        slm_model_name="microsoft/wavlm-base-plus",
+        slm_sr=16000,
+        input_sr=22050,
+        slm_hidden=768,
+        slm_layers=13,
+        initial_channel=64,
+        use_spectral_norm=False,
+    ):
         super().__init__()
 
         self.slm_model = SSLModel(slm_model_name)
@@ -102,15 +104,16 @@ class SLMDiscriminator(NeuralModule):
 
         norm_f = torch.nn.utils.weight_norm if use_spectral_norm == False else torch.nn.utils.spectral_norm
         self.pre = norm_f(nn.Conv1d(slm_hidden * slm_layers, initial_channel, 1, 1, padding=0))
-        
-        self.convs = nn.ModuleList([
-            norm_f(nn.Conv1d(initial_channel, initial_channel * 2, kernel_size=5, padding=2)),
-            norm_f(nn.Conv1d(initial_channel * 2, initial_channel * 4, kernel_size=5, padding=2)),
-            norm_f(nn.Conv1d(initial_channel * 4, initial_channel * 4, 5, 1, padding=2)),
-        ])
+
+        self.convs = nn.ModuleList(
+            [
+                norm_f(nn.Conv1d(initial_channel, initial_channel * 2, kernel_size=5, padding=2)),
+                norm_f(nn.Conv1d(initial_channel * 2, initial_channel * 4, kernel_size=5, padding=2)),
+                norm_f(nn.Conv1d(initial_channel * 4, initial_channel * 4, 5, 1, padding=2)),
+            ]
+        )
 
         self.conv_post = norm_f(nn.Conv1d(initial_channel * 4, 1, 3, 1, padding=1))
-
 
     def _forward(self, x):
         x = self.slm_model(input_values=self.resample(x), output_hidden_states=True).hidden_states
