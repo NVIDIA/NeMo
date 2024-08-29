@@ -20,6 +20,7 @@ from nemo.utils.exp_manager import TimingCallback
 NAME = "llama3_8b"
 
 
+@run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     return run.Config(LlamaModel, config=run.Config(Llama3Config8B))
 
@@ -81,12 +82,6 @@ def pretrain_recipe(
         fn,
         model=model(),
         trainer=trainer(
-            tensor_parallelism=1,
-            pipeline_parallelism=1,
-            pipeline_parallelism_type=None,
-            virtual_pipeline_parallelism=None,
-            context_parallelism=2,
-            sequence_parallelism=False,
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],

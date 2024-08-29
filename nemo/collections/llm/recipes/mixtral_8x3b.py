@@ -13,14 +13,14 @@ from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
-from nemo.collections.llm.utils import Config, Partial
 from nemo.utils.exp_manager import TimingCallback
+import nemo_run as run
 
 NAME = "mixtral_8x3b"
 
 
-def model() -> Config[pl.LightningModule]:
-    return Config(MixtralModel, config=Config(MixtralConfig8x3B))
+def model() -> run.Config[pl.LightningModule]:
+    return run.Config(MixtralModel, config=run.Config(MixtralConfig8x3B))
 
 
 def trainer(
@@ -34,9 +34,9 @@ def trainer(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
-    callbacks: Optional[list[Config[Callback]]] = None,
-) -> Config[nl.Trainer]:
-    strategy = Config(
+    callbacks: Optional[list[run.Config[Callback]]] = None,
+) -> run.Config[nl.Trainer]:
+    strategy = run.Config(
         nl.MegatronStrategy,
         tensor_model_parallel_size=tensor_parallelism,
         pipeline_model_parallel_size=pipeline_parallelism,
@@ -50,7 +50,7 @@ def trainer(
         ckpt_parallel_load=True,
     )
 
-    trainer = Config(
+    trainer = run.Config(
         nl.Trainer,
         accelerator="gpu",
         accumulate_grad_batches=1,
@@ -72,8 +72,8 @@ def trainer(
 
 def pretrain_recipe(
     name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
-) -> Partial:
-    return Partial(
+) -> run.Partial:
+    return run.Partial(
         fn,
         model=model(),
         trainer=trainer(
@@ -86,27 +86,27 @@ def pretrain_recipe(
             expert_parallelism=1,
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
-            callbacks=[Config(TimingCallback)],
+            callbacks=[run.Config(TimingCallback)],
         ),
-        data=Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
         log=default_log(ckpt_dir=ckpt_dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
 
 
-def hf_resume() -> Config[nl.AutoResume]:
-    return Config(
+def hf_resume() -> run.Config[nl.AutoResume]:
+    return run.Config(
         nl.AutoResume,
-        restore_config=Config(nl.RestoreConfig, path="hf://mistralai/Mixtral-8x7B-v0.1"),
+        restore_config=run.Config(nl.RestoreConfig, path="hf://mistralai/Mixtral-8x7B-v0.1"),
     )
 
 
-def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int) -> Partial:
+def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int) -> run.Partial:
     recipe = pretrain_recipe(
         name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
     )
     recipe.resume = hf_resume()
-    recipe.peft = Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
-    recipe.data = Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
+    recipe.peft = run.Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
+    recipe.data = run.Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
     return recipe

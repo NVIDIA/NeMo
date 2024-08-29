@@ -1,61 +1,122 @@
+from typing import Optional
+
 import pytorch_lightning as pl
+import torch
+from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
-from nemo.collections.llm.gpt.data.api import squad
+from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
-from nemo.collections.llm.peft.api import gpt_lora
-from nemo.collections.llm.recipes.log.default import default_log
+from nemo.collections.llm.peft.lora import LoRA
+from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.utils import Partial, factory
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
+import nemo_run as run
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "mistral"
 
 
-@factory(name=NAME)
-def model() -> pl.LightningModule:
-    return MistralModel(MistralConfig7B())
+@run.cli.factory(name=NAME)
+def model() -> run.Config[pl.LightningModule]:
+    return run.Config(MistralModel, config=run.Config(MistralConfig7B))
 
 
-@factory(name=NAME)
-def trainer(devices=8) -> nl.Trainer:
-    strategy = nl.MegatronStrategy(tensor_model_parallel_size=2)
+def trainer(
+    tensor_parallelism: int = 1,
+    pipeline_parallelism: int = 1,
+    pipeline_parallelism_type: Optional[torch.dtype] = None,
+    virtual_pipeline_parallelism: Optional[int] = None,
+    context_parallelism: int = 2,
+    sequence_parallelism: bool = False,
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    max_steps: int = 100,
+    callbacks: Optional[list[run.Config[Callback]]] = None,
+) -> run.Config[nl.Trainer]:
+    strategy = run.Config(
+        nl.MegatronStrategy,
+        tensor_model_parallel_size=tensor_parallelism,
+        pipeline_model_parallel_size=pipeline_parallelism,
+        pipeline_dtype=pipeline_parallelism_type,
+        virtual_pipeline_model_parallel_size=virtual_pipeline_parallelism,
+        context_parallel_size=context_parallelism,
+        sequence_parallel=sequence_parallelism,
+        gradient_as_bucket_view=True,
+        ckpt_include_optimizer=True,
+        ckpt_async_save=True,
+        ckpt_parallel_load=True,
+    )
 
-    return nl.Trainer(
-        devices=devices,
-        max_steps=100,
+    trainer = run.Config(
+        nl.Trainer,
         accelerator="gpu",
+        accumulate_grad_batches=1,
+        callbacks=callbacks,
+        devices=num_gpus_per_node,
+        gradient_clip_val=1.0,
+        limit_test_batches=50,
+        limit_val_batches=32,
+        log_every_n_steps=10,
+        max_steps=max_steps,
+        num_nodes=num_nodes,
+        plugins=bf16_mixed_plugin(),
         strategy=strategy,
-        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
+        use_distributed_sampler=False,
+        val_check_interval=2000,
+    )
+
+    return trainer
+
+
+@run.cli.factory(target=pretrain, name=NAME)
+def pretrain_recipe(
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    fn=pretrain
+) -> run.Partial:
+    return run.Partial(
+        fn,
+        model=model(),
+        trainer=trainer(
+            tensor_parallelism=1,
+            pipeline_parallelism=1,
+            pipeline_parallelism_type=None,
+            virtual_pipeline_parallelism=None,
+            context_parallelism=2,
+            sequence_parallelism=False,
+            num_nodes=num_nodes,
+            num_gpus_per_node=num_gpus_per_node,
+            callbacks=[run.Config(TimingCallback)],
+        ),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
+        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
+        resume=default_resume(),
     )
 
 
-@factory(name=NAME + "_hf")
-def hf_resume() -> nl.AutoResume:
-    return nl.AutoResume(restore_config=nl.RestoreConfig(path="hf://mistralai/Mistral-7B-v0.3"))
+@run.cli.factory(name=NAME + "_hf")
+def hf_resume() -> run.Config[nl.AutoResume]:
+    return run.Config(nl.AutoResume, restore_config=run.Config(nl.RestoreConfig, path="hf://mistralai/Mistral-7B-v0.3"))
 
 
-@factory(name=NAME, for_task="llm.pretrain")
-def pretrain_recipe() -> Partial:
-    return Partial(
-        pretrain,
-        model=model,
-        trainer=trainer,
-        data=squad,
-        log=default_log,
-        optim=distributed_fused_adam_with_cosine_annealing(),
+
+@run.cli.factory(target=finetune, name=NAME)
+def finetune_recipe(
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+) -> run.Partial:
+    recipe = pretrain_recipe(
+        name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
     )
-
-
-@factory(name=NAME, for_task="llm.finetune")
-def finetune_recipe() -> Partial:
-    return Partial(
-        finetune,
-        model=model,
-        trainer=trainer,
-        data=squad,
-        log=default_log,
-        optim=distributed_fused_adam_with_cosine_annealing(),
-        peft=gpt_lora,
-        resume=hf_resume,
-    )
+    recipe.resume = hf_resume()
+    recipe.peft = run.Config(LoRA)
+    recipe.data = run.Config(SquadDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1)
+    return recipe

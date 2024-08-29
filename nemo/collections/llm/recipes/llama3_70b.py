@@ -2,7 +2,6 @@ from typing import Callable, Optional
 
 import pytorch_lightning as pl
 import torch
-from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
@@ -15,30 +14,31 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
-from nemo.collections.llm.utils import Config, Partial
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+import nemo_run as run
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "llama3_70b"
 
 
-def model() -> Config[pl.LightningModule]:
-    return Config(LlamaModel, config=Config(Llama3Config70B))
+@run.cli.factory(name=NAME)
+def model() -> run.Config[pl.LightningModule]:
+    return run.Config(LlamaModel, config=run.Config(Llama3Config70B))
 
 
 def trainer(
-    tensor_parallelism: int,
-    pipeline_parallelism: int,
-    pipeline_parallelism_type: Optional[torch.dtype],
-    virtual_pipeline_parallelism: Optional[int],
-    context_parallelism: int,
-    sequence_parallelism: bool,
+    tensor_parallelism: int = 4,
+    pipeline_parallelism: int = 4,
+    pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
+    virtual_pipeline_parallelism: Optional[int] = 5,
+    context_parallelism: int = 2,
+    sequence_parallelism: bool = True,
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
-    callbacks: Optional[list[Config[Callback]]] = None,
-) -> Config[nl.Trainer]:
-    strategy = Config(
+    callbacks: Optional[list[run.Config[Callback]]] = None,
+) -> run.Config[nl.Trainer]:
+    strategy = run.Config(
         nl.MegatronStrategy,
         tensor_model_parallel_size=tensor_parallelism,
         pipeline_model_parallel_size=pipeline_parallelism,
@@ -51,7 +51,7 @@ def trainer(
         ckpt_parallel_load=True,
     )
 
-    trainer = Config(
+    trainer = run.Config(
         nl.Trainer,
         accelerator="gpu",
         accumulate_grad_batches=1,
@@ -71,25 +71,24 @@ def trainer(
     return trainer
 
 
+@run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
-) -> Partial:
-    return Partial(
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    fn=pretrain
+) -> run.Partial:
+    return run.Partial(
         fn,
         model=model(),
         trainer=trainer(
-            tensor_parallelism=4,
-            pipeline_parallelism=4,
-            pipeline_parallelism_type=torch.bfloat16,
-            virtual_pipeline_parallelism=5,
-            context_parallelism=2,
-            sequence_parallelism=True,
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
-            callbacks=[Config(TimingCallback)],
+            callbacks=[run.Config(TimingCallback)],
         ),
-        data=Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
-        log=default_log(ckpt_dir=ckpt_dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
+        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
@@ -118,18 +117,24 @@ def pretrain_recipe_performance(
     return recipe
 
 
-def hf_resume() -> Config[nl.AutoResume]:
-    return Config(
+def hf_resume() -> run.Config[nl.AutoResume]:
+    return run.Config(
         nl.AutoResume,
-        restore_config=Config(nl.RestoreConfig, path="hf://meta-llama/Meta-Llama-3-70B"),
+        restore_config=run.Config(nl.RestoreConfig, path="hf://meta-llama/Meta-Llama-3-70B"),
     )
 
 
-def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int) -> Partial:
+@run.cli.factory(target=finetune, name=NAME)
+def finetune_recipe(
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+) -> run.Partial:
     recipe = pretrain_recipe(
-        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
+        name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
     )
     recipe.resume = hf_resume()
-    recipe.peft = Config(LoRA)
-    recipe.data = Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
+    recipe.peft = run.Config(LoRA)
+    recipe.data = run.Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
     return recipe
