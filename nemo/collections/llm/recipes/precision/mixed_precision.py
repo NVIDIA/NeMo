@@ -1,11 +1,12 @@
 import torch
 
-from nemo.collections.llm.utils import Config
+import nemo_run as run
 from nemo.lightning.pytorch.plugins.mixed_precision import MegatronMixedPrecision
 
 
-def bf16_mixed_plugin() -> Config[MegatronMixedPrecision]:
-    return Config(
+@run.cli.factory
+def bf16_mixed() -> run.Config[MegatronMixedPrecision]:
+    return run.Config(
         MegatronMixedPrecision,
         precision="bf16-mixed",
         params_dtype=torch.bfloat16,
@@ -15,8 +16,9 @@ def bf16_mixed_plugin() -> Config[MegatronMixedPrecision]:
     )
 
 
-def fp16_mixed_plugin() -> Config[MegatronMixedPrecision]:
-    return Config(
+@run.cli.factory
+def fp16_mixed() -> run.Config[MegatronMixedPrecision]:
+    return run.Config(
         MegatronMixedPrecision,
         precision="16-mixed",
         params_dtype=torch.half,

@@ -1,11 +1,12 @@
 from megatron.core.optimizer import OptimizerConfig
 
-from nemo_run import Config
+import nemo_run as run
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule, OptimizerModule
 
 
-def distributed_fused_adam_with_cosine_annealing(max_lr: float = 1e-4) -> Config[OptimizerModule]:
-    opt_cfg = Config(
+@run.cli.factory
+def distributed_fused_adam_with_cosine_annealing(max_lr: float = 1e-4) -> run.Config[OptimizerModule]:
+    opt_cfg = run.Config(
         OptimizerConfig,
         optimizer="adam",
         lr=max_lr,
@@ -20,14 +21,14 @@ def distributed_fused_adam_with_cosine_annealing(max_lr: float = 1e-4) -> Config
         clip_grad=1.0,
     )
 
-    sched = Config(
+    sched = run.Config(
         CosineAnnealingScheduler,
         warmup_steps=2000,
         constant_steps=0,
         min_lr=0.1 * max_lr,
     )
 
-    return Config(
+    return run.Config(
         MegatronOptimizerModule,
         config=opt_cfg,
         lr_scheduler=sched,

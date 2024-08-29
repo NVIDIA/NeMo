@@ -1,4 +1,4 @@
-from typing import Callable, Optional
+from typing import Optional
 
 import pytorch_lightning as pl
 import torch
