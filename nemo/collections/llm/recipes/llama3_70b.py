@@ -45,7 +45,7 @@ def trainer(
         virtual_pipeline_model_parallel_size=virtual_pipeline_parallelism,
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
-        comm_overlap_config=nl.OptimizationsConfig(
+        optimizations_cfg=nl.OptimizationsConfig(
             tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
         ),
         gradient_as_bucket_view=True,
