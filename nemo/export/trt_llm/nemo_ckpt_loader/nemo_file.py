@@ -33,8 +33,8 @@ from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
-from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
 from nemo.export.tarutils import TarPath, ZarrPathStore
+from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -285,7 +285,9 @@ def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
         return AutoTokenizer.from_pretrained(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"))
 
     if os.path.exists(os.path.join(tokenizer_dir_or_path, "tokenizer.model")):
-        model_path = tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
+        model_path = (
+            tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
+        )
         tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
     elif os.path.exists(os.path.join(tokenizer_dir_or_path, "vocab.json")):
         vocab_path = tokenizer_dir_or_path / "vocab.json" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path

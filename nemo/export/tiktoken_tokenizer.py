@@ -12,21 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
+import json
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Union
-import base64
-import json
 
 import numpy as np
-import torch
-
 import tiktoken
+import torch
 
 PATTERN_TIKTOKEN = "[^\\r\\n\\p{L}\\p{N}]?[\\p{Lu}\\p{Lt}\\p{Lm}\\p{Lo}\\p{M}]*[\\p{Ll}\\p{Lm}\\p{Lo}\\p{M}]+|[^\\r\\n\\p{L}\\p{N}]?[\\p{Lu}\\p{Lt}\\p{Lm}\\p{Lo}\\p{M}]+[\\p{Ll}\\p{Lm}\\p{Lo}\\p{M}]*|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n/]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+"
 DEFAULT_TIKTOKEN_MAX_VOCAB = 2**17  # 131072
 SPECIAL_TOKENS = ["<unk>", "<s>", "</s>"]
 SPECIAL_TOKEN_TEMPLATE = "<SPECIAL_{id}>"
+
 
 def reload_mergeable_ranks(
     path: str,
@@ -61,6 +61,7 @@ def reload_mergeable_ranks(
 
     return ranks
 
+
 class TiktokenTokenizer:
     def __init__(self, vocab_file: str):
 
@@ -81,7 +82,6 @@ class TiktokenTokenizer:
         # BOS / EOS / Pad token IDs
         self._bos_id = special_tokens.index("<s>")
         self._eos_id = special_tokens.index("</s>")
-
 
     def encode(self, text):
         tokens = self.tokenizer.encode(text)

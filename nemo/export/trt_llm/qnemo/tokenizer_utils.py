@@ -48,7 +48,7 @@ def get_nmt_tokenizer(nemo_checkpoint_path: str):
     elif library == "tiktoken":
         tmp_dir = tempfile.TemporaryDirectory()
         tmp_path = os.path.join(tmp_dir.name, "vocab.json")
-        vocab_file=os.path.join(nemo_checkpoint_path, tokenizer_cfg.vocab_file)
+        vocab_file = os.path.join(nemo_checkpoint_path, tokenizer_cfg.vocab_file)
         shutil.copy(vocab_file, tmp_path)
         tokenizer = TiktokenTokenizer(vocab_file=tmp_path)
     else:
