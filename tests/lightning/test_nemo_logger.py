@@ -116,6 +116,7 @@ class TestNeMoLogger:
                 dirpath=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
                 resume_if_exists=True,
             ).setup(trainer)
+        Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end").rmdir()
 
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end").mkdir()
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end-unfinished").touch()
@@ -146,7 +147,7 @@ class TestNeMoLogger:
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last").mkdir()
         time.sleep(1)  ## sleep for a second so the checkpoints are created at different times
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last").mkdir()
-        time.sleep(1)  ## sleep for a second so the checkpoints are created at different times
+        time.sleep(1)
         # unfinished last, that should be ignored
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel3--last").mkdir()
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel3--last-unfinished").touch()
