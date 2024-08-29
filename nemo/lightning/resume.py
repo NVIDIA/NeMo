@@ -57,12 +57,12 @@ class AutoResume:
         if isinstance(trainer, fl.Fabric):
             raise NotImplementedError("Fabric is not supported yet.")
 
-        ckpt_path, restore_path = self.nemo_path(model)
+        ckpt_path, selective_restore_path = self.nemo_path(model)
         if ckpt_path:
             trainer.ckpt_path = ckpt_path
             trainer.checkpoint_callback.last_model_path = ckpt_path
-        elif restore_path:
-            trainer.strategy.restore_path = restore_path
+        elif selective_restore_path:
+            trainer.strategy.restore_path = selective_restore_path
             trainer.strategy.restore_optimizer_states = self.restore_optimizer_states
 
     def nemo_path(self, model: Optional[io.ConnectorMixin] = None) -> tuple[Optional[Path], Optional[Path]]:
