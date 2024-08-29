@@ -12,4 +12,3 @@ torch
 tqdm>=4.41.0
 wget
 wrapt
-git+https://github.com/NVIDIA/NeMo-Run.git
