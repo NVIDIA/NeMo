@@ -25,7 +25,8 @@ from jiwer import wer
 sampling_rate = 24000
 
 from examples.tts.voicebox_demo import get_data, get_audio_data
-from nemo.collections.asr.data.lhotse.dataloader import get_lhotse_dataloader_from_config
+# from nemo.collections.asr.data.lhotse.dataloader import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
 from nemo.collections.tts.data.text_to_speech_lhotse import LhotseTextToSpeechDataset
 from nemo.collections.tts.models.voicebox import VoiceboxModel, fix_alignment
 from nemo.collections.tts.modules.voicebox_modules import get_mask_from_lengths
@@ -853,7 +854,7 @@ class Inference:
         self.mfa_en_dict = {}
         with open("/root/Documents/MFA/pretrained_models/dictionary/english_us_arpa.dict", 'r') as f:
             for line in tqdm(f):
-                wrd, _, _, _, _, phns = line.strip().split('\t')
+                wrd, *_, phns = line.strip().split('\t')
                 if wrd not in self.mfa_en_dict:
                     self.mfa_en_dict[wrd] = phns
 

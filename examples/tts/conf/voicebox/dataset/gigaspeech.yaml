@@ -38,10 +38,10 @@ train_ds:
 
   # lhotse
   use_lhotse: true
-  lhotse:
-    cuts_path: ${..manifest_filepath}
-    use_bucketing: true
-    batch_duration: 100.0  # seconds
+  # lhotse:
+  cuts_path: ${.manifest_filepath}
+  use_bucketing: true
+  batch_duration: 100.0  # seconds
   ds_kwargs: ${..ds_kwargs}
 
 validation_ds:
@@ -67,10 +67,10 @@ validation_ds:
 
   # lhotse
   use_lhotse: true
-  lhotse:
-    cuts_path: ${..manifest_filepath}
-    use_bucketing: False
-    batch_duration: 100.0  # seconds
+  # lhotse:
+  cuts_path: ${.manifest_filepath}
+  use_bucketing: False
+  batch_duration: 100.0  # seconds
   ds_kwargs: ${..ds_kwargs}
 
 test_ds:
@@ -96,8 +96,8 @@ test_ds:
 
   # lhotse
   use_lhotse: true
-  lhotse:
-    cuts_path: ${..manifest_filepath}
-    use_bucketing: False
-    batch_duration: 100.0  # seconds
+  # lhotse:
+  cuts_path: ${.manifest_filepath}
+  use_bucketing: False
+  batch_duration: 100.0  # seconds
   ds_kwargs: ${..ds_kwargs}

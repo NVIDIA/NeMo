@@ -21,7 +21,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     EnglishPhonemesTokenizer,
 )
 
-from naturalspeech2_pytorch.utils.cleaner import TextProcessor
+# from naturalspeech2_pytorch.utils.cleaner import TextProcessor
 
 from nemo.collections.tts.modules.voicebox_modules import MFAEnglishPhonemeTokenizer
 from nemo.collections.tts.modules.voicebox_utils import generate_mask_from_repeats
@@ -54,11 +54,12 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
         self.tokenizer = tokenizer
 
         if tokenizer is not None:
-            if isinstance(tokenizer, TextProcessor):
-                self.normalizer_call = tokenizer.text_cleaner
-                self.text_normalizer_call_kwargs = {"language": "en"}
+            # if isinstance(tokenizer, TextProcessor):
+            #     self.normalizer_call = tokenizer.text_cleaner
+            #     self.text_normalizer_call_kwargs = {"language": "en"}
 
-            elif isinstance(tokenizer, BaseTokenizer):
+            # elif isinstance(tokenizer, BaseTokenizer):
+            if isinstance(tokenizer, BaseTokenizer):
                 self.normalizer = normalizer
                 if normalizer is not None:
                     self.normalizer_call = (
@@ -212,16 +213,17 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             return batch
 
         if self.tokenizer is not None:
-            if isinstance(self.tokenizer, TextProcessor):
-                with redirect_stdout_to_logger(logging):
-                    tokens = [self.tokenizer.text_to_ids(text)[0] for text in texts]
+            # if isinstance(self.tokenizer, TextProcessor):
+            #     with redirect_stdout_to_logger(logging):
+            #         tokens = [self.tokenizer.text_to_ids(text)[0] for text in texts]
 
-                padding_value = 0
-                tokens = [torch.as_tensor(token_ids).long() for token_ids in tokens]
-                token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
-                tokens = collate_vectors(tokens, padding_value=padding_value)
+            #     padding_value = 0
+            #     tokens = [torch.as_tensor(token_ids).long() for token_ids in tokens]
+            #     token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
+            #     tokens = collate_vectors(tokens, padding_value=padding_value)
 
-            elif isinstance(self.tokenizer, BaseTokenizer):
+            # elif isinstance(self.tokenizer, BaseTokenizer):
+            if isinstance(self.tokenizer, BaseTokenizer):
                 if "texts" in _cuts[0].supervisions[0].custom:
                     _texts = [c.supervisions[0].custom["texts"][1] for c in _cuts]
                 else:
