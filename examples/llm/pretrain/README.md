@@ -32,13 +32,17 @@ The CLI allows you to overwrite any parameter. For example, to run the recipe wi
 nemorun llm pretrain --factory llama3_70b trainer.max_steps=2000
 ```
 
-The syntax of the CLI is the same as the Python code. Which is great but in some cases you might want to inspect the recipe interactively. An easy way to do this using the cli is the use the `--repl` flag.
+The syntax of the CLI is the same as the Python code. Which is great but in some cases you might want to inspect & edit a recipe interactively. An easy way to do this using the cli is the use the `--repl` flag.
 
 ```bash
 nemorun llm pretrain --factory llama3_70b --repl
 ```
 
 ![repl](img/repl.gif)
+
+We can also trigger a run from a jupyter notebook, see [pretrain.ipynb](pretrain.ipynb) for an example. This allows visualizes all configs in a structured format. See for instance the `llama3_8b` recipe:
+
+![llama3_8b_visualization](img/llama3_8b_config.svg)
 
 
 ### Create and run a custom recipe
