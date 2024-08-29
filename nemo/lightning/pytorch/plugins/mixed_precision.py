@@ -184,16 +184,19 @@ class MegatronMixedPrecision(Precision):
         self,
         optimizer: Optimizer,
         clip_val: Union[int, float] = 0.0,
-        gradient_clip_algorithm = None,
+        gradient_clip_algorithm=None,
     ) -> None:
         if clip_val > 0.0:
-            raise ValueError("Gradient clipping is handled in Mcore's optimizer. Use the clip_grad attribute in OptimizerConfig.")
+            raise ValueError(
+                "Gradient clipping is handled in Mcore's optimizer. Use the clip_grad attribute in OptimizerConfig."
+            )
 
     def clip_grad_by_value(self, optimizer: Optimizer, clip_val: Union[int, float]) -> None:
         return
 
     def clip_grad_by_norm(self, optimizer: Optimizer, clip_val: Union[int, float]) -> None:
         return
+
 
 def update_config_with_dtype_overrides(dtype_config, config):
     if hasattr(config, "__io__"):
