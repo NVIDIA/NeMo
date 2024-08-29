@@ -169,6 +169,7 @@ class TensorRTLLM(ITritonDeployable):
         multiple_profiles: bool = False,
         gpt_attention_plugin: str = "auto",
         gemm_plugin: str = "auto",
+        reduce_fusion: bool = True,
         fp8_quantized: Optional[bool] = None,
         fp8_kvcache: Optional[bool] = None,
     ):
@@ -205,6 +206,7 @@ class TensorRTLLM(ITritonDeployable):
             multiple_profiles: (bool): enables multiple profiles feature of TRT-LLM. Default = False
             gpt_attention_plugin (str): enable the gpt attention plugin. Default = "auto"
             gemm_plugin (str): enable the gpt plugin. Default = "auto"
+            reduce_fusion (bool): enables fusing extra kernels after custom TRT-LLM allReduce
             fp8_quantized (Optional[bool]): enables exporting to FP8 TRT-LLM checkpoints. If not set, autodetects the type.
             fp8_kvcache (Optional[bool]): enables FP8 KV-cache quantization. If not set, autodetects the type.
         """
@@ -292,6 +294,7 @@ class TensorRTLLM(ITritonDeployable):
                     pipeline_parallel_size=pipeline_parallelism_size,
                     use_parallel_embedding=use_parallel_embedding,
                     paged_kv_cache=paged_kv_cache,
+                    paged_context_fmha=paged_context_fmha,
                     remove_input_padding=remove_input_padding,
                     use_lora_plugin=use_lora_plugin,
                     lora_target_modules=lora_target_modules,
@@ -299,6 +302,7 @@ class TensorRTLLM(ITritonDeployable):
                     max_num_tokens=max_num_tokens,
                     opt_num_tokens=opt_num_tokens,
                     multiple_profiles=multiple_profiles,
+                    reduce_fusion=reduce_fusion,
                 )
             else:
                 if model_type is None:

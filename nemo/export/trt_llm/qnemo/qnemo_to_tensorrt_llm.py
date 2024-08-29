@@ -35,6 +35,7 @@ def qnemo_to_tensorrt_llm(
     pipeline_parallel_size: Optional[int] = None,
     use_parallel_embedding: bool = False,
     paged_kv_cache: bool = True,
+    paged_context_fmha: bool = False,
     remove_input_padding: bool = True,
     use_lora_plugin: Optional[str] = None,
     lora_target_modules: Optional[List[str]] = None,
@@ -43,6 +44,7 @@ def qnemo_to_tensorrt_llm(
     opt_num_tokens: Optional[int] = None,
     max_beam_width: int = 1,
     multiple_profiles: bool = False,
+    reduce_fusion: bool = True,
 ):
     """Build TensorRT-LLM engine with trtllm-build command in a subprocess."""
     assert not lora_target_modules, f"LoRA is not supported for quantized checkpoints, got {lora_target_modules}"
@@ -91,8 +93,10 @@ def qnemo_to_tensorrt_llm(
     build_cmd += f"--gpt_attention_plugin {config.dtype} "
     build_cmd += f"--nccl_plugin {config.dtype} "
     build_cmd += f"--paged_kv_cache {'enable' if paged_kv_cache else 'disable'} "
+    build_cmd += f"--use_paged_context_fmha {'enable' if paged_context_fmha else 'disable'} "
     build_cmd += f"--remove_input_padding {'enable' if remove_input_padding else 'disable'} "
     build_cmd += f"--multiple_profiles {'enable' if multiple_profiles else 'disable'} "
+    build_cmd += f"--reduce_fusion {'enable' if reduce_fusion else 'disable'} "
 
     if use_fused_mlp:
         build_cmd += "--use_fused_mlp " if "RecurrentGemma" not in config.architecture else ""
