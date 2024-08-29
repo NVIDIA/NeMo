@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+import os
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -33,6 +34,40 @@ if TYPE_CHECKING:
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
+
+def validate_dataset_asset_accessibility(paths):
+    if paths is None:
+        raise ValueError("Expected path to have a value.")
+
+    if isinstance(paths, tuple) or isinstance(paths, list):
+        for p in paths:
+            validate_dataset_asset_accessibility(p)
+        return
+    elif isinstance(paths, dict):
+        for p in paths.values():
+            validate_dataset_asset_accessibility(p)
+        return
+
+    if not isinstance(paths, str) and not isisntance(paths, Path):
+        raise ValueError("Expected path to be of string or Path type.")
+
+    path = Path(paths)
+    suffices = ('.bin', '.idx')
+    if path.is_dir():
+        if not os.access(path, os.R_OR):
+            raise PermissionError(f"Expected {str(file_path)} to be readable.")
+        # Will let the downstream class confirm contents are ok.
+        return
+    if path.exists():
+        if not os.access(path, os.R_OR):
+            raise PermissionError(f"Expected {str(file_path)} to be readable.")
+        return
+    for suffix in suffices:
+        file_path = Path(str(path) + suffix)
+        if not file_path.exists():
+            raise FileNotFoundError(f"Expected {str(file_path)} to exist.")
+        if not os.access(file_path, os.R_OK):
+            raise PermissionError(f"Expected {str(file_path)} to be readable.")
 
 class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
     """PyTorch Lightning-compatible data module for pre-training
@@ -99,6 +134,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             paths = [paths]
 
         from megatron.core.datasets.utils import get_blend_from_list
+
+        validate_dataset_asset_accessibility(paths)
 
         build_kwargs = {}
         if isinstance(paths, dict):
