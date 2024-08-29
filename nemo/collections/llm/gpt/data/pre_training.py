@@ -69,6 +69,7 @@ def validate_dataset_asset_accessibility(paths):
         if not os.access(file_path, os.R_OK):
             raise PermissionError(f"Expected {str(file_path)} to be readable.")
 
+
 class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
     """PyTorch Lightning-compatible data module for pre-training
        GPT-style models.
