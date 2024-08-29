@@ -14,9 +14,8 @@
 
 import base64
 import json
-import os
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional
 
 import numpy as np
 import tiktoken
