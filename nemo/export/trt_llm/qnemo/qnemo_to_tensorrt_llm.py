@@ -27,7 +27,6 @@ def qnemo_to_tensorrt_llm(
     nemo_checkpoint_path: str,
     engine_dir: str,
     max_input_len: int,
-    max_output_len: int,
     max_seq_len: Optional[int],
     max_batch_size: int,
     max_prompt_embedding_table_size: int,
@@ -84,7 +83,6 @@ def qnemo_to_tensorrt_llm(
     build_cmd += f"--workers {num_build_workers} "
     build_cmd += f"--max_batch_size {max_batch_size} "
     build_cmd += f"--max_input_len {max_input_len} "
-    build_cmd += f"--max_output_len {max_output_len} "
     build_cmd += f"--max_beam_width {max_beam_width} "
     build_cmd += f"--max_prompt_embedding_table_size {max_prompt_embedding_table_size} "
     build_cmd += f"--builder_opt {builder_opt} "
@@ -102,7 +100,7 @@ def qnemo_to_tensorrt_llm(
     if not use_qdq:
         build_cmd += f"--gemm_plugin {config.dtype} "
 
-    if max_seq_len:
+    if max_seq_len is not None:
         build_cmd += f"--max_seq_len {max_seq_len} "
 
     if max_num_tokens is not None:

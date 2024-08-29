@@ -148,7 +148,7 @@ class TensorRTLLM(ITritonDeployable):
         pipeline_parallelism_size: int = 1,
         gpus_per_node: Optional[int] = None,
         max_input_len: int = 256,
-        max_output_len: int = 256,
+        max_output_len: Optional[int] = 256,
         max_input_token: Optional[int] = None,
         max_output_token: Optional[int] = None,
         max_batch_size: int = 8,
@@ -202,7 +202,7 @@ class TensorRTLLM(ITritonDeployable):
             max_lora_rank (int): maximum lora rank.
             max_num_tokens (int):
             opt_num_tokens (int):
-            max_seq_len (int):
+            max_seq_len (int): the maximum sequence length of a single request.
             multiple_profiles: (bool): enables multiple profiles feature of TRT-LLM. Default = False
             gpt_attention_plugin (str): enable the gpt attention plugin. Default = "auto"
             gemm_plugin (str): enable the gpt plugin. Default = "auto"
@@ -259,8 +259,14 @@ class TensorRTLLM(ITritonDeployable):
             )
             max_output_len = max_output_token
 
-        if max_seq_len is None:
-            max_seq_len = max_input_len + max_output_len
+        if max_output_len is not None:
+            warnings.warn(
+                "Parameter max_output_len is deprecated and will be removed. Please use max_seq_len instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if max_seq_len is None:
+                max_seq_len = max_input_len + max_output_len
 
         if max_batch_size < 4:
             warnings.warn(
@@ -286,7 +292,6 @@ class TensorRTLLM(ITritonDeployable):
                     nemo_checkpoint_path=nemo_checkpoint_path,
                     engine_dir=self.model_dir,
                     max_input_len=max_input_len,
-                    max_output_len=max_output_len,
                     max_seq_len=max_seq_len,
                     max_batch_size=max_batch_size,
                     max_prompt_embedding_table_size=max_prompt_embedding_table_size,
