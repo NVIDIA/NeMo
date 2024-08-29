@@ -15,7 +15,6 @@
 import os
 import re
 import shutil
-from collections import OrderedDict
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Union
@@ -49,7 +48,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ``every_n_epochs`` or ``every_n_train_steps``.
         save_best_model: When ``True``, reloads and saves the best checkpoint.
         save_on_train_epoch_end: Whether to run checkpointing at the end of the training epoch
-        save_optim_on_train_end: TODO
         always_save_artifacts: Whether to dump the artifacts needed to reinintialize the current
             model, trainer, and dataloader to allow for reproducibility of experiments.
         save_artifacts_on_train_end: Whether to dump the artifacts on_train_end regardless of whether
@@ -74,8 +72,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         train_time_interval: Optional[timedelta] = None,
         save_best_model: bool = False,
         save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
-        save_last_n_optim_states: int = -1,
-        save_optim_on_train_end: Optional[bool] = False,
         always_save_artifacts: bool = False,
         save_artifacts_on_train_end: bool = True,
         try_restore_best_ckpt: bool = True,
@@ -85,15 +81,12 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self.previous_best_path = ""
         self.always_save_artifacts = always_save_artifacts
         self.save_artifacts_on_train_end = save_artifacts_on_train_end
-        self.save_last_n_optim_states = save_last_n_optim_states
-        self.save_optim_on_train_end = save_optim_on_train_end
 
         # Checkpoints which removal is deferred until async save is done.
         # Each element of `deferred_ckpts_to_remove` is a growing list
         # that `self._remove_checkpoint` adds to. Once `self._save_checkpoint`
         # is called, the last element is frozen and a new element is added.
         self.deferred_ckpts_to_remove: List[List[str]] = []
-        self.optimizerless_checkpoints = set()
         self.try_restore_best_ckpt = try_restore_best_ckpt
 
         # Call the parent class constructor with the remaining kwargs.
@@ -270,9 +263,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
         if trainer.fast_dev_run:
             return None
 
-        if not self.save_optim_on_train_end:
-            ## Do not include optimizer states in final checkpoint
-            trainer.strategy.ckpt_include_optimizer = False
+        ## Do not include optimizer states in final checkpoint
+        trainer.strategy.ckpt_include_optimizer = False
 
         # check if we need to save a last checkpoint manually as validation isn't always run based on the interval
         if self.save_last and trainer.val_check_interval != 0:
@@ -439,7 +431,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self._last_global_step_saved = trainer.global_step
 
         ## Do not include optimizer states in final checkpoint
-        if trainer.global_step == trainer.max_steps and not self.save_optim_on_train_end:
+        if trainer.global_step == trainer.max_steps:
             trainer.strategy.ckpt_include_optimizer = False
 
         if ema_callback is not None:
@@ -481,60 +473,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
             else:
                 finalize_fn()
 
-    ## TODO: storage_options
-    def _drop_optimizer_states(self, trainer, filepath: Union[str, Path]) -> None:
-        # Get list of saved checkpoints
-        checkpoints = self._get_checkpoints_list(filepath)
-
-        checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
-        if len(checkpoints) > self.save_last_n_optim_states:
-            checkpoint_path = checkpoints[checkpoint_index]
-
-            logging.info(f"Loading '{checkpoint_path}' checkpoint to drop optimizer states...")
-            ## TODO: clean
-            checkpoint = trainer.strategy.load_checkpoint(Path(checkpoint_path) / ModelCheckpoint.MODEL_WEIGHTS_PATH)
-
-            # Remove the checkpoint version with optimizer states
-            self._remove_checkpoint(trainer, checkpoint_path)
-
-            checkpoint['optimizer'] = [None]
-            checkpoint['state_dict'] = OrderedDict([])
-            checkpoint['sharded_state_dict'] = trainer.lightning_module.sharded_state_dict()
-
-            ## TODO: debug -- only working for some steps right now
-            # Save the checkpoint without optimizer states
-            trainer.strategy.save_checkpoint(checkpoint, Path(checkpoint_path) / ModelCheckpoint.MODEL_WEIGHTS_PATH)
-            self.optimizerless_checkpoints.add(checkpoint_path)
-
-            ## TODO
-            '''if HAVE_MODELOPT and hasattr(self.lightning_module, "get_model_module_list"):
-                save_sharded_modelopt_state(
-                    self.lightning_module.get_model_module_list(),
-                    checkpoint_path,
-                    self.unwrapped_checkpoint_io.save_sharded_strategy,
-                    prefix="model.",
-                )'''
-
-            logging.info(f"Successfully dropped optimizer states for '{checkpoint_path}' checkpoint.")
-
-    def _get_checkpoints_list(self, filepath: Union[str, Path]) -> List[str]:
-        # Get a list of saved checkpoints
-        checkpoint_dir = os.path.dirname(filepath)
-        ## note: we consider only the checkpoints whose optimizer states have not already been dropped
-        checkpoints = [
-            d
-            for d in os.listdir(checkpoint_dir)
-            if (
-                os.path.isdir(os.path.join(checkpoint_dir, d))
-                and '-last' not in d
-                and os.path.join(checkpoint_dir, d) not in self.optimizerless_checkpoints
-            )
-        ]
-        checkpoints = sorted(checkpoints, key=lambda x: (checkpoint_dir / Path(x)).lstat().st_mtime)
-        checkpoints = [os.path.join(checkpoint_dir, checkpoint) for checkpoint in checkpoints]
-
-        return checkpoints
-
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
     ):
@@ -554,9 +492,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
 
             if not self.async_save:
-                ## TODO: clean up
-                if self.save_last_n_optim_states >= 0 and '-last' in filepath:
-                    self._drop_optimizer_states(trainer=trainer, filepath=filepath)
                 return
 
             logging.info(f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully.')
@@ -568,10 +503,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
             logging.debug(f'Checkpoints to remove: {ckpts_to_remove}')
             for ckpt_to_remove in ckpts_to_remove:
                 self._remove_checkpoint(trainer, ckpt_to_remove, override_async=True)
-
-            if self.save_last_n_optim_states >= 0 and '-last' in filepath:
-                if is_global_rank_zero():
-                    self._drop_optimizer_states(trainer=trainer, filepath=filepath)
 
         return _cb
 
