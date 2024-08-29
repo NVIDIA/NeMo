@@ -1084,7 +1084,7 @@ class BeamRNNTInfer(Typing):
         # prepare the batched beam states
         beam = min(self.beam_size, self.vocab_size)
         beam_state = self.decoder.initialize_state(
-            torch.zeros(beam, device=h.device, dtype=h.dtype)
+            torch.zeros(1, device=h.device, dtype=h.dtype)
         )  # [L, B, H], [L, B, H] for LSTMS
 
         # Initialize first hypothesis for the beam (blank)
@@ -1106,8 +1106,8 @@ class BeamRNNTInfer(Typing):
                 hyp.alignments = [[]]
 
         # Decode a batch of beam states and scores
-        beam_dec_out, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(init_tokens, cache, beam_state)
-        state = self.decoder.batch_select_state(beam_state, 0)
+        beam_dec_out, beam_state = self.batch_score_hypothesis(init_tokens, cache)
+        state = beam_state[0]
 
         # Setup ngram LM:
         if self.ngram_lm:
@@ -1267,18 +1267,10 @@ class BeamRNNTInfer(Typing):
                     break
 
                 else:
-                    # Initialize the beam states for the hypotheses in the expannsion list
-                    beam_state = self.decoder.batch_initialize_states(
-                        beam_state,
-                        [hyp.dec_state for hyp in list_exp],
-                        # [hyp.y_sequence for hyp in list_exp],  # <look into when this is necessary>
-                    )
-
                     # Decode a batch of beam states and scores
-                    beam_dec_out, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(
+                    beam_dec_out, beam_state = self.batch_score_hypothesis(
                         list_exp,
                         cache,
-                        beam_state,
                         # self.language_model is not None,
                     )
 
@@ -1300,7 +1292,7 @@ class BeamRNNTInfer(Typing):
                         for i, hyp in enumerate(list_exp):
                             # Preserve the decoder logits for the current beam
                             hyp.dec_out.append(beam_dec_out[i])
-                            hyp.dec_state = self.decoder.batch_select_state(beam_state, i)
+                            hyp.dec_state = beam_state[i]
 
                             # TODO: Setup LM
                             if self.language_model is not None:
@@ -1325,7 +1317,7 @@ class BeamRNNTInfer(Typing):
 
                     else:
                         # Extract the log probabilities
-                        beam_logp, _ = self.resolve_joint_output(beam_enc_out, beam_dec_out)
+                        beam_logp, _ = self.resolve_joint_output(beam_enc_out, torch.stack(beam_dec_out))
                         beam_logp = beam_logp[:, 0, 0, :]
 
                         # For all expansions, add the score for the blank label
@@ -1334,7 +1326,7 @@ class BeamRNNTInfer(Typing):
 
                             # Preserve the decoder's output and state
                             hyp.dec_out.append(beam_dec_out[i])
-                            hyp.dec_state = self.decoder.batch_select_state(beam_state, i)
+                            hyp.dec_state = beam_state[i]
 
                             # TODO: Setup LM
                             if self.language_model is not None:
@@ -1478,6 +1470,72 @@ class BeamRNNTInfer(Typing):
 
             self.token_offset = DEFAULT_TOKEN_OFFSET
 
+    def batch_score_hypothesis(
+            self, hypotheses: List[Hypothesis], cache: Dict[Tuple[int], Any]
+        ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
+            """
+            Used for batched beam search algorithms. Similar to score_hypothesis method.
+
+            Args:
+                hypothesis: List of Hypotheses. Refer to rnnt_utils.Hypothesis.
+                cache: Dict which contains a cache to avoid duplicate computations.
+                batch_states: List of torch.Tensor which represent the states of the RNN for this batch.
+                    Each state is of shape [L, B, H]
+
+            Returns:
+                Returns a tuple (b_y, b_states, lm_tokens) such that:
+                b_y is a torch.Tensor of shape [B, 1, H] representing the scores of the last tokens in the Hypotheses.
+                b_state is a list of list of RNN states, each of shape [L, B, H].
+                Represented as B x List[states].
+                lm_token is a list of the final integer tokens of the hypotheses in the batch.
+            """
+            final_batch = len(hypotheses)
+
+            if final_batch == 0:
+                raise ValueError("No hypotheses was provided for the batch!")
+
+            parameter = next(self.decoder.parameters())
+            device = parameter.device
+
+            tokens = []
+            process = []
+            done = [None for _ in range(final_batch)]
+
+            # For each hypothesis, cache the last token of the sequence and the current states
+            for i, hyp in enumerate(hypotheses):
+                sequence = tuple(hyp.y_sequence)
+
+                if sequence in cache:
+                    done[i] = cache[sequence]
+                else:
+                    tokens.append(hyp.y_sequence[-1])
+                    process.append((sequence, hyp.dec_state))
+
+            if process:
+                batch = len(process)
+
+                # convert list of tokens to torch.Tensor, then reshape.
+                tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch, -1)
+                dec_states = self.decoder.batch_initialize_states(None, [d_state for seq, d_state in process])
+
+                y, dec_states = self.decoder.predict(
+                    tokens, state=dec_states, add_sos=False, batch_size=batch
+                )  # [B, 1, H], List([L, 1, H])
+
+            # Update done states and cache shared by entire batch.
+            j = 0
+            for i in range(final_batch):
+                if done[i] is None:
+                    # Select sample's state from the batch state list
+                    new_state = self.decoder.batch_select_state(dec_states, j)
+
+                    # Cache [1, H] scores of the current y_j, and its corresponding state
+                    done[i] = (y[j], new_state)
+                    cache[process[j][0]] = (y[j], new_state)
+
+                    j += 1
+
+            return [y_j for y_j, d_state in done], [d_state for y_j, d_state in done]
 
 @dataclass
 class BeamRNNTInferConfig:
