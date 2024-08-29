@@ -41,22 +41,15 @@ class Llava1_5Config7B(LlavaConfig):
         input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
 
 
-# @dataclass
-# class Llava1_5Config13B(LlavaConfig):
-#     num_layers: int = 40
-#     hidden_size: int = 5120
-#     num_attention_heads: int = 40
-#     num_query_groups: int = 40
-#     ffn_hidden_size: int = 13824
-#
-#
-# @dataclass
-# class Llava1_5Config70B(LlavaConfig):
-#     num_layers: int = 80
-#     hidden_size: int = 8192
-#     num_attention_heads: int = 64
-#     num_query_groups: int = 8
-#     ffn_hidden_size: int = 28672
+@dataclass
+class Llava1_5Config13B(LlavaConfig):
+    from transformers import PretrainedConfig
+    language_transformer_config: TransformerConfig = Llama2Config7B()
+    vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = HFCLIPVisionConfig(
+        pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+    )
+    vision_projection_config: TransformerConfig = MultimodalProjectorConfig(
+        input_size=1024, hidden_size=5120, ffn_hidden_size=5120)
 
 
 class LlavaModel(NevaModel):
@@ -124,7 +117,6 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
 
         source = HFLlavaConfig.from_pretrained(str(self))
         text_conifg = source.text_config
-        vision_config = source.vision_config
         def make_vocab_size_divisible_by(vocab_size):
             base = 128
             while vocab_size % base != 0:
@@ -163,6 +155,8 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
 @io.model_exporter(LlavaModel, "hf")
 class HFLlavaExporter(io.ModelConnector[LlavaModel, "LlavaForConditionalGeneration"]):
     def init(self) -> "LlavaForConditionalGeneration":
+        raise NotImplementedError("Neva Exporter hasn't been verified!")
+
         from transformers import AutoModelForCausalLM
 
         return AutoModelForCausalLM.from_config(self.config)

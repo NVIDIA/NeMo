@@ -105,14 +105,17 @@ class Conversation:
 
         elif self.sep_style == SeparatorStyle.TWO:
             """
-            <s>[INST] <<SYS>>
-            A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.
-            <</SYS>>
-            
-            {{ user_message_1 }} [/INST] {{ model_answer_1 }} </s><s>[INST] {{ user_message_2 }} [/INST]
+            A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions. USER: {{ user_message_1 }} ASSISTANT: {{ model_answer_1 }}</s>USER: {{ user_message_2 }}
             """
-            tokenizer_name_or_path = self.tokenizer_name_or_path or "lmsys/vicuna-7b-v1.5"
-            ret = self.process_chat_template(tokenizer_name_or_path, messages)
+            seps = [self.sep, self.sep2]
+            ret = self.system + seps[0]
+            for i, (role, message) in enumerate(messages):
+                if message:
+                    if type(message) is tuple:
+                        message, _, _ = message
+                    ret += role + ": " + message + seps[i % 2]
+                else:
+                    ret += role + ":"
 
         elif self.sep_style == SeparatorStyle.MISTRAL and self.version == "vila":
             """
@@ -425,7 +428,7 @@ conv_vicuna_v1 = Conversation(
     sep_style=SeparatorStyle.TWO,
     sep=" ",
     sep2="</s>",
-    stop_str=" </s>",
+    stop_str="</s>",
 )
 
 conv_llama_2 = Conversation(

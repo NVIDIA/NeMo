@@ -307,7 +307,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                     class_token_len=0 if "siglip" in vision_config.model_type else 1,
                 )
             else:
-                raise NotImplementedError
+                self._img_seq_len = 576  # TODO(yuya): Fix hardcode
         else:
             self._img_seq_len = 0
 
@@ -536,7 +536,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # media is in shape of (num_images_in_mbs, c, h, w)
             # note num_images_in_mbs is not mbs but total images in this mbs.
             if self.vision_model_from_hf:
-                media_embeddings = self.vision_model(media, output_hidden_states=True)  # [b, img_seq_len, h_vision]
+                media_embeddings = self.vision_model(media, output_hidden_states=True)  # [num_images, img_seq_len, h_vision]
                 media_embeddings = media_embeddings[-1][self.config.vision_feature_layer]  # take second from last layer
             else:
                 media_embeddings = self.vision_model(media)
@@ -575,21 +575,26 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 1, 0
             ).contiguous()  # [b, text_seq_len, h_language]
 
-        # Assume 1 tile per image if the number of tiles is not provided.
-        if num_media_tiles is None:
-            num_media_tiles = torch.ones(media.shape[0], dtype=torch.int, device=input_ids.device)
+        if media is None:
+            combined_embeddings = language_embeddings.transpose(1, 0).contiguous()
+            final_labels = labels
+            final_loss_mask = loss_mask
+        else:
+            # Assume 1 tile per image if the number of tiles is not provided.
+            if num_media_tiles is None:
+                num_media_tiles = torch.ones(media.shape[0], dtype=torch.int, device=input_ids.device)
 
-        # Preprocess input, labels and loss mask.
-        combined_embeddings, final_labels, final_loss_mask = self._preprocess_data(
-            media_embeddings,
-            language_embeddings,
-            input_ids,
-            loss_mask,
-            labels,
-            use_inference_kv_cache,
-            media_token_index,
-            num_media_tiles,
-        )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
+            # Preprocess input, labels and loss mask.
+            combined_embeddings, final_labels, final_loss_mask = self._preprocess_data(
+                media_embeddings,
+                language_embeddings,
+                input_ids,
+                loss_mask,
+                labels,
+                use_inference_kv_cache,
+                media_token_index,
+                num_media_tiles,
+            )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
         output = self.language_model(
             input_ids=None,

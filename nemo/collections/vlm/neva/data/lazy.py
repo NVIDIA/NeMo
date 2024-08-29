@@ -239,10 +239,10 @@ def tokenize_special_token(prompt, tokenizer, special_token_map=None):
     return torch.tensor(tokenized_chunks, dtype=torch.long)
 
 
-def find_pattern_indices(template, pattern, allow_first_token_mismatch=False):
+def find_pattern_indices(template, pattern, search_start_index=0, allow_first_token_mismatch=False):
     template_len = len(template)
     pattern_len = len(pattern)
-    for i in range(template_len - pattern_len + 1):
+    for i in range(search_start_index, template_len - pattern_len + 1):
         match = template[i:i + pattern_len] == pattern
         if torch.all(match) or (allow_first_token_mismatch and torch.all(match[1:])):
             return i, i + pattern_len
@@ -331,8 +331,6 @@ class LazySupervisedDataset(Dataset):
             assert role == conv.roles[j % 2], f"{j}"
             conv.append_message(role, sentence["value"])
 
-        conv.messages = conv.messages[:2]
-
         if use_plain:
             assert len(conv.messages) == 2, "Plain template requires image-caption pairs."
             assert "<image>" in conv.messages[0][1]
@@ -343,15 +341,17 @@ class LazySupervisedDataset(Dataset):
     def _tokenize_and_label(self, conversations):
         tokens = tokenize_special_token(conversations, self.tokenizer)
         labels = torch.ones_like(tokens) * IGNORE_INDEX
-
+        search_start_index = 0
         for i in range(1, len(self.conv.messages), 2):
-            stop_str = getattr(self.conv, "stop_str")
+            stop_str = getattr(self.conv, "stop_str", None)
+            assert stop_str is not None, "If `stop_str` is not provided, issues might occur in labeling the answer tokens."
             answer_tokens = self.tokenizer.encode(
                 self.conv.messages[i][1] + ("" if stop_str is None else stop_str),
                 add_special_tokens=False,
                 return_tensors="pt")[0]
-            answer_start, answer_end = find_pattern_indices(tokens, answer_tokens)
+            answer_start, answer_end = find_pattern_indices(tokens, answer_tokens, search_start_index)
             labels[answer_start:answer_end] = tokens[answer_start:answer_end]
+            search_start_index = answer_end
         tokens = tokens[:-1]
         labels = labels[1:]
         return tokens, labels
@@ -430,18 +430,22 @@ class NevaDataset(LazySupervisedDataset):
                 pad_tensor = torch.zeros(num_pad, *x.shape[1:], dtype=x.dtype, device=x.device)
                 instance['image'] = torch.cat((x, pad_tensor), dim=0)
 
+        media_type = data_config.media_type
+        if media_type == 'image':
+            media = [instance.pop('image') for instance in instances]
+            media = torch.cat(media, dim=0)
+            if media.size(0) == 0:
+                media = None
+        elif media_type == 'video':
+            media = [instance.pop('video', None) for instance in instances]
+        else:
+            raise ValueError(f"Unsupported media type {media_type}")
+
         batch = default_collate(instances)
         tokenizer = self.tokenizer
 
         tokens = batch['tokens']
         labels = batch['labels']
-        media_type = data_config.media_type
-        if media_type == 'image':
-            media = batch.get('image')
-        elif media_type == 'video':
-            media = batch.get('video')
-        else:
-            raise ValueError(f"Unsupported media type {media_type}")
 
         if packed_sequence:
             cu_seqlens = batch["cu_seqlens"]
@@ -464,14 +468,6 @@ class NevaDataset(LazySupervisedDataset):
             )
 
         loss_mask[labels < 0] = 0.0
-
-        if media is None:
-            raise NotImplementedError
-        else:
-            if media_type == 'image':
-                media = rearrange(media, "b T c h w -> (b T) c h w")
-        #     elif media_type == 'video':
-        #         media = rearrange(media, "b T F c h w -> b T F c h w")
 
         batch = {
             'tokens': tokens,
