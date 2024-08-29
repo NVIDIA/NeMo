@@ -36,6 +36,7 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 
+# from transformers import AutoModel
 
 def get_padding(kernel_size: int, dilation: int = 1) -> int:
     return (kernel_size * dilation - dilation) // 2
@@ -54,6 +55,82 @@ def get_up_sample_padding(kernel_size: int, stride: int) -> Tuple[int, int]:
     output_padding = (kernel_size - stride) % 2
     padding = (kernel_size - stride + 1) // 2
     return padding, output_padding
+
+
+class SSLModel(NeuralModule):
+    def __init__(self, slm_model_name):
+        super().__init__()
+        self.ssl_model = AutoModel.from_pretrained(slm_model_name)
+
+    def forward(self, *args, **kwargs):
+        return self.ssl_model(*args, **kwargs)
+ 
+class SLMDiscriminator(NeuralModule):
+    """SLM Discriminator as in StyleTTS2 paper.
+    Adapted from https://github.com/yl4579/StyleTTS2/blob/5cedc71c333f8d8b8551ca59378bdcc7af4c9529/losses.py#L193
+    
+    Args:
+        slm_model_name: Hugging Face Speech Language Models name.
+        slm_sr: Speech Language Models input sampling rate.
+        input_sr: Audio input sampling rate.
+        slm_hidden: Speech Language Model hidden dim.
+        slm_layers: Speech Language Model number of layers.
+        initial_channel: discriminative head number of channels.
+        use_spectral_norm: If True uses spectral normalization otherwise uses weight norm.
+
+    """
+
+    def __init__(self,
+                slm_model_name="microsoft/wavlm-base-plus",
+                slm_sr=16000,
+                input_sr=22050,
+                slm_hidden=768, 
+                slm_layers=13, 
+                initial_channel=64, 
+                use_spectral_norm=False):
+        super().__init__()
+
+        self.slm_model = SSLModel(slm_model_name)
+        self.slm_model.ssl_model.feature_extractor._requires_grad = False
+
+        # Freeze slm model
+        self.slm_model.freeze()
+
+        self.resample = torchaudio.transforms.Resample(input_sr, slm_sr)
+
+        norm_f = weight_norm if use_spectral_norm == False else spectral_norm
+        self.pre = norm_f(nn.Conv1d(slm_hidden * slm_layers, initial_channel, 1, 1, padding=0))
+        
+        self.convs = nn.ModuleList([
+            norm_f(nn.Conv1d(initial_channel, initial_channel * 2, kernel_size=5, padding=2)),
+            norm_f(nn.Conv1d(initial_channel * 2, initial_channel * 4, kernel_size=5, padding=2)),
+            norm_f(nn.Conv1d(initial_channel * 4, initial_channel * 4, 5, 1, padding=2)),
+        ])
+
+        self.conv_post = norm_f(nn.Conv1d(initial_channel * 4, 1, 3, 1, padding=1))
+
+    def _forward(self, x):
+        x = self.slm_model(input_values=self.resample(x), output_hidden_states=True).hidden_states
+        x = torch.stack(x, dim=1).transpose(-1, -2).flatten(start_dim=1, end_dim=2)
+
+        x = self.pre(x)
+        fmap = []
+        for l in self.convs:
+            x = l(x)
+            x = F.leaky_relu(x, 0.1)
+            fmap.append(x.unsqueeze(-1))
+
+        x = self.conv_post(x)
+        x = torch.flatten(x, 1, -1)
+
+        return x, fmap
+
+    def forward(self, audio_real, audio_gen):
+
+        y_d_r, fmap_r = self._forward(audio_real)
+        y_d_g, fmap_g = self._forward(audio_gen)
+
+        return [y_d_r.unsqueeze(1)], [y_d_g.unsqueeze(1)], [fmap_r], [fmap_g]
 
 
 class CodecActivation(nn.Module):
