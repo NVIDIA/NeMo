@@ -45,9 +45,6 @@ def trainer(
         virtual_pipeline_model_parallel_size=virtual_pipeline_parallelism,
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
-        optimizations_cfg=nl.OptimizationsConfig(
-            tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
-        ),
         gradient_as_bucket_view=True,
         ckpt_include_optimizer=True,
         ckpt_async_save=True,
@@ -98,6 +95,20 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+def pretrain_recipe_performance(
+        name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
+) -> Partial:
+    trainer = pretrain_recipe(
+        name=name,
+        ckpt_dir=ckpt_dir,
+        num_nodes=num_nodes,
+        num_gpus_per_node=num_gpus_per_node,
+        fn=fn
+    )
+    trainer.strategy.comm_overlap_cfg.tp_comm_overlap = True
+    trainer.strategy.comm_overlap_cfg.tp_comm_overlap_cfg = userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
+
+    return trainer
 
 def hf_resume() -> Config[nl.AutoResume]:
     return Config(nl.AutoResume, import_path="hf://meta-llama/Meta-Llama-3.1-70B")
