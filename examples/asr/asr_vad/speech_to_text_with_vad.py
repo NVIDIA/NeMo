@@ -105,9 +105,9 @@ class InferenceConfig:
     use_rttm: bool = True  # whether to use RTTM
     rttm_mode: str = "mask"  # how to use RTTM files, choices=[`mask`, `drop`]
     feat_mask_val: Optional[float] = None  # value used to mask features based on RTTM, set None to use defaults
-    normalize: Optional[
-        str
-    ] = "post_norm"  # whether and where to normalize audio feature, choices=[None, `pre_norm`, `post_norm`]
+    normalize: Optional[str] = (
+        "post_norm"  # whether and where to normalize audio feature, choices=[None, `pre_norm`, `post_norm`]
+    )
     normalize_type: str = "per_feature"  # how to determine mean and std used for normalization
     normalize_audio_db: Optional[float] = None  # set to normalize RMS DB of audio before extracting audio features
 
@@ -117,7 +117,9 @@ class InferenceConfig:
     batch_size: int = 1  # batch size for ASR. Feature extraction and VAD only support single sample per batch.
     num_workers: int = 8
     sample_rate: int = 16000
-    frame_unit_time_secs: float = 0.01  # unit time per frame in seconds, equal to `window_stride` in ASR configs, typically 10ms.
+    frame_unit_time_secs: float = (
+        0.01  # unit time per frame in seconds, equal to `window_stride` in ASR configs, typically 10ms.
+    )
     audio_type: str = "wav"
 
     # Output settings, no need to change
@@ -263,7 +265,9 @@ def extract_audio_features(manifest_filepath: str, cfg: DictConfig, record_fn: C
             'vad_stream': False,
             'sample_rate': cfg.sample_rate,
             'manifest_filepath': manifest_filepath,
-            'labels': ['infer',],
+            'labels': [
+                'infer',
+            ],
             'num_workers': cfg.num_workers,
             'shuffle': False,
             'normalize_audio_db': cfg.normalize_audio_db,
@@ -277,7 +281,8 @@ def extract_audio_features(manifest_filepath: str, cfg: DictConfig, record_fn: C
             with autocast():
                 with record_fn("feat_extract_infer"):
                     processed_signal, processed_signal_length = vad_model.preprocessor(
-                        input_signal=test_batch[0], length=test_batch[1],
+                        input_signal=test_batch[0],
+                        length=test_batch[1],
                     )
                 with record_fn("feat_extract_other"):
                     processed_signal = processed_signal.squeeze(0)[:, :processed_signal_length]
@@ -317,7 +322,9 @@ def run_vad_inference(manifest_filepath: str, cfg: DictConfig, record_fn: Callab
     test_data_config = {
         'vad_stream': True,
         'manifest_filepath': manifest_filepath,
-        'labels': ['infer',],
+        'labels': [
+            'infer',
+        ],
         'num_workers': cfg.num_workers,
         'shuffle': False,
         'window_length_in_sec': vad_cfg.vad.parameters.window_length_in_sec,
@@ -585,7 +592,11 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
                     with record_fn("asr_infer_other"):
                         logits, logits_len = outputs[0], outputs[1]
 
-                        current_hypotheses, all_hyp = decode_function(logits, logits_len, return_hypotheses=False,)
+                        current_hypotheses, all_hyp = decode_function(
+                            logits,
+                            logits_len,
+                            return_hypotheses=False,
+                        )
                         if isinstance(current_hypotheses, tuple) and len(current_hypotheses) == 2:
                             current_hypotheses = current_hypotheses[0]  # handle RNNT output
 
