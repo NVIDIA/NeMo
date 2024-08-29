@@ -98,7 +98,6 @@ def get_args():
 
 # function to trim model layers
 def trim_layers(model, layers_to_trim):
-dimapihtar marked this conversation as resolved.
     for name, module in model.named_modules():
         if isinstance(module, TransformerBlock):
             print(f'Removing from {name} {len(layers_to_trim)} of {len(module.layers)} layers')
