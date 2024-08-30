@@ -44,7 +44,6 @@ def trainer(
         virtual_pipeline_model_parallel_size=virtual_pipeline_parallelism,
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
-        tp_comm_overlap=False,
         gradient_as_bucket_view=True,
         ckpt_include_optimizer=True,
         ckpt_async_save=True,

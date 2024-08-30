@@ -164,7 +164,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         ddp_config: Optional[DistributedDataParallelConfig] = None,
         cpu: bool = False,
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
-        tensor_parallel_overlap_config: dict = None,
     ) -> None:
         from megatron.core import parallel_state
         from megatron.core.tensor_parallel import set_defaults_if_not_set_tensor_model_parallel_attributes
