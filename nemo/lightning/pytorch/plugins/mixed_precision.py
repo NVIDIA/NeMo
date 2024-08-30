@@ -29,7 +29,7 @@ AnyT = TypeVar("AnyT")
 
 def get_optim_config(optimizer: Optimizer):
     try:
-        return optimizer.mcore_optimizer.config if hasattr(optimizer, "mcore_optimizer") else optimizer.config
+        return optimizer.mcore_optimizer.config
     except:
         raise ValueError("Failed to extract optimizer config from module.")
 
@@ -150,17 +150,9 @@ class MegatronMixedPrecision(Precision):
 
         """
         # Expert model parallelism
-        from megatron.core.optimizer import ChainedOptimizer
-
-        if isinstance(optimizer.mcore_optimizer, ChainedOptimizer):
-            for opt in optimizer.mcore_optimizer.chained_optimizers:
-                optim_config = get_optim_config(opt)
-                assert optim_config.bf16 == self.dtype_config.bf16
-                assert optim_config.fp16 == self.dtype_config.fp16
-        else:
-            optim_config = get_optim_config(optimizer)
-            assert optim_config.bf16 == self.dtype_config.bf16, "BF16 enabled on model but not on optimizer"
-            assert optim_config.fp16 == self.dtype_config.fp16, "BF16 enabled on model but not on optimizer"
+        optim_config = get_optim_config(optimizer)
+        assert optim_config.bf16 == self.dtype_config.bf16, "BF16 enabled on model but not on optimizer"
+        assert optim_config.fp16 == self.dtype_config.fp16, "BF16 enabled on model but not on optimizer"
         return optimizer
 
     def convert_input(self, data: AnyT) -> AnyT:

@@ -23,7 +23,7 @@ def pretrain_recipe(
     model.config.seq_length = 16384
 
     trainer = llama3_70b.trainer(
-        tensor_parallelism=2,
+        tensor_parallelism=4,
         pipeline_parallelism=4,
         pipeline_parallelism_type=torch.bfloat16,
         virtual_pipeline_parallelism=5,

@@ -19,8 +19,8 @@ from nemo.utils.exp_manager import TimingCallback
 NAME = "mixtral_8x7b"
 
 
-def model(model_config=MixtralConfig8x7B) -> Config[pl.LightningModule]:
-    return Config(MixtralModel, config=Config(model_config))
+def model() -> Config[pl.LightningModule]:
+    return Config(MixtralModel, config=Config(MixtralConfig8x7B))
 
 
 def trainer(
