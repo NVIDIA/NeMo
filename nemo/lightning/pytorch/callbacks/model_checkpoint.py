@@ -294,9 +294,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
             else:
                 if os.path.isdir(self.best_model_path.split('.ckpt')[0]):
-                    self.best_model_path = (
-                        Path(self.best_model_path.split('.ckpt')[0]) / ModelCheckpoint.WEIGHTS_PATH
-                    )
+                    self.best_model_path = Path(self.best_model_path.split('.ckpt')[0]) / ModelCheckpoint.WEIGHTS_PATH
                 if self.try_restore_best_ckpt:
                     self.best_model_path = trainer.strategy.broadcast(self.best_model_path)
                     trainer._checkpoint_connector.restore(self.best_model_path)
