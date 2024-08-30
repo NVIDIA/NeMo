@@ -1,3 +1,4 @@
+import logging
 import shutil
 from collections import OrderedDict
 from pathlib import Path
@@ -7,6 +8,7 @@ import pytorch_lightning as pl
 import torch
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.strategies.fsdp import _get_sharded_state_dict_context
+from megatron.core import dist_checkpointing
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from pytorch_lightning.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
 from pytorch_lightning.trainer.states import TrainerFn
@@ -193,7 +195,14 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         for optim_state in checkpoint['optimizer_states']:
             optim_state.pop("state")
 
-        if self.trainer.state.fn == TrainerFn.FITTING and self.ckpt_include_optimizer:
+        ## only save optimizer states if self.ckpt_include_optimizer and storage_options["include_optimizer"]
+        ## are both True
+        include_optimizer = self.ckpt_include_optimizer
+        if "include_optimizer" in storage_options:
+            include_optimizer = include_optimizer and storage_options["include_optimizer"]
+            del storage_options["include_optimizer"]
+
+        if self.trainer.state.fn == TrainerFn.FITTING and include_optimizer:
             checkpoint['optimizer'] = get_optimizer_state_dict(self.model, self.optimizers)
             pyt_to_mcore_state_dict(checkpoint['optimizer']['state'], prefix="optimizer.state.")
 
@@ -224,7 +233,12 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
             pyt_to_mcore_state_dict(msd)
             sharded_state_dict["sharded_state_dict"] = msd
 
-        if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
+        common_state_dict = dist_checkpointing.load_common_state_dict(checkpoint_path)
+        has_optim = "optimizer" in common_state_dict
+        if not has_optim:
+            logging.warn('Checkpoint is missing optimizer state. Restoring only the model weights.')
+
+        if has_optim and self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
             osd = get_optimizer_state_dict(self.model, self.optimizers, options=StateDictOptions(cpu_offload=True))
             pyt_to_mcore_state_dict(osd['state'], prefix="optimizer.state.")
             sharded_state_dict["optimizer"] = osd

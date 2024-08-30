@@ -631,7 +631,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         common_state_dict = dist_checkpointing.load_common_state_dict(checkpoint_path)
         has_optim = "optimizer" in common_state_dict
-        logging.info('Checkpoint is missing optimizer state. Restoring only the model weights.')
+        if not has_optim:
+            logging.warn('Checkpoint is missing optimizer state. Restoring only the model weights.')
 
         if has_optim and self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
             if self.lightning_module.optimizers(use_pl_optimizer=False):

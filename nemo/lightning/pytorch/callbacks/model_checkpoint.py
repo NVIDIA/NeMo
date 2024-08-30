@@ -48,6 +48,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ``every_n_epochs`` or ``every_n_train_steps``.
         save_best_model: When ``True``, reloads and saves the best checkpoint.
         save_on_train_epoch_end: Whether to run checkpointing at the end of the training epoch
+        save_optim_on_train_end: Whether to include the optimizer states in the final checkpoint
+            at the end of training.
         always_save_context: Whether to dump the artifacts needed to reinintialize the current
             model, trainer, and dataloader to allow for reproducibility of experiments.
         save_context_on_train_end: Whether to dump the artifacts on_train_end regardless of whether
@@ -72,6 +74,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         train_time_interval: Optional[timedelta] = None,
         save_best_model: bool = False,
         save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
+        save_optim_on_train_end: Optional[bool] = False,
         always_save_context: bool = False,
         save_context_on_train_end: bool = True,
         try_restore_best_ckpt: bool = True,
@@ -81,6 +84,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self.previous_best_path = ""
         self.always_save_context = always_save_context
         self.save_context_on_train_end = save_context_on_train_end
+        self.save_optim_on_train_end = save_optim_on_train_end
 
         # Checkpoints which removal is deferred until async save is done.
         # Each element of `deferred_ckpts_to_remove` is a growing list
@@ -442,7 +446,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
             ## Do not include optimizer states in final checkpoint
-            storage_options = dict(include_optimizer=(trainer.global_step < trainer.max_steps))
+            storage_options = dict(include_optimizer=(trainer.global_step < trainer.max_steps or self.save_optim_on_train_end))
 
             # Async save passes the finalization function to checkpoint_io,
             # sync save calls the finalization function immediately after save.
