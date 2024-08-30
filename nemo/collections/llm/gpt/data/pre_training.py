@@ -54,13 +54,13 @@ def validate_dataset_asset_accessibility(paths):
     path = Path(paths)
     suffices = ('.bin', '.idx')
     if path.is_dir():
-        if not os.access(path, os.R_OR):
-            raise PermissionError(f"Expected {str(file_path)} to be readable.")
+        if not os.access(path, os.R_OK):
+            raise PermissionError(f"Expected {str(path)} to be readable.")
         # Will let the downstream class confirm contents are ok.
         return
     if path.exists():
-        if not os.access(path, os.R_OR):
-            raise PermissionError(f"Expected {str(file_path)} to be readable.")
+        if not os.access(path, os.R_OK):
+            raise PermissionError(f"Expected {str(path)} to be readable.")
         return
     for suffix in suffices:
         file_path = Path(str(path) + suffix)
