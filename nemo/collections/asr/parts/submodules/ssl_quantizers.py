@@ -23,143 +23,7 @@ from torch import nn
 
 from nemo.collections.asr.parts.submodules.jasper import jasper_activations
 from nemo.core import NeuralModule
-from nemo.core.neural_types import EncodedRepresentation, LabelsType, LossType, NeuralType, SpectrogramType
-
-
-class RandomProjectionVectorQuantizer(NeuralModule):
-    DIST_FN_LIST = ["l2", "cosine"]
-
-    def __init__(
-        self,
-        feat_dim: int,
-        hidden_dim: int,
-        num_classes: int,
-        num_books: int,
-        dist_fn: str = "cosine",
-        time_ahead: bool = False,
-        freeze: bool = True,
-        squeeze_single: bool = False,
-    ):
-        """Vector quantization using random projection
-
-         Args:
-            feat_dim: input feature dimension
-            hidden_dim: hidden dimension of the projection
-            num_classes: number of classes
-            num_books: number of codebooks
-            dist_fn: distance function to use, one of "l2" or "cosine"
-            time_ahead: if Ture, the input is of shape (B, T, D), otherwise (B, D, T)
-            freeze: whether to freeze the projection matrix
-            squeeze_single: if True, squeeze codebook dimension if num_books is 1
-        """
-        super().__init__()
-
-        if dist_fn not in self.DIST_FN_LIST:
-            raise ValueError(f"Unknown distance function {dist_fn}, must be one of {self.DIST_FN_LIST}")
-
-        self.feat_dim = feat_dim
-        self.hidden_dim = hidden_dim
-        self.num_classes = num_classes
-        self.num_books = num_books
-        self.dist_fn = dist_fn
-        self.time_ahead = time_ahead
-        self.squeeze_single = squeeze_single
-
-        # (B, T, D) -> (B, T, num_books, hidden_dim)
-        self.proj = nn.Linear(self.feat_dim, self.num_books * self.hidden_dim, bias=False).requires_grad_(not freeze)
-        torch.nn.init.xavier_normal_(self.proj.weight)
-
-        # (num_books, num_classes, hid_dim)
-        codebooks = nn.Parameter(torch.FloatTensor(self.num_books, self.num_classes, self.hidden_dim)).requires_grad_(
-            not freeze
-        )
-        torch.nn.init.normal_(codebooks, mean=0, std=1)
-        self.codebooks = F.normalize(codebooks, dim=-1)
-
-    @property
-    def input_types(self):
-        """Returns definitions of module input ports.
-        """
-        if self.time_ahead:
-            return {"x": NeuralType(('B', 'T', 'D'), SpectrogramType())}
-        return {"x": NeuralType(('B', 'D', 'T'), SpectrogramType())}
-
-    @property
-    def output_types(self):
-        """Returns definitions of module output ports.
-        """
-        if self.time_ahead:
-            if self.num_books == 1 and self.squeeze_single:
-                return {
-                    "xq": NeuralType(('B', 'T', 'D'), SpectrogramType()),
-                    "xid": NeuralType(('B', 'T'), LabelsType()),
-                }
-            return {
-                "xq": NeuralType(('B', 'T', 'D', 'C'), SpectrogramType()),
-                "xid": NeuralType(('B', 'T', 'C'), LabelsType()),
-            }
-        if self.num_books == 1 and self.squeeze_single:
-            return {
-                "xq": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-                "xid": NeuralType(('B', 'T'), LabelsType()),
-            }
-        return {
-            "xq": NeuralType(('B', 'D', 'T', 'C'), SpectrogramType()),
-            "xid": NeuralType(('B', 'T', 'C'), LabelsType()),
-        }
-
-    def forward(self, x):
-        """
-        Args:
-            x: input features of shape (B, T, D) or (B, D, T)
-        Returns:
-            xq: quantized features of shape (B, T, D, N) or (B, D, T, N)
-            xid: quantized tokens of shape (B, T, N)
-        """
-        if not self.time_ahead:
-            # (B, D, T) -> (B, T, D)
-            x = x.transpose(1, 2)
-
-        B, T, _ = x.size()
-
-        # (B, T, D) -> (B, T, num_books*hidden_dim)
-        x = self.proj(x)
-
-        # (B, T, num_books*hidden_dim) -> (B, T, num_books, hidden_dim)
-        x = F.normalize(x.view(B, T, self.num_books, self.hidden_dim), dim=-1)
-
-        # get tokens (xid) of shape (B, T, num_books)
-        if self.dist_fn == "cosine":
-            # (B, T, num_books, hidden_dim) -> (B, T, num_books, num_classes)
-            xid = torch.einsum('btdh,dch->btdc', x, self.codebooks)
-            # (B, T, num_books, num_classes) -> (B, T, num_books)
-            xid = xid.max(dim=-1)[1]
-        elif self.dist_fn == "l2":
-            # (B, T, num_books, hidden_dim) -> (B, T, num_books, hidden_dim, num_classes)
-            xid = x.unsqueeze(-1) - self.codebooks.transpose(1, 2).unsqueeze(0).unsqueeze(0)
-            xid = xid.norm(dim=-2).argmin(dim=-1)
-        else:
-            raise ValueError(f"Unknown distance function {self.dist_fn}, must be one of {self.DIST_FN_LIST}")
-
-        # xid2: (B, T, num_books) -> (B, T, num_books)
-        xid2 = xid + self.num_classes * torch.arange(self.num_books, device=xid.device).unsqueeze(0).unsqueeze(0)
-        # xid2: (B, T, num_books) -> (B*num_books, T)
-        xid2 = xid2.transpose(1, 2).contiguous().view(-1, T)
-
-        # get quantized vector (xq) of shape (B, T, hidden_dim, num_books)
-        # codebook: (num_books, num_classes, hidden_dim) -> (num_books*num_classes, hidden_dim)
-        xq = F.embedding(xid2.view(-1), self.codebooks.view(-1, self.hidden_dim)).view(
-            B, T, self.hidden_dim, self.num_books
-        )
-
-        if not self.time_ahead:
-            # (B, T, D) -> (B, D, T)
-            xq = xq.transpose(1, 2)
-
-        if self.num_books == 1 and self.squeeze_single:
-            xq = xq.squeeze(-1)
-            xid = xid.squeeze(-1)
-        return xq, xid
+from nemo.core.neural_types import EncodedRepresentation, LossType, NeuralType
 
 
 class GumbelVectorQuantizer(NeuralModule):
@@ -230,7 +94,7 @@ class GumbelVectorQuantizer(NeuralModule):
         self.codebook_indices = None
 
     def set_num_updates(self, num_updates):
-        self.curr_temp = max(self.max_temp * self.temp_decay ** num_updates, self.min_temp)
+        self.curr_temp = max(self.max_temp * self.temp_decay**num_updates, self.min_temp)
 
     def get_codebook_indices(self):
         if self.codebook_indices is None:
@@ -241,7 +105,7 @@ class GumbelVectorQuantizer(NeuralModule):
             self.codebook_indices = torch.tensor(inds, dtype=torch.long, device=self.vars.device).flatten()
 
             if not self.combine_groups:
-                self.codebook_indices = self.codebook_indices.view(self.num_vars ** self.groups, -1)
+                self.codebook_indices = self.codebook_indices.view(self.num_vars**self.groups, -1)
                 for b in range(1, self.groups):
                     self.codebook_indices[:, b] += self.num_vars * b
                 self.codebook_indices = self.codebook_indices.flatten()
@@ -260,16 +124,14 @@ class GumbelVectorQuantizer(NeuralModule):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         if self.time_first:
             return {"x": NeuralType(('B', 'T', 'D'), EncodedRepresentation())}
         return {"x": NeuralType(('B', 'D', 'T'), EncodedRepresentation())}
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         if self.time_first:
             return {
                 "x": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),

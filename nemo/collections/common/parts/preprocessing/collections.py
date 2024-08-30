@@ -708,11 +708,11 @@ class SpeechLabel(_Collection):
 
         for audio_file, duration, command, offset in zip(audio_files, durations, labels, offsets):
             # Duration filters.
-            if min_duration is not None and duration is not None and duration < min_duration:
+            if duration is not None and min_duration is not None and duration < min_duration:
                 duration_filtered += duration
                 continue
 
-            if max_duration is not None and duration is not None and duration > max_duration:
+            if duration is not None and max_duration is not None and duration > max_duration:
                 duration_filtered += duration
                 continue
 

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 from torch.utils import data
 
@@ -100,8 +100,6 @@ class IterableDataset(data.IterableDataset, Typing, Serialization):
 
 @dataclass
 class DatasetConfig:
-    """ """
-
     # ...
     batch_size: int = 32
     drop_last: bool = False
