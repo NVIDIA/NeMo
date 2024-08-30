@@ -127,22 +127,7 @@ def main(cfg) -> None:
         if param is not None:
             print_rank_0(f"model params after prune: {name} -> {param.type()} {param.shape}")
 
-    # NOTE: Here we correct the pruned model configs here because the current API does not yet correct the configs internally
-    # TODO: remove them once the API internally correct the configs
-
-    kv_channels = model_cfg["kv_channels"] if "kv_channels" in model_cfg else None
-    kv_channels = kv_channels if kv_channels is not None else model_cfg.hidden_size // model_cfg.num_attention_heads
-
-    model_pruned.cfg["ffn_hidden_size"] = cfg.prune.ffn_hidden_size
-    model_pruned.cfg["num_attention_heads"] = cfg.prune.num_attention_heads
-    model_pruned.cfg["num_query_groups"] = cfg.prune.num_query_groups
-    model_pruned.cfg["kv_channels"] = kv_channels
-
     model_pruned.save_to(cfg.export.save_path)
-
-    torch.distributed.barrier()
-
-    # TODO: read back and run inference
 
 
 if __name__ == '__main__':
