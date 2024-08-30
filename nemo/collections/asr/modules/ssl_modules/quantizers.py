@@ -1,10 +1,24 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import torch
 import torch.nn.functional as F
 from torch import nn
 
 from nemo.core import NeuralModule
 from nemo.core.classes import Exportable, NeuralModule, typecheck
-from nemo.core.neural_types import EncodedRepresentation, LabelsType, LossType, NeuralType, SpectrogramType
+from nemo.core.neural_types import LabelsType, NeuralType, SpectrogramType
 
 
 class RandomProjectionVectorQuantizer(NeuralModule, Exportable):
@@ -22,7 +36,8 @@ class RandomProjectionVectorQuantizer(NeuralModule, Exportable):
         squeeze_single: bool = False,
         combine_time_steps: int = 1,
     ):
-        """Vector quantization using random projection
+        """Vector quantization using random projection proposed in BEST-RQ paper:
+        'Self-Supervised Learning with Random-Projection Quantizer for Speech Recognition'
 
          Args:
             feat_in: input feature dimension
@@ -62,16 +77,14 @@ class RandomProjectionVectorQuantizer(NeuralModule, Exportable):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         if self.time_ahead:
             return {"input_signal": NeuralType(('B', 'T', 'D'), SpectrogramType())}
         return {"input_signal": NeuralType(('B', 'D', 'T'), SpectrogramType())}
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         if self.time_ahead:
             if self.num_books == 1 and self.squeeze_single:
                 return {
@@ -151,10 +164,3 @@ class RandomProjectionVectorQuantizer(NeuralModule, Exportable):
             xid = xid.squeeze(-1)
 
         return xq, xid
-
-
-class KMeansQuantizer(NeuralModule, Exportable):
-    def __init__(
-        self, num_clusters: int, max_iter: int = 300, tol: float = 1e-4,
-    ):
-        super().__init__()

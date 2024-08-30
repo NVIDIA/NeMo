@@ -1,7 +1,9 @@
-name: "ECAPA_TDNN"
+# This is an example config that uses a NEST model as feature extractors, by using multi-layer feature aggregation.
+# The major modification is to replace `model.preprocessor` with the one in this config. 
+
+name: "NEST_MFA_Tune_ECAPA_TDNN"
 
 model:
-
   sample_rate: 16000
 
   train_ds:
@@ -37,9 +39,10 @@ model:
     num_workers: 8
     shuffle: False
 
+  # Overwrite the original 'preprocessor' and replace it with multi-layer feature aggregation from ConformerEncoder
   preprocessor:
     _target_: nemo.collections.asr.modules.ssl_modules.multi_layer_feat.ConformerMultiLayerFeaturePreprocessor
-    layer_idx_list: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]
+    layer_idx_list: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
     freeze_encoder: True
     aggregator:
       _target_: nemo.collections.asr.modules.ssl_modules.multi_layer_feat.Aggregator
@@ -47,6 +50,7 @@ model:
       weights: null
       layer_idx_list: ${model.preprocessor.layer_idx_list}
     
+    # the actual preprocessor to use
     preprocessor:
       _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
       normalize: "per_feature"
@@ -67,11 +71,12 @@ model:
       time_masks: 5
       time_width: 0.05
     
+    # this has to match with the ConformerEncoder config in NEST pretrain config
     encoder:
       _target_: nemo.collections.asr.modules.ConformerEncoder
       feat_in: ${model.preprocessor.preprocessor.features}
       feat_out: -1 # you may set it if you need different output size other than the default d_model
-      n_layers: 18
+      n_layers: 17
       d_model: 512
 
       # Sub-sampling params
@@ -112,25 +117,25 @@ model:
       stochastic_depth_start_layer: 1
 
   encoder:
-    _target_: nemo.collections.common.parts.MultiLayerPerceptron
-    hidden_size: 512
-    num_classes: 512
-    num_layers: 2
-    activation: 'relu'
-    log_softmax: false
-    channel_idx: 1
+    _target_: nemo.collections.asr.modules.ECAPAEncoder
+    feat_in: ${model.preprocessor.encoder.d_model}
+    filters: [512,512,512,512,1536]
+    kernel_sizes: [5,3,3,3,1]
+    dilations: [1,1,1,1,1]
+    scale: 8
 
   decoder:
-    _target_: nemo.collections.asr.modules.ConvASRDecoderClassification
-    feat_in: 512
-    return_logits: true
-    pooling_type: 'avg'
-    num_classes: 1251
+    _target_: nemo.collections.asr.modules.SpeakerDecoder
+    feat_in: 1536
+    num_classes: 7205
+    pool_mode: 'attention' #xvector,tap or attention
+    attention_channels: 128
+    emb_sizes: 192
 
-  # loss:
-  #   _target_: nemo.collections.asr.losses.angularloss.AngularSoftmaxLoss # you could also use cross-entrophy loss
-  #   scale: 30
-  #   margin: 0.2
+  loss:
+    _target_: nemo.collections.asr.losses.angularloss.AngularSoftmaxLoss # you could also use cross-entrophy loss
+    scale: 30
+    margin: 0.2
 
   optim:
     name: adamw

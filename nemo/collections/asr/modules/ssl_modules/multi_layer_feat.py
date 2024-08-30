@@ -18,7 +18,7 @@ import torch
 import torch.distributed
 import torch.nn as nn
 
-from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor, ConformerEncoder, SpectrogramAugmentation
+from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor, ConformerEncoder
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging
@@ -27,10 +27,17 @@ from nemo.utils import logging
 class Aggregator(nn.Module):
     AVAILABLE_POOLING = ["cat", "sum", "mean", "avg", "max", "min", "none", "weighted_sum"]
 
-    def __init__(self, mode, weights, layer_idx_list, channel_dim: int = 1):
+    def __init__(self, mode, weights, layer_idx_list, channel_idx: int = 1):
+        """
+        Args:
+            mode: Aggregation mode. One of ["cat", "sum", "mean", "avg", "max", "min", "none", "weighted_sum"]
+            weights: Weights for weighted sum aggregation. If None, weights are initialized to 1/num_layers.
+            layer_idx_list: List of layer indices to aggregate.
+            channel_idx: Channel dimension index of the input tensors.
+        """
         super().__init__()
         self.mode = mode
-        self.channel_dim = channel_dim
+        self.channel_idx = channel_idx
         self.weights = weights
         if self.mode not in self.AVAILABLE_POOLING:
             raise ValueError(f"Unknown mode `{self.mode}`, available modes are {self.AVAILABLE_POOLING}")
@@ -47,9 +54,17 @@ class Aggregator(nn.Module):
     def forward(
         self, encoded: List[torch.Tensor], encoded_len: List[torch.Tensor]
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Args:
+            encoded: List of tensors of shape [B, D, T] representing the encoded features from different layers.
+            encoded_len: List of tensors of shape [B] representing the lengths of the encoded features.
+        Returns:
+            aggregated: Aggregated tensor of shape [B, D, T] representing the aggregated features.
+            aggregated_len: Tensor of shape [B] representing the lengths of the aggregated features.
+        """
 
         if self.mode == "cat":
-            return torch.cat(encoded, dim=self.channel_dim), encoded_len[0]
+            return torch.cat(encoded, dim=self.channel_idx), encoded_len[0]
         elif self.mode == "sum":
             return torch([x.unsqueeze(-1) for x in encoded], dim=-1).sum(dim=-1), encoded_len[0]
         elif self.mode == "mean" or self.mode == "avg":
@@ -68,6 +83,12 @@ class Aggregator(nn.Module):
 
 class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
     def __init__(self, encoder, aggregator, layer_idx_list):
+        """
+        Args:
+            encoder: ConformerEncoder instance.
+            aggregator: Aggregator instance.
+            layer_idx_list: List of layer indices to extract features from.
+        """
         super().__init__()
         self.encoder = encoder
         self.aggregator = aggregator
@@ -81,7 +102,9 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
                 raise ValueError(f"layer index {x} out of range [0, {len(self.encoder.layers)})")
         logging.info(f"Extracting features from layers {self.layer_idx_list}")
         self.access_cfg = {
-            "interctc": {"capture_layers": self.layer_idx_list,},
+            "interctc": {
+                "capture_layers": self.layer_idx_list,
+            },
             "detach": False,
             "convert_to_cpu": False,
         }
@@ -90,6 +113,12 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
     def forward(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Args:
+            same interface as ConformerEncoder.forward()
+        Returns:
+            tuple of aggregated features of shape [B, D, T] and lengths of shape [B]
+        """
         self.encoder.update_access_cfg(self.access_cfg, guid=getattr(self, "model_guid", None))
         self.encoder.set_access_enabled(access_enabled=True, guid=getattr(self, "model_guid", None))
 
@@ -165,7 +194,10 @@ class ConformerMultiLayerFeaturePreprocessor(NeuralModule, Exportable, AccessMix
             encoded_len: A tensor of shape [B], that contains the lengths of the audio sequences.
         """
 
-        processed_signal, processed_signal_length = self.preprocessor(input_signal=input_signal, length=length,)
+        processed_signal, processed_signal_length = self.preprocessor(
+            input_signal=input_signal,
+            length=length,
+        )
 
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import is_dataclass
+from dataclasses import fields, is_dataclass
 from typing import Any, Union
 
 import torch
@@ -27,8 +27,11 @@ def move_data_to_device(inputs: Any, device: Union[str, torch.device], non_block
     elif isinstance(inputs, dict):
         return {k: move_data_to_device(v, device, non_blocking) for k, v in inputs.items()}
     elif is_dataclass(inputs):
-        return inputs.__class__(
-            **{k: move_data_to_device(v, device, non_blocking) for k, v in inputs.__dict__.items()}
+        return type(inputs)(
+            **{
+                field.name: move_data_to_device(getattr(inputs, field.name), device, non_blocking)
+                for field in fields(inputs)
+            }
         )
     else:
         return inputs

@@ -1,22 +1,26 @@
-import math
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, Union
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+from typing import Optional, Union
 
 import numpy as np
 import torch
 import torch.nn as nn
 
-from nemo.core.classes import Exportable, NeuralModule, typecheck
-from nemo.core.neural_types import (
-    AcousticEncodedRepresentation,
-    AudioSignal,
-    LengthsType,
-    MelSpectrogramType,
-    MFCCSpectrogramType,
-    NeuralType,
-    SpectrogramType,
-)
+from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType
 
 
 class RandomBlockMasking(NeuralModule):
@@ -132,8 +136,6 @@ class RandomBlockMasking(NeuralModule):
         mask_value = self.mask_embedding.unsqueeze(-1)
         masks = torch.zeros_like(input_feats)
         maksed_feats = input_feats.clone()
-        # num_patches = np.random.binomial(input_lengths.detach().cpu().numpy(), self.mask_prob)  # (batch_size)
-        # # TODO: change below code to batched operations if possible
         for i in range(batch_size):
             if self.block_size >= input_lengths[i] * self.max_mask_ratio:
                 # handle case where audio is too short
@@ -155,7 +157,16 @@ class RandomBlockMasking(NeuralModule):
 
 
 class ConvFeatureMaksingWrapper(NeuralModule):
+    """
+    A wrapper module that applies masking to the features after subsampling layer of ConformerEncoder.
+    """
+
     def __init__(self, pre_encode_module: nn.Module, masking_module: Union[nn.Module, NeuralModule]) -> None:
+        """
+        Args:
+            pre_encode_module: the pre_encode module of the ConformerEncoder instance
+            masking_module: the module that performs masking on the extracted features
+        """
         super().__init__()
         self.pre_encode = pre_encode_module
         self.masking = masking_module
@@ -164,6 +175,9 @@ class ConvFeatureMaksingWrapper(NeuralModule):
         self.apply_mask = False
 
     def forward(self, x, lengths):
+        """
+        Same interface as ConformerEncoder.pre_encode
+        """
         feats, lengths = self.pre_encode(x=x, lengths=lengths)
         self.curr_feat = feats.detach()
         if self.apply_mask:

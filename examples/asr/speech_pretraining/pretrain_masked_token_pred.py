@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,16 +16,16 @@
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models.ssl_models_v2 import EncDecSpeechSSLModel
+from nemo.collections.asr.models.ssl_models import EncDecDenoiseMaskedTokenPredModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
 """
-# Example of unsupervised pre-training of a model
+# Example of training a self-supervised denoising masksed token prediction model
 ```sh
-python speech_pre_training.py \
+python pretrain_masked_token_pred.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
     model.train_ds.manifest_filepath=<path to train manifest> \
     model.validation_ds.manifest_filepath=<path to val/test manifest> \
@@ -42,21 +42,16 @@ python speech_pre_training.py \
     exp_manager.wandb_logger_kwargs.name="<Name of experiment>" \
     exp_manager.wandb_logger_kwargs.project="<Namex of project>"
 ```
-
-For documentation on fine-tuning, please visit -
-https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
-When doing supervised fine-tuning from unsupervised pre-trained encoder, set flag init_strict to False
-
 """
 
 
-@hydra_runner(config_path="./configs", config_name="conformer_large_ssl_rq")
+@hydra_runner(config_path="../conf/ssl/nest", config_name="nest_fast-conformer")
 def main(cfg):
     logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    asr_model = EncDecSpeechSSLModel(cfg=cfg.model, trainer=trainer)
+    asr_model = EncDecDenoiseMaskedTokenPredModel(cfg=cfg.model, trainer=trainer)
 
     # Initialize the weights of the model from another model, if provided via config
     asr_model.maybe_init_from_pretrained_checkpoint(cfg)

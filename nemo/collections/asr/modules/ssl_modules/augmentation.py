@@ -1,21 +1,26 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import math
-from abc import ABC, abstractmethod
-from collections import defaultdict
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 import torch
-import torch.nn as nn
 
-from nemo.collections.asr.data.dataclasses import AudioNoiseBatch, AudioNoiseItem
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
-from nemo.collections.common.parts.preprocessing.manifest import get_full_path
-from nemo.core.classes import Exportable, NeuralModule, typecheck
+from nemo.collections.asr.data.dataclasses import AudioNoiseBatch
 
 
-class WavLMAugmentation(object):
+class SpeakerNoiseAugmentation(object):
     def __init__(
         self,
         prob: float = 0.0,
@@ -141,7 +146,7 @@ class WavLMAugmentation(object):
         )
 
 
-class MultiSpeakerNoiseAugmentation(WavLMAugmentation):
+class MultiSpeakerNoiseAugmentation(SpeakerNoiseAugmentation):
     def __init__(
         self,
         prob: float = 0.0,
@@ -176,7 +181,6 @@ class MultiSpeakerNoiseAugmentation(WavLMAugmentation):
         audio_signal = batch.audio
         audio_lengths = batch.audio_len
         batch_size = audio_signal.size(0)
-        max_audio_len = audio_signal.size(1)
 
         noise = batch.noise
         noise_len = batch.noise_len
