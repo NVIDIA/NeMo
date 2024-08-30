@@ -3,6 +3,7 @@ einops
 janome
 jieba
 kornia
+lhotse
 librosa
 matplotlib
 # pynini does not currently support aarch, disable nemo_text_processing for now
@@ -11,4 +12,3 @@ nltk
 pandas
 pypinyin
 pypinyin-dict
-lhotse
