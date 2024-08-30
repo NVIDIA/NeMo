@@ -60,12 +60,12 @@ model:
       max_r_speech: 5.0  # max energy_ratio for added speech
       min_r_noise: -5.0
       max_r_noise: 20.0
-      min_mix_rate: 0.2
+      min_mix_rate: 0.4
       max_mix_rate: 0.6
       min_num_segments: 1
-      max_num_segments: 4
+      max_num_segments: 3
       min_num_speakers: 1  # min num of extra speakers to add
-      max_num_speakers: 4  # max num of extra speakers to add
+      max_num_speakers: 3  # max num of extra speakers to add
 
   validation_ds:
     manifest_filepath: ???
