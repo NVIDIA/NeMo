@@ -1,18 +1,22 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, Union, Optional
+from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 
 import torch
 import torch.nn.functional as F
+from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 
-from nemo.collections.llm import LlamaConfig, Llama2Config7B, Llama2Config13B, Llama2Config70B
-from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
-from nemo.collections.vlm.neva.model.base import HFCLIPVisionConfig, CLIPViTConfig, MultimodalProjectorConfig
+from nemo.collections.llm import Llama2Config7B, Llama2Config13B, Llama2Config70B, LlamaConfig
 from nemo.collections.llm.utils import Config
+from nemo.collections.vlm.neva.model.base import (
+    CLIPViTConfig,
+    HFCLIPVisionConfig,
+    MultimodalProjectorConfig,
+    NevaConfig,
+    NevaModel,
+)
 from nemo.lightning import OptimizerModule, io, teardown
-
-from megatron.core.transformer.transformer_config import TransformerConfig
 
 if TYPE_CHECKING:
     from transformers import LlavaConfig as HFLlavaConfig
@@ -25,6 +29,7 @@ if TYPE_CHECKING:
 # Note: these Llava configs are copied from the corresponding HF model. You may need to modify the parameter for
 # your own needs, in particular: seq_length and rotary_base.
 
+
 @dataclass
 class LlavaConfig(NevaConfig):
     drop_vision_class_token: bool = True
@@ -33,12 +38,14 @@ class LlavaConfig(NevaConfig):
 @dataclass
 class Llava1_5Config7B(LlavaConfig):
     from transformers import PretrainedConfig
+
     language_transformer_config: TransformerConfig = Llama2Config7B()
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
     )
     vision_projection_config: TransformerConfig = MultimodalProjectorConfig(
-        input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
+        input_size=1024, hidden_size=4096, ffn_hidden_size=4096
+    )
 
 
 @dataclass
@@ -100,7 +107,6 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
             "multi_modal_projector.linear_1.bias": "vision_projection.encoder.linear_fc1.bias",
             "multi_modal_projector.linear_2.weight": "vision_projection.encoder.linear_fc2.weight",
             "multi_modal_projector.linear_2.bias": "vision_projection.encoder.linear_fc2.bias",
-
         }
 
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_linear_fc1])
@@ -139,8 +145,7 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
         vision_transformer_config = HFCLIPVisionConfig(
             pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
         )
-        vision_projection_config = MultimodalProjectorConfig(
-            input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
+        vision_projection_config = MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
 
         output = LlavaConfig(
             language_transformer_config=language_transformer_config,
@@ -288,7 +293,10 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
 
 
 @io.state_transform(
-    source_key=("language_model.model.layers.*.mlp.gate_proj.weight", "language_model.model.layers.*.mlp.up_proj.weight"),
+    source_key=(
+        "language_model.model.layers.*.mlp.gate_proj.weight",
+        "language_model.model.layers.*.mlp.up_proj.weight",
+    ),
     target_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_linear_fc1(down, gate):
@@ -297,7 +305,10 @@ def _import_linear_fc1(down, gate):
 
 @io.state_transform(
     source_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
-    target_key=("language_model.model.layers.*.mlp.gate_proj.weight", "language_model.model.layers.*.mlp.up_proj.weight"),
+    target_key=(
+        "language_model.model.layers.*.mlp.gate_proj.weight",
+        "language_model.model.layers.*.mlp.up_proj.weight",
+    ),
 )
 def _export_linear_fc1(linear_fc1):
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)

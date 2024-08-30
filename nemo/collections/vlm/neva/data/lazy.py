@@ -5,7 +5,7 @@ from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADER
 from torch.utils import data
 from torch.utils.data import DataLoader
 
-from nemo.collections.vlm.neva.data.config import ImageDataConfig, DataConfig
+from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
 from nemo.collections.vlm.neva.data.conversation import conv_templates as supported_conv_templates
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
@@ -243,7 +243,7 @@ def find_pattern_indices(template, pattern, search_start_index=0, allow_first_to
     template_len = len(template)
     pattern_len = len(pattern)
     for i in range(search_start_index, template_len - pattern_len + 1):
-        match = template[i:i + pattern_len] == pattern
+        match = template[i : i + pattern_len] == pattern
         if torch.all(match) or (allow_first_token_mismatch and torch.all(match[1:])):
             return i, i + pattern_len
     return -1, -1
@@ -252,11 +252,11 @@ def find_pattern_indices(template, pattern, search_start_index=0, allow_first_to
 class LazySupervisedDataset(Dataset):
 
     def __init__(
-            self,
-            data_path,
-            data_config,
-            tokenizer,
-            image_processor,
+        self,
+        data_path,
+        data_config,
+        tokenizer,
+        image_processor,
     ):
         super().__init__()
         if data_path is not None:
@@ -277,7 +277,6 @@ class LazySupervisedDataset(Dataset):
 
         image_folder = getattr(data_config, "image_folder", None)
         video_folder = getattr(data_config, "video_folder", None)
-
 
         self.image_loader = TarOrFolderImageLoader(image_folder) if image_folder else None
         self.video_loader = TarOrFolderVideoLoader(video_folder, data_config) if video_folder else None
@@ -363,16 +362,15 @@ class LazySupervisedDataset(Dataset):
             raise NotImplementedError
 
 
-
 class NevaDataset(LazySupervisedDataset):
     """Dataset for supervised fine-tuning."""
 
     def __init__(
-            self,
-            data_path,
-            data_config,
-            tokenizer,
-            image_processor,
+        self,
+        data_path,
+        data_config,
+        tokenizer,
+        image_processor,
     ):
 
         if data_path.endswith(".json"):
@@ -481,6 +479,7 @@ class NevaDataset(LazySupervisedDataset):
             batch["cu_seqlens"] = cu_seqlens
         return batch
 
+
 class NevaLazyDataModule(pl.LightningDataModule):
     def __init__(
         self,
@@ -529,6 +528,7 @@ class NevaLazyDataModule(pl.LightningDataModule):
         if tokenizer is None or image_processor is None:
             logging.warning(f"Processor and tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
             from transformers import AutoProcessor
+
             processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
             self.tokenizer = tokenizer or processor.tokenizer
             self.image_processor = image_processor or processor.image_processor
@@ -550,7 +550,6 @@ class NevaLazyDataModule(pl.LightningDataModule):
             # train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size], generator=rng)
             self._train_ds = NevaDataset(self.paths[0], self.data_config, self.tokenizer, self.image_processor)
             self._validation_ds = NevaDataset(self.paths[0], self.data_config, self.tokenizer, self.image_processor)
-
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return self._create_dataloader(self._train_ds)

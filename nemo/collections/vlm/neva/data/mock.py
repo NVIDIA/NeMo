@@ -1,15 +1,16 @@
 from typing import TYPE_CHECKING, Dict, List, Optional
-from einops import rearrange
 
 import numpy as np
 import pytorch_lightning as pl
 import torch
+from einops import rearrange
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
-from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
+from nemo.lightning.pytorch.plugins import MegatronDataSampler
+
 
 class MockDataModule(pl.LightningDataModule):
     def __init__(
@@ -38,6 +39,7 @@ class MockDataModule(pl.LightningDataModule):
 
         if tokenizer is None or image_processor is None:
             from transformers import AutoProcessor
+
             processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
             self.tokenizer = tokenizer or processor.tokenizer
             self.image_processor = image_processor or processor.image_processor
@@ -49,9 +51,15 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
-        self._train_ds = _MockNevaDataset(self.tokenizer, self.image_processor, "train", self.num_train_samples, self.seq_length)
-        self._validation_ds = _MockNevaDataset(self.tokenizer, self.image_processor, "valid", self.num_val_samples, self.seq_length)
-        self._test_ds = _MockNevaDataset(self.tokenizer, self.image_processor, "test", self.num_test_samples, self.seq_length)
+        self._train_ds = _MockNevaDataset(
+            self.tokenizer, self.image_processor, "train", self.num_train_samples, self.seq_length
+        )
+        self._validation_ds = _MockNevaDataset(
+            self.tokenizer, self.image_processor, "valid", self.num_val_samples, self.seq_length
+        )
+        self._test_ds = _MockNevaDataset(
+            self.tokenizer, self.image_processor, "test", self.num_test_samples, self.seq_length
+        )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         if not hasattr(self, "_train_ds"):
