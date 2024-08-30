@@ -54,6 +54,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         split (str): A string of 3 comma-separated integers denoting how much of the distribution
             to allocate to train, validation, and test sets, respectively. Unused if ``paths`` is a dict.
         index_mapping_dir (Optional[str]): Path to a directory to write index mapping files.
+        num_dataset_builder_threads (int): The number of threads to use for dataset building.
     """
 
     def __init__(
@@ -73,6 +74,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         seed: int = 1234,
         split: str = "900,50,50",
         index_mapping_dir: Optional[str] = None,
+        num_dataset_builder_threads: int = 1,
     ) -> None:
         super().__init__()
         if not isinstance(paths, (list, tuple, dict)):
@@ -110,6 +112,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.seed = seed
         self.split = split
         self.index_mapping_dir = index_mapping_dir
+        self.num_dataset_builder_threads = num_dataset_builder_threads
         self.init_global_step = 0
 
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
@@ -139,7 +142,11 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         num_val_samples = int(eval_iters * self.data_sampler.global_batch_size)
         num_test_samples = int(test_iters * self.data_sampler.global_batch_size)
 
-        if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
+        if (
+            self.trainer.limit_val_batches > 0.0
+            and self.trainer.limit_val_batches <= 1.0
+            and isinstance(self.trainer.limit_val_batches, float)
+        ):
             assert "blend" not in self.build_kwargs, (
                 "When using a single data distribution, limit_val_batches <= 1.0 is not supported. If you'd "
                 "like to run with a fractional value of limit_val_batches, please pass in separate datasets for "
@@ -190,6 +197,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
     def _create_dataloader(self, dataset, mode, **kwargs) -> WrappedDataLoader:
         self.init_global_step = self.trainer.global_step
+        self.data_sampler.init_global_step = self.init_global_step
         dataloader = WrappedDataLoader(
             mode=mode,
             dataset=dataset,
@@ -213,6 +221,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             reset_position_ids=self.reset_position_ids,
             reset_attention_mask=self.reset_attention_mask,
             eod_mask_loss=self.eod_mask_loss,
+            num_dataset_builder_threads=self.num_dataset_builder_threads,
             **self.build_kwargs,
         )
 
