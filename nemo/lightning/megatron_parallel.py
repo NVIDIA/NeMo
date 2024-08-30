@@ -4,6 +4,7 @@ import functools
 import inspect
 import queue
 from collections import defaultdict
+from dataclasses import asdict
 from typing import (
     Any,
     Callable,
@@ -37,6 +38,11 @@ from nemo.utils import logging
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 ModelT = TypeVar("ModelT", bound=nn.Module)
 
+HAVE_TE = True
+try:
+    import transformer_engine
+except (ImportError, ModuleNotFoundError):
+    HAVE_TE = False
 
 @runtime_checkable
 class PrecisionPluginProtocol(Protocol[DataT]):
@@ -483,14 +489,22 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         raise ValueError("Cannot infer `num_microbatches` from data, please specify it manually")
 
     def init_tp_comm_overlap(self, micro_batch_size, sequence_length):
-        import transformer_engine
+        assert HAVE_TE, "Tensor parallel overlap requires Transformer Engine, which was not detected."
         from megatron.core import parallel_state
 
-        hidden_size = self.config.hidden_size
-        fp8 = self.config.fp8
-        ub_cfgs = self.config.tp_comm_overlap_cfg
         cp_size = parallel_state.get_context_parallel_world_size()
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
+        hidden_size = self.config.hidden_size
+        fp8 = self.config.fp8 is not None
+
+        ub_cfgs = self.config.tp_comm_overlap_cfg
+        if ub_cfgs is None:
+            logging.warning(
+                "Tensor parallel overlap: No overlap config provided. Initializing TP comm overlap with the default config."
+            )
+        else:
+            # ub_cfgs is a dataclass, however TE needs a dict, so convert here
+            ub_cfgs = asdict(ub_cfgs)
 
         input_shape = [
             sequence_length * micro_batch_size // cp_size,
@@ -498,10 +512,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         ]
 
         try:
-            if ub_cfgs is None:
-                logging.warning(
-                    "Tensor parallel overlap: No overlap config provided. Initializing TP comm overlap with the default config."
-                )
             transformer_engine.pytorch.module.base.initialize_ub(
                 shape=input_shape,
                 tp_size=tp_size,

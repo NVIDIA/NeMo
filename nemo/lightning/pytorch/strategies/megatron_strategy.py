@@ -274,15 +274,20 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         return cfg
 
     def _apply_model_comm_overlap_cfgs(self, model_parallel_cfg: ModelParallelConfig) -> ModelParallelConfig:
+        from nemo.utils import AppState
+        app_state = AppState()
         comm_overlap_cfg = CommOverlapConfig()
+
+        vp_size = app_state.virtual_pipeline_model_parallel_size
+        if vp_size is None:
+            vp_size = 1
 
         # TP overlap is disabled by default, can be overriden by user
         comm_overlap_cfg.tp_comm_overlap = False
         comm_overlap_cfg.tp_comm_overlap_cfg = None
-
         # PP overlap
-        if self.pipeline_model_parallel_size > 1:
-            if self.virtual_pipeline_model_parallel_size > 1:
+        if app_state.pipeline_model_parallel_size > 1:
+            if vp_size > 1:
                 comm_overlap_cfg.overlap_p2p_comm = True
                 comm_overlap_cfg.batch_p2p_comm = False
             else:
@@ -317,18 +322,17 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def _apply_optimizer_overlap_cfgs(self, optim_cfg: OptimizerConfig) -> OptimizerConfig:
         from nemo.utils import AppState
-
         app_state = AppState()
+
+        vp_size = app_state.virtual_pipeline_model_parallel_size
+        if vp_size is None:
+            vp_size = 1
 
         comm_overlap_cfg = CommOverlapConfig()
         comm_overlap_cfg.overlap_grad_reduce = False
         comm_overlap_cfg.overlap_param_gather = False
         comm_overlap_cfg.overlap_param_gather_with_optimizer_step = False
         comm_overlap_cfg.align_param_gather = False
-
-        vp_size = app_state.virtual_pipeline_model_parallel_size
-        if vp_size is None:
-            vp_size = 1
 
         if app_state.data_parallel_size > 1 and optim_cfg.use_distributed_optimizer:
             comm_overlap_cfg.overlap_grad_reduce = True
@@ -465,8 +469,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if hasattr(self.precision_plugin, "convert_module"):
             convert_module_fn = self.precision_plugin.convert_module
 
-        self._apply_model_comm_overlap_cfgs(self.model.config)
-        self._apply_optimizer_overlap_cfgs(self.model.optim.config)
+        if hasattr(self.model, "config") and isinstance(self.model.config, ModelParallelConfig):
+            self._apply_model_comm_overlap_cfgs(self.model.config)
+        if hasattr(self.model.optim, "config") and isinstance(self.model.optim.config, OptimizerConfig):
+            self._apply_optimizer_overlap_cfgs(self.model.optim.config)
 
         self.megatron_parallel = MegatronParallel(
             self.model,
