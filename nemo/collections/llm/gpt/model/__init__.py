@@ -1,3 +1,4 @@
+from nemo.collections.llm.gpt.model.baichuan import Baichuan2Config, Baichuan2Config7B, Baichuan2Model
 from nemo.collections.llm.gpt.model.base import (
     GPTConfig,
     GPTModel,
@@ -7,6 +8,7 @@ from nemo.collections.llm.gpt.model.base import (
     local_layer_spec,
     transformer_engine_layer_spec,
 )
+from nemo.collections.llm.gpt.model.chatglm import ChatGLM2Config6B, ChatGLM3Config6B, ChatGLMConfig, ChatGLMModel
 from nemo.collections.llm.gpt.model.gemma import (
     CodeGemmaConfig2B,
     CodeGemmaConfig7B,
@@ -25,25 +27,78 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama2Config70B,
     Llama3Config8B,
     Llama3Config70B,
+    Llama31Config8B,
+    Llama31Config70B,
+    Llama31Config405B,
     LlamaConfig,
     LlamaModel,
 )
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
-from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
+from nemo.collections.llm.gpt.model.mixtral import (
+    MixtralConfig8x3B,
+    MixtralConfig8x7B,
+    MixtralConfig8x22B,
+    MixtralModel,
+)
+from nemo.collections.llm.gpt.model.nemotron import (
+    Nemotron3Config4B,
+    Nemotron3Config8B,
+    Nemotron4Config15B,
+    Nemotron4Config22B,
+    Nemotron4Config340B,
+    NemotronConfig,
+    NemotronModel,
+)
+from nemo.collections.llm.gpt.model.qwen2 import (
+    Qwen2Config,
+    Qwen2Config1P5B,
+    Qwen2Config7B,
+    Qwen2Config72B,
+    Qwen2Config500M,
+    Qwen2Model,
+)
+from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
+from nemo.collections.llm.gpt.model.starcoder2 import (
+    Starcoder2Config,
+    Starcoder2Config3B,
+    Starcoder2Config7B,
+    Starcoder2Config15B,
+    Starcoder2Model,
+)
 
 __all__ = [
     "GPTConfig",
     "GPTModel",
     "MistralConfig7B",
     "MistralModel",
+    "MixtralConfig8x3B",
     "MixtralConfig8x7B",
+    "MixtralConfig8x22B",
     "MixtralModel",
+    "Starcoder2Config",
+    "Starcoder2Model",
+    "Starcoder2Config15B",
+    "Starcoder2Config7B",
+    "Starcoder2Config3B",
+    "StarcoderConfig",
+    "StarcoderConfig15B",
+    "StarcoderModel",
     "LlamaConfig",
     "Llama2Config7B",
     "Llama2Config13B",
     "Llama2Config70B",
     "Llama3Config8B",
     "Llama3Config70B",
+    "Llama31Config8B",
+    "Llama31Config70B",
+    "Llama31Config405B",
+    "NemotronConfig",
+    "Nemotron3Config4B",
+    "Nemotron3Config8B",
+    "Nemotron4Config15B",
+    "Nemotron4Config22B",
+    "Nemotron4Config340B",
+    "NemotronModel",
     "CodeLlamaConfig7B",
     "CodeLlamaConfig13B",
     "CodeLlamaConfig34B",
@@ -55,6 +110,19 @@ __all__ = [
     "CodeGemmaConfig7B",
     "GemmaModel",
     "LlamaModel",
+    "Baichuan2Config",
+    "Baichuan2Config7B",
+    "Baichuan2Model",
+    "ChatGLMConfig",
+    "ChatGLM2Config6B",
+    "ChatGLM3Config6B",
+    "ChatGLMModel",
+    "Qwen2Config",
+    "Qwen2Config500M",
+    "Qwen2Config1P5B",
+    "Qwen2Config7B",
+    "Qwen2Config72B",
+    "Qwen2Model",
     "MaskedTokenLossReduction",
     "gpt_data_step",
     "gpt_forward_step",

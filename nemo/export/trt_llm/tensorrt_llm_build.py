@@ -41,11 +41,9 @@ def build_and_save_engine(
     max_lora_rank=64,
     lora_target_modules=None,
     max_prompt_embedding_table_size=0,
-    enable_multi_block_mode: bool = False,
     paged_kv_cache: bool = True,
     remove_input_padding: bool = True,
     paged_context_fmha: bool = False,
-    use_custom_all_reduce: bool = True,
     use_refit: bool = False,
     max_num_tokens: int = None,
     max_seq_len: int = None,
@@ -66,8 +64,6 @@ def build_and_save_engine(
     plugin_config = PluginConfig()
     plugin_config.gpt_attention_plugin = gpt_attention_plugin
     plugin_config.gemm_plugin = gemm_plugin
-    plugin_config.set_nccl_plugin(use_custom_all_reduce=use_custom_all_reduce)
-    plugin_config.multi_block_mode = enable_multi_block_mode
     if paged_kv_cache:
         plugin_config.enable_paged_kv_cache(tokens_per_block=tokens_per_block)
     else:
@@ -75,9 +71,6 @@ def build_and_save_engine(
     plugin_config.remove_input_padding = remove_input_padding
     plugin_config.use_paged_context_fmha = paged_context_fmha
     plugin_config.multiple_profiles = multiple_profiles
-
-    if max_seq_len is None:
-        max_seq_len = max_input_len + max_output_len
 
     max_num_tokens, opt_num_tokens = check_max_num_tokens(
         max_num_tokens=max_num_tokens,

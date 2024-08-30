@@ -230,6 +230,8 @@ class ExpManagerConfig:
     # Fault tolrance
     create_fault_tolerance_callback: Optional[bool] = False
     fault_tolerance: Optional[FaultToleranceParams] = field(default_factory=FaultToleranceParams)
+    # logs TFLOPs per sec per gpu
+    log_tflops_per_sec_per_gpu: Optional[bool] = True
 
 
 class TimingCallback(Callback):
@@ -585,6 +587,11 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 'FaultToleranceCallback was enabled with create_fault_tolerance_callback, but fault_tolerance package is not installed.'
             )
 
+    if cfg.log_tflops_per_sec_per_gpu:
+        logging.info(
+            "TFLOPs per sec per GPU will be calculated, conditioned on supported models. Defaults to -1 upon failure."
+        )
+
     if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
         if cfg.files_to_copy:
@@ -741,11 +748,29 @@ def check_resume(
                 end_checkpoints = (
                     end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.rglob("*end.ckpt"))
                 )
+                end_chkpt_cnt = len(end_checkpoints)
                 end_checkpoints = _filter_out_unfinished_checkpoints(end_checkpoints)
+                finished_end_chkpt_cnt = len(end_checkpoints)
+                if end_chkpt_cnt > 0 and finished_end_chkpt_cnt == 0:
+                    raise ValueError(
+                        "End checkpoint is unfinished and cannot be used to resume the training."
+                        " Please remove the checkpoint manually to avoid unexpected cosequences, such as"
+                        " restarting from scratch."
+                    )
+
                 last_checkpoints = (
                     last_dist_checkpoints if last_dist_checkpoints else list(checkpoint_dir.rglob("*last.ckpt"))
                 )
+                last_chkpt_cnt = len(last_checkpoints)
                 last_checkpoints = _filter_out_unfinished_checkpoints(last_checkpoints)
+                finished_last_chkpt_cnt = len(last_checkpoints)
+                if last_chkpt_cnt > 0 and finished_last_chkpt_cnt == 0:
+                    raise ValueError(
+                        "Last checkpoint is unfinished and cannot be used to resume the training."
+                        " Please remove the checkpoint manually to avoid unexpected cosequences, such as"
+                        " restarting from scratch. Hint: Iteration number can be added to the checkpoint name pattern"
+                        " to maximize chance that there is at least one finished last checkpoint to resume from."
+                    )
 
             if not checkpoint_dir_exists or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
                 if resume_ignore_no_checkpoint:
