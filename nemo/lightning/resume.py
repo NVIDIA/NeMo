@@ -81,7 +81,6 @@ class AutoResume:
 
         return None, restore_path
 
-
     def nemo_path(self, model: Optional[io.ConnectorMixin] = None) -> tuple[Optional[Path], Optional[Path]]:
         from nemo.utils.exp_manager import NotFoundError, _filter_out_unfinished_checkpoints
 
@@ -160,15 +159,17 @@ class AutoResume:
                 checkpoint = last_checkpoints[0]
 
         if not checkpoint and self.restore_path:
-                return self._try_restore_model(model)
+            return self._try_restore_model(model)
 
         if checkpoint:
             if self.adapter_path:
                 return AdapterPath(Path(self.adapter_path), base_model_path=checkpoint), None
             else:
                 # resuming a PEFT run, load
-                from nemo.lightning.pytorch.callbacks.peft import _ADAPTER_META_FILENAME
                 import json
+
+                from nemo.lightning.pytorch.callbacks.peft import _ADAPTER_META_FILENAME
+
                 adapter_meta_path = checkpoint / _ADAPTER_META_FILENAME
                 if adapter_meta_path.exists():
                     with open(adapter_meta_path, "r") as f:
@@ -178,10 +179,12 @@ class AutoResume:
                     _, base_model_path = self._try_restore_model(model)
 
                     if base_model_path != Path(metadata['model_ckpt_path']):
-                        raise ValueError(f"When trying to resume a PEFT training run, found mismatching values: "
-                                         f"your specified restore_path points to {base_model_path}, "
-                                         f"but the PEFT checkpoint was trained with "
-                                         f"model_ckpt_path={metadata['model_ckpt_path']}")
+                        raise ValueError(
+                            f"When trying to resume a PEFT training run, found mismatching values: "
+                            f"your specified restore_path points to {base_model_path}, "
+                            f"but the PEFT checkpoint was trained with "
+                            f"model_ckpt_path={metadata['model_ckpt_path']}"
+                        )
 
                     # return AdapterPath(base_model_path, adapter_path=checkpoint), None
                     return AdapterPath(checkpoint, base_model_path=base_model_path), None
@@ -192,8 +195,9 @@ class AutoResume:
 
 
 class AdapterPath(BasePath):
-    """ Path object for adapter paths which include a field for the base model the adapters are trained on
-    to facilitate model loading. """
+    """Path object for adapter paths which include a field for the base model the adapters are trained on
+    to facilitate model loading."""
+
     base_model_path: Optional[Path]
 
     def __new__(cls, *args, base_model_path: Optional[Path] = None, **kwargs):
