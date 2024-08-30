@@ -102,8 +102,11 @@ def pretrain_recipe_performance(
     trainer = pretrain_recipe(
         name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
     )
-    trainer.strategy.comm_overlap_cfg.tp_comm_overlap = True
-    trainer.strategy.comm_overlap_cfg.tp_comm_overlap_cfg = userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
+    comm_overlap_cfg = trainer.strategy.comm_overlap_cfg
+    comm_overlap_cfg.tp_comm_overlap = True
+    comm_overlap_cfg.tp_comm_overlap_cfg = userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
+    comm_overlap_cfg.defer_embedding_wgrad_compute = True
+    comm_overlap_cfg.wgrad_deferral_limit = 22
 
     return trainer
 

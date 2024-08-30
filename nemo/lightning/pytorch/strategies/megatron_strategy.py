@@ -455,6 +455,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             assert isinstance(self.cluster_environment, ClusterEnvironment), "Cluster environment not initialized"
             self.data_sampler.setup(self.cluster_environment.global_rank())
 
+        if hasattr(self.model, "config") and isinstance(self.model.config, ModelParallelConfig):
+            self._apply_model_comm_overlap_cfgs(self.model.config)
+        if hasattr(self.model.optim, "config") and isinstance(self.model.optim.config, OptimizerConfig):
+            self._apply_optimizer_overlap_cfgs(self.model.optim.config)
+
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
         if self.data_sampler:
@@ -468,11 +473,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         convert_module_fn = None
         if hasattr(self.precision_plugin, "convert_module"):
             convert_module_fn = self.precision_plugin.convert_module
-
-        if hasattr(self.model, "config") and isinstance(self.model.config, ModelParallelConfig):
-            self._apply_model_comm_overlap_cfgs(self.model.config)
-        if hasattr(self.model.optim, "config") and isinstance(self.model.optim.config, OptimizerConfig):
-            self._apply_optimizer_overlap_cfgs(self.model.optim.config)
 
         self.megatron_parallel = MegatronParallel(
             self.model,
