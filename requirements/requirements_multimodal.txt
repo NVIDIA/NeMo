@@ -12,3 +12,4 @@ taming-transformers
 torchdiffeq
 torchsde
 trimesh
+megatron-energon
