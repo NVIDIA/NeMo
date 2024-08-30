@@ -421,7 +421,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
             ## Do not include optimizer states in final checkpoint
-            storage_options = dict(include_optimizer=(trainer.global_step < trainer.max_steps or self.save_optim_on_train_end))
+            storage_options = dict(
+                include_optimizer=(trainer.global_step < trainer.max_steps or self.save_optim_on_train_end)
+            )
 
             # Async save passes the finalization function to checkpoint_io,
             # sync save calls the finalization function immediately after save.
