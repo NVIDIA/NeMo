@@ -455,7 +455,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
                 if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
                     raise ValueError('Async save requires async compatible CheckpointIO')
-                storage_options["finalize_fn"]=finalize_fn
+                storage_options["finalize_fn"] = finalize_fn
                 # Each upcoming ckpt removal request will be executed as part of this save finalization
                 self.deferred_ckpts_to_remove.append([])
             trainer.save_checkpoint(ckpt_filepath, self.save_weights_only, storage_options=storage_options)
