@@ -61,7 +61,11 @@ class AutoResume:
             trainer.ckpt_path = trainer_ckpt_path
             trainer.checkpoint_callback.last_model_path = trainer_ckpt_path
         elif self.selective_restore_config:
-            new_path = self._try_import_model(model=model, path=self.selective_restore_config.path, adapter_path=self.selective_restore_config.adapter_path)
+            new_path = self._try_import_model(
+                model=model,
+                path=self.selective_restore_config.path,
+                adapter_path=self.selective_restore_config.adapter_path,
+            )
             if isinstance(new_path, AdapterPath):
                 self.selective_restore_config.path = new_path.base_model_path
                 self.selective_restore_config.adapter_path = str(new_path)
@@ -69,7 +73,9 @@ class AutoResume:
                 self.selective_restore_config.path = str(new_path)
             trainer.strategy.selective_restore_config = self.selective_restore_config
 
-    def _try_import_model(self, model: Optional[io.ConnectorMixin], path: str, adapter_path: Optional[str] = None) -> BasePath:
+    def _try_import_model(
+        self, model: Optional[io.ConnectorMixin], path: str, adapter_path: Optional[str] = None
+    ) -> BasePath:
         if model is None:
             raise ValueError("Model is needed to import checkpoint from HF or other non-NeMo checkpoint format.")
         try:
@@ -108,7 +114,9 @@ class AutoResume:
         checkpoint = None
 
         # Use <log_dir>/checkpoints/ unless `dirpath` is set
-        checkpoint_dir = Path(self.resume_from_directory) if self.resume_from_directory else Path(Path(log_dir) / "checkpoints")
+        checkpoint_dir = (
+            Path(self.resume_from_directory) if self.resume_from_directory else Path(Path(log_dir) / "checkpoints")
+        )
 
         # when using distributed checkpointing, checkpoint_dir is a directory of directories
         # we check for this here

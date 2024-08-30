@@ -102,7 +102,10 @@ def pretrain_recipe(
 
 
 def hf_resume() -> Config[nl.AutoResume]:
-    return Config(nl.AutoResume, selective_restore_config=Config(nl.SelectiveRestoreConfig, path="hf://mistralai/Mixtral-8x7B-v0.1"))
+    return Config(
+        nl.AutoResume,
+        selective_restore_config=Config(nl.SelectiveRestoreConfig, path="hf://mistralai/Mixtral-8x7B-v0.1"),
+    )
 
 
 def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int) -> Partial:
