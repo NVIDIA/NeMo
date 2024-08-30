@@ -233,12 +233,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
             pyt_to_mcore_state_dict(msd)
             sharded_state_dict["sharded_state_dict"] = msd
 
-        common_state_dict = dist_checkpointing.load_common_state_dict(checkpoint_path)
-        has_optim = "optimizer" in common_state_dict
-        if not has_optim:
-            logging.warn('Checkpoint is missing optimizer state. Restoring only the model weights.')
-
-        if has_optim and self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
+        if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
             osd = get_optimizer_state_dict(self.model, self.optimizers, options=StateDictOptions(cpu_offload=True))
             pyt_to_mcore_state_dict(osd['state'], prefix="optimizer.state.")
             sharded_state_dict["optimizer"] = osd

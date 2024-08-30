@@ -46,7 +46,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         every_n_train_steps: Number of train steps between checkpoints.
         train_time_interval: After each interval, monitor checkpoints. Not to be used with
             ``every_n_epochs`` or ``every_n_train_steps``.
-        save_best_model: When ``True``, reloads and saves the best checkpoint.
         save_on_train_epoch_end: Whether to run checkpointing at the end of the training epoch
         save_optim_on_train_end: Whether to include the optimizer states in the final checkpoint
             at the end of training.
@@ -55,7 +54,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         save_context_on_train_end: Whether to dump the artifacts on_train_end regardless of whether
             ``always_save_context`` is ``True``.
         async_save: Whether to enable asynchronous checkpointing.
-        try_restore_best_ckpt: Whether to restore the best model path.
     """
 
     UNFINISHED_CHECKPOINT_SUFFIX = "-unfinished"
@@ -72,16 +70,12 @@ class ModelCheckpoint(PTLModelCheckpoint):
         every_n_epochs: int = None,
         every_n_train_steps: Optional[int] = None,
         train_time_interval: Optional[timedelta] = None,
-        save_best_model: bool = False,
         save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
         save_optim_on_train_end: Optional[bool] = False,
         always_save_context: bool = False,
         save_context_on_train_end: bool = True,
-        try_restore_best_ckpt: bool = True,
         **kwargs,
     ):
-        self.save_best_model = save_best_model
-        self.previous_best_path = ""
         self.always_save_context = always_save_context
         self.save_context_on_train_end = save_context_on_train_end
         self.save_optim_on_train_end = save_optim_on_train_end
@@ -91,7 +85,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # that `self._remove_checkpoint` adds to. Once `self._save_checkpoint`
         # is called, the last element is frozen and a new element is added.
         self.deferred_ckpts_to_remove: List[List[str]] = []
-        self.try_restore_best_ckpt = try_restore_best_ckpt
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(
@@ -284,24 +277,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(self.last_model_path) / "artifacts")
         # Call parent on_train_end() to save the -last checkpoint
         super().on_train_end(trainer, pl_module)
-
-        # Load the best model and then re-save it
-        ## TODO: finish adding support
-        if self.save_best_model:
-            # wait for all processes
-            trainer.strategy.barrier("SaveBestCheckpointConnector.resume_end")
-            if self.best_model_path == "":
-                logging.warning(
-                    f"{self} was told to save the best checkpoint at the end of training, but no saved checkpoints "
-                    "were found. Saving latest model instead."
-                )
-
-            else:
-                if os.path.isdir(self.best_model_path.split('.ckpt')[0]):
-                    self.best_model_path = Path(self.best_model_path.split('.ckpt')[0]) / ModelCheckpoint.WEIGHTS_PATH
-                if self.try_restore_best_ckpt:
-                    self.best_model_path = trainer.strategy.broadcast(self.best_model_path)
-                    trainer._checkpoint_connector.restore(self.best_model_path)
 
     def _del_model_without_trainer(self, filepath: str) -> None:
         from nemo.utils.get_rank import is_global_rank_zero

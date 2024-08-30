@@ -629,12 +629,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         sharded_state_dict = {}
         sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict()
 
-        common_state_dict = dist_checkpointing.load_common_state_dict(checkpoint_path)
-        has_optim = "optimizer" in common_state_dict
-        if not has_optim:
-            logging.warn('Checkpoint is missing optimizer state. Restoring only the model weights.')
-
-        if has_optim and self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
+        if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
             if self.lightning_module.optimizers(use_pl_optimizer=False):
                 sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
