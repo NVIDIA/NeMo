@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+import json
 from pathlib import Path, PosixPath, WindowsPath
 from typing import Optional, Union
 
@@ -74,12 +75,28 @@ class AutoResume:
             restore_path = self.restore_path
 
         if self.adapter_path:
-            restore_path = AdapterPath(Path(self.adapter_path), adapter_path=restore_path)
+            restore_path = AdapterPath(Path(self.adapter_path), base_model_path=restore_path)
 
         if isinstance(restore_path, str):
             restore_path = Path(restore_path)
 
         return None, restore_path
+
+    def _resume_peft(self, adapter_meta_path, model):
+        with open(adapter_meta_path, "r") as f:
+            metadata = json.load(f)
+        if not self.restore_path:
+            self.restore_path = metadata['model_ckpt_path']
+        _, base_model_path = self._try_restore_model(model)
+
+        if base_model_path != Path(metadata['model_ckpt_path']):
+            raise ValueError(
+                f"When trying to resume a PEFT training run, found mismatching values: "
+                f"your specified restore_path points to {base_model_path}, "
+                f"but the PEFT checkpoint was trained with "
+                f"model_ckpt_path={metadata['model_ckpt_path']}"
+            )
+        return base_model_path
 
     def nemo_path(self, model: Optional[io.ConnectorMixin] = None) -> tuple[Optional[Path], Optional[Path]]:
         from nemo.utils.exp_manager import NotFoundError, _filter_out_unfinished_checkpoints
@@ -165,28 +182,11 @@ class AutoResume:
             if self.adapter_path:
                 return AdapterPath(Path(self.adapter_path), base_model_path=checkpoint), None
             else:
-                # resuming a PEFT run, load
-                import json
-
                 from nemo.lightning.pytorch.callbacks.peft import _ADAPTER_META_FILENAME
 
                 adapter_meta_path = checkpoint / _ADAPTER_META_FILENAME
                 if adapter_meta_path.exists():
-                    with open(adapter_meta_path, "r") as f:
-                        metadata = json.load(f)
-                    if not self.restore_path:
-                        self.restore_path = metadata['model_ckpt_path']
-                    _, base_model_path = self._try_restore_model(model)
-
-                    if base_model_path != Path(metadata['model_ckpt_path']):
-                        raise ValueError(
-                            f"When trying to resume a PEFT training run, found mismatching values: "
-                            f"your specified restore_path points to {base_model_path}, "
-                            f"but the PEFT checkpoint was trained with "
-                            f"model_ckpt_path={metadata['model_ckpt_path']}"
-                        )
-
-                    # return AdapterPath(base_model_path, adapter_path=checkpoint), None
+                    base_model_path = self._resume_peft(adapter_meta_path, model)
                     return AdapterPath(checkpoint, base_model_path=base_model_path), None
                 else:
                     return Path(checkpoint), None
