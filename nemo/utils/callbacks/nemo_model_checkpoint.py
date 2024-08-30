@@ -22,11 +22,10 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 import pytorch_lightning
 import torch
 from _weakref import proxy
-
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint, _is_local_file_protocol
-from pytorch_lightning.utilities import rank_zero_info
 from pytorch_lightning.trainer import call
+from pytorch_lightning.utilities import rank_zero_info
 
 from nemo.collections.common.callbacks import EMA
 from nemo.utils import logging
