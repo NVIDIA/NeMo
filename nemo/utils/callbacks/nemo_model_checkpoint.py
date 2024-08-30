@@ -363,8 +363,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 ema_callback = callback
         return ema_callback
 
-    def _drop_optimizer_states(
-        self, trainer, filepath: Union[str, Path], storage_options: Optional[Any]) -> None:
+    def _drop_optimizer_states(self, trainer, filepath: Union[str, Path], storage_options: Optional[Any]) -> None:
         # Get list of saved checkpoints
         checkpoints = self._get_checkpoints_list(filepath)
 
@@ -393,7 +392,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         checkpoints_dir = os.path.dirname(filepath)
 
         # Get a list of saved checkpoints
-        checkpoints = [d for d in os.listdir(checkpoints_dir) if os.path.isdir(os.path.join(checkpoints_dir, d)) and '-last' not in d]
+        checkpoints = [
+            d
+            for d in os.listdir(checkpoints_dir)
+            if os.path.isdir(os.path.join(checkpoints_dir, d)) and '-last' not in d
+        ]
         checkpoints = sorted(checkpoints, key=lambda x: int(x.split('-step=')[1].split('-')[0]))
         checkpoints = [os.path.join(checkpoints_dir, checkpoint) for checkpoint in checkpoints]
 
@@ -512,7 +515,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:
                 finalize_fn()
-        
+
         if self.save_last_n_optim_states >= 0 and '-last' in filepath:
             self._drop_optimizer_states(trainer, filepath, storage_options)
 
