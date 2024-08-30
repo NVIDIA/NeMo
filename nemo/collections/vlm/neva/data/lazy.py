@@ -343,11 +343,14 @@ class LazySupervisedDataset(Dataset):
         search_start_index = 0
         for i in range(1, len(self.conv.messages), 2):
             stop_str = getattr(self.conv, "stop_str", None)
-            assert stop_str is not None, "If `stop_str` is not provided, issues might occur in labeling the answer tokens."
+            assert (
+                stop_str is not None
+            ), "If `stop_str` is not provided, issues might occur in labeling the answer tokens."
             answer_tokens = self.tokenizer.encode(
                 self.conv.messages[i][1] + ("" if stop_str is None else stop_str),
                 add_special_tokens=False,
-                return_tensors="pt")[0]
+                return_tensors="pt",
+            )[0]
             answer_start, answer_end = find_pattern_indices(tokens, answer_tokens, search_start_index)
             labels[answer_start:answer_end] = tokens[answer_start:answer_end]
             search_start_index = answer_end

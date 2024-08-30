@@ -516,8 +516,12 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # media is in shape of (num_images_in_mbs, c, h, w)
             # note num_images_in_mbs is not mbs but total images in this mbs.
             if self.vision_model_from_hf:
-                media_embeddings = self.vision_model(media, output_hidden_states=True)  # [num_images, img_seq_len, h_vision]
-                media_embeddings = media_embeddings[-1][self.config.vision_feature_layer]  # take second from last layer
+                media_embeddings = self.vision_model(
+                    media, output_hidden_states=True
+                )  # [num_images, img_seq_len, h_vision]
+                media_embeddings = media_embeddings[-1][
+                    self.config.vision_feature_layer
+                ]  # take second from last layer
             else:
                 media_embeddings = self.vision_model(media)
             if self._drop_vision_class_token:

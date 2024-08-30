@@ -4,17 +4,12 @@
 import argparse
 
 from megatron.core.optimizer import OptimizerConfig
-from nemo.lightning.pytorch.optim import (
-    CosineAnnealingScheduler,
-    MegatronOptimizerModule,
-    OptimizerModule,
-)
 from pytorch_lightning.loggers import Logger, TensorBoardLogger, WandbLogger
 
 from nemo import lightning as nl
-from nemo.collections import llm
+from nemo.collections import llm, vlm
 from nemo.collections.llm.api import train
-from nemo.collections import vlm
+from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule, OptimizerModule
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 if __name__ == "__main__":
@@ -33,14 +28,14 @@ if __name__ == "__main__":
     #     num_workers=0,
     # )
 
-    from nemo.collections.vlm.neva.data.config import ImageDataConfig, DataConfig
+    from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
 
     data_config = ImageDataConfig(
         image_folder="/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Instruct-150K/images",
         conv_template="v1",
     )
     data = vlm.NevaLazyDataModule(
-        paths="/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Instruct-150K/llava_v1_5_mix665k_filtered.json", # llava_v1_5_mix665k_filtered
+        paths="/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Instruct-150K/llava_v1_5_mix665k_filtered.json",  # llava_v1_5_mix665k_filtered
         data_config=data_config,
         seq_length=seq_length,
         global_batch_size=gbs,
@@ -52,9 +47,11 @@ if __name__ == "__main__":
     )
 
     import torch
+
     language_transformer_config = llm.Llama2Config7B()
     # vision_transformer_config = vlm.CLIPViTConfig(num_layers=2, hidden_size=1024, num_attention_heads=4)
     from nemo.collections.vlm.neva.model.base import HFCLIPVisionConfig
+
     vision_transformer_config = HFCLIPVisionConfig(pretrained_model_name_or_path="openai/clip-vit-large-patch14-336")
     vision_projection_config = vlm.MultimodalProjectorConfig(input_size=1024, hidden_size=4096)
 
@@ -69,7 +66,9 @@ if __name__ == "__main__":
     model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
 
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=4, pipeline_model_parallel_size=1, pipeline_dtype=torch.bfloat16,
+        tensor_model_parallel_size=4,
+        pipeline_model_parallel_size=1,
+        pipeline_dtype=torch.bfloat16,
     )
 
     checkpoint_callback = nl.ModelCheckpoint(
@@ -95,20 +94,14 @@ if __name__ == "__main__":
         num_sanity_val_steps=0,
     )
 
-    nemo_logger = nl.NeMoLogger(
-            dir=log_dir,
-            name="neva_ft_fix_0829_aligned",
-            wandb=WandbLogger(project="neva_demo")
-        )
+    nemo_logger = nl.NeMoLogger(dir=log_dir, name="neva_ft_fix_0829_aligned", wandb=WandbLogger(project="neva_demo"))
     nemo_logger.setup(
         trainer,
         resume_if_exists=True,
     )
 
-    resume = nl.AutoResume(
-        resume_if_exists=True, resume_ignore_no_checkpoint=True, dirpath=log_dir)
+    resume = nl.AutoResume(resume_if_exists=True, resume_ignore_no_checkpoint=True, dirpath=log_dir)
     resume.setup(trainer, model)
-
 
     opt_config = OptimizerConfig(
         optimizer='adam',
