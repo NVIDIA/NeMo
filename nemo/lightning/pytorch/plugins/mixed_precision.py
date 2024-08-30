@@ -157,8 +157,8 @@ class MegatronMixedPrecision(Precision):
 
         """
         for optim_config in get_optim_config(optimizer):
-            assert optim_config.bf16 == self.dtype_config.bf16, "BF16 enabled on model but not on optimizer"
-            assert optim_config.fp16 == self.dtype_config.fp16, "BF16 enabled on model but not on optimizer"
+            assert optim_config.bf16 == self.dtype_config.bf16, "BF16 model/optim config mismatch"
+            assert optim_config.fp16 == self.dtype_config.fp16, "FP16 model/optim config mismatch"
         return optimizer
 
     def convert_input(self, data: AnyT) -> AnyT:
