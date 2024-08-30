@@ -535,7 +535,6 @@ def transcribe_partial_audio(
             if isinstance(asr_model, EncDecHybridRNNTCTCModel) and decoder_type == "ctc":
                 logits = asr_model.ctc_decoder(encoder_output=logits)
 
-
             if logprobs:
                 logits = logits.cpu()
                 logits = logits.numpy()
