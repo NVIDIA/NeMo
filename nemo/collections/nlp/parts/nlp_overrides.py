@@ -384,6 +384,9 @@ class NLPDDPStrategy(DDPStrategy):
             When using megatron core, the distributed checkpointing library expects save functions to be
             called on every rank and internally does the rank checking.
         """
+        if storage_options is None:
+            storage_options = {}
+
         # check if using distributed checkpointing
         if self.use_distributed_checkpointing:
             assert (
@@ -393,7 +396,12 @@ class NLPDDPStrategy(DDPStrategy):
             sharded_optim_state = self.optimizer_sharded_state_dict(
                 unsharded_optim_state=checkpoint['optimizer_states'][0]
             )
-            checkpoint['optimizer_states'] = [sharded_optim_state]
+
+            # Check whether to save optim states
+            if storage_options.get('drop_optim_states', False):
+                checkpoint['optimizer_states'] = None
+            else:
+                checkpoint['optimizer_states'] = [sharded_optim_state]
             # remove device state_dict
             checkpoint['state_dict'] = OrderedDict([])
 

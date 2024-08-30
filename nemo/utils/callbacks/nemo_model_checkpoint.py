@@ -53,14 +53,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         n_resume: bool = False,
         model_parallel_size: int = None,
         async_save: bool = False,  # controls only finalize callbacks
+        save_last_n_optim_states: int = -1,
         **kwargs,
     ):
         # Parse and store "extended" parameters: save_best model and postfix.
         self.always_save_nemo = always_save_nemo
         self.save_nemo_on_train_end = save_nemo_on_train_end
         self.save_best_model = save_best_model
-        self.dirpath = kwargs["dirpath"]
-        self.save_last_n_optim_states = 2
+        self.save_last_n_optim_states = save_last_n_optim_states
         if self.save_best_model and not self.save_nemo_on_train_end:
             logging.warning(
                 (
@@ -200,9 +200,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.last_model_path = trainer.strategy.broadcast(self.last_model_path)
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
-        print("U ARE HERE")
-        if self.save_last_n_optim_states >= 0:
-            self._drop_optimizer_states(dirpath=self.dirpath, trainer=trainer)
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
         if not self.always_save_nemo:
             return output
@@ -367,10 +364,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         return ema_callback
 
     def _drop_optimizer_states(
-        self, trainer, dirpath: Union[str, Path], storage_options: Optional[Any] = {"save_optim_states": False}
-    ) -> None:
+        self, trainer, filepath: Union[str, Path], storage_options: Optional[Any]) -> None:
         # Get list of saved checkpoints
-        checkpoints = self._get_checkpoints_list(dirpath)
+        checkpoints = self._get_checkpoints_list(filepath)
 
         # Drop optimizer states
         checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
@@ -378,25 +374,28 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             checkpoint_path = checkpoints[checkpoint_index]
 
             logging.info(f"Loading '{checkpoint_path}' checkpoint to drop optimizer states...")
-            print(dir(trainer))
-            checkpoint = trainer.load_checkpoint(checkpoint_path=checkpoint_path)
+            checkpoint = trainer.strategy.load_checkpoint(checkpoint_path=checkpoint_path)
 
             # Remove the checkpoint version with optimizer states
-            trainer.remove_checkpoint(checkpoint_path)
-
-            checkpoint['state_dict'] = OrderedDict([])
-            checkpoint['sharded_state_dict'] = self.lightning_module.sharded_state_dict()
+            trainer.strategy.remove_checkpoint(checkpoint_path)
 
             # Save the checkpoint without optimizer states
-            trainer.save_checkpoint(filepath, self.save_weights_only, storage_options=storage_options)
+            if storage_options is None:
+                storage_options = dict(drop_optim_states=True)
+            else:
+                storage_options["drop_optim_states"] = True
 
+            trainer.save_checkpoint(f"{checkpoint_path}.ckpt", self.save_weights_only, storage_options=storage_options)
             logging.info(f"Successfully dropped optimizer states for '{checkpoint_path}' checkpoint.")
 
-    def _get_checkpoints_list(self, dirpath: Union[str, Path]) -> List[str]:
+    def _get_checkpoints_list(self, filepath: Union[str, Path]) -> List[str]:
+        # Get a checkpoints directory
+        checkpoints_dir = os.path.dirname(filepath)
+
         # Get a list of saved checkpoints
-        checkpoints = [d for d in os.listdir(dirpath) if os.path.isdir(os.path.join(dirpath, d)) and '-last' not in d]
+        checkpoints = [d for d in os.listdir(checkpoints_dir) if os.path.isdir(os.path.join(checkpoints_dir, d)) and '-last' not in d]
         checkpoints = sorted(checkpoints, key=lambda x: int(x.split('-step=')[1].split('-')[0]))
-        checkpoints = [os.path.join(dirpath, checkpoint) for checkpoint in checkpoints]
+        checkpoints = [os.path.join(checkpoints_dir, checkpoint) for checkpoint in checkpoints]
 
         checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
 
@@ -513,6 +512,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:
                 finalize_fn()
+        
+        if self.save_last_n_optim_states >= 0 and '-last' in filepath:
+            self._drop_optimizer_states(trainer, filepath, storage_options)
 
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int

@@ -413,7 +413,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
         ema_callback = self._ema_callback(trainer)
-
         self._last_global_step_saved = trainer.global_step
 
         if ema_callback is not None:
