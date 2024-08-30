@@ -921,17 +921,11 @@ class BeamRNNTInfer(Typing):
 
                     # extract the states of the sub batch only.
                     if isinstance(self.decoder, RNNTDecoder):
-                        # # LSTM decoder, state is [layer x batch x hidden]
-                        # beam_state_ = [
-                        #     beam_state[state_id][:, sub_batch_ids, :] for state_id in range(len(beam_state))
-                        # ]
+                        # LSTM decoder, state is [layer x batch x hidden]
                         beam_state_= (beam_state[sub_batch_id] for sub_batch_id in sub_batch_ids)
                     elif isinstance(self.decoder, StatelessTransducerDecoder):
                         # stateless decoder, state is [batch x hidden]
-                        # beam_state_ = [beam_state[state_id][sub_batch_ids, :] for state_id in range(len(beam_state))]
-                        # beam_state_ = [beam_state[state_id][sub_batch_ids, :] for state_id in range(len(beam_state))]
                         beam_state_= (beam_state[sub_batch_id] for sub_batch_id in sub_batch_ids)
-                        # beam_state_ = beam_state[sub_batch_ids]
                     else:
                         raise NotImplementedError("Unknown decoder type.")
 

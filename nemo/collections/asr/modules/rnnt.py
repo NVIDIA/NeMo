@@ -998,7 +998,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         
         return [y_j for y_j, d_state in done], [d_state for y_j, d_state in done]
 
-    def batch_stack_states(self, decoder_states: List[List[torch.Tensor]]):
+    def batch_stack_states(self, decoder_states: List[List[torch.Tensor]])->List[torch.Tensor]:
         """
         Create batch of decoder states.
 
