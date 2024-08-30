@@ -382,7 +382,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             else:
                 storage_options["drop_optim_states"] = True
 
-            trainer.save_checkpoint(f"{checkpoint_path}{suffix}.ckpt", self.save_weights_only, storage_options=storage_options)
+            trainer.save_checkpoint(
+                f"{checkpoint_path}{suffix}.ckpt", self.save_weights_only, storage_options=storage_options
+            )
 
             # Remove the checkpoint version with optimizer states
             trainer.strategy.remove_checkpoint(checkpoint_path)
