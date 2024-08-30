@@ -48,16 +48,16 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ``every_n_epochs`` or ``every_n_train_steps``.
         save_best_model: When ``True``, reloads and saves the best checkpoint.
         save_on_train_epoch_end: Whether to run checkpointing at the end of the training epoch
-        always_save_artifacts: Whether to dump the artifacts needed to reinintialize the current
+        always_save_context: Whether to dump the artifacts needed to reinintialize the current
             model, trainer, and dataloader to allow for reproducibility of experiments.
-        save_artifacts_on_train_end: Whether to dump the artifacts on_train_end regardless of whether
-            ``always_save_artifacts`` is ``True``.
+        save_context_on_train_end: Whether to dump the artifacts on_train_end regardless of whether
+            ``always_save_context`` is ``True``.
         async_save: Whether to enable asynchronous checkpointing.
         try_restore_best_ckpt: Whether to restore the best model path.
     """
 
     UNFINISHED_CHECKPOINT_SUFFIX = "-unfinished"
-    MODEL_WEIGHTS_PATH = "model_weights"
+    WEIGHTS_PATH = "weights"
 
     def __init__(
         self,
@@ -72,15 +72,15 @@ class ModelCheckpoint(PTLModelCheckpoint):
         train_time_interval: Optional[timedelta] = None,
         save_best_model: bool = False,
         save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
-        always_save_artifacts: bool = False,
-        save_artifacts_on_train_end: bool = True,
+        always_save_context: bool = False,
+        save_context_on_train_end: bool = True,
         try_restore_best_ckpt: bool = True,
         **kwargs,
     ):
         self.save_best_model = save_best_model
         self.previous_best_path = ""
-        self.always_save_artifacts = always_save_artifacts
-        self.save_artifacts_on_train_end = save_artifacts_on_train_end
+        self.always_save_context = always_save_context
+        self.save_context_on_train_end = save_context_on_train_end
 
         # Checkpoints which removal is deferred until async save is done.
         # Each element of `deferred_ckpts_to_remove` is a growing list
@@ -276,12 +276,13 @@ class ModelCheckpoint(PTLModelCheckpoint):
                     logging.debug(f'Last checkpoint {self.last_model_path} already saved')
                 else:
                     super()._save_last_checkpoint(trainer, monitor_candidates)
-            if self.save_artifacts_on_train_end and not self.always_save_artifacts and is_global_rank_zero():
+            if self.save_context_on_train_end and not self.always_save_context and is_global_rank_zero():
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(self.last_model_path) / "artifacts")
         # Call parent on_train_end() to save the -last checkpoint
         super().on_train_end(trainer, pl_module)
 
         # Load the best model and then re-save it
+        ## TODO: finish adding support
         if self.save_best_model:
             # wait for all processes
             trainer.strategy.barrier("SaveBestCheckpointConnector.resume_end")
@@ -294,7 +295,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             else:
                 if os.path.isdir(self.best_model_path.split('.ckpt')[0]):
                     self.best_model_path = (
-                        Path(self.best_model_path.split('.ckpt')[0]) / ModelCheckpoint.MODEL_WEIGHTS_PATH
+                        Path(self.best_model_path.split('.ckpt')[0]) / ModelCheckpoint.WEIGHTS_PATH
                     )
                 if self.try_restore_best_ckpt:
                     self.best_model_path = trainer.strategy.broadcast(self.best_model_path)
@@ -421,7 +422,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
-        ckpt_filepath = ckpt_to_dir(filepath) / ModelCheckpoint.MODEL_WEIGHTS_PATH
+        ckpt_filepath = ckpt_to_dir(filepath) / ModelCheckpoint.WEIGHTS_PATH
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
         ema_callback = self._ema_callback(trainer)
 
@@ -443,7 +444,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
             ## Do not include optimizer states in final checkpoint
-            storage_options = dict(include_optimizer=(trainer.global_step == trainer.max_steps))
+            storage_options = dict(include_optimizer=(trainer.global_step < trainer.max_steps))
 
             # Async save passes the finalization function to checkpoint_io,
             # sync save calls the finalization function immediately after save.
@@ -459,7 +460,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 self.deferred_ckpts_to_remove.append([])
             trainer.save_checkpoint(ckpt_filepath, self.save_weights_only, storage_options=storage_options)
 
-            if self.always_save_artifacts and is_global_rank_zero():
+            if self.always_save_context and is_global_rank_zero():
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "artifacts")
 
             if self.async_save:

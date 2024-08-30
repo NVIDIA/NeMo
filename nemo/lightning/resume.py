@@ -37,7 +37,7 @@ class AutoResume(Resume, io.IOMixin):
     checkpoints in NeMo.
     """
 
-    MAYBE_MODEL_WEIGHTS_PATH = "model_weights"
+    WEIGHTS_PATH = "weights"
 
     def __init__(
         self,
@@ -154,7 +154,7 @@ class AutoResume(Resume, io.IOMixin):
             if self.adapter_path:
                 return AdapterPath(checkpoint, adapter_path=Path(self.adapter_path))
 
-            model_weights_path = Path(checkpoint) / AutoResume.MAYBE_MODEL_WEIGHTS_PATH
+            model_weights_path = Path(checkpoint) / AutoResume.WEIGHTS_PATH
             if os.path.isdir(model_weights_path):
                 return model_weights_path
             return Path(checkpoint)

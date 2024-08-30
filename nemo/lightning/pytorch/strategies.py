@@ -14,6 +14,7 @@ import torch
 import torch.distributed
 from lightning_fabric.plugins import CheckpointIO, ClusterEnvironment
 from lightning_fabric.utilities.optimizer import _optimizer_to_device, _optimizers_to_device
+from megatron.core import dist_checkpointing
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.accelerators import CPUAccelerator
@@ -615,14 +616,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ## are both True
         include_optimizer = self.ckpt_include_optimizer
         if "include_optimizer" in storage_options:
-            include_optimizer = not include_optimizer and storage_options["include_optimizer"]
+            include_optimizer = include_optimizer and storage_options["include_optimizer"]
+            del storage_options["include_optimizer"]
 
         if self.trainer.state.fn == TrainerFn.FITTING and include_optimizer:
             checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
-    ## TODO: only load the optimizer states when they exist in the checkpoint?
     @override
     def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
         """PTL method which we override to integrate distributed checkpoints for model parallel models.
@@ -636,7 +637,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         sharded_state_dict = {}
         sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict()
 
-        if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
+        common_state_dict = dist_checkpointing.load_common_state_dict(checkpoint_path)
+        has_optim = "optimizer" in common_state_dict
+        logging.info('Checkpoint is missing optimizer state. Restoring only the model weights.')
+
+        if has_optim and self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
             if self.lightning_module.optimizers(use_pl_optimizer=False):
                 sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
@@ -646,7 +651,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def load_optimizer_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
-        if not self.ckpt_include_optimizer:
+        if not self.ckpt_include_optimizer or "optimizer" not in checkpoint:
             return
 
         optimizer_states = checkpoint["optimizer"]
