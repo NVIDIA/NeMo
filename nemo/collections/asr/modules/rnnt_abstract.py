@@ -226,7 +226,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         raise NotImplementedError()
 
     def batch_score_hypothesis(
-        self, hypotheses: List[Hypothesis], cache: Dict[Tuple[int], Any], batch_states: List[torch.Tensor]
+        self, hypotheses: List[Hypothesis], cache: Dict[Tuple[int], Any],
     ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
         """
         Used for batched beam search algorithms. Similar to score_hypothesis method.
@@ -234,8 +234,6 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         Args:
             hypothesis: List of Hypotheses. Refer to rnnt_utils.Hypothesis.
             cache: Dict which contains a cache to avoid duplicate computations.
-            batch_states: List of torch.Tensor which represent the states of the RNN for this batch.
-                Each state is of shape [L, B, H]
 
         Returns:
             Returns a tuple (b_y, b_states, lm_tokens) such that:
@@ -246,7 +244,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         """
         raise NotImplementedError()
 
-    def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
+    def batch_stack_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
         """
         Create batch of decoder states.
 
