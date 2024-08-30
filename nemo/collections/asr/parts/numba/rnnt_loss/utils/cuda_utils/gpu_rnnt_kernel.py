@@ -961,7 +961,7 @@ def compute_tdt_alphas_kernel(
             if t > 0 and t < T:
                 alphas[offset + t * maxU + u] = -INF
 
-                for i in range(0, num_durations):
+                for i in range(num_durations):
                     if durations[i] == 0:  # skip 0 since blank emission has to advance by at least one
                         continue
                     if t >= durations[i]:
@@ -1000,7 +1000,7 @@ def compute_tdt_alphas_kernel(
             # now we have t != 0 and u != 0, and we need to consider both non-blank and blank emissions.
             elif t > 0 and t < T:
                 no_emit = -INF  # no_emit stores the score for all blank emissions.
-                for i in range(0, num_durations):
+                for i in range(num_durations):
                     if durations[i] == 0:
                         continue
                     if t >= durations[i]:
@@ -1019,7 +1019,7 @@ def compute_tdt_alphas_kernel(
                         break  # we can exit the loop early here, same as the case for u == 0 above.
 
                 emit = -INF  # emit stores the score for non-blank emissions.
-                for i in range(0, num_durations):
+                for i in range(num_durations):
                     if t >= durations[i]:
                         emit = rnnt_helper.log_sum_exp(
                             emit,  # current score
@@ -1048,7 +1048,7 @@ def compute_tdt_alphas_kernel(
         loglike = -INF
 
         # then we add the scores for duration > 1, if such durations are possible given the audio lengths.
-        for i in range(0, num_durations):
+        for i in range(num_durations):
             if durations[i] == 0:
                 continue
             if durations[i] == 1:
@@ -1159,7 +1159,7 @@ def compute_tdt_betas_kernel(
             # u == U - 1, we only consider blank emissions.
             if t >= 0 and t + 1 < T:
                 betas[offset + t * maxU + U - 1] = -INF
-                for i in range(0, num_durations):
+                for i in range(num_durations):
                     # although similar, the computation for beta's is slightly more complex for boundary cases.
                     # the following two cases correspond to whether t is exactly certain duration away from T.
                     # and they have slightly different update rules.
@@ -1207,7 +1207,7 @@ def compute_tdt_betas_kernel(
             elif t >= 0 and t < T - 1:
                 # now we need to consider both blank andnon-blanks. Similar to alphas, we first compute them separately with no_emit and emit.
                 no_emit = -INF
-                for i in range(0, num_durations):
+                for i in range(num_durations):
                     if durations[i] == 0:
                         continue
                     if t + durations[i] < T:
@@ -1220,7 +1220,7 @@ def compute_tdt_betas_kernel(
                         )
 
                 emit = -INF
-                for i in range(0, num_durations):
+                for i in range(num_durations):
                     if t + durations[i] < T:
                         emit = rnnt_helper.log_sum_exp(
                             emit,
@@ -1362,7 +1362,7 @@ def compute_tdt_grad_kernel(
             if fastemit_lambda > 0.0 and u < U - 1:
                 fastemit_grad = 0.0
 
-                for i in range(0, num_durations):
+                for i in range(num_durations):
                     if t + durations[i] < T:
                         fastemit_grad += fastemit_lambda * math.exp(
                             alphas[col]  # alphas(t, u)
@@ -1382,7 +1382,7 @@ def compute_tdt_grad_kernel(
             # grad to last blank transition
             # grad[b, T-1, U-1, v=blank] -= exp(alphas[b, t, u] + logpk - sigma - logll[b] + logp(duration) for all possible non-zero durations.
             if idx == blank_ and u == U - 1:
-                for i in range(0, num_durations):
+                for i in range(num_durations):
                     if durations[i] == 0:
                         continue
                     if t == T - durations[i]:
@@ -1393,7 +1393,7 @@ def compute_tdt_grad_kernel(
             # grad of blank across t < T;
             # grad[b, t<T-1, u, v=blank] -= exp(alphas[b, t, u] + logpk - sigma + logp_duration - logll[b] + betas[b, t + duration, u]) for all non-zero durations
             if idx == blank_:
-                for i in range(0, num_durations):
+                for i in range(num_durations):
                     if durations[i] == 0:
                         continue
                     if t < T - durations[i]:
