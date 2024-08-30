@@ -1,28 +1,41 @@
 import dataclasses
+import re
 from dataclasses import dataclass
-from typing import Any, List, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
 import torch
 from einops import rearrange
-from megatron.energon import DefaultTaskEncoder, batch_list, batch_stack
-#from megatron.energon import batch_pad_stack, stateless
-from megatron.energon import Batch, CaptioningSample, DefaultTaskEncoder, OCRSample, VQASample, SimilarityInterleavedSample, InterleavedSample
-from transformers import CLIPImageProcessor, SiglipImageProcessor
-import re
-import numpy as np
+
+# from megatron.energon import batch_pad_stack, stateless
+from megatron.energon import (
+    Batch,
+    CaptioningSample,
+    DefaultTaskEncoder,
+    InterleavedSample,
+    OCRSample,
+    SimilarityInterleavedSample,
+    VQASample,
+    batch_list,
+    batch_stack,
+)
 from PIL import Image
+from transformers import CLIPImageProcessor, SiglipImageProcessor
+
 from nemo.collections.common.tokenizers import SentencePieceTokenizer
 from nemo.collections.multimodal.data.neva.neva_dataset import (
-    process_image,
-    preprocess_multimodal,
-    preprocess_nvgpt,
-    preprocess_nv_dpo,
-    preprocess_v1,
+    DEFAULT_IMAGE_TOKEN,
+    preprocess_interleaved_prompt,
     preprocess_llama_2,
     preprocess_llama_3,
+    preprocess_multimodal,
+    preprocess_nv_dpo,
+    preprocess_nvgpt,
     preprocess_plain,
-    DEFAULT_IMAGE_TOKEN,
-    preprocess_interleaved_prompt
+    preprocess_v1,
+    process_image,
 )
+
 
 @dataclass
 class ImageTaskSample:
@@ -38,6 +51,7 @@ class ImageTaskSample:
     loss_mask: Optional[torch.Tensor] = None
     position_ids: Optional[torch.Tensor] = None
 
+
 @dataclass
 class ImageTaskBatch(Batch):
     tokens: torch.Tensor
@@ -46,7 +60,6 @@ class ImageTaskBatch(Batch):
     loss_mask: torch.Tensor
     position_ids: torch.Tensor
     media: Optional[torch.Tensor] = None
-
 
 
 class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatch, dict]):
@@ -62,12 +75,13 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         self.caption_prompts = [
             "Generate a short cap fotion of the image.",
             "Describe the image concisely.",
-            "Provide a brief description of the given image."
+            "Provide a brief description of the given image.",
         ]
         self.prompt_index = 0
-    
 
-    def encode_sample(self, sample: Union[ImageTaskSample, VQASample, InterleavedSample, SimilarityInterleavedSample]) -> dict:
+    def encode_sample(
+        self, sample: Union[ImageTaskSample, VQASample, InterleavedSample, SimilarityInterleavedSample]
+    ) -> dict:
         if isinstance(sample, InterleavedSample):
             return self.encode_interleaved(sample)
         elif isinstance(sample, VQASample):
@@ -79,39 +93,29 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         else:
             return self.encode_sft(sample)
 
-    
     def encode_captioning(self, sample: CaptioningSample) -> dict:
         processed_image = self.process_images(sample.image)
-        
+
         prompt = f"<image>\n{self.caption_prompts[self.prompt_index]}\n"
         self.prompt_index = (self.prompt_index + 1) % len(self.caption_prompts)
-        
+
         caption = sample.caption.strip()
-        
-        conversation = [
-            {"from": "human", "value": prompt},
-            {"from": "gpt", "value": caption}
-        ]
-        
-        processed_sample = {
-            "conversations": conversation,
-            "image": processed_image
-        }
-        
+
+        conversation = [{"from": "human", "value": prompt}, {"from": "gpt", "value": caption}]
+
+        processed_sample = {"conversations": conversation, "image": processed_image}
+
         if self.multimodal_cfg['is_multimodal']:
             cur_token_len = self.calculate_token_length(processed_sample["image"])
             processed_sample = preprocess_multimodal(
-                [processed_sample],
-                self.multimodal_cfg,
-                cur_token_len,
-                use_plain=(self.conv_template == "plain")
+                [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
             )[0]
-        
+
         processed = self.preprocess_conversations([processed_sample])
         tokens = processed["tokens"]
         labels = processed["labels"]
         attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
-        
+
         return ImageTaskSample(
             __key__=sample.__key__,
             __subflavor__=sample.__subflavor__,
@@ -121,32 +125,26 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             labels=labels.squeeze(0),
             attention_mask=attention_mask.squeeze(0),
             loss_mask=loss_mask.squeeze(0),
-            position_ids=position_ids
+            position_ids=position_ids,
         )
-    
+
     def encode_pretrain(self, sample: VQASample) -> dict:
-        conversations = [
-            {"from": "human", "value": sample.context},
-            {"from": "gpt", "value": sample.answers}
-        ]
+        conversations = [{"from": "human", "value": sample.context}, {"from": "gpt", "value": sample.answers}]
         processed_sample = {"conversations": conversations}
-        
+
         if self.multimodal_cfg['is_multimodal']:
             if hasattr(sample, 'image') and sample.image is not None:
                 processed_sample["image"] = self.process_images(sample.image)
                 cur_token_len = self.calculate_token_length(processed_sample["image"])
                 processed_sample = preprocess_multimodal(
-                    [processed_sample],
-                    self.multimodal_cfg,
-                    cur_token_len,
-                    use_plain=(self.conv_template == "plain")
+                    [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
                 )[0]
-        
+
         processed = self.preprocess_conversations([processed_sample])
         tokens = processed["tokens"]
         labels = processed["labels"]
         attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
-        
+
         return ImageTaskSample(
             __key__=sample.__key__,
             __subflavor__=sample.__subflavor__,
@@ -157,14 +155,13 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             labels=labels.squeeze(0),
             attention_mask=attention_mask.squeeze(0),
             loss_mask=loss_mask.squeeze(0),
-            position_ids=position_ids
-            
+            position_ids=position_ids,
         )
 
     def encode_sft(self, sample: Union[ImageTaskSample, VQASample, InterleavedSample]) -> dict:
         conversations = sample.texts if hasattr(sample, 'texts') else sample.conversations
         processed_sample = {"conversations": conversations}
-        
+
         if self.multimodal_cfg['is_multimodal']:
             image_present = False
             if hasattr(sample, 'image') and sample.image is not None:
@@ -176,106 +173,103 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             elif hasattr(sample, 'video') and sample.video:
                 # Implement video processing if needed
                 pass
-            
+
             if image_present:
                 processed_sample = preprocess_multimodal(
                     [processed_sample],
                     self.multimodal_cfg,
                     self.calculate_token_length(processed_sample["image"]),
-                    use_plain=(self.conv_template == "plain")
+                    use_plain=(self.conv_template == "plain"),
                 )[0]
-        
+
         processed = self.preprocess_conversations([processed_sample])
         tokens = processed["tokens"]
         labels = processed["labels"]
         attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
-        
+
         if not image_present:
-            processed_sample["image"] = torch.zeros(1, 3, self.multimodal_cfg["crop_size"][0], self.multimodal_cfg["crop_size"][1])
+            processed_sample["image"] = torch.zeros(
+                1, 3, self.multimodal_cfg["crop_size"][0], self.multimodal_cfg["crop_size"][1]
+            )
 
         return ImageTaskSample(
             __key__=sample.__key__,
             __subflavor__=sample.__subflavor__,
             conversations=conversations,
-            #rewrite image so it creates tensor of zeros if not present
+            # rewrite image so it creates tensor of zeros if not present
             image=processed_sample.get("image", torch.tensor([])),
             tokens=tokens.squeeze(0),
             labels=labels.squeeze(0),
             attention_mask=attention_mask.squeeze(0),
             loss_mask=loss_mask.squeeze(0),
-            position_ids=position_ids
+            position_ids=position_ids,
         )
 
-
     def encode_similarity_interleaved(self, sample: SimilarityInterleavedSample) -> dict:
-        
+
         # 4 fields: sample.images, sample.texts, sample.similarity_matrix, sample.matched_text_index
         images, sentence_ixs = [], []
         for sample_image, sim_vec in zip(sample.images, sample.matched_text_indices):
             images.append(sample_image)
             sentence_ixs.append(sim_vec)
-            
+
         # constrain max num images
         max_num_images = self.max_num_images
         if len(images) > max_num_images:
             images = images[:max_num_images]
             sentence_ixs = sentence_ixs[:max_num_images]
-        
+
         images = [images[i] for i in np.argsort(sentence_ixs)]
-        
+
         for ix in sentence_ixs:
             sample.texts[ix] = f"{DEFAULT_IMAGE_TOKEN} {sample.texts[ix]}"
-        
+
         if self.image_following_text_only:
             # use pad token to divide sentence pieces
             text = self.tokenizer.pad_id.join(sample.texts)
         else:
             text = " ".join(sample.texts)
-        
+
         text = text.replace("<image> ", "<image>").replace(" <image>", "<image>")
         text = f"{text}{self.tokenizer.eos_id}"
-        
+
         if len(images) > 0:
             processed_images = self.process_images(images)
         else:
             processed_images = None
-        
+
         # check the case where the last token is the image token.
         if text.endswith(DEFAULT_IMAGE_TOKEN):
-            text = text[:-len(DEFAULT_IMAGE_TOKEN)]
-        
+            text = text[: -len(DEFAULT_IMAGE_TOKEN)]
+
         n_im_patch = text.count(DEFAULT_IMAGE_TOKEN)
         processed_images = processed_images[:n_im_patch]
         assert len(processed_images) == n_im_patch
-        
-        processed_sample = {
-            "conversations": text,
-            "image": processed_images
-        }
-        
+
+        processed_sample = {"conversations": text, "image": processed_images}
+
         if self.multimodal_cfg['is_multimodal']:
             if images:
                 cur_token_len = self.calculate_token_length(processed_sample["image"])
                 processed_sample = preprocess_multimodal(
-                    [processed_sample],
-                    self.multimodal_cfg,
-                    cur_token_len,
-                    use_plain=(self.conv_template == "plain")
+                    [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
                 )[0]
-                
+
         processed = self.preprocess_conversations([processed_sample])
-        
+
         tokens = processed["tokens"]
         labels = processed["labels"]
         attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
-        
-        #pad images
+
+        # pad images
         if images:
             processed_sample["image"] = self.pad_images(processed_sample["image"], self.max_num_images)
         else:
             # add extra dummy images
-            processed_sample["image"] = torch.zeros(self.max_num_images, 3, self.multimodal_cfg["crop_size"][0], self.multimodal_cfg["crop_size"][1])
-        
+            processed_sample["image"] = torch.zeros(
+                self.max_num_images, 3, self.multimodal_cfg["crop_size"][0], self.multimodal_cfg["crop_size"][1]
+            )
+
         return ImageTaskSample(
             __key__=sample.__key__,
             __subflavor__=sample.__subflavor__,
@@ -285,10 +279,9 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             labels=labels.squeeze(0),
             attention_mask=attention_mask.squeeze(0),
             loss_mask=loss_mask.squeeze(0),
-            position_ids=position_ids
+            position_ids=position_ids,
         )
-    
-    
+
     def encode_interleaved(self, sample: InterleavedSample) -> dict:
         interleaved_text = []
         images = []
@@ -300,15 +293,15 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
                 images.append(item)
             else:
                 raise ValueError(f"Unsupported type in interleaved sequence: {type(item)}")
-        
+
         # constrain max num images
         max_num_images = self.max_num_images
-        
+
         n_im_patch = interleaved_text.count(DEFAULT_IMAGE_TOKEN)
         if n_im_patch > max_num_images:
             interleaved_text, kept_image_indices = self.remove_excess_image_tokens(interleaved_text, max_num_images)
             images = [images[i] for i in kept_image_indices]
-        
+
         if len(images) > max_num_images:
             images = images[:max_num_images]
 
@@ -316,39 +309,33 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             processed_images = self.process_images(images)
         else:
             processed_images = None
-            
-        
+
         combined_text = ' '.join(interleaved_text)
-        
-        processed_sample = {
-            "conversations": combined_text,
-            "image": processed_images
-        }
-        
+
+        processed_sample = {"conversations": combined_text, "image": processed_images}
+
         if self.multimodal_cfg['is_multimodal']:
             if images:
                 cur_token_len = self.calculate_token_length(processed_sample["image"])
                 processed_sample = preprocess_multimodal(
-                    [processed_sample],
-                    self.multimodal_cfg,
-                    cur_token_len,
-                    use_plain=(self.conv_template == "plain")
+                    [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
                 )[0]
-                
-        
+
         processed = self.preprocess_conversations([processed_sample])
-        
+
         tokens = processed["tokens"]
         labels = processed["labels"]
-        
+
         attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
-        
-        #pad images
+
+        # pad images
         if images:
             processed_sample["image"] = self.pad_images(processed_sample["image"], self.max_num_images)
         else:
-            processed_sample["image"] = torch.zeros(self.max_num_images, 3, self.multimodal_cfg["crop_size"][0], self.multimodal_cfg["crop_size"][1])
-        
+            processed_sample["image"] = torch.zeros(
+                self.max_num_images, 3, self.multimodal_cfg["crop_size"][0], self.multimodal_cfg["crop_size"][1]
+            )
+
         return ImageTaskSample(
             __key__=sample.__key__,
             __subflavor__=sample.__subflavor__,
@@ -358,41 +345,44 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             labels=labels.squeeze(0),
             attention_mask=attention_mask.squeeze(0),
             loss_mask=loss_mask.squeeze(0),
-            position_ids=position_ids
+            position_ids=position_ids,
         )
-    
+
     def remove_excess_image_tokens(self, interleaved_text, max_num_images):
         if interleaved_text[-1] == DEFAULT_IMAGE_TOKEN:
             interleaved_text = interleaved_text[:-1]
-            
+
         image_indices = [i for i, token in enumerate(interleaved_text) if token == DEFAULT_IMAGE_TOKEN]
-    
+
         if len(image_indices) <= max_num_images:
             return interleaved_text, list(range(len(image_indices)))
-        
+
         # we keep the images that are close to the text tokens
         importance = []
         for i, img_idx in enumerate(image_indices):
             has_text_before = img_idx > 0 and interleaved_text[img_idx - 1] != DEFAULT_IMAGE_TOKEN
-            has_text_after = img_idx < len(interleaved_text) - 1 and interleaved_text[img_idx + 1] != DEFAULT_IMAGE_TOKEN
-        
+            has_text_after = (
+                img_idx < len(interleaved_text) - 1 and interleaved_text[img_idx + 1] != DEFAULT_IMAGE_TOKEN
+            )
+
             if has_text_before and has_text_after:
                 importance.append((0, img_idx))  # highest importance
             elif has_text_before or has_text_after:
-                importance.append((1, img_idx))  
+                importance.append((1, img_idx))
             else:
-                importance.append((2, img_idx))  
-                
+                importance.append((2, img_idx))
+
         importance.sort(key=lambda x: (x[0], x[1]))
         kept_indices = {idx for _, idx in importance[:max_num_images]}
 
         # update idx to map correctly to the original images array
         kept_image_indices = [image_indices.index(i) for i in kept_indices if i in image_indices]
 
-        new_interleaved_text = [token for i, token in enumerate(interleaved_text) if token != DEFAULT_IMAGE_TOKEN or i in kept_indices]
+        new_interleaved_text = [
+            token for i, token in enumerate(interleaved_text) if token != DEFAULT_IMAGE_TOKEN or i in kept_indices
+        ]
 
         return new_interleaved_text, kept_image_indices
-            
 
     def process_images(self, images):
         if not isinstance(images, list):
@@ -401,7 +391,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         for image in images:
             image = process_image(self.image_processor, image, self.multimodal_cfg['image_aspect_ratio'])
             processed_images.append(image)
-        return torch.stack(processed_images) #make it always 4D, otherwise has problem when len(images) > 1
+        return torch.stack(processed_images)  # make it always 4D, otherwise has problem when len(images) > 1
 
     def pad_images(self, images, max_num_images):
         if len(images) < max_num_images:
@@ -411,24 +401,27 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         return images
 
     def batch(self, samples: List[ImageTaskSample]) -> ImageTaskBatch:
-        
+
         batch = ImageTaskBatch(
             tokens=batch_pad_stack([s.tokens for s in samples]),
             labels=batch_pad_stack([s.labels for s in samples]),
             attention_mask=batch_pad_stack([s.attention_mask for s in samples]),
             loss_mask=batch_pad_stack([s.loss_mask for s in samples]),
             position_ids=batch_pad_stack([s.position_ids for s in samples]),
-            media=torch.stack([s.image for s in samples if s.image is not None]) if self.multimodal_cfg['is_multimodal'] else None
+            media=(
+                torch.stack([s.image for s in samples if s.image is not None])
+                if self.multimodal_cfg['is_multimodal']
+                else None
+            ),
         )
-        
-        #TODO: cleanup, this is following logic in neva_dataset when we rearrange media tensor
+
+        # TODO: cleanup, this is following logic in neva_dataset when we rearrange media tensor
         if batch.media.shape[1] == 1:
             batch.media = rearrange(batch.media, "b T c h w -> b T 1 c h w")
         else:
             batch.media = rearrange(batch.media, "b T c h w -> b T 1 c h w")
-        
-        return batch
 
+        return batch
 
     def preprocess_conversations(self, sources):
         if self.conv_template == "nvgpt":
@@ -449,8 +442,6 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             return preprocess_interleaved_prompt(sources, self.tokenizer, self.multimodal_cfg)
         else:
             raise ValueError(f"Conversation template `{self.conv_template}` is not supported in Neva now.")
-
-
 
     def encode_batch(self, batch: ImageTaskBatch) -> dict:
         raw = dataclasses.asdict(batch)
@@ -485,23 +476,25 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         loss_mask[labels == -1] = 0.0
         tokens[tokens == -1] = 0
         labels[labels == -1] = 0
-        
+
         return attention_mask, loss_mask, position_ids
-    
-    
+
+
 class PackingTaskEncoder(TaskEncoder):
     def __init__(self, tokenizer, image_processor, multimodal_cfg: dict, data_cfg: dict, max_length: int):
         super().__init__(tokenizer, image_processor, multimodal_cfg, data_cfg)
         self.max_length = max_length
-        self.batch_type = ImageTaskBatch  
+        self.batch_type = ImageTaskBatch
 
     @stateless(restore_seeds=True)
-    def encode_sample(self, sample: Union[ImageTaskSample, VQASample, InterleavedSample, SimilarityInterleavedSample]) -> dict:
+    def encode_sample(
+        self, sample: Union[ImageTaskSample, VQASample, InterleavedSample, SimilarityInterleavedSample]
+    ) -> dict:
         return super().encode_sample(sample)
 
     def slice_batch(self, samples: List[ImageTaskSample]) -> List[List[ImageTaskSample]]:
         # Sort samples by token length
-        samples.sort(key=lambda x: len(x.tokens))       
+        samples.sort(key=lambda x: len(x.tokens))
         batches = []
         while len(samples) > 0:
             batch = []
@@ -512,37 +505,41 @@ class PackingTaskEncoder(TaskEncoder):
                 total_length += len(sample.tokens)
             batches.append(batch)
         return batches
-    
+
     def batch(self, samples: List[ImageTaskSample]) -> ImageTaskBatch:
         tokens = torch.cat([s.tokens for s in samples])
         labels = torch.cat([s.labels for s in samples])
-        
+
         cu_seqlens = torch.cumsum(torch.tensor([0] + [len(s.tokens) for s in samples]), dim=0)
         max_seqlen = cu_seqlens[-1]
-        
+
         attention_mask = torch.ones(max_seqlen, max_seqlen, dtype=torch.bool)
         loss_mask = torch.cat([s.loss_mask for s in samples])
         position_ids = torch.arange(max_seqlen, dtype=torch.long)
 
-        media = torch.stack([s.image for s in samples if s.image is not None]) if self.multimodal_cfg['is_multimodal'] else None
-        
+        media = (
+            torch.stack([s.image for s in samples if s.image is not None])
+            if self.multimodal_cfg['is_multimodal']
+            else None
+        )
+
         batch = ImageTaskBatch(
             tokens=tokens.unsqueeze(0),
             labels=labels.unsqueeze(0),
             attention_mask=attention_mask.unsqueeze(0),
             loss_mask=loss_mask.unsqueeze(0),
             position_ids=position_ids.unsqueeze(0),
-            media=media
+            media=media,
         )
-        
+
         if batch.media is not None:
             if batch.media.shape[1] == 1:
                 batch.media = rearrange(batch.media, "b T c h w -> b T 1 c h w")
             else:
                 batch.media = rearrange(batch.media, "b T c h w -> b T 1 c h w")
-        
+
         return batch
-    
+
     def encode_batch(self, batch: ImageTaskBatch) -> dict:
         return super().encode_batch(batch)
 

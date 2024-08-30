@@ -35,12 +35,12 @@ from nemo.collections.multimodal.data.clip.augmentations.augmentations import im
 from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_BOS_TOKEN,
     DEFAULT_EOS_TOKEN,
-    DEFAULT_PAD_TOKEN,
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IMAGE_PATCH_TOKEN,
     DEFAULT_IMAGE_TOKEN,
     DEFAULT_LABELS_TOKEN,
+    DEFAULT_PAD_TOKEN,
     DEFAULT_VID_END_TOKEN,
     DEFAULT_VID_START_TOKEN,
     DEFAULT_VIDEO_TOKEN,
@@ -397,7 +397,7 @@ def process_image(processor, image, image_aspect_ratio="square"):
             image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
     else:
         assert image_aspect_ratio == 'square', 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
-        image = processor(image,return_tensors='pt')['pixel_values'][0]
+        image = processor(image, return_tensors='pt')['pixel_values'][0]
     return image
 
 
@@ -797,14 +797,13 @@ def preprocess_v1(
         labels=labels,
     )
 
+
 def preprocess_interleaved_prompt(
     sources: dict,
     tokenizer,
     cfg,
 ) -> Dict:
-    
-    """tokenize the interleaved prompt and mask the text part of the prompt
-    """
+    """tokenize the interleaved prompt and mask the text part of the prompt"""
     conversations = []
     for source in sources:
         conversations.append(source['conversations'])
@@ -815,7 +814,7 @@ def preprocess_interleaved_prompt(
         context_length=cfg.get("context_length"),
         add_extra_token=add_extra_token,
     )
-    
+
     model_type = cfg['model_type']
     image_patch_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type]
     image_start_token = DEFAULT_IM_START_TOKEN[model_type]
@@ -823,7 +822,7 @@ def preprocess_interleaved_prompt(
     DEFAULT_TOKENS = [image_patch_token, image_start_token, image_end_token, DEFAULT_PAD_TOKEN]
     img_patch_id, img_start_id, img_end_id, pad_id = get_tokens_ids(tokenizer, DEFAULT_TOKENS)
     tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
-    
+
     labels = tokens.clone().detach()
 
     # Mask labels change for interleaved prompt
@@ -831,18 +830,19 @@ def preprocess_interleaved_prompt(
     labels[labels == img_end_id] = IGNORE_INDEX
     labels[labels == 0] = IGNORE_INDEX
     labels[labels == pad_id] = IGNORE_INDEX
-    
+
     if add_extra_token:
         tokens = tokens[:, :-1].contiguous()
         labels = labels[:, 1:].contiguous()
     else:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
-    
+
     return dict(
         tokens=tokens,
         labels=labels,
     )
+
 
 def preprocess_nvgpt(
     sources: dict,

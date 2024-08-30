@@ -35,7 +35,6 @@ DEFAULT_IM_START_TOKEN["llama_3"] = "<|reserved_special_token_4|>"
 DEFAULT_IM_END_TOKEN["llama_3"] = "<|reserved_special_token_5|>"
 
 
-
 DEFAULT_VID_START_TOKEN = "<extra_id_8>"
 DEFAULT_VID_END_TOKEN = "<extra_id_9>"
 TIME_TOKEN_TEMPLATE = "<t{t}>"
