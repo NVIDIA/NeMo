@@ -1,6 +1,6 @@
+import json
 import os
 from dataclasses import dataclass
-import json
 from pathlib import Path, PosixPath, WindowsPath
 from typing import Optional, Union
 
