@@ -82,21 +82,21 @@ class TestNeMoLogger:
         # Error because explicit_log_dir does not exist
         with pytest.raises(NotFoundError):
             nl.AutoResume(
-                resume_path=str(tmp_path / "test_resume"),
+                resume_from_directory=str(tmp_path / "test_resume"),
                 resume_if_exists=True,
             ).setup(trainer)
 
         # Error because checkpoints folder does not exist
         with pytest.raises(NotFoundError):
             nl.AutoResume(
-                resume_path=str(tmp_path / "test_resume" / "does_not_exist"),
+                resume_from_directory=str(tmp_path / "test_resume" / "does_not_exist"),
                 path="does_not_exist",
                 resume_if_exists=True,
             ).setup(trainer)
 
         # No error because we tell autoresume to ignore notfounderror
         nl.AutoResume(
-            resume_path=str(tmp_path / "test_resume" / "does_not_exist"),
+            resume_from_directory=str(tmp_path / "test_resume" / "does_not_exist"),
             resume_if_exists=True,
             resume_ignore_no_checkpoint=True,
         ).setup(trainer)
@@ -105,7 +105,7 @@ class TestNeMoLogger:
         # Error because checkpoints do not exist in folder
         with pytest.raises(NotFoundError):
             nl.AutoResume(
-                resume_path=path,
+                resume_from_directory=path,
                 resume_if_exists=True,
             ).setup(trainer)
 
@@ -113,7 +113,7 @@ class TestNeMoLogger:
         # Error because *end.ckpt is in folder indicating that training has already finished
         with pytest.raises(ValueError):
             nl.AutoResume(
-                resume_path=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
+                resume_from_directory=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
                 resume_if_exists=True,
             ).setup(trainer)
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end").rmdir()
@@ -153,7 +153,7 @@ class TestNeMoLogger:
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel3--last-unfinished").touch()
 
         nl.AutoResume(
-            resume_path=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
+            resume_from_directory=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
             resume_if_exists=True,
         ).setup(trainer)
         assert str(trainer.ckpt_path) == str(
@@ -189,6 +189,6 @@ class TestNeMoLogger:
         logger.setup(trainer)
         nl.AutoResume(
             resume_if_exists=True,
-            resume_path=str(dirpath_checkpoint_dir),
+            resume_from_directory=str(dirpath_checkpoint_dir),
         ).setup(trainer)
         assert Path(trainer.ckpt_path).resolve() == dirpath_checkpoint.resolve()

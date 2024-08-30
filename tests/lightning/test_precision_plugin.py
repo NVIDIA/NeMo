@@ -34,7 +34,8 @@ class TestMegatronMixedPrecision:
             strategy=nl.MegatronStrategy(
                 tensor_model_parallel_size=2,
                 sequence_parallel=True,
-                ckpt_include_optimizer=False,
+                ckpt_load_optimizer=False,
+                ckpt_save_optimizer=False,
             ),
             plugins=nl.MegatronMixedPrecision(precision="bf16-mixed", fp8='e4m3'),
             limit_val_batches=0.0,
@@ -65,7 +66,8 @@ class TestMegatronMixedPrecision:
             strategy=nl.MegatronStrategy(
                 tensor_model_parallel_size=2,
                 sequence_parallel=True,
-                ckpt_include_optimizer=False,
+                ckpt_load_optimizer=False,
+                ckpt_save_optimizer=False,
             ),
             plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
             limit_val_batches=0.0,

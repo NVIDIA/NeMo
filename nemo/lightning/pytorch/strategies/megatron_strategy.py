@@ -46,6 +46,7 @@ from nemo.lightning import _strategy_lib, io
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
+    SelectiveRestoreConfig,
     ckpt_to_dir,
     fix_progress_bar,
     get_checkpoint_io,
@@ -76,7 +77,6 @@ class ParallelismConfig:
     moe_extended_tp: bool
     pipeline_dtype: torch.dtype
 
-
 class MegatronStrategy(DDPStrategy, io.IOMixin):
     """Megatron plugin for Pytorch Lightning.
 
@@ -104,7 +104,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         checkpoint_io: Checkpoint I/O handler. Defaults to None.
         find_unused_parameters (bool): Find unused parameters in DDP. Defaults to False.
         ckpt_type (TrainerCkptProtocol): Checkpoint type. Defaults to TrainerCheckpoint.
-        ckpt_include_optimizer (bool): Include optimizer state in checkpoint. Defaults to True.
+        ckpt_load_optimizer (bool): Load optimizer state from trainer.ckpt_path. Defaults to True.
+        ckpt_save_optimizer (bool): Save optimizer states in checkpoint. Defaults to True.
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
         lazy_init (bool): Use lazy initialization for model parallel parameters. Defaults to False.
         pipeline_dtype (Optional[torch.dtype]): Data type for pipeline parallelism. Defaults to None.
@@ -159,7 +160,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         cluster_environment=None,  # TODO: Add type-hint
         checkpoint_io=None,  # TODO: Add type-hint
         find_unused_parameters: bool = False,
-        ckpt_include_optimizer: bool = True,
+        ckpt_load_optimizer: bool = True,
+        ckpt_save_optimizer: bool = True,
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
         lazy_init: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
@@ -176,8 +178,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         init_model_parallel: bool = True,
         replace_progress_bar: bool = True,
         progress_interval: int = 1,
-        restore_path: Optional[str] = None,
-        restore_optimizer_states: bool = True,
+        selective_restore_config: Optional[SelectiveRestoreConfig] = None,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -198,7 +199,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
         self.lazy_init = lazy_init
-        self.ckpt_include_optimizer = ckpt_include_optimizer
+        self.ckpt_load_optimizer = ckpt_load_optimizer
+        self.ckpt_save_optimizer = ckpt_save_optimizer
         self.pipeline_dtype = pipeline_dtype
         self._setup_optimizers = setup_optimizers
         self._init_model_parallel = init_model_parallel
@@ -218,8 +220,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.replace_progress_bar = replace_progress_bar
         self.progress_interval = progress_interval
 
-        self.restore_path = restore_path
-        self.restore_optimizer_states = restore_optimizer_states
+        self.selective_restore_config = selective_restore_config
 
         self._ddp = ddp
         if ddp == "megatron":
@@ -336,8 +337,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 self.trainer.callbacks.append(AsyncFinalizerCallback())
 
         ## Restore model weights and optimizer states if needed
-        if self.restore_path and not self.trainer.ckpt_path:
-            self.restore_model()
+        if self.selective_restore_config and not self.trainer.ckpt_path:
+            self.selective_restore()
 
     @override
     def setup_distributed(self) -> None:
@@ -609,15 +610,19 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         # retrieve `sharded_state_dict` if it has not already been configured in `on_save_checkpoint`
         if "sharded_state_dict" not in checkpoint:
             checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
-        if self.trainer.state.fn == TrainerFn.FITTING and self.ckpt_include_optimizer:
+        if self.trainer.state.fn == TrainerFn.FITTING and self.ckpt_save_optimizer:
             checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
+    def should_restore_optimizer_states(self, selective_restore: bool = False) -> bool:
+        if selective_restore:
+            return self.selective_restore_config.optimizer_states if self.selective_restore_config else False
+
+        return self.ckpt_load_optimizer
+
     @override
-    def load_checkpoint(
-        self, checkpoint_path: Union[str, Path], include_optimizer_states: bool = False
-    ) -> Dict[str, Any]:
+    def load_checkpoint(self, checkpoint_path: Union[str, Path], selective_restore: bool = False) -> Dict[str, Any]:
         """PTL method which we override to integrate distributed checkpoints for model parallel models.
         In order to load distributed checkpoints we need to provide the sharded_state_dict to
         the distributed load function. We get the sharded_state_dict from self.lightning_module
@@ -629,7 +634,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         sharded_state_dict = {}
         sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict()
 
-        if (self.ckpt_include_optimizer or include_optimizer_states) and self.trainer.state.fn == TrainerFn.FITTING:
+        if (
+            self.should_restore_optimizer_states(selective_restore=selective_restore)
+            and self.trainer.state.fn == TrainerFn.FITTING
+        ):
             if self.lightning_module.optimizers(use_pl_optimizer=False):
                 sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
@@ -637,31 +645,30 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         return checkpoint
 
-    def restore_model(self) -> None:
-        if not self.restore_path:
+    def selective_restore(self) -> None:
+        if not self.selective_restore_config:
             return
 
-        logging.info(f"Restoring model weights from {self.restore_path}")
+        logging.info(f"Doing selective restore from {self.selective_restore_config}")
 
-        checkpoint = self.load_checkpoint(
-            checkpoint_path=self.restore_path, include_optimizer_states=self.restore_optimizer_states
-        )
+        checkpoint = self.load_checkpoint(checkpoint_path=self.selective_restore_config.path, selective_restore=True)
 
-        self.load_model_state_dict(checkpoint=checkpoint)
-        if self.restore_optimizer_states:
-            logging.info(f"Restoring optimizer states from {self.restore_path}")
-            self.load_optimizer_state_dict(
-                checkpoint=checkpoint, include_optimizer_states=self.restore_optimizer_states
-            )
+        if self.selective_restore_config.model_weights:
+            logging.info(f"Restoring model weights from {self.selective_restore_config}")
+            self.load_model_state_dict(checkpoint=checkpoint)
 
-        logging.info(f"Finished restoring from {self.restore_path}, cleaning up.")
+        if self.selective_restore_config.optimizer_states:
+            logging.info(f"Restoring optimizer states from {self.selective_restore_config}")
+            self.load_optimizer_state_dict(checkpoint=checkpoint, selective_restore=True)
+
+        logging.info(f"Finished restoring from {self.selective_restore_config}, cleaning up.")
         torch.cuda.empty_cache()
         # wait for all to catch up
         self.trainer.strategy.barrier("MegatronStrategy.restore_end")
 
     @override
-    def load_optimizer_state_dict(self, checkpoint: Mapping[str, Any], include_optimizer_states: bool = False) -> None:
-        if not (self.ckpt_include_optimizer or include_optimizer_states):
+    def load_optimizer_state_dict(self, checkpoint: Mapping[str, Any], selective_restore: bool = False) -> None:
+        if not self.should_restore_optimizer_states(selective_restore=selective_restore):
             return
 
         optimizer_states = checkpoint["optimizer"]
