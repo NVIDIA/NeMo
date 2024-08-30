@@ -21,9 +21,9 @@ trainer:
   enable_checkpointing: false
 
 model:
-  tensor_model_parallel_size: 1
+  tensor_model_parallel_size: 1 # Pruning currently only supports tensor_model_parallel_size=1
   pipeline_model_parallel_size: 1
-  restore_from_path: llama3-8b-base.nemo # Nemo file path
+  restore_from_path: llama3.1-8b-base.nemo # Nemo file path
 
   ## Activation Checkpoint
   activations_checkpoint_granularity: null # 'selective' or 'full'
@@ -38,10 +38,4 @@ prune:
   num_query_groups: 4 # num_query_groups in the pruned model, num_query_groups // 2
 
 export:
-  decoder_type: llama # gptnext, gpt2, llama
-  inference_tensor_parallel: 1 # Default using 1 TP for inference
-  inference_pipeline_parallel: 1 # Default using 1 PP for inference
-  dtype: ${trainer.precision} # Default precision data type
-  save_path: llama3-8b-base-pruned.nemo # Path where the pruned model will be saved
-  compress: false # Whether save_path should be a tarball or a directory
-  sample_output: true # Whether to run a sample prompt before saving
+  save_path: llama3.1-8b-base-pruned.nemo # Path where the pruned model will be saved

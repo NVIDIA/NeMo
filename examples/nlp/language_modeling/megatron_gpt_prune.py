@@ -16,7 +16,6 @@ import modelopt.torch.prune as mtp
 import torch
 import torch.multiprocessing as mp
 from datasets import load_dataset
-from modelopt.torch.utils import print_rank_0
 from omegaconf import OmegaConf
 from pytorch_lightning.trainer.trainer import Trainer
 from tqdm import tqdm
@@ -37,15 +36,16 @@ models supported as well as how to set up data and inference for calibration (wi
 Example usage:
 ```
 python examples/nlp/language_modeling/megatron_gpt_prune.py \
-    model.restore_from_path=llama3-8b-base.nemo \
+    model.restore_from_path=llama3.1-8b-base.nemo \
     model.tensor_model_parallel_size=1 \
     model.pipeline_model_parallel_size=8 \
     trainer.num_nodes=1 \
     trainer.precision=bf16 \
     trainer.devices=8 \
-    export.decoder_type=llama \
-    export.inference_tensor_parallel=1 \
-    export.save_path=llama2-8b-base-pruned.nemo
+    prune.ffn_hidden_size=3584 \
+    prune.num_attention_heads=8 \
+    prune.num_query_groups=4 \
+    export.save_path=llama3.1-8b-base-pruned.nemo
 ```
 where tensor_model_parallel_size must be 1 because of the current prune API limitation
 """
@@ -78,13 +78,15 @@ def main(cfg) -> None:
     # Overwrite model config with the one from the model checkpoint and apply pruning modifications
     model_cfg = load_config(cfg.model.restore_from_path)
     model_cfg.update(cfg.model)
-    model_cfg.name = "modelopt"
+    model_cfg.name = "modelopt"  # Use modelopt transformer spec for pruning
+
+    assert cfg.model.tensor_model_parallel_size == 1, "Pruning currently only supports tensor_model_parallel_size=1"
+    assert not hasattr(cfg.model, "sequence_parallel") or not cfg.model.sequence_parallel, "Pruning currently does not support sequence parallelism"
 
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     model = MegatronGPTModel.restore_from(
         restore_path=cfg.model.restore_from_path, override_config_path=model_cfg, trainer=trainer
     )
-    model.freeze()
 
     data_iter = get_calib_data_iter(
         cfg.prune.calib_dataset,
@@ -101,31 +103,19 @@ def main(cfg) -> None:
         for i, batch in enumerate(tqdm(dataloader, desc="Calibrating")):
             model.predict_step(batch, i)
 
-    for name, param in model.state_dict().items():
-        if param is not None:
-            print_rank_0(f"model params before prune: {name} -> {param.type()} {param.shape}")
-
     model_pruned, _ = mtp.prune(
         model,
         mode="mcore_gpt_minitron",
         constraints={
             "export_config": {
-                "ffn_hidden_size": cfg.prune.ffn_hidden_size,
-                "num_attention_heads": cfg.prune.num_attention_heads,
-                "num_query_groups": cfg.prune.num_query_groups,
-            }
+                k: cfg.prune.get(k)
+                for k in ["ffn_hidden_size", "num_attention_heads", "num_query_groups"]
+                if cfg.prune.get(k) is not None
+            },
         },
         dummy_input=None,  # Not used
-        config={
-            "forward_loop": forward_loop,
-        },
+        config={"forward_loop": forward_loop},
     )
-
-    del model
-
-    for name, param in model_pruned.state_dict().items():
-        if param is not None:
-            print_rank_0(f"model params after prune: {name} -> {param.type()} {param.shape}")
 
     model_pruned.save_to(cfg.export.save_path)
 
