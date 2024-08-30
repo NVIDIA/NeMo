@@ -44,6 +44,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
+
 @runtime_checkable
 class PrecisionPluginProtocol(Protocol[DataT]):
     def convert_input(self, data: DataT) -> DataT: ...

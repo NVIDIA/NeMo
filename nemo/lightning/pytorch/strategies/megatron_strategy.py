@@ -275,6 +275,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def _apply_model_comm_overlap_cfgs(self, model_parallel_cfg: ModelParallelConfig) -> ModelParallelConfig:
         from nemo.utils import AppState
+
         app_state = AppState()
         comm_overlap_cfg = CommOverlapConfig()
 
@@ -322,6 +323,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def _apply_optimizer_overlap_cfgs(self, optim_cfg: OptimizerConfig) -> OptimizerConfig:
         from nemo.utils import AppState
+
         app_state = AppState()
 
         vp_size = app_state.virtual_pipeline_model_parallel_size
