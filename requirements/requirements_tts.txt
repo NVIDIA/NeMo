@@ -12,4 +12,3 @@ pandas
 pypinyin
 pypinyin-dict
 lhotse
-voicebox-pytorch @ git+https://github.com/SungFeng-Huang/voicebox-pytorch.git@nemo

@@ -17,25 +17,6 @@ from nemo.collections.tts.models.voicebox import VoiceboxModel
 from scripts.voicebox_edit.data_gen import DataGen
 from scripts.voicebox_edit.eval import Eval
 
-sys_prompt = """Given a transcript of a speech, your task is to subtly alter its meaning by changing only a single word or phrase. This change should pivot the original intent or information conveyed, such as transforming a word to its antonym, substituting a name or a noun with another, or slightly altering a phrase that shifts the narrative direction. The challenge lies in making this change impactful enough to alter the transcript's overall meaning, while ensuring that the modification is limited to a very small part of the text. The rest of the transcript must remain untouched.
-
-**Objective:** Focus on identifying a pivotal word or phrase whose modification can flip the narrative or significantly change the message, with minimal intervention.
-
-**Constraints:**
-- Only one word or phrase may be altered.
-- The alteration should substantially change the meaning of the transcript.
-- All other words in the transcript must remain exactly as they are.
-- The modified word or phrase should constitute a small ratio of the text to ensure the exercise's subtlety.
-
-**Output Requirement:** Provide only the modified transcript. Do not include any explanations or annotations.
-
-**Example:**
-
-- **Original Transcript:** "There's a llama on my lawn, how can I get rid of him?"
-- **Modified Transcript:** "There's a lion on my lawn, how can I get rid of him?"
-
-Proceed by applying this instruction to the given transcript, ensuring the modification adheres to the outlined constraints and objectives."""
-
 class DataProcessor:
     def __init__(self, model: VoiceboxModel):
         self.model = model
