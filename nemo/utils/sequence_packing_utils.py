@@ -117,6 +117,9 @@ def create_hist(dataset: np.array, truncate_seq_len: int):
     sequences = collections.defaultdict(list)
     counts = [0] * truncate_seq_len
 
+    ## TODO: shouldn't we shift the indices down by one?
+    ## else we need to truncate to seq_len - 1
+    ## because seq_len is one-indexed
     for item_dict in dataset:
         seq_len = len(item_dict['input_ids']) - 1
         sequences[seq_len].append(item_dict)
@@ -199,13 +202,24 @@ def fill_packing_strategy(
         per_seq_data = sequences[seq_len]
         if len(per_seq_data) > 0:
             perm = np.random.permutation(len(per_seq_data))
-            input_ids = np.array([x['input_ids'] for x in per_seq_data])[perm].tolist()
+            ## TODO: error here!
+            ## ValueError: setting an array element with a sequence. The requested array has an inhomogeneous shape after 1 dimensions. The detected shape was (2,) + inhomogeneous part
+            input_ids = np.array([np.array(x['input_ids']) for x in per_seq_data])[perm].tolist()
+
+            ## TODO: loss_mask = None?
+            ## answer_start_idx is not in dataset
             try:
                 loss_mask = np.array(
                     [[idx >= x['answer_start_idx'] for idx in range(len(x['input_ids']))] for x in per_seq_data]
                 )[perm].tolist()
+            ## TODO: handle chat loss mask better
             except KeyError:
-                loss_mask = None
+                #loss_mask = None
+
+                # ValueError: only one element tensors can be converted to Python scalars
+                loss_mask = np.array(
+                    [np.array(x['mask'], dtype=int) for x in per_seq_data]
+                )[perm].tolist()
             ifile_handles[seq_len] = (input_ids, loss_mask)
 
     input_ids, loss_mask, seq_start_id = {}, {}, {}

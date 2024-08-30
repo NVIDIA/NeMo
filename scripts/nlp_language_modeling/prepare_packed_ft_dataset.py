@@ -129,8 +129,39 @@ def tokenize_dataset(cfg: 'DictConfig'):
 
     dataset = dataset_cls(**kwargs)
 
-    return np.array([dataset[i] for i in range(len(dataset))])
+    if not cfg.is_chat:
+      return np.array([dataset[i] for i in range(len(dataset))])
 
+
+    ### if using chat dataset, truncation is performed in the collate function
+    ### so we have to truncate manually here
+    ### we also add the 'context_length' field
+
+    data_array = []
+    for i in range(len(dataset)):
+        item = dataset[i]
+
+        input_ids = item['input_ids'][:-1].tolist()
+        labels = item['input_ids'][1:].tolist()
+        contexts = item['context_ids'].tolist()
+        answers = item['answer_ids'].tolist()
+        mask = item['mask'][1:].tolist()
+
+        length = len(input_ids)
+        if length >= data_cfg.max_seq_length:
+            # truncate the sequences if they are longer than max_seq_length
+            ## TODO: It shouldn't be necessary to truncate to seq_len - 1
+            ## I am not sure why input_ids end up being one longer than we expect.
+            item['input_ids'] = input_ids[: data_cfg.max_seq_length ]
+            item['labels'] = labels[: data_cfg.max_seq_length ]
+            item['mask'] = mask[: data_cfg.max_seq_length ]
+            item['contexts'] = contexts[: data_cfg.max_seq_length ]
+            item['answers'] = answers[: data_cfg.max_seq_length ]
+
+        item["context_length"] = len(item["context_ids"])
+        data_array.append(item)
+
+    return np.array(data_array)
 
 @dataclass
 class PackingArgs:
