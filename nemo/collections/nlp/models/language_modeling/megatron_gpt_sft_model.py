@@ -555,7 +555,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # Compute metric score
         metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
         metric_label_key = self.val_metric_label_key if mode == 'validation' else self.test_metric_label_key
-        if metric_name != 'loss':
+
+        if len(deduplicated_outputs['preds']) > 0 and metric_name != 'loss':
             metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
             metric_fn = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
             if metric_label_key in deduplicated_outputs['metadata'][0]:
