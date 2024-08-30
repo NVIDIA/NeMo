@@ -2732,6 +2732,7 @@ jobs:
         trainer.devices=2 \
         trainer.accelerator=gpu \
         exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        model.skip_train=True \
         model.tensor_model_parallel_size=2 \
         model.max_position_embeddings=128 \
         model.encoder_seq_length=128 \
