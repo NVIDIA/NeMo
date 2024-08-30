@@ -19,8 +19,8 @@ from nemo.utils.exp_manager import TimingCallback
 NAME = "mixtral_8x7b"
 
 
-def model() -> Config[pl.LightningModule]:
-    return Config(MixtralModel, config=Config(MixtralConfig8x7B))
+def model(model_config=MixtralConfig8x7B) -> Config[pl.LightningModule]:
+    return Config(MixtralModel, config=Config(model_config))
 
 
 def trainer(
@@ -80,9 +80,9 @@ def pretrain_recipe(
         model=model(),
         trainer=trainer(
             tensor_parallelism=8,
-            pipeline_parallelism=1,
-            pipeline_parallelism_type=None,
-            virtual_pipeline_parallelism=None,
+            pipeline_parallelism=2,
+            pipeline_parallelism_type=torch.bfloat16,
+            virtual_pipeline_parallelism=8,
             context_parallelism=1,
             sequence_parallelism=True,
             expert_parallelism=1,
