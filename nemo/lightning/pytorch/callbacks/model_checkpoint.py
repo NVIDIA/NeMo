@@ -263,9 +263,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         if trainer.fast_dev_run:
             return None
 
-        ## Do not include optimizer states in final checkpoint
-        trainer.strategy.ckpt_include_optimizer = False
-
         # check if we need to save a last checkpoint manually as validation isn't always run based on the interval
         if self.save_last and trainer.val_check_interval != 0:
             should_save_last_checkpoint = False
@@ -430,10 +427,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         self._last_global_step_saved = trainer.global_step
 
-        ## Do not include optimizer states in final checkpoint
-        if trainer.global_step == trainer.max_steps:
-            trainer.strategy.ckpt_include_optimizer = False
-
         if ema_callback is not None:
             if self.async_save:
                 raise ValueError('async_save with EMA not supported')
@@ -449,6 +442,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 super()._save_checkpoint(trainer, ckpt_filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
+            ## Do not include optimizer states in final checkpoint
+            storage_options = dict(include_optimizer=(trainer.global_step == trainer.max_steps))
+
             # Async save passes the finalization function to checkpoint_io,
             # sync save calls the finalization function immediately after save.
             finalize_fn = self._get_finalize_save_checkpoint_callback(trainer, filepath, trainer.global_step)
@@ -458,11 +454,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
                 if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
                     raise ValueError('Async save requires async compatible CheckpointIO')
-                storage_options = dict(finalize_fn=finalize_fn)
+                storage_options["finalize_fn"]=finalize_fn
                 # Each upcoming ckpt removal request will be executed as part of this save finalization
                 self.deferred_ckpts_to_remove.append([])
-            else:
-                storage_options = None
             trainer.save_checkpoint(ckpt_filepath, self.save_weights_only, storage_options=storage_options)
 
             if self.always_save_artifacts and is_global_rank_zero():

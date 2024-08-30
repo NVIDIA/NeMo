@@ -177,7 +177,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
         self.lazy_init = lazy_init
-        self._ckpt_include_optimizer = ckpt_include_optimizer
+        self.ckpt_include_optimizer = ckpt_include_optimizer
         self.pipeline_dtype = pipeline_dtype
         self._setup_optimizers = setup_optimizers
         self._init_model_parallel = init_model_parallel
@@ -602,14 +602,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.megatron_parallel, optimizer, is_loading=is_loading, sharding_type=sharding_type
         )
 
-    @property
-    def ckpt_include_optimizer(self):
-        return self._ckpt_include_optimizer
-
-    @ckpt_include_optimizer.setter
-    def ckpt_include_optimizer(self, val):
-        self._ckpt_include_optimizer = val
-
     @override
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
@@ -618,11 +610,19 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         # retrieve `sharded_state_dict` if it has not already been configured in `on_save_checkpoint`
         if "sharded_state_dict" not in checkpoint:
             checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
-        if self.trainer.state.fn == TrainerFn.FITTING and self.ckpt_include_optimizer:
+
+        ## only save optimizer states if self.ckpt_include_optimizer and storage_options["include_optimizer"]
+        ## are both True
+        include_optimizer = self.ckpt_include_optimizer
+        if "include_optimizer" in storage_options:
+            include_optimizer = not include_optimizer and storage_options["include_optimizer"]
+
+        if self.trainer.state.fn == TrainerFn.FITTING and include_optimizer:
             checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
+    ## TODO: only load the optimizer states when they exist in the checkpoint?
     @override
     def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
         """PTL method which we override to integrate distributed checkpoints for model parallel models.
