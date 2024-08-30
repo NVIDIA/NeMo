@@ -400,8 +400,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         checkpoints = sorted(checkpoints, key=lambda x: int(x.split('-step=')[1].split('-')[0]))
         checkpoints = [os.path.join(checkpoints_dir, checkpoint) for checkpoint in checkpoints]
 
-        checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
-
         return checkpoints
 
     @staticmethod
