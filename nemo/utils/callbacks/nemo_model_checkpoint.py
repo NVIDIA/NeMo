@@ -366,6 +366,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     def _drop_optimizer_states(self, trainer, filepath: Union[str, Path], storage_options: Optional[Any]) -> None:
         # Get list of saved checkpoints
         checkpoints = self._get_checkpoints_list(filepath)
+        suffix = "-no-optim"
 
         # Drop optimizer states
         checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
@@ -375,16 +376,17 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             logging.info(f"Loading '{checkpoint_path}' checkpoint to drop optimizer states...")
             checkpoint = trainer.strategy.load_checkpoint(checkpoint_path=checkpoint_path)
 
-            # Remove the checkpoint version with optimizer states
-            trainer.strategy.remove_checkpoint(checkpoint_path)
-
             # Save the checkpoint without optimizer states
             if storage_options is None:
                 storage_options = dict(drop_optim_states=True)
             else:
                 storage_options["drop_optim_states"] = True
 
-            trainer.save_checkpoint(f"{checkpoint_path}.ckpt", self.save_weights_only, storage_options=storage_options)
+            trainer.save_checkpoint(f"{checkpoint_path}{suffix}.ckpt", self.save_weights_only, storage_options=storage_options)
+
+            # Remove the checkpoint version with optimizer states
+            trainer.strategy.remove_checkpoint(checkpoint_path)
+            shutil.move(f"{checkpoint_path}{suffix}", checkpoint_path)
             logging.info(f"Successfully dropped optimizer states for '{checkpoint_path}' checkpoint.")
 
     def _get_checkpoints_list(self, filepath: Union[str, Path]) -> List[str]:
