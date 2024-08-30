@@ -58,7 +58,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         self,
         auto_wrap_policy={TransformerLayer},
         state_dict_type="sharded",
-        ckpt_include_optimizer=False,
+        ckpt_include_optimizer=True,
         data_sampler=None,
         **kwargs,
     ):
