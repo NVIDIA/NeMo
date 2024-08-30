@@ -40,7 +40,7 @@ except Exception as e:
 
 in_framework_supported = True
 try:
-    from nemo.deploy.nlp import MegatronLLMDeployable
+    from nemo.deploy.nlp import MegatronLLMDeployable, NemoQueryLLMPyTorch
 except Exception as e:
     LOGGER.warning(
         f"Cannot import MegatronLLMDeployable, in-framework inference will not be available. {type(e).__name__}: {e}"
@@ -101,52 +101,82 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
         for record in records:
             prompt = record["text_before_last_word"]
             expected_output = record["last_word"].strip().lower()
-            model_output = model.forward(
-                input_texts=[prompt],
-                max_output_len=1,
-                top_k=1,
-                top_p=0,
-                temperature=0.1,
-                task_ids=task_ids,
-                lora_uids=lora_uids,
-            )
-            model_output = model_output[0][0].strip().lower()
-
             all_expected_outputs.append(expected_output)
-            all_actual_outputs.append(model_output)
+            if model is not None:
+                if isinstance(model, MegatronLLMDeployable):
+                    model_output = model.generate(
+                        inputs=[prompt],
+                        length_params={"min_length": 1, "max_length": 1},
+                        sampling_params={
+                            "use_greedy": True,
+                            "temperature": 0.1,
+                            "top_k": 1,
+                            "top_p": 0,
+                            "repetition_penalty": 1.0,
+                            "add_BOS": True,
+                            "all_probs": False,
+                            "compute_logprob": False,
+                            "end_strings": ["<|endoftext|>", "<extra_id_1>"],
+                        },
+                    )
+                    # MegatronLLMDeployable returns prompt + generated output, so need to slice off prompt
+                    model_output = model_output["sentences"][0][len(prompt) :].strip().lower()
+                else:
+                    model_output = model.forward(
+                        input_texts=[prompt],
+                        max_output_len=1,
+                        top_k=1,
+                        top_p=0,
+                        temperature=0.1,
+                        task_ids=task_ids,
+                        lora_uids=lora_uids,
+                    )
+                    model_output = model_output[0][0].strip().lower()
+                all_actual_outputs.append(model_output)
 
-            if expected_output == model_output:
-                correct_answers += 1
+                if expected_output == model_output:
+                    correct_answers += 1
 
-            if (
-                expected_output == model_output
-                or model_output.startswith(expected_output)
-                or expected_output.startswith(model_output)
-            ):
-                if len(model_output) == 1 and len(expected_output) > 1:
-                    continue
-                correct_answers_relaxed += 1
+                if (
+                    expected_output == model_output
+                    or model_output.startswith(expected_output)
+                    or expected_output.startswith(model_output)
+                ):
+                    if len(model_output) == 1 and len(expected_output) > 1:
+                        continue
+                    correct_answers_relaxed += 1
 
             if nq is not None:
-                trtllm_deployed_output = nq.query_llm(
-                    prompts=[prompt],
-                    max_output_len=1,
-                    top_k=1,
-                    top_p=0,
-                    temperature=0.1,
-                    task_id=task_ids,
-                )
-                trtllm_deployed_output = trtllm_deployed_output[0][0].strip().lower()
+                if isinstance(nq, NemoQueryLLMPyTorch):
+                    deployed_output = nq.query_llm(
+                        prompts=[prompt],
+                        max_length=1,
+                        top_k=1,
+                        top_p=0,
+                        temperature=0.1,
+                    )
+                    # MegatronLLMDeployable returns prompt + generated output, so need to slice off prompt
+                    deployed_output = deployed_output["sentences"][0][0][len(prompt) :].decode().strip().lower()
+                else:
+                    deployed_output = nq.query_llm(
+                        prompts=[prompt],
+                        max_output_len=1,
+                        top_k=1,
+                        top_p=0,
+                        temperature=0.1,
+                        task_id=task_ids,
+                    )
+                    deployed_output = deployed_output[0][0].strip().lower()
 
-                if expected_output == trtllm_deployed_output:
+                if expected_output == deployed_output:
                     correct_answers_deployed += 1
 
                 if (
-                    expected_output == trtllm_deployed_output
-                    or trtllm_deployed_output.startswith(expected_output)
-                    or expected_output.startswith(trtllm_deployed_output)
+                    expected_output == deployed_output
+                    or deployed_output.startswith(expected_output)
+                    or expected_output.startswith(deployed_output)
                 ):
-                    if len(trtllm_deployed_output) == 1 and len(expected_output) > 1:
+                    if len(deployed_output) == 1 and len(expected_output) > 1:
                         continue
                     correct_answers_deployed_relaxed += 1
         eval_end = time.monotonic()
@@ -193,6 +223,7 @@ def run_inference(
     use_embedding_sharing=False,
     max_input_len=128,
     max_output_len=128,
+    max_num_tokens=None,
     use_parallel_embedding=False,
     ptuning=False,
     p_tuning_checkpoint=None,
@@ -211,7 +242,12 @@ def run_inference(
     test_deployment=False,
     test_data_path=None,
     save_trt_engine=False,
+    fp8_quantized=False,
+    fp8_kvcache=False,
+    trt_llm_export_kwargs=None,
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
+    if trt_llm_export_kwargs is None:
+        trt_llm_export_kwargs = {}
     if Path(checkpoint_path).exists():
         if tp_size > torch.cuda.device_count():
             print(
@@ -292,8 +328,11 @@ def run_inference(
                 max_prompt_embedding_table_size=max_prompt_embedding_table_size,
                 use_lora_plugin=use_lora_plugin,
                 lora_target_modules=lora_target_modules,
-                max_num_tokens=int(max_input_len * max_batch_size * 0.2),
+                max_num_tokens=max_num_tokens,
                 use_embedding_sharing=use_embedding_sharing,
+                fp8_quantized=fp8_quantized,
+                fp8_kvcache=fp8_kvcache,
+                **trt_llm_export_kwargs,
             )
 
         if ptuning:
@@ -421,6 +460,9 @@ def run_existing_checkpoints(
     test_data_path=None,
     save_trt_engine=False,
     in_framework=False,
+    fp8_quantized=False,
+    fp8_kvcache=False,
+    trt_llm_export_kwargs=None,
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
     if tp_size > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
@@ -456,10 +498,13 @@ def run_existing_checkpoints(
     else:
         use_embedding_sharing = False
 
+    if trt_llm_export_kwargs is None:
+        trt_llm_export_kwargs = {}
+
     if in_framework:
         return run_in_framework_inference(
             model_name=model_name,
-            prompts=model_info["model_type"],
+            prompts=model_info["prompt_template"],
             checkpoint_path=model_info["checkpoint"],
             num_gpus=tp_size,
             max_output_len=model_info["max_output_len"],
@@ -481,6 +526,7 @@ def run_existing_checkpoints(
             use_parallel_embedding=use_parallel_embedding,
             max_input_len=512,
             max_output_len=model_info["max_output_len"],
+            max_num_tokens=None,
             ptuning=ptuning,
             p_tuning_checkpoint=p_tuning_checkpoint,
             lora=lora,
@@ -498,6 +544,9 @@ def run_existing_checkpoints(
             test_deployment=test_deployment,
             test_data_path=test_data_path,
             save_trt_engine=save_trt_engine,
+            fp8_quantized=fp8_quantized,
+            fp8_kvcache=fp8_kvcache,
+            **trt_llm_export_kwargs,
         )
 
 
@@ -534,14 +583,15 @@ def run_in_framework_inference(
         )
         nm.deploy()
         nm.run()
-        nq = NemoQueryLLM(url="localhost:8000", model_name=model_name)
+        nq = NemoQueryLLMPyTorch(url="localhost:8000", model_name=model_name)
 
         output_deployed = nq.query_llm(
-            prompts=[prompts],
-            top_k=top_k,
-            top_p=top_p,
-            temperature=temperature,
+            prompts=prompts, top_k=top_k, top_p=top_p, temperature=temperature, max_length=max_output_len
         )
+        output_deployed = output_deployed["sentences"]
+        # MegatronLLMDeployable will return the prompt + generated output, so cut off the prompt
+        for i, output in enumerate(output_deployed):
+            output = output[len(prompts[i]) :]
 
         # Unwrap the generator if needed
         output_deployed = list(output_deployed)
@@ -550,7 +600,8 @@ def run_in_framework_inference(
         accuracy_result = None
         if run_accuracy:
             print("Start model accuracy testing ...")
-            accuracy_result = get_accuracy_with_lambada(None, nq, None, None, test_data_path)
+            # This script is not written with torch.distributed support in mind, so running non-deployed in-framework models on multiple devices will not work
+            accuracy_result = get_accuracy_with_lambada(deployed_model, nq, None, None, test_data_path)
 
         nm.stop()
 
@@ -564,7 +615,6 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy nemo models to Triton and benchmark the models",
     )
-
     parser.add_argument(
         "--model_name",
         type=str,
@@ -619,6 +669,10 @@ def get_args():
         "--max_output_len",
         type=int,
         default=128,
+    )
+    parser.add_argument(
+        "--max_num_tokens",
+        type=int,
     )
     parser.add_argument(
         "--use_parallel_embedding",
@@ -711,16 +765,39 @@ def get_args():
         type=float,
         help="GPU memory utilization percentage for vLLM.",
     )
+    parser.add_argument(
+        "-fp8",
+        "--export_fp8_quantized",
+        default="auto",
+        type=str,
+        help="Enables exporting to a FP8-quantized TRT LLM checkpoint",
+    )
+    parser.add_argument(
+        "-kv_fp8",
+        "--use_fp8_kv_cache",
+        default="auto",
+        type=str,
+        help="Enables exporting with FP8-quantizatized KV-cache",
+    )
+    parser.add_argument(
+        "--trt_llm_export_kwargs",
+        default={},
+        type=json.loads,
+        help="Extra keyword arguments passed to TensorRTLLM.export",
+    )
 
     args = parser.parse_args()
 
-    def str_to_bool(name: str, s: str) -> bool:
+    def str_to_bool(name: str, s: str, optional: bool = False) -> Optional[bool]:
+        s = s.lower()
         true_strings = ["true", "1"]
         false_strings = ["false", "0"]
-        if s.lower() in true_strings:
+        if s in true_strings:
             return True
-        if s.lower() in false_strings:
+        if s in false_strings:
             return False
+        if optional and s == 'auto':
+            return None
         raise UsageError(f"Invalid boolean value for argument --{name}: '{s}'")
 
     args.test_cpp_runtime = str_to_bool("test_cpp_runtime", args.test_cpp_runtime)
@@ -731,12 +808,14 @@ def get_args():
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
     args.use_parallel_embedding = str_to_bool("use_parallel_embedding", args.use_parallel_embedding)
     args.in_framework = str_to_bool("in_framework", args.in_framework)
+    args.export_fp8_quantized = str_to_bool("export_fp8_quantized", args.export_fp8_quantized, optional=True)
+    args.use_fp8_kv_cache = str_to_bool("use_fp8_kv_cache", args.use_fp8_kv_cache, optional=True)
 
     return args
 
 
 def run_inference_tests(args):
-    if not args.use_vllm and not trt_llm_supported:
+    if not args.use_vllm and not args.in_framework and not trt_llm_supported:
         raise UsageError("TensorRT-LLM engine is not supported in this environment.")
 
     if args.use_vllm and not vllm_supported:
@@ -784,11 +863,14 @@ def run_inference_tests(args):
                 test_data_path=args.test_data_path,
                 save_trt_engine=args.save_trt_engine,
                 in_framework=args.in_framework,
+                fp8_quantized=args.export_fp8_quantized,
+                fp8_kvcache=args.use_fp8_kv_cache,
+                trt_llm_export_kwargs=args.trt_llm_export_kwargs,
             )
 
             tps = tps * 2
     else:
-        if args.model_dir is None:
+        if not args.in_framework and args.model_dir is None:
             raise Exception("When using custom checkpoints, --model_dir is required.")
 
         prompts = ["The capital of France is", "Largest animal in the sea is"]
@@ -824,6 +906,7 @@ def run_inference_tests(args):
                     max_batch_size=args.max_batch_size,
                     max_input_len=args.max_input_len,
                     max_output_len=args.max_output_len,
+                    max_num_tokens=args.max_num_tokens,
                     use_parallel_embedding=args.use_parallel_embedding,
                     ptuning=args.ptuning,
                     p_tuning_checkpoint=args.p_tuning_checkpoint,
@@ -839,6 +922,9 @@ def run_inference_tests(args):
                     test_cpp_runtime=args.test_cpp_runtime,
                     test_data_path=args.test_data_path,
                     save_trt_engine=args.save_trt_engine,
+                    fp8_quantized=args.export_fp8_quantized,
+                    fp8_kvcache=args.use_fp8_kv_cache,
+                    trt_llm_export_kwargs=args.trt_llm_export_kwargs,
                 )
 
             tps = tps * 2
@@ -847,6 +933,8 @@ def run_inference_tests(args):
     accuracy_test_result = "PASS"
     print_separator = False
     print("============= Test Summary ============")
+    # in-framework tests will only return deployed model accuracy results for tps > 1
+    deployed_tests_only = args.in_framework and args.max_tps > 1
     for num_tps, results in result_dic.items():
         functional_result, accuracy_result = results
 
@@ -876,7 +964,9 @@ def run_inference_tests(args):
             print(f"Deployed Model Accuracy:         {accuracy_result.deployed_accuracy:.4f}")
             print(f"Deployed Relaxed Model Accuracy: {accuracy_result.deployed_accuracy_relaxed:.4f}")
             print(f"Evaluation Time [s]:             {accuracy_result.evaluation_time:.2f}")
-            if accuracy_result.accuracy_relaxed < 0.5:
+            if (deployed_tests_only and accuracy_result.deployed_accuracy_relaxed < 0.5) or (
+                not deployed_tests_only and accuracy_result.accuracy_relaxed < 0.5
+            ):
                 accuracy_test_result = "FAIL"
 
     print("=======================================")
@@ -898,5 +988,7 @@ if __name__ == '__main__':
         run_inference_tests(args)
     except UsageError as e:
         LOGGER.error(f"{e}")
+        raise e
     except argparse.ArgumentError as e:
         LOGGER.error(f"{e}")
+        raise e

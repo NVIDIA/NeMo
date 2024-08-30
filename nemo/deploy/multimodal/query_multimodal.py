@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import numpy as np
-from decord import VideoReader
+import soundfile as sf
 from PIL import Image
 
 from nemo.deploy.utils import str_list2numpy
@@ -23,6 +23,13 @@ try:
     from pytriton.client import ModelClient
 except Exception:
     use_pytriton = False
+
+try:
+    from decord import VideoReader
+except Exception:
+    import logging
+
+    logging.warning("The package `decord` was not installed in this environment.")
 
 
 class NemoQueryMultimodal:
@@ -56,11 +63,35 @@ class NemoQueryMultimodal:
             vr = VideoReader(input_media)
             frames = [f.asnumpy() for f in vr]
             return np.array(frames)
-        elif self.model_type == "neva":
+        elif self.model_type == "lita" or self.model_type == "vita":
+            vr = VideoReader(input_media)
+            frames = [f.asnumpy() for f in vr]
+            subsample_len = self.frame_len(frames)
+            sub_frames = self.get_subsampled_frames(frames, subsample_len)
+            return np.array(sub_frames)
+        elif self.model_type == "neva" or self.model_type == "vila":
             media = Image.open(input_media).convert('RGB')
             return np.expand_dims(np.array(media), axis=0)
+        elif self.model_type == "salm":
+            waveform, sample_rate = sf.read(input_media, dtype=np.float32)
+            input_signal = np.array([waveform], dtype=np.float32)
+            input_signal_length = np.array([[len(waveform)]], dtype=np.int32)
+            return {"input_signal": input_signal, "input_signal_length": input_signal_length}
         else:
             raise RuntimeError(f"Invalid model type {self.model_type}")
+
+    def frame_len(self, frames):
+        max_frames = 256
+        if len(frames) <= max_frames:
+            return len(frames)
+        else:
+            subsample = int(np.ceil(float(len(frames)) / max_frames))
+            return int(np.round(float(len(frames)) / subsample))
+
+    def get_subsampled_frames(self, frames, subsample_len):
+        idx = np.round(np.linspace(0, len(frames) - 1, subsample_len)).astype(int)
+        sub_frames = [frames[i] for i in idx]
+        return sub_frames
 
     def query(
         self,
@@ -80,8 +111,10 @@ class NemoQueryMultimodal:
         inputs = {"input_text": prompts}
 
         media = self.setup_media(input_media)
-
-        inputs["input_media"] = np.repeat(media[np.newaxis, :, :, :, :], prompts.shape[0], axis=0)
+        if isinstance(media, dict):
+            inputs.update(media)
+        else:
+            inputs["input_media"] = np.repeat(media[np.newaxis, :, :, :, :], prompts.shape[0], axis=0)
 
         if batch_size is not None:
             inputs["batch_size"] = np.full(prompts.shape, batch_size, dtype=np.int_)

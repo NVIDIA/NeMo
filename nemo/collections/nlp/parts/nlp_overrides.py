@@ -74,7 +74,6 @@ from nemo.utils import AppState, logging
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
 try:
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
     from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
@@ -115,6 +114,13 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 
 try:
@@ -1312,8 +1318,14 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
                 else:
                     # Extract the nemo file into the temporary directory
+                    filter_fn = None
+                    if return_config:
+                        filter_fn = lambda name: '.yaml' in name
+                    members = self._filtered_tar_info(restore_path, filter_fn=filter_fn)
                     self._unpack_nemo_file(
-                        path2file=restore_path, out_folder=tmpdir, extract_config_only=return_config is True
+                        path2file=restore_path,
+                        out_folder=tmpdir,
+                        members=members,
                     )
                 # remove model weights extension
                 tmp_model_weights_ckpt = os.path.join(tmpdir, self.model_weights_ckpt)

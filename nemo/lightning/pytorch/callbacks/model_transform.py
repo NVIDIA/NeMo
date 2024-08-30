@@ -4,11 +4,10 @@ from typing import Any, Callable, Optional, TypeVar
 import pytorch_lightning as pl
 from torch import nn
 
-from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
 
 
-class ModelTransform(pl.Callback, IOMixin):
+class ModelTransform(pl.Callback):
     """
     A PyTorch Lightning callback that applies a model transformation function at the start of fitting or validation.
 
@@ -63,9 +62,20 @@ class ModelTransform(pl.Callback, IOMixin):
     def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         self._maybe_apply_transform(trainer)
 
+    def on_validation_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        self._maybe_apply_transform(trainer)
+
     def _maybe_apply_transform(self, trainer):
         if self._needs_to_call:
-            self.model_transform(trainer.model)
+            self.apply_transform(trainer)
+
+    def apply_transform(self, trainer):
+        self.model_transform(trainer.model)
+        from pytorch_lightning.utilities import model_summary
+
+        logging.info(
+            f"After applying model_transform:\n" f"{model_summary.summarize(trainer.lightning_module, max_depth=1)}"
+        )
 
     @property
     def _needs_to_call(self) -> bool:

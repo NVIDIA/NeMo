@@ -26,7 +26,7 @@ from nemo.utils import logging
 '''
 Example
 
-CUDA_VISIBLE_DEVICES="0" python /NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
+CUDA_VISIBLE_DEVICES="0" python /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
                                 --input_name_or_path <path to the source pytorch model> \
                                 --output_path <path to target .nemo model> \
                                 --mamba_ssm_ngroups 8 \
@@ -63,10 +63,24 @@ def get_args():
 
 def convert(args):
 
-    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')
+    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')['model']
     new_state_dict = {}
 
     if 'backbone' in list(checkpoint_weights.keys())[0]:
+        if 'model' in list(checkpoint_weights.keys())[0]:
+            checkpoint_weights = {key.replace('model.', '', 1): value for key, value in checkpoint_weights.items()}
+
+            # Codestral Mamba Model Tokenizer Settings
+            tokenizer_library = 'megatron'
+            tokenizer_type = 'GPTSentencePieceTokenizer'
+            tokenizer_model = args.tokenizer_model_dir
+
+        else:
+
+            # Tri Dao and Albert Gu Mamba Model Tokenizer Settings
+            tokenizer_library = 'huggingface'
+            tokenizer_type = 'EleutherAI/gpt-neox-20b'
+            tokenizer_model = None
 
         layer_keys = [key for key in checkpoint_weights.keys() if re.match(r'backbone\.layers\.\d+\.', key)]
         layer_numbers = set(int(re.search(r'backbone\.layers\.(\d+)\.', key).group(1)) for key in layer_keys)
@@ -95,14 +109,13 @@ def convert(args):
 
         for i in range(num_layers):
             for attr in layer_attributes:
-                new_key = f'model.decoder.layers.{i}.{attr}'
-                old_key = f'backbone.layers.{i}.{attr}'
+                if attr == 'norm.weight':
+                    new_key = f'model.decoder.layers.{i}.mixer.in_proj.layer_norm_weight'
+                    old_key = f'backbone.layers.{i}.norm.weight'
+                else:
+                    new_key = f'model.decoder.layers.{i}.{attr}'
+                    old_key = f'backbone.layers.{i}.{attr}'
                 new_state_dict[new_key] = checkpoint_weights[old_key]
-
-        # Tokenizer settings
-        tokenizer_library = 'huggingface'
-        tokenizer_type = 'EleutherAI/gpt-neox-20b'
-        tokenizer_model = None
 
     else:
 
@@ -110,7 +123,10 @@ def convert(args):
         layer_numbers = set(int(re.search(r'decoder\.layers\.(\d+)\.', key).group(1)) for key in layer_keys)
         num_layers = max(layer_numbers) + 1
 
-        new_state_dict = {"model." + key: value for key, value in checkpoint_weights.items()}
+        for key, value in checkpoint_weights.items():
+            if '.norm.weight' in key and 'mixer' not in key:
+                key = key[:-11] + 'mixer.in_proj.layer_norm_weight'
+            new_state_dict["model." + key] = value
 
         # Tokenizer settings
         tokenizer_library = 'megatron'
@@ -164,7 +180,9 @@ def convert(args):
     trainer = MegatronLMPPTrainerBuilder(nemo_config).create_trainer()
     nemo_model_from_pyt = MegatronMambaModel(nemo_config.model, trainer)
 
-    nemo_model_from_pyt.load_state_dict(new_state_dict, strict=True)
+    # Setting strict=False for the _extra_state
+
+    nemo_model_from_pyt.load_state_dict(new_state_dict, strict=False)
     dtype = torch_dtype_from_precision(args.precision)
     nemo_model_from_pyt = nemo_model_from_pyt.to(dtype=dtype)
     nemo_model_from_pyt.save_to(args.output_path)

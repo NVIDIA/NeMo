@@ -61,12 +61,14 @@ def init_parallel_ranks(
         global_rank=init_global_rank,
         local_rank=init_local_rank,
         tensor_model_parallel_size=parallel_config.tensor_model_parallel_size,
+        expert_model_parallel_size=parallel_config.expert_model_parallel_size,
         pipeline_model_parallel_size=parallel_config.pipeline_model_parallel_size,
         virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
+        context_parallel_size=parallel_config.context_parallel_size,
         seed=seed,
         pipeline_model_parallel_split_rank=getattr(parallel_config, "pipeline_model_parallel_split_rank", None),
         use_fp8=fp8,
-        init_mpi_proc_group=getattr(parallel_config, "ub_tp_comm_overlap", False),
+        init_mpi_proc_group=getattr(parallel_config, "tp_comm_overlap", False),
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
@@ -92,6 +94,8 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                context_parallel_size=app_state.context_parallel_size,
+                expert_model_parallel_size=app_state.expert_model_parallel_size,
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -123,19 +127,21 @@ def set_model_parallel_attributes(model, parallelism):
     # Right now mcore sub-classes ModelParellelConfig, we should remove that
     # Given Lightning's structure it would be better if parallelism is a different object
     # Since then it can be passed to the Strategy
-
+    # Note: Importing nemo.lightning.pytorch.strategies creates an import cycle.
     from megatron.core.transformer.transformer_config import TransformerConfig
 
+    assert (
+        type(parallelism).__name__ == 'ParallelismConfig'
+    ), f"Expected parallelism config to be of type ParallelismConfig, but got {type(parallelism)}"
     has_mcore_config = isinstance(getattr(model, "config", None), TransformerConfig)
     if has_mcore_config and hasattr(model, "configure_model"):
         config: TransformerConfig = model.config
-        config.tensor_model_parallel_size = parallelism.tensor_model_parallel_size
-        config.pipeline_model_parallel_size = parallelism.pipeline_model_parallel_size
-        config.virtual_pipeline_model_parallel_size = parallelism.virtual_pipeline_model_parallel_size
-        config.context_parallel_size = parallelism.context_parallel_size
-        config.expert_model_parallel_size = parallelism.expert_model_parallel_size
-        config.moe_extended_tp = parallelism.moe_extended_tp
-        config.sequence_parallel = parallelism.sequence_parallel
+        for attr_name in filter(lambda x: not x.startswith('__'), dir(parallelism)):
+            if not hasattr(config, attr_name):
+                continue
+            setattr(config, attr_name, getattr(parallelism, attr_name))
+            if hasattr(config, "__io__"):
+                setattr(config.__io__, attr_name, getattr(parallelism, attr_name))
 
         return config
 
@@ -515,4 +521,37 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
             elif count > n_nesting:
                 to_remove = "module." * (count - n_nesting)
                 _state_dict[key[len(to_remove) :]] = value
+            else:
+                _state_dict[key] = value
+
         module.load_state_dict(_state_dict, strict=strict)
+
+
+def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False):
+    """
+    When pipeline parallelism is enabled, casts a tensor defined on the last pipeline stage to other ranks.
+
+        Args:
+            value (torch.Tensor): A tensor to be casted from the final pipeline stage of a pipeline parallelism group (e.g. loss).
+                Note that this tensor should already be defined on the target rank(s) to fill with received data.
+            broadcast (bool): When True, broadcasts value from the final pipeline stage rank to all ranks in its group.
+                When False, only rank zero receives value from the final pipeline stage rank in its group.
+                This mode exists to avoid slow one-to-many communication when not necessary. Defaults to False.
+    """
+    from megatron.core import parallel_state
+
+    if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+        src_rank = parallel_state.get_pipeline_model_parallel_last_rank()
+
+        if not broadcast:
+            pp_ranks = torch.distributed.get_process_group_ranks(parallel_state.get_pipeline_model_parallel_group())
+            if torch.distributed.get_rank() == src_rank and 0 in pp_ranks:
+                torch.distributed.send(value, 0)
+            elif torch.distributed.get_rank() == 0:
+                torch.distributed.recv(value, src_rank)
+        else:
+            torch.distributed.broadcast(
+                value,
+                src_rank,
+                group=parallel_state.get_pipeline_model_parallel_group(),
+            )

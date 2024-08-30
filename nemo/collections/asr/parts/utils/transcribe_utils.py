@@ -289,7 +289,7 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
         with open(cfg.dataset_manifest, "rt") as fh:
             for line in fh:
                 item = json.loads(line)
-                item["audio_filepath"] = get_full_path(item["audio_filepath"], cfg.dataset_manifest)
+                item[audio_key] = get_full_path(item[audio_key], cfg.dataset_manifest)
                 if item.get("duration") is None and cfg.presort_manifest:
                     raise ValueError(
                         f"Requested presort_manifest=True, but line {line} in manifest {cfg.dataset_manifest} lacks a 'duration' field."
@@ -535,9 +535,8 @@ def transcribe_partial_audio(
             if isinstance(asr_model, EncDecHybridRNNTCTCModel) and decoder_type == "ctc":
                 logits = asr_model.ctc_decoder(encoder_output=logits)
 
-            logits = logits.cpu()
-
             if logprobs:
+                logits = logits.cpu()
                 logits = logits.numpy()
                 # dump log probs per file
                 for idx in range(logits.shape[0]):

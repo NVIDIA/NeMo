@@ -2,7 +2,7 @@ import inspect
 import logging
 import os
 import shutil
-from pathlib import Path, PosixPath, WindowsPath
+from pathlib import Path, PosixPath, PurePath, WindowsPath
 from typing import Generic, Optional, Tuple, TypeVar
 
 import pytorch_lightning as pl
@@ -91,6 +91,14 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
             logging.error(f"An error occurred: {e}")
             raise
 
+        finally:
+            # Delete the lock file if it exists
+            if lock_path.exists():
+                try:
+                    os.remove(lock_path)
+                except OSError as e:
+                    logging.warning(f"Failed to remove lock file {lock_path}: {e}")
+
         return _output_path
 
     def local_path(self, base_path: Optional[Path] = None) -> Path:
@@ -137,9 +145,10 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             pl.Trainer: The trainer configured with the model and strategy.
         """
         from nemo.lightning import MegatronStrategy, Trainer
+        from nemo.lightning._strategy_lib import megatron_lazy_init_context
 
         _trainer = trainer or Trainer(
-            devices=1, accelerator="cpu", strategy=MegatronStrategy(store_optimizer_states=False, ddp="pytorch")
+            devices=1, accelerator="cpu", strategy=MegatronStrategy(store_optimizer_states=False)
         )
 
         _trainer.strategy.connect(model)
@@ -147,26 +156,30 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
 
         if not model.state_dict():
             _trainer.strategy.lazy_init = True
-            with _trainer.init_module():
+            with _trainer.init_module(), megatron_lazy_init_context(model.config):
                 model.configure_model()
 
         return _trainer
 
-    def nemo_save(self, output_path: Path, trainer: pl.Trainer) -> None:
+    def nemo_save(self, output_path: Path, trainer: pl.Trainer, dump_io: bool = True) -> None:
         """
         Saves the model's state to the specified path using the trainer's current strategy.
 
         Args:
             output_path (Path): The path where the model checkpoint will be saved.
             trainer (pl.Trainer): The trainer with the strategy to save the model.
+            dump_io (bool): If True, the IO configuration will be saved to the output path.
         """
-        _setup_kwargs = {}
-        setup_signature = inspect.signature(trainer.strategy.setup)
-        if 'setup_optimizers' in setup_signature.parameters:
-            _setup_kwargs["setup_optimizers"] = False
-
-        trainer.strategy.setup(trainer, **_setup_kwargs)
+        trainer.strategy._setup_optimizers = False
+        trainer.strategy._init_model_parallel = False
+        trainer.strategy.setup(trainer)
         trainer.save_checkpoint(output_path)
+
+        from nemo.lightning.io.pl import TrainerContext
+        from nemo.utils.get_rank import is_global_rank_zero
+
+        if is_global_rank_zero() and dump_io:
+            TrainerContext.from_trainer(trainer).io_dump(output_path)
 
     def nemo_load(
         self, path: Path, trainer: Optional[pl.Trainer] = None, cpu: bool = True
@@ -215,6 +228,10 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
 
             _base = Path(NEMO_MODELS_CACHE)
 
+        # If the useu supplied `hf:///path/to/downloaded/my-model/`
+        # then extract the last dir-name (i.e. my-model) and append it to _base
+        if str(self).startswith('/'):
+            return _base / PurePath((str(self))).name
         return _base / str(self).replace("://", "/")
 
     def on_import_ckpt(self, model: pl.LightningModule):

@@ -20,7 +20,6 @@ import tarfile
 from dataclasses import dataclass
 from typing import Any, Dict, List, Sequence, Tuple, Union
 
-import decord
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -34,17 +33,26 @@ from transformers import CLIPImageProcessor, SiglipImageProcessor
 import nemo.collections.multimodal.data.neva.conversation as conversation_lib
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.data.neva.conversation import (
+    DEFAULT_BOS_TOKEN,
+    DEFAULT_EOS_TOKEN,
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IMAGE_PATCH_TOKEN,
     DEFAULT_IMAGE_TOKEN,
     DEFAULT_LABELS_TOKEN,
+    DEFAULT_VID_END_TOKEN,
+    DEFAULT_VID_START_TOKEN,
     DEFAULT_VIDEO_TOKEN,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
 MAX_NUM_IMAGES = 1
 IGNORE_INDEX = -1
+
+try:
+    import decord
+except Exception:
+    logging.warning("The package `decord` was not installed in this environment.")
 
 try:
     from megatron.core.datasets.indexed_dataset import IndexedDataset
@@ -145,7 +153,7 @@ class TarOrFolderVideoLoader:
                     cap = decord.VideoReader(f)
                     return self.flatten_frames(cap)
         else:
-            decord.bridge.set_bridge("torch")
+            # decord.bridge.set_bridge("torch")
             cap = decord.VideoReader(os.path.join(self.video_folder, file_name))
             return self.flatten_frames(cap)
         return None
@@ -171,9 +179,7 @@ class TarOrFolderVideoLoader:
             else:
                 num_frames = min(len(cap), self.data_cfg['num_frames'])
                 indices = np.linspace(0, len(cap) - 1, num_frames, dtype=int)
-                frames = []
-                frames = cap.get_batch(indices)
-
+                frames = [Image.fromarray(cap[i].asnumpy()).convert('RGB') for i in indices]
                 while len(frames) < self.data_cfg['num_frames']:
                     frames.append(frames[-1])
                 return frames
@@ -226,6 +232,25 @@ def tokenize(
     return result
 
 
+def get_tokens_ids(tokenizer, tokens):
+    """
+    Returns the token id for a given token.
+
+    Parameters
+    ----------
+    tokenizer : nemo tokenizer
+        A tokenizer to be used for tokenization.
+    tokens : list
+        A list of tokens to get the token id for.
+
+    Returns
+    -------
+    List
+        The token ids.
+    """
+    return [tokenizer.token_to_id(token) for token in tokens]
+
+
 def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: int, use_plain: bool = False) -> Dict:
     """
     Preprocesses multimodal sources based on the provided configuration.
@@ -259,19 +284,59 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     if not is_multimodal:
         return sources
 
-    num_patches = image_token_len
-
-    if media_type == 'video':
-        num_patches *= multimodal_cfg['num_frames']
-
+    num_frames = multimodal_cfg['num_frames']
+    # vila
     if multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
-        num_patches //= 4
+        image_token_len //= 4
+
+    num_patches = image_token_len
+    # TO DO: to support multiple images
+    if media_type == 'video':
+        num_patches *= num_frames
 
     if multimodal_cfg['use_im_start_end']:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * num_patches
     else:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * (num_patches - 2)
     replace_token = DEFAULT_IM_START_TOKEN[model_type] + replace_token + DEFAULT_IM_END_TOKEN[model_type]
+
+    if media_type == 'video' and multimodal_cfg.get("use_lita", False):
+        if not multimodal_cfg.get('lita', None):
+            raise ValueError("LITA config is missing")
+        lita_video_arch = multimodal_cfg['lita']['lita_video_arch']
+        num_temporal_tokens, num_spatial_tokens = num_frames, 0
+        if lita_video_arch == 'temporal_all_resolution':
+            sample_frames = min(multimodal_cfg['lita']['sample_frames'], num_frames)
+            # num_frames for temporal tokens, sample_frames * num_patches for spatial tokens
+            num_spatial_tokens = sample_frames * image_token_len
+        else:
+            # num_frames for temporal tokens and num_patches for spatial tokens
+            num_spatial_tokens = image_token_len
+        num_tokens = num_temporal_tokens + num_spatial_tokens
+
+        visual_token_format = multimodal_cfg['lita'].get('visual_token_format', 'v1')
+        media_start = DEFAULT_IM_START_TOKEN[model_type]
+        media_end = DEFAULT_IM_END_TOKEN[model_type]
+        image_patch = DEFAULT_IMAGE_PATCH_TOKEN[model_type]
+        if visual_token_format == 'im_vid_start_end':
+            image_start, image_end = DEFAULT_IM_START_TOKEN[model_type], DEFAULT_IM_END_TOKEN[model_type]
+            vid_start, vid_end = DEFAULT_VID_START_TOKEN, DEFAULT_VID_END_TOKEN
+            if multimodal_cfg['use_im_start_end']:
+                replace_token_list = [image_start + image_patch * image_token_len + image_end] * sample_frames
+                replace_token_list += [vid_start + image_patch * num_temporal_tokens + vid_end]
+                replace_token = "".join(replace_token_list)
+            else:
+                replace_token_list = [image_start + image_patch * (image_token_len - 1) + image_end]
+                replace_token_list += [image_start + image_patch * image_token_len + image_end] * (sample_frames - 1)
+                replace_token_list += [vid_start + image_patch * (num_temporal_tokens - 1) + vid_end]
+                replace_token = "".join(replace_token_list)
+            replace_token = media_start + replace_token + media_end
+        else:
+            if multimodal_cfg['use_im_start_end']:
+                replace_token = image_patch * num_tokens
+            else:
+                replace_token = image_patch * (num_tokens - 2)
+            replace_token = media_start + replace_token + media_end
 
     for source in sources:
         conversation = source['conversations']
@@ -290,7 +355,6 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
             conversation[0]['value'] = default_token
         for turn in conversation:
             turn["value"] = turn["value"].replace(default_token, replace_token)
-
     return sources
 
 
@@ -475,9 +539,13 @@ def preprocess_llama_2(
     )
 
     # llama tricks
-    tokens[tokens == 32003] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
-    tokens[tokens == 32006] = 1  # <s>
-    tokens[tokens == 32007] = 2  # </s>
+    # 32003, 32006, 32007
+    image_patch_token = DEFAULT_IMAGE_PATCH_TOKEN["llama_2"]
+    DEFAULT_TOKENS = [image_patch_token, DEFAULT_BOS_TOKEN, DEFAULT_EOS_TOKEN]
+    img_patch_id, bos_id, eos_id = get_tokens_ids(tokenizer, DEFAULT_TOKENS)
+    tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
+    tokens[tokens == bos_id] = 1  # <s>
+    tokens[tokens == eos_id] = 2  # </s>
     labels = tokens.clone().detach()
 
     # Mask labels
@@ -516,6 +584,104 @@ def preprocess_llama_2(
     # Check if masking working correctly
     # masking_test =[x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())]
     # print(masking_test)
+
+    if add_extra_token:
+        tokens = tokens[:, :-1].contiguous()
+        labels = labels[:, 1:].contiguous()
+    else:
+        labels = torch.roll(labels, shifts=-1, dims=-1)
+        labels[:, -1] = IGNORE_INDEX
+
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
+
+
+def preprocess_yi_34b(
+    sources: dict,
+    tokenizer,
+    cfg,
+) -> Dict:
+    """
+    Preprocess sources for Yi-1.5 34b model configuration.
+
+    The function applies prompt templates and tokenizes the conversations according to the Yi-1.5 34b model specifications.
+    It involves special handling of tokens, masking of labels, and adjustments based on configuration settings.
+
+    This template works with the following tokenizer configs:
+    - model.tokenizer.library='huggingface'
+    - model.tokenizer.type='01-ai/Yi-1.5-34B'
+    - model.tokenizer.additional_special_tokens='{additional_special_tokens: ["<extra_id_0>", "<extra_id_1>", "<extra_id_2>", "<extra_id_3>", "<extra_id_4>", "<extra_id_5>"]}'
+    At inference time, add end string to stop sampling:
+    - inference.end_strings='["<|im_end|>"]'
+
+    Parameters:
+    - sources (dict): A dictionary of sources containing conversations to be processed.
+    - tokenizer: The tokenizer to be used for processing the text.
+    - cfg: Configuration settings for preprocessing, including context length and additional tokens.
+
+    Returns:
+    - Dict: A dictionary containing tokenized and labeled data suitable for the LLaMA 2 model.
+      This includes tokens, labels, and any special processing as defined in the configuration.
+    """
+
+    """<|im_start|>user\n{prompt.strip()}<|im_end|>\n<|im_start|>assistant\n"""
+
+    conv = conversation_lib.conv_yi_34b.copy()
+
+    # apply prompt templates
+    conversations = []
+    for i, source in enumerate(sources):
+        source = source["conversations"]
+        strip_end_for_inference = False
+
+        for i, turn in enumerate(source):
+
+            if i % 2 == 1:
+                turn["from"] = conv.roles[1]
+                value = turn["value"]
+
+                conv.append_message(turn['from'], value)
+                if not turn["value"]:
+                    strip_end_for_inference = True
+            else:
+                turn["from"] = conv.roles[0]
+                conv.append_message(turn["from"], turn["value"])
+        context = conv.get_prompt()
+        if strip_end_for_inference and context.endswith("\n<|im_end|>"):
+            context = context[: -len("\n<|im_end|>")] + "\n"
+        conversations.append(context)
+
+    add_extra_token = cfg.get("add_extra_token")
+
+    tokens = tokenize(
+        texts=conversations,
+        tokenizer=tokenizer,
+        context_length=cfg.get("context_length"),
+        add_extra_token=add_extra_token,
+    )
+    labels = tokens.clone().detach()
+
+    round_sep = "<|im_start|>user\n"
+    sep = "<|im_start|>assistant\n"
+    for conversation, target in zip(conversations, labels):
+        rounds = conversation.split(round_sep)
+        rounds = [round_sep.join(rounds[:2])] + [(round_sep + x) for x in rounds[2:]]
+        assert len(conversation) == sum(map(len, rounds))
+        cur_len = 0
+        for i, rou in enumerate(rounds):
+            if rou == "":
+                break
+            parts = rou.split(sep)
+            if len(parts) != 2:
+                break
+            instruction_len = len(tokenizer.text_to_ids(parts[0] + sep))
+            round_len = len(tokenizer.text_to_ids(rou))
+            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+
+            cur_len += round_len
+        target[cur_len:] = IGNORE_INDEX
 
     if add_extra_token:
         tokens = tokens[:, :-1].contiguous()
@@ -577,9 +743,14 @@ def preprocess_v1(
     )
 
     # llama tricks
-    tokens[tokens == 32003] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
-    tokens[tokens == 32006] = 1  # <s>
-    tokens[tokens == 32007] = 2  # </s>
+    # 32003, 32006, 32007
+    image_patch_token = DEFAULT_IMAGE_PATCH_TOKEN["llama_2"]
+    DEFAULT_TOKENS = [image_patch_token, DEFAULT_BOS_TOKEN, DEFAULT_EOS_TOKEN]
+    img_patch_id, bos_id, eos_id = get_tokens_ids(tokenizer, DEFAULT_TOKENS)
+    tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
+    tokens[tokens == bos_id] = 1  # <s>
+    tokens[tokens == eos_id] = 2  # </s>
+    # tokens = torch.concat((torch.tensor([[1]]), tokens), axis=1) #lita 1.5 legacy
     labels = tokens.clone().detach()
 
     # Mask labels
@@ -931,6 +1102,8 @@ class LazySupervisedDataset(Dataset):
         return len(self.list_data_dict)
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        if isinstance(i, np.integer):
+            i = int(i)
         sources = self.list_data_dict[i]
         if isinstance(i, int):
             sources = [sources]
@@ -977,7 +1150,7 @@ class LazySupervisedDataset(Dataset):
                 frames = self.video_loader.open_video(video_file)
                 if frames is None:
                     logging.warning(f"Video {video_file} could not be found!")
-                if isinstance(self.processor, CLIPImageProcessor):
+                if isinstance(self.processor, CLIPImageProcessor) or isinstance(self.processor, SiglipImageProcessor):
                     # image processor from HF
                     if self.multimodal_cfg['image_aspect_ratio'] == 'keep':
                         max_hw, min_hw = max(frames.size), min(frames.size)
@@ -1085,6 +1258,12 @@ class LazySupervisedDataset(Dataset):
                 self.tokenizer,
                 self.multimodal_cfg,
             )
+        elif self.conv_template == "yi_34b":
+            data_dict = preprocess_yi_34b(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+            )
         else:
             raise ValueError(f"Conversation template `{self.conv_template}` is not supported in Neva now.")
 
@@ -1117,7 +1296,6 @@ class NevaDataset(LazySupervisedDataset):
     """Dataset for supervised fine-tuning."""
 
     def __init__(self, data_path: str, tokenizer, multimodal_cfg: dict, data_cfg: dict):
-
         if data_path.endswith(".json"):
             super(NevaDataset, self).__init__(data_path, tokenizer, multimodal_cfg, data_cfg)
 
@@ -1240,7 +1418,7 @@ class DataCollatorForSupervisedDataset(object):
         return batch
 
 
-def make_supervised_data_module(tokenizer, image_processor, model_cfg) -> Dict:
+def make_supervised_data_module(tokenizer, image_processor, model_cfg, each_file_from_path=None) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     data_cfg = model_cfg.data
     mm_cfg = model_cfg.mm_cfg
@@ -1248,10 +1426,10 @@ def make_supervised_data_module(tokenizer, image_processor, model_cfg) -> Dict:
     if getattr(model_cfg, 'no_seqlen_plus_one_input_tokens', False):
         add_extra_token = 0
     crop_size = mm_cfg.vision_encoder.get("crop_size", (224, 224))
-
+    data_path = each_file_from_path if each_file_from_path is not None else data_cfg.data_path
     train_dataset = NevaDataset(
         tokenizer=tokenizer,
-        data_path=data_cfg.data_path,
+        data_path=data_path,
         multimodal_cfg=dict(
             is_multimodal=data_cfg.is_multimodal,
             sep_image_conv_front=data_cfg.sep_image_conv_front,
@@ -1268,6 +1446,8 @@ def make_supervised_data_module(tokenizer, image_processor, model_cfg) -> Dict:
             context_length=model_cfg.encoder_seq_length,
             media_type=data_cfg.get('media_type', 'image'),
             num_frames=data_cfg.get('num_frames', -1),
+            use_lita=getattr(model_cfg.mm_cfg, 'use_lita', False),
+            lita=getattr(model_cfg.mm_cfg, 'lita', {}),
             mm_mlp_adapter_type=model_cfg.mm_cfg.get('mm_mlp_adapter_type', 'linear'),
         ),
         data_cfg=dict(

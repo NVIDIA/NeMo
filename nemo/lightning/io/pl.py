@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, Generic, Optional, TypeVar, Union
 
 import pytorch_lightning as pl
 import torch
+from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.types import _PATH
@@ -12,10 +13,6 @@ from megatron.core.dist_checkpointing.serialization import (
     get_default_load_sharded_strategy,
     get_default_save_sharded_strategy,
 )
-
-# from nemo.utils.callbacks.torch_dist_async import TorchDistAsyncSaveShardedStrategy
-from megatron.core.dist_checkpointing.strategies import tensorstore
-from megatron.core.dist_checkpointing.strategies.async_utils import AsyncCallsQueue, AsyncRequest
 from megatron.core.dist_checkpointing.strategies.base import SaveShardedStrategy
 from megatron.core.dist_checkpointing.strategies.fully_parallel import (
     FullyParallelLoadStrategyWrapper,
@@ -28,7 +25,12 @@ from typing_extensions import Self, override
 
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
-from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
+
+try:
+    from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
+except ImportError:
+    AsyncCompatibleCheckpointIO = CheckpointIO
+
 
 log = logging.getLogger(__name__)
 
@@ -77,6 +79,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         torch_dist_multiproc: Optional[int] = None,
         assume_constant_structure: bool = False,
         parallel_save: bool = True,
+        parallel_save_within_dp: bool = False,
         parallel_load: bool = False,
     ):
         self.save_ckpt_format = save_ckpt_format
@@ -85,6 +88,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         self.torch_dist_multiproc = torch_dist_multiproc
         self.assume_constant_structure = assume_constant_structure
         self.parallel_save = parallel_save
+        self.parallel_save_within_dp = parallel_save_within_dp
         self.parallel_load = parallel_load
 
         self._save_sharded_strategy = None
@@ -122,13 +126,22 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
         validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
         self.validated_consistency = True
-        return dist_checkpointing.save(
-            sharded_state_dict=checkpoint,
-            checkpoint_dir=checkpoint_dir,
-            sharded_strategy=self.save_sharded_strategy,
-            validate_access_integrity=validate_sharding_integrity,
-            async_sharded_save=self.async_save,
-        )
+
+        try:
+            return dist_checkpointing.save(
+                sharded_state_dict=checkpoint,
+                checkpoint_dir=checkpoint_dir,
+                sharded_strategy=self.save_sharded_strategy,
+                validate_access_integrity=validate_sharding_integrity,
+                async_sharded_save=self.async_save,
+            )
+        except:
+            logging.error(f"Failed to save checkpoint to {checkpoint_dir}")
+            # Do cleanup.
+            import shutil
+
+            shutil.rmtree(checkpoint_dir)
+            raise
 
     @override
     def load_checkpoint(
@@ -161,7 +174,9 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
 
         if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
-            sharded_strategy = tensorstore.TensorStoreLoadShardedStrategy(load_directly_on_device=True)
+            from megatron.core.dist_checkpointing.strategies.tensorstore import TensorStoreLoadShardedStrategy
+
+            sharded_strategy = TensorStoreLoadShardedStrategy(load_directly_on_device=True)
         else:
             sharded_strategy = None
 
@@ -202,6 +217,13 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         are passed in config or in case of a fully parallel save in which case
         a parallelization wrapper is applied.
         """
+        if self.save_ckpt_format == 'zarr':
+            logging.warning(
+                f'`zarr` distributed checkpoint backend is deprecated.'
+                f' Distributed optimizer checkpoint saving might be extremely slow.'
+                f' Please switch to PyTorch Distributed format (model.dist_ckpt_format=torch_dist).'
+            )
+
         if self.async_save and self.save_ckpt_format != 'torch_dist':
             raise ValueError('Async dist-ckpt save supported only for torch_dist format')
 
@@ -216,8 +238,11 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             save_strategy.use_cached_ckpt_structure = self.assume_constant_structure
 
         if self.parallel_save:
+            parallelization_group = (
+                get_data_parallel_group(with_context_parallel=True) if self.parallel_save_within_dp else None
+            )
             save_strategy = FullyParallelSaveStrategyWrapper(
-                save_strategy, get_data_parallel_group(with_context_parallel=True), self.assume_constant_structure
+                save_strategy, parallelization_group, self.assume_constant_structure
             )
 
         logging.info(f'Using {save_strategy} dist-ckpt save strategy.')

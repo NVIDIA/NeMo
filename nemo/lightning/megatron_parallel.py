@@ -12,7 +12,6 @@ from typing import (
     Iterable,
     Iterator,
     List,
-    Mapping,
     Optional,
     Protocol,
     Sequence,
@@ -25,9 +24,11 @@ from typing import (
 
 import torch
 import torch.distributed
+from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
+from pytorch_lightning.utilities import move_data_to_device
 from torch import Tensor, nn
 from typing_extensions import override
 
@@ -43,15 +44,35 @@ class PrecisionPluginProtocol(Protocol[DataT]):
 
 
 def default_data_step(dataloader_iter: Iterator[DataT]) -> DataT:
+    """
+    Moves the data to a device.
+
+    In this case we unpack the dataloader iterator. There may be a wrapper on the dataloader
+    iter from here: https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/fabric/strategies.py#L441.
+
+    This will not subset the data for your with context parallel so please override this function if you
+    want to use context parallel.
+
+    Examples:
+        If the dataloader_iter returns: [Tuple[<tensor>, <int>, <int>]] -> move to device
+        If the dataloader_iter returns: [<tensor>, <tensor>] -> move to device
+
+    Returns:
+        DataT: The data moved to the device.
+    """
+    if parallel_state.get_context_parallel_world_size() > 1:
+        raise ValueError(
+            "Default data step is being used in a context parallel environment."
+            "Please define your own data step that appropriately slices the data for context parallel."
+        )
+
     batch = next(dataloader_iter)
 
+    # If its wrapped in a tuple, unpack it.
     if isinstance(batch, tuple) and len(batch) == 3:
         batch = batch[0]
 
-    if isinstance(batch, dict):
-        batch = {k: v.cuda(non_blocking=True) for k, v in batch.items()}
-
-    return batch
+    return move_data_to_device(batch, torch.cuda.current_device())
 
 
 def default_forward_step(model: nn.Module, batch, *args, **kwargs) -> torch.Tensor:
@@ -95,6 +116,12 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             forward pass of a model.
         loss_reduction (Optional[Callable[[nn.Module], MegatronLossReduction]]): An optional
             function that defines how the loss is reduced.
+        vp_size (Optional[int]): Virtual pipeline parallel size.
+        ddp_config (Optional[DistributedDataParallelConfig]): An instance of Megatron core's
+            DistributedDataParallelConfig which controls the Megatron DDP configuration.
+        cpu (bool): Whether model should reside on CPU.
+        convert_module_fn (Optional[Callable[[ModelT], nn.Module]]): An optional function to
+            apply to the model parameters after initialization.
 
     Examples
     --------
@@ -129,8 +156,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         cpu: bool = False,
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
-        from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
         from megatron.core import parallel_state
+        from megatron.core.tensor_parallel import set_defaults_if_not_set_tensor_model_parallel_attributes
 
         _pipeline: List[nn.Module]
         if isinstance(pipeline, nn.ModuleList):
@@ -152,67 +179,15 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                         _model.configure_model()
                     _pipeline.append(_model)
 
-        if convert_module_fn:
-            for i in range(len(_pipeline)):
-                _pipeline[i] = convert_module_fn(_pipeline[i])
-
-        if isinstance(ddp_config, DistributedDataParallelConfig):
-            for model_chunk_idx, model_chunk in enumerate(_pipeline):
-                module = model_chunk.module
-
-                ddp = DDP(
-                    module.config,
-                    ddp_config,
-                    module,
-                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
-                    # Turn off bucketing for model_chunk 2 onwards, since communication for these
-                    # model chunks is overlapped with compute anyway.
-                    disable_bucketing=(model_chunk_idx > 0),
-                )
-                model_chunk.module = ddp
-                model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
-                model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
-
-            # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
-            no_sync_func, grad_sync_func = extract_ddp_funcs(ddp_config, _pipeline)
-            for module in _pipeline:
-                module.config.no_sync_func = no_sync_func
-                module.config.grad_sync_func = grad_sync_func
-
-        for i, model_module in enumerate(_pipeline):
-            if not cpu:
-                model_module.cuda(torch.cuda.current_device())
-
-            for param in model_module.parameters():
-                set_defaults_if_not_set_tensor_model_parallel_attributes(param)
-
-            if hasattr(model_module, "configure_model"):
-                if not hasattr(model_module, "set_input_tensor"):
-                    if hasattr(model_module.module, "set_input_tensor"):
-                        model_module.set_input_tensor = model_module.module.set_input_tensor
-                    else:
-                        # TODO: What to do here?
-                        pass
-
-            # Print number of parameters.
-            if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
-                from nemo.utils import logging
-
-                msg = (
-                    f" > number of parameters on (tensor, pipeline) model parallel rank "
-                    f"({parallel_state.get_tensor_model_parallel_rank()}, {parallel_state.get_pipeline_model_parallel_rank()}): "
-                    f"{_calc_number_of_params(_pipeline)}"
-                )
-                logging.info(msg)
-
         super().__init__(_pipeline)
         self.precision_plugin = precision_plugin
+        self._cpu = cpu
         self.callbacks = callbacks or CallbackConnector()
         self.data_step = data_step or default_data_step
         self.forward_step = forward_step or default_forward_step
         self.loss_reduction: MegatronLossReduction = loss_reduction
         self.ddp_config = ddp_config
+        self.convert_module_fn = convert_module_fn
 
     def forward(
         self,
@@ -255,6 +230,37 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         _num_microbatches: int = num_microbatches or self.infer_num_microbatches(data)
 
         pipeline = self.pipeline
+
+        # FIXME: cleanup the following code block which is here for backwards compatibility with nemo1. The "batch"
+        #  sampler is a nemo1 sampler. It requires some custom code here to use (if use_global_batch_sampler).
+        #  by default we shouldn't use this "batch" sampler probably.
+        if getattr(self.trainer, "datamodule", None) is not None:
+            use_global_batch_sampler = self.trainer.datamodule.data_sampler.dataloader_type == 'batch'
+        elif getattr(self.trainer, "predict_dataloaders", None) is not None:
+            from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (  # noqa: I001
+                MegatronPretrainingBatchSampler,
+            )
+
+            # The batch_sampler gets injected into the dataloader by the data_sampler. When doing predict without a
+            #  datamodule we can look inside the dataloader's batch_sampler to see if it is the nemo1 style sampler
+            #  that we need to handle specially below.
+            use_global_batch_sampler = isinstance(
+                self.trainer.predict_dataloaders.batch_sampler, MegatronPretrainingBatchSampler
+            )
+        else:
+            raise ValueError("Unsure how to check for nemo1 global_batch_sampler status. TODO maybe default to False?")
+        if use_global_batch_sampler:
+            from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+
+            # The current way of using a batch sampler + split to micro iterator results in
+            # extraneous padding, and is only implemented to ensure bit-exactness with NeMo 1.
+            # This part in NeMo 1 was written when megatron fwd_bwd_function did not support unequal
+            # sequence lengths, but it does now. Hence this part should be revisited in the future.
+            batch = next(data)
+            if isinstance(batch, tuple) and len(batch) == 3:
+                batch = batch[0]
+            data = get_iterator_k_split(batch, _num_microbatches, True)
+
         data_iterator: List[Iterator[DataT]] = self.to_data_iterator_list(data)
         context = self._build_context({**locals()})
 
@@ -297,16 +303,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             self.callbacks.event("on_megatron_reduce_microbatches_end", **context)
         else:
             # we're not on the last pipeline stage so no losses
-            if forward_only:
-                loss_mean = cast(torch.Tensor, [])
-            else:
-                loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
+            loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
 
         self.callbacks.event("on_megatron_log_step_end", **context)
         self.callbacks.event("on_megatron_step_end", **context)
-
-        if loss_mean == []:
-            loss_mean = None
 
         return loss_mean
 
@@ -475,6 +475,82 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         raise ValueError("Cannot infer `num_microbatches` from data, please specify it manually")
 
+    def init_model_parallel(self):
+        from megatron.core import parallel_state
+        from megatron.core.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
+
+        for model_module in self:
+            if not self._cpu:
+                model_module.cuda(torch.cuda.current_device())
+
+            for param in model_module.parameters():
+                set_defaults_if_not_set_tensor_model_parallel_attributes(param)
+
+            if hasattr(model_module, "configure_model"):
+                if not hasattr(model_module, "set_input_tensor"):
+                    if hasattr(model_module.module, "set_input_tensor"):
+                        model_module.set_input_tensor = model_module.module.set_input_tensor
+                    else:
+                        # TODO: What to do here?
+                        pass
+
+            # Print number of parameters.
+            if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
+                from nemo.utils import logging
+
+                num_params = _calc_number_of_params(list(self))
+                num_trainable_params = _calc_number_of_trainable_params(list(self))
+
+                msg = (
+                    f" > number of parameters on (tensor, pipeline) model parallel rank "
+                    f"({parallel_state.get_tensor_model_parallel_rank()}, {parallel_state.get_pipeline_model_parallel_rank()}): "
+                    f"{num_params}"
+                )
+                logging.info(msg)
+
+                if num_params != num_trainable_params:
+                    logging.info(
+                        f" > number of trainable parameters: {num_trainable_params} ({num_trainable_params / num_params:.2%} of total)"
+                    )
+
+        if self.convert_module_fn:
+            self.apply_convert_module_fn()
+
+        self.init_ddp()
+
+    def apply_convert_module_fn(self):
+        for i in range(len(self)):
+            self[i] = self.convert_module_fn(self[i])
+
+    def init_ddp(self):
+        if not isinstance(self.ddp_config, DistributedDataParallelConfig):
+            return
+
+        from megatron.core import parallel_state
+
+        for model_chunk_idx, model_chunk in enumerate(self):
+            module = model_chunk.module
+
+            ddp = DDP(
+                module.config,
+                self.ddp_config,
+                module,
+                data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                # Turn off bucketing for model_chunk 2 onwards, since communication for these
+                # model chunks is overlapped with compute anyway.
+                disable_bucketing=(model_chunk_idx > 0),
+            )
+            model_chunk.module = ddp
+            model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
+            model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
+
+        # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
+        no_sync_func, grad_sync_func = extract_ddp_funcs(self.ddp_config, self)
+        for module in self:
+            module.config.no_sync_func = no_sync_func
+            module.config.grad_sync_func = grad_sync_func
+
     def _build_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
         if "self" in context:
             del context["self"]
@@ -565,21 +641,29 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
     @override
     def __getattr__(self, item: Any) -> Any:
-        if len(self) == 0:
-            return super().__getattr__(item)
-
         try:
-            # __getattr__ gets called as a last resort if the attribute does not exist
-            # call nn.Module's implementation first
+            # First, try to get the attribute from the superclass (nn.ModuleList)
             return super().__getattr__(item)
         except AttributeError:
-            # If the attribute is not available on the _FabricModule wrapper, redirect to the wrapped nn.Module
-            attr = getattr(self._modules[self._get_abs_string_index(0)], item)
+            # If not found in superclass, check if we have any modules
+            if len(self) == 0:
+                raise AttributeError(
+                    f"'{self.__class__.__name__}' object has no attribute '{item}' and contains no modules"
+                )
 
-            return attr
+            # Try to get it from the first module
+            try:
+                return getattr(self._modules[self._get_abs_string_index(0)], item)
+            except AttributeError:
+                raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}'")
 
 
 class _ModuleStepFunction:
+    """
+    This class acts as a bridge between Megatron core's lower-level functional API and PTL's object-oriented API,
+        making it possible to use PTL-compatible functions in Megatron core.
+    """
+
     def __init__(self, name: str, is_property: bool = False, includes_self: bool = False):
         self.name = name
         self.is_property = is_property
@@ -608,7 +692,9 @@ class _ModuleStepFunction:
 def getattr_proxy(self, item: Any) -> Any:
     try:
         return super(self.__class__, self).__getattr__(item)
-    except AttributeError:
+    except AttributeError as e:
+        if item == 'module':  ## this is a hacky WAR and may cause misleading error messages
+            raise e
         try:
             return getattr(self.module, item)
         except AttributeError:
@@ -913,6 +999,12 @@ def _calc_number_of_params(model: List[nn.Module]) -> int:
     assert isinstance(model, list)
 
     return sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
+
+
+def _calc_number_of_trainable_params(model: List[nn.Module]) -> int:
+    assert isinstance(model, list)
+
+    return sum([sum([p.numel() for p in model_module.parameters() if p.requires_grad]) for model_module in model])
 
 
 def is_list_of_iterators(var) -> bool:
