@@ -26,6 +26,7 @@ from _weakref import proxy
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint, _is_local_file_protocol
 from pytorch_lightning.utilities import rank_zero_info
+from pytorch_lightning.trainer import call
 
 from nemo.collections.common.callbacks import EMA
 from nemo.utils import logging
@@ -374,7 +375,15 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             checkpoint_path = checkpoints[checkpoint_index]
 
             logging.info(f"Loading '{checkpoint_path}' checkpoint to drop optimizer states...")
-            trainer.strategy.load_checkpoint(checkpoint_path=checkpoint_path)
+            checkpoint = trainer.strategy.load_checkpoint(checkpoint_path=checkpoint_path)
+
+            call._call_lightning_module_hook(trainer, "on_load_checkpoint", checkpoint)
+
+            # restore model state_dict
+            trainer.strategy.load_model_state_dict(
+                checkpoint,
+                strict=trainer.lightning_module.strict_loading,
+            )
 
             # Save the checkpoint without optimizer states
             if storage_options is None:
