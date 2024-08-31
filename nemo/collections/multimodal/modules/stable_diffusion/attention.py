@@ -39,15 +39,10 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.core import adapter_mixins
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import_from
 
-try:
-    from transformer_engine.pytorch.module import LayerNormLinear, LayerNormMLP
-
-    HAVE_TE = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_TE = False
-
+LayerNormLinear, _ = safe_import_from("transformer_engine.pytorch.module", "LayerNormLinear")
+LayerNormMLP, _ = safe_import_from("transformer_engine.pytorch.module", "LayerNormMLP")
 
 def check_cuda():
     if not torch.cuda.is_available():
