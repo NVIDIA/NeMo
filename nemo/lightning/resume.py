@@ -95,7 +95,9 @@ class AutoResume:
         with open(adapter_meta_path, "r") as f:
             metadata = json.load(f)
 
-        base_model_path = self._try_import_model(model, metadata['model_ckpt_path'])
+        assert self.selective_restore_config, "PEFT resume requires specifying selective_restore_config"
+        assert "://" in self.selective_restore_config.path, "For now PEFT resume requires specifying the import path instead of local path"
+        base_model_path = self._try_import_model(model, self.selective_restore_config.path)
         if base_model_path != Path(metadata['model_ckpt_path']):
             raise ValueError(
                 f"When trying to resume a PEFT training run, found mismatching values: "
