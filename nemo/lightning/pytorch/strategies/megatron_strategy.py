@@ -652,17 +652,19 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
-        return get_checkpoint_io(
-            self._checkpoint_io,
-            save_ckpt_format=self.save_ckpt_format,
-            async_save=self.async_save,
-            torch_dist_multiproc=self.torch_dist_multiproc,
-            assume_constant_structure=self.assume_constant_structure,
-            parallel_save=self.parallel_save,
-            parallel_save_within_dp=self.parallel_save_within_dp,
-            parallel_load=self.parallel_load,
-            load_directly_on_device=self.load_directly_on_device,
-        )
+        if not self._checkpoint_io:
+            self._checkpoint_io = get_checkpoint_io(
+                save_ckpt_format=self.save_ckpt_format,
+                async_save=self.async_save,
+                torch_dist_multiproc=self.torch_dist_multiproc,
+                assume_constant_structure=self.assume_constant_structure,
+                parallel_save=self.parallel_save,
+                parallel_save_within_dp=self.parallel_save_within_dp,
+                parallel_load=self.parallel_load,
+                load_directly_on_device=self.load_directly_on_device,
+            )
+
+        return self._checkpoint_io
 
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:

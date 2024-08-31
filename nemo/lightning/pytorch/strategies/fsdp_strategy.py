@@ -159,7 +159,10 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
-        return get_checkpoint_io(self._checkpoint_io)
+        if not self._checkpoint_io:
+            self._checkpoint_io = get_checkpoint_io()
+
+        return self._checkpoint_io
 
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:
