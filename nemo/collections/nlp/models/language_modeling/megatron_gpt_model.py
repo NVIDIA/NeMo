@@ -167,7 +167,7 @@ def get_specs(spec_name, transformer_config=None, use_te=True):
         "te_gpt": get_gpt_layer_with_transformer_engine_spec(num_experts, moe_grouped_gemm),
         "megatron_falcon_gpt": get_falcon_layer_spec(),
         "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(transformer_config),
-        "ammo": get_gpt_layer_ammo_spec(),
+        "modelopt": get_gpt_layer_modelopt_spec(),
     }
     if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
