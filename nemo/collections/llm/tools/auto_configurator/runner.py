@@ -21,7 +21,8 @@ from nemo import lightning as nl
 from nemo.collections.common.tokenizers import AutoTokenizer, SentencePieceTokenizer
 from nemo.collections.llm import GPTModel, PreTrainingDataModule
 from nemo.collections.llm.api import pretrain
-from nemo.collections.llm.tools.auto_configurator.core.search_config import search_configs
+from nemo.collections.llm.tools.auto_configurator.core.training_config import generate_grid_search_configs
+from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config
 from nemo.collections.llm.utils import Config, Partial
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
 from nemo.utils import logging
@@ -108,10 +109,22 @@ class AutoConfigurator:
         assert num_nodes, "num_nodes value must be specified."
         assert data_paths, "training data must be specified."
         assert path_to_logs, f"path_to_logs parameter must be specified."
+        gpu_count = num_nodes * gpus_per_node
+        assert gpu_count > 0, "num_nodes * gpus_per_node must be an int larger than zero."
+        assert gpu_memory_gb in (
+            40,
+            80,
+        ), "gpu_memory_gb can only be 40 or 80."
+        assert (
+            max_minutes_per_run >= 10
+        ), "max_minutes_per_run must be an int and be at least 10 minutes."
 
         self.config = locals()
         self.config.pop('self')
         self.config["model_type"] = model_type
+        self.config["model_size_in_b"] = model_size
+        self.config["gpu_count"] = gpu_count
+        self.config["num_gpus"] = gpus_per_node
 
         # Print the config
         logging.info(self._get_message(self.config))
@@ -127,7 +140,16 @@ class AutoConfigurator:
         :rtype: dict.
         """
 
-        configs = search_configs(self.config)
+        # Generate base config for the given model size
+        base_cfg, train_cfg = generic_base_config(
+            model_name=self.config["model_type"],
+            model_size_in_b=self.config["model_size"],
+            cfg=self.config,
+        )
+
+        # Launch grid search for training constraints
+        configs = generate_grid_search_configs(base_cfg, train_cfg)
+
         tokenizer_type = self.config.get("tokenizer_type")
         tokenizer_path = self.config.get("tokenizer_path")
         path_to_logs = self.config.get("path_to_logs")

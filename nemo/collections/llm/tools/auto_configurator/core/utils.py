@@ -342,18 +342,14 @@ def _calculate_model_size(
 
 def generic_base_config(
     model_name: str = "llama",
-    model_version: int = 2,
     model_size_in_b: int = 7,
-    model_measure: str = "B",
     cfg: dict = {},
 ) -> dict:
     """Generates a base config dictionary from a base config python file.
 
     Args:
         model_name (str): name of the model, i.e. gpt3, t5, mt5...
-        model_version (int): version of model.
         model_size_in_b (int): model size.
-        model_measure (str): model measure. Billions if "B", millions if "M".
         cfg (dict): dict config object for the Auto Configurator tool.
 
     Returns:
