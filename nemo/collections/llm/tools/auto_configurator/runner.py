@@ -115,9 +115,7 @@ class AutoConfigurator:
             40,
             80,
         ), "gpu_memory_gb can only be 40 or 80."
-        assert (
-            max_minutes_per_run >= 10
-        ), "max_minutes_per_run must be an int and be at least 10 minutes."
+        assert max_minutes_per_run >= 10, "max_minutes_per_run must be an int and be at least 10 minutes."
 
         self.config = locals()
         self.config.pop('self')
