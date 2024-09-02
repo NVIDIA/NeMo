@@ -20,15 +20,15 @@ if TYPE_CHECKING:
 @dataclass
 class SSMConfig(TransformerConfig, io.IOMixin):
     # From megatron.core.models.mamba.mamba_model.MambaModel
-    fp16_lm_cross_entropy: bool = False,
-    parallel_output: bool = True,
-    share_embeddings_and_output_weights: bool = False,
-    num_layers: int = 2,
+    fp16_lm_cross_entropy: bool = False
+    parallel_output: bool = True
+    share_embeddings_and_output_weights: bool = False
+    num_layers: int = 2
     mamba_ssm_ngroups: int = 8
     hybrid_attention_ratio: float = 0.0
     hybrid_mlp_ratio: float = 0.0
     hybrid_override_pattern: str = None
-    post_process: bool = True,
+    post_process: bool = True
     pre_process: bool = True
     seq_length: int = 2048
     params_dtype: torch.dtype = torch.bfloat16
@@ -83,9 +83,8 @@ class SSMModel(GPTModel):
 @io.model_importer(SSMModel, "pytorch")
 class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
 
-    def __new__(cls, path: str, tokenizer_config=None, model_config=None):
+    def __new__(cls, path: str, model_config=None):
         instance = super().__new__(cls, path)
-        instance.tokenizer_config = tokenizer_config
         instance.model_config = model_config
         return instance
     def init(self) -> SSMModel:
@@ -99,28 +98,35 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
             source = source['model']
 
         class ModelState:
-            def __init__(self, state_dict):
+            def __init__(self, state_dict, mapping_type="base"):
                 self._state_dict = state_dict
+                self.mapping_type = mapping_type
                 self.update_dict()
 
             def update_dict(self):
-                # pattern = re.compile(r'backbone\.layers\.\d+\.norm\.weight')
-                pattern = re.compile(r'decoder\.layers\.\d+\.norm\.weight')
+                if self.mapping_type == "base":
+                    pattern = re.compile(r'backbone\.layers\.\d+\.norm\.weight')
+                elif self.mapping_type == "nvidia":
+                    pattern = re.compile(r'decoder\.layers\.\d+\.norm\.weight')
+                elif self.mapping_type == "mistral":
+                    pattern = re.compile(r'model.backbone\.layers\.\d+\.norm\.weight')
+                else:
+                    raise AttributeError(f"mapping type [{self.mapping_type}] not found.")
                 # Create a new dictionary with the updated keys
                 self._state_dict = {
-                    (re.sub(r'norm\.weight', 'mixer.in_proj.layer_norm_weight', k) if pattern.match(k) else k): v
+                    (re.sub(r'norm\.weight', 'in_proj_layer_norm_weight', k) if pattern.match(k) else k): v
                     for k, v in self._state_dict.items()
                     }
             def state_dict(self):
                 return self._state_dict
 
-        source = ModelState(source)
+        source = ModelState(source, mapping_type="base")
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Mamba model to Nemo, model saved to {output_path}")
+        print(f"Converted SSM model to Nemo, model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
@@ -128,18 +134,40 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
         return output_path
 
     def convert_state(self, source, target):
-        mapping = {
-                # 'backbone.embedding.weight': 'embedding.word_embeddings.weight',
+
+        if self.model_config.mapping_type == "base":
+            mapping = {
+                'backbone.embedding.weight': 'embedding.word_embeddings.weight',
+                'backbone.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log', 
+                'backbone.layers.*.mixer.D': 'decoder.layers.*.mixer.D', 
+                'backbone.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
+                'backbone.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
+                'backbone.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
+                'backbone.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',  
+                'backbone.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
+                'backbone.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
+                'backbone.layers.*.in_proj_layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',  
+                'backbone.norm_f.weight': 'decoder.final_norm.weight',
+                'lm_head.weight': 'output_layer.weight',
+            }
+        elif self.model_config.mapping_type == "mistral":
+            mapping = {
+                'model.backbone.embedding.weight': 'embedding.word_embeddings.weight',
+                'model.backbone.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log', 
+                'model.backbone.layers.*.mixer.D': 'decoder.layers.*.mixer.D', 
+                'model.backbone.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
+                'model.backbone.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
+                'model.backbone.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
+                'model.backbone.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',  
+                'model.backbone.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
+                'model.backbone.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
+                'model.backbone.layers.*.in_proj_layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',  
+                'model.backbone.norm_f.weight': 'decoder.final_norm.weight',
+                'model.lm_head.weight': 'output_layer.weight',
+            }       
+        elif self.model_config.mapping_type == "nvidia":
+            mapping = {
                 'embedding.word_embeddings.weight': 'embedding.word_embeddings.weight',
-                # 'backbone.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log', 
-                # 'backbone.layers.*.mixer.D': 'decoder.layers.*.mixer.D', 
-                # 'backbone.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
-                # 'backbone.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
-                # 'backbone.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
-                # 'backbone.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',  
-                # 'backbone.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
-                # 'backbone.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
-                # 'backbone.layers.*.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',  
                 'decoder.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log', 
                 'decoder.layers.*.mixer.D': 'decoder.layers.*.mixer.D', 
                 'decoder.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
@@ -148,7 +176,7 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
                 'decoder.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',  
                 'decoder.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
                 'decoder.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
-                'decoder.layers.*.mixer.in_proj.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
+                'decoder.layers.*.in_proj_layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
                 'decoder.layers.*.mlp.linear_fc1.layer_norm_weight': 'decoder.layers.*.mlp.linear_fc1.layer_norm_weight', 
                 'decoder.layers.*.mlp.linear_fc1.weight': 'decoder.layers.*.mlp.linear_fc1.weight', 
                 'decoder.layers.*.mlp.linear_fc2.weight': 'decoder.layers.*.mlp.linear_fc2.weight',
@@ -157,9 +185,7 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
                 'decoder.layers.*.self_attention.linear_qkv.weight': 'decoder.layers.*.self_attention.linear_qkv.weight',
                 'decoder.final_norm.weight': 'decoder.final_norm.weight',
                 'output_layer.weight': 'output_layer.weight',
-                # 'backbone.norm_f.weight': 'decoder.final_norm.weight',
-                # 'lm_head.weight': 'output_layer.weight',
-        }
+            }
   
         return io.apply_transforms(source, target, mapping=mapping)
 
@@ -168,17 +194,16 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
         tokenizer = get_nmt_tokenizer(
-            library=self.tokenizer_config['library'],
-            model_name=self.tokenizer_config['name'],
-            tokenizer_model=self.tokenizer_config['model'],
-            use_fast=self.tokenizer_config['use_fast'],
+            library=self.model_config.tokenizer_library,
+            model_name=self.model_config.tokenizer_name,
+            tokenizer_model=self.model_config.tokenizer_model_path,
+            use_fast=True,
         )
 
         return tokenizer
 
     @property
     def config(self) -> SSMConfig:
-
         return self.model_config
 
 @dataclass
@@ -194,6 +219,9 @@ class Mamba2Config370m(SSMConfig):
     attention_dropout: float = 0.0
     layernorm_epsilon: float = 1e-5
     make_vocab_size_divisible_by: int = 16
+    tokenizer_library: str = 'huggingface'
+    tokenizer_name: str = "EleutherAI/gpt-neox-20b"
+    mapping_type: str = "base"
 
 @dataclass
 class HybridConfig8b(SSMConfig):
@@ -209,10 +237,33 @@ class HybridConfig8b(SSMConfig):
     attention_dropout: float = 0.0
     layernorm_epsilon: float = 1e-5
     make_vocab_size_divisible_by: int = 128
+    tokenizer_library: str = 'megatron'
+    tokenizer_name: str = "GPTSentencePieceTokenizer"
+    mapping_type: str = "nvidia"
+
+@dataclass
+class CodestralMamba(SSMConfig):
+    hybrid_override_pattern: str = "M"*64
+    num_layers: int = 64
+    seq_length: int = 4096
+    hidden_size: int = 4096
+    mamba_ssm_ngroups: int = 8
+    ffn_hidden_size: int = 4096
+    num_attention_heads: int = 32
+    num_query_groups: int = 8
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    layernorm_epsilon: float = 1e-5
+    make_vocab_size_divisible_by: int = 128
+    tokenizer_library: str = 'megatron'
+    tokenizer_name: str = "GPTSentencePieceTokenizer"
+    mapping_type: str = "mistral"
+
 
 __all__ = [
     "SSMModel",
     "SSMConfig",
     "Mamba2Config370m",
-    "HybridConfig8b"
+    "HybridConfig8b",
+    "CodestralMamba"
 ]

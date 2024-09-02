@@ -105,8 +105,7 @@ if __name__ == '__main__':
     nemo_logger = NeMoLogger(
         dir=args.experiment_dir,
     )
-    import pdb
-    pdb.set_trace()
+
     train(
         model=model,
         data=data,

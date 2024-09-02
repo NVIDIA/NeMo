@@ -55,6 +55,7 @@ from nemo.collections.llm.gpt.model import (
     SSMConfig,
     Mamba2Config370m,
     HybridConfig8b,
+    CodestralMamba,
     gpt_data_step,
     gpt_forward_step,
 )
@@ -84,6 +85,7 @@ __all__ = [
     "SSMConfig",
     "Mamba2Config370m",
     "HybridConfig8b",
+    "CodestralMamba",
     "LlamaConfig",
     "Llama2Config7B",
     "Llama2Config13B",
