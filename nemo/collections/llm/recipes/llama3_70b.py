@@ -105,10 +105,10 @@ def pretrain_recipe_performance(
 
     comm_overlap_cfg = Config(
         nl.CommOverlapConfig,
-        tp_comm_overlap = True,
-        tp_comm_overlap_cfg = userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
-        defer_embedding_wgrad_compute = False,
-        wgrad_deferral_limit = 22,
+        tp_comm_overlap=True,
+        tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
+        defer_embedding_wgrad_compute=False,
+        wgrad_deferral_limit=22,
     )
     recipe.trainer.strategy.comm_overlap_cfg = comm_overlap_cfg
     return recipe
