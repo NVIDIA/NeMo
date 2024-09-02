@@ -98,6 +98,7 @@ class CommOverlapConfig:
     overlap_param_gather: bool = None
     overlap_param_gather_with_optimizer_step: bool = None
     align_param_gather: bool = None
+    bucket_size: int = None
     # Pipeline bubble overlap
     defer_embedding_wgrad_compute: bool = None
     wgrad_deferral_limit: int = None
@@ -315,9 +316,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         return model_parallel_cfg
 
-    def _apply_optimizer_overlap_cfgs(self, optim_cfg: OptimizerConfig) -> OptimizerConfig:
-        from nemo.utils import AppState
+    def _apply_optimizer_overlap_cfgs(
+        self, 
+        optim_cfg: OptimizerConfig,
+        ddp_cfg: DistributedDataParallelConfig
+    ) -> OptimizerConfig:
+        #Data parallel overlap is only available with the Megatron DDP and Distributed optimizer
+        if not ddp_cfg.use_distributed_optimizer:
+            return
 
+        from nemo.utils import AppState
         app_state = AppState()
 
         vp_size = app_state.virtual_pipeline_model_parallel_size
@@ -325,19 +333,21 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             vp_size = 1
 
         comm_overlap_cfg = CommOverlapConfig()
+        comm_overlap_cfg.bucket_size = None
         comm_overlap_cfg.overlap_grad_reduce = False
         comm_overlap_cfg.overlap_param_gather = False
         comm_overlap_cfg.overlap_param_gather_with_optimizer_step = False
         comm_overlap_cfg.align_param_gather = False
-
-        if app_state.data_parallel_size > 1 and optim_cfg.use_distributed_optimizer:
+        if app_state.data_parallel_size > 1:
+            comm_overlap_cfg.bucket_size = 128 * 1024 * 1024
             comm_overlap_cfg.overlap_grad_reduce = True
             comm_overlap_cfg.overlap_param_gather = True
             if app_state.pipeline_model_parallel_size > 1 and vp_size > 1:
                 comm_overlap_cfg.overlap_param_gather_with_optimizer_step = True
                 comm_overlap_cfg.align_param_gather = True
-
-        return self._apply_overlap_configs(comm_overlap_cfg, optim_cfg)
+     
+        self._apply_overlap_configs(comm_overlap_cfg, optim_cfg)
+        self._apply_overlap_configs(comm_overlap_cfg, ddp_cfg)
 
     @override
     def connect(self, model: pl.LightningModule) -> None:
@@ -453,8 +463,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if hasattr(self.model, "config") and isinstance(self.model.config, ModelParallelConfig):
             self._apply_model_comm_overlap_cfgs(self.model.config)
-        if hasattr(self.model.optim, "config") and isinstance(self.model.optim.config, OptimizerConfig):
-            self._apply_optimizer_overlap_cfgs(self.model.optim.config)
+        if hasattr(self.model.optim, "config") and isinstance(self.model.optim.config, OptimizerConfig) \
+            and hasattr(self, "ddp_config") and isinstance(self.ddp_config, DistributedDataParallelConfig):
+            self._apply_optimizer_overlap_cfgs(
+                optim_cfg = self.model.optim.config,
+                ddp_cfg = self.ddp_config,
+            )
 
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
