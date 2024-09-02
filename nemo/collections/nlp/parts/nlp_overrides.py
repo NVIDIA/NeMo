@@ -527,7 +527,7 @@ class NLPDDPStrategy(DDPStrategy):
                 loaded_state_dict['optimizer_states'][0]['param_groups'].pop(expert_index)
         return loaded_state_dict
 
-    def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
+    def load_checkpoint(self, checkpoint_path: Union[str, Path], map_location: Optional[Any] = None) -> Dict[str, Any]:
         """PTL method which we override to integrate distributed checkpoints for model parallel models.
         In order to load distributed checkpoints we need to provide the sharded_state_dict to
         the distributed load function. We get the sharded_state_dict from self.lightning_module
@@ -535,6 +535,9 @@ class NLPDDPStrategy(DDPStrategy):
         """
 
         fs = get_filesystem(checkpoint_path)
+
+        if map_location is None:
+            map_location = {}
 
         # Check if using distributed checkpointing
         if self.use_distributed_checkpointing:
@@ -553,7 +556,9 @@ class NLPDDPStrategy(DDPStrategy):
 
             # after dist_checkpointing.load, sharded tensors will be replaced with tensors
             checkpoint['state_dict'] = sharded_state_dict
-            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict(is_loading=True)]
+            # Check whether to load optim states
+            if map_location.get("load_optim_states", True):
+                checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict(is_loading=True)]
             if self._check_param_groups_mismatch(checkpoint_path, checkpoint):
                 checkpoint = self._fix_param_groups(checkpoint_path, checkpoint)
             else:

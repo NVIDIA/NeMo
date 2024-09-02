@@ -200,6 +200,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.last_model_path = trainer.strategy.broadcast(self.last_model_path)
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
+        # Load the correct state_dict for current checkpoint.
+        # Temporary solution.
+        if self.save_last_n_optim_states >= 0:
+            self._load_current_state_dict(trainer, checkpoint)
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
         if not self.always_save_nemo:
             return output
@@ -374,15 +378,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             checkpoint_path = checkpoints[checkpoint_index]
 
             logging.info(f"Loading '{checkpoint_path}' checkpoint to drop optimizer states...")
-            checkpoint = trainer.strategy.load_checkpoint(checkpoint_path=checkpoint_path)
+            checkpoint = trainer.strategy.load_checkpoint(checkpoint_path=checkpoint_path, map_location=dict(load_optim_states=False))
 
-            call._call_lightning_module_hook(trainer, "on_load_checkpoint", checkpoint)
-
-            # restore model state_dict
-            trainer.strategy.load_model_state_dict(
-                checkpoint,
-                strict=trainer.lightning_module.strict_loading,
-            )
+            # Load related state dict
+            self._load_current_state_dict(trainer, checkpoint)
 
             # Save the checkpoint without optimizer states
             if storage_options is None:
@@ -413,6 +412,20 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         checkpoints = [os.path.join(checkpoints_dir, checkpoint) for checkpoint in checkpoints]
 
         return checkpoints
+    
+    def _load_current_state_dict(self, trainer, checkpoint) -> None:
+        # Temporary solution for loading the correct state dict 
+        # when dropping optimizer states "on the fly" during training.
+
+        # TODO @dimapihtar @mikolajblaz: provide a more elegant solution at the mcore level.
+
+        call._call_lightning_module_hook(trainer, "on_load_checkpoint", checkpoint)
+
+        # Load model state_dict
+        trainer.strategy.load_model_state_dict(
+            checkpoint,
+            strict=trainer.lightning_module.strict_loading,
+        )
 
     @staticmethod
     def format_checkpoint_unfinished_marker_path(checkpoint_path: Union[Path, str]) -> Path:
