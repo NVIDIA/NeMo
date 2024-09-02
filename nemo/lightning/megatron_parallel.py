@@ -164,6 +164,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         ddp_config: Optional[DistributedDataParallelConfig] = None,
         cpu: bool = False,
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
+        tp_comm_overlap_need_init: Optional[bool] = False,
     ) -> None:
         from megatron.core import parallel_state
         from megatron.core.tensor_parallel import set_defaults_if_not_set_tensor_model_parallel_attributes
@@ -197,7 +198,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.loss_reduction: MegatronLossReduction = loss_reduction
         self.ddp_config = ddp_config
         self.convert_module_fn = convert_module_fn
-        self.tp_comm_overlap_need_init = self.config.tp_comm_overlap
+        self.tp_comm_overlap_need_init = tp_comm_overlap_need_init
 
     def forward(
         self,

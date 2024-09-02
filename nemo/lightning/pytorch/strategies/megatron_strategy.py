@@ -312,12 +312,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     "Disabling tensor parallel communication overlap due to Tranformer Engine not detected."
                 )
                 model_parallel_cfg.tp_comm_overlap = False
-            elif not transformer_engine.pytorch.cpp_extensions.userbuf_comm_available():
-                logging.warning(
-                    "Disabling tensor parallel communication overlap due to \
-                    Transformer Engine userbuffer extensions not detected."
-                )
-                model_parallel_cfg.tp_comm_overlap = False
 
         return model_parallel_cfg
 
@@ -483,6 +477,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             cpu=isinstance(trainer.accelerator, CPUAccelerator),
             ddp_config=self.ddp_config,
             convert_module_fn=convert_module_fn,
+            tp_comm_overlap_need_init = self.comm_overlap_cfg.tp_comm_overlap
         )
 
         if self._init_model_parallel:
