@@ -317,15 +317,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         return model_parallel_cfg
 
     def _apply_optimizer_overlap_cfgs(
-        self, 
-        optim_cfg: OptimizerConfig,
-        ddp_cfg: DistributedDataParallelConfig
+        self, optim_cfg: OptimizerConfig, ddp_cfg: DistributedDataParallelConfig
     ) -> OptimizerConfig:
-        #Data parallel overlap is only available with the Megatron DDP and Distributed optimizer
+        # Data parallel overlap is only available with the Megatron DDP and Distributed optimizer
         if not ddp_cfg.use_distributed_optimizer:
             return
 
         from nemo.utils import AppState
+
         app_state = AppState()
 
         vp_size = app_state.virtual_pipeline_model_parallel_size
@@ -345,7 +344,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if app_state.pipeline_model_parallel_size > 1 and vp_size > 1:
                 comm_overlap_cfg.overlap_param_gather_with_optimizer_step = True
                 comm_overlap_cfg.align_param_gather = True
-     
+
         self._apply_overlap_configs(comm_overlap_cfg, optim_cfg)
         self._apply_overlap_configs(comm_overlap_cfg, ddp_cfg)
 
@@ -463,11 +462,15 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if hasattr(self.model, "config") and isinstance(self.model.config, ModelParallelConfig):
             self._apply_model_comm_overlap_cfgs(self.model.config)
-        if hasattr(self.model.optim, "config") and isinstance(self.model.optim.config, OptimizerConfig) \
-            and hasattr(self, "ddp_config") and isinstance(self.ddp_config, DistributedDataParallelConfig):
+        if (
+            hasattr(self.model.optim, "config")
+            and isinstance(self.model.optim.config, OptimizerConfig)
+            and hasattr(self, "ddp_config")
+            and isinstance(self.ddp_config, DistributedDataParallelConfig)
+        ):
             self._apply_optimizer_overlap_cfgs(
-                optim_cfg = self.model.optim.config,
-                ddp_cfg = self.ddp_config,
+                optim_cfg=self.model.optim.config,
+                ddp_cfg=self.ddp_config,
             )
 
     @override
@@ -491,7 +494,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             cpu=isinstance(trainer.accelerator, CPUAccelerator),
             ddp_config=self.ddp_config,
             convert_module_fn=convert_module_fn,
-            tp_comm_overlap_need_init = self.comm_overlap_cfg.tp_comm_overlap
+            tp_comm_overlap_need_init=self.comm_overlap_cfg.tp_comm_overlap,
         )
 
         if self._init_model_parallel:
