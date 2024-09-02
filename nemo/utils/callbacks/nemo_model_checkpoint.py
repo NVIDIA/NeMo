@@ -378,7 +378,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             checkpoint_path = checkpoints[checkpoint_index]
 
             logging.info(f"Loading '{checkpoint_path}' checkpoint to drop optimizer states...")
-            checkpoint = trainer.strategy.load_checkpoint(checkpoint_path=checkpoint_path, map_location=dict(load_optim_states=False))
+            checkpoint = trainer.strategy.load_checkpoint(
+                checkpoint_path=checkpoint_path, map_location=dict(load_optim_states=False)
+            )
 
             # Load related state dict
             self._load_current_state_dict(trainer, checkpoint)
@@ -412,9 +414,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         checkpoints = [os.path.join(checkpoints_dir, checkpoint) for checkpoint in checkpoints]
 
         return checkpoints
-    
+
     def _load_current_state_dict(self, trainer, checkpoint) -> None:
-        # Temporary solution for loading the correct state dict 
+        # Temporary solution for loading the correct state dict
         # when dropping optimizer states "on the fly" during training.
 
         # TODO @dimapihtar @mikolajblaz: provide a more elegant solution at the mcore level.
