@@ -365,15 +365,7 @@ def generic_base_config(
         config.num_tokens_in_b,
         config.model_type,
     )
-    model = BaseConfig(config)
-
-    base_cfg = {
-        "model": model.get_model(),
-        "optim": model.get_optim(),
-        "trainer": model.get_trainer(),
-        "data": model.get_data(),
-        "run": model.get_run_config(),
-    }
+    base_cfg = BaseConfig(config)
 
     if default_model:
         params = ModelSizeParams(
@@ -385,14 +377,14 @@ def generic_base_config(
         params.init_params()
 
         if config.model_type in GPT_BASED_MODELS:
-            base_cfg["model"].num_layers = params.layers
-            base_cfg["model"].hidden_size = params.hs
-            base_cfg["model"].num_attention_heads = params.att_h
-            base_cfg["model"].kv_channels = params.kv
+            base_cfg.model.num_layers = params.layers
+            base_cfg.model.hidden_size = params.hs
+            base_cfg.model.num_attention_heads = params.att_h
+            base_cfg.model.kv_channels = params.kv
             if not params.ffn:
-                base_cfg["model"].ffn_hidden_size = params.hs * 4
+                base_cfg.model.ffn_hidden_size = params.hs * 4
             else:
-                base_cfg["model"].ffn_hidden_size = params.ffn
+                base_cfg.model.ffn_hidden_size = params.ffn
 
     config.model_size_in_b = model_size_in_b
 
@@ -439,60 +431,59 @@ def modify_cfg(
 
     new_cfg = copy.deepcopy(base_cfg)
     if model_name in GPT_BASED_MODELS:
-        att_heads = new_cfg["model"].num_attention_heads
-        num_layers = new_cfg["model"].num_layers
+        att_heads = new_cfg.model.num_attention_heads
+        num_layers = new_cfg.model.num_layers
     else:
-        att_heads = new_cfg["model"].encoder.num_attention_heads
-        num_layers = new_cfg["model"].encoder.num_layers
+        att_heads = new_cfg.model.encoder.num_attention_heads
+        num_layers = new_cfg.model.encoder.num_layers
 
     # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
-    num_gpus = new_cfg["trainer"].num_nodes * new_cfg["trainer"].devices
-    gbs = new_cfg["model"].global_batch_size
-    seq_len = new_cfg["model"].seq_length
+    num_gpus = new_cfg.trainer.num_nodes * new_cfg.trainer.devices
+    gbs = new_cfg.model.global_batch_size
+    seq_len = new_cfg.model.seq_length
 
-    new_cfg = dict(auto_config={}, run=new_cfg["run"])
+    new_cfg = dict(run=new_cfg.run)
     if act is not None:
         if model_name in GPT_BASED_MODELS:
-            new_cfg["auto_config"]["activations_checkpoint_num_layers"] = act
+            new_cfg["activations_checkpoint_num_layers"] = act
         else:
-            new_cfg["auto_config"]["encoder"]["activations_checkpoint_num_layers"] = act // 2
-            new_cfg["auto_config"]["decoder"]["activations_checkpoint_num_layers"] = act // 2
+            new_cfg["encoder"]["activations_checkpoint_num_layers"] = act // 2
+            new_cfg["decoder"]["activations_checkpoint_num_layers"] = act // 2
 
     if num_mbs_act is not None and model_name in GPT_BASED_MODELS:
-        new_cfg["auto_config"]["num_micro_batches_with_partial_activation_checkpoints"] = num_mbs_act
+        new_cfg["num_micro_batches_with_partial_activation_checkpoints"] = num_mbs_act
 
     if act_per_pipe is not None and model_name in GPT_BASED_MODELS:
-        new_cfg["auto_config"]["activations_checkpoint_layers_per_pipeline"] = act_per_pipe
+        new_cfg["activations_checkpoint_layers_per_pipeline"] = act_per_pipe
 
     if virtual_pipelines is not None and model_name in GPT_BASED_MODELS:
-        new_cfg["auto_config"]["virtual_pipeline_model_parallel_size"] = virtual_pipelines
+        new_cfg["virtual_pipeline_model_parallel_size"] = virtual_pipelines
 
-    new_cfg["auto_config"]["tensor_model_parallel_size"] = tp
-    new_cfg["auto_config"]["pipeline_model_parallel_size"] = pp
-    new_cfg["auto_config"]["micro_batch_size"] = mbs
-    new_cfg["auto_config"]["global_batch_size"] = gbs
+    new_cfg["tensor_model_parallel_size"] = tp
+    new_cfg["pipeline_model_parallel_size"] = pp
+    new_cfg["micro_batch_size"] = mbs
+    new_cfg["global_batch_size"] = gbs
 
     if cp is not None:
-        new_cfg["auto_config"]["context_parallel_size"] = cp
+        new_cfg["context_parallel_size"] = cp
 
     if ep is not None:
-        new_cfg["auto_config"]["expert_model_parallel_size"] = ep
+        new_cfg["expert_model_parallel_size"] = ep
 
     mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
     mod_att_heads = att_heads % tp
     mod_layers = num_layers % pp
     if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
         # Valid config
-        days = max_minutes // 3600
-        hours = (max_minutes % 3600) // 60
-        mins = (max_minutes % 3600) % 60
-        new_cfg["run"]["time_limit"] = f"{days}-{hours}:{mins}:00"
+        #days = max_minutes // 3600
+        #hours = (max_minutes % 3600) // 60
+        #mins = (max_minutes % 3600) % 60
+        #new_cfg["run"]["time_limit"] = f"{days}-{hours}:{mins}:00"
         new_cfg["run"][
             "name"
         ] = f"{new_cfg['run']['name']}_{num_nodes}nodes_tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_act_ckpt_{act}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}"
         print(
             f"Valid config: SeqLen={seq_len}, GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, CP={cp}, EP={ep}, act_ckpt_layers={act}, num_mbs_act={num_mbs_act}, act_per_pipe={act_per_pipe}. Adding to directory."
         )
-        print(new_cfg)
         return new_cfg
     return None

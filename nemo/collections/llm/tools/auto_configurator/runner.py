@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import re
+import copy
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -172,46 +173,50 @@ class AutoConfigurator:
                 return size / 1000  # Convert millions to billions
         return None
 
-    # def generate_configs(self) -> dict:
-    #     """
-    #     Function that returns a dictionary of Partial configs.
-    #     : dict config: runner config.
-    #     : str tokenizer_type: tokenizer type.
-    #     : str tokenizer_path: path to the tokenizer.
-    #     : str path_to_logs: path to logs directory.
-    #     :return: dictionary of Partial configs.
-    #     :rtype: dict.
-    #     """
+def generate_configs(config: AutoConfigurator = None) -> dict:
+    """
+    Function that returns a dictionary of Partial configs.
+    : dict config: runner config.
+    : str tokenizer_type: tokenizer type.
+    : str tokenizer_path: path to the tokenizer.
+    : str path_to_logs: path to logs directory.
+    :return: dictionary of Partial configs.
+    :rtype: dict.
+    """
 
-    #     # Generate base config for the given model size
-    #     base_cfg, train_cfg = generic_base_config(
-    #         model=self.config["model"],
-    #         model_name=self.config["model_type"],
-    #         model_size_in_b=self.config["model_size"],
-    #         cfg=self.config,
-    #     )
+    # Generate base config for the given model size
+    base_cfg, train_cfg = generic_base_config(config)
 
-    #     # Launch grid search for training constraints
-    #     configs = generate_grid_search_configs(base_cfg, train_cfg)
+    # Launch grid search for training constraints
+    base_config, train_configs = generate_grid_search_configs(base_cfg, train_cfg)
 
-    #     tokenizer_type = self.config.get("tokenizer_type")
-    #     tokenizer_path = self.config.get("tokenizer_path")
-    #     path_to_logs = self.config.get("path_to_logs")
+    tokenizer = base_config.tokenizer
+    model = GPTModel(base_config.model, tokenizer=tokenizer)
+    
+    configs = {}
+    for name, config in train_configs.items():
+        trainer = copy.deepcopy(base_config.trainer)
+        data = copy.deepcopy(base_config.data)
 
-    #     tokenizer = self._get_tokenizer(tokenizer_type, tokenizer_path)
-    #     for name, config in configs.items():
-    #         strategy = self._get_startegy(config['auto_config'])
-    #         configs[name] = Partial(
-    #             pretrain,
-    #             model=self._get_model(config['model'], tokenizer),
-    #             trainer=self._get_trainer(config['trainer'], strategy),
-    #             data=self._get_data(config['data'], tokenizer),
-    #             optim=self._get_optim(config['optim']),
-    #             log=self._get_logger(name, path_to_logs),
-    #             resume=None,
-    #         )
+        # Set data params
+        data.micro_batch_size = config.get("micro_batch_size")
+        data.global_batch_size = config.get("global_batch_size")
 
-    #     return configs
+        # Set strategy params
+        trainer.strategy.tensor_model_parallel_size = config.get("tensor_model_parallel_size")
+        trainer.strategy.pipeline_model_parallel_size = config.get("pipeline_model_parallel_size")
+        trainer.strategy.context_parallel_size = config.get("pipeline_model_parallel_size")
+        trainer.strategy.expert_model_parallel_size = config.get("expert_model_parallel_size")
+        trainer.strategy.virtual_pipeline_model_parallel_size = config.get("virtual_pipeline_model_parallel_size", None)
 
-    # def _get_model(self, model_config, tokenizer):
-    #     return GPTModel(model_config, tokenizer=tokenizer)
+        configs[name] = Partial(
+            pretrain,
+            model=model,
+            trainer=trainer,
+            data=data,
+            optim=base_config.optim,
+            log=base_config.log,
+            resume=None,
+        )
+
+    return configs

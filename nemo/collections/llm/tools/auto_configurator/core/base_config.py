@@ -60,6 +60,14 @@ class BaseConfig:
 
         self.config = config
 
+        self.model = self.get_model()
+        self.optim = self.get_optim()
+        self.trainer = self.get_trainer()
+        self.data = self.get_data()
+        self.log = self.get_logger()
+        self.run = self.get_run_config()
+        self.tokenizer = self.get_tokenizer(config.tokenizer_type, config.tokenizer_path)
+
     def get_model(self):
         """Function that returns model config."""
 
@@ -226,7 +234,6 @@ class BaseConfig:
         }
 
         return run_config
-
 
 def calculate_model_size(
     gpu_count: int,
