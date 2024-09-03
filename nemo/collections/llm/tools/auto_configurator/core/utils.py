@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 from nemo.collections.llm.tools.auto_configurator import base_configs
+from nemo.collections.llm.utils import Config
 
 MODULES = {
     "gpt3": "GPT",
@@ -341,9 +342,7 @@ def _calculate_model_size(
 
 
 def generic_base_config(
-    model_name: str = "llama",
-    model_size_in_b: int = 7,
-    cfg: dict = {},
+    config = None,
 ) -> dict:
     """Generates a base config dictionary from a base config python file.
 
@@ -358,32 +357,28 @@ def generic_base_config(
 
     from nemo.collections.llm.tools.auto_configurator.core.base_config import calculate_model_size
 
-    default_model = False if model_size_in_b else True
-    custom_model = True if cfg.get("custom_model") else False
-
-    model_cls = getattr(base_configs, MODULES[model_name])
+    default_model = False if config.model_size_in_b else True
 
     model_size_in_b = calculate_model_size(
-        cfg.get("gpu_count"),
-        cfg.get("max_training_days"),
-        model_size_in_b,
-        cfg.get("tflops_per_gpu"),
-        cfg.get("num_tokens_in_b"),
-        model_name,
+        config.gpu_count,
+        config.max_training_days,
+        config.model_size_in_b,
+        config.tflops_per_gpu,
+        config.num_tokens_in_b,
+        config.model_type,
     )
 
     if default_model:
         model = model_cls(cfg=cfg)
-    elif custom_model:
-        model = base_configs.custom(name=MODULES[model_name], cfg=cfg)
     else:
-        model = model_cls(model=cfg.get("model"), cfg=cfg)
-
+        model = base_configs.ModelConfig(config)
+    #import pdb
+    #pdb.set_trace()
     base_cfg = {
-        "model": model.get_model_config(),
-        "optim": model.get_optim_config(),
-        "trainer": model.get_trainer_config(),
-        "data": model.get_data_config(),
+        "model": model.get_model(),
+        "optim": model.get_optim(),
+        "trainer": model.get_trainer(),
+        "data": model.get_data(),
         "run": model.get_run_config(),
     }
 
@@ -405,9 +400,9 @@ def generic_base_config(
             else:
                 base_cfg["model"].ffn_hidden_size = params.ffn
 
-    cfg["model_size_in_b"] = model_size_in_b
+    config.model_size_in_b = model_size_in_b
 
-    return base_cfg, cfg
+    return base_cfg, config
 
 
 def modify_cfg(
@@ -449,6 +444,19 @@ def modify_cfg(
     """
 
     new_cfg = copy.deepcopy(base_cfg)
+    if model_name in GPT_BASED_MODELS:
+        att_heads = new_cfg["model"].num_attention_heads
+        num_layers = new_cfg["model"].num_layers
+    else:
+        att_heads = new_cfg["model"].encoder.num_attention_heads
+        num_layers = new_cfg["model"].encoder.num_layers
+
+    # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
+    num_gpus = new_cfg["trainer"].num_nodes * new_cfg["trainer"].devices
+    gbs = new_cfg["model"].global_batch_size
+    seq_len = new_cfg["model"].seq_length
+
+    new_cfg = dict(auto_config={}, run=new_cfg["run"])
     if act is not None:
         if model_name in GPT_BASED_MODELS:
             new_cfg["auto_config"]["activations_checkpoint_num_layers"] = act
@@ -468,7 +476,7 @@ def modify_cfg(
     new_cfg["auto_config"]["tensor_model_parallel_size"] = tp
     new_cfg["auto_config"]["pipeline_model_parallel_size"] = pp
     new_cfg["auto_config"]["micro_batch_size"] = mbs
-    new_cfg["data"]["micro_batch_size"] = mbs
+    new_cfg["auto_config"]["global_batch_size"] = gbs
 
     if cp is not None:
         new_cfg["auto_config"]["context_parallel_size"] = cp
@@ -476,27 +484,11 @@ def modify_cfg(
     if ep is not None:
         new_cfg["auto_config"]["expert_model_parallel_size"] = ep
 
-    if model_name in GPT_BASED_MODELS:
-        att_heads = new_cfg["model"].num_attention_heads
-        num_layers = new_cfg["model"].num_layers
-    else:
-        att_heads = new_cfg["model"].encoder.num_attention_heads
-        num_layers = new_cfg["model"].encoder.num_layers
-
-    # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
-    num_gpus = new_cfg["trainer"]["num_nodes"] * new_cfg["trainer"]["devices"]
-    gbs = new_cfg["model"].global_batch_size
-    new_cfg["data"]["global_batch_size"] = gbs
-    seq_len = new_cfg["model"].seq_length
-
     mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
     mod_att_heads = att_heads % tp
     mod_layers = num_layers % pp
     if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
         # Valid config
-        new_cfg["trainer"]["num_nodes"] = num_nodes  # Necessary for short single-node test.
-        new_cfg["trainer"]["max_steps"] = max_steps
-        new_cfg["trainer"]["val_check_interval"] = max_steps
         days = max_minutes // 3600
         hours = (max_minutes % 3600) // 60
         mins = (max_minutes % 3600) % 60
@@ -507,5 +499,6 @@ def modify_cfg(
         print(
             f"Valid config: SeqLen={seq_len}, GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, CP={cp}, EP={ep}, act_ckpt_layers={act}, num_mbs_act={num_mbs_act}, act_per_pipe={act_per_pipe}. Adding to directory."
         )
+        print(new_cfg)
         return new_cfg
     return None

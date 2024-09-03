@@ -12,19 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import torch
+from dataclasses import dataclass, field
+
 from megatron.core.optimizer import OptimizerConfig
 
-from nemo import lightning as nl
+from pytorch_lightning.loggers import TensorBoardLogger
+
+from nemo.collections.common.tokenizers import AutoTokenizer, SentencePieceTokenizer
+from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
 from nemo.collections.llm import GPTModel, PreTrainingDataModule
 from nemo.collections.llm.utils import Config
-from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
+from nemo.utils.exp_manager import TimingCallback
+from nemo import lightning as nl
 
 
-class Basic:
+@dataclass
+class ModelConfig:
     def __init__(
         self,
-        model: Config = None,
-        cfg: dict = {},
+        config = None,
     ):
         """
         Args:
@@ -35,21 +42,17 @@ class Basic:
             cfg (dict): auto configurator runner config.
         """
 
-        self.model = model
-        self.num_nodes = cfg.get("num_nodes")
-        self.num_gpus = cfg.get("num_gpus")
-        self.max_steps = cfg.get("max_steps_per_run")
-        self.seq_length = cfg.get("seq_length")
-        self.global_batch_size = cfg.get("global_batch_size")
-        self.data_paths = cfg.get("data_paths")
-        self.max_minutes_per_run = cfg.get("max_minutes_per_run")
+        self.config = config
 
-    def model_config(self):
+    def get_model(self):
         """Function that returns model config."""
 
-        None
+        self.config.model.global_batch_size = self.config.global_batch_size
+        self.config.model.seq_length = self.config.seq_length
 
-    def get_optim_config(self) -> OptimizerConfig:
+        return self.config.model
+
+    def get_optim(self) -> OptimizerConfig:
         """Function that returns optimizer config.
 
         Returns:
@@ -85,7 +88,7 @@ class Basic:
             lr_scheduler=sched,
         )
 
-    def get_trainer_config(self) -> dict:
+    def get_trainer(self) -> dict:
         """Function that returns config for PTL trainer.
 
         Returns:
@@ -102,10 +105,10 @@ class Basic:
             "limit_test_batches": 1,
             "accumulate_grad_batches": 1,
             "gradient_clip_val": 1.0,
-            "num_nodes": self.num_nodes,
-            "devices": self.num_gpus,
-            "max_steps": self.max_steps,
-            "val_check_interval": self.max_steps,
+            "num_nodes": self.config.num_nodes,
+            "devices": self.config.num_gpus,
+            "max_steps": self.config.max_steps_per_run,
+            "val_check_interval": self.config.max_steps_per_run,
         }
 
         strategy = Config(
@@ -144,21 +147,28 @@ class Basic:
             dict: data config.
         """
 
+        # Data config
         data_config = {
-            "paths": self.data_paths,
-            "seq_length": self.seq_length,
-            "global_batch_size": self.global_batch_size,
+            "paths": self.config.data_paths,
+            "seq_length": self.config.seq_length,
+            "global_batch_size": self.config.global_batch_size,
             "num_workers": 2,
             "index_mapping_dir": None,
         }
 
+        # Define the tokenizer
+        tokenizer = self.get_tokenizer(
+            self.config.tokenizer_type,
+            self.config.tokenizer_path,
+        )
+
         return Config(
             PreTrainingDataModule,
             **data_config,
-            tokenizer=tokenizer_config,
+            tokenizer=tokenizer,
         )
-
-    def get_logger(self, run_name: str, path_to_logs: str) -> Config:
+    
+    def get_logger(self) -> Config:
         """
         Function that returns the training strategy.
         : str run_name: name of run.
@@ -167,7 +177,8 @@ class Basic:
         :rtype: Config.
         """
 
-        tb_logger = Config(TensorBoardLogger, save_dir=path_to_logs)
+        # Define TensorBoard Logger
+        tb_logger = Config(TensorBoardLogger, save_dir=self.config.path_to_logs)
 
         ckpt = Config(
             nl.ModelCheckpoint,
@@ -180,10 +191,9 @@ class Basic:
         return Config(
             nl.NeMoLogger,
             ckpt=ckpt,
-            name=run_name,
             tensorboard=tb_logger,
             wandb=None,
-            dir=path_to_logs,
+            dir=self.config.path_to_logs,
         )
 
     def get_run_config(self) -> dict:
@@ -194,9 +204,9 @@ class Basic:
         """
 
         run_config = {
-            "name": self.model.__class__.__name__,
+            "name": self.config.model.__class__.__name__,
             "results_dir": None,
-            "time_limit": f"0-00:{self.max_minutes_per_run}:00",
+            "time_limit": f"0-00:{self.config.max_minutes_per_run}:00",
         }
 
         return run_config

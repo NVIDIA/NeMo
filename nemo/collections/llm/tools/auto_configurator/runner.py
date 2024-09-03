@@ -13,8 +13,10 @@
 # limitations under the License.
 
 from typing import List, Optional
-
+from dataclasses import dataclass
 import torch
+import re
+
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo import lightning as nl
@@ -55,10 +57,8 @@ class AutoConfigurator:
         path_to_logs: Optional[str] = None,
         tokenizer_type: Optional[str] = "autotokenizer",
         tokenizer_path: Optional[str] = "GPT2BPETokenizer",
-        model_size: Optional[int] = None,
         gpus_per_node: Optional[int] = 8,
         gpu_memory_gb: Optional[int] = 80,
-        model_measure: Optional[str] = "B",
         seq_length: Optional[int] = 2048,
         global_batch_size: Optional[int] = "auto",
         tensor_parallel_sizes: Optional[List[int]] = "auto",
@@ -103,6 +103,14 @@ class AutoConfigurator:
             vocab_size (Optional[int]): size of tokenizer vocabulary.
         """
 
+        # Print out the config
+        for key, value in locals().items():
+            if key != 'self':
+                setattr(self, key, value)
+        config = locals()
+        config.pop('self')
+        logging.info(self._get_message(config))
+
         model_type = self._get_model_type(model.__class__.__name__)
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {SUPPORTED_MODELS}."
         assert tokenizer_type in SUPPORTED_TOKENIZERS, f"tokenizer_type must be set to one of {SUPPORTED_TOKENIZERS}."
@@ -117,149 +125,11 @@ class AutoConfigurator:
         ), "gpu_memory_gb can only be 40 or 80."
         assert max_minutes_per_run >= 10, "max_minutes_per_run must be an int and be at least 10 minutes."
 
-        self.config = locals()
-        self.config.pop('self')
-        self.config["model_type"] = model_type
-        self.config["model_size_in_b"] = model_size
-        self.config["gpu_count"] = gpu_count
-        self.config["num_gpus"] = gpus_per_node
+        self.model_type = model_type
+        self.model_size_in_b = self._get_model_size(model.__class__.__name__)
+        self.gpu_count = gpu_count
+        self.num_gpus = gpus_per_node
 
-        # Print the config
-        logging.info(self._get_message(self.config))
-
-    def generate_configs(self) -> dict:
-        """
-        Function that returns a dictionary of Partial configs.
-        : dict config: runner config.
-        : str tokenizer_type: tokenizer type.
-        : str tokenizer_path: path to the tokenizer.
-        : str path_to_logs: path to logs directory.
-        :return: dictionary of Partial configs.
-        :rtype: dict.
-        """
-
-        # Generate base config for the given model size
-        base_cfg, train_cfg = generic_base_config(
-            model_name=self.config["model_type"],
-            model_size_in_b=self.config["model_size"],
-            cfg=self.config,
-        )
-
-        # Launch grid search for training constraints
-        configs = generate_grid_search_configs(base_cfg, train_cfg)
-
-        tokenizer_type = self.config.get("tokenizer_type")
-        tokenizer_path = self.config.get("tokenizer_path")
-        path_to_logs = self.config.get("path_to_logs")
-
-        tokenizer = self._get_tokenizer(tokenizer_type, tokenizer_path)
-        for name, config in configs.items():
-            strategy = self._get_startegy(config['auto_config'])
-            configs[name] = Partial(
-                pretrain,
-                model=self._get_model(config['model'], tokenizer),
-                trainer=self._get_trainer(config['trainer'], strategy),
-                data=self._get_data(config['data'], tokenizer),
-                optim=self._get_optim(config['optim']),
-                log=self._get_logger(name, path_to_logs),
-                resume=None,
-            )
-
-        return configs
-
-    def _get_model(self, model_config, tokenizer):
-        return GPTModel(model_config, tokenizer=tokenizer)
-
-    def _get_tokenizer(self, tokenizer_type: str, tokenizer_path: str) -> Config:
-        """
-        Function that returns the tokenizer config.
-        : str tokenizer_type: tokenizer type.
-        : str tokenizer_path: path to the tokenizer.
-        :return: tokenizer config.
-        :rtype: Config.
-        """
-
-        if tokenizer_type == "sentencepiece":
-            return Config(SentencePieceTokenizer, model_path=tokenizer_path)
-        else:
-            return Config(AutoTokenizer, pretrained_model_name=tokenizer_path)
-
-    def _get_data(self, data_config: dict, tokenizer_config: Config) -> Config:
-        """
-        Function that returns the data module.
-        : Config tokenizer: tokenizer config.
-        :return: data module.
-        :rtype: Config.
-        """
-
-        return Config(
-            PreTrainingDataModule,
-            **data_config,
-            tokenizer=tokenizer_config,
-        )
-
-    def _get_trainer(self, trainer_config: dict, strategy: Config) -> Config:
-        """
-        Function that returns the trainer.
-        : dict trainer_config: trainer config.
-        : Config strategy: training strategy.
-        :return: trainer.
-        :rtype: Config.
-        """
-
-        return Config(
-            nl.Trainer,
-            **trainer_config,
-            strategy=strategy,
-            plugins=Config(nl.MegatronMixedPrecision, precision="bf16-mixed"),
-            callbacks=[Config(TimingCallback)],
-        )
-
-    def _get_startegy(self, auto_config: dict) -> Config:
-        """
-        Function that returns the training strategy.
-        : dict auto_config: model parallelism config.
-        :return: training strategy.
-        :rtype: Config.
-        """
-
-        return Config(
-            nl.MegatronStrategy,
-            pipeline_dtype=torch.bfloat16,
-            tensor_model_parallel_size=auto_config.get('tensor_model_parallel_size', 1),
-            pipeline_model_parallel_size=auto_config.get('pipeline_model_parallel_size', 1),
-            virtual_pipeline_model_parallel_size=auto_config.get('virtual_pipeline_model_parallel_size', None),
-            context_parallel_size=auto_config.get('context_parallel_size', 1),
-            expert_model_parallel_size=auto_config.get('expert_model_parallel_size', 1),
-        )
-
-    def _get_logger(self, run_name: str, path_to_logs: str) -> Config:
-        """
-        Function that returns the training strategy.
-        : str run_name: name of run.
-        : str path_to_logs: path to logs directory.
-        :return: training logger.
-        :rtype: Config.
-        """
-
-        tb_logger = Config(TensorBoardLogger, save_dir=path_to_logs)
-
-        ckpt = Config(
-            nl.ModelCheckpoint,
-            monitor="reduced_train_loss",
-            save_best_model=False,
-            save_last=False,
-            save_top_k=0,
-        )
-
-        return Config(
-            nl.NeMoLogger,
-            ckpt=ckpt,
-            name=run_name,
-            tensorboard=tb_logger,
-            wandb=None,
-            dir=path_to_logs,
-        )
 
     def _get_message(self, config: dict) -> str:
         """
@@ -271,7 +141,8 @@ class AutoConfigurator:
 
         message = "AutoConfigurator runner config:\n"
         for key, value in config.items():
-            message += f"{key}: {value}\n"
+            if key != "self":
+                message += f"{key}: {value}\n"
 
         return message
 
@@ -290,3 +161,58 @@ class AutoConfigurator:
             return "nemotron"
         else:
             return None
+    
+    def _get_model_size(self, config_string):
+        match = re.search(r'(\d+)([BM])', config_string)
+        if match:
+            size = int(match.group(1))
+            measure = match.group(2)
+            if measure == 'B':
+                return size
+            elif measure == 'M':
+                return size / 1000  # Convert millions to billions
+        return None
+
+    # def generate_configs(self) -> dict:
+    #     """
+    #     Function that returns a dictionary of Partial configs.
+    #     : dict config: runner config.
+    #     : str tokenizer_type: tokenizer type.
+    #     : str tokenizer_path: path to the tokenizer.
+    #     : str path_to_logs: path to logs directory.
+    #     :return: dictionary of Partial configs.
+    #     :rtype: dict.
+    #     """
+
+    #     # Generate base config for the given model size
+    #     base_cfg, train_cfg = generic_base_config(
+    #         model=self.config["model"],
+    #         model_name=self.config["model_type"],
+    #         model_size_in_b=self.config["model_size"],
+    #         cfg=self.config,
+    #     )
+
+    #     # Launch grid search for training constraints
+    #     configs = generate_grid_search_configs(base_cfg, train_cfg)
+
+    #     tokenizer_type = self.config.get("tokenizer_type")
+    #     tokenizer_path = self.config.get("tokenizer_path")
+    #     path_to_logs = self.config.get("path_to_logs")
+
+    #     tokenizer = self._get_tokenizer(tokenizer_type, tokenizer_path)
+    #     for name, config in configs.items():
+    #         strategy = self._get_startegy(config['auto_config'])
+    #         configs[name] = Partial(
+    #             pretrain,
+    #             model=self._get_model(config['model'], tokenizer),
+    #             trainer=self._get_trainer(config['trainer'], strategy),
+    #             data=self._get_data(config['data'], tokenizer),
+    #             optim=self._get_optim(config['optim']),
+    #             log=self._get_logger(name, path_to_logs),
+    #             resume=None,
+    #         )
+
+    #     return configs
+
+    # def _get_model(self, model_config, tokenizer):
+    #     return GPTModel(model_config, tokenizer=tokenizer)

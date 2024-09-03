@@ -49,10 +49,8 @@ def generate_grid_search_configs(
         dict: generated configs.
     """
 
-    model_name = train_cfg.get("model_type")
-    model_version = train_cfg.get("model_version")
-    model_size_in_b = train_cfg.get("model_size_in_b")
-    model_measure = train_cfg.get("model_measure")
+    model_name = train_cfg.model_type
+    model_size_in_b = train_cfg.model_size_in_b
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = 1 if model_name in GPT_BASED_MODELS else 2
@@ -75,9 +73,9 @@ def generate_grid_search_configs(
         train_cfg=train_cfg,
     )
 
-    max_minutes = train_cfg.get("max_minutes_per_run")
-    max_steps = train_cfg.get("max_steps_per_run")
-    num_nodes = train_cfg.get("num_nodes")
+    max_minutes = train_cfg.max_minutes_per_run
+    max_steps = train_cfg.max_steps_per_run
+    num_nodes = train_cfg.num_nodes
 
     valid_tp_pp_list = []
     for tp in params.tp:
@@ -85,7 +83,7 @@ def generate_grid_search_configs(
             for cp in params.cp:
                 for ep in params.ep:
                     for mbs in params.mbs:
-                        num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["devices"]
+                        num_gpus = base_cfg["trainer"].num_nodes * base_cfg["trainer"].devices
                         base_cfg["model"].global_batch_size = params.gbs
                         if model_name in GPT_BASED_MODELS:
                             att_heads = base_cfg["model"].num_attention_heads
@@ -127,7 +125,6 @@ def generate_grid_search_configs(
             multiplier,
             model_size_in_b,
             model_name,
-            model_measure,
         )
         for mbs in params.mbs:
             kwargs = {
@@ -168,10 +165,9 @@ def generate_grid_search_configs(
 
 
 def _set_activations_checkpoint_params(
-    tp, pp, cp, ep, num_layers, act_method, multiplier, model_size_in_b, model_name, model_measure
+    tp, pp, cp, ep, num_layers, act_method, multiplier, model_size_in_b, model_name
 ):
     act_multiple = 4 // pp
-    model_size_in_b = model_size_in_b / 1000 if model_measure == "M" else model_size_in_b
     if act_method == "block":
         if 1.0 <= model_size_in_b < 11.3:
             act_multiple = 8 // pp
@@ -238,14 +234,12 @@ class GPT3GridSearch:
         model_size_in_b (float): number of parameters in the model.
         valid_pp (List[int]): list of valid Pipeline Parallelism (PP) values for this config.
         seq length (int): sequence length to use for training.
-        model_measure (str): measure of model size (millions or billions).
         gpu_memory_gb (int): size of GPU memory in GB.
     """
 
     model_size_in_b: int
     valid_pp: List[int]
     seq_length: int
-    model_measure: str
     gpu_memory_gb: int
 
     tp = [1, 2, 4, 8]
@@ -259,7 +253,7 @@ class GPT3GridSearch:
     max_model_parallel: int = 8
 
     def init_params(self):
-        model_size_in_b = self.model_size_in_b / 1000 if self.model_measure == "M" else self.model_size_in_b
+        model_size_in_b = self.model_size_in_b
         gpu_memory_gb = self.gpu_memory_gb
         seq_length = self.seq_length
 
@@ -554,7 +548,6 @@ class T5GridSearch:
         model_size_in_b (float): number of parameters in the model.
         valid_pp (List[int]): list of valid Pipeline Parallelism (PP) values for this config.
         seq length (int): sequence length to use for training.
-        model_measure (str): measure of model size (millions or billions).
         gpu_memory_gb (int): size of GPU memory in GB.
     """
 
@@ -562,7 +555,6 @@ class T5GridSearch:
     seq_length: int
     gpu_memory_gb: int
     valid_pp: List[int]
-    model_measure: str
 
     tp = [1, 2, 4, 8]
     pp = [1]
@@ -575,7 +567,7 @@ class T5GridSearch:
     max_model_parallel: int = 8
 
     def init_params(self):
-        model_size_in_b = self.model_size_in_b / 1000 if self.model_measure == "M" else self.model_size_in_b
+        model_size_in_b = self.model_size_in_b
         gpu_memory_gb = self.gpu_memory_gb
         seq_length = self.seq_length
 
@@ -696,7 +688,6 @@ class BertGridSearch:
         model_size_in_b (float): number of parameters in the model.
         valid_pp (List[int]): list of valid Pipeline Parallelism (PP) values for this config.
         seq length (int): sequence length to use for training.
-        model_measure (str): measure of model size (millions or billions).
         gpu_memory_gb (int): size of GPU memory in GB.
     """
 
@@ -704,7 +695,6 @@ class BertGridSearch:
     seq_length: int
     gpu_memory_gb: int
     valid_pp: List[int]
-    model_measure: str
 
     tp = [1, 2, 4, 8]
     pp = [1]
@@ -717,7 +707,7 @@ class BertGridSearch:
     max_model_parallel: int = 8
 
     def init_params(self):
-        model_size_in_b = self.model_size_in_b / 1000 if self.model_measure == "M" else self.model_size_in_b
+        model_size_in_b = self.model_size_in_b
         gpu_memory_gb = self.gpu_memory_gb
         seq_length = self.seq_length
 
@@ -849,16 +839,15 @@ def _calculate_tp_pp_mbs_grid(
         NotImplementedError: if the model_name is not one of the supported models.
     """
 
-    tp_sizes = train_cfg.get("tensor_parallel_sizes")
-    pp_sizes = train_cfg.get("pipeline_parallel_sizes")
-    cp_sizes = train_cfg.get("context_parallel_sizes", None)
-    ep_sizes = train_cfg.get("expert_parallel_sizes", None)
-    min_model_parallel_size = train_cfg.get("min_model_parallel_size")
-    max_model_parallel_size = train_cfg.get("max_model_parallel_size")
-    mbs_sizes = train_cfg.get("micro_batch_sizes")
-    gbs_size = train_cfg.get("global_batch_size")
-    gpu_memory_gb = train_cfg.get("gpu_memory_gb")
-    model_measure = train_cfg.get("model_measure")
+    tp_sizes = train_cfg.tensor_parallel_sizes
+    pp_sizes = train_cfg.pipeline_parallel_sizes
+    cp_sizes = train_cfg.context_parallel_sizes
+    ep_sizes = train_cfg.expert_parallel_sizes
+    min_model_parallel_size = train_cfg.min_model_parallel_size
+    max_model_parallel_size = train_cfg.max_model_parallel_size
+    mbs_sizes = train_cfg.micro_batch_sizes
+    gbs_size = train_cfg.global_batch_size
+    gpu_memory_gb = train_cfg.gpu_memory_gb
     multiplier = 1 if model_name in GPT_BASED_MODELS else 2
     init_pp = [] if model_name in GPT_BASED_MODELS else [1]
     valid_pp = init_pp + [
@@ -869,7 +858,6 @@ def _calculate_tp_pp_mbs_grid(
         "model_size_in_b": model_size_in_b,
         "valid_pp": valid_pp,
         "seq_length": seq_length,
-        "model_measure": model_measure,
         "gpu_memory_gb": gpu_memory_gb,
     }
 
