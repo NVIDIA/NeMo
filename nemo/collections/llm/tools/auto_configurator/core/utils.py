@@ -371,9 +371,9 @@ def generic_base_config(
     if default_model:
         model = model_cls(cfg=cfg)
     else:
-        model = base_configs.ModelConfig(config)
-    # import pdb
-    # pdb.set_trace()
+        model = base_configs.TrainConfig(config)
+    #import pdb
+    #pdb.set_trace()
     base_cfg = {
         "model": model.get_model(),
         "optim": model.get_optim(),

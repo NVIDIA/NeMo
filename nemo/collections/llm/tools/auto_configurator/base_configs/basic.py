@@ -27,7 +27,7 @@ from nemo.utils.exp_manager import TimingCallback
 
 
 @dataclass
-class ModelConfig:
+class TrainConfig:
     def __init__(
         self,
         config=None,
