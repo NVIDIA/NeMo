@@ -111,16 +111,17 @@ class PEFT(ABC, ModelTransform):
             trainer.strategy.setup_optimizers(trainer)
             if self.wrapped_io.adapter_ckpt_path is not None and trainer.strategy.should_restore_optimizer_states():
                 # PEFT resume, load optimizer state
-                adapter_sharded_state_dict['optimizer'] = [trainer.strategy.optimizer_sharded_state_dict(is_loading=True)]
+                adapter_sharded_state_dict['optimizer'] = [
+                    trainer.strategy.optimizer_sharded_state_dict(is_loading=True)
+                ]
 
         if adapter_sharded_state_dict:
             adapter_state = self.wrapped_io.load_checkpoint(
-                self.wrapped_io.adapter_ckpt_path,
-                sharded_state_dict=adapter_sharded_state_dict)
+                self.wrapped_io.adapter_ckpt_path, sharded_state_dict=adapter_sharded_state_dict
+            )
             trainer.strategy.load_model_state_dict(adapter_state, strict=False)
             if trainer.state.fn == TrainerFn.FITTING:
                 trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=True)
-
 
     def on_save_checkpoint(
         self, trainer: pl.Trainer, pl_module: pl.LightningModule, checkpoint: Dict[str, Any]
