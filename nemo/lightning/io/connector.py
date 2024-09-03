@@ -1,12 +1,17 @@
 import inspect
-import logging
 import os
 import shutil
 from pathlib import Path, PosixPath, PurePath, WindowsPath
 from typing import Generic, Optional, Tuple, TypeVar
+import multiprocessing
+from contextlib import contextmanager
+import time
+import random
+import tempfile
+import logging
 
+from nemo.utils import logging
 import pytorch_lightning as pl
-from filelock import FileLock, Timeout
 
 # Dynamically inherit from the correct Path subclass based on the operating system.
 if os.name == 'nt':
@@ -50,7 +55,67 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
     """
 
     default_path = None
-    LOCK_TIMEOUT = 1200
+    _process_locks = {}
+    _lock_timeout = 60  # 60 seconds
+    _max_retries = 5
+
+    @contextmanager
+    def _lock_context(self, path: Path):
+        lock_file = path.with_suffix(path.suffix + '.lock')
+        process_id = os.getpid()
+        parent_process_id = os.getppid()
+
+        logging.info(f"Process {process_id} attempting to acquire lock for {path}")
+
+        for attempt in range(self._max_retries):
+            try:
+                # Check if the lock is held by the parent process or the current process
+                if lock_file.exists():
+                    with open(lock_file, 'r') as f:
+                        lock_holder = int(f.read().strip())
+                    if lock_holder in (parent_process_id, process_id):
+                        logging.info(f"Process {process_id} proceeding: lock held by parent {parent_process_id} or self")
+                        yield
+                        return
+                    else:
+                        logging.info(f"Process {process_id} found existing lock held by {lock_holder}")
+
+                # Acquire in-memory lock for this process
+                if process_id not in self._process_locks:
+                    self._process_locks[process_id] = multiprocessing.Lock()
+                
+                with self._process_locks[process_id]:
+                    # Ensure the directory exists
+                    lock_file.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    # Try to create the lock file
+                    try:
+                        with open(lock_file, 'x') as f:
+                            f.write(str(process_id))
+                        logging.info(f"Process {process_id} acquired lock for {path}")
+                        yield
+                        return
+                    except FileExistsError:
+                        # Double-check if the existing lock is held by parent or self
+                        with open(lock_file, 'r') as f:
+                            lock_holder = int(f.read().strip())
+                        if lock_holder in (parent_process_id, process_id):
+                            logging.info(f"Process {process_id} proceeding: lock held by parent {parent_process_id} or self")
+                            yield
+                            return
+                        logging.info(f"Process {process_id} failed to acquire lock, file already exists")
+
+                # Lock file exists and is held by another process, wait and retry
+                wait_time = (2 ** attempt) + random.uniform(0, 1)
+                logging.info(f"Process {process_id} waiting {wait_time:.2f} seconds before retry {attempt + 1}/{self._max_retries}")
+                time.sleep(wait_time)
+            except Exception as e:
+                logging.error(f"Process {process_id} encountered error during lock acquisition: {e}")
+                if attempt == self._max_retries - 1:
+                    raise
+
+        logging.error(f"Process {process_id} failed to acquire lock for {path} after {self._max_retries} attempts")
+        raise TimeoutError(f"Failed to acquire lock for {path} after {self._max_retries} attempts")
 
     def init(self) -> TargetT:
         raise NotImplementedError()
@@ -67,39 +132,57 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
 
     def __call__(self, output_path: Optional[Path] = None, overwrite: bool = False) -> Path:
         _output_path = output_path or self.local_path()
-        lock_path = _output_path.with_suffix(_output_path.suffix + '.lock')
-        lock = FileLock(lock_path)
-
-        # Check if the lock file exists and set overwrite to False if it does
-        if lock_path.exists():
-            overwrite = False
 
         try:
-            with lock.acquire(timeout=self.LOCK_TIMEOUT):
+            with self._lock_context(_output_path):
                 if overwrite and _output_path.exists():
-                    shutil.rmtree(_output_path)
+                    logging.info(f"Removing existing path {_output_path} (overwrite=True)")
+                    self._safe_remove(_output_path)
 
                 if not _output_path.exists():
+                    logging.info(f"Applying connector to {_output_path}")
                     to_return = self.apply(_output_path)
                     _output_path = to_return or _output_path
 
-        except Timeout:
+        except TimeoutError:
             logging.error(f"Timeout occurred while trying to acquire the lock for {_output_path}")
             raise
-
         except Exception as e:
-            logging.error(f"An error occurred: {e}")
+            logging.error(f"An error occurred while processing {_output_path}: {e}")
             raise
-
         finally:
-            # Delete the lock file if it exists
-            if lock_path.exists():
-                try:
-                    os.remove(lock_path)
-                except OSError as e:
-                    logging.warning(f"Failed to remove lock file {lock_path}: {e}")
+            # Always try to remove the lock file
+            self._remove_lock_file(_output_path)
 
         return _output_path
+
+    def _safe_remove(self, path: Path):
+        try:
+            if path.is_file():
+                os.remove(path)
+            elif path.is_dir():
+                shutil.rmtree(path)
+        except Exception as e:
+            logging.error(f"Error removing {path}: {e}")
+
+    def _remove_lock_file(self, path: Path):
+        lock_file = path.with_suffix(path.suffix + '.lock')
+        try:
+            if lock_file.exists():
+                os.remove(lock_file)
+                logging.info(f"Removed lock file {lock_file}")
+        except Exception as e:
+            logging.warning(f"Failed to remove lock file {lock_file}: {e}")
+
+    @classmethod
+    def cleanup_stale_locks(cls, base_path: Path):
+        """Remove any stale lock files in the given directory."""
+        for lock_file in base_path.glob("*.lock"):
+            try:
+                os.remove(lock_file)
+                logging.info(f"Removed stale lock file: {lock_file}")
+            except OSError as e:
+                logging.warning(f"Failed to remove stale lock file {lock_file}: {e}")
 
     def local_path(self, base_path: Optional[Path] = None) -> Path:
         if base_path:
@@ -148,7 +231,13 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         from nemo.lightning._strategy_lib import megatron_lazy_init_context
 
         _trainer = trainer or Trainer(
-            devices=1, accelerator="cpu", strategy=MegatronStrategy(store_optimizer_states=False)
+            devices=1, 
+            accelerator="cpu", 
+            strategy=MegatronStrategy(
+                store_optimizer_states=False,
+                ckpt_parallel_save=False,
+                ckpt_async_save=False
+            )
         )
 
         _trainer.strategy.connect(model)
@@ -170,16 +259,38 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             trainer (pl.Trainer): The trainer with the strategy to save the model.
             dump_io (bool): If True, the IO configuration will be saved to the output path.
         """
-        trainer.strategy._setup_optimizers = False
-        trainer.strategy._init_model_parallel = False
-        trainer.strategy.setup(trainer)
-        trainer.save_checkpoint(output_path)
+        logging.info(f"Attempting to save model to {output_path}")
+        try:
+            with self._lock_context(output_path):
+                logging.info("Setting up trainer strategy")
+                trainer.strategy._setup_optimizers = False
+                trainer.strategy._init_model_parallel = False
+                trainer.strategy.setup(trainer)
+                
+                # Use a temporary directory for saving
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    temp_path = Path(temp_dir) / "temp_checkpoint"
+                    logging.info(f"Saving checkpoint to temporary path {temp_path}")
+                    trainer.save_checkpoint(temp_path)
+                    
+                    # Move the temporary checkpoint to the final location
+                    logging.info(f"Moving checkpoint from {temp_path} to {output_path}")
+                    shutil.move(str(temp_path), str(output_path))
 
-        from nemo.lightning.io.pl import TrainerContext
-        from nemo.utils.get_rank import is_global_rank_zero
+                from nemo.lightning.io.pl import TrainerContext
+                from nemo.utils.get_rank import is_global_rank_zero
 
-        if is_global_rank_zero() and dump_io:
-            TrainerContext.from_trainer(trainer).io_dump(output_path)
+                if is_global_rank_zero() and dump_io:
+                    logging.info("Dumping IO configuration")
+                    TrainerContext.from_trainer(trainer).io_dump(output_path)
+                
+                logging.info(f"Model successfully saved to {output_path}")
+        except Exception as e:
+            logging.error(f"Error occurred while saving model to {output_path}: {e}")
+            raise
+        finally:
+            # Always try to remove the lock file
+            self._remove_lock_file(output_path)
 
     def nemo_load(
         self, path: Path, trainer: Optional[pl.Trainer] = None, cpu: bool = True
@@ -201,7 +312,9 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
 
         model = load_context(path).model
         _trainer = trainer or Trainer(
-            devices=1, accelerator="cpu" if cpu else "gpu", strategy=MegatronStrategy(ddp="pytorch")
+            devices=1, 
+            accelerator="cpu" if cpu else "gpu", 
+            strategy=MegatronStrategy()
         )
 
         _trainer.strategy.connect(model)

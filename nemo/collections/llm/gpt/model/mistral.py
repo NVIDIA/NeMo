@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from torch import nn
 from typing_extensions import Annotated
 
+from nemo.utils import logging
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import io, teardown
@@ -102,10 +103,14 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
         source = MistralForCausalLM.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
+        
+        logging.info("Converting state-dict from HF's MistralForCausalLM to Nemo...")
         self.convert_state(source, target)
+        
+        logging.info(f"Saving model to {output_path}...")
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Mistral 7B model to Nemo, model saved to {output_path}")
+        logging.info("Saving complete.")
 
         teardown(trainer, target)
         del trainer, target
