@@ -12,8 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nemo.collections.common.callbacks
-from nemo.collections.common import data, losses, parts, tokenizers
+from functools import partial
+from .module_import_proxy import ModuleImportProxy
+namespace = globals()
+lazy_import = partial(ModuleImportProxy, global_namespace=namespace)
+
+lazy_import(f"nemo.collections.common.callbacks", "callbacks")
+lazy_import(f"nemo.collections.common.data", "data")
+lazy_import(f"nemo.collections.common.losses", "losses")
+lazy_import(f"nemo.collections.common.parts", "parts")
+lazy_import(f"nemo.collections.common.tokenizers", "tokenizers")
+
 from nemo.package_info import __version__
 
 # Set collection version equal to NeMo version.

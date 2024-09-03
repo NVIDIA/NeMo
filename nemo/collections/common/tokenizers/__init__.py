@@ -12,16 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
-from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelTokenizer
-from nemo.collections.common.tokenizers.canary_tokenizer import CanaryTokenizer
-from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
-from nemo.collections.common.tokenizers.tiktoken_tokenizer import TiktokenTokenizer
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
+from functools import partial
+from ..module_import_proxy import ModuleImportProxy
+namespace = globals()
+lazy_import = partial(ModuleImportProxy, global_namespace=namespace)
+
+lazy_import("nemo.collections.common.tokenizers.aggregate_tokenizer", "AggregateTokenizer")
+lazy_import("nemo.collections.common.tokenizers.bytelevel_tokenizers", "ByteLevelTokenizer")
+lazy_import("nemo.collections.common.tokenizers.canary_tokenizer", "CanaryTokenizer")
+lazy_import("nemo.collections.common.tokenizers.char_tokenizer", "CharTokenizer")
+lazy_import("nemo.collections.common.tokenizers.huggingface",  "AutoTokenizer")
+lazy_import("nemo.collections.common.tokenizers.regex_tokenizer", "RegExTokenizer")
+lazy_import("nemo.collections.common.tokenizers.sentencepiece_tokenizer", "SentencePieceTokenizer")
+lazy_import("nemo.collections.common.tokenizers.tiktoken_tokenizer", "TiktokenTokenizer")
+lazy_import("nemo.collections.common.tokenizers.tokenizer_spec", "TokenizerSpec")
+lazy_import("nemo.collections.common.tokenizers.word_tokenizer", "WordTokenizer")
 
 
 __all__ = [
