@@ -122,9 +122,6 @@ class _MockNevaDataset(Dataset):
         self.length = num_samples
         self.seed = seed
 
-        # self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
-        # self.attention_mask = self.attention_mask < 0.5
-        # self.attention_mask = None
         self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 

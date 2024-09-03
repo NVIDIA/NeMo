@@ -68,7 +68,7 @@ def main(args):
 
     # Training strategy setup
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=1,
+        tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.bfloat16,
     )
@@ -86,7 +86,7 @@ def main(args):
 
     # Trainer setup
     trainer = nl.Trainer(
-        devices=1,
+        devices=args.devices,
         max_steps=2170,
         accelerator="gpu",
         strategy=strategy,
@@ -112,7 +112,7 @@ def main(args):
     resume = nl.AutoResume(
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
-        resume_path=args.log_dir,
+        resume_from_directory=args.log_dir,
     )
     resume.setup(trainer, model)
 
@@ -146,6 +146,8 @@ if __name__ == "__main__":
     parser.add_argument("--image_folder", type=str, required=True, help="Path to the image folder")
     parser.add_argument("--log_dir", type=str, required=True, help="Directory for logging and checkpoints")
     parser.add_argument("--language_model_path", type=str, required=True, help="Path to the pretrained language model")
+    parser.add_argument("--devices", type=int, required=False, default=1)
+    parser.add_argument("--tp_size", type=int, required=False, default=1)
 
     args = parser.parse_args()
     main(args)
