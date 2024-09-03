@@ -94,17 +94,13 @@ class PEFT(ABC, ModelTransform):
     def apply_transform(self, trainer):
         super().apply_transform(trainer)
 
+        adapter_sharded_state_dict = {}
         if self.wrapped_io.adapter_ckpt_path is not None:
             logging.info(f"Loading adapters from {self.wrapped_io.adapter_ckpt_path}")
             # create sharded state dict for adapter weights only to enable PEFT resume
-            adapter_sharded_state_dict = {
+            adapter_sharded_state_dict['state_dict'] = {
                 k: v for k, v in trainer.model.sharded_state_dict().items() if self.adapter_key_filter(k)
             }
-            adapter_state = self.wrapped_io.load_checkpoint(
-                self.wrapped_io.adapter_ckpt_path,
-                sharded_state_dict=adapter_sharded_state_dict,
-            )
-            trainer.strategy.load_model_state_dict(adapter_state, strict=False)
 
         if hasattr(trainer.strategy, "init_model_parallel"):
             logging.info("Initializing model parallel")
@@ -113,6 +109,18 @@ class PEFT(ABC, ModelTransform):
         if trainer.state.fn == TrainerFn.FITTING:
             logging.info("Setting up optimizers")
             trainer.strategy.setup_optimizers(trainer)
+            if self.wrapped_io.adapter_ckpt_path is not None and trainer.strategy.should_restore_optimizer_states():
+                # PEFT resume, load optimizer state
+                adapter_sharded_state_dict['optimizer'] = [trainer.strategy.optimizer_sharded_state_dict(is_loading=True)]
+
+        if adapter_sharded_state_dict:
+            adapter_state = self.wrapped_io.load_checkpoint(
+                self.wrapped_io.adapter_ckpt_path,
+                sharded_state_dict=adapter_sharded_state_dict)
+            trainer.strategy.load_model_state_dict(adapter_state, strict=False)
+            if trainer.state.fn == TrainerFn.FITTING:
+                trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=True)
+
 
     def on_save_checkpoint(
         self, trainer: pl.Trainer, pl_module: pl.LightningModule, checkpoint: Dict[str, Any]
