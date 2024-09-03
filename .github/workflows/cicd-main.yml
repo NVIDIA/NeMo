@@ -4863,6 +4863,13 @@ jobs:
         rm -rf examples/llm/gpt_pretrain_results
         rm -rf examples/llm/gpt_index_mappings
 
+  L2_NeMo_2_Import_nemo_lightning_without_CUDA:
+    needs: [cicd-test-container-setup]
+    # Do not pass any gpus to docker (ie --device=/dev/nvidia0 --gpus all, etc).
+    - name: Run some checks
+      run: |
+        docker run --rm --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container_${{ github.run_id }} bash -c 'python -c "import nemo.lightning;"'
+
   Nemo_CICD_Test:
     needs: 
       - gpu-test
@@ -4970,6 +4977,7 @@ jobs:
       #- OPTIONAL_L2_Stable_Diffusion_Training
       - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
       - L2_NeMo_2_GPT_DDP_Param_Parity_check
+      - L2_NeMo_2_Import_nemo_lightning_without_CUDA
     if: always()
     runs-on: ubuntu-latest
     steps:  
