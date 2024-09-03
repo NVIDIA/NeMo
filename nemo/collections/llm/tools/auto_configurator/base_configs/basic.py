@@ -14,10 +14,10 @@
 
 from megatron.core.optimizer import OptimizerConfig
 
-from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
+from nemo import lightning as nl
 from nemo.collections.llm import GPTModel, PreTrainingDataModule
 from nemo.collections.llm.utils import Config
-from nemo import lightning as nl
+from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
 
 
 class Basic:
@@ -107,7 +107,7 @@ class Basic:
             "max_steps": self.max_steps,
             "val_check_interval": self.max_steps,
         }
-        
+
         strategy = Config(
             nl.MegatronStrategy,
             pipeline_dtype=torch.bfloat16,
@@ -157,7 +157,7 @@ class Basic:
             **data_config,
             tokenizer=tokenizer_config,
         )
-    
+
     def get_logger(self, run_name: str, path_to_logs: str) -> Config:
         """
         Function that returns the training strategy.
