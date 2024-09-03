@@ -638,7 +638,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def load_optimizer_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
-        if not self.ckpt_include_optimizer or "optimizer" not in checkpoint:
+        if not self.ckpt_include_optimizer:
             return
 
         optimizer_states = checkpoint["optimizer"]
