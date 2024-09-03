@@ -1,10 +1,10 @@
 from typing import Union
 
+# This is here to import it once, which improves the speed of launch when in debug-mode
+import torch
 from lightning_fabric.plugins.environments import slurm
 from pytorch_lightning import plugins as _pl_plugins
 
-# This is here to import it once, which improves the speed of launch when in debug-mode
-import torch
 try:
     if not torch.cuda.is_available():
         raise ImportError
