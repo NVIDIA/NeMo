@@ -235,6 +235,7 @@ class BaseConfig:
 
         return run_config
 
+
 def calculate_model_size(
     gpu_count: int,
     max_training_days: float,

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 import copy
+import re
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -173,6 +173,7 @@ class AutoConfigurator:
                 return size / 1000  # Convert millions to billions
         return None
 
+
 def generate_configs(config: AutoConfigurator = None) -> dict:
     """
     Function that returns a dictionary of Partial configs.
@@ -192,7 +193,7 @@ def generate_configs(config: AutoConfigurator = None) -> dict:
 
     tokenizer = base_config.tokenizer
     model = GPTModel(base_config.model, tokenizer=tokenizer)
-    
+
     configs = {}
     for name, config in train_configs.items():
         trainer = copy.deepcopy(base_config.trainer)
@@ -207,7 +208,9 @@ def generate_configs(config: AutoConfigurator = None) -> dict:
         trainer.strategy.pipeline_model_parallel_size = config.get("pipeline_model_parallel_size")
         trainer.strategy.context_parallel_size = config.get("pipeline_model_parallel_size")
         trainer.strategy.expert_model_parallel_size = config.get("expert_model_parallel_size")
-        trainer.strategy.virtual_pipeline_model_parallel_size = config.get("virtual_pipeline_model_parallel_size", None)
+        trainer.strategy.virtual_pipeline_model_parallel_size = config.get(
+            "virtual_pipeline_model_parallel_size", None
+        )
 
         configs[name] = Partial(
             pretrain,

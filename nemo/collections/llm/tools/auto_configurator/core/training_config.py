@@ -56,9 +56,7 @@ def generate_grid_search_configs(
     multiplier = 1 if model_name in GPT_BASED_MODELS else 2
 
     seq_length = base_cfg.model.seq_length
-    num_layers = (
-        base_cfg.model.num_layers if model_name in GPT_BASED_MODELS else base_cfg.model.encoder.num_layers
-    )
+    num_layers = base_cfg.model.num_layers if model_name in GPT_BASED_MODELS else base_cfg.model.encoder.num_layers
 
     if model_name in GPT_BASED_MODELS:
         act_method = base_cfg.model.activations_checkpoint_method
