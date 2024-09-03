@@ -46,15 +46,6 @@ from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE
 
 SPECIAL_TOKEN_MAP = [("<image>", -200), ("<video>", -300)]
 
-try:
-    from megatron.core.datasets.indexed_dataset import IndexedDataset
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
-
 
 class TarOrFolderImageLoader:
     """
