@@ -43,7 +43,6 @@ if __name__ == "__main__":
         tokenizer=None,
         image_processor=None,
         num_workers=4,
-        resume_consumed_samples=False,
     )
 
     import torch
