@@ -14,6 +14,7 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 import nemo_run as run
 from nemo.utils.exp_manager import TimingCallback
 
@@ -61,7 +62,7 @@ def trainer(
         log_every_n_steps=10,
         max_steps=max_steps,
         num_nodes=num_nodes,
-        plugins=bf16_mixed_plugin(),
+        plugins=bf16_mixed(),
         strategy=strategy,
         use_distributed_sampler=False,
         val_check_interval=2000,
