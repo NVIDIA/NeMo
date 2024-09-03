@@ -13,19 +13,19 @@ from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 class MockDataModule(pl.LightningDataModule):
     def __init__(
-            self,
-            seq_length: int = 2048,
-            tokenizer: Optional = None,
-            image_processor: Optional = None,
-            micro_batch_size: int = 4,
-            global_batch_size: int = 8,
-            rampup_batch_size: Optional[List[int]] = None,
-            num_train_samples: int = 10_000,
-            num_val_samples: int = 10_000,
-            num_test_samples: int = 10_000,
-            num_workers: int = 8,
-            pin_memory: bool = True,
-            persistent_workers: bool = False,
+        self,
+        seq_length: int = 2048,
+        tokenizer: Optional = None,
+        image_processor: Optional = None,
+        micro_batch_size: int = 4,
+        global_batch_size: int = 8,
+        rampup_batch_size: Optional[List[int]] = None,
+        num_train_samples: int = 10_000,
+        num_val_samples: int = 10_000,
+        num_test_samples: int = 10_000,
+        num_workers: int = 8,
+        pin_memory: bool = True,
+        persistent_workers: bool = False,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -88,13 +88,13 @@ class MockDataModule(pl.LightningDataModule):
 
 class _MockNevaDataset(Dataset):
     def __init__(
-            self,
-            tokenizer,
-            image_processor,
-            name: str,
-            num_samples: int,
-            seq_length: int,
-            seed: int = 42,
+        self,
+        tokenizer,
+        image_processor,
+        name: str,
+        num_samples: int,
+        seq_length: int,
+        seed: int = 42,
     ) -> None:
         super().__init__()
         self.name = name

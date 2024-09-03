@@ -242,7 +242,7 @@ def find_pattern_indices(template, pattern, search_start_index=0, allow_first_to
     template_len = len(template)
     pattern_len = len(pattern)
     for i in range(search_start_index, template_len - pattern_len + 1):
-        match = template[i: i + pattern_len] == pattern
+        match = template[i : i + pattern_len] == pattern
         if torch.all(match) or (allow_first_token_mismatch and torch.all(match[1:])):
             return i, i + pattern_len
     return -1, -1
@@ -251,11 +251,11 @@ def find_pattern_indices(template, pattern, search_start_index=0, allow_first_to
 class LazySupervisedDataset(Dataset):
 
     def __init__(
-            self,
-            data_path,
-            data_config,
-            tokenizer,
-            image_processor,
+        self,
+        data_path,
+        data_config,
+        tokenizer,
+        image_processor,
     ):
         super().__init__()
         if data_path is not None:
@@ -343,7 +343,7 @@ class LazySupervisedDataset(Dataset):
         for i in range(1, len(self.conv.messages), 2):
             stop_str = getattr(self.conv, "stop_str", None)
             assert (
-                    stop_str is not None
+                stop_str is not None
             ), "If `stop_str` is not provided, issues might occur in labeling the answer tokens."
             answer_tokens = self.tokenizer.encode(
                 self.conv.messages[i][1] + ("" if stop_str is None else stop_str),
@@ -368,11 +368,11 @@ class NevaDataset(LazySupervisedDataset):
     """Dataset for supervised fine-tuning."""
 
     def __init__(
-            self,
-            data_path,
-            data_config,
-            tokenizer,
-            image_processor,
+        self,
+        data_path,
+        data_config,
+        tokenizer,
+        image_processor,
     ):
 
         if data_path.endswith(".json"):
@@ -484,23 +484,23 @@ class NevaDataset(LazySupervisedDataset):
 
 class NevaLazyDataModule(pl.LightningDataModule):
     def __init__(
-            self,
-            paths: str|List[str],
-            weights: Optional[List[float]] = None,
-            data_config: Optional[DataConfig] = ImageDataConfig,
-            seq_length: int = 2048,
-            tokenizer: Optional = None,
-            image_processor: Optional = None,
-            micro_batch_size: int = 4,
-            global_batch_size: int = 8,
-            num_train_samples: int = 10_000,
-            num_val_samples: int = 10_000,
-            num_test_samples: int = 10_000,
-            num_workers: int = 8,
-            pin_memory: bool = True,
-            persistent_workers: bool = False,
-            use_packed_sequence: bool = False,
-            seed: int = 1234,
+        self,
+        paths: str | List[str],
+        weights: Optional[List[float]] = None,
+        data_config: Optional[DataConfig] = ImageDataConfig,
+        seq_length: int = 2048,
+        tokenizer: Optional = None,
+        image_processor: Optional = None,
+        micro_batch_size: int = 4,
+        global_batch_size: int = 8,
+        num_train_samples: int = 10_000,
+        num_val_samples: int = 10_000,
+        num_test_samples: int = 10_000,
+        num_workers: int = 8,
+        pin_memory: bool = True,
+        persistent_workers: bool = False,
+        use_packed_sequence: bool = False,
+        seed: int = 1234,
     ) -> None:
         super().__init__()
         if not isinstance(paths, (list, tuple)):
