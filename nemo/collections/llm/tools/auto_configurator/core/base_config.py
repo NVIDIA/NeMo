@@ -44,9 +44,6 @@ from nemo.utils.exp_manager import TimingCallback
 # limitations under the License.
 
 
-
-
-
 class BaseConfig:
     def __init__(
         self,
