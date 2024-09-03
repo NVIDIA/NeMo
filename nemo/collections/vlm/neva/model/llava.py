@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 
 # Note: these Llava configs are copied from the corresponding HF model. You may need to modify the parameter for
-# your own needs, in particular: seq_length and rotary_base.
+# your own needs
 
 
 @dataclass
