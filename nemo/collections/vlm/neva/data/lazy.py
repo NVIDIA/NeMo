@@ -42,9 +42,7 @@ from torch.utils.data import Dataset, default_collate
 from transformers import CLIPImageProcessor, SiglipImageProcessor
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
-
-SPECIAL_TOKEN_MAP = [("<image>", -200), ("<video>", -300)]
+from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX, VIDEO_TOKEN_INDEX, SPECIAL_TOKEN_MAP
 
 
 class TarOrFolderImageLoader:

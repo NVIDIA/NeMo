@@ -15,13 +15,12 @@
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-IGNORE_INDEX = -100
-IMAGE_TOKEN_INDEX = -200
-VIDEO_TOKEN_INDEX = -300
-
 
 @dataclass
 class MultiModalToken:
+    """
+    Base class for multimodal tokens representing different media types.
+    """
     token_str: str
     token_index: int
     media_type: str
@@ -43,3 +42,13 @@ class VideoToken(MultiModalToken):
     token_index: int = -300
     media_type: str = "video"
     use_start_end: bool = False
+
+
+# Constants for token indexing and special token mapping
+IGNORE_INDEX = -100
+IMAGE_TOKEN_INDEX = ImageToken.token_index
+VIDEO_TOKEN_INDEX = VideoToken.token_index
+SPECIAL_TOKEN_MAP = [
+    (ImageToken.token_str, ImageToken.token_index),
+    (VideoToken.token_str, VideoToken.token_index)
+]
