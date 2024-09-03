@@ -24,7 +24,6 @@ import torch
 from tensorrt_llm._utils import pad_vocab_size, str_dtype_to_torch, torch_to_numpy
 from tqdm import tqdm
 
-from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.export.trt_llm.converter.utils import save_val, split_and_save_weight, weights_dict
 
 LOGGER = logging.getLogger("NeMo")
@@ -36,6 +35,20 @@ layer_names = {
     "final_layernorm.weight": "final_layernorm.weight",
     "final_layernorm.bias": "final_layernorm.bias",
 }
+
+def torch_dtype_from_precision(precision, megatron_amp_O2) -> torch.dtype:
+    """Mapping from PTL precision types to corresponding PyTorch parameter datatype."""
+    if megatron_amp_O2 is not None and megatron_amp_O2 is False:
+        return torch.float32
+
+    if precision in ['bf16', 'bf16-mixed']:
+        return torch.bfloat16
+    elif precision in [16, '16', '16-mixed']:
+        return torch.float16
+    elif precision in [32, '32', '32-true']:
+        return torch.float32
+    else:
+        raise ValueError(f"Could not parse the precision of `{precision}` to a valid torch.dtype")
 
 
 def extract_layers_with_prefix(model_, prefix):
