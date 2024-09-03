@@ -92,7 +92,7 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     return filepath
 
 
-def get_checkpoint_io(**kwargs):
+def create_checkpoint_io(**kwargs):
     checkpoint_io = MegatronCheckpointIO(**kwargs)
     if kwargs.get("async_save", False):
         checkpoint_io = AsyncFinalizableCheckpointIO(checkpoint_io)
