@@ -12,26 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from dataclasses import dataclass, field
 
+import torch
 from megatron.core.optimizer import OptimizerConfig
-
 from pytorch_lightning.loggers import TensorBoardLogger
 
+from nemo import lightning as nl
 from nemo.collections.common.tokenizers import AutoTokenizer, SentencePieceTokenizer
-from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
 from nemo.collections.llm import GPTModel, PreTrainingDataModule
 from nemo.collections.llm.utils import Config
+from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
-from nemo import lightning as nl
 
 
 @dataclass
 class ModelConfig:
     def __init__(
         self,
-        config = None,
+        config=None,
     ):
         """
         Args:
@@ -167,7 +166,7 @@ class ModelConfig:
             **data_config,
             tokenizer=tokenizer,
         )
-    
+
     def get_logger(self) -> Config:
         """
         Function that returns the training strategy.

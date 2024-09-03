@@ -342,7 +342,7 @@ def _calculate_model_size(
 
 
 def generic_base_config(
-    config = None,
+    config=None,
 ) -> dict:
     """Generates a base config dictionary from a base config python file.
 
@@ -372,8 +372,8 @@ def generic_base_config(
         model = model_cls(cfg=cfg)
     else:
         model = base_configs.ModelConfig(config)
-    #import pdb
-    #pdb.set_trace()
+    # import pdb
+    # pdb.set_trace()
     base_cfg = {
         "model": model.get_model(),
         "optim": model.get_optim(),

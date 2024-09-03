@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
-from dataclasses import dataclass
-import torch
 import re
+from dataclasses import dataclass
+from typing import List, Optional
 
+import torch
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo import lightning as nl
@@ -130,7 +130,6 @@ class AutoConfigurator:
         self.gpu_count = gpu_count
         self.num_gpus = gpus_per_node
 
-
     def _get_message(self, config: dict) -> str:
         """
         Function that returns runner config line by line.
@@ -161,7 +160,7 @@ class AutoConfigurator:
             return "nemotron"
         else:
             return None
-    
+
     def _get_model_size(self, config_string):
         match = re.search(r'(\d+)([BM])', config_string)
         if match:
