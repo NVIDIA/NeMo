@@ -27,7 +27,6 @@ import torch
 import torch.distributed
 from lightning_fabric.plugins import CheckpointIO, ClusterEnvironment
 from lightning_fabric.utilities.optimizer import _optimizer_to_device, _optimizers_to_device
-from megatron.core import dist_checkpointing
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.accelerators import CPUAccelerator

@@ -8,7 +8,6 @@ import pytorch_lightning as pl
 import torch
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.strategies.fsdp import _get_sharded_state_dict_context
-from megatron.core import dist_checkpointing
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from pytorch_lightning.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
 from pytorch_lightning.trainer.states import TrainerFn
