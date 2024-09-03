@@ -1,22 +1,22 @@
 from nemo.collections.vlm.neva.data import (
-    MockDataModule,
-    NevaLazyDataModule,
     DataConfig,
     ImageDataConfig,
-    VideoDataConfig,
-    MultiModalToken,
     ImageToken,
+    MockDataModule,
+    MultiModalToken,
+    NevaLazyDataModule,
+    VideoDataConfig,
     VideoToken,
 )
 from nemo.collections.vlm.neva.model import (
     CLIPViTConfig,
+    Llava1_5Config7B,
+    Llava1_5Config13B,
+    LlavaConfig,
+    LlavaModel,
     MultimodalProjectorConfig,
     NevaConfig,
     NevaModel,
-    LlavaConfig,
-    Llava1_5Config7B,
-    Llava1_5Config13B,
-    LlavaModel,
 )
 
 __all__ = [

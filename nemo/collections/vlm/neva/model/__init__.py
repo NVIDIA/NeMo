@@ -1,5 +1,5 @@
 from nemo.collections.vlm.neva.model.base import CLIPViTConfig, MultimodalProjectorConfig, NevaConfig, NevaModel
-from nemo.collections.vlm.neva.model.llava import LlavaConfig, Llava1_5Config7B, Llava1_5Config13B, LlavaModel
+from nemo.collections.vlm.neva.model.llava import Llava1_5Config7B, Llava1_5Config13B, LlavaConfig, LlavaModel
 
 __all__ = [
     "CLIPViTConfig",
@@ -9,5 +9,5 @@ __all__ = [
     "LlavaConfig",
     "Llava1_5Config7B",
     "Llava1_5Config13B",
-    "LlavaModel"
+    "LlavaModel",
 ]
