@@ -17,6 +17,8 @@ import torch
 # Check if Transformer Engine has Float8Tensor class
 HAVE_TE_FLOAT8TENSOR = False
 try:
+    if not torch.cuda.is_available():
+        raise ImportError
     from transformer_engine.pytorch.float8_tensor import Float8Tensor
 
     HAVE_TE_FLOAT8TENSOR = True

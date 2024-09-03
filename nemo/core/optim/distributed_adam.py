@@ -33,7 +33,6 @@ from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import ShardedTensor
 from megatron.core.dist_checkpointing.optimizer import get_param_id_to_sharded_param_map, optim_state_to_sharding_state
-from transformer_engine.pytorch.cpp_extensions import cast_to_fp8
 
 from nemo.utils import logging, str_to_dtype
 from nemo.utils.te_utils import is_float8tensor
@@ -603,6 +602,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         scaling factors and per-param amaxes are computed and reduced.
 
         """
+        from transformer_engine.pytorch.cpp_extensions import cast_to_fp8
 
         # Just call base class function if there are no FP8 tensors
         num_fp8_params = sum(1 for param in self.parameters() if is_float8tensor(param))
