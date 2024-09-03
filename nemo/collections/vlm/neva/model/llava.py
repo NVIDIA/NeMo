@@ -22,12 +22,7 @@ from torch import nn
 
 from nemo.collections.llm import Llama2Config7B, Llama2Config13B, LlamaConfig
 from nemo.collections.llm.utils import Config
-from nemo.collections.vlm.neva.model.base import (
-    HFCLIPVisionConfig,
-    MultimodalProjectorConfig,
-    NevaConfig,
-    NevaModel,
-)
+from nemo.collections.vlm.neva.model.base import HFCLIPVisionConfig, MultimodalProjectorConfig, NevaConfig, NevaModel
 from nemo.lightning import OptimizerModule, io, teardown
 
 if TYPE_CHECKING:
@@ -75,11 +70,11 @@ class Llava1_5Config13B(LlavaConfig):
 
 class LlavaModel(NevaModel):
     def __init__(
-            self,
-            config: Annotated[Optional[LlavaConfig], Config[LlavaConfig]] = None,
-            optim: Optional[OptimizerModule] = None,
-            tokenizer: Optional["TokenizerSpec"] = None,
-            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        self,
+        config: Annotated[Optional[LlavaConfig], Config[LlavaConfig]] = None,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(config or LlavaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
@@ -232,9 +227,9 @@ class HFLlavaExporter(io.ModelConnector[LlavaModel, "LlavaForConditionalGenerati
 
 @io.state_transform(
     source_key=(
-            "language_model.model.layers.*.self_attn.q_proj.weight",
-            "language_model.model.layers.*.self_attn.k_proj.weight",
-            "language_model.model.layers.*.self_attn.v_proj.weight",
+        "language_model.model.layers.*.self_attn.q_proj.weight",
+        "language_model.model.layers.*.self_attn.k_proj.weight",
+        "language_model.model.layers.*.self_attn.v_proj.weight",
     ),
     target_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
@@ -257,9 +252,9 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 
     qkv_weights_l = []
     for i in range(num_query_groups):
-        qkv_weights_l.append(q[i * heads_per_group: (i + 1) * heads_per_group, :, :])
-        qkv_weights_l.append(k[i: i + 1, :, :])
-        qkv_weights_l.append(v[i: i + 1, :, :])
+        qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
+        qkv_weights_l.append(k[i : i + 1, :, :])
+        qkv_weights_l.append(v[i : i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
     assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
@@ -274,9 +269,9 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 @io.state_transform(
     source_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
-            "language_model.model.layers.*.self_attn.q_proj.weight",
-            "language_model.model.layers.*.self_attn.k_proj.weight",
-            "language_model.model.layers.*.self_attn.v_proj.weight",
+        "language_model.model.layers.*.self_attn.q_proj.weight",
+        "language_model.model.layers.*.self_attn.k_proj.weight",
+        "language_model.model.layers.*.self_attn.v_proj.weight",
     ),
 )
 def _export_qkv(ctx: io.TransformCTX, linear_qkv):
@@ -309,8 +304,8 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
 
 @io.state_transform(
     source_key=(
-            "language_model.model.layers.*.mlp.gate_proj.weight",
-            "language_model.model.layers.*.mlp.up_proj.weight",
+        "language_model.model.layers.*.mlp.gate_proj.weight",
+        "language_model.model.layers.*.mlp.up_proj.weight",
     ),
     target_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
 )
@@ -321,8 +316,8 @@ def _import_linear_fc1(down, gate):
 @io.state_transform(
     source_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
     target_key=(
-            "language_model.model.layers.*.mlp.gate_proj.weight",
-            "language_model.model.layers.*.mlp.up_proj.weight",
+        "language_model.model.layers.*.mlp.gate_proj.weight",
+        "language_model.model.layers.*.mlp.up_proj.weight",
     ),
 )
 def _export_linear_fc1(linear_fc1):
