@@ -13,13 +13,15 @@
 # limitations under the License.
 
 import argparse
+
 import torch
 from megatron.core.optimizer import OptimizerConfig
+
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.vlm import ImageDataConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.collections.vlm import ImageDataConfig
 
 
 def main(args):
@@ -48,7 +50,9 @@ def main(args):
 
     # Transformer configurations
     language_transformer_config = llm.Llama2Config7B()
-    vision_transformer_config = vlm.HFCLIPVisionConfig(pretrained_model_name_or_path="openai/clip-vit-large-patch14-336")
+    vision_transformer_config = vlm.HFCLIPVisionConfig(
+        pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+    )
     vision_projection_config = vlm.MultimodalProjectorConfig(input_size=1024, hidden_size=4096)
 
     # NEVA model configuration
