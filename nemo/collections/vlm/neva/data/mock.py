@@ -1,32 +1,31 @@
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from einops import rearrange
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
-from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
+from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
 class MockDataModule(pl.LightningDataModule):
     def __init__(
-        self,
-        seq_length: int = 2048,
-        tokenizer: Optional = None,
-        image_processor: Optional = None,
-        micro_batch_size: int = 4,
-        global_batch_size: int = 8,
-        rampup_batch_size: Optional[List[int]] = None,
-        num_train_samples: int = 10_000,
-        num_val_samples: int = 10_000,
-        num_test_samples: int = 10_000,
-        num_workers: int = 8,
-        pin_memory: bool = True,
-        persistent_workers: bool = False,
+            self,
+            seq_length: int = 2048,
+            tokenizer: Optional = None,
+            image_processor: Optional = None,
+            micro_batch_size: int = 4,
+            global_batch_size: int = 8,
+            rampup_batch_size: Optional[List[int]] = None,
+            num_train_samples: int = 10_000,
+            num_val_samples: int = 10_000,
+            num_test_samples: int = 10_000,
+            num_workers: int = 8,
+            pin_memory: bool = True,
+            persistent_workers: bool = False,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -89,13 +88,13 @@ class MockDataModule(pl.LightningDataModule):
 
 class _MockNevaDataset(Dataset):
     def __init__(
-        self,
-        tokenizer,
-        image_processor,
-        name: str,
-        num_samples: int,
-        seq_length: int,
-        seed: int = 42,
+            self,
+            tokenizer,
+            image_processor,
+            name: str,
+            num_samples: int,
+            seq_length: int,
+            seed: int = 42,
     ) -> None:
         super().__init__()
         self.name = name
