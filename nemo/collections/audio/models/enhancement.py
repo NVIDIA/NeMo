@@ -725,11 +725,76 @@ class FlowMatchingAudioToAudioModel(AudioToAudioModel):
         # Encoder
         encoded, encoded_length = self.encoder(input=input_signal, input_length=input_length)
 
+        # Conditional input
         if self.p_cond == 0:
+            # The model is trained without the conditional input
+            encoded = torch.zeros_like(encoded)
+
+        # Initial process state
+        init_state = torch.randn_like(encoded) * self.flow.sigma_start
+
+        # Sampler
+        generated, generated_length = self.sampler(
+            state=init_state, estimator_condition=encoded, state_length=encoded_length
+        )
+
+        # Decoder
+        output, output_length = self.decoder(input=generated, input_length=generated_length)
+
+        if self.normalize_input:
+            # rescale to the original scale
+            output = output * norm_scale
+
+        # Trim or pad the estimated signal to match input length
+        output = self.match_batch_length(input=output, batch_length=batch_length)
+
+        return output, output_length
+
+    @typecheck(
+        input_types={
+            "input_signal": NeuralType(('B', 'C', 'T'), AudioSignal()),
+            "input_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+        },
+        output_types={
+            "output_signal": NeuralType(('B', 'C', 'T'), AudioSignal()),
+            "output_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+        },
+    )
+    @torch.inference_mode()
+    def forward_for_eval(self, input_signal, input_length=None):
+        """Forward pass of the model to generate samples from the target distribution.
+        This is used for eval mode only, and it applies fixed masking to the input.
+
+        Args:
+            input_signal: Tensor that represents a batch of raw audio signals,
+                of shape [B, T] or [B, T, C]. T here represents timesteps, with 1 second of audio represented as
+                `self.sample_rate` number of floating point values.
+            input_signal_length: Vector of length B, that contains the individual lengths of the audio
+                sequences.
+
+        Returns:
+            Output signal `output` in the time domain and the length of the output signal `output_length`.
+        """
+        batch_length = input_signal.size(-1)
+
+        if self.normalize_input:
+            # max for each example in the batch
+            norm_scale = torch.amax(input_signal.abs(), dim=(-1, -2), keepdim=True)
+            # scale input signal
+            input_signal = input_signal / (norm_scale + self.eps)
+
+        # Encoder
+        encoded, encoded_length = self.encoder(input=input_signal, input_length=input_length)
+
+        # Conditional input
+        if self.p_cond == 0:
+            # The model is trained without the conditional input
             encoded = torch.zeros_like(encoded)
         elif self.ssl_pretrain_masking is not None:
+            # Masking for self-supervised pretraining
             encoded = self.ssl_pretrain_masking(input_spec=encoded, length=encoded_length)
 
+        # Initial process state
         init_state = torch.randn_like(encoded) * self.flow.sigma_start
 
         # Sampler
@@ -867,7 +932,7 @@ class FlowMatchingAudioToAudioModel(AudioToAudioModel):
 
         if update_metrics:
             # Generate output signal
-            output_signal, _ = self.forward(
+            output_signal, _ = self.forward_for_eval(
                 input_signal=input_signal[:num_examples, ...], input_length=input_length[:num_examples]
             )
 
