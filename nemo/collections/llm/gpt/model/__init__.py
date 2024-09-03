@@ -43,9 +43,13 @@ from nemo.collections.llm.gpt.model.mixtral import (
 from nemo.collections.llm.gpt.model.ssm import (
     SSMConfig, 
     SSMModel,
-    Mamba2Config370m,
-    HybridConfig8b,
-    CodestralMamba
+    BaseMambaConfig130m,
+    BaseMambaConfig370m,
+    BaseMambaConfig780m,
+    BaseMambaConfig1_3b,
+    BaseMambaConfig2_7b,
+    NVIDIAHybridConfig8b,
+    NVIDIAMambaConfig8b,
     )
 __all__ = [
     "GPTConfig",
@@ -100,9 +104,13 @@ __all__ = [
     "ChatGLMModel",
     "SSMConfig",
     "SSMModel",
-    "Mamba2Config370m",
-    "HybridConfig8b",
-    "CodestralMamba",
+    "BaseMambaConfig130m",
+    "BaseMambaConfig370m",
+    "BaseMambaConfig780m",
+    "BaseMambaConfig1_3b",
+    "BaseMambaConfig2_7b",
+    "NVIDIAHybridConfig8b",
+    "NVIDIAMambaConfig8b",
     "MaskedTokenLossReduction",
     "gpt_data_step",
     "gpt_forward_step",

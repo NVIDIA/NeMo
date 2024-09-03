@@ -34,11 +34,11 @@ CUDA_VISIBLE_DEVICES="0" python /opt/NeMo/scripts/checkpoint_converters/convert_
                                 --tokenizer_model_dir <path to tokenizer.model, only set for 8b models, otherwise defaults to None>
 
 CUDA_VISIBLE_DEVICES="0" torchrun --nproc_per_node=1 /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
-                                --input_name_or_path /home/ataghibakhsh/checkpoints/mamba2-370m/pytorch_model.bin \
-                                --output_path /home/ataghibakhsh/checkpoints/mamba370m.nemo \
-                                --mamba_ssm_ngroups 1 \
+                                --input_name_or_path /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/adlr_mamba2/mamba2-hybrid-8b-3t-4k/release/mp_rank_00/model_optim_rng.pt \
+                                --output_path /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/hybrid_8b_adlr.nemo \
+                                --mamba_ssm_ngroups 8 \
                                 --precision bf16 \
-                                --tokenizer_model_dir /lustre/fs4/portfolios/coreai/users/ataghibakhsh/checkpoints/mamba2-hybrid-8b-3t-4k/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model
+                                --tokenizer_model_dir /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/adlr_mamba2/mamba2-hybrid-8b-3t-4k/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model
 '''
 
 
@@ -133,7 +133,12 @@ def convert(args):
         for key, value in checkpoint_weights.items():
             if '.norm.weight' in key and 'mixer' not in key:
                 key = key[:-11] + 'mixer.in_proj.layer_norm_weight'
-            new_state_dict["model." + key] = value       
+            new_state_dict["model." + key] = value  
+
+        # NVIDIA Mamba Model Tokenizer Settings
+        tokenizer_library = 'megatron'
+        tokenizer_type = 'GPTSentencePieceTokenizer'
+        tokenizer_model = args.tokenizer_model_dir     
 
     layers = defaultdict(list)
 
@@ -183,7 +188,10 @@ def convert(args):
     nemo_model_from_pyt = MegatronMambaModel(nemo_config.model, trainer)
 
     # Setting strict=False for the _extra_state
-    import pdb; pdb.set_trace()
+    for k,v in nemo_model_from_pyt.state_dict().items():
+        if "_extra" in k:
+            new_state_dict[k] = v
+
     nemo_model_from_pyt.load_state_dict(new_state_dict, strict=False)
     dtype = torch_dtype_from_precision(args.precision)
     nemo_model_from_pyt = nemo_model_from_pyt.to(dtype=dtype)

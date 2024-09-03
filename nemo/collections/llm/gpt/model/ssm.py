@@ -40,7 +40,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     apply_rope_fusion: bool = True
     make_vocab_size_divisible_by: int = 128
     gated_linear_unit: bool = False
-    fp32_residual_connections: bool = False
+    fp32_residual_connections: bool = True
     normalization: str = 'RMSNorm'
     add_bias_linear: bool = False
     # TODO: Move this to better places?
@@ -98,7 +98,7 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
             source = source['model']
 
         class ModelState:
-            def __init__(self, state_dict, mapping_type="base"):
+            def __init__(self, state_dict, mapping_type):
                 self._state_dict = state_dict
                 self.mapping_type = mapping_type
                 self.update_dict()
@@ -120,7 +120,7 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
             def state_dict(self):
                 return self._state_dict
 
-        source = ModelState(source, mapping_type="base")
+        source = ModelState(source, mapping_type=self.model_config.mapping_type)
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -149,22 +149,7 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
                 'backbone.layers.*.in_proj_layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',  
                 'backbone.norm_f.weight': 'decoder.final_norm.weight',
                 'lm_head.weight': 'output_layer.weight',
-            }
-        elif self.model_config.mapping_type == "mistral":
-            mapping = {
-                'model.backbone.embedding.weight': 'embedding.word_embeddings.weight',
-                'model.backbone.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log', 
-                'model.backbone.layers.*.mixer.D': 'decoder.layers.*.mixer.D', 
-                'model.backbone.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
-                'model.backbone.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
-                'model.backbone.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
-                'model.backbone.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',  
-                'model.backbone.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
-                'model.backbone.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
-                'model.backbone.layers.*.in_proj_layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',  
-                'model.backbone.norm_f.weight': 'decoder.final_norm.weight',
-                'model.lm_head.weight': 'output_layer.weight',
-            }       
+            }  
         elif self.model_config.mapping_type == "nvidia":
             mapping = {
                 'embedding.word_embeddings.weight': 'embedding.word_embeddings.weight',
@@ -207,7 +192,24 @@ class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
         return self.model_config
 
 @dataclass
-class Mamba2Config370m(SSMConfig):
+class BaseMambaConfig130m(SSMConfig):
+    hybrid_override_pattern: str = "M"*24
+    num_layers: int = 24
+    seq_length: int = 2048
+    hidden_size: int = 768
+    mamba_ssm_ngroups: int = 1
+    ffn_hidden_size: int = 768
+    num_attention_heads: int = 1
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    layernorm_epsilon: float = 1e-5
+    make_vocab_size_divisible_by: int = 16
+    tokenizer_library: str = 'huggingface'
+    tokenizer_name: str = "EleutherAI/gpt-neox-20b"
+    mapping_type: str = "base"
+
+@dataclass
+class BaseMambaConfig370m(SSMConfig):
     hybrid_override_pattern: str = "M"*48
     num_layers: int = 48
     seq_length: int = 2048
@@ -224,7 +226,58 @@ class Mamba2Config370m(SSMConfig):
     mapping_type: str = "base"
 
 @dataclass
-class HybridConfig8b(SSMConfig):
+class BaseMambaConfig780m(SSMConfig):
+    hybrid_override_pattern: str = "M"*48
+    num_layers: int = 48
+    seq_length: int = 2048
+    hidden_size: int = 1536
+    mamba_ssm_ngroups: int = 1
+    ffn_hidden_size: int = 1536
+    num_attention_heads: int = 1
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    layernorm_epsilon: float = 1e-5
+    make_vocab_size_divisible_by: int = 16
+    tokenizer_library: str = 'huggingface'
+    tokenizer_name: str = "EleutherAI/gpt-neox-20b"
+    mapping_type: str = "base"
+
+@dataclass
+class BaseMambaConfig1_3b(SSMConfig):
+    hybrid_override_pattern: str = "M"*48
+    num_layers: int = 48
+    seq_length: int = 2048
+    hidden_size: int = 2048
+    mamba_ssm_ngroups: int = 1
+    ffn_hidden_size: int = 2048
+    num_attention_heads: int = 1
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    layernorm_epsilon: float = 1e-5
+    make_vocab_size_divisible_by: int = 16
+    tokenizer_library: str = 'huggingface'
+    tokenizer_name: str = "EleutherAI/gpt-neox-20b"
+    mapping_type: str = "base"
+
+@dataclass
+class BaseMambaConfig2_7b(SSMConfig):
+    hybrid_override_pattern: str = "M"*64
+    num_layers: int = 64
+    seq_length: int = 2048
+    hidden_size: int = 2560
+    mamba_ssm_ngroups: int = 1
+    ffn_hidden_size: int = 2560
+    num_attention_heads: int = 1
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    layernorm_epsilon: float = 1e-5
+    make_vocab_size_divisible_by: int = 16
+    tokenizer_library: str = 'huggingface'
+    tokenizer_name: str = "EleutherAI/gpt-neox-20b"
+    mapping_type: str = "base"
+
+@dataclass
+class NVIDIAHybridConfig8b(SSMConfig):
     hybrid_override_pattern: str = "M-M-M--M-M*-M-M-M-M--M*-M-M-M-M-M*--M-M-M-M-M*-M--M-M-M-"
     num_layers: int = 56
     seq_length: int = 4096
@@ -242,9 +295,9 @@ class HybridConfig8b(SSMConfig):
     mapping_type: str = "nvidia"
 
 @dataclass
-class CodestralMamba(SSMConfig):
-    hybrid_override_pattern: str = "M"*64
-    num_layers: int = 64
+class NVIDIAMambaConfig8b(SSMConfig):
+    hybrid_override_pattern: str = "M"*56
+    num_layers: int = 56
     seq_length: int = 4096
     hidden_size: int = 4096
     mamba_ssm_ngroups: int = 8
@@ -257,13 +310,16 @@ class CodestralMamba(SSMConfig):
     make_vocab_size_divisible_by: int = 128
     tokenizer_library: str = 'megatron'
     tokenizer_name: str = "GPTSentencePieceTokenizer"
-    mapping_type: str = "mistral"
-
-
+    mapping_type: str = "nvidia"
+    
 __all__ = [
     "SSMModel",
     "SSMConfig",
-    "Mamba2Config370m",
-    "HybridConfig8b",
-    "CodestralMamba"
+    "BaseMambaConfig130m",
+    "BaseMambaConfig370m",
+    "BaseMambaConfig780m",
+    "BaseMambaConfig1_3b",
+    "BaseMambaConfig2_7b",
+    "NVIDIAHybridConfig8b",
+    "NVIDIAMambaConfig8b"
 ]
