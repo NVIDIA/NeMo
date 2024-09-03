@@ -213,6 +213,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         parallel_save: bool = False,
         parallel_save_within_dp: bool = False,
         parallel_load: bool = False,
+
     ):
         super().__init__()
         if not HAVE_MEGATRON_CORE:
@@ -337,13 +338,35 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
         logging.debug(f'Dist ckpt load strictness: {strict}')
 
-        return dist_checkpointing.load(
+        loaded_state_dict = dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict,
             checkpoint_dir=path,
             sharded_strategy=sharded_strategy,
             validate_access_integrity=validate_access_integrity,
             strict=strict,
         )
+        self._dump_loaded_state_dict(loaded_state_dict)
+        return loaded_state_dict
+
+    def _dump_loaded_state_dict(self, loaded_state_dict):
+        import torch
+        from pathlib import Path
+        state_dict_save_dir = os.getenv('MLPERF_DEBUG_STATE_DICT_SAVE_DIR', None)
+        if state_dict_save_dir is None:
+            raise ValueError('Please set MLPERF_DEBUG_STATE_DICT_SAVE_DIR to save state dicts to.')
+        state_dict_save_dir = Path(state_dict_save_dir)
+        state_dict_save_dir.mkdir(parents=True, exist_ok=True)
+        torch.distributed.barrier()
+
+        from megatron.core import parallel_state
+        rank_fpath = (state_dict_save_dir /
+                      (f'rank{torch.distributed.get_rank()}'
+                      f'_tp{parallel_state.get_tensor_model_parallel_rank()}'
+                      f'_pp{parallel_state.get_pipeline_model_parallel_rank()}'
+                      f'_dp{parallel_state.get_data_parallel_rank(with_context_parallel=True)}'
+                      f'.pt'))
+        logging.info(f'Saving state dict to {rank_fpath}')
+        torch.save(loaded_state_dict, state_dict_save_dir / rank_fpath)
 
     def adjust_non_strict_load(self, path: _PATH, sharded_state_dict: Dict[str, Any]):
         ckpt_sharded_metadata = dist_checkpointing.load_tensors_metadata(path)
