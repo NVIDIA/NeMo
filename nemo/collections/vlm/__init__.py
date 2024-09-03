@@ -10,6 +10,7 @@ from nemo.collections.vlm.neva.data import (
 )
 from nemo.collections.vlm.neva.model import (
     CLIPViTConfig,
+    HFCLIPVisionConfig,
     MultimodalProjectorConfig,
     NevaConfig,
     NevaModel,
@@ -29,6 +30,7 @@ __all__ = [
     "ImageToken",
     "VideoToken",
     "CLIPViTConfig",
+    "HFCLIPVisionConfig",
     "MultimodalProjectorConfig",
     "NevaConfig",
     "NevaModel",
