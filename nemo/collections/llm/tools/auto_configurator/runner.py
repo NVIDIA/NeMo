@@ -198,27 +198,6 @@ class AutoConfigurator:
             tokenizer=tokenizer_config,
         )
 
-    def _get_optim(self, optim_config: Config) -> Config:
-        """
-        Function that returns the optimizer.
-        : Config optim_config: optimizer config.
-        :return: optimizer.
-        :rtype: Config.
-        """
-
-        sched = Config(
-            CosineAnnealingScheduler,
-            warmup_steps=10,
-            constant_steps=0,
-            min_lr=optim_config.min_lr,
-        )
-
-        return Config(
-            MegatronOptimizerModule,
-            config=optim_config,
-            lr_scheduler=sched,
-        )
-
     def _get_trainer(self, trainer_config: dict, strategy: Config) -> Config:
         """
         Function that returns the trainer.

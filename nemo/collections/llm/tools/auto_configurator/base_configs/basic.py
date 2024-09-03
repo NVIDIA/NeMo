@@ -14,7 +14,10 @@
 
 from megatron.core.optimizer import OptimizerConfig
 
+from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
+from nemo.collections.llm import GPTModel, PreTrainingDataModule
 from nemo.collections.llm.utils import Config
+from nemo import lightning as nl
 
 
 class Basic:
@@ -69,13 +72,24 @@ class Basic:
             **optim_params,
         )
 
-        return optim_config
+        sched = Config(
+            CosineAnnealingScheduler,
+            warmup_steps=10,
+            constant_steps=0,
+            min_lr=optim_config.min_lr,
+        )
+
+        return Config(
+            MegatronOptimizerModule,
+            config=optim_config,
+            lr_scheduler=sched,
+        )
 
     def get_trainer_config(self) -> dict:
         """Function that returns config for PTL trainer.
 
         Returns:
-            dict: trainer config.
+            Config: trainer config.
         """
 
         trainer_config = {
@@ -93,10 +107,37 @@ class Basic:
             "max_steps": self.max_steps,
             "val_check_interval": self.max_steps,
         }
+        
+        strategy = Config(
+            nl.MegatronStrategy,
+            pipeline_dtype=torch.bfloat16,
+        )
+
+        return Config(
+            nl.Trainer,
+            **trainer_config,
+            strategy=strategy,
+            plugins=Config(nl.MegatronMixedPrecision, precision="bf16-mixed"),
+            callbacks=[Config(TimingCallback)],
+        )
 
         return trainer_config
 
-    def get_data_config(self) -> dict:
+    def get_tokenizer(self, tokenizer_type: str, tokenizer_path: str) -> Config:
+        """
+        Function that returns the tokenizer config.
+        : str tokenizer_type: tokenizer type.
+        : str tokenizer_path: path to the tokenizer.
+        :return: tokenizer config.
+        :rtype: Config.
+        """
+
+        if tokenizer_type == "sentencepiece":
+            return Config(SentencePieceTokenizer, model_path=tokenizer_path)
+        else:
+            return Config(AutoTokenizer, pretrained_model_name=tokenizer_path)
+
+    def get_data(self) -> dict:
         """Function that returns dataset config.
 
         Returns:
@@ -111,7 +152,39 @@ class Basic:
             "index_mapping_dir": None,
         }
 
-        return data_config
+        return Config(
+            PreTrainingDataModule,
+            **data_config,
+            tokenizer=tokenizer_config,
+        )
+    
+    def get_logger(self, run_name: str, path_to_logs: str) -> Config:
+        """
+        Function that returns the training strategy.
+        : str run_name: name of run.
+        : str path_to_logs: path to logs directory.
+        :return: training logger.
+        :rtype: Config.
+        """
+
+        tb_logger = Config(TensorBoardLogger, save_dir=path_to_logs)
+
+        ckpt = Config(
+            nl.ModelCheckpoint,
+            monitor="reduced_train_loss",
+            save_best_model=False,
+            save_last=False,
+            save_top_k=0,
+        )
+
+        return Config(
+            nl.NeMoLogger,
+            ckpt=ckpt,
+            name=run_name,
+            tensorboard=tb_logger,
+            wandb=None,
+            dir=path_to_logs,
+        )
 
     def get_run_config(self) -> dict:
         """Function that returns config for cluster job.
