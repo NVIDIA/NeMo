@@ -1,5 +1,6 @@
 from typing import Optional
 
+import nemo_run as run
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks.callback import Callback
@@ -73,11 +74,7 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None,
-    name: str = "default",
-    num_nodes: int = 1,
-    num_gpus_per_node: int = 8,
-    fn=pretrain
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     return run.Partial(
         fn,
@@ -131,9 +128,7 @@ def finetune_recipe(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
-    recipe = pretrain_recipe(
-        name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
-    )
+    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
     recipe.resume = hf_resume()
     recipe.peft = run.Config(LoRA)
     recipe.data = run.Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)

@@ -18,13 +18,13 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, Optional, Union
 
+import nemo_run as run
 import pytorch_lightning as pl
 from typing_extensions import Annotated
 
 from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
-import nemo_run as run
 
 TokenizerType = Any
 

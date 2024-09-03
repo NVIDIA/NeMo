@@ -120,7 +120,7 @@ class HFStarcoderImporter(io.ModelConnector["GPTBigCodeForCausalLM", StarcoderMo
     @property
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-        
+
         return AutoTokenizer(str(self))
 
     @property

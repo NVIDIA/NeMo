@@ -1,6 +1,6 @@
+import nemo_run as run
 from megatron.core.optimizer import OptimizerConfig
 
-import nemo_run as run
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule, OptimizerModule
 
 

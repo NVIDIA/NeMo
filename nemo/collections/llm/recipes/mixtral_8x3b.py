@@ -1,5 +1,6 @@
 from typing import Callable, Optional
 
+import nemo_run as run
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks.callback import Callback
@@ -13,7 +14,6 @@ from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-import nemo_run as run
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "mixtral_8x3b"
@@ -104,9 +104,8 @@ def finetune_recipe(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
-    recipe = pretrain_recipe(
-        name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
-    )
+    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
+
     recipe.resume = hf_resume()
     recipe.peft = run.Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
     recipe.data = run.Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)

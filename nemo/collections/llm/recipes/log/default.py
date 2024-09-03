@@ -1,9 +1,9 @@
 from typing import Optional
 
+from nemo_run import Config, cli
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 from nemo import lightning as nl
-from nemo_run import Config, cli
 
 
 def tensorboard_logger(name: str, save_dir: str = "tb_logs") -> Config[TensorBoardLogger]:

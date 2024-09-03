@@ -1,15 +1,15 @@
 from typing import Optional
 
 import torch
-from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes import mixtral_8x7b
 from nemo.utils.exp_manager import TimingCallback
 import pytorch_lightning as pl
 from nemo.collections.llm.api import pretrain, finetune
-from nemo.collections.llm.recipes import mixtral_8x7b
 import nemo_run as run
+import pytorch_lightning as pl
+import torch
 
 
 NAME = "mixtral_8x7b_16k"
@@ -48,9 +48,7 @@ def pretrain_recipe(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
-    recipe = mixtral_8x7b.pretrain_recipe(
-        name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node
-    )
+    recipe = mixtral_8x7b.pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
 
     recipe.model = model()
     recipe.trainer = trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
@@ -64,11 +62,9 @@ def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     num_nodes: int = 1,
-    num_gpus_per_node: int = 8,    
+    num_gpus_per_node: int = 8,
 ) -> run.Partial:
-    recipe = mixtral_8x7b.finetune_recipe(
-        name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node
-    )
+    recipe = mixtral_8x7b.finetune_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
 
     recipe.model = model()
     recipe.trainer = trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)

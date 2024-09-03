@@ -1,5 +1,6 @@
 from typing import Optional
 
+import nemo_run as run
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks.callback import Callback
@@ -15,7 +16,6 @@ from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-import nemo_run as run
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "llama3_8b"
@@ -73,11 +73,7 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None,
-    name: str = "default",
-    num_nodes: int = 1,
-    num_gpus_per_node: int = 8,
-    fn=pretrain
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     return run.Partial(
         fn,
@@ -127,9 +123,7 @@ def finetune_recipe(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
-    recipe = pretrain_recipe(
-        name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
-    )
+    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
     recipe.resume = hf_resume()
     recipe.peft = run.Config(LoRA)
     recipe.data = run.Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
