@@ -40,6 +40,32 @@ from nemo.collections.llm.gpt.model.mixtral import (
     MixtralConfig8x22B,
     MixtralModel,
 )
+from nemo.collections.llm.gpt.model.nemotron import (
+    Nemotron3Config4B,
+    Nemotron3Config8B,
+    Nemotron4Config15B,
+    Nemotron4Config22B,
+    Nemotron4Config340B,
+    NemotronConfig,
+    NemotronModel,
+)
+from nemo.collections.llm.gpt.model.qwen2 import (
+    Qwen2Config,
+    Qwen2Config1P5B,
+    Qwen2Config7B,
+    Qwen2Config72B,
+    Qwen2Config500M,
+    Qwen2Model,
+)
+from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
+from nemo.collections.llm.gpt.model.starcoder2 import (
+    Starcoder2Config,
+    Starcoder2Config3B,
+    Starcoder2Config7B,
+    Starcoder2Config15B,
+    Starcoder2Model,
+)
+
 from nemo.collections.llm.gpt.model.ssm import (
     SSMConfig, 
     SSMModel,
@@ -102,6 +128,12 @@ __all__ = [
     "ChatGLM2Config6B",
     "ChatGLM3Config6B",
     "ChatGLMModel",
+    "Qwen2Config",
+    "Qwen2Config500M",
+    "Qwen2Config1P5B",
+    "Qwen2Config7B",
+    "Qwen2Config72B",
+    "Qwen2Model",
     "SSMConfig",
     "SSMModel",
     "BaseMambaConfig130m",

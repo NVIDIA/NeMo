@@ -50,12 +50,12 @@ if __name__ == '__main__':
     data = PreTrainingDataModule(
         paths=args.data_path,
         seq_length=2048,
-        global_batch_size=4,
+        global_batch_size=32,
         seed=1234,
         tokenizer=tokenizer,
     )
     gpt_config = llm.GPTConfig(
-        num_layers=2,
+        num_layers=12,
         hidden_size=768,
         ffn_hidden_size=3072,
         num_attention_heads=12,

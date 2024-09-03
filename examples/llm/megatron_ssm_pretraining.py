@@ -2,7 +2,7 @@
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
 import argparse
-
+import torch
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import TensorBoardLogger
 
@@ -22,8 +22,7 @@ def get_args():
     parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
     parser.add_argument('--experiment-dir', type=str, help="directory to write results and checkpoints to")
     parser.add_argument('--data-path', type=str, help="Path to data file")
-    parser.add_argument('--tokenizer-path', type=str, help="Path to tokenizer model")
-    parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
+    parser.add_argument('--tokenizer-path', type=str, default=None, help="Path to tokenizer model")
 
     return parser.parse_args()
 
@@ -32,7 +31,7 @@ if __name__ == '__main__':
 
     args = get_args()
 
-    seq_length = 128
+    seq_length = 1024
 
     tokenizer = get_nmt_tokenizer(
         "huggingface",
@@ -43,13 +42,13 @@ if __name__ == '__main__':
     data = PreTrainingDataModule(
         paths=args.data_path,
         seq_length=128,
-        global_batch_size=4,
+        global_batch_size=32,
         seed=1234,
         tokenizer=tokenizer,
     )
     ssm_config = llm.SSMConfig(
-        hybrid_override_pattern="M",
-        num_layers=1,
+        hybrid_override_pattern="M"*12,
+        num_layers=12,
         hidden_size=1024,
         ffn_hidden_size=1024,
         num_attention_heads=4,
@@ -58,7 +57,7 @@ if __name__ == '__main__':
         hidden_dropout=0.0,
         attention_dropout=0.0,
         layernorm_epsilon=1e-5,
-        make_vocab_size_divisible_by=128,
+        make_vocab_size_divisible_by=16,
     )
     model = llm.SSMModel(ssm_config, tokenizer=data.tokenizer)
     strategy = nl.MegatronStrategy()
@@ -92,18 +91,14 @@ if __name__ == '__main__':
         callbacks=callbacks,
         log_every_n_steps=1,
         limit_val_batches=2,
-        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
+        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed",
+                                          params_dtype=torch.bfloat16,),
     )
 
     nemo_logger = NeMoLogger(
         dir=args.experiment_dir,
     )
-    # from nemo.collections.llm.gpt.model.ssm import PyTorchSSMImporter
-    # aa = PyTorchSSMImporter("/home/ataghibakhsh/checkpoints/mamba2-370m/pytorch_model.bin", None, None)
-    # bb = aa.init()
-    # cc = aa.apply("/home/ataghibakhsh/checkpoints/mamba_convertd.nemo")
-    # import pdb
-    # pdb.set_trace()
+
     train(
         model=model,
         data=data,
