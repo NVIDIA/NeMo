@@ -66,13 +66,13 @@ class Aggregator(nn.Module):
         if self.mode == "cat":
             return torch.cat(encoded, dim=self.channel_idx), encoded_len[0]
         elif self.mode == "sum":
-            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).sum(dim=-1), encoded_len[0]
+            return torch.cat([x.unsqueeze(-1) for x in encoded], dim=-1).sum(dim=-1), encoded_len[0]
         elif self.mode == "mean" or self.mode == "avg":
-            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).mean(dim=-1), encoded_len[0]
+            return torch.cat([x.unsqueeze(-1) for x in encoded], dim=-1).mean(dim=-1), encoded_len[0]
         elif self.mode == "max":
-            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).max(dim=-1), encoded_len[0]
+            return torch.cat([x.unsqueeze(-1) for x in encoded], dim=-1).max(dim=-1), encoded_len[0]
         elif self.mode == "min":
-            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).min(dim=-1), encoded_len[0]
+            return torch.cat([x.unsqueeze(-1) for x in encoded], dim=-1).min(dim=-1), encoded_len[0]
         elif self.mode == "none":
             return encoded, encoded_len
         elif self.mode == "weighted_sum":

@@ -18,7 +18,7 @@ import json
 import os
 from collections import OrderedDict
 from math import isclose
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
@@ -202,10 +202,10 @@ def load_noise_audio(
 
 
 def sample_noise(noise_data: List[Dict], sample_rate: int, max_audio_len: int | None = None, max_trial: int = 20):
-    if len(noise_data) == 0:
-        return torch.zeros(max_audio_len).float(), torch.tensor(max_audio_len).long()
     cnt = 0
-    while cnt < max_trial:
+    noise_audio = torch.zeros(max_audio_len).float()
+    noise_len = torch.tensor(max_audio_len).long()
+    while cnt < max_trial and len(noise_data) > 0:
         try:
             noise_sample = noise_data[np.random.randint(len(noise_data))]
             noise_audio, noise_len = load_noise_audio(noise_sample, sample_rate, max_audio_len)
