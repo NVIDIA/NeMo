@@ -1,4 +1,3 @@
-import logging
 import shutil
 from collections import OrderedDict
 from pathlib import Path
