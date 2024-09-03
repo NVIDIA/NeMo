@@ -4863,12 +4863,62 @@ jobs:
         rm -rf examples/llm/gpt_pretrain_results
         rm -rf examples/llm/gpt_index_mappings
 
+  L2_PTQ_Llama2_INT4_AWQ:
+   needs: [cicd-test-container-setup]
+   runs-on: self-hosted-azure
+   timeout-minutes: 10
+   container:
+     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+     options:
+       # --user 0:128
+       --device=/dev/nvidia0
+       --gpus all
+       --shm-size=8g
+       --env TRANSFORMERS_OFFLINE=0
+       --env HYDRA_FULL_ERROR=1
+       --volume /mnt/datadrive/TestData:/home/TestData
+   steps:
+       - name: Checkout repository
+         uses: actions/checkout@v4
+       - run: |
+           python examples/nlp/language_modeling/megatron_gpt_ptq.py \
+           model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+           model.tensor_model_parallel_size=1 \
+           trainer.devices=1 \
+           quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
+           quantization.algorithm=int4_awq \
+           quantization.num_calib_size=8 \
+           inference.batch_size=2 \
+           export.save_path=/home/TestData/nlp/megatron_llama/ci_int4_awq.qnemo
+  
+           rm -rf /home/TestData/nlp/megatron_llama/ci_int4_awq.qnemo
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+         if: "failure()"
+
+
   L2_NeMo_2_Import_nemo_lightning_without_CUDA:
     needs: [cicd-test-container-setup]
-    # Do not pass any gpus to docker (ie --device=/dev/nvidia0 --gpus all, etc).
-    - name: Run some checks
-      run: |
-        docker run --rm --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container_${{ github.run_id }} bash -c 'python -c "import nemo.lightning;"'
+    runs-on: self-hosted-azure
+    timeout-minutes: 10
+    container:
+      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+      # Do not pass any gpus to docker (ie --device=/dev/nvidia0 --gpus all, etc).
+      options:
+        --rm
+        --shm-size=8g
+        --env TRANSFORMERS_OFFLINE=0
+        --env HYDRA_FULL_ERROR=1
+        --env PYTHONUNBUFFERED=1
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - run: |
+          python3 -c "import torch; assert not torch.cuda.is_available()"
+          python3 -c "import nemo.lightning"
+
+      - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+        if: "failure()"
+
 
   Nemo_CICD_Test:
     needs: 
