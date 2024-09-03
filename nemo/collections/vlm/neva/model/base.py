@@ -1,11 +1,24 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import pytorch_lightning as L
 import torch
 import torch.distributed
 import torch.nn.functional as F
-from einops import rearrange
 from megatron.core import dist_checkpointing
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 from megatron.core.optimizer import OptimizerConfig
@@ -17,7 +30,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
-from nemo.lightning import get_vocab_size, io
+from nemo.lightning import io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
@@ -85,12 +98,10 @@ from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIP
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
-    TEDotProductAttention,
-    TELayerNormColumnParallelLinear,
     TENorm,
     TERowParallelLinear,
 )
-from megatron.core.transformer.enums import AttnMaskType, ModelType
+from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from transformers import CLIPVisionConfig, CLIPVisionModel
 
@@ -241,14 +252,14 @@ class NevaConfig(TransformerConfig, io.IOMixin):
 
 class MCoreNevaModel(MCoreLLaVAModel):
     def __init__(
-        self,
-        transformer_config: TransformerConfig,
-        language_model: MegatronModule,
-        vision_model: MegatronModule,
-        vision_projection: MegatronModule,
-        pre_process: bool = True,
-        post_process: bool = True,
-        drop_vision_class_token: bool = False,
+            self,
+            transformer_config: TransformerConfig,
+            language_model: MegatronModule,
+            vision_model: MegatronModule,
+            vision_projection: MegatronModule,
+            pre_process: bool = True,
+            post_process: bool = True,
+            drop_vision_class_token: bool = False,
     ) -> None:
         super(MCoreLLaVAModel, self).__init__(config=transformer_config)
 
@@ -291,15 +302,15 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self._img_seq_len = 0
 
     def _preprocess_data(
-        self,
-        image_embeddings,
-        language_embeddings,
-        input_ids,
-        loss_mask,
-        labels,
-        use_inference_kv_cache,
-        image_token_index,
-        num_image_tiles,
+            self,
+            image_embeddings,
+            language_embeddings,
+            input_ids,
+            loss_mask,
+            labels,
+            use_inference_kv_cache,
+            image_token_index,
+            num_image_tiles,
     ):
         # TODO (yuya): remove this and use the mcore method
         """Preprocess input data before input to language model.
@@ -348,7 +359,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         has_labels = labels is not None
         if has_labels:
             assert (
-                labels.shape == loss_mask.shape
+                    labels.shape == loss_mask.shape
             ), f"mismatching labels shape {labels.shape} and loss mask shape {loss_mask.shape}"
 
         # Create indices for new text and label positions.
@@ -399,7 +410,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             images_mask[
                 torch.arange(max_seq_len, device=first_padding_idx.device).repeat(batch_size, 1)
                 >= first_padding_idx.unsqueeze(1)
-            ] = False
+                ] = False
 
         # Create the final input embedding (if this is the first language model stage).
         final_embedding = None
@@ -456,7 +467,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         if final_embedding is not None and has_labels:
             assert (
-                final_embedding.shape[:2] == final_labels.shape == final_loss_mask.shape
+                    final_embedding.shape[:2] == final_labels.shape == final_loss_mask.shape
             ), "unexpected shapes after data preprocessing"
 
         if final_embedding is not None:
@@ -464,16 +475,16 @@ class MCoreNevaModel(MCoreLLaVAModel):
         return final_embedding, final_labels, final_loss_mask
 
     def forward(
-        self,
-        input_ids: torch.Tensor,
-        position_ids: torch.Tensor,
-        loss_mask: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        media: Optional[torch.Tensor] = None,
-        labels: Optional[torch.Tensor] = None,
-        inference_params: Optional[InferenceParams] = None,
-        num_media_tiles: Optional[List[int]] = None,
-        media_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
+            self,
+            input_ids: torch.Tensor,
+            position_ids: torch.Tensor,
+            loss_mask: Optional[torch.Tensor] = None,
+            attention_mask: Optional[torch.Tensor] = None,
+            media: Optional[torch.Tensor] = None,
+            labels: Optional[torch.Tensor] = None,
+            inference_params: Optional[InferenceParams] = None,
+            num_media_tiles: Optional[List[int]] = None,
+            media_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
     ) -> torch.Tensor:
         """Forward function of the LLaVA model.
 
@@ -493,7 +504,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
         use_inference_kv_cache = (
-            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
+                inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         # If running inference, we can skip media token computation if they were computed already earlier for this sample.
         if use_inference_kv_cache or media is None:
@@ -521,7 +532,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # Here we store the media tokens sequence length, which can be used as an offset to the KV cache later.
             if inference_params is not None:
                 inference_params.key_value_memory_dict["media_tokens_count"] = (
-                    media_embeddings.shape[0] * media_embeddings.shape[1]
+                        media_embeddings.shape[0] * media_embeddings.shape[1]
                 )
         else:
             media_embeddings = self.encoder_hidden_state
@@ -579,13 +590,13 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
 class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
-        self,
-        config: NevaConfig,
-        # TODO: Add transformer_layer_spec when we update mcore
-        optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
-        media_processor: Optional = None,  # TODO(yuya): add class type
-        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+            self,
+            config: NevaConfig,
+            # TODO: Add transformer_layer_spec when we update mcore
+            optim: Optional[OptimizerModule] = None,
+            tokenizer: Optional["TokenizerSpec"] = None,
+            media_processor: Optional = None,  # TODO(yuya): add class type
+            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
         self.config = config
@@ -600,14 +611,14 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             self.module = self.config.configure_model(self.tokenizer)
 
     def forward(
-        self,
-        input_ids: torch.Tensor,
-        position_ids: torch.Tensor,
-        loss_mask: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        media: Optional[torch.Tensor] = None,
-        labels: Optional[torch.Tensor] = None,
-        inference_params: InferenceParams = None,
+            self,
+            input_ids: torch.Tensor,
+            position_ids: torch.Tensor,
+            loss_mask: Optional[torch.Tensor] = None,
+            attention_mask: Optional[torch.Tensor] = None,
+            media: Optional[torch.Tensor] = None,
+            labels: Optional[torch.Tensor] = None,
+            inference_params: InferenceParams = None,
     ) -> torch.Tensor:
         output_tensor = self.module(
             media=media,

@@ -1,16 +1,28 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 
 import torch
-import torch.nn.functional as F
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 
-from nemo.collections.llm import Llama2Config7B, Llama2Config13B, Llama2Config70B, LlamaConfig
+from nemo.collections.llm import Llama2Config7B, Llama2Config13B, LlamaConfig
 from nemo.collections.llm.utils import Config
 from nemo.collections.vlm.neva.model.base import (
-    CLIPViTConfig,
     HFCLIPVisionConfig,
     MultimodalProjectorConfig,
     NevaConfig,
@@ -52,7 +64,7 @@ class Llava1_5Config7B(LlavaConfig):
 class Llava1_5Config13B(LlavaConfig):
     from transformers import PretrainedConfig
 
-    language_transformer_config: TransformerConfig = Llama2Config7B()
+    language_transformer_config: TransformerConfig = Llama2Config13B()
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
     )
@@ -63,11 +75,11 @@ class Llava1_5Config13B(LlavaConfig):
 
 class LlavaModel(NevaModel):
     def __init__(
-        self,
-        config: Annotated[Optional[LlavaConfig], Config[LlavaConfig]] = None,
-        optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
-        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+            self,
+            config: Annotated[Optional[LlavaConfig], Config[LlavaConfig]] = None,
+            optim: Optional[OptimizerModule] = None,
+            tokenizer: Optional["TokenizerSpec"] = None,
+            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(config or LlavaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
@@ -220,9 +232,9 @@ class HFLlavaExporter(io.ModelConnector[LlavaModel, "LlavaForConditionalGenerati
 
 @io.state_transform(
     source_key=(
-        "language_model.model.layers.*.self_attn.q_proj.weight",
-        "language_model.model.layers.*.self_attn.k_proj.weight",
-        "language_model.model.layers.*.self_attn.v_proj.weight",
+            "language_model.model.layers.*.self_attn.q_proj.weight",
+            "language_model.model.layers.*.self_attn.k_proj.weight",
+            "language_model.model.layers.*.self_attn.v_proj.weight",
     ),
     target_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
@@ -245,9 +257,9 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 
     qkv_weights_l = []
     for i in range(num_query_groups):
-        qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
-        qkv_weights_l.append(k[i : i + 1, :, :])
-        qkv_weights_l.append(v[i : i + 1, :, :])
+        qkv_weights_l.append(q[i * heads_per_group: (i + 1) * heads_per_group, :, :])
+        qkv_weights_l.append(k[i: i + 1, :, :])
+        qkv_weights_l.append(v[i: i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
     assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
@@ -262,9 +274,9 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 @io.state_transform(
     source_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
-        "language_model.model.layers.*.self_attn.q_proj.weight",
-        "language_model.model.layers.*.self_attn.k_proj.weight",
-        "language_model.model.layers.*.self_attn.v_proj.weight",
+            "language_model.model.layers.*.self_attn.q_proj.weight",
+            "language_model.model.layers.*.self_attn.k_proj.weight",
+            "language_model.model.layers.*.self_attn.v_proj.weight",
     ),
 )
 def _export_qkv(ctx: io.TransformCTX, linear_qkv):
@@ -297,8 +309,8 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
 
 @io.state_transform(
     source_key=(
-        "language_model.model.layers.*.mlp.gate_proj.weight",
-        "language_model.model.layers.*.mlp.up_proj.weight",
+            "language_model.model.layers.*.mlp.gate_proj.weight",
+            "language_model.model.layers.*.mlp.up_proj.weight",
     ),
     target_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
 )
@@ -309,8 +321,8 @@ def _import_linear_fc1(down, gate):
 @io.state_transform(
     source_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
     target_key=(
-        "language_model.model.layers.*.mlp.gate_proj.weight",
-        "language_model.model.layers.*.mlp.up_proj.weight",
+            "language_model.model.layers.*.mlp.gate_proj.weight",
+            "language_model.model.layers.*.mlp.up_proj.weight",
     ),
 )
 def _export_linear_fc1(linear_fc1):
