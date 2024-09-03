@@ -16,7 +16,6 @@ import copy
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
-from nemo.collections.llm.tools.auto_configurator import base_configs
 from nemo.collections.llm.utils import Config
 
 MODULES = {
@@ -74,7 +73,6 @@ class ModelSizeParams:
         model_name = self.model_name
         model_size_in_b = self.model_size_in_b
         if model_name in GPT_BASED_MODELS:
-            self.ffn = 4 * self.hs
             if model_size_in_b < 0.25:
                 self.hs, self.att_h, self.lr = 768, 12, 6e-4
             elif model_size_in_b < 0.5:
@@ -194,14 +192,14 @@ class ModelSizeParams:
         for attempt in range(0, 10):
             for layers in (2**p for p in range(1, 10)):
                 out_size = _calculate_model_size(
-                    vocab_size=vocab_size,
-                    seq_length=seq_length,
-                    hidden_size=hs,
+                    vocab_size=self.vocab_size,
+                    seq_length=self.seq_length,
+                    hidden_size=self.hs,
                     num_layers=layers,
-                    ffn_size=ffn,
-                    kv_channels=kv,
-                    att_heads=att_h,
-                    model_name=model_name,
+                    ffn_size=self.ffn,
+                    kv_channels=self.kv,
+                    att_heads=self.att_h,
+                    model_name=self.model_name,
                 )
                 if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
                     self.layers = layers
@@ -212,14 +210,14 @@ class ModelSizeParams:
         for attempt in range(0, 6):
             for layers in range(16, 201, 16):
                 out_size = _calculate_model_size(
-                    vocab_size=vocab_size,
-                    seq_length=seq_length,
-                    hidden_size=hs,
+                    vocab_size=self.vocab_size,
+                    seq_length=self.seq_length,
+                    hidden_size=self.hs,
                     num_layers=layers,
-                    ffn_size=ffn,
-                    kv_channels=kv,
-                    att_heads=att_h,
-                    model_name=model_name,
+                    ffn_size=self.ffn,
+                    kv_channels=self.kv,
+                    att_heads=self.att_h,
+                    model_name=self.model_name,
                 )
                 if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
                     self.layers = layers
@@ -230,14 +228,14 @@ class ModelSizeParams:
         for attempt in range(0, 6):
             for layers in range(2, 201, 2):
                 out_size = _calculate_model_size(
-                    vocab_size=vocab_size,
-                    seq_length=seq_length,
-                    hidden_size=hs,
+                    vocab_size=self.vocab_size,
+                    seq_length=self.seq_length,
+                    hidden_size=self.hs,
                     num_layers=layers,
-                    ffn_size=ffn,
-                    kv_channels=kv,
-                    att_heads=att_h,
-                    model_name=model_name,
+                    ffn_size=self.ffn,
+                    kv_channels=self.kv,
+                    att_heads=self.att_h,
+                    model_name=self.model_name,
                 )
                 if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
                     self.layers = layers
@@ -248,14 +246,14 @@ class ModelSizeParams:
         for attempt in range(0, 6):
             for layers in range(5, 201, 5):
                 out_size = _calculate_model_size(
-                    vocab_size=vocab_size,
-                    seq_length=seq_length,
-                    hidden_size=hs,
+                    vocab_size=self.vocab_size,
+                    seq_length=self.seq_length,
+                    hidden_size=self.hs,
                     num_layers=layers,
-                    ffn_size=ffn,
-                    kv_channels=kv,
-                    att_heads=att_h,
-                    model_name=model_name,
+                    ffn_size=self.ffn,
+                    kv_channels=self.kv,
+                    att_heads=self.att_h,
+                    model_name=self.model_name,
                 )
                 if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
                     self.layers = layers
@@ -266,14 +264,14 @@ class ModelSizeParams:
         for attempt in range(0, 10):
             for layers in range(1, 200):
                 out_size = _calculate_model_size(
-                    vocab_size=vocab_size,
-                    seq_length=seq_length,
-                    hidden_size=hs,
+                    vocab_size=self.vocab_size,
+                    seq_length=self.seq_length,
+                    hidden_size=self.hs,
                     num_layers=layers,
-                    ffn_size=ffn,
-                    kv_channels=kv,
-                    att_heads=att_h,
-                    model_name=model_name,
+                    ffn_size=self.ffn,
+                    kv_channels=self.kv,
+                    att_heads=self.att_h,
+                    model_name=self.model_name,
                 )
                 if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
                     self.layers = layers
@@ -355,7 +353,7 @@ def generic_base_config(
         dict: dictionary containing the base configuration for the model.
     """
 
-    from nemo.collections.llm.tools.auto_configurator.core.base_config import calculate_model_size
+    from nemo.collections.llm.tools.auto_configurator.core.base_config import BaseConfig, calculate_model_size
 
     default_model = False if config.model_size_in_b else True
 
@@ -367,13 +365,8 @@ def generic_base_config(
         config.num_tokens_in_b,
         config.model_type,
     )
+    model = BaseConfig(config)
 
-    if default_model:
-        model = model_cls(cfg=cfg)
-    else:
-        model = base_configs.TrainConfig(config)
-    #import pdb
-    #pdb.set_trace()
     base_cfg = {
         "model": model.get_model(),
         "optim": model.get_optim(),
@@ -385,12 +378,13 @@ def generic_base_config(
     if default_model:
         params = ModelSizeParams(
             model_size_in_b,
-            cfg.get("vocab_size"),
-            cfg.get("seq_length"),
-            model_name,
-        ).init_params()
+            config.vocab_size,
+            config.seq_length,
+            config.model_type,
+        )
+        params.init_params()
 
-        if model_name in GPT_BASED_MODELS:
+        if config.model_type in GPT_BASED_MODELS:
             base_cfg["model"].num_layers = params.layers
             base_cfg["model"].hidden_size = params.hs
             base_cfg["model"].num_attention_heads = params.att_h
