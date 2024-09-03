@@ -59,7 +59,7 @@ def main() -> None:
     input_ids = inputs['input_ids'].cuda()
     input_ids[input_ids == 32000] = -200
     media = inputs['pixel_values'].cuda()
-    media = media.reshape(media.size(0), 1, 1, 3, 336, 336)
+    media = media.reshape(media.size(0), 3, 336, 336)
     position_ids = (
         torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device).unsqueeze(0).expand_as(input_ids)
     )

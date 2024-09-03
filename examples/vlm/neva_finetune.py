@@ -26,8 +26,8 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 def main(args):
     # Global and micro batch sizes
-    gbs = 4
-    mbs = 128
+    gbs = 128
+    mbs = 2
     seq_length = 4096
 
     # Data configuration
@@ -61,14 +61,14 @@ def main(args):
         vision_transformer_config=vision_transformer_config,
         vision_projection_config=vision_projection_config,
         language_model_from_pretrained=args.language_model_path,
-        freeze_language_model=True,
+        freeze_language_model=False,
     )
 
     model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
 
     # Training strategy setup
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=1,
+        tensor_model_parallel_size=2,
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.bfloat16,
     )
@@ -79,15 +79,15 @@ def main(args):
         save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
-        every_n_train_steps=10,
+        every_n_train_steps=1000,
         enable_nemo_ckpt_io=False,
         dirpath=args.log_dir,
     )
 
     # Trainer setup
     trainer = nl.Trainer(
-        devices=1,
-        max_steps=2170,
+        devices=8,
+        max_steps=5190,
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
@@ -120,7 +120,7 @@ def main(args):
     # Optimizer and scheduler setup
     opt_config = OptimizerConfig(
         optimizer='adam',
-        lr=0.001,
+        lr=2.0e-05,
         adam_beta1=0.9,
         adam_beta2=0.95,
         use_distributed_optimizer=False,
@@ -128,9 +128,9 @@ def main(args):
     )
     sched = CosineAnnealingScheduler(
         max_steps=trainer.max_steps,
-        warmup_steps=70,
+        warmup_steps=150,
         constant_steps=0,
-        min_lr=2.0e-05,
+        min_lr=2.0e-07,
     )
     opt = MegatronOptimizerModule(opt_config, sched)
     opt.connect(model)
