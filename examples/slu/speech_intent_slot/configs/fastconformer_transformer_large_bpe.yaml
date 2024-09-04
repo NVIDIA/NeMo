@@ -1,9 +1,9 @@
-# Example config for speech intent classification and slot filling with Conformer-Transformer architecture.
+# Example config for speech intent classification and slot filling with FastConformer-Transformer architecture.
 
-name: "Conformer-Transformer-BPE"
+name: "FastConformer-Transformer-BPE"
 
 pretrained_encoder:
-  name: stt_en_conformer_ctc_large
+  name: stt_en_fastconformer_ctc_large
   freeze: false
 
 model:
