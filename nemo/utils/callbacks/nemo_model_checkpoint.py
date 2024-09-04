@@ -380,7 +380,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
             logging.info(f"Loading '{checkpoint_path}' checkpoint to drop optimizer states...")
             checkpoint = trainer.strategy.load_checkpoint(
-                checkpoint_path=checkpoint_path, map_location=dict(load_optim_states=False)
+                checkpoint_path=checkpoint_path, load_optimizer_states=False
             )
 
             # Load related state dict
@@ -388,9 +388,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
             # Save the checkpoint without optimizer states
             if storage_options is None:
-                storage_options = dict(drop_optim_states=True)
+                storage_options = dict(include_optimizer=False)
             else:
-                storage_options["drop_optim_states"] = True
+                storage_options["include_optimizer"] = False
 
             trainer.save_checkpoint(
                 f"{checkpoint_path}{suffix}.ckpt", self.save_weights_only, storage_options=storage_options
