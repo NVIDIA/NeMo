@@ -2,7 +2,7 @@ fiddle==0.3.0
 huggingface_hub==0.24.6
 numba==0.60.0
 numpy==1.24.4
-onnx>=1.7.0
+onnx==1.7.0
 python-dateutil==2.9.0.post0
 ruamel.yaml==0.18.6
 scikit-learn==1.5.1
