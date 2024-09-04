@@ -13,6 +13,9 @@ from nemo.collections.llm.gpt.data import (
     PreTrainingDataModule,
     SquadDataModule,
 )
+from nemo.collections.llm.bert.data import (
+    BERTPreTrainingDataModule,
+)
 from nemo.collections.llm.gpt.data.api import dolly, mock, squad
 from nemo.collections.llm.gpt.model import (
     Baichuan2Config,
@@ -50,6 +53,11 @@ from nemo.collections.llm.gpt.model import (
     MixtralModel,
     gpt_data_step,
     gpt_forward_step,
+)
+from nemo.collections.llm.bert.model import (
+    GoogleBERTBaseConfig,
+    GoogleBERTConfig,
+    BertModel,
 )
 from nemo.collections.llm.recipes import *  # noqa
 from nemo.utils import logging
@@ -97,7 +105,11 @@ __all__ = [
     "ChatGLM2Config6B",
     "ChatGLM3Config6B",
     "ChatGLMModel",
+    "BertModel",
+    "GoogleBERTBaseConfig",
+    "GoogleBERTConfig",
     "PreTrainingDataModule",
+    "BERTPreTrainingDataModule",
     "FineTuningDataModule",
     "SquadDataModule",
     "DollyDataModule",
