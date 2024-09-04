@@ -4786,9 +4786,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        pip uninstall -y apex ## TODO: remove when apex is no longer a dependency
-        pip uninstall -y transformer_engine
-
         python examples/llm/megatron_t5_pretraining.py \
         --devices=2 \
         --max-steps=3 \
