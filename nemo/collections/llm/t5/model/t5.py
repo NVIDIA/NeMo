@@ -15,6 +15,9 @@ from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 
+from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import AttnMaskType
+from nemo.collections.nlp.modules.common.megatron.utils import build_attention_mask_3d
+
 HAVE_TE = True
 try:
     import transformer_engine
@@ -30,13 +33,7 @@ if TYPE_CHECKING:
 def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
 
-    # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_t5.py#L87
-    # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_t5_model.py#L828-L842
-
     batch = next(dataloader_iter)
-
-    # # DEBUGGING
-    # print("[nemo/collections/llm/t5/model/t5.py] batch: ", batch)
 
     _batch: dict
     # TODO: to fix for running inferencing
@@ -56,9 +53,6 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         required_keys.update(("text_enc", "text_dec"))
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
-    # if self.get_attention_mask_from_fusion:
-    #     required_keys.remove('attention_mask')
-
 
     output = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
 
@@ -74,10 +68,6 @@ def t5_forward_step(model, batch) -> torch.Tensor:
         "encoder_decoder_attn_mask": batch["enc_dec_mask"],
         "lm_labels": batch["labels"],
     }
-
-    # # DEBUGGING
-    # print("batch (t5_forward_step): ")
-    # print(batch)
 
     return model(**forward_args)
 
@@ -126,9 +116,18 @@ class T5Config(TransformerConfig, io.IOMixin):
     max_position_embeddings: int = 512
     rotary_percent: float = 1.0
     seq_len_interpolation_factor: Optional[float] = None
-
-    # TODO: Move this to better places?
-    get_attention_mask_from_fusion: bool = False
+    encoder_pipeline_model_parallel_size : int = 0
+    attention_softmax_in_fp32: float = False
+    bias_activation_fusion: bool = True
+    masked_softmax_fusion: bool = True
+    persist_layer_norm: bool = True
+    bias_dropout_fusion: bool = True
+    deallocate_pipeline_outputs: bool = True
+    pipeline_model_parallel_split_rank: int = 0
+    num_moe_experts: int = 1 
+    recompute_num_layers: int = 1
+    distribute_saved_activations: bool = False
+    enable_autocast: bool = False
 
     transformer_layer_spec: Union[ModuleSpec, Callable[["T5Config"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = t5_forward_step
@@ -145,55 +144,15 @@ class T5Config(TransformerConfig, io.IOMixin):
         from megatron.core import parallel_state
         from megatron.core.models.T5.t5_model import T5Model as MCoreT5Model
 
-
-        # DEBUGGING
-        if torch.distributed.get_rank()==0:
-            print("Debugging: matching NeMo 1.0 Transformers config.")
-        self.enable_autocast=True
-        self.autocast_dtype=torch.bfloat16
-        self.deallocate_pipeline_outputs=True
-        self.pipeline_model_parallel_split_rank=0
-        self.attention_softmax_in_fp32=False
-        self.bias_activation_fusion=True
-        self.masked_softmax_fusion=True
-        self.persist_layer_norm=True
-        self.bias_dropout_fusion=True
-        self.recompute_num_layers=1
-        self.num_moe_experts=1
-        self.distribute_saved_activations=False
-
-
         encoder_config = copy.deepcopy(self)
         encoder_config.num_layers = self.encoder_num_layers
-        # move this check to strategies?
-        # if args.pipeline_model_parallel_size > 1:
-        #     assert args.encoder_pipeline_model_parallel_size > 0, "Need to know how to shard the encoder & decoder."
-        #     encoder_config.pipeline_model_parallel_size = args.encoder_pipeline_model_parallel_size
+        if self.pipeline_model_parallel_size > 1:
+            assert self.encoder_pipeline_model_parallel_size > 0, "Need to know how to shard the encoder & decoder."
+            encoder_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
 
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(encoder_config=encoder_config, decoder_config=self)
-
-
-
-
-        # DEBUGGING
-        if torch.distributed.get_rank()==0:
-            print("config: ", self)
-            print("encoder_config: ", encoder_config)
-            print("transformer_encoder_layer_spec: ", transformer_layer_spec[0])
-            print("transformer_decoder_layer_spec: ", transformer_layer_spec[1])
-            print("vocab_size: ", get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),)
-            print("max_sequence_length: ", self.max_position_embeddings)
-            print("pre_process: ", parallel_state.is_pipeline_first_stage())
-            print("post_process: ", parallel_state.is_pipeline_last_stage())
-            print("fp16_lm_cross_entropy: ", self.fp16_lm_cross_entropy)
-            print("parallel_output: ", self.parallel_output)
-            print("share_embeddings_and_output_weights: ", self.share_embeddings_and_output_weights)
-            print("position_embedding_type: ", self.position_embedding_type)
-            print("rotary_percent: ", self.rotary_percent)
-            print("seq_len_interpolation_factor: ", self.seq_len_interpolation_factor)
-
 
         model = MCoreT5Model(
             config=self,
@@ -211,13 +170,6 @@ class T5Config(TransformerConfig, io.IOMixin):
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
         )
-
-        # # DEBUGGING
-        # print("model: ")
-        # print(model)
-        # for name, param in model.named_parameters():
-        #     print("{}: {}".format(name, param.shape))
-        # # print(stop_here)        
 
         return model
 
@@ -244,10 +196,6 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         if not hasattr(self, "module"):
             self.module = self.config.configure_model(self.tokenizer)
 
-            # DEBUGGING
-            from megatron.core.enums import ModelType
-            self.module.model_type = ModelType.encoder_and_decoder
-
     def forward(
         self,
         encoder_input_ids: torch.Tensor,
@@ -258,6 +206,7 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         lm_labels: Optional[torch.Tensor] = None,
         inference_params=None,
     ) -> torch.Tensor:
+
         output_tensor = self.module(
             encoder_input_ids=encoder_input_ids,
             decoder_input_ids=decoder_input_ids,

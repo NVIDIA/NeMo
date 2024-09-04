@@ -27,7 +27,7 @@ def get_args():
     parser.add_argument('--experiment-name', type=str, help="name of experiment")
     parser.add_argument('--wandb-project', type=str, help="wandb project name")
     parser.add_argument('--data-path', type=str, help="Path to data file")
-    parser.add_argument('--vocab-path', type=str, help="Path to vocab file")
+    parser.add_argument('--vocab-path', type=str, default=None, help="Path to vocab file")
     parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
 
     return parser.parse_args()
@@ -42,14 +42,6 @@ if __name__ == '__main__':
         "BertWordPieceCase",
         vocab_file=args.vocab_path,
     )
-    # DEBUGGING
-    additional_tokens = {
-        'additional_special_tokens': [
-            f'<extra_id_{i}>' for i in range(100)
-        ]
-    }
-    tokenizer.add_special_tokens(additional_tokens)
-
     data = PreTrainingDataModule(
         paths=args.data_path,
         seq_length=512,
@@ -74,12 +66,15 @@ if __name__ == '__main__':
         layernorm_epsilon=1e-5,
         make_vocab_size_divisible_by=128,
         max_position_embeddings=512,
+        bf16=True,
+        params_dtype=torch.bfloat16,
+        pipeline_dtype=torch.bfloat16,
     )
     model = llm.t5.model.t5.T5Model(t5_config, tokenizer=data.tokenizer)
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=1,
         pipeline_model_parallel_size=1,
-        pipeline_dtype=torch.bfloat16,
+        pipeline_dtype=None,
     )
     checkpoint_callback = ModelCheckpoint(
         every_n_train_steps=5000,
@@ -97,7 +92,7 @@ if __name__ == '__main__':
         lr=0.0001,
         use_distributed_optimizer=False,
         bf16=True,
-        weight_decay=1e-2,
+        weight_decay=0.01,
     )
     lr_scheduler = WarmupAnnealingScheduler(
         warmup_steps=None,
@@ -110,7 +105,6 @@ if __name__ == '__main__':
         lr_scheduler=lr_scheduler,
         )
 
-
     trainer = nl.Trainer(
         devices=args.devices,
         max_steps=args.max_steps,
@@ -119,11 +113,12 @@ if __name__ == '__main__':
         callbacks=callbacks,
         log_every_n_steps=1,
         limit_val_batches=2,
-        val_check_interval=1000,
-        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed", amp_O2=False),
+        val_check_interval=2000,
+        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
     )
 
     wandb_logger = WandbLogger(
+        name=args.experiment_name,
         project=args.wandb_project,
         log_model="all",
     )
