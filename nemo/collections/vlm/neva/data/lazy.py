@@ -44,9 +44,7 @@ from transformers import CLIPImageProcessor, SiglipImageProcessor
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.vlm.neva.data.multimodal_tokens import (
     IGNORE_INDEX,
-    IMAGE_TOKEN_INDEX,
     SPECIAL_TOKEN_MAP,
-    VIDEO_TOKEN_INDEX,
 )
 
 
@@ -408,7 +406,7 @@ class NevaDataset(LazySupervisedDataset):
                                 logging.warning(f"Image not found: {image_path}")
                                 continue
                             record['image'].append(image_name)  # url
-                        turn['value'] = re.sub('<img src="([^"]+)">', IMAGE_TOKEN_INDEX, turn['value'])
+                        turn['value'] = re.sub('<img src="([^"]+)">', "<image>", turn['value'])
 
                     self.list_data_dict.append(record)
 
@@ -615,11 +613,3 @@ class NevaLazyDataModule(pl.LightningDataModule):
                 consumed_samples=consumed_samples,
                 consistency_check=False,
             )
-            current_global_batch_size = num_microbatch_calculator.current_global_batch_size
-            '''pl_module.log(
-                "global_batch_size",
-                current_global_batch_size,
-                prog_bar=True,
-                rank_zero_only=True,
-                batch_size=1,
-            )'''
