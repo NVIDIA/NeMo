@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Union
 
@@ -125,13 +126,15 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
     hidden_size: int = 1024
     ffn_hidden_size: int = 1024
     activation_func: Callable = F.gelu
+    bias: bool = True
     bias_activation_fusion: bool = True
     num_layers: int = 1  # placeholder, NOT used!
     num_attention_heads: int = 8  # placeholder, NOT used!
 
     def configure_model(self) -> "MCoreMultimodalProjector":
-        if self.layer_spec is None:
-            if self.projector_type == "mlp":
+        if self.projector_type.startswith("mcore") and self.layer_spec is None:
+            if self.projector_type == "mcore_mlp":
+                self.projector_type = "mlp"  # strip "mcore_" for mcore init
                 self.layer_spec = ModuleSpec(
                     module=MLP,
                     submodules=MLPSubmodules(
@@ -141,14 +144,30 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
                 )
                 self.layer_spec = self.layer_spec.submodules
             else:
-                raise NotImplementedError
+                raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
 
-        return MCoreMultimodalProjector(
-            self,
-            self.layer_spec,
-            projector_type=self.projector_type,
-            input_size=self.input_size,
-        )
+            return MCoreMultimodalProjector(
+                self,
+                self.layer_spec,
+                projector_type=self.projector_type,
+                input_size=self.input_size,
+            )
+
+        # e.g. "mlp2x_gelu"
+        mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', self.projector_type)
+        if mlp_gelu_match:
+            mlp_depth = int(mlp_gelu_match.group(1))
+            modules = [torch.nn.Linear(self.input_size, self.hidden_size, bias=True)]
+            for _ in range(1, mlp_depth):
+                modules.append(torch.nn.GELU())
+                modules.append(torch.nn.Linear(self.hidden_size, self.hidden_size, bias=True))
+            model = torch.nn.Sequential(*modules)
+            from types import MethodType
+            model.set_input_tensor = MethodType(set_input_tensor, model)
+        else:
+            raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
+
+        return model
 
 
 @dataclass
@@ -520,6 +539,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                     self.config.vision_feature_layer
                 ]  # take second from last layer
             else:
+                # TODO(yuya): MCore Clip path not yet support taking a specific layer hidden states
                 media_embeddings = self.vision_model(media)
             if self._drop_vision_class_token:
                 class_token_len = getattr(self.vision_model, "class_token_len", 1)

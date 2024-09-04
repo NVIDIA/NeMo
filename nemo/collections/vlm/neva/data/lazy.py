@@ -547,7 +547,7 @@ class NevaLazyDataModule(pl.LightningDataModule):
             seq_len=self.seq_length,
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
-            dataloader_type="single",
+            dataloader_type="cyclic",
         )
 
     def setup(self, stage: str = "") -> None:

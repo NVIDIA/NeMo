@@ -45,7 +45,7 @@ def main(args):
         micro_batch_size=mbs,
         tokenizer=None,
         image_processor=None,
-        num_workers=0,
+        num_workers=8,
     )
 
     # Transformer configurations
@@ -53,7 +53,7 @@ def main(args):
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
     )
-    vision_projection_config = vlm.MultimodalProjectorConfig(input_size=1024, hidden_size=4096)
+    vision_projection_config = vlm.MultimodalProjectorConfig(projector_type=args.projector_type, input_size=1024, hidden_size=4096)
 
     # NEVA model configuration
     neva_config = vlm.NevaConfig(
@@ -75,7 +75,7 @@ def main(args):
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
-        save_best_model=True,
+        save_best_model=False,
         save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
@@ -99,9 +99,11 @@ def main(args):
     )
 
     # Logger setup
+    from pytorch_lightning.loggers import WandbLogger
     nemo_logger = nl.NeMoLogger(
         dir=args.log_dir,
-        name="neva_pretrain",
+        name=args.name,
+        wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None
     )
     nemo_logger.setup(
         trainer,
@@ -148,6 +150,9 @@ if __name__ == "__main__":
     parser.add_argument("--language_model_path", type=str, required=True, help="Path to the pretrained language model")
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
+    parser.add_argument("--projector_type", type=str, required=False, default="mlp")
+    parser.add_argument("--name", type=str, required=False, default="neva_pretrain")
+    parser.add_argument("--wandb_project", type=str, required=False, default=None)
 
     args = parser.parse_args()
     main(args)
