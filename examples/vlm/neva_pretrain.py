@@ -53,7 +53,9 @@ def main(args):
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
     )
-    vision_projection_config = vlm.MultimodalProjectorConfig(projector_type=args.projector_type, input_size=1024, hidden_size=4096)
+    vision_projection_config = vlm.MultimodalProjectorConfig(
+        projector_type=args.projector_type, input_size=1024, hidden_size=4096
+    )
 
     # NEVA model configuration
     neva_config = vlm.NevaConfig(
@@ -100,10 +102,11 @@ def main(args):
 
     # Logger setup
     from pytorch_lightning.loggers import WandbLogger
+
     nemo_logger = nl.NeMoLogger(
         dir=args.log_dir,
         name=args.name,
-        wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None
+        wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None,
     )
     nemo_logger.setup(
         trainer,
