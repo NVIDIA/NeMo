@@ -38,7 +38,7 @@ GPT_BASED_MODELS = [
 def generate_grid_search_configs(
     base_cfg: dict,
     train_cfg: dict,
-) -> Tuple[str, List[int], int]:
+) -> Tuple[dict, dict]:
     """Generates the grid of all possible configurations for the given model, and stores each different configuration in a yaml file.
 
     Args:
@@ -46,6 +46,7 @@ def generate_grid_search_configs(
         train_cfg (dict): train configuration of the model to be trained.
 
     Returns:
+        dict: base config.
         dict: generated configs.
     """
 
@@ -228,12 +229,12 @@ def _set_activations_checkpoint_params(
 
 @dataclass
 class GPT3GridSearch:
-    """Selects grid search space for TP, PP, MBS parameters for GPT-3 and 80GB GPUs.
+    """Selects grid search space for TP, PP, CP, EP, MBS parameters for GPT-3 and 80GB GPUs.
 
     Args:
         model_size_in_b (float): number of parameters in the model.
         valid_pp (List[int]): list of valid Pipeline Parallelism (PP) values for this config.
-        seq length (int): sequence length to use for training.
+        seq_length (int): sequence length to use for training.
         gpu_memory_gb (int): size of GPU memory in GB.
     """
 
@@ -547,7 +548,7 @@ class T5GridSearch:
     Args:
         model_size_in_b (float): number of parameters in the model.
         valid_pp (List[int]): list of valid Pipeline Parallelism (PP) values for this config.
-        seq length (int): sequence length to use for training.
+        seq_length (int): sequence length to use for training.
         gpu_memory_gb (int): size of GPU memory in GB.
     """
 
@@ -687,7 +688,7 @@ class BertGridSearch:
     Args:
         model_size_in_b (float): number of parameters in the model.
         valid_pp (List[int]): list of valid Pipeline Parallelism (PP) values for this config.
-        seq length (int): sequence length to use for training.
+        seq_length (int): sequence length to use for training.
         gpu_memory_gb (int): size of GPU memory in GB.
     """
 

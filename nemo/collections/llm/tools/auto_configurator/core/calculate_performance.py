@@ -24,58 +24,24 @@ from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base
 
 
 def get_results(
-    training_logs: str = None,
+    config = None,
     path_to_save: str = None,
-    model_name: str = None,
-    num_nodes: int = None,
-    model_version: int = None,
-    seq_length: int = None,
-    global_batch_size: int = None,
-    vocab_size: int = None,
-    model_size: Optional[int] = None,
-    model_measure: Optional[str] = "B",
-    gpus_per_node: Optional[int] = 8,
-    max_training_days: Optional[int] = 2,
-    tflops_per_gpu: Optional[int] = 140,
-    num_tokens_in_b: Optional[int] = 300,
-    custom_model: Optional[bool] = False,
     output_top_n: Optional[int] = 10,
 ):
-    """Generates possible train configs.
+    """Generates performance results.
 
     Args:
-        training_logs (str): path to the dicrectory with training logs.
+        config (AutoConfigurator): auto configurator runner config.
         path_to_save (str): path where to save performance results.
-        model_name (str): model name used for auto conf search.
-        num_nodes (int): number of nodes used for auto conf search.
-        model_version (int): version of model. 3 for GPT3, 2 for Llama2.
-        seq_length (int): model sequence length.
-        global_batch_size (int): model global batch size.
-        vocab_size (int): size of tokenizer vocabulary.
-        model_size (Optional[int]): size of model used for auto conf search.
-        model_measure (Optional[str]): "M" if model_size is specified in millions. "B" if in billions.
-        gpus_per_node (Optional[int]): number of GPUs per node used for auto conf search.
-        max_training_days (Optional[int]): number of days expected model to be trained.
-        tflops_per_gpu (Optional[int]): estimated tflops per GPU.
-        num_tokens_in_b (Optional[int]): number of tokens in billions in train dataset.
-        custom_model (Optional[bool]): set to True if custom model was used.
         output_top_n (Optional[int]): Number of configs to be printed out as best configs.
     """
 
     # Get model architecture
-    cfg = locals()
-    cfg["gpu_count"] = num_nodes * gpus_per_node
-    base_cfg, _ = generic_base_config(
-        model_name=model_name,
-        model_version=model_version,
-        model_size_in_b=model_size,
-        model_measure=model_measure,
-        cfg=cfg,
-    )
+    base_cfg, _ = generic_base_config(config)
 
-    layers = base_cfg["model"].num_layers
-    hs = base_cfg["model"].hidden_size
-    ffn_hs = base_cfg["model"].ffn_hidden_size
+    layers = base_cfg.model.num_layers
+    hs = base_cfg.model.hidden_size
+    ffn_hs = base_cfg.model.ffn_hidden_size
 
     training_logs = training_logs
     final_result_logs = path_to_save
@@ -315,11 +281,11 @@ def calculate_tflops(
 
 
 def find_error(error_file: str, errors: list = ["CUDA out of memory"]):
-    """Finds the error among job output.
+    """Function that finds the error among job output.
 
     Args:
-        :param list errors: list of "popular" errors.
-        :param str error_file: path to the job output.
+        errors (list): list of "popular" errors.
+        error_file (str): path to the job output.
 
     Returns:
         str: serror message if job has been failed because of one of listed errors or None if not.
@@ -334,7 +300,15 @@ def find_error(error_file: str, errors: list = ["CUDA out of memory"]):
     return error
 
 
-def get_config(run_name: str):
+def get_config(run_name: str) -> tuple:
+    """Function that extract model parallelism parameters
+    
+    Args:
+        run_name (str): name of the run.
+
+    Returns:
+        tuple: model parallelism parameters.
+    """
     pattern = r'_(tp|pp|cp|ep|mbs|act_ckpt|num_mbs_act|act_per_pipe)_([^_]+)'
 
     # Find all matches in the input string

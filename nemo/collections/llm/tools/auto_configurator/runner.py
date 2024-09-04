@@ -108,6 +108,7 @@ class AutoConfigurator:
         for key, value in locals().items():
             if key != 'self':
                 setattr(self, key, value)
+
         config = locals()
         config.pop('self')
         logging.info(self._get_message(config))
@@ -134,9 +135,12 @@ class AutoConfigurator:
     def _get_message(self, config: dict) -> str:
         """
         Function that returns runner config line by line.
-        : dict config: runner config.
-        :return: runner config params.
-        :rtype: str.
+
+        Args:
+            config (dict): runner config.
+
+        Returns:
+            str: runner config params.
         """
 
         message = "AutoConfigurator runner config:\n"
@@ -147,6 +151,16 @@ class AutoConfigurator:
         return message
 
     def _get_model_type(self, model: str) -> str:
+        """
+        Function that returns model type from model class name.
+
+        Args:
+            models (str): model class name.
+
+        Returns:
+            str: model type.
+        """
+
         if "GPT" in model:
             return "gpt3"
         elif "Llama" in model:
@@ -162,7 +176,17 @@ class AutoConfigurator:
         else:
             return None
 
-    def _get_model_size(self, config_string):
+    def _get_model_size(self, config_string) -> int:
+        """
+        Function that returns model size from model class name.
+
+        Args:
+            models (str): model class name.
+
+        Returns:
+            int: model size.
+        """
+
         match = re.search(r'(\d+)([BM])', config_string)
         if match:
             size = int(match.group(1))
@@ -177,12 +201,12 @@ class AutoConfigurator:
 def generate_configs(config: AutoConfigurator = None) -> dict:
     """
     Function that returns a dictionary of Partial configs.
-    : dict config: runner config.
-    : str tokenizer_type: tokenizer type.
-    : str tokenizer_path: path to the tokenizer.
-    : str path_to_logs: path to logs directory.
-    :return: dictionary of Partial configs.
-    :rtype: dict.
+
+    Args:
+        config (AutoConfigurator): Auto Configurator object.
+    
+    Returns:
+        dict: dictionary of Partial configs.
     """
 
     # Generate base config for the given model size

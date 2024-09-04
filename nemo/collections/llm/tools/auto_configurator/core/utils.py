@@ -47,8 +47,8 @@ class ModelSizeParams:
 
     Args:
         model_size_in_b (float): number of parameters in the desired model config, in billions.
-        seq_length (int): sequence length to be used during training.
         vocab_size (int): size of the vocabulary to use for training.
+        seq_length (int): sequence length to be used during training.
         model_name (str): name of the model to be trained, i.e. gpt3, t5, mt5...
 
     Raises:
@@ -339,18 +339,15 @@ def _calculate_model_size(
     return model_size
 
 
-def generic_base_config(
-    config=None,
-) -> dict:
+def generic_base_config(config) -> dict:
     """Generates a base config dictionary from a base config python file.
 
     Args:
-        model_name (str): name of the model, i.e. gpt3, t5, mt5...
-        model_size_in_b (int): model size.
-        cfg (dict): dict config object for the Auto Configurator tool.
+        config (AutoConfigurator): config object for the Auto Configurator tool.
 
     Returns:
-        dict: dictionary containing the base configuration for the model.
+        BaseConfig: base configuration for the model.
+        AutoConfigurator: config object for the Auto Configurator tool.
     """
 
     from nemo.collections.llm.tools.auto_configurator.core.base_config import BaseConfig, calculate_model_size

@@ -45,17 +45,10 @@ from nemo.utils.exp_manager import TimingCallback
 
 
 class BaseConfig:
-    def __init__(
-        self,
-        config=None,
-    ):
+    def __init__(self, config=None):
         """
         Args:
-            name (str): model name.
-            version (int): model version.
-            size (int):  model size.
-            measure (str): meausre of model size. "M" if model size in millions, "B" if in billions.
-            cfg (dict): auto configurator runner config.
+            config (AutoConfigurator): auto configurator runner config.
         """
 
         self.config = config
@@ -69,18 +62,22 @@ class BaseConfig:
         self.tokenizer = self.get_tokenizer(config.tokenizer_type, config.tokenizer_path)
 
     def get_model(self):
-        """Function that returns model config."""
+        """Function that returns model config.
+        
+        Returns:
+            Config: model config.
+        """
 
         self.config.model.global_batch_size = self.config.global_batch_size
         self.config.model.seq_length = self.config.seq_length
 
         return self.config.model
 
-    def get_optim(self) -> OptimizerConfig:
+    def get_optim(self) -> Config[OptimizerConfig]:
         """Function that returns optimizer config.
 
         Returns:
-            OptimizerConfig: optimizer config.
+            Config[OptimizerConfig]: optimizer config.
         """
         optim_params = {
             "optimizer": "adam",
@@ -112,11 +109,11 @@ class BaseConfig:
             lr_scheduler=sched,
         )
 
-    def get_trainer(self) -> dict:
+    def get_trainer(self) -> Config[nl.Trainer]:
         """Function that returns config for PTL trainer.
 
         Returns:
-            Config: trainer config.
+            Config[nl.Trainer]: trainer config.
         """
 
         trainer_config = {
@@ -151,12 +148,14 @@ class BaseConfig:
         return trainer_config
 
     def get_tokenizer(self, tokenizer_type: str, tokenizer_path: str) -> Config:
-        """
-        Function that returns the tokenizer config.
-        : str tokenizer_type: tokenizer type.
-        : str tokenizer_path: path to the tokenizer.
-        :return: tokenizer config.
-        :rtype: Config.
+        """Function that returns the tokenizer config.
+
+        Args:
+            tokenizer_type (str): tokenizer type.
+            tokenizer_path (str): path to the tokenizer.
+
+        Returns:
+            Config: tokenizer config.
         """
 
         if tokenizer_type == "sentencepiece":
@@ -164,11 +163,11 @@ class BaseConfig:
         else:
             return Config(AutoTokenizer, pretrained_model_name=tokenizer_path)
 
-    def get_data(self) -> dict:
+    def get_data(self) -> Config[PreTrainingDataModule]:
         """Function that returns dataset config.
 
         Returns:
-            dict: data config.
+            Config[PreTrainingDataModule]: data config.
         """
 
         # Data config
@@ -192,13 +191,11 @@ class BaseConfig:
             tokenizer=tokenizer,
         )
 
-    def get_logger(self) -> Config:
-        """
-        Function that returns the training strategy.
-        : str run_name: name of run.
-        : str path_to_logs: path to logs directory.
-        :return: training logger.
-        :rtype: Config.
+    def get_logger(self) -> Config[nl.NeMoLogger]:
+        """Function that returns the training strategy.
+
+        Returns:
+            Config[nl.NeMoLogger]: NeMo Logger config.
         """
 
         # Define TensorBoard Logger
@@ -229,7 +226,6 @@ class BaseConfig:
 
         run_config = {
             "name": self.config.model.__class__.__name__,
-            "results_dir": None,
             "time_limit": f"0-00:{self.config.max_minutes_per_run}:00",
         }
 
@@ -257,6 +253,7 @@ def calculate_model_size(
         model_size_in_b (float): number of parameters in the model, if known.
         tflops_per_gpu (int): estimated number of TFLOPS/s per GPU.
         num_tokens_in_b (int): number of tokens to train the model for.
+        model_name (str): name of the model.
 
     Returns:
         float: number of parameters to use for training.
