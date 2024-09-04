@@ -35,39 +35,47 @@ jobs:
   pre-flight:
     runs-on: ubuntu-latest
     outputs:
-      test_to_run: ${{ steps.main.outputs.test_to_run }}
+      test_to_run: ${{ steps.test_to_run.outputs.main }}
+      all: ${{ steps.all.outputs.main }}
     steps:
       - name: Parse test_to_run
-        id: main
+        id: test_to_run
         run: |
-          parsed_string=$(echo ${{ inputs.test_to_run }} | jq -c --raw-input 'split(",")')
-          echo "test_to_run=${parsed_string}" >> "$GITHUB_ENV"
+          parsed_string=$(echo ${{ inputs.test_to_run || 'all' }} | jq -c --raw-input 'split(",")')
+          echo "main=${parsed_string}" | tee -a "$GITHUB_OUTPUT"
+      - name: Parse all
+        id: all
+        run: |
+          echo "main=${{ contains(fromJSON(steps.test_to_run.outputs.main), 'all') }}" | tee -a "$GITHUB_OUTPUT" 
 
   gpu-test:
     needs: [pre-flight]
     runs-on: self-hosted-azure
-    if: ${{ github.event.label.name == 'Run CICD' }}
+    if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
     steps:
     - name: Run nvidia-smi test
       run: |
         whoami
         nvidia-smi
+  
 
   cicd-cluster-clean:
     runs-on: self-hosted-azure-builder
     needs: [pre-flight]
-    if: ${{ github.event.label.name == 'Run CICD' }}
+    if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
     steps:
     - name: Clean server from old files
       run: |
         docker container prune --filter "until=24h" --force
         docker image prune -a --filter "until=24h" --force
 
-
   cicd-test-container-setup:
-    needs: [cicd-cluster-clean]
+    needs: [cicd-cluster-clean, pre-flight]
     runs-on: self-hosted-azure-builder
-    if: ${{ github.event.label.name == 'Run CICD' }}
+    if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
+    outputs:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+      all: ${{ needs.pre-flight.outputs.all }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -117,6 +125,7 @@ jobs:
   L0_Unit_Tests_GPU:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       TIMEOUT: 60
@@ -138,6 +147,7 @@ jobs:
   L0_Setup_Test_Data_And_Models:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Setup_Test_Data_And_Models') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
