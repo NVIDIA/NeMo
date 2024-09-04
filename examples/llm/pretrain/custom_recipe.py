@@ -39,6 +39,6 @@ if __name__ == "__main__":
     # python custom_recipe.py trainer.max_steps=2000
 
     # You can even apply transformations when triggering the CLI as if it's python code
-    # python custom_recipe.py "trainer.max_steps=*2"
+    # python custom_recipe.py "trainer.max_steps*=2"
 
     run.cli.main(llm.pretrain, default_factory=custom_llama3_8b)
