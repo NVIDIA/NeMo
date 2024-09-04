@@ -15,20 +15,23 @@
 import argparse
 import os
 import shutil
+
 import fiddle as fdl
 
+from nemo.collections.llm import GPTConfig126M
 from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, get_results
 from nemo.collections.llm.tools.auto_configurator.runner import generate_configs
-from nemo.collections.llm import GPTConfig126M
+
 
 def get_args():
     parser = argparse.ArgumentParser()
-    #parser.add_argument("--run_number", type=int, help="Number of config to run")
-    #parser.add_argument("--logs_dir", type=str, help="Path where to save training logs")
-    #parser.add_argument("--data_path", type=str, help="Path to the dataset")
-    #parser.add_argument("--get_results", action="store_true")
+    # parser.add_argument("--run_number", type=int, help="Number of config to run")
+    # parser.add_argument("--logs_dir", type=str, help="Path where to save training logs")
+    # parser.add_argument("--data_path", type=str, help="Path to the dataset")
+    # parser.add_argument("--get_results", action="store_true")
 
     return parser.parse_args()
+
 
 def train_config(args):
     # GPT-3 126M
@@ -52,17 +55,18 @@ def train_config(args):
         tokenizer_path="/home/models/gpt2",
         data_paths=["/home/data/test_text_document"],
         path_to_logs="/home/scripts/test_autoconf",
-        #data_paths=args.data_path,
+        # data_paths=args.data_path,
     )
 
     # Get generated configs
     configs = generate_configs(runner)
 
-    #for name, config in configs.items():
-        #print(config)
+    # for name, config in configs.items():
+    # print(config)
     cfgs = list(configs.values())
     pretrain = fdl.build(cfgs[0])
     pretrain()
+
 
 def main():
     args = get_args()
