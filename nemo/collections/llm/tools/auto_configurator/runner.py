@@ -14,22 +14,15 @@
 
 import copy
 import re
+
 from dataclasses import dataclass
 from typing import List, Optional
 
-import torch
-from pytorch_lightning.loggers import TensorBoardLogger
-
-from nemo import lightning as nl
-from nemo.collections.common.tokenizers import AutoTokenizer, SentencePieceTokenizer
-from nemo.collections.llm import GPTModel, PreTrainingDataModule
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.tools.auto_configurator.core.training_config import generate_grid_search_configs
 from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config
 from nemo.collections.llm.utils import Config, Partial
-from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
 from nemo.utils import logging
-from nemo.utils.exp_manager import TimingCallback
 
 SUPPORTED_MODELS = [
     "gpt3",
@@ -164,7 +157,7 @@ class AutoConfigurator:
         if "GPT" in model:
             return "gpt3"
         elif "Llama" in model:
-            return "Llama"
+            return "llama"
         elif "Mixtral" in model:
             return "mixtral"
         elif "Mistral" in model:
@@ -186,7 +179,6 @@ class AutoConfigurator:
         Returns:
             int: model size.
         """
-
         match = re.search(r'(\d+)([BM])', config_string)
         if match:
             size = int(match.group(1))
