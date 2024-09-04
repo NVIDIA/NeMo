@@ -222,7 +222,9 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
             pyt_to_mcore_state_dict(msd)
             sharded_state_dict["sharded_state_dict"] = msd
 
-        if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING: ## TODO: remove ckpt_include_optimizer
+        if (
+            self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING
+        ):  ## TODO: remove ckpt_include_optimizer
             osd = get_optimizer_state_dict(self.model, self.optimizers, options=StateDictOptions(cpu_offload=True))
             pyt_to_mcore_state_dict(osd['state'], prefix="optimizer.state.")
             sharded_state_dict["optimizer"] = osd
