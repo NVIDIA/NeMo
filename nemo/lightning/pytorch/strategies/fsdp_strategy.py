@@ -189,18 +189,9 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         checkpoint["sharded_state_dict"] = pyt_to_mcore_state_dict(checkpoint.pop("state_dict"))
         checkpoint["state_dict"] = OrderedDict([])
 
-        # TODO: do we still need to keep this?
-        for optim_state in checkpoint['optimizer_states']:
-            optim_state.pop("state")
-
-        ## only save optimizer states if self.ckpt_include_optimizer and storage_options["include_optimizer"]
-        ## are both True
-        include_optimizer = self.ckpt_include_optimizer
-        if storage_options is not None and "include_optimizer" in storage_options:
-            include_optimizer = include_optimizer and storage_options["include_optimizer"]
-            del storage_options["include_optimizer"]
-
-        if self.trainer.state.fn == TrainerFn.FITTING and include_optimizer:
+        ## replace unsharded optimizer_states with sharded dict
+        if "optimizer_states" in checkpoint:
+            del checkpoint["optimizer_states"]
             checkpoint['optimizer'] = get_optimizer_state_dict(self.model, self.optimizers)
             pyt_to_mcore_state_dict(checkpoint['optimizer']['state'], prefix="optimizer.state.")
 
@@ -231,7 +222,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
             pyt_to_mcore_state_dict(msd)
             sharded_state_dict["sharded_state_dict"] = msd
 
-        if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
+        if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING: ## TODO: remove ckpt_include_optimizer
             osd = get_optimizer_state_dict(self.model, self.optimizers, options=StateDictOptions(cpu_offload=True))
             pyt_to_mcore_state_dict(osd['state'], prefix="optimizer.state.")
             sharded_state_dict["optimizer"] = osd

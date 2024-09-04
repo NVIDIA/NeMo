@@ -48,7 +48,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ``every_n_epochs`` or ``every_n_train_steps``.
         save_on_train_epoch_end: Whether to run checkpointing at the end of the training epoch
         save_optim_on_train_end: Whether to include the optimizer states in the final checkpoint
-            at the end of training.
+            at the end of training. Only applicable when save_weights_only is ``True``.
         always_save_context: Whether to dump the artifacts needed to reinintialize the current
             model, trainer, and dataloader to allow for reproducibility of experiments.
         save_context_on_train_end: Whether to dump the artifacts on_train_end regardless of whether
@@ -420,10 +420,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 super()._save_checkpoint(trainer, ckpt_filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
-            ## Do not include optimizer states in final checkpoint
-            storage_options = dict(
-                include_optimizer=(trainer.global_step < trainer.max_steps or self.save_optim_on_train_end)
-            )
+            ## Whether to include optimizer states
+            save_weights_only = self.save_weights_only or (not self.save_optim_on_train_end and trainer.global_step == trainer.max_steps)
 
             # Async save passes the finalization function to checkpoint_io,
             # sync save calls the finalization function immediately after save.
@@ -434,10 +432,12 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
                 if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
                     raise ValueError('Async save requires async compatible CheckpointIO')
-                storage_options["finalize_fn"] = finalize_fn
+                storage_options = dict(finalize_fn=finalize_fn)
                 # Each upcoming ckpt removal request will be executed as part of this save finalization
                 self.deferred_ckpts_to_remove.append([])
-            trainer.save_checkpoint(ckpt_filepath, self.save_weights_only, storage_options=storage_options)
+            else:
+                storage_options = None
+            trainer.save_checkpoint(ckpt_filepath, save_weights_only, storage_options=storage_options)
 
             if self.always_save_context and is_global_rank_zero():
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context")
