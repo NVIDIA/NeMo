@@ -12,16 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import requests
 import torch
 from PIL import Image
 from transformers import AutoProcessor
 
 from nemo import lightning as nl
-from nemo.collections.vlm import LlavaModel
+from nemo.collections.vlm import LlavaModel, Llava1_5Config7B
+from nemo.utils import logging
 
 
-def main() -> None:
+def load_image(image_url: str) -> Image.Image:
+    try:
+        response = requests.get(image_url, stream=True)
+        response.raise_for_status()
+        image = Image.open(response.raw)
+        return image
+    except requests.exceptions.RequestException as e:
+        print(f"Error loading image from {image_url}: {e}")
+        return None
+
+
+def main(args) -> None:
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=1,
         ckpt_include_optimizer=False,
@@ -39,8 +52,7 @@ def main() -> None:
     # Tokenize the input texts
     processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
 
-    # Define a chat histiry and use `apply_chat_template` to get correctly formatted prompt
-    # Each value in "content" has to be a list of dicts with types ("text", "image")
+    # Define a chat history and use `apply_chat_template` to get the correctly formatted prompt
     conversation = [
         {
             "role": "user",
@@ -53,8 +65,11 @@ def main() -> None:
     prompt = processor.apply_chat_template(conversation, add_generation_prompt=True)
     hf_tokenizer = processor.tokenizer
 
-    image_file = "http://images.cocodataset.org/val2017/000000039769.jpg"
-    raw_image = Image.open(requests.get(image_file, stream=True).raw)
+    # Load the image
+    raw_image = load_image(args.image_url)
+    if raw_image is None:
+        return  # Exit if the image can't be loaded
+
     inputs = processor(prompt, raw_image, return_tensors='pt').to(0, torch.float16)
     input_ids = inputs['input_ids'].cuda()
     input_ids[input_ids == 32000] = -200
@@ -65,7 +80,14 @@ def main() -> None:
     )
 
     fabric = trainer.to_fabric()
-    model = fabric.import_model("hf://llava-hf/llava-1.5-7b-hf", LlavaModel)
+
+    # Decide whether to import or load the model based on the input arguments
+    if args.load_from_hf:
+        model = fabric.import_model("hf://llava-hf/llava-1.5-7b-hf", LlavaModel)
+    else:
+        model = LlavaModel(Llava1_5Config7B(), tokenizer=hf_tokenizer)
+        model = fabric.load_model(args.local_model_path, model)
+
     model = model.module.cuda()
     model.eval()
     generated_ids = input_ids.clone()
@@ -94,10 +116,32 @@ def main() -> None:
             # If the generated token is the end of sequence token, stop generating
             if next_token_ids.item() == hf_tokenizer.eos_token_id:
                 break
+
     generated_ids[generated_ids == -200] = 0
     generated_texts = hf_tokenizer.batch_decode(generated_ids, skip_special_tokens=False)
-    print(generated_texts)
-
+    logging.info("======== GENERATED TEXT OUTPUT ========")
+    logging.info(f"{generated_texts}")
+    logging.info("=======================================")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="LLaVA Multimodal Inference")
+    parser.add_argument(
+        "--load_from_hf",
+        action="store_true",
+        help="Flag to indicate whether to load the model from Hugging Face hub.",
+    )
+    parser.add_argument(
+        "--local_model_path",
+        type=str,
+        default=None,
+        help="Local path to the model if not loading from Hugging Face.",
+    )
+    parser.add_argument(
+        "--image_url",
+        type=str,
+        default="http://images.cocodataset.org/val2017/000000039769.jpg",
+        help="URL of the image to use for inference.",
+    )
+    args = parser.parse_args()
+
+    main(args)

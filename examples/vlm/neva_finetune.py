@@ -27,13 +27,13 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 def main(args):
     # Global and micro batch sizes
     gbs = 128
-    mbs = 2
+    mbs = 4
     seq_length = 4096
 
     # Data configuration
     data_config = ImageDataConfig(
         image_folder=args.image_folder,
-        conv_template="plain",
+        conv_template="v1",
     )
 
     # Data module setup
@@ -45,7 +45,7 @@ def main(args):
         micro_batch_size=mbs,
         tokenizer=None,
         image_processor=None,
-        num_workers=0,
+        num_workers=8,
     )
 
     # Transformer configurations
@@ -53,7 +53,7 @@ def main(args):
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
     )
-    vision_projection_config = vlm.MultimodalProjectorConfig(input_size=1024, hidden_size=4096)
+    vision_projection_config = vlm.MultimodalProjectorConfig(projector_type=args.projector_type, input_size=1024, hidden_size=4096)
 
     # NEVA model configuration
     neva_config = vlm.NevaConfig(
@@ -92,16 +92,18 @@ def main(args):
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
         callbacks=[checkpoint_callback],
-        val_check_interval=100,
+        val_check_interval=1000,
         limit_val_batches=gbs,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
     )
 
     # Logger setup
+    from pytorch_lightning.loggers import WandbLogger
     nemo_logger = nl.NeMoLogger(
         dir=args.log_dir,
-        name="neva_finetune",
+        name=args.name,
+        wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None
     )
     nemo_logger.setup(
         trainer,
@@ -117,7 +119,7 @@ def main(args):
         resume_from_directory=args.log_dir,
         selective_restore_config=SelectiveRestoreConfig(
             path=args.restore_path,
-        ),
+        ) if args.restore_path is not None else None,
     )
     resume.setup(trainer, model)
 
@@ -150,12 +152,15 @@ if __name__ == "__main__":
     parser.add_argument("--data_path", type=str, required=True, help="Path to the dataset JSON file")
     parser.add_argument("--image_folder", type=str, required=True, help="Path to the image folder")
     parser.add_argument("--log_dir", type=str, required=True, help="Directory for logging and checkpoints")
-    parser.add_argument("--language_model_path", type=str, required=True, help="Path to the pretrained language model")
+    parser.add_argument("--language_model_path", type=str, required=False, default=None, help="Path to the pretrained language model")
     parser.add_argument(
         "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
     )
-    parser.add_argument("--devices", type=int, required=False, default=8)
-    parser.add_argument("--tp_size", type=int, required=False, default=2)
+    parser.add_argument("--devices", type=int, required=False, default=4)
+    parser.add_argument("--tp_size", type=int, required=False, default=4)
+    parser.add_argument("--projector_type", type=str, required=False, default="mlp2x_gelu")
+    parser.add_argument("--name", type=str, required=False, default="neva_finetune")
+    parser.add_argument("--wandb_project", type=str, required=False, default=None)
 
     args = parser.parse_args()
     main(args)

@@ -120,7 +120,7 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
     For MLP, fc1 in shape of input_size, ffn_hidden_size, fc2 in shape of ffn_hidden_size, hidden_size
     """
 
-    projector_type: str = "mlp"
+    projector_type: str = "mlp2x_gelu"
     layer_spec: Optional[MLPSubmodules] = None
     input_size: Optional[int] = 1024
     hidden_size: int = 1024
@@ -246,6 +246,8 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         language_model = self.language_transformer_config.configure_model(tokenizer=tokenizer)
         vision_model = self.vision_transformer_config.configure_model()
         vision_projection = self.vision_projection_config.configure_model()
+        ckpt = torch.load("/lustre/fsw/coreai_dlalgo_genai/yuya/debug/project.pt")
+        vision_projection.load_state_dict(ckpt)
         if self.language_model_from_pretrained is not None:
             sharded_state_dict = dict(state_dict=language_model.sharded_state_dict(prefix="module."))
             loaded_state_dict = dist_checkpointing.load(
@@ -615,13 +617,11 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         # TODO: Add transformer_layer_spec when we update mcore
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
-        media_processor: Optional = None,  # TODO(yuya): add class type
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
-        self.media_processor = media_processor
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
