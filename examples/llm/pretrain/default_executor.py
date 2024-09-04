@@ -93,14 +93,14 @@ def my_slurm_executor():
 
 if __name__ == "__main__":
     run.cli.main(llm.pretrain, default_executor=local_executor_torchrun)
-    
+
     # This will re-expose the pretrain entrypoint with your custom local executor as default.
-    
+
     # To run, for instance, the llama3_8b recipe, use the following command:
     #   python default_executor.py --factory llama3_8b
-    
+
     # To run with any overrides, use the following command:
     #   python default_executor.py --factory llama3_8b trainer.max_steps=2000
-    
+
     # To use your custom Slurm executor, use the following command:
     #   python default_executor.py --executor my_slurm_executor --factory llama3_8b
