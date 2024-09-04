@@ -1,4 +1,5 @@
 import shutil
+import os
 from pathlib import Path
 from typing import Union
 
@@ -22,9 +23,44 @@ class FileArtifact(Artifact[str]):
     def load(self, path: str) -> str:
         return path
 
+def pathize(s):
+    if not isinstance(s, Path):
+        return Path(s)
+    return s
 
 def copy_file(src: Union[Path, str], path: Union[Path, str], relative_dst: Union[Path, str]):
-    relative_path = Path(relative_dst) / Path(src).name
-    output = Path(path) / relative_path
+    print('copy_file.src= ' + str(src) + " path= " + str(path) + " relative_dst= " + str(relative_dst))
+    relative_path = pathize(relative_dst) / pathize(src).name
+    output = pathize(path) / relative_path
     shutil.copy2(src, output)
     return relative_path
+
+
+class DirArtifact(Artifact[str]):
+    def dump(self, value: str, absolute_dir: Path, relative_dir: Path) -> str:
+        value = pathize(value)
+        absolute_dir = pathize(absolute_dir)
+        relative_dir = pathize(relative_dir)
+        if not value.is_dir():
+            return
+
+        relative_dir = relative_dir / value.name
+        os.makedirs(str(absolute_dir / relative_dir), exist_ok=True)
+        # for file in os.listdir(value):
+        for file in value.iterdir():
+            new_value = copy_file(file, absolute_dir, relative_dir)
+        return str(relative_dir)
+
+    def load(self, path: str) -> str:
+        return path
+
+
+class DirOrStringArtifact(DirArtifact):
+    def dump(self, value: str, absolute_dir: Path, relative_dir: Path) -> str:
+        if not pathize(value).exists():
+            return
+        return super().dump(value, absolute_dir, relative_dir)
+
+    def load(self, path: str) -> str:
+        return path
+
