@@ -1246,7 +1246,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         else:
             # TODO: consider adding a ModelPT guard to check if model is being restored.
             # allowing restored models to optionally setup datasets
-               
+
             if self.cfg.get('energon', {}).get('use_energon', False):
                 if not HAVE_ENERGON:
                     raise ImportError(

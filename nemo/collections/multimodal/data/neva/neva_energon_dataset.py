@@ -161,7 +161,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         conversations = sample.texts if hasattr(sample, 'texts') else sample.conversations
         processed_sample = {"conversations": conversations}
         image_present = False
-        
+
         if self.multimodal_cfg['is_multimodal']:
             image_present = False
             if hasattr(sample, 'image') and sample.image is not None:
