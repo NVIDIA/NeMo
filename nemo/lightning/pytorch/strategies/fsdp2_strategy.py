@@ -91,21 +91,30 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
 
         super().setup(trainer)
 
-    def _step_proxy(self, method_name, batch, batch_idx=None):
+    def _get_loss_reduction(self, step_type: str):
+        for fn_name in [f"{step_type}_loss_reduction", "loss_reduction"]:
+            if hasattr(self.lightning_module, fn_name):
+                return getattr(self.lightning_module, fn_name)
+        return None
+
+    def _step_proxy(self, step_type, batch, batch_idx=None):
+        method_name = f"{step_type}_step"
         if self.model != self.lightning_module:
             loss = self._forward_redirection(self.model, self.lightning_module, method_name, batch, batch_idx)
         else:
             loss = getattr(self.lightning_module, method_name)(batch, batch_idx)
 
-        return masked_token_loss(loss, batch['loss_mask'])
+        _loss_reduction = self._get_loss_reduction(step_type)
+        if _loss_reduction:
+            return _loss_reduction.forward(batch, loss)
+        return loss, {'avg': loss}
 
     @override
     def training_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
         assert self.lightning_module is not None
         assert self.model is not None
         with self.precision_plugin.train_step_context():
-            loss = self._step_proxy("training_step", batch, batch_idx)
-            reduced_loss = average_losses_across_data_parallel_group([loss])
+            loss, reduced = self._step_proxy("training", batch, batch_idx)
 
             self.lightning_module.log(
                 'global_step',
@@ -120,7 +129,7 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
                 self.trainer.global_step,
             )
             self.lightning_module.log(
-                'reduced_train_loss', reduced_loss, prog_bar=True, rank_zero_only=True, batch_size=1
+                'reduced_train_loss', reduced['avg'], prog_bar=True, rank_zero_only=True, batch_size=1
             )
 
             # returns unreduced loss for backward
@@ -131,28 +140,27 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
         assert self.lightning_module is not None
         assert self.model is not None
         with self.precision_plugin.val_step_context():
-            loss = self._step_proxy("validation_step", batch, batch_idx)
-            reduced_loss = average_losses_across_data_parallel_group([loss])
-            self.lightning_module.log('val_loss', reduced_loss, rank_zero_only=True, batch_size=1)
-            return reduced_loss
+            loss, reduced = self._step_proxy("validation", batch, batch_idx)
+            self.lightning_module.log('val_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
+            return loss
 
     @override
     def test_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
         assert self.lightning_module is not None
         assert self.model is not None
         with self.precision_plugin.test_step_context():
-            loss = self._step_proxy("test_step", batch, batch_idx)
-            reduced_loss = average_losses_across_data_parallel_group([loss])
-            return reduced_loss
+            loss, reduced = self._step_proxy("test", batch, batch_idx)
+            self.lightning_module.log('test_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
+
+            return loss
 
     @override
     def predict_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
         assert self.lightning_module is not None
         assert self.model is not None
         with self.precision_plugin.predict_step_context():
-            loss = self._step_proxy("predict_step", batch, batch_idx)
-            reduced_loss = average_losses_across_data_parallel_group([loss])
-            return reduced_loss
+            loss, reduced = self._step_proxy("predict", batch, batch_idx)
+            return reduced
 
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
@@ -164,6 +172,7 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
+        # TODO: modify once this is merged https://github.com/NVIDIA/NeMo/pull/10324
         return get_checkpoint_io(self._checkpoint_io)
     
     @checkpoint_io.setter
