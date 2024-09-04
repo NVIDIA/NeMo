@@ -18,6 +18,7 @@ import re
 from dataclasses import dataclass
 from typing import List, Optional
 
+from nemo.collections.llm import GPTModel
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.tools.auto_configurator.core.training_config import generate_grid_search_configs
 from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config

@@ -18,14 +18,6 @@ from typing import List, Optional, Tuple
 
 from nemo.collections.llm.utils import Config
 
-MODULES = {
-    "gpt3": "GPT",
-    "llama": "Llama",
-    "mixtral": "Mixtral",
-    "mistral": "Mistral",
-    "gemma": "Gemma",
-    "nemotron": "NeMotron",
-}
 
 GPT_BASED_MODELS = [
     "gpt3",
@@ -426,20 +418,19 @@ def modify_cfg(
         dict: dictionary containing the updated model configuration parameters.
     """
 
-    new_cfg = copy.deepcopy(base_cfg)
     if model_name in GPT_BASED_MODELS:
-        att_heads = new_cfg.model.num_attention_heads
-        num_layers = new_cfg.model.num_layers
+        att_heads = base_cfg.model.num_attention_heads
+        num_layers = base_cfg.model.num_layers
     else:
-        att_heads = new_cfg.model.encoder.num_attention_heads
-        num_layers = new_cfg.model.encoder.num_layers
+        att_heads = base_cfg.model.encoder.num_attention_heads
+        num_layers = base_cfg.model.encoder.num_layers
 
     # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
-    num_gpus = new_cfg.trainer.num_nodes * new_cfg.trainer.devices
-    gbs = new_cfg.model.global_batch_size
-    seq_len = new_cfg.model.seq_length
+    num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
+    gbs = base_cfg.model.global_batch_size
+    seq_len = base_cfg.model.seq_length
 
-    new_cfg = dict(run=new_cfg.run)
+    new_cfg = dict(run=base_cfg.run)
     if act is not None:
         if model_name in GPT_BASED_MODELS:
             new_cfg["activations_checkpoint_num_layers"] = act
