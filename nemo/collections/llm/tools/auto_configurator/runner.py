@@ -192,7 +192,7 @@ class AutoConfigurator:
         return None
 
 
-def generate_configs(config: AutoConfigurator = None) -> dict:
+def generate_configs(runner_config: AutoConfigurator = None) -> dict:
     """
     Function that returns a dictionary of Partial configs.
 
@@ -204,7 +204,7 @@ def generate_configs(config: AutoConfigurator = None) -> dict:
     """
 
     # Generate base config for the given model size
-    base_cfg, train_cfg = generic_base_config(config)
+    base_cfg, train_cfg = generic_base_config(runner_config)
 
     # Launch grid search for training constraints
     base_config, train_configs = generate_grid_search_configs(base_cfg, train_cfg)
@@ -232,8 +232,8 @@ def generate_configs(config: AutoConfigurator = None) -> dict:
         )
 
         # Set the directory where to save the logs
-        log.dir = os.path.join(log.dir, name)
-        log.tensorboard.save_dir = os.path.join(log.dir, name)
+        log.dir = os.path.join(runner_config.path_to_logs, name)
+        log.tensorboard.save_dir = log.dir
 
         configs[name] = Partial(
             pretrain,
@@ -241,8 +241,8 @@ def generate_configs(config: AutoConfigurator = None) -> dict:
             trainer=trainer,
             data=data,
             optim=base_config.optim,
-            log=base_config.log,
+            log=log,
             resume=None,
         )
 
-    return configs
+    return base_cfg, configs

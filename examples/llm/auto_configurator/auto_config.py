@@ -25,10 +25,10 @@ from nemo.collections.llm.tools.auto_configurator.runner import generate_configs
 
 def get_args():
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--run_number", type=int, help="Number of config to run")
-    # parser.add_argument("--logs_dir", type=str, help="Path where to save training logs")
-    # parser.add_argument("--data_path", type=str, help="Path to the dataset")
-    # parser.add_argument("--get_results", action="store_true")
+    parser.add_argument("--run_number", type=int, help="Number of config to run")
+    parser.add_argument("--logs_dir", type=str, help="Path where to save training logs")
+    parser.add_argument("--data_path", type=str, help="Path to the dataset")
+    parser.add_argument("--get_results", action="store_true")
 
     return parser.parse_args()
 
@@ -53,27 +53,18 @@ def train_config(args):
         num_tokens_in_b=10,
         vocab_size=51200,
         tokenizer_path="/home/models/gpt2",
-        data_paths=["/home/data/test_text_document"],
-        path_to_logs="/home/scripts/test_autoconf",
-        # data_paths=args.data_path,
+        data_paths=args.data_path,
+        path_to_logs=args.logs_dir,
     )
 
-    # Get generated configs
-    configs = generate_configs(runner)
+    base_cfg, configs = generate_configs(runner)
+    if not args.get_results:
+        # Get generated configs
+        configs = list(configs.values())
 
-    # for name, config in configs.items():
-    # print(config)
-    cfgs = list(configs.values())
-    pretrain = fdl.build(cfgs[0])
-    pretrain()
-
-
-def main():
-    args = get_args()
-
-    if True:
-        train_config(args)
-
+        # Run pre-training
+        pretrain = fdl.build(configs[args.run_number - 1])
+        pretrain()
     else:
         # Get Auto Configurator results
         candidates = [d for d in os.listdir(args.logs_dir) if os.path.isdir(os.path.join(args.logs_dir, d))]
@@ -87,23 +78,14 @@ def main():
 
                 os.rmdir(default_dir)
 
-        get_results(
-            training_logs=args.logs_dir,
-            path_to_save=args.logs_dir,
-            model_name="gpt3",
-            model_version=3,
-            model_size=126,
-            model_measure="M",
-            num_nodes=1,
-            gpus_per_node=1,
-            global_batch_size=16,
-            seq_length=512,
-            max_training_days=1,
-            num_tokens_in_b=10,
-            vocab_size=51200,
-        )
-
+        get_results(base_cfg, runner, args.logs_dir)
         print(f"The results were successfully saved to {args.logs_dir}.")
+
+
+def main():
+    args = get_args()
+
+    train_config(args)
 
 
 if __name__ == '__main__':

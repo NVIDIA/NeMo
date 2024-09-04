@@ -24,7 +24,8 @@ from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base
 
 
 def get_results(
-    config=None,
+    base_config=None,
+    train_config=None,
     path_to_save: str = None,
     output_top_n: Optional[int] = 10,
 ):
@@ -36,19 +37,15 @@ def get_results(
         output_top_n (Optional[int]): Number of configs to be printed out as best configs.
     """
 
-    # Get model architecture
-    base_cfg, _ = generic_base_config(config)
+    layers = base_config.model.num_layers
+    hs = base_config.model.hidden_size
+    ffn_hs = base_config.model.ffn_hidden_size
 
-    layers = base_cfg.model.num_layers
-    hs = base_cfg.model.hidden_size
-    ffn_hs = base_cfg.model.ffn_hidden_size
-
-    training_logs = training_logs
+    training_logs = path_to_save
     final_result_logs = path_to_save
 
     result_columns = [
-        "Model Name",
-        "Model Size",
+        "Model Config",
         "Seq Length",
         "TP",
         "PP",
@@ -97,7 +94,7 @@ def get_results(
         dirs.pop(0)
 
     for candidate_dir in dirs:
-        logs_dir = os.path.join(training_logs, candidate_dir)
+        logs_dir = os.path.join(training_logs, candidate_dir, "lightning_logs")
         logs_folder = [f.path for f in os.scandir(logs_dir) if f.is_dir()][0]
         tp, pp, cp, ep, mbs, act_ckpt, num_mbs_act, act_per_pipe = get_config(candidate_dir)
 
@@ -141,26 +138,25 @@ def get_results(
                         continue
                     timing_list = [x.value for x in timing_list[5:]]
                     avg_global_step_time = round(sum(timing_list) / len(timing_list), 4)
-                    samples_per_s = round(global_batch_size / avg_global_step_time, 2)
+                    samples_per_s = round(base_config.data.global_batch_size / avg_global_step_time, 2)
                     m_tflops, m_tflops_gpu = calculate_tflops(
-                        model_name=model_name,
-                        gbs=global_batch_size,
-                        enc_seq_len=seq_length,
-                        dec_seq_len=seq_length,
+                        model_name=train_config.model_type,
+                        gbs=base_config.data.global_batch_size,
+                        enc_seq_len=base_config.data.seq_length,
+                        dec_seq_len=base_config.data.seq_length,
                         hs=hs,
                         ffn_hs=ffn_hs,
                         layers=layers,
-                        vocab=vocab_size,
-                        nodes=num_nodes,
-                        gpus_per_node=gpus_per_node,
+                        vocab=train_config.vocab_size,
+                        nodes=train_config.num_nodes,
+                        gpus_per_node=train_config.gpus_per_node,
                         time_per_step=avg_global_step_time,
                     )
                     config_name = f"tp{tp}_pp{pp}_cp{cp}_ep{ep}_mbs{mbs}_act_{act_ckpt}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}"
                     result.append(
                         [
-                            model_name,
-                            model_size,
-                            seq_length,
+                            base_config.model.__class__.__name__,
+                            base_config.data.seq_length,
                             tp,
                             pp,
                             cp,
@@ -172,9 +168,9 @@ def get_results(
                             layers,
                             hs,
                             ffn_hs,
-                            global_batch_size,
-                            num_nodes,
-                            gpus_per_node,
+                            base_config.data.global_batch_size,
+                            train_config.num_nodes,
+                            train_config.gpus_per_node,
                             avg_global_step_time,
                             samples_per_s,
                             m_tflops_gpu,
@@ -184,25 +180,25 @@ def get_results(
                     )
                 finally:
                     continue
-    result.sort(key=lambda x: x[17])
+    result.sort(key=lambda x: x[16])
     print(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
     for i, res in enumerate(result):
-        print(f"Config #{i+1}: {res[-1]} with {res[17]:.4f}s per global step.")
+        print(f"Config #{i+1}: {res[-1]} with {res[16]:.4f}s per global step.")
         if i + 1 == output_top_n:
             break
 
-    top_config = f"{model_name}_{model_size}b_{num_nodes}nodes_tp_{result[0][3]}_pp_{result[0][4]}_cp_{result[0][5]}_ep_{result[0][6]}_mbs_{result[0][7]}_act_ckpt_{result[0][8]}_num_mbs_act_{result[0][9]}_act_per_pipe_{result[0][10]}"
+    top_config = f"{train_config.model.__class__.__name__}_{train_config.num_nodes}nodes_tp_{result[0][3]}_pp_{result[0][4]}_cp_{result[0][5]}_ep_{result[0][6]}_mbs_{result[0][7]}_act_ckpt_{result[0][8]}_num_mbs_act_{result[0][9]}_act_per_pipe_{result[0][10]}"
     print("\n==================================================")
-    print(f"Optimal config: {top_config} with {result[0][17]:.4f}s per global step.")
+    print(f"Optimal config: {top_config} with {result[0][16]:.4f}s per global step.")
     print("==================================================\n")
 
     # Save results as a CSV file.
     os.makedirs(final_result_logs, exist_ok=True)
     result_df = pd.DataFrame(result, columns=result_columns)
-    result_df.to_csv(os.path.join(final_result_logs, f"final_summary_{num_nodes}nodes.csv"), index=False)
+    result_df.to_csv(os.path.join(final_result_logs, f"final_summary_{train_config.num_nodes}nodes.csv"), index=False)
 
     error_df = pd.DataFrame(errors, columns=error_columns)
-    error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{num_nodes}nodes.csv"), index=False)
+    error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{train_config.num_nodes}nodes.csv"), index=False)
 
 
 def calculate_tflops(
