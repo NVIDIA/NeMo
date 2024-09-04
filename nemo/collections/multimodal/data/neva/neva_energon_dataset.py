@@ -6,8 +6,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from einops import rearrange
-
-from megatron.energon import batch_pad_stack
 from megatron.energon import (
     Batch,
     CaptioningSample,
@@ -17,6 +15,7 @@ from megatron.energon import (
     SimilarityInterleavedSample,
     VQASample,
     batch_list,
+    batch_pad_stack,
     batch_stack,
 )
 from PIL import Image
@@ -478,5 +477,3 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         labels[labels == -1] = 0
 
         return attention_mask, loss_mask, position_ids
-
-

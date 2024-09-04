@@ -1521,7 +1521,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             shuffle_buffer_size=100,
             image_decode="pil",
         )
-        
+
         val_datasets = get_val_datasets(
             dname,
             batch_size=micro_batch_size,
