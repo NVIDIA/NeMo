@@ -400,10 +400,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             if is_global_rank_zero():
                 trainer.strategy.remove_checkpoint(checkpoint_path)
                 shutil.move(f"{checkpoint_path}{suffix}", checkpoint_path)
-            
+
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
-            
+
             logging.info(f"Successfully dropped optimizer states for '{checkpoint_path}' checkpoint.")
 
     def _get_checkpoints_list(self, filepath: Union[str, Path]) -> List[str]:
