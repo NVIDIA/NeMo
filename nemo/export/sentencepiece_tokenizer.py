@@ -82,7 +82,7 @@ class SentencePieceTokenizer:
         return self.tokenizer.encode_as_pieces(text)
 
     def encode(self, text, return_tensors=None, max_length=None, **kwargs):
-        """ Arguments: return_tensors, max_length and kwargs were introduced for the consistency with HF API
+        """Arguments: return_tensors, max_length and kwargs were introduced for the consistency with HF API
 
         Note: kwargs are ignored.
         """
@@ -122,19 +122,15 @@ class SentencePieceTokenizer:
                 output = [x[:max_length] for x in output]
         if return_tensors == "pt":
             # Only plain text input is supported since for list of strings some padding needs to be introduced
-            assert isinstance(
-                text, str
-            ), "Returning 'pt' tensors is only supported for simple text input"
+            assert isinstance(text, str), "Returning 'pt' tensors is only supported for simple text input"
             output = torch.LongTensor(output).reshape((1, -1))
         return output
-
 
     def tokens_to_text(self, tokens):
         if isinstance(tokens, np.ndarray):
             tokens = tokens.tolist()
 
         return self.tokenizer.decode_pieces(tokens)
-
 
     def batch_decode(self, ids, **kwargs):
         # Kwargs are ignored, introduced for consistency with HF tokenizer API
@@ -298,7 +294,6 @@ class SentencePieceTokenizer:
         assert not self.legacy, "Legacy implementation is not available."
         assert isinstance(texts, list), f"Expected list of texts, got {type(texts).__name__}: {texts}"
         return {"input_ids": self.tokenizer.encode_as_ids(texts)}
-
 
     def decode(self, ids, **kwargs):
         # Note: kwargs are ignored.
