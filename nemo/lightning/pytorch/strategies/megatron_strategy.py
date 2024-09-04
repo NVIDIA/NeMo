@@ -603,7 +603,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if "sharded_state_dict" not in checkpoint:
             checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
 
-        ## replace unsharded optimizer_states with sharded dict
+        ## replace unsharded optimizer_states with sharded dict.
+        ## note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
+        ## the checkpoint will contain only model weights. Optimizer states will be omitted.
         if "optimizer_states" in checkpoint:
             del checkpoint["optimizer_states"]
             checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]

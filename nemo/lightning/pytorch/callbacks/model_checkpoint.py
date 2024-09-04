@@ -40,7 +40,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
         verbose: Verbosity mode.
         save_last: When ``True``, saves a `*-last` copy whenever a checkpoint file gets saved.
         save_top_k: When ``True``, saves the top-k checkpoints according to ``monitor``.
-        save_weights_only:  if ``True``, then only the model's weights will be saved.
+        save_weights_only:  if ``True``, then only the model's weights will be saved. Optimizer states will
+            be omitted from all checkpoints.
         mode: One of {min, max}. Whether the objective is to minimize or maximize the monitored quantity.
         every_n_epochs: Number of epochs between checkpoints.
         every_n_train_steps: Number of train steps between checkpoints.
@@ -420,7 +421,11 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 super()._save_checkpoint(trainer, ckpt_filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
-            ## Whether to include optimizer states
+            ## Determine whether to include optimizer states in the checkpoint
+            ## optimizer states are included when
+            ## 1. save_weights_only is False and
+            ## 2. either save_optim_on_train_end is True, or save_optim_on_train_end is False but the checkpoint
+            ##    is an intermediate checkpoint.
             save_weights_only = self.save_weights_only or (not self.save_optim_on_train_end and trainer.global_step == trainer.max_steps)
 
             # Async save passes the finalization function to checkpoint_io,
