@@ -287,10 +287,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             en_block_spec = enc_dec_spec_fns[0](self.cfg.encoder.num_layers)
             de_block_spec = enc_dec_spec_fns[1](self.cfg.decoder.num_layers)
 
-
-
-
-
             encoder_config = copy.deepcopy(self.transformer_config)
             encoder_config.num_layers = self.cfg.encoder.num_layers
             if self.cfg.pipeline_model_parallel_size > 1:
@@ -668,8 +664,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         def fwd_output_and_loss_func(dataloader_iter, model):
             # If tuple, 1st element in it is the batch since dataloader_iter returns batch, batch_idx, dataloader_idx
             batch = next(dataloader_iter)
-
-
             if isinstance(batch, tuple):
                 batch = batch[0]
             # convert to list if not already converted.
@@ -1118,7 +1112,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}\n'
             f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}\n'
             f'Number of model parameters on device: {num_parameters_on_device:.2e}\n'
-            f'Total number of model parameters: {total_num_parameters}\n'
+            f'Total number of model parameters: {total_num_parameters:.2e}\n'
         )
         resume_checkpoint_path = self.trainer.ckpt_path
 
