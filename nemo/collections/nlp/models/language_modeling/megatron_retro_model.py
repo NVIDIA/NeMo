@@ -100,7 +100,7 @@ except (ImportError, ModuleNotFoundError):
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 transformer_engine, HAVE_TE = safe_import("transformer_engine")
-te_module, HAVE_TE_MODULE = safe_import_from("transformer_engine.pytorch", module)
+te_module, HAVE_TE_MODULE = safe_import_from("transformer_engine.pytorch", "module")
 HAVE_TE = HAVE_TE and HAVE_TE_MODULE
 
 
