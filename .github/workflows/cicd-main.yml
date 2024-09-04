@@ -4793,14 +4793,14 @@ jobs:
         --devices=2 \
         --max-steps=3 \
         --experiment-dir=examples/llm/t5_pretrain_results \
-        --data-path=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
+        --data-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document \
         --index-mapping-dir=examples/llm/t5_index_mappings
 
         python examples/llm/megatron_t5_pretraining.py \
         --devices=2 \
         --max-steps=6 \
         --experiment-dir=examples/llm/t5_pretrain_results \
-        --data-path=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
+        --data-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document \
         --index-mapping-dir=examples/llm/t5_index_mappings
       AFTER_SCRIPT: |
         rm -rf examples/llm/t5_pretrain_results
