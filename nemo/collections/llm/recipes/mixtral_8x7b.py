@@ -82,7 +82,7 @@ def pretrain_recipe(
             tensor_parallelism=8,
             pipeline_parallelism=2,
             pipeline_parallelism_type=torch.bfloat16,
-            virtual_pipeline_parallelism=8,
+            virtual_pipeline_parallelism=None,
             context_parallelism=1,
             sequence_parallelism=True,
             expert_parallelism=1,
