@@ -195,7 +195,7 @@ def convert(args):
         if "_extra" not in key:
             nemo_key = "model." + key
             nemo_wt = nemo_model_from_pyt.state_dict()[nemo_key]
-            assert torch.allclose(wt.cpu(), nemo_wt.cpu()))
+            assert torch.allclose(wt.cpu(), nemo_wt.cpu())
         else:
             print("ignore _extra", key)
 
