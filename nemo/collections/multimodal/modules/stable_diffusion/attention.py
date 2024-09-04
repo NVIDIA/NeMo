@@ -46,6 +46,7 @@ LayerNormLinear, HAVE_LN_LINEAR = safe_import_from("transformer_engine.pytorch.m
 LayerNormMLP, HAVE_LN_MLP = safe_import_from("transformer_engine.pytorch.module", "LayerNormMLP")
 HAVE_TE = HAVE_DPA and HAVE_LN_LINEAR and HAVE_LN_MLP
 
+
 def check_cuda():
     if not torch.cuda.is_available():
         raise ImportError('CUDA is not available')
