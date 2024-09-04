@@ -97,7 +97,7 @@ def pretrain_recipe(
 def hf_resume() -> Config[nl.AutoResume]:
     return Config(
         nl.AutoResume,
-        restore_config=Config(nl.RestoreConfig, path="hf://meta-llama/Meta-Llama-3.1-70B"),
+        restore_config=Config(nl.RestoreConfig, path="hf://meta-llama/Meta-Llama-3-70B"),
     )
 
 
