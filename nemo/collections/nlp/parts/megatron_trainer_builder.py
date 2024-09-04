@@ -141,9 +141,7 @@ class MegatronTrainerBuilder:
             self.cfg.trainer.precision = None
 
         if self.cfg.get('cluster_type', None) == 'BCP':
-            # plugins.append(TorchElasticEnvironment())
-            from pytorch_lightning.plugins.environments import LightningEnvironment
-            plugins.append(LightningEnvironment())
+            plugins.append(TorchElasticEnvironment())
 
         # Use dist-ckt for non-FSDP MCore models
         use_dist_ckpt = not self.cfg.model.get('fsdp', False) and (
