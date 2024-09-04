@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import shutil
 from collections import OrderedDict
 from pathlib import Path
@@ -22,8 +36,8 @@ from typing_extensions import override
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
+    create_checkpoint_io,
     fix_progress_bar,
-    get_checkpoint_io,
     init_model_parallel,
     mcore_to_pyt_sharded_state_dict,
     pyt_to_mcore_state_dict,
@@ -161,7 +175,10 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
-        return get_checkpoint_io(self._checkpoint_io)
+        if not self._checkpoint_io:
+            self._checkpoint_io = create_checkpoint_io()
+
+        return self._checkpoint_io
 
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:

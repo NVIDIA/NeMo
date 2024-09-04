@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import functools
 import inspect
 import os
@@ -48,8 +62,8 @@ from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
     RestoreConfig,
     ckpt_to_dir,
+    create_checkpoint_io,
     fix_progress_bar,
-    get_checkpoint_io,
     init_model_parallel,
     setup_data_sampler,
     setup_parallel_ranks,
@@ -691,17 +705,19 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
-        return get_checkpoint_io(
-            self._checkpoint_io,
-            save_ckpt_format=self.save_ckpt_format,
-            async_save=self.async_save,
-            torch_dist_multiproc=self.torch_dist_multiproc,
-            assume_constant_structure=self.assume_constant_structure,
-            parallel_save=self.parallel_save,
-            parallel_save_within_dp=self.parallel_save_within_dp,
-            parallel_load=self.parallel_load,
-            load_directly_on_device=self.load_directly_on_device,
-        )
+        if not self._checkpoint_io:
+            self._checkpoint_io = create_checkpoint_io(
+                save_ckpt_format=self.save_ckpt_format,
+                async_save=self.async_save,
+                torch_dist_multiproc=self.torch_dist_multiproc,
+                assume_constant_structure=self.assume_constant_structure,
+                parallel_save=self.parallel_save,
+                parallel_save_within_dp=self.parallel_save_within_dp,
+                parallel_load=self.parallel_load,
+                load_directly_on_device=self.load_directly_on_device,
+            )
+
+        return self._checkpoint_io
 
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:
