@@ -274,7 +274,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 else:
                     super()._save_last_checkpoint(trainer, monitor_candidates)
             if self.save_context_on_train_end and not self.always_save_context and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(self.last_model_path) / "artifacts")
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(self.last_model_path) / "context")
         # Call parent on_train_end() to save the -last checkpoint
         super().on_train_end(trainer, pl_module)
 
@@ -440,7 +440,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             trainer.save_checkpoint(ckpt_filepath, self.save_weights_only, storage_options=storage_options)
 
             if self.always_save_context and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "artifacts")
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context")
 
             if self.async_save:
                 logging.info(f'Scheduled async checkpoint save for {filepath}')

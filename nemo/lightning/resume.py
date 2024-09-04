@@ -172,10 +172,7 @@ class AutoResume(Resume, io.IOMixin):
             if self.adapter_path:
                 return AdapterPath(checkpoint, adapter_path=Path(self.adapter_path))
 
-            model_weights_path = Path(checkpoint) / AutoResume.WEIGHTS_PATH
-            if os.path.isdir(model_weights_path):
-                return model_weights_path
-            return Path(checkpoint)
+            return Path(checkpoint) / AutoResume.WEIGHTS_PATH
 
         return None
 
