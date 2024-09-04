@@ -1,22 +1,23 @@
 import torch
-import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Annotated, Callable, Optional, Literal
+from typing import Callable, Optional, Literal
 from pathlib import Path
-from nemo.collections.llm.gpt.model.base import GPTModel, gpt_forward_step, gpt_data_step
+from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
 from megatron.core.transformer.transformer_config import TransformerConfig
 from nemo.lightning import get_vocab_size, io, teardown
 from megatron.core import parallel_state
 from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
 from megatron.core.models.mamba import MambaModel as MCoreMambaModel
 
-if TYPE_CHECKING:
-    from transformers import LlamaConfig as HFLlamaConfig
-    from transformers import LlamaForCausalLM
+def ssm_forward_step(model, batch) -> torch.Tensor:
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-
+    forward_args = {
+        "input_ids": batch["tokens"],
+        "position_ids": batch["position_ids"],
+        "labels": batch["labels"],
+    }
+    forward_args["attention_mask"] = None
+    return model(**forward_args)
 @dataclass
 class SSMConfig(TransformerConfig, io.IOMixin):
     # From megatron.core.models.mamba.mamba_model.MambaModel
@@ -50,7 +51,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
     
-    forward_step_fn: Callable = gpt_forward_step
+    forward_step_fn: Callable = ssm_forward_step
     data_step_fn: Callable = gpt_data_step
 
     def configure_model(self, tokenizer) -> "MCoreMambaModel":
@@ -72,28 +73,16 @@ class SSMConfig(TransformerConfig, io.IOMixin):
             post_process=parallel_state.is_pipeline_last_stage(),
         )
 
-class SSMModel(GPTModel):
-
-    def forward(self, input_ids, position_ids=None, attention_mask=None, labels=None):
-        attention_mask = None
-        output_tensor = self.module(
-            input_ids=input_ids, 
-            position_ids=position_ids, 
-            attention_mask=attention_mask, 
-            labels=labels
-        )
-        return output_tensor
-
-@io.model_importer(SSMModel, "pytorch")
-class PyTorchSSMImporter(io.ModelConnector["SSMModel", SSMModel]):
+@io.model_importer(GPTModel, "pytorch")
+class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
 
     def __new__(cls, path: str, model_config=None):
         instance = super().__new__(cls, path)
         instance.model_config = model_config
         return instance
-    def init(self) -> SSMModel:
+    def init(self) -> GPTModel:
 
-        return SSMModel(self.config, tokenizer=self.tokenizer)
+        return GPTModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
         
@@ -259,7 +248,7 @@ class NVIDIAMambaConfig8b(SSMConfig):
     mapping_type: str = "nvidia-pure"
 
 @dataclass
-class NVIDIAHybridConfig8b(SSMConfig):
+class NVIDIAMambaHybridConfig8b(SSMConfig):
     hybrid_override_pattern: str = "M-M-M--M-M*-M-M-M-M--M*-M-M-M-M-M*--M-M-M-M-M*-M--M-M-M-"
     num_layers: int = 56
     seq_length: int = 4096
@@ -282,5 +271,5 @@ __all__ = [
     "BaseMambaConfig1_3b",
     "BaseMambaConfig2_7b",
     "NVIDIAMambaConfig8b",
-    "NVIDIAHybridConfig8b"
+    "NVIDIAMambaHybridConfig8b"
 ]

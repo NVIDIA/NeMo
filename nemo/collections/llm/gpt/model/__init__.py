@@ -68,13 +68,12 @@ from nemo.collections.llm.gpt.model.starcoder2 import (
 
 from nemo.collections.llm.gpt.model.ssm import (
     SSMConfig, 
-    SSMModel,
     BaseMambaConfig130m,
     BaseMambaConfig370m,
     BaseMambaConfig780m,
     BaseMambaConfig1_3b,
     BaseMambaConfig2_7b,
-    NVIDIAHybridConfig8b,
+    NVIDIAMambaHybridConfig8b,
     NVIDIAMambaConfig8b,
     )
 __all__ = [
@@ -135,13 +134,12 @@ __all__ = [
     "Qwen2Config72B",
     "Qwen2Model",
     "SSMConfig",
-    "SSMModel",
     "BaseMambaConfig130m",
     "BaseMambaConfig370m",
     "BaseMambaConfig780m",
     "BaseMambaConfig1_3b",
     "BaseMambaConfig2_7b",
-    "NVIDIAHybridConfig8b",
+    "NVIDIAMambaHybridConfig8b",
     "NVIDIAMambaConfig8b",
     "MaskedTokenLossReduction",
     "gpt_data_step",
