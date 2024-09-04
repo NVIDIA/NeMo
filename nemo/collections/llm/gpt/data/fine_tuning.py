@@ -68,7 +68,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.rampup_batch_size = rampup_batch_size
         self.data_sampler = None
         self.max_train_samples = None
-        self.pad_to_max_length=pad_to_max_length
+        self.pad_to_max_length = pad_to_max_length
 
     def setup(self, stage: str):
         self.data_sampler = MegatronDataSampler(

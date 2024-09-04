@@ -1,13 +1,16 @@
-import torch
 from dataclasses import dataclass
-from typing import Callable, Optional, Literal
 from pathlib import Path
-from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
-from megatron.core.transformer.transformer_config import TransformerConfig
-from nemo.lightning import get_vocab_size, io, teardown
+from typing import Callable, Literal, Optional
+
+import torch
 from megatron.core import parallel_state
-from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
 from megatron.core.models.mamba import MambaModel as MCoreMambaModel
+from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
+from megatron.core.transformer.transformer_config import TransformerConfig
+
+from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
+from nemo.lightning import get_vocab_size, io, teardown
+
 
 def ssm_forward_step(model, batch) -> torch.Tensor:
 
@@ -18,6 +21,8 @@ def ssm_forward_step(model, batch) -> torch.Tensor:
     }
     forward_args["attention_mask"] = None
     return model(**forward_args)
+
+
 @dataclass
 class SSMConfig(TransformerConfig, io.IOMixin):
     # From megatron.core.models.mamba.mamba_model.MambaModel
@@ -50,7 +55,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     layernorm_epsilon: float = 1e-5
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
-    
+
     forward_step_fn: Callable = ssm_forward_step
     data_step_fn: Callable = gpt_data_step
 
@@ -73,6 +78,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
             post_process=parallel_state.is_pipeline_last_stage(),
         )
 
+
 @io.model_importer(GPTModel, "pytorch")
 class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
 
@@ -80,12 +86,13 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
         instance = super().__new__(cls, path)
         instance.model_config = model_config
         return instance
+
     def init(self) -> GPTModel:
 
         return GPTModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
-        
+
         source = torch.load(str(self), map_location='cpu')
         if 'model' in source:
             source = source['model']
@@ -93,6 +100,7 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
         class ModelState:
             def __init__(self, state_dict):
                 self._state_dict = state_dict
+
             def state_dict(self):
                 return self._state_dict
 
@@ -114,27 +122,27 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
         if self.model_config.mapping_type == "base":
             mapping = {
                 'backbone.embedding.weight': 'embedding.word_embeddings.weight',
-                'backbone.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log', 
-                'backbone.layers.*.mixer.D': 'decoder.layers.*.mixer.D', 
+                'backbone.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log',
+                'backbone.layers.*.mixer.D': 'decoder.layers.*.mixer.D',
                 'backbone.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
                 'backbone.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
                 'backbone.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
-                'backbone.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',  
+                'backbone.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',
                 'backbone.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
                 'backbone.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
-                'backbone.layers.*.norm.weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',  
+                'backbone.layers.*.norm.weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
                 'backbone.norm_f.weight': 'decoder.final_norm.weight',
                 'lm_head.weight': 'output_layer.weight',
-            }  
+            }
         elif "nvidia" in self.model_config.mapping_type:
             mapping = {
                 'embedding.word_embeddings.weight': 'embedding.word_embeddings.weight',
-                'decoder.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log', 
-                'decoder.layers.*.mixer.D': 'decoder.layers.*.mixer.D', 
+                'decoder.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log',
+                'decoder.layers.*.mixer.D': 'decoder.layers.*.mixer.D',
                 'decoder.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
                 'decoder.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
                 'decoder.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
-                'decoder.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',  
+                'decoder.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',
                 'decoder.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
                 'decoder.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
                 'decoder.layers.*.norm.weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
@@ -142,12 +150,16 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
                 'output_layer.weight': 'output_layer.weight',
             }
             if "hybrid" in self.model_config.mapping_type:
-                mapping.update({'decoder.layers.*.mlp.linear_fc1.layer_norm_weight': 'decoder.layers.*.mlp.linear_fc1.layer_norm_weight', 
-                'decoder.layers.*.mlp.linear_fc1.weight': 'decoder.layers.*.mlp.linear_fc1.weight', 
-                'decoder.layers.*.mlp.linear_fc2.weight': 'decoder.layers.*.mlp.linear_fc2.weight',
-                'decoder.layers.*.self_attention.linear_proj.weight': 'decoder.layers.*.self_attention.linear_proj.weight', 
-                'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight': 'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight', 
-                'decoder.layers.*.self_attention.linear_qkv.weight': 'decoder.layers.*.self_attention.linear_qkv.weight'})
+                mapping.update(
+                    {
+                        'decoder.layers.*.mlp.linear_fc1.layer_norm_weight': 'decoder.layers.*.mlp.linear_fc1.layer_norm_weight',
+                        'decoder.layers.*.mlp.linear_fc1.weight': 'decoder.layers.*.mlp.linear_fc1.weight',
+                        'decoder.layers.*.mlp.linear_fc2.weight': 'decoder.layers.*.mlp.linear_fc2.weight',
+                        'decoder.layers.*.self_attention.linear_proj.weight': 'decoder.layers.*.self_attention.linear_proj.weight',
+                        'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight': 'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight',
+                        'decoder.layers.*.self_attention.linear_qkv.weight': 'decoder.layers.*.self_attention.linear_qkv.weight',
+                    }
+                )
         else:
             raise AttributeError(f"mapping type [{self.mapping_type}] not found.")
         return io.apply_transforms(source, target, mapping=mapping)
@@ -169,9 +181,10 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
     def config(self) -> SSMConfig:
         return self.model_config
 
+
 @dataclass
 class BaseMambaConfig130m(SSMConfig):
-    hybrid_override_pattern: str = "M"*24
+    hybrid_override_pattern: str = "M" * 24
     num_layers: int = 24
     seq_length: int = 2048
     hidden_size: int = 768
@@ -182,9 +195,10 @@ class BaseMambaConfig130m(SSMConfig):
     tokenizer_name: str = "EleutherAI/gpt-neox-20b"
     mapping_type: str = "base"
 
+
 @dataclass
 class BaseMambaConfig370m(SSMConfig):
-    hybrid_override_pattern: str = "M"*48
+    hybrid_override_pattern: str = "M" * 48
     num_layers: int = 48
     seq_length: int = 2048
     hidden_size: int = 1024
@@ -195,9 +209,10 @@ class BaseMambaConfig370m(SSMConfig):
     tokenizer_name: str = "EleutherAI/gpt-neox-20b"
     mapping_type: str = "base"
 
+
 @dataclass
 class BaseMambaConfig780m(SSMConfig):
-    hybrid_override_pattern: str = "M"*48
+    hybrid_override_pattern: str = "M" * 48
     num_layers: int = 48
     seq_length: int = 2048
     hidden_size: int = 1536
@@ -208,9 +223,10 @@ class BaseMambaConfig780m(SSMConfig):
     tokenizer_name: str = "EleutherAI/gpt-neox-20b"
     mapping_type: str = "base"
 
+
 @dataclass
 class BaseMambaConfig1_3b(SSMConfig):
-    hybrid_override_pattern: str = "M"*48
+    hybrid_override_pattern: str = "M" * 48
     num_layers: int = 48
     seq_length: int = 2048
     hidden_size: int = 2048
@@ -221,9 +237,10 @@ class BaseMambaConfig1_3b(SSMConfig):
     tokenizer_name: str = "EleutherAI/gpt-neox-20b"
     mapping_type: str = "base"
 
+
 @dataclass
 class BaseMambaConfig2_7b(SSMConfig):
-    hybrid_override_pattern: str = "M"*64
+    hybrid_override_pattern: str = "M" * 64
     num_layers: int = 64
     seq_length: int = 2048
     hidden_size: int = 2560
@@ -234,9 +251,10 @@ class BaseMambaConfig2_7b(SSMConfig):
     tokenizer_name: str = "EleutherAI/gpt-neox-20b"
     mapping_type: str = "base"
 
+
 @dataclass
 class NVIDIAMambaConfig8b(SSMConfig):
-    hybrid_override_pattern: str = "M"*56
+    hybrid_override_pattern: str = "M" * 56
     num_layers: int = 56
     seq_length: int = 4096
     hidden_size: int = 4096
@@ -246,6 +264,7 @@ class NVIDIAMambaConfig8b(SSMConfig):
     tokenizer_library: str = 'megatron'
     tokenizer_name: str = "GPTSentencePieceTokenizer"
     mapping_type: str = "nvidia-pure"
+
 
 @dataclass
 class NVIDIAMambaHybridConfig8b(SSMConfig):
@@ -261,7 +280,8 @@ class NVIDIAMambaHybridConfig8b(SSMConfig):
     tokenizer_library: str = 'megatron'
     tokenizer_name: str = "GPTSentencePieceTokenizer"
     mapping_type: str = "nvidia-hybrid"
-    
+
+
 __all__ = [
     "SSMModel",
     "SSMConfig",
@@ -271,5 +291,5 @@ __all__ = [
     "BaseMambaConfig1_3b",
     "BaseMambaConfig2_7b",
     "NVIDIAMambaConfig8b",
-    "NVIDIAMambaHybridConfig8b"
+    "NVIDIAMambaHybridConfig8b",
 ]

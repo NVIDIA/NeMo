@@ -126,12 +126,12 @@ def convert(args):
         for key, value in checkpoint_weights.items():
             if '.norm.weight' in key and 'mixer' not in key:
                 key = key[:-11] + 'mixer.in_proj.layer_norm_weight'
-            new_state_dict["model." + key] = value  
+            new_state_dict["model." + key] = value
 
         # NVIDIA Mamba Model Tokenizer Settings
         tokenizer_library = 'megatron'
         tokenizer_type = 'GPTSentencePieceTokenizer'
-        tokenizer_model = args.tokenizer_model_dir     
+        tokenizer_model = args.tokenizer_model_dir
 
     layers = defaultdict(list)
 
@@ -180,10 +180,10 @@ def convert(args):
     trainer = MegatronLMPPTrainerBuilder(nemo_config).create_trainer()
     nemo_model_from_pyt = MegatronMambaModel(nemo_config.model, trainer)
 
-    for k,v in nemo_model_from_pyt.state_dict().items():
+    for k, v in nemo_model_from_pyt.state_dict().items():
         if "_extra" in k:
             new_state_dict[k] = v
-            
+
     # Setting strict=False for the _extra_state
     nemo_model_from_pyt.load_state_dict(new_state_dict, strict=False)
     dtype = torch_dtype_from_precision(args.precision)

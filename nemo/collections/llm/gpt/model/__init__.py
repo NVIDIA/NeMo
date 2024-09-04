@@ -57,6 +57,16 @@ from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config500M,
     Qwen2Model,
 )
+from nemo.collections.llm.gpt.model.ssm import (
+    BaseMambaConfig1_3b,
+    BaseMambaConfig2_7b,
+    BaseMambaConfig130m,
+    BaseMambaConfig370m,
+    BaseMambaConfig780m,
+    NVIDIAMambaConfig8b,
+    NVIDIAMambaHybridConfig8b,
+    SSMConfig,
+)
 from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
 from nemo.collections.llm.gpt.model.starcoder2 import (
     Starcoder2Config,
@@ -66,16 +76,6 @@ from nemo.collections.llm.gpt.model.starcoder2 import (
     Starcoder2Model,
 )
 
-from nemo.collections.llm.gpt.model.ssm import (
-    SSMConfig, 
-    BaseMambaConfig130m,
-    BaseMambaConfig370m,
-    BaseMambaConfig780m,
-    BaseMambaConfig1_3b,
-    BaseMambaConfig2_7b,
-    NVIDIAMambaHybridConfig8b,
-    NVIDIAMambaConfig8b,
-    )
 __all__ = [
     "GPTConfig",
     "GPTModel",
