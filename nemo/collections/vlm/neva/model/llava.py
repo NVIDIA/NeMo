@@ -114,19 +114,23 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
             "vision_tower.vision_model.*": "vision_model.vision_model.*",
         }
         if "vision_projection.encoder.linear_fc1.weight" in target.module.state_dict().keys():
-            mapping.update({
-                "multi_modal_projector.linear_1.weight": "vision_projection.encoder.linear_fc1.weight",
-                "multi_modal_projector.linear_1.bias": "vision_projection.encoder.linear_fc1.bias",
-                "multi_modal_projector.linear_2.weight": "vision_projection.encoder.linear_fc2.weight",
-                "multi_modal_projector.linear_2.bias": "vision_projection.encoder.linear_fc2.bias",
-            })
+            mapping.update(
+                {
+                    "multi_modal_projector.linear_1.weight": "vision_projection.encoder.linear_fc1.weight",
+                    "multi_modal_projector.linear_1.bias": "vision_projection.encoder.linear_fc1.bias",
+                    "multi_modal_projector.linear_2.weight": "vision_projection.encoder.linear_fc2.weight",
+                    "multi_modal_projector.linear_2.bias": "vision_projection.encoder.linear_fc2.bias",
+                }
+            )
         elif "vision_projection.0.weight" in target.module.state_dict().keys():
-            mapping.update({
-                "multi_modal_projector.linear_1.weight": "vision_projection.0.weight",
-                "multi_modal_projector.linear_1.bias": "vision_projection.0.bias",
-                "multi_modal_projector.linear_2.weight": "vision_projection.2.weight",
-                "multi_modal_projector.linear_2.bias": "vision_projection.2.bias",
-            })
+            mapping.update(
+                {
+                    "multi_modal_projector.linear_1.weight": "vision_projection.0.weight",
+                    "multi_modal_projector.linear_1.bias": "vision_projection.0.bias",
+                    "multi_modal_projector.linear_2.weight": "vision_projection.2.weight",
+                    "multi_modal_projector.linear_2.bias": "vision_projection.2.bias",
+                }
+            )
         else:
             raise KeyError("Unable to map vision projection keys.")
 

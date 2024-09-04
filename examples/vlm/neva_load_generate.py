@@ -13,13 +13,14 @@
 # limitations under the License.
 
 import argparse
+
 import requests
 import torch
 from PIL import Image
 from transformers import AutoProcessor
 
 from nemo import lightning as nl
-from nemo.collections.vlm import LlavaModel, Llava1_5Config7B
+from nemo.collections.vlm import Llava1_5Config7B, LlavaModel
 from nemo.utils import logging
 
 
@@ -122,6 +123,7 @@ def main(args) -> None:
     logging.info("======== GENERATED TEXT OUTPUT ========")
     logging.info(f"{generated_texts}")
     logging.info("=======================================")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="LLaVA Multimodal Inference")

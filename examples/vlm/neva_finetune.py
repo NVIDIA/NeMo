@@ -53,7 +53,9 @@ def main(args):
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
     )
-    vision_projection_config = vlm.MultimodalProjectorConfig(projector_type=args.projector_type, input_size=1024, hidden_size=4096)
+    vision_projection_config = vlm.MultimodalProjectorConfig(
+        projector_type=args.projector_type, input_size=1024, hidden_size=4096
+    )
 
     # NEVA model configuration
     neva_config = vlm.NevaConfig(
@@ -100,10 +102,11 @@ def main(args):
 
     # Logger setup
     from pytorch_lightning.loggers import WandbLogger
+
     nemo_logger = nl.NeMoLogger(
         dir=args.log_dir,
         name=args.name,
-        wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None
+        wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None,
     )
     nemo_logger.setup(
         trainer,
@@ -117,9 +120,13 @@ def main(args):
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
-        selective_restore_config=SelectiveRestoreConfig(
-            path=args.restore_path,
-        ) if args.restore_path is not None else None,
+        selective_restore_config=(
+            SelectiveRestoreConfig(
+                path=args.restore_path,
+            )
+            if args.restore_path is not None
+            else None
+        ),
     )
     resume.setup(trainer, model)
 
@@ -152,7 +159,9 @@ if __name__ == "__main__":
     parser.add_argument("--data_path", type=str, required=True, help="Path to the dataset JSON file")
     parser.add_argument("--image_folder", type=str, required=True, help="Path to the image folder")
     parser.add_argument("--log_dir", type=str, required=True, help="Directory for logging and checkpoints")
-    parser.add_argument("--language_model_path", type=str, required=False, default=None, help="Path to the pretrained language model")
+    parser.add_argument(
+        "--language_model_path", type=str, required=False, default=None, help="Path to the pretrained language model"
+    )
     parser.add_argument(
         "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
     )
