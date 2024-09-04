@@ -163,6 +163,7 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
                 modules.append(torch.nn.Linear(self.hidden_size, self.hidden_size, bias=True))
             model = torch.nn.Sequential(*modules)
             from types import MethodType
+
             model.set_input_tensor = MethodType(set_input_tensor, model)
         else:
             raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
