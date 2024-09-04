@@ -7,7 +7,6 @@ from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADER
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
-from nemo.utils import logging
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 HAVE_TE = True
@@ -58,6 +57,7 @@ class MockDataModule(pl.LightningDataModule):
 
     def setup(self, stage: str = "") -> None:
         self._train_ds = _MockGPTDataset(
+            self.tokenizer, "train", self.num_train_samples, self.seq_length, self.create_attention_mask
         )
         self._validation_ds = _MockGPTDataset(
             self.tokenizer, "valid", self.num_val_samples, self.seq_length, self.create_attention_mask
@@ -65,6 +65,15 @@ class MockDataModule(pl.LightningDataModule):
         self._test_ds = _MockGPTDataset(
             self.tokenizer, "test", self.num_test_samples, self.seq_length, self.create_attention_mask
         )
+
+    def train_dataloader(self) -> TRAIN_DATALOADERS:
+        if not hasattr(self, "_train_ds"):
+            self.setup()
+        return self._create_dataloader(self._train_ds)
+
+    def val_dataloader(self) -> EVAL_DATALOADERS:
+        if not hasattr(self, "_validation_ds"):
+            self.setup()
         return self._create_dataloader(self._validation_ds)
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
@@ -90,7 +99,6 @@ class _MockGPTDataset(Dataset):
         name: str,
         num_samples: int,
         seq_length: int,
-        get_attention_mask_from_fusion: bool,
         seed: int = 42,
         create_attention_mask: bool = False,
     ) -> None:
@@ -99,7 +107,6 @@ class _MockGPTDataset(Dataset):
         self.seq_length = seq_length
         self.vocab_size = tokenizer.vocab_size
         self.length = num_samples
-        self.get_attention_mask_from_fusion = get_attention_mask_from_fusion
         self.seed = seed
         self.create_attention_mask = create_attention_mask
 
