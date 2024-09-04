@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from einops import rearrange
 
-# from megatron.energon import batch_pad_stack, stateless
+from megatron.energon import batch_pad_stack
 from megatron.energon import (
     Batch,
     CaptioningSample,
@@ -480,82 +480,3 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         return attention_mask, loss_mask, position_ids
 
 
-class PackingTaskEncoder(TaskEncoder):
-    def __init__(self, tokenizer, image_processor, multimodal_cfg: dict, data_cfg: dict, max_length: int):
-        super().__init__(tokenizer, image_processor, multimodal_cfg, data_cfg)
-        self.max_length = max_length
-        self.batch_type = ImageTaskBatch
-
-    @stateless(restore_seeds=True)
-    def encode_sample(
-        self, sample: Union[ImageTaskSample, VQASample, InterleavedSample, SimilarityInterleavedSample]
-    ) -> dict:
-        return super().encode_sample(sample)
-
-    def slice_batch(self, samples: List[ImageTaskSample]) -> List[List[ImageTaskSample]]:
-        # Sort samples by token length
-        samples.sort(key=lambda x: len(x.tokens))
-        batches = []
-        while len(samples) > 0:
-            batch = []
-            total_length = 0
-            while len(samples) > 0 and total_length + len(samples[0].tokens) <= self.max_length:
-                sample = samples.pop(0)
-                batch.append(sample)
-                total_length += len(sample.tokens)
-            batches.append(batch)
-        return batches
-
-    def batch(self, samples: List[ImageTaskSample]) -> ImageTaskBatch:
-        tokens = torch.cat([s.tokens for s in samples])
-        labels = torch.cat([s.labels for s in samples])
-
-        cu_seqlens = torch.cumsum(torch.tensor([0] + [len(s.tokens) for s in samples]), dim=0)
-        max_seqlen = cu_seqlens[-1]
-
-        attention_mask = torch.ones(max_seqlen, max_seqlen, dtype=torch.bool)
-        loss_mask = torch.cat([s.loss_mask for s in samples])
-        position_ids = torch.arange(max_seqlen, dtype=torch.long)
-
-        media = (
-            torch.stack([s.image for s in samples if s.image is not None])
-            if self.multimodal_cfg['is_multimodal']
-            else None
-        )
-
-        batch = ImageTaskBatch(
-            tokens=tokens.unsqueeze(0),
-            labels=labels.unsqueeze(0),
-            attention_mask=attention_mask.unsqueeze(0),
-            loss_mask=loss_mask.unsqueeze(0),
-            position_ids=position_ids.unsqueeze(0),
-            media=media,
-        )
-
-        if batch.media is not None:
-            if batch.media.shape[1] == 1:
-                batch.media = rearrange(batch.media, "b T c h w -> b T 1 c h w")
-            else:
-                batch.media = rearrange(batch.media, "b T c h w -> b T 1 c h w")
-
-        return batch
-
-    def encode_batch(self, batch: ImageTaskBatch) -> dict:
-        return super().encode_batch(batch)
-
-
-# Usage example:
-# neva_encoder = TaskEncoder(
-#     tokenizer=your_tokenizer,
-#     image_processor=your_image_processor,
-#     multimodal_cfg=your_multimodal_cfg,
-#     data_cfg=your_data_cfg
-# )
-
-# train_loader = get_loader(get_train_dataset(
-#     '/path/to/your/dataset',
-#     batch_size=2,
-#     shuffle_buffer_size=100,
-#     task_encoder=neva_encoder,
-#     image_decode="torchrgb",
-# ))

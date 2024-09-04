@@ -81,7 +81,7 @@ try:
         get_val_datasets,
     )
 
-    from nemo.collections.multimodal.data.neva.neva_energon_dataset import PackingTaskEncoder, TaskEncoder
+    from nemo.collections.multimodal.data.neva.neva_energon_dataset import TaskEncoder
 
     HAVE_ENERGON = True
 
@@ -1521,16 +1521,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             shuffle_buffer_size=100,
             image_decode="pil",
         )
-
-        # Sequence packing support in Energon is WIP, see neva_energon_dataset.py and https://github.com/NVIDIA/Megatron-Energon/pull/5
-        """
-        task_encoder=PackingTaskEncoder(
-            #tokenizer=self.tokenizer,
-            #image_processor=image_processor,
-            #multimodal_cfg=multimodal_cfg,
-            #ata_cfg=data_cfg,
-            #max_length=4096),
-        """
+        
         val_datasets = get_val_datasets(
             dname,
             batch_size=micro_batch_size,
