@@ -81,6 +81,7 @@ class AutoResume:
         try:
             new_path = model.import_ckpt(path)
         except (ValueError, AttributeError):
+            # This is reached when the model connector does not exist for the particular path.
             new_path = path
 
         if adapter_path:
@@ -146,16 +147,16 @@ class AutoResume:
                         f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Cannot resume."
                     )
         elif len(end_checkpoints) > 0:
-            if self.resume_past_end:
-                if len(end_checkpoints) > 1:
-                    if "mp_rank" in str(end_checkpoints[0]):
-                        checkpoint = end_checkpoints[0]
-                    else:
-                        raise ValueError(f"Multiple checkpoints {end_checkpoints} that matches *end.ckpt.")
-            else:
+            if not self.resume_past_end:
                 raise ValueError(
                     f"Found {end_checkpoints[0]} indicating that the last training run has already completed."
                 )
+
+            if len(end_checkpoints) > 1:
+                if "mp_rank" in str(end_checkpoints[0]):
+                    checkpoint = end_checkpoints[0]
+                else:
+                    raise ValueError(f"Multiple checkpoints {end_checkpoints} that matches *end.ckpt.")
         elif len(last_checkpoints) > 1:
             if any([s for s in ["mp_rank", "tp_rank", "fsdp_shard"] if s in str(last_checkpoints[0])]):
                 checkpoint = last_checkpoints[0]
