@@ -64,7 +64,10 @@ def get_args():
         "--tokenizer_type", type=str, default='tiktoken', help="tokenizer type (tiktoken, megatron etc...)"
     )
     parser.add_argument(
-        "--tokenizer_library", type=str, default='tiktoken', help="tokenizer library (tiktoken, megatron, huggingface etc..)"
+        "--tokenizer_library",
+        type=str,
+        default='tiktoken',
+        help="tokenizer library (tiktoken, megatron, huggingface etc..)",
     )
     args = parser.parse_args()
     return args
@@ -125,16 +128,15 @@ def convert(args):
 
     layers = defaultdict(list)
 
-
     # Tokenizer settings
     if args.tokenizer_type == "tiktoken":
         tokenizer_library = 'tiktoken'
-        tokenizer_type = 'tiktoken' #'GPTSentencePieceTokenizer'
+        tokenizer_type = 'tiktoken'  #'GPTSentencePieceTokenizer'
         tokenizer_model = None
         tokenizer_vocab = args.tokenizer_vocab_file
     else:
-        tokenizer_library = args.tokenizer_library #'huggingface'
-        tokenizer_type = args.tokenizer_type #'EleutherAI/gpt-neox-20b'
+        tokenizer_library = args.tokenizer_library  #'huggingface'
+        tokenizer_type = args.tokenizer_type  #'EleutherAI/gpt-neox-20b'
         tokenizer_model = args.tokenizer_model_dir
         tokenizer_vocab = None
 
@@ -198,7 +200,6 @@ def convert(args):
             assert torch.allclose(wt.cpu(), nemo_wt.cpu())
         else:
             print("ignore _extra", key)
-
 
 
 if __name__ == '__main__':
