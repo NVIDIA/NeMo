@@ -426,7 +426,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ## 1. save_weights_only is False and
             ## 2. either save_optim_on_train_end is True, or save_optim_on_train_end is False but the checkpoint
             ##    is an intermediate checkpoint.
-            save_weights_only = self.save_weights_only or (not self.save_optim_on_train_end and trainer.global_step == trainer.max_steps)
+            save_weights_only = self.save_weights_only or (
+                not self.save_optim_on_train_end and trainer.global_step == trainer.max_steps
+            )
 
             # Async save passes the finalization function to checkpoint_io,
             # sync save calls the finalization function immediately after save.
