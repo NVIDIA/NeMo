@@ -4,10 +4,8 @@
 import argparse
 
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.loggers import WandbLogger
 import torch
-import os
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -25,7 +23,7 @@ def get_args():
     parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
     parser.add_argument('--experiment-dir', type=str, help="directory to write results and checkpoints to")
     parser.add_argument('--experiment-name', type=str, help="name of experiment")
-    parser.add_argument('--wandb-project', type=str, help="wandb project name")
+    parser.add_argument('--wandb-project', type=str, default=None, help="wandb project name")
     parser.add_argument('--data-path', type=str, help="Path to data file")
     parser.add_argument('--vocab-path', type=str, default=None, help="Path to vocab file")
     parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
@@ -117,11 +115,14 @@ if __name__ == '__main__':
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
     )
 
-    wandb_logger = WandbLogger(
-        name=args.experiment_name,
-        project=args.wandb_project,
-        log_model="all",
-    )
+    if args.wandb_project is not None:
+        wandb_logger = WandbLogger(
+            name=args.experiment_name,
+            project=args.wandb_project,
+            log_model="all",
+        )
+    else:
+        wandb_logger = None
     nemo_logger = NeMoLogger(
         name=args.experiment_name,
         use_datetime_version=False,

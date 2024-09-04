@@ -15,9 +15,6 @@ from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 
-from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import AttnMaskType
-from nemo.collections.nlp.modules.common.megatron.utils import build_attention_mask_3d
-
 HAVE_TE = True
 try:
     import transformer_engine
