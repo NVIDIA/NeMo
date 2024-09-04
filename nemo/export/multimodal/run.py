@@ -176,7 +176,7 @@ class MultimodalModelRunner:
             lora_ckpt_source="nemo",
             rank=tensorrt_llm.mpi_rank(),
             debug_mode=False,
-            stream=self.stream
+            stream=self.stream,
         )
         self.model_config = self.model.session._model_config
         self.runtime_mapping = self.model.session.mapping
