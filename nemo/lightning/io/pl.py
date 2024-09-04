@@ -126,13 +126,22 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
         validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
         self.validated_consistency = True
-        return dist_checkpointing.save(
-            sharded_state_dict=checkpoint,
-            checkpoint_dir=checkpoint_dir,
-            sharded_strategy=self.save_sharded_strategy,
-            validate_access_integrity=validate_sharding_integrity,
-            async_sharded_save=self.async_save,
-        )
+
+        try:
+            return dist_checkpointing.save(
+                sharded_state_dict=checkpoint,
+                checkpoint_dir=checkpoint_dir,
+                sharded_strategy=self.save_sharded_strategy,
+                validate_access_integrity=validate_sharding_integrity,
+                async_sharded_save=self.async_save,
+            )
+        except:
+            logging.error(f"Failed to save checkpoint to {checkpoint_dir}")
+            # Do cleanup.
+            import shutil
+
+            shutil.rmtree(checkpoint_dir)
+            raise
 
     @override
     def load_checkpoint(
@@ -208,6 +217,13 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         are passed in config or in case of a fully parallel save in which case
         a parallelization wrapper is applied.
         """
+        if self.save_ckpt_format == 'zarr':
+            logging.warning(
+                f'`zarr` distributed checkpoint backend is deprecated.'
+                f' Distributed optimizer checkpoint saving might be extremely slow.'
+                f' Please switch to PyTorch Distributed format (model.dist_ckpt_format=torch_dist).'
+            )
+
         if self.async_save and self.save_ckpt_format != 'torch_dist':
             raise ValueError('Async dist-ckpt save supported only for torch_dist format')
 
