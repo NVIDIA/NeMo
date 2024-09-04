@@ -13,6 +13,9 @@ from nemo.collections.llm.recipes import (
     mixtral_8x7b_16k,
     mixtral_8x7b_64k,
     mixtral_8x22b,
+    nemotron4_15b,
+    nemotron4_15b_16k,
+    nemotron4_15b_64k,
 )
 from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim import adam
@@ -32,6 +35,9 @@ __all__ = [
     "mixtral_8x7b_16k",
     "mixtral_8x7b_64k",
     "mixtral_8x22b",
+    "nemotron4_15b",
+    "nemotron4_15b_16k",
+    "nemotron4_15b_64k",
     "adam",
     "default_log",
     "default_resume",
