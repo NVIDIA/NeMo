@@ -65,6 +65,7 @@ def get_args():
     )
     parser.add_argument(
         "--tokenizer_library", type=str, default='tiktoken', help="tokenizer library (tiktoken, megatron, huggingface etc..)"
+    )
     args = parser.parse_args()
     return args
 
@@ -190,6 +191,14 @@ def convert(args):
     nemo_model_from_pyt = nemo_model_from_pyt.to(dtype=dtype)
     nemo_model_from_pyt.save_to(args.output_path)
     logging.info(f'Mamba2 NeMo model saved to: {args.output_path}')
+    for key, wt in checkpoint_weights.items():
+        if "_extra" not in key:
+            nemo_key = "model." + key
+            nemo_wt = nemo_model_from_pyt.state_dict()[nemo_key]
+            assert torch.allclose(wt.cpu(), nemo_wt.cpu()))
+        else:
+            print("ignore _extra", key)
+
 
 
 if __name__ == '__main__':

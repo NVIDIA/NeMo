@@ -20,7 +20,10 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.utils import logging
+import torch.nn.functional as F
 
+def squared_relu(x):
+    return torch.pow(F.relu(x), 2)
 
 class MegatronMambaModel(MegatronGPTModel):
     """
@@ -43,6 +46,7 @@ class MegatronMambaModel(MegatronGPTModel):
         self.transformer_config.add_bias_linear = self.cfg.get('add_bias_linear', False)
         self.transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', False)
         self.transformer_config.layernorm_epsilon = self.cfg.get('layernorm_epsilon', 1e-5)
+        self.transformer_config.activation_func = squared_relu
 
         model = MambaModel(
             config=self.transformer_config,

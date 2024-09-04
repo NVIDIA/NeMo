@@ -165,7 +165,7 @@ def parse_weights(
 ):
     for key in weight_dict:
         if key.endswith('_extra_state'):
-            if weight_dict[key].read() == b'':
+            if weight_dict[key] is None or weight_dict[key].read() == b'':
                 continue
             else:
                 raise RuntimeError("encountered _extra_state that is non empty. I don't know what to do!!")
