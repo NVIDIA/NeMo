@@ -32,6 +32,8 @@ def copy_file(src: Union[Path, str], path: Union[Path, str], relative_dst: Union
     print('copy_file.src= ' + str(src) + " path= " + str(path) + " relative_dst= " + str(relative_dst))
     relative_path = pathize(relative_dst) / pathize(src).name
     output = pathize(path) / relative_path
+    if output.exists():
+        raise FileExistsError(f"Dst file already exists {str(output)}")
     shutil.copy2(src, output)
     return relative_path
 
