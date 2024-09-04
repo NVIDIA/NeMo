@@ -463,10 +463,6 @@ def modify_cfg(
     mod_layers = num_layers % pp
     if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
         # Valid config
-        # days = max_minutes // 3600
-        # hours = (max_minutes % 3600) // 60
-        # mins = (max_minutes % 3600) % 60
-        # new_cfg["run"]["time_limit"] = f"{days}-{hours}:{mins}:00"
         new_cfg["run"][
             "name"
         ] = f"{new_cfg['run']['name']}_{num_nodes}nodes_tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_act_ckpt_{act}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}"
