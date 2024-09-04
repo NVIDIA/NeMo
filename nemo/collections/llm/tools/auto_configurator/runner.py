@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import os
 import re
 
 from dataclasses import dataclass
@@ -215,6 +216,7 @@ def generate_configs(config: AutoConfigurator = None) -> dict:
     for name, config in train_configs.items():
         trainer = copy.deepcopy(base_config.trainer)
         data = copy.deepcopy(base_config.data)
+        log = copy.deepcopy(base_config.log)
 
         # Set data params
         data.micro_batch_size = config.get("micro_batch_size")
@@ -228,6 +230,10 @@ def generate_configs(config: AutoConfigurator = None) -> dict:
         trainer.strategy.virtual_pipeline_model_parallel_size = config.get(
             "virtual_pipeline_model_parallel_size", None
         )
+
+        # Set the directory where to save the logs
+        log.dir = os.path.join(log.dir, name)
+        log.tensorboard.save_dir = os.path.join(log.dir, name)
 
         configs[name] = Partial(
             pretrain,
