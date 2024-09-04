@@ -44,6 +44,7 @@ from nemo.utils.import_utils import safe_import_from
 LayerNormLinear, _ = safe_import_from("transformer_engine.pytorch.module", "LayerNormLinear")
 LayerNormMLP, _ = safe_import_from("transformer_engine.pytorch.module", "LayerNormMLP")
 
+
 def check_cuda():
     if not torch.cuda.is_available():
         raise ImportError('CUDA is not available')

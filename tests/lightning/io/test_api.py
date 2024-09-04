@@ -11,6 +11,7 @@ from nemo.utils.import_utils import safe_import
 
 te, HAVE_TE = safe_import("transformer_engine")
 
+
 def dummy_extra(a, b, c=5):
     return a + b + c
 

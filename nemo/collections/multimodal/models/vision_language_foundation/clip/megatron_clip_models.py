@@ -106,6 +106,7 @@ except (ImportError, ModuleNotFoundError):
 _, HAVE_TE = safe_import("transformer_engine")
 te_module, _ = safe_import_from("transformer_engine.pytorch", "module")
 
+
 @cache
 def mcore_supports_moe() -> bool:
     global HAVE_MEGATRON_CORE
