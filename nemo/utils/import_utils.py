@@ -89,10 +89,16 @@ class UnavailableMeta(type):
     def __gt__(cls, other):
         raise UnavailableError(cls._msg)
 
+    def __le__(cls, other):
+        raise UnavailableError(cls._msg)
+
+    def __ge__(cls, other):
+        raise UnavailableError(cls._msg)
+
     def __ne__(cls, other):
         raise UnavailableError(cls._msg)
 
-    def __abs__(cls, other):
+    def __abs__(cls):
         raise UnavailableError(cls._msg)
 
     def __add__(cls, other):
