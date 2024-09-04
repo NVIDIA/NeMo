@@ -606,7 +606,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ## only save optimizer states if self.ckpt_include_optimizer and storage_options["include_optimizer"]
         ## are both True
         include_optimizer = self.ckpt_include_optimizer
-        if "include_optimizer" in storage_options:
+        if storage_options is not None and "include_optimizer" in storage_options:
             include_optimizer = include_optimizer and storage_options["include_optimizer"]
             del storage_options["include_optimizer"]
 
