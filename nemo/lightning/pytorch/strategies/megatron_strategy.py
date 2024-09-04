@@ -46,7 +46,7 @@ from nemo.lightning import _strategy_lib, io
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
-    SelectiveRestoreConfig,
+    RestoreConfig,
     ckpt_to_dir,
     fix_progress_bar,
     get_checkpoint_io,
@@ -179,7 +179,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         init_model_parallel: bool = True,
         replace_progress_bar: bool = True,
         progress_interval: int = 1,
-        selective_restore_config: Optional[SelectiveRestoreConfig] = None,
+        selective_restore_config: Optional[RestoreConfig] = None,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -618,7 +618,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def should_restore_optimizer_states(self, selective_restore: bool = False) -> bool:
         if selective_restore:
-            return self.selective_restore_config.optimizer_states if self.selective_restore_config else False
+            return self.selective_restore_config.load_optim_state if self.selective_restore_config else False
 
         return self.ckpt_load_optimizer
 
@@ -654,11 +654,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         checkpoint = self.load_checkpoint(checkpoint_path=self.selective_restore_config.path, selective_restore=True)
 
-        if self.selective_restore_config.model_weights:
+        if self.selective_restore_config.load_model_state:
             logging.info(f"Restoring model weights from {self.selective_restore_config}")
             self.load_model_state_dict(checkpoint=checkpoint)
 
-        if self.selective_restore_config.optimizer_states:
+        if self.selective_restore_config.load_optim_state:
             logging.info(f"Restoring optimizer states from {self.selective_restore_config}")
             self.load_optimizer_state_dict(checkpoint=checkpoint, selective_restore=True)
 

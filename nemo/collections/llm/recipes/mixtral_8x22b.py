@@ -104,7 +104,7 @@ def pretrain_recipe(
 def hf_resume() -> Config[nl.AutoResume]:
     return Config(
         nl.AutoResume,
-        selective_restore_config=Config(nl.SelectiveRestoreConfig, path="hf://mistralai/Mixtral-8x22B-v0.1"),
+        restore_config=Config(nl.RestoreConfig, path="hf://mistralai/Mixtral-8x22B-v0.1"),
     )
 
 

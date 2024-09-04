@@ -23,11 +23,11 @@ from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 
 
 @dataclass(kw_only=True)
-class SelectiveRestoreConfig:
+class RestoreConfig:
     path: str
     adapter_path: Optional[str] = None
-    model_weights: bool = True
-    optimizer_states: bool = False
+    load_model_state: bool = True
+    load_optim_state: bool = False
 
 
 def setup_parallel_ranks(strategy: pl.strategies.Strategy):

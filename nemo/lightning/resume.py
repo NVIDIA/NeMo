@@ -8,7 +8,7 @@ import lightning_fabric as fl
 import pytorch_lightning as pl
 
 from nemo.lightning import io
-from nemo.lightning.pytorch.strategies.utils import SelectiveRestoreConfig
+from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import uninject_model_parallel_rank
@@ -26,9 +26,9 @@ class AutoResume:
     checkpoints in NeMo.
 
     Attributes:
-        selective_restore_config (Optional[SelectiveRestoreConfig]): Optional config for selectively restoring specific parts like model weights, optimizer states, etc.
+        restore_config (Optional[RestoreConfig]): Optional config for selectively restoring specific parts like model weights, optimizer states, etc.
             If the config contains a path from HF or another non-NeMo checkpoint format, the checkpoint will be automatically converted to a NeMo compatible format.
-            resume_from_folder or the run's log_dir takes precedence over selective_restore_config.
+            resume_from_folder or the run's log_dir takes precedence over restore_config.
         resume_from_directory (str): Path to the checkpointing directory to restore from. Defaults to <log_dir>/checkpoints
         adapter_path (str): Path to any adapter checkpoints.
         resume_if_exists (bool): Whether this experiment is resuming from a previous run. If
@@ -45,7 +45,7 @@ class AutoResume:
             continue without restoring.
     """
 
-    selective_restore_config: Optional[SelectiveRestoreConfig] = None
+    restore_config: Optional[RestoreConfig] = None
     resume_from_directory: Optional[str] = None
     adapter_path: Optional[str] = None
     resume_if_exists: bool = False
@@ -60,18 +60,18 @@ class AutoResume:
         if trainer_ckpt_path:
             trainer.ckpt_path = trainer_ckpt_path
             trainer.checkpoint_callback.last_model_path = trainer_ckpt_path
-        elif self.selective_restore_config:
+        elif self.restore_config:
             new_path = self._try_import_model(
                 model=model,
-                path=self.selective_restore_config.path,
-                adapter_path=self.selective_restore_config.adapter_path,
+                path=self.restore_config.path,
+                adapter_path=self.restore_config.adapter_path,
             )
             if isinstance(new_path, AdapterPath):
-                self.selective_restore_config.path = new_path.base_model_path
-                self.selective_restore_config.adapter_path = str(new_path)
+                self.restore_config.path = new_path.base_model_path
+                self.restore_config.adapter_path = str(new_path)
             else:
-                self.selective_restore_config.path = str(new_path)
-            trainer.strategy.selective_restore_config = self.selective_restore_config
+                self.restore_config.path = str(new_path)
+            trainer.strategy.restore_config = self.restore_config
 
     def _try_import_model(
         self, model: Optional[io.ConnectorMixin], path: str, adapter_path: Optional[str] = None
@@ -96,11 +96,11 @@ class AutoResume:
         with open(adapter_meta_path, "r") as f:
             metadata = json.load(f)
 
-        assert self.selective_restore_config, "PEFT resume requires specifying selective_restore_config"
+        assert self.restore_config, "PEFT resume requires specifying restore_config"
         assert (
-            "://" in self.selective_restore_config.path
+            "://" in self.restore_config.path
         ), "For now PEFT resume requires specifying the import path instead of local path"
-        base_model_path = self._try_import_model(model, self.selective_restore_config.path)
+        base_model_path = self._try_import_model(model, self.restore_config.path)
         if base_model_path != Path(metadata['model_ckpt_path']):
             raise ValueError(
                 f"When trying to resume a PEFT training run, found mismatching values: "
@@ -139,7 +139,7 @@ class AutoResume:
                     warn += "Training from scratch."
                 logging.warning(warn)
             else:
-                if self.selective_restore_config:
+                if self.restore_config:
                     # resume_if_exists is True but run is not resumable. Do not fail and try to do selective restore later instead.
                     return None
                 else:
