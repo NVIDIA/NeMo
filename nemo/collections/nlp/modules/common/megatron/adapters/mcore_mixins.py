@@ -155,7 +155,7 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         # Also convert adapter
         lora_linear_proj_adapter.reduce_scatter = True
         weight = lora_linear_proj_adapter.linear_out.weight
-        tp_size = lora_linear_proj_adapter.model_parallel_config['tensor_model_parallel_size']
+        tp_size = lora_linear_proj_adapter.config['tensor_model_parallel_size']
         assert tp_size > 1, "Expected TP > 1"
         assert weight.shape[0] > 0 and weight.shape[1] > 0, "Expected non-empty weight"
         cpl_weight = torch.empty(
