@@ -496,13 +496,12 @@ def run_train_mnist_litautoencoder_with_megatron_strategy_single_gpu():
             # Configure our custom Checkpointer
             name = "test_experiment"
             checkpoint_callback = nl_callbacks.ModelCheckpoint(
-                save_best_model=True,
                 save_last=True,
                 monitor="val_loss",
                 save_top_k=1,
                 every_n_train_steps=5,
                 # Enables the .nemo file-like checkpointing where all IOMixins are under SerDe
-                enable_nemo_ckpt_io=True,
+                always_save_context=True,
             )
             root_dir = tmpdir
             save_dir = root_dir / name
