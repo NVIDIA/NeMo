@@ -62,7 +62,13 @@ except Exception as e:
     vllm_supported = False
 
 
-from nemo.export.tensorrt_llm_parsing_utils import UsageError, add_quantization_flags, parse_quantization_args, str_to_bool
+from nemo.export.tensorrt_llm_parsing_utils import (
+    UsageError,
+    add_quantization_flags,
+    parse_quantization_args,
+    str_to_bool,
+)
+
 
 @dataclass
 class FunctionalResult:

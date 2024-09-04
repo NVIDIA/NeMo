@@ -21,7 +21,7 @@ from pathlib import Path
 import uvicorn
 
 from nemo.deploy import DeployPyTriton
-from nemo.export.tensorrt_llm_parsing_utils import add_multi_block_mode_flag, create_parser, add_export_kwargs
+from nemo.export.tensorrt_llm_parsing_utils import add_export_kwargs, add_multi_block_mode_flag, create_parser
 
 LOGGER = logging.getLogger("NeMo")
 

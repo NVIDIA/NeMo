@@ -20,8 +20,11 @@ from nemo.export.tensorrt_llm_parsing_utils import add_export_kwargs, add_multi_
 
 LOGGER = logging.getLogger("NeMo")
 
+
 def get_args(argv):
-    parser = create_parser("Exports nemo models stored in nemo checkpoints to TensorRT-LLM", export_parser=True, deploy=False)
+    parser = create_parser(
+        "Exports nemo models stored in nemo checkpoints to TensorRT-LLM", export_parser=True, deploy=False
+    )
     parser = add_multi_block_mode_flag(parser)
     parser.add_argument(
         "-mr", "--model_repository", required=True, default=None, type=str, help="Folder for the trt-llm model files"

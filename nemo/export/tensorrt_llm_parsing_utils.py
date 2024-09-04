@@ -15,6 +15,7 @@
 import argparse
 from typing import Optional
 
+
 class UsageError(Exception):
     pass
 
@@ -155,7 +156,7 @@ def add_export_flags(parser, deploy: bool):
             "-gap", "--gpt_attention_plugin", default="auto", type=str, help="dtype of gpt attention plugin"
         )
         parser.add_argument("-gp", "--gemm_plugin", default="auto", type=str, help="dtype of gpt plugin")
-    
+
     return parser
 
 
