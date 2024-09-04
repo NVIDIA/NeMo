@@ -204,7 +204,7 @@ def generate_configs(config: AutoConfigurator = None) -> dict:
 
     Args:
         config (AutoConfigurator): Auto Configurator object.
-    
+
     Returns:
         dict: dictionary of Partial configs.
     """

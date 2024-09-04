@@ -24,7 +24,7 @@ from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base
 
 
 def get_results(
-    config = None,
+    config=None,
     path_to_save: str = None,
     output_top_n: Optional[int] = 10,
 ):
@@ -302,7 +302,7 @@ def find_error(error_file: str, errors: list = ["CUDA out of memory"]):
 
 def get_config(run_name: str) -> tuple:
     """Function that extract model parallelism parameters
-    
+
     Args:
         run_name (str): name of the run.
 

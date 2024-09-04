@@ -63,7 +63,7 @@ class BaseConfig:
 
     def get_model(self):
         """Function that returns model config.
-        
+
         Returns:
             Config: model config.
         """
