@@ -114,7 +114,6 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     attention_softmax_in_fp32: bool = False
     masked_softmax_fusion: bool = True
     deallocate_pipeline_outputs = True
-    global_batch_size: Optional[int] = 256
 
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = gpt_forward_step

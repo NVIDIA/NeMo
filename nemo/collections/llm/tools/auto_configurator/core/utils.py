@@ -427,7 +427,7 @@ def modify_cfg(
 
     # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
     num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
-    gbs = base_cfg.model.global_batch_size
+    gbs = base_cfg.data.global_batch_size
     seq_len = base_cfg.model.seq_length
 
     new_cfg = dict(run=base_cfg.run)

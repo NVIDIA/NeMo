@@ -68,7 +68,6 @@ class BaseConfig:
             Config: model config.
         """
 
-        self.config.model.global_batch_size = self.config.global_batch_size
         self.config.model.seq_length = self.config.seq_length
 
         return self.config.model

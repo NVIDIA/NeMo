@@ -83,7 +83,7 @@ def generate_grid_search_configs(
                 for ep in params.ep:
                     for mbs in params.mbs:
                         num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
-                        base_cfg.model.global_batch_size = params.gbs
+                        base_cfg.data.global_batch_size = params.gbs
                         if model_name in GPT_BASED_MODELS:
                             att_heads = base_cfg.model.num_attention_heads
                             num_layers = base_cfg.model.num_layers
