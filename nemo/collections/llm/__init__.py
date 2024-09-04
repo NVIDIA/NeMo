@@ -13,9 +13,6 @@ from nemo.collections.llm.gpt.data import (
     PreTrainingDataModule,
     SquadDataModule,
 )
-from nemo.collections.llm.t5.data import (
-    PreTrainingDataModule,
-)
 from nemo.collections.llm.gpt.data.api import dolly, mock, squad
 from nemo.collections.llm.gpt.model import (
     Baichuan2Config,
