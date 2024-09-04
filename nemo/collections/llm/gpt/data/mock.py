@@ -10,6 +10,12 @@ from torch.utils.data import DataLoader, Dataset
 from nemo.utils import logging
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
+HAVE_TE = True
+try:
+    import transformer_engine
+except (ImportError, ModuleNotFoundError):
+    HAVE_TE = False
+
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
@@ -28,7 +34,7 @@ class MockDataModule(pl.LightningDataModule):
         num_workers: int = 8,
         pin_memory: bool = True,
         persistent_workers: bool = False,
-        get_attention_mask_from_fusion: bool = True,
+        create_attention_mask: bool = False,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -38,7 +44,7 @@ class MockDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
-        self.get_attention_mask_from_fusion = get_attention_mask_from_fusion
+        self.create_attention_mask = create_attention_mask or not HAVE_TE
 
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -52,23 +58,13 @@ class MockDataModule(pl.LightningDataModule):
 
     def setup(self, stage: str = "") -> None:
         self._train_ds = _MockGPTDataset(
-            self.tokenizer, "train", self.num_train_samples, self.seq_length, self.get_attention_mask_from_fusion
         )
         self._validation_ds = _MockGPTDataset(
-            self.tokenizer, "valid", self.num_val_samples, self.seq_length, self.get_attention_mask_from_fusion
+            self.tokenizer, "valid", self.num_val_samples, self.seq_length, self.create_attention_mask
         )
         self._test_ds = _MockGPTDataset(
-            self.tokenizer, "test", self.num_test_samples, self.seq_length, self.get_attention_mask_from_fusion
+            self.tokenizer, "test", self.num_test_samples, self.seq_length, self.create_attention_mask
         )
-
-    def train_dataloader(self) -> TRAIN_DATALOADERS:
-        if not hasattr(self, "_train_ds"):
-            self.setup()
-        return self._create_dataloader(self._train_ds)
-
-    def val_dataloader(self) -> EVAL_DATALOADERS:
-        if not hasattr(self, "_validation_ds"):
-            self.setup()
         return self._create_dataloader(self._validation_ds)
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
@@ -96,6 +92,7 @@ class _MockGPTDataset(Dataset):
         seq_length: int,
         get_attention_mask_from_fusion: bool,
         seed: int = 42,
+        create_attention_mask: bool = False,
     ) -> None:
         super().__init__()
         self.name = name
@@ -104,13 +101,12 @@ class _MockGPTDataset(Dataset):
         self.length = num_samples
         self.get_attention_mask_from_fusion = get_attention_mask_from_fusion
         self.seed = seed
+        self.create_attention_mask = create_attention_mask
 
-        if not get_attention_mask_from_fusion:
-            logging.warning(
-                f"Generating attention mask for {name} dataset with sequenth length {self.seq_length}. This is not recommended for large datasets, could lead to dataloader issues."
-            )
-            self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
+        if create_attention_mask:
+            self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length), device='cpu')).unsqueeze(0)
             self.attention_mask = self.attention_mask < 0.5
+
         self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
@@ -127,17 +123,17 @@ class _MockGPTDataset(Dataset):
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
         labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
 
-        databatch = {
+        batch = {
             "tokens": tokens,
             "labels": labels,
             "loss_mask": self.loss_mask,
             "position_ids": self.position_ids,
         }
 
-        if not self.get_attention_mask_from_fusion:
-            databatch["attention_mask"] = self.attention_mask
+        if self.create_attention_mask:
+            batch["attention_mask"] = self.attention_mask
 
-        return databatch
+        return batch
 
     def _collate_fn(self, batch):
         """
