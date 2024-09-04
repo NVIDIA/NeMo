@@ -193,7 +193,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         init_model_parallel: bool = True,
         replace_progress_bar: bool = True,
         progress_interval: int = 1,
-        selective_restore_config: Optional[RestoreConfig] = None,
+        restore_config: Optional[RestoreConfig] = None,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -235,7 +235,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.replace_progress_bar = replace_progress_bar
         self.progress_interval = progress_interval
 
-        self.selective_restore_config = selective_restore_config
+        self.restore_config = restore_config
 
         self._ddp = ddp
         if ddp == "megatron":
@@ -352,7 +352,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 self.trainer.callbacks.append(AsyncFinalizerCallback())
 
         ## Restore model weights and optimizer states if needed
-        if self.selective_restore_config and not self.trainer.ckpt_path:
+        if self.restore_config and not self.trainer.ckpt_path:
             self.selective_restore()
 
     @override
@@ -632,7 +632,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def should_restore_optimizer_states(self, selective_restore: bool = False) -> bool:
         if selective_restore:
-            return self.selective_restore_config.load_optim_state if self.selective_restore_config else False
+            return self.restore_config.load_optim_state if self.restore_config else False
 
         return self.ckpt_load_optimizer
 
@@ -661,22 +661,22 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         return checkpoint
 
     def selective_restore(self) -> None:
-        if not self.selective_restore_config:
+        if not self.restore_config:
             return
 
-        logging.info(f"Doing selective restore from {self.selective_restore_config}")
+        logging.info(f"Doing selective restore from {self.restore_config}")
 
-        checkpoint = self.load_checkpoint(checkpoint_path=self.selective_restore_config.path, selective_restore=True)
+        checkpoint = self.load_checkpoint(checkpoint_path=self.restore_config.path, selective_restore=True)
 
-        if self.selective_restore_config.load_model_state:
-            logging.info(f"Restoring model weights from {self.selective_restore_config}")
+        if self.restore_config.load_model_state:
+            logging.info(f"Restoring model weights from {self.restore_config}")
             self.load_model_state_dict(checkpoint=checkpoint)
 
-        if self.selective_restore_config.load_optim_state:
-            logging.info(f"Restoring optimizer states from {self.selective_restore_config}")
+        if self.restore_config.load_optim_state:
+            logging.info(f"Restoring optimizer states from {self.restore_config}")
             self.load_optimizer_state_dict(checkpoint=checkpoint, selective_restore=True)
 
-        logging.info(f"Finished restoring from {self.selective_restore_config}, cleaning up.")
+        logging.info(f"Finished restoring from {self.restore_config}, cleaning up.")
         torch.cuda.empty_cache()
         # wait for all to catch up
         self.trainer.strategy.barrier("MegatronStrategy.restore_end")
