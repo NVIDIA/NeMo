@@ -153,7 +153,7 @@ if __name__ == "__main__":
     parser.add_argument("--language_model_path", type=str, required=True, help="Path to the pretrained language model")
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
-    parser.add_argument("--projector_type", type=str, required=False, default="mlp")
+    parser.add_argument("--projector_type", type=str, required=False, default="mlp2x_gelu")
     parser.add_argument("--name", type=str, required=False, default="neva_pretrain")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
 

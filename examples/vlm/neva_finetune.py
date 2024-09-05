@@ -114,14 +114,14 @@ def main(args):
     )
 
     # Auto resume setup
-    from nemo.lightning.pytorch.strategies.utils import SelectiveRestoreConfig
+    from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 
     resume = nl.AutoResume(
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
-        selective_restore_config=(
-            SelectiveRestoreConfig(
+        restore_config=(
+            RestoreConfig(
                 path=args.restore_path,
             )
             if args.restore_path is not None
