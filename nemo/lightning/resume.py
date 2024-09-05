@@ -33,8 +33,10 @@ if os.name == "nt":
 else:
     BasePath = PosixPath
 
+
 def _try_restore_tokenizer(model, ckpt_path):
     from nemo.lightning.io import load_context
+
     try:
         tokenizer = load_context(ckpt_path, "model.tokenizer")
         model.tokenizer = tokenizer
@@ -44,6 +46,7 @@ def _try_restore_tokenizer(model, ckpt_path):
         pass
     finally:
         return model
+
 
 @dataclass(kw_only=True)
 class AutoResume:
