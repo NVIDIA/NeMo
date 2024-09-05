@@ -17,7 +17,7 @@ import math
 import numpy as np
 import torch
 
-from nemo.collections.asr.data.dataclasses import AudioNoiseBatch
+from nemo.collections.asr.data.ssl_dataset import AudioNoiseBatch
 
 
 class SpeakerNoiseAugmentation(object):

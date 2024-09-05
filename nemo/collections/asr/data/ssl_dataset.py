@@ -17,6 +17,7 @@ import io
 import json
 import os
 from collections import OrderedDict
+from dataclasses import dataclass
 from math import isclose
 from typing import Any, Dict, List, Optional
 
@@ -26,7 +27,6 @@ from lhotse.dataset import AudioSamples
 from omegaconf import DictConfig, ListConfig, open_dict
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dataset
-from nemo.collections.asr.data.dataclasses import AudioNoiseBatch, AudioNoiseItem
 from nemo.collections.asr.parts.preprocessing.perturb import WhiteNoisePerturbation, process_augmentations
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
@@ -34,6 +34,28 @@ from nemo.collections.common.data.dataset import ConcatDataset
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.core.classes import Serialization
 from nemo.utils import logging
+
+
+@dataclass
+class AudioNoiseItem:
+    sample_id: str | None = None
+    audio: torch.Tensor | None = None
+    audio_len: torch.Tensor | None = None
+    noise: torch.Tensor | None = None
+    noise_len: torch.Tensor | None = None
+    noisy_audio: torch.Tensor | None = None
+    noisy_audio_len: torch.Tensor | None = None
+
+
+@dataclass
+class AudioNoiseBatch:
+    sample_id: list | None = None
+    audio: torch.Tensor | None = None
+    audio_len: torch.Tensor | None = None
+    noise: torch.Tensor | None = None
+    noise_len: torch.Tensor | None = None
+    noisy_audio: torch.Tensor | None = None
+    noisy_audio_len: torch.Tensor | None = None
 
 
 def _parse_manifest_item(line: str, manifest_file: str) -> Dict[str, Any]:

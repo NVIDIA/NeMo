@@ -23,7 +23,6 @@ from pytorch_lightning import Trainer
 from nemo.collections.asr.data import audio_to_text_dataset, ssl_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
-from nemo.collections.asr.data.dataclasses import AudioNoiseBatch
 from nemo.collections.asr.modules.ssl_modules.masking import ConvFeatureMaksingWrapper
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
@@ -974,7 +973,7 @@ class EncDecDenoiseMaskedTokenPredModel(EncDecMaskedTokenPredModel):
 
         return log_probs, encoded_len, masks, tokens
 
-    def training_step(self, batch: AudioNoiseBatch, batch_idx: int):
+    def training_step(self, batch: ssl_dataset.AudioNoiseBatch, batch_idx: int):
         log_probs, encoded_len, masks, tokens = self.forward(
             input_signal=batch.audio,
             input_signal_length=batch.audio_len,
@@ -995,7 +994,9 @@ class EncDecDenoiseMaskedTokenPredModel(EncDecMaskedTokenPredModel):
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    def inference_pass(self, batch: AudioNoiseBatch, batch_idx: int, dataloader_idx: int = 0, mode: str = 'val'):
+    def inference_pass(
+        self, batch: ssl_dataset.AudioNoiseBatch, batch_idx: int, dataloader_idx: int = 0, mode: str = 'val'
+    ):
         log_probs, encoded_len, masks, tokens = self.forward(
             input_signal=batch.audio,
             input_signal_length=batch.audio_len,
