@@ -214,7 +214,7 @@ class BaseConfig:
             ckpt=ckpt,
             tensorboard=tb_logger,
             wandb=None,
-            dir="/nemo_run",
+            dir=self.config.path_to_logs,
         )
 
     def get_run_config(self) -> dict:

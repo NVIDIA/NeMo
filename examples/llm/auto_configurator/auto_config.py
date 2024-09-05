@@ -52,6 +52,7 @@ def train_config(args):
         max_steps_per_run=25,
         num_tokens_in_b=10,
         vocab_size=51200,
+        tokenizer_path="/home/models/gpt2",
         data_paths=args.data_path,
         path_to_logs=args.logs_dir,
     )
@@ -59,10 +60,13 @@ def train_config(args):
     base_cfg, configs = generate_configs(runner)
     if not args.get_results:
         # Get generated configs
-        configs = list(configs.values())
+        partials = list(configs.values())
+        names = list(configs.keys())
 
         # Run pre-training
-        pretrain = fdl.build(configs[args.run_number - 1])
+        partial = partials[args.run_number - 1]
+        partial.log.dir=os.path.join(args.logs_dir, names[args.run_number - 1])
+        pretrain = fdl.build(partial)
         pretrain()
     else:
         # # Get Auto Configurator results
