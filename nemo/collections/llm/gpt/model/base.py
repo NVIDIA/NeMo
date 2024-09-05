@@ -116,7 +116,6 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     cross_entropy_loss_fusion: bool = True
     gradient_accumulation_fusion: bool = True
     deallocate_pipeline_outputs = True
-    tp_comm_overlap_cfg = None
 
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = gpt_forward_step

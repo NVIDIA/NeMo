@@ -103,7 +103,12 @@ def pretrain_recipe_performance(
         name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
     )
 
-    recipe.trainer.callbacks.append(Config(MegatronCommOverlapCallback))
+    recipe.trainer.callbacks.append(
+        Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=False,
+        )
+    )
     return recipe
 
 
