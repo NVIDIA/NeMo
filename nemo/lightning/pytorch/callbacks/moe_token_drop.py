@@ -36,6 +36,15 @@ class MegatronExpertParallelTokenDrop(Callback):
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         assert isinstance(trainer.strategy, MegatronStrategy), "MegatronTokenDrop requires MegatronStrategy"
         if hasattr(trainer.model, "config") and isinstance(trainer.model.config, ModelParallelConfig): 
+            assert trainer.model.config.moe_token_dispatcher_type in ["alltoall", "alltoall_seq"], 'moe_expert_capacity_factor only works with alltoall token dispatcher'
+            assert trainer.model.config.moe_router_load_balancing_type in ["aux_loss", "none"], 'moe_expert_capacity_factor only works with aux_loss or none load balancing'
+
+            if self.moe_pad_expert_input_to_capacity:
+                if self.moe_expert_capacity_factor is None:
+                    raise ValueError(
+                        'moe_expert_capacity_factor must be set to use moe_pad_expert_input_to_capacity'
+                    )
+
             self._set_cfgs(trainer.model.config)
             if hasattr(trainer.model, '__io__'):
                 self._set_cfgs(trainer.model.__io__.config)
