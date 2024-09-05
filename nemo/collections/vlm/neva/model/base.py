@@ -295,6 +295,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self.share_embeddings_and_output_weights = False
         if self.language_model is not None:
             self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
+            self._language_max_sequence_length = self.language_model.max_sequence_length
 
         if self.vision_model is not None:
             self._drop_vision_class_token = drop_vision_class_token
@@ -489,6 +490,18 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         if final_embedding is not None:
             final_embedding = final_embedding.transpose(1, 0).contiguous()
+
+        # Truncate if exceeding the language model's max sequence length.
+        if (
+            final_embedding is not None
+            and final_embedding.shape[0] > self._language_max_sequence_length
+        ):
+            final_embedding = final_embedding[: self._language_max_sequence_length]
+
+        if has_labels and final_labels.shape[1] > self._language_max_sequence_length:
+            final_labels = final_labels[:, : self._language_max_sequence_length]
+            final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
+
         return final_embedding, final_labels, final_loss_mask
 
     def forward(
@@ -621,6 +634,8 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
+        self._training_loss_reduction = None
+        self._validation_loss_reduction = None
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
@@ -663,11 +678,19 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return self.forward_step(batch)
 
+    @property
     def training_loss_reduction(self) -> MaskedTokenLossReduction:
-        return MaskedTokenLossReduction()
+        if not self._training_loss_reduction:
+            self._training_loss_reduction = MaskedTokenLossReduction()
 
+        return self._training_loss_reduction
+
+    @property
     def validation_loss_reduction(self) -> MaskedTokenLossReduction:
-        return MaskedTokenLossReduction(validation_step=True)
+        if not self._validation_loss_reduction:
+            self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
+
+        return self._validation_loss_reduction
 
 
 __all__ = [

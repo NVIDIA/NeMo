@@ -566,8 +566,8 @@ class NevaLazyDataModule(pl.LightningDataModule):
         return self._create_dataloader(self._test_ds)
 
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
-        if self.trainer is not None:
-            self.init_global_step = self.trainer.global_step
+        self.init_global_step = self.trainer.global_step
+        self.data_sampler.init_global_step = self.init_global_step
         return DataLoader(
             dataset,
             num_workers=self.num_workers,
