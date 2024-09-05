@@ -2,7 +2,6 @@ from typing import Callable, Optional
 
 import pytorch_lightning as pl
 import torch
-from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
@@ -13,6 +12,7 @@ from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x22B, MixtralMo
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
 from nemo.collections.llm.utils import Config, Partial
 from nemo.utils.exp_manager import TimingCallback
 
@@ -30,6 +30,7 @@ def trainer(
     virtual_pipeline_parallelism: Optional[int],
     context_parallelism: int,
     sequence_parallelism: bool,
+    expert_parallelism: int,
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
@@ -43,15 +44,10 @@ def trainer(
         virtual_pipeline_model_parallel_size=virtual_pipeline_parallelism,
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
+        expert_model_parallel_size=expert_parallelism,
         gradient_as_bucket_view=True,
-        ckpt_include_optimizer=True,
         ckpt_async_save=True,
         ckpt_parallel_load=True,
-        ddp=Config(
-            DistributedDataParallelConfig,
-            check_for_nan_in_grad=True,
-            grad_reduce_in_fp32=True,
-        ),
     )
 
     trainer = Config(
@@ -60,13 +56,12 @@ def trainer(
         accumulate_grad_batches=1,
         callbacks=callbacks,
         devices=num_gpus_per_node,
-        gradient_clip_val=1.0,
         limit_test_batches=50,
         limit_val_batches=32,
         log_every_n_steps=10,
         max_steps=max_steps,
         num_nodes=num_nodes,
-        plugins=Config(nl.MegatronMixedPrecision, precision="bf16-mixed"),
+        plugins=bf16_mixed_plugin(),
         strategy=strategy,
         use_distributed_sampler=False,
         val_check_interval=2000,
@@ -83,11 +78,12 @@ def pretrain_recipe(
         model=model(),
         trainer=trainer(
             tensor_parallelism=8,
-            pipeline_parallelism=1,
-            pipeline_parallelism_type=None,
-            virtual_pipeline_parallelism=None,
+            pipeline_parallelism=8,
+            pipeline_parallelism_type=torch.bfloat16,
+            virtual_pipeline_parallelism=7,
             context_parallelism=1,
             sequence_parallelism=True,
+            expert_parallelism=1,
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[Config(TimingCallback)],
@@ -100,7 +96,10 @@ def pretrain_recipe(
 
 
 def hf_resume() -> Config[nl.AutoResume]:
-    return Config(nl.AutoResume, import_path="hf://mistralai/Mixtral-8x22B-v0.1")
+    return Config(
+        nl.AutoResume,
+        restore_config=Config(nl.RestoreConfig, path="hf://mistralai/Mixtral-8x22B-v0.1"),
+    )
 
 
 def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int) -> Partial:
