@@ -95,6 +95,7 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+
 def pretrain_recipe_performance(
     name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
 ) -> Partial:
@@ -113,6 +114,7 @@ def pretrain_recipe_performance(
     )
 
     return recipe
+
 
 def hf_resume() -> Config[nl.AutoResume]:
     return Config(nl.AutoResume, import_path="hf://meta-llama/Meta-Llama-3.1-70B")

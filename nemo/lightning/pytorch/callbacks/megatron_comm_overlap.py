@@ -1,14 +1,14 @@
 from dataclasses import dataclass, fields
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks.callback import Callback
 from megatron.core import ModelParallelConfig
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
+from pytorch_lightning.callbacks.callback import Callback
 
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import TransformerLayerTPOverlapCfg
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy, ParallelismConfig
 from nemo.utils import logging
-from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import TransformerLayerTPOverlapCfg
 
 HAVE_TE = True
 try:
@@ -50,7 +50,7 @@ class MegatronCommOverlapCallback(Callback):
         tp_comm_overlap_cfg (TransformerLayerTPOverlapCfg): Tensor parallel overlap config
         overlap_p2p_comm (bool): Enable pipeline parallel overlap
         batch_p2p_comm (bool): Batch pipeline parallel send/recv into a single op
-        overlap_grad_reduce (bool): Overlap data parallel gradient reduction with compute 
+        overlap_grad_reduce (bool): Overlap data parallel gradient reduction with compute
         overlap_param_gather (bool): Overlap data parallel parameter gather with compute
         overlap_param_gather_with_optimizer_step (bool): Overlap data parallel parameter gather optimizer step
         align_param_gather (bool): Align data parallel parameter gather across virtual pipeline chunks
@@ -102,7 +102,7 @@ class MegatronCommOverlapCallback(Callback):
         model_parallel_cfg: ModelParallelConfig,
     ) -> ModelParallelConfig:
         comm_overlap_cfg = _CommOverlapConfig()
-        
+
         vp_size = parallelism_cfg.virtual_pipeline_model_parallel_size
         if vp_size is None:
             vp_size = 1
