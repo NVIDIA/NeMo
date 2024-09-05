@@ -167,7 +167,6 @@ class TestNeMoLogger:
         time.sleep(1)
         # unfinished last, that should be ignored
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel3--last").mkdir()
-        time.sleep(1)
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel3--last-unfinished").touch()
 
         nl.AutoResume(
