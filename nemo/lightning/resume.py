@@ -33,7 +33,7 @@ if os.name == "nt":
 else:
     BasePath = PosixPath
 
-def _try_restore_tokenizer(model=None, ckpt_path):
+def _try_restore_tokenizer(model, ckpt_path):
     from nemo.lightning.io import load_context
     try:
         tokenizer = load_context(trainer_ckpt_path, "model.tokenizer")
