@@ -35,11 +35,32 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
+def is_number_tryexcept(s):
+    """ Returns True if string is a number. """
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+def is_zipped_list(paths):
+    # ["30", "path/to/dataset_1_prefix", "70", "path/to/dataset_2_prefix"]
+    even = paths[::2]
+    if len(even) == 0:
+        return False
+    is_num = list(map(is_number_tryexcept, even))
+    if any(is_num):
+        assert all(is_num), "Got malformatted zipped list"
+    return is_num[0]
+
 def validate_dataset_asset_accessibility(paths):
     if paths is None:
         raise ValueError("Expected path to have a value.")
 
     if isinstance(paths, tuple) or isinstance(paths, list):
+        if is_zipped_list(paths):
+            # remove weights from paths.
+            paths = paths[1::2]
         for p in paths:
             validate_dataset_asset_accessibility(p)
         return
