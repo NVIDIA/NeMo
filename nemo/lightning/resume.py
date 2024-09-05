@@ -69,7 +69,7 @@ class AutoResume:
     WEIGHTS_PATH = "weights"
 
     def get_model_weights_path(self, path):
-        return Path(path) / AutoResume.MODEL_WEIGHTS_PATH
+        return Path(path) / self.WEIGHTS_PATH
 
     def setup(self, trainer: Union[pl.Trainer, fl.Fabric], model=None):
         if isinstance(trainer, fl.Fabric):
@@ -96,10 +96,6 @@ class AutoResume:
         self, model: Optional[io.ConnectorMixin], path: str, adapter_path: Optional[str] = None
     ) -> BasePath:
 
-        maybe_model_weights_path = self.get_model_weights_path(path)
-        if os.path.isdir(maybe_model_weights_path):
-            path = maybe_model_weights_path
-
         if model is None:
             raise ValueError("Model is needed to import checkpoint from HF or other non-NeMo checkpoint format.")
         try:
@@ -109,6 +105,10 @@ class AutoResume:
             new_path = path
 
         if adapter_path:
+
+            maybe_model_weights_path = self.get_model_weights_path(adapter_path)
+            if os.path.isdir(maybe_model_weights_path):
+                adapter_path = maybe_model_weights_path
             
             new_path = AdapterPath(Path(adapter_path), base_model_path=new_path)
 
@@ -213,7 +213,7 @@ class AutoResume:
         else:
             checkpoint = last_checkpoints[0]
 
-        return Path(checkpoint)
+        return checkpoint
 
     def get_trainer_ckpt_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
         checkpoint = None
@@ -222,9 +222,10 @@ class AutoResume:
         if self.resume_if_exists:
             checkpoint = self._find_trainer_ckpt_path()
 
-        maybe_model_weights_path = self.get_model_weights_path(checkpoint)
-        if os.path.isdir(maybe_model_weights_path):
-            checkpoint = maybe_model_weights_path
+        if checkpoint:
+            maybe_model_weights_path = self.get_model_weights_path(checkpoint)
+            if os.path.isdir(maybe_model_weights_path):
+                checkpoint = maybe_model_weights_path
 
         if checkpoint:
             if self.adapter_path:
