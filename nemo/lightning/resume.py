@@ -36,13 +36,14 @@ else:
 def _try_restore_tokenizer(model, ckpt_path):
     from nemo.lightning.io import load_context
     try:
-        tokenizer = load_context(trainer_ckpt_path, "model.tokenizer")
+        tokenizer = load_context(ckpt_path, "model.tokenizer")
         model.tokenizer = tokenizer
         model.__io__.tokenizer = tokenizer.__io__
-        return model
     except:
         # Ignore if the ckpt doesn't have a tokenizer.
         pass
+    finally:
+        return model
 
 @dataclass(kw_only=True)
 class AutoResume:
