@@ -4,10 +4,10 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Union
 
-import torch
 import pytorch_lightning as pl
-from lightning_fabric.plugins import CheckpointIO
+import torch
 from lightning.fabric.plugins.collectives.torch_collective import default_pg_timeout
+from lightning_fabric.plugins import CheckpointIO
 from pytorch_lightning.strategies import ModelParallelStrategy, ParallelStrategy
 from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.utilities.types import STEP_OUTPUT
@@ -21,11 +21,12 @@ from torch.distributed.checkpoint.state_dict import (
 from torch.distributed.device_mesh import DeviceMesh, init_device_mesh
 from torch.utils.data import DataLoader
 from typing_extensions import override
+
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
-    fix_progress_bar,
     create_checkpoint_io,
+    fix_progress_bar,
     init_model_parallel,
     mcore_to_pyt_sharded_state_dict,
     pyt_to_mcore_state_dict,
@@ -42,7 +43,7 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
         save_distributed_checkpoint: bool = True,
         ckpt_include_optimizer=False,
     ):
-        super(ModelParallelStrategy, self).__init__()   # skip ModelParallelStrategy.__init__
+        super(ModelParallelStrategy, self).__init__()  # skip ModelParallelStrategy.__init__
 
         self._data_parallel_size = data_parallel_size
         self._replica_size = replica_size
@@ -52,7 +53,7 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
         self._timeout: Optional[timedelta] = default_pg_timeout
         self._device_mesh: Optional[DeviceMesh] = None
         self.num_nodes = 1
-        
+
         self.ckpt_include_optimizer = ckpt_include_optimizer
 
     @override
@@ -76,7 +77,7 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
     def distributed_sampler_kwargs(self) -> Dict[str, Any]:
         assert self.device_mesh is not None
         return {"num_replicas": self.device_mesh.size(), "rank": self.device_mesh.get_rank()}
-    
+
     @override
     def setup(self, trainer: pl.Trainer) -> None:
         self.trainer = trainer
@@ -183,7 +184,7 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
             self._checkpoint_io = create_checkpoint_io()
 
         return self._checkpoint_io
-    
+
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:
         self._checkpoint_io = io
@@ -219,8 +220,12 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
             optim_state.pop("state")
 
         if self.trainer.state.fn == TrainerFn.FITTING and self.ckpt_include_optimizer:
-            checkpoint['optimizer'] = get_optimizer_state_dict(self.model, self.optimizers, options=StateDictOptions(cpu_offload=True))
-            pyt_to_mcore_state_dict(checkpoint['optimizer']['state'], prefix="optimizer.state.", device_mesh=self.device_mesh)
+            checkpoint['optimizer'] = get_optimizer_state_dict(
+                self.model, self.optimizers, options=StateDictOptions(cpu_offload=True)
+            )
+            pyt_to_mcore_state_dict(
+                checkpoint['optimizer']['state'], prefix="optimizer.state.", device_mesh=self.device_mesh
+            )
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
@@ -254,10 +259,14 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
             sharded_state_dict["optimizer"] = osd
 
         checkpoint = self.checkpoint_io.load_checkpoint(path, sharded_state_dict=sharded_state_dict)
-        mcore_to_pyt_sharded_state_dict(checkpoint['sharded_state_dict'], msd, dtensor=True, device_mesh=self.device_mesh)
+        mcore_to_pyt_sharded_state_dict(
+            checkpoint['sharded_state_dict'], msd, dtensor=True, device_mesh=self.device_mesh
+        )
 
         if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
-            mcore_to_pyt_sharded_state_dict(checkpoint['optimizer']['state'], osd['state'], dtensor=True, device_mesh=self.device_mesh)
+            mcore_to_pyt_sharded_state_dict(
+                checkpoint['optimizer']['state'], osd['state'], dtensor=True, device_mesh=self.device_mesh
+            )
 
         set_state_dict(
             self.model,
