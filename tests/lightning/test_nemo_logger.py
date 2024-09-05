@@ -157,7 +157,7 @@ class TestNeMoLogger:
             resume_if_exists=True,
         ).setup(trainer)
         assert str(trainer.ckpt_path) == str(
-            Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last")
+            Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last" / "weights")
         )
 
         # Finally succeed
@@ -172,7 +172,7 @@ class TestNeMoLogger:
         nl.AutoResume(
             resume_if_exists=True,
         ).setup(trainer)
-        checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last")
+        checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last" / "weights")
         assert Path(trainer.ckpt_path).resolve() == checkpoint.resolve()
 
         trainer = nl.Trainer(accelerator="cpu", logger=False)
@@ -180,7 +180,7 @@ class TestNeMoLogger:
         dirpath_log_dir = Path(tmp_path / "test_resume" / "dirpath_test" / "logs")
         dirpath_log_dir.mkdir(parents=True)
         dirpath_checkpoint_dir = Path(tmp_path / "test_resume" / "dirpath_test" / "ckpts")
-        dirpath_checkpoint = Path(dirpath_checkpoint_dir / "mymodel--last")
+        dirpath_checkpoint = Path(dirpath_checkpoint_dir / "mymodel--last" / "weights")
         dirpath_checkpoint.mkdir(parents=True)
         logger = nl.NeMoLogger(
             name="default",

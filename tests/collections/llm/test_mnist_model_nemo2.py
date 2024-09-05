@@ -571,6 +571,7 @@ def run_train_mnist_litautoencoder_with_megatron_strategy_single_gpu():
             ckpt_path = checkpoint_callback.last_model_path.replace(
                 ".ckpt", ""
             )  # strip .ckpt off the end of the last path
+            ckpt_path = Path(ckpt_path) / "weights" ## weights are saved to the "weights" directory within the checkpoint
 
             assert Path(
                 ckpt_path
