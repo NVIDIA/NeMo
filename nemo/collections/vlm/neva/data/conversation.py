@@ -355,8 +355,8 @@ conv_nvgpt = Conversation(
     messages=[],
     offset=0,
     sep_style=SeparatorStyle.NVGPT,
-    sep=DEFAULT_SEPARATOR_TOKEN,
-    sep2=f"{DEFAULT_SYSTEM_TOKEN}System\n",
+    sep="<extra_id_1>",
+    sep2=f"<extra_id_0>System\n",
 )
 
 conv_nv_dpo = Conversation(
@@ -366,8 +366,8 @@ conv_nv_dpo = Conversation(
     messages=[],
     offset=0,
     sep_style=SeparatorStyle.NVGPT,
-    sep=DEFAULT_SEPARATOR_TOKEN,
-    sep2=f"{DEFAULT_SYSTEM_TOKEN}System\n",
+    sep="<extra_id_1>",
+    sep2=f"<extra_id_0>System\n",
 )
 
 conv_vicuna_v0 = Conversation(
