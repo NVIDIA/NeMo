@@ -161,7 +161,9 @@ class TestNeMoLogger:
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last").mkdir()
         time.sleep(1)  ## sleep for a second so the checkpoints are created at different times
         ## make a "weights" dir within the checkpoint
-        Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last" / "weights").mkdir(parents=True)
+        Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last" / "weights").mkdir(
+            parents=True
+        )
         time.sleep(1)
         # unfinished last, that should be ignored
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel3--last").mkdir()
@@ -188,9 +190,7 @@ class TestNeMoLogger:
         nl.AutoResume(
             resume_if_exists=True,
         ).setup(trainer)
-        checkpoint = Path(
-            tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last"
-        )
+        checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last")
         assert Path(trainer.ckpt_path).resolve() == checkpoint.resolve()
 
         trainer = nl.Trainer(accelerator="cpu", logger=False)

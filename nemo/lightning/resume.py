@@ -109,7 +109,7 @@ class AutoResume:
             maybe_model_weights_path = self.get_model_weights_path(adapter_path)
             if os.path.isdir(maybe_model_weights_path):
                 adapter_path = maybe_model_weights_path
-            
+
             new_path = AdapterPath(Path(adapter_path), base_model_path=new_path)
 
         if isinstance(new_path, str):
