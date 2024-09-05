@@ -1,4 +1,4 @@
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, asdict
 
 import pytorch_lightning as pl
 from megatron.core import ModelParallelConfig
@@ -10,9 +10,18 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import Transfor
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy, ParallelismConfig
 from nemo.utils import logging
 
-HAVE_TE = True
+
+try:
+    from megatron.core.num_microbatches_calculator import get_micro_batch_size
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size
+
+
 try:
     import transformer_engine
+    HAVE_TE = True
+
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
@@ -95,6 +104,7 @@ class MegatronCommOverlapCallback(Callback):
             defer_embedding_wgrad_compute=defer_embedding_wgrad_compute,
             wgrad_deferral_limit=wgrad_deferral_limit,
         )
+        self.need_tp_overlap_ub_init = False
 
     def _apply_model_comm_overlap_cfgs(
         self,
@@ -204,7 +214,7 @@ class MegatronCommOverlapCallback(Callback):
                 parallelism_cfg=parallelism_cfg, model_parallel_cfg=trainer.model.config
             )
             if trainer.model.config.tp_comm_overlap:
-                trainer.strategy.tp_comm_overlap_need_init = True
+                self.need_tp_overlap_ub_init = True
 
         if (
             hasattr(trainer.model.optim, "config")
@@ -216,3 +226,55 @@ class MegatronCommOverlapCallback(Callback):
                 optim_cfg=trainer.model.optim.config,
                 ddp_cfg=trainer.strategy.ddp_config,
             )
+
+    def _init_te_userbuffers(self, model_parallel_cfg: ModelParallelConfig):
+        from megatron.core import parallel_state
+
+        tp_comm_overlap_cfg = model_parallel_cfg.tp_comm_overlap_cfg
+        if tp_comm_overlap_cfg is None:
+            logging.warning(
+                "Tensor parallel overlap: No overlap config provided. Initializing TP comm overlap with the default config."
+            )
+        else:
+            # ub_cfgs is a dataclass, however TE needs a dict, so convert here
+            tp_comm_overlap_cfg = asdict(tp_comm_overlap_cfg)
+
+        micro_batch_size = get_micro_batch_size()
+        hidden_size = model_parallel_cfg.hidden_size
+        sequence_length = model_parallel_cfg.seq_length
+        fp8 = model_parallel_cfg.fp8 is not None
+
+        input_shape = [
+            sequence_length * micro_batch_size // parallel_state.get_context_parallel_world_size(),
+            hidden_size,
+        ]
+
+        try:
+            transformer_engine.pytorch.module.base.initialize_ub(
+                shape=input_shape,
+                tp_size=parallel_state.get_tensor_model_parallel_world_size(),
+                use_fp8=fp8,
+                ub_cfgs=tp_comm_overlap_cfg,
+            )
+        except Exception as error:
+            raise Exception(f"Tensor parallel overlap: userbuffer initialization failed with {error}")
+
+        self.need_tp_overlap_ub_init = False
+
+    # _init_te_userbuffers must run once after Megatron Parallel setup, however there isnt 
+    # such a unified callback each stage, so add a hook for every stage
+    def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        if self.need_tp_overlap_ub_init:
+            self._init_te_userbuffers(trainer.model.config)
+
+    def on_validation_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        if self.need_tp_overlap_ub_init:
+            self._init_te_userbuffers(trainer.model.config)
+
+    def on_test_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        if self.need_tp_overlap_ub_init:
+            self._init_te_userbuffers(trainer.model.config)
+
+    def on_predict_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        if self.need_tp_overlap_ub_init:
+            self._init_te_userbuffers(trainer.model.config)

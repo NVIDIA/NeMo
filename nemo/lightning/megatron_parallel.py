@@ -164,7 +164,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         ddp_config: Optional[DistributedDataParallelConfig] = None,
         cpu: bool = False,
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
-        tp_comm_overlap_need_init: Optional[bool] = False,
     ) -> None:
         from megatron.core import parallel_state
         from megatron.core.tensor_parallel import set_defaults_if_not_set_tensor_model_parallel_attributes
@@ -198,7 +197,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.loss_reduction: MegatronLossReduction = loss_reduction
         self.ddp_config = ddp_config
         self.convert_module_fn = convert_module_fn
-        self.tp_comm_overlap_need_init = tp_comm_overlap_need_init
 
     def forward(
         self,
@@ -241,9 +239,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         _num_microbatches: int = num_microbatches or self.infer_num_microbatches(data)
 
         pipeline = self.pipeline
-
-        if self.tp_comm_overlap_need_init:
-            self.init_tp_comm_overlap(_micro_batch_size, _seq_length)
 
         # FIXME: cleanup the following code block which is here for backwards compatibility with nemo1. The "batch"
         #  sampler is a nemo1 sampler. It requires some custom code here to use (if use_global_batch_sampler).
@@ -489,40 +484,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         raise ValueError("Cannot infer `num_microbatches` from data, please specify it manually")
 
-    def init_tp_comm_overlap(self, micro_batch_size, sequence_length):
-        assert HAVE_TE, "Tensor parallel overlap requires Transformer Engine, which was not detected."
-        from megatron.core import parallel_state
-
-        cp_size = parallel_state.get_context_parallel_world_size()
-        tp_size = parallel_state.get_tensor_model_parallel_world_size()
-        hidden_size = self.config.hidden_size
-        fp8 = self.config.fp8 is not None
-
-        ub_cfgs = self.config.tp_comm_overlap_cfg
-        if ub_cfgs is None:
-            logging.warning(
-                "Tensor parallel overlap: No overlap config provided. Initializing TP comm overlap with the default config."
-            )
-        else:
-            # ub_cfgs is a dataclass, however TE needs a dict, so convert here
-            ub_cfgs = asdict(ub_cfgs)
-
-        input_shape = [
-            sequence_length * micro_batch_size // cp_size,
-            hidden_size,
-        ]
-
-        try:
-            transformer_engine.pytorch.module.base.initialize_ub(
-                shape=input_shape,
-                tp_size=tp_size,
-                use_fp8=fp8,
-                ub_cfgs=ub_cfgs,
-            )
-        except Exception as error:
-            raise Exception(f"Tensor parallel overlap: userbuffer initialization failed with {error}")
-
-        self.tp_comm_overlap_need_init = False
 
     def init_model_parallel(self):
         from megatron.core import parallel_state

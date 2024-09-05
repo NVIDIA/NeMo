@@ -363,7 +363,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             cpu=isinstance(trainer.accelerator, CPUAccelerator),
             ddp_config=self.ddp_config,
             convert_module_fn=convert_module_fn,
-            tp_comm_overlap_need_init=self.model.config.tp_comm_overlap,
         )
 
         if self._init_model_parallel:
