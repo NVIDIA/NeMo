@@ -54,6 +54,7 @@ def main(args):
         config_dict["activation"] = "fast-swiglu"
 
     config_dict["mcore_gpt"] = True
+    config_dict["max_position_embeddings"] = config_dict.get("seq_length")
     config_dict["tokenizer"] = {
         "library": args.tokenizer_type,
         "type": args.tokenizer_name,
