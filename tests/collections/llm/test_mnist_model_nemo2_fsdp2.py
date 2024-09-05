@@ -502,14 +502,14 @@ def reset_megatron_parallel_state() -> Iterator[None]:
 
 @pytest.mark.run_only_on("GPU")
 @pytest.mark.integration
-def test_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
+def test_train_mnist_litautoencoder_with_fsdp2_strategy_single_gpu():
     path = os.path.abspath(__file__)
     call = f"python {path}"
     # Raises a CalledProcessError if there is a failure in the subprocess
     subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
 
 
-def run_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
+def run_train_mnist_litautoencoder_with_fsdp2_strategy_single_gpu():
     """This is the actual test that will get run in a subprocess so it does not contaminate the state of other tests."""
     with tempfile.TemporaryDirectory() as tmpdir_str:
         tmpdir = Path(tmpdir_str)
@@ -541,7 +541,7 @@ def run_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
             # nemo_logger.save_dir = tmpdir
 
             model = LitAutoEncoder(config=ExampleConfig())
-            strategy = nl.FSDPStrategy()
+            strategy = nl.FSDP2Strategy()
             trainer = nl.Trainer(
                 accelerator="gpu",
                 devices=1,
@@ -567,7 +567,7 @@ def run_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
             )
             trainer._teardown()
         with reset_megatron_parallel_state():
-            pred_strategy = nl.FSDPStrategy(
+            pred_strategy = nl.FSDP2Strategy(
                 data_sampler=MegatronDataSampler(
                     seq_len=28 * 28,
                     micro_batch_size=2,
@@ -590,11 +590,10 @@ def run_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
             ).exists(), f"checkpoint {ckpt_path} not found in {os.listdir(Path(ckpt_path).parent)}"
             # FIXME: the below checkpoint loading strategy and manual module unwrapping probably only works in single GPU
             #  and maybe DDP.
-            unwrapped_trained_model = trainer.model.module  # TODO clean this up. Would be good not to have to unwrap.
-            import ipdb; ipdb.set_trace()
+            model = LitAutoEncoder(config=ExampleConfig())
             forward_output = batch_collator(
                 predict_trainer.predict(
-                    unwrapped_trained_model, dataloaders=data_module.test_dataloader(), ckpt_path=ckpt_path
+                    model, dataloaders=data_module.test_dataloader(), ckpt_path=ckpt_path
                 )
             )
 
@@ -609,4 +608,4 @@ def run_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
 
 if __name__ == "__main__":
     # Have the test run this one item as a subprocess call
-    run_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu()
+    run_train_mnist_litautoencoder_with_fsdp2_strategy_single_gpu()

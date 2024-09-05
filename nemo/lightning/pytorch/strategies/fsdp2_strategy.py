@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import shutil
 from collections import OrderedDict
 from datetime import timedelta
@@ -8,10 +22,10 @@ import pytorch_lightning as pl
 import torch
 from lightning.fabric.plugins.collectives.torch_collective import default_pg_timeout
 from lightning_fabric.plugins import CheckpointIO
-from pytorch_lightning.strategies import ModelParallelStrategy, ParallelStrategy
+from pytorch_lightning.strategies import ModelParallelStrategy
 from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.utilities.types import STEP_OUTPUT
-from torch.distributed._composable.fsdp import fully_shard
+from torch.distributed._composable.fsdp import FSDPModule, fully_shard
 from torch.distributed.checkpoint.state_dict import (
     StateDictOptions,
     get_optimizer_state_dict,
@@ -42,6 +56,7 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
         data_parallel_size: Union[Literal["auto"], int] = "auto",
         save_distributed_checkpoint: bool = True,
         ckpt_include_optimizer=False,
+        data_sampler=None,
     ):
         super(ModelParallelStrategy, self).__init__()  # skip ModelParallelStrategy.__init__
 
@@ -55,6 +70,7 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
         self.num_nodes = 1
 
         self.ckpt_include_optimizer = ckpt_include_optimizer
+        self.data_sampler = data_sampler
 
     @override
     def setup_environment(self) -> None:
@@ -85,17 +101,17 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
         fix_progress_bar(trainer)
 
         # injecting PEFT adapters
-        if self.model.model_transform is not None:
+        if hasattr(self.model, "model_transform") and self.model.model_transform is not None:
             self.model.model_transform(self.model)
 
         # shard model
         from megatron.core.transformer.transformer_layer import TransformerLayer
 
-        # if dp_mesh.size() > 1:
-        for sub_module in self.model.modules():
-            if isinstance(sub_module, TransformerLayer):
-                fully_shard(sub_module, mesh=self.device_mesh)
-        fully_shard(self.model, mesh=self.device_mesh)
+        if not isinstance(self.model, FSDPModule):
+            for sub_module in self.model.modules():
+                if isinstance(sub_module, TransformerLayer):
+                    fully_shard(sub_module, mesh=self.device_mesh)
+            fully_shard(self.model, mesh=self.device_mesh)
 
         super().setup(trainer)
 

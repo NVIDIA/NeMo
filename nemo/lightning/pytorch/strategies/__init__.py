@@ -18,5 +18,6 @@ from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 
 __all__ = [
     "FSDPStrategy",
-    "FSDP2Strategy" "MegatronStrategy",
+    "FSDP2Strategy",
+    "MegatronStrategy",
 ]
