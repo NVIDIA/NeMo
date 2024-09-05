@@ -11,8 +11,10 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
-from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing, \
-    distributed_fused_adam_for_finetuning
+from nemo.collections.llm.recipes.optim.adam import (
+    distributed_fused_adam_for_finetuning,
+    distributed_fused_adam_with_cosine_annealing,
+)
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
 from nemo.collections.llm.utils import Config, Partial
 from nemo.utils.exp_manager import TimingCallback
@@ -103,11 +105,7 @@ def hf_resume() -> Config[nl.AutoResume]:
 
 
 def finetune_recipe(
-    name: str,
-    ckpt_dir: str,
-    num_nodes: int,
-    num_gpus_per_node: int,
-    peft_scheme: str = 'none'
+    name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, peft_scheme: str = 'none'
 ) -> Partial:
     recipe = pretrain_recipe(
         name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
