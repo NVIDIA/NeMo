@@ -98,12 +98,10 @@ def get_results(
     ]
     result = []
     errors = []
-    dirs = os.listdir(training_logs)
-    if ".sdk" in dirs:
-        dirs.pop(0)
+    dirs = [f.path for f in os.scandir(training_logs) if f.is_dir()]
 
     for candidate_dir in dirs:
-        logs_dir = os.path.join(training_logs, candidate_dir, "lightning_logs")
+        logs_dir = os.path.join(training_logs, candidate_dir, "tb_logs/lightning_logs")
         logs_folder = [f.path for f in os.scandir(logs_dir) if f.is_dir()][0]
         tp, pp, cp, ep, mbs, act_ckpt, num_mbs_act, act_per_pipe = get_config(candidate_dir)
 

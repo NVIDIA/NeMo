@@ -86,8 +86,10 @@ class BaseConfig:
             "bf16": True,
             "adam_beta1": 0.9,
             "adam_beta2": 0.95,
-            "overlap_grad_reduce": False,
+            "overlap_grad_reduce": True,
             "overlap_param_gather": True,
+            "clip_grad": 1.0,
+            "adam_eps": 1e-5,
         }
 
         optim_config = Config(
@@ -124,7 +126,6 @@ class BaseConfig:
             "limit_val_batches": 1,
             "limit_test_batches": 1,
             "accumulate_grad_batches": 1,
-            "gradient_clip_val": 1.0,
             "num_nodes": self.config.num_nodes,
             "devices": self.config.num_gpus,
             "max_steps": self.config.max_steps_per_run,
@@ -198,7 +199,7 @@ class BaseConfig:
         """
 
         # Define TensorBoard Logger
-        tb_logger = Config(TensorBoardLogger, save_dir=self.config.path_to_logs)
+        tb_logger = Config(TensorBoardLogger, save_dir="tb_logs")
 
         ckpt = Config(
             nl.ModelCheckpoint,
@@ -213,7 +214,7 @@ class BaseConfig:
             ckpt=ckpt,
             tensorboard=tb_logger,
             wandb=None,
-            dir=self.config.path_to_logs,
+            dir="/nemo_run",
         )
 
     def get_run_config(self) -> dict:

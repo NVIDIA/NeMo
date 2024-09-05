@@ -17,10 +17,10 @@ import os
 import shutil
 
 import fiddle as fdl
+import nemo_run as run
 
 from nemo.collections.llm import GPTConfig126M
-from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, get_results
-from nemo.collections.llm.tools.auto_configurator.runner import generate_configs
+from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, get_results, generate_configs
 
 
 def get_args():
@@ -39,7 +39,7 @@ def train_config(args):
     # It is expected that this script will be run 3 times with changing --run_number flag for each run from 0 to 2.
     # After all configurations are trained, please trigger the script using --get_results flag.
     runner = AutoConfigurator(
-        model=GPTConfig126M(),
+        model=run.Config(GPTConfig126M),
         num_nodes=1,
         gpus_per_node=1,
         gpu_memory_gb=40,

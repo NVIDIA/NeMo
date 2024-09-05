@@ -19,6 +19,8 @@ import re
 from dataclasses import dataclass
 from typing import List, Optional
 
+import nemo_run as run
+
 from nemo.collections.llm import GPTModel
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.tools.auto_configurator.core.training_config import generate_grid_search_configs
@@ -108,7 +110,7 @@ class AutoConfigurator:
         config.pop('self')
         logging.info(self._get_message(config))
 
-        model_type = self._get_model_type(model.__class__.__name__)
+        model_type = self._get_model_type(model)
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {SUPPORTED_MODELS}."
         assert tokenizer_type in SUPPORTED_TOKENIZERS, f"tokenizer_type must be set to one of {SUPPORTED_TOKENIZERS}."
         assert num_nodes, "num_nodes value must be specified."
@@ -123,7 +125,7 @@ class AutoConfigurator:
         assert max_minutes_per_run >= 10, "max_minutes_per_run must be an int and be at least 10 minutes."
 
         self.model_type = model_type
-        self.model_size_in_b = self._get_model_size(model.__class__.__name__)
+        self.model_size_in_b = self._get_model_size(model)
         self.gpu_count = gpu_count
         self.num_gpus = gpus_per_node
 
@@ -145,16 +147,20 @@ class AutoConfigurator:
 
         return message
 
-    def _get_model_type(self, model: str) -> str:
+    def _get_model_type(self, model: Config) -> str:
         """
         Function that returns model type from model class name.
 
         Args:
-            models (str): model class name.
+            models (Config): model object.
 
         Returns:
             str: model type.
         """
+
+        match = re.search(r"\w+\d+[MB]", str(model))
+        if match:
+            model = match.group(0)
 
         if "GPT" in model:
             return "gpt3"
@@ -171,17 +177,17 @@ class AutoConfigurator:
         else:
             return None
 
-    def _get_model_size(self, config_string) -> int:
+    def _get_model_size(self, model: Config) -> int:
         """
         Function that returns model size from model class name.
 
         Args:
-            models (str): model class name.
+            model (Config): model class name.
 
         Returns:
             int: model size.
         """
-        match = re.search(r'(\d+)([BM])', config_string)
+        match = re.search(r'(\d+)([BM])', str(model))
         if match:
             size = int(match.group(1))
             measure = match.group(2)
@@ -210,7 +216,7 @@ def generate_configs(runner_config: AutoConfigurator = None) -> dict:
     base_config, train_configs = generate_grid_search_configs(base_cfg, train_cfg)
 
     tokenizer = base_config.tokenizer
-    model = GPTModel(base_config.model, tokenizer=tokenizer)
+    model = Config(GPTModel, config=base_config.model, tokenizer=tokenizer)
 
     configs = {}
     for name, config in train_configs.items():
@@ -230,11 +236,10 @@ def generate_configs(runner_config: AutoConfigurator = None) -> dict:
         trainer.strategy.virtual_pipeline_model_parallel_size = config.get(
             "virtual_pipeline_model_parallel_size", None
         )
+        if config.get("tensor_model_parallel_size") > 1:
+            trainer.strategy.sequence_parallel = True
 
         # Set the directory where to save the logs
-        log.dir = os.path.join(runner_config.path_to_logs, name)
-        log.tensorboard.save_dir = log.dir
-
         configs[name] = Partial(
             pretrain,
             model=model,
