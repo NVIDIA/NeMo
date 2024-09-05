@@ -592,9 +592,7 @@ def run_train_mnist_litautoencoder_with_fsdp2_strategy_single_gpu():
             #  and maybe DDP.
             model = LitAutoEncoder(config=ExampleConfig())
             forward_output = batch_collator(
-                predict_trainer.predict(
-                    model, dataloaders=data_module.test_dataloader(), ckpt_path=ckpt_path
-                )
+                predict_trainer.predict(model, dataloaders=data_module.test_dataloader(), ckpt_path=ckpt_path)
             )
 
             assert set(forward_output.keys()) == {

@@ -591,7 +591,9 @@ def run_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
             # FIXME: the below checkpoint loading strategy and manual module unwrapping probably only works in single GPU
             #  and maybe DDP.
             unwrapped_trained_model = trainer.model.module  # TODO clean this up. Would be good not to have to unwrap.
-            import ipdb; ipdb.set_trace()
+            import ipdb
+
+            ipdb.set_trace()
             forward_output = batch_collator(
                 predict_trainer.predict(
                     unwrapped_trained_model, dataloaders=data_module.test_dataloader(), ckpt_path=ckpt_path
