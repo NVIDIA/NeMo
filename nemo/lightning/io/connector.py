@@ -239,5 +239,5 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
     def on_import_ckpt(self, model: pl.LightningModule):
         if hasattr(self, "tokenizer"):
             model.tokenizer = self.tokenizer
-            if hasattr(model, "__io__"):
-                model.__io__.tokenizer = self.tokenizer
+            if hasattr(model, "__io__") and hasatttr(self.tokenizer, '__io__'):
+                model.__io__.tokenizer = self.tokenizer.__io__
