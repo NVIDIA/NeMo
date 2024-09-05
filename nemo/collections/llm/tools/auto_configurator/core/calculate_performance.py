@@ -41,7 +41,7 @@ def get_results(
     model_name = train_config.model_type
     config_name = base_config.model.__class__.__name__
     global_batch_size = base_config.data.global_batch_size
-    seq_length=base_config.data.seq_length
+    seq_length = base_config.data.seq_length
 
     vocab_size = train_config.vocab_size
     num_nodes = train_config.num_nodes
