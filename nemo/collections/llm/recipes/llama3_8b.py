@@ -108,9 +108,7 @@ def hf_resume() -> Config[nl.AutoResume]:
     )
 
 
-def finetune_recipe(
-    name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, peft_scheme: str = 'none'
-):
+def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, peft_scheme: str = 'none'):
     recipe = Partial(
         finetune,
         model=model(),
