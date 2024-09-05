@@ -29,7 +29,6 @@ def pathize(s):
     return s
 
 def copy_file(src: Union[Path, str], path: Union[Path, str], relative_dst: Union[Path, str]):
-    print('copy_file.src= ' + str(src) + " path= " + str(path) + " relative_dst= " + str(relative_dst))
     relative_path = pathize(relative_dst) / pathize(src).name
     output = pathize(path) / relative_path
     if output.exists():
