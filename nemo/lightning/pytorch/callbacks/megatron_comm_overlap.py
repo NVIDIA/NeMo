@@ -1,12 +1,10 @@
 from dataclasses import dataclass, fields
-from typing import List, Optional
 
 import pytorch_lightning as pl
-import torch
+from pytorch_lightning.callbacks.callback import Callback
 from megatron.core import ModelParallelConfig
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.callbacks.callback import Callback
 
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy, ParallelismConfig
 from nemo.utils import logging
