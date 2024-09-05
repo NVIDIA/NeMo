@@ -1,5 +1,5 @@
-import shutil
 import os
+import shutil
 from pathlib import Path
 from typing import Union
 
@@ -23,10 +23,12 @@ class FileArtifact(Artifact[str]):
     def load(self, path: str) -> str:
         return path
 
+
 def pathize(s):
     if not isinstance(s, Path):
         return Path(s)
     return s
+
 
 def copy_file(src: Union[Path, str], path: Union[Path, str], relative_dst: Union[Path, str]):
     relative_path = pathize(relative_dst) / pathize(src).name
@@ -63,4 +65,3 @@ class DirOrStringArtifact(DirArtifact):
 
     def load(self, path: str) -> str:
         return path
-

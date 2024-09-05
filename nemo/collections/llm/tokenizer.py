@@ -13,18 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.lightning.io.artifact import FileArtifact, DirOrStringArtifact
+from nemo.lightning.io.artifact import DirOrStringArtifact, FileArtifact
 from nemo.lightning.io.mixin import track_io
 
 __all__ = []
+
+
 def extract_name(cls):
     return str(cls).split('.')[-1].rstrip('>').rstrip("'")
+
 
 try:
     # Track HF tokenizers
     from transformers import AutoTokenizer as HfAutoTokenizer
     from transformers.models.llama.tokenization_llama import LlamaTokenizer
     from transformers.models.llama.tokenization_llama_fast import LlamaTokenizerFast
+
     for cls in [HfAutoTokenizer, LlamaTokenizer, LlamaTokenizerFast]:
         track_io(
             cls,
