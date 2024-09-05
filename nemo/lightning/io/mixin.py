@@ -592,31 +592,31 @@ def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] =
     ## add IO functionality to custom objects present in the json file
     with open(_path) as f:
         j = json.load(f)
-        for obj, val in j["objects"].items():
-            clss = ".".join([val["type"]["module"], val["type"]["name"]])
-            if subpath and "paths" in val:
-                if all(map(lambda p: subpath not in p, val["paths"])):
-                    continue
+    for obj, val in j.get("objects", {}).items():
+        clss = ".".join([val["type"]["module"], val["type"]["name"]])
+        if subpath and "paths" in val:
+            if all(map(lambda p: subpath not in p, val["paths"])):
+                continue
 
-            if not serialization.find_node_traverser(locate(clss)):
-                track_io(locate(clss))
+        if not serialization.find_node_traverser(locate(clss)):
+            track_io(locate(clss))
 
     with open(_path, "rb") as f:
         json_config = json.loads(f.read())
 
-        root_key = None
-        for obj, val in json_config["objects"].items():
-            if "paths" in val and subpath in val["paths"]:
-                root_key = obj
-                break
+    root_key = None
+    for obj, val in json_config.get("objects", {}).items():
+        if "paths" in val and subpath in val["paths"]:
+            root_key = obj
+            break
 
-        if subpath and not root_key:
-            logging.warning(f"Could not find {subpath} for {output_type} in {_path}")
+    if subpath and not root_key:
+        logging.warning(f"Could not find {subpath} for {output_type} in {_path}")
 
-        if root_key:
-            json_config["root"]["key"] = root_key
+    if root_key:
+        json_config["root"]["key"] = root_key
 
-        config = serialization.Deserialization(json_config).result
-        _artifact_transform_load(config, path)
+    config = serialization.Deserialization(json_config).result
+    _artifact_transform_load(config, path)
 
     return fdl.build(config)
