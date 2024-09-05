@@ -26,12 +26,11 @@ try:
     from transformers.models.llama.tokenization_llama import LlamaTokenizer
     from transformers.models.llama.tokenization_llama_fast import LlamaTokenizerFast
     for cls in [HfAutoTokenizer, LlamaTokenizer, LlamaTokenizerFast]:
-        attr_names = ['vocab_file', 'merges_file', 'tokenizer_file', 'name_or_path']
         track_io(
             cls,
             artifacts=[
                 FileArtifact(attr_name, required=False)
-                for attr_name in attr_names
+                for attr_name in ['vocab_file', 'merges_file', 'tokenizer_file', 'name_or_path']
             ],
         )
         __all__.append(extract_name(cls))
