@@ -1,4 +1,4 @@
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 import pytorch_lightning as pl
 import torch
@@ -34,6 +34,11 @@ def trainer(
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     callbacks: Optional[list[Config[Callback]]] = None,
+    limit_test_batches: Optional[Union[int, float]] = 50,
+    limit_val_batches: Optional[Union[int, float]] = 32,
+    val_check_interval: Optional[Union[int, float]] = 2000,
+    ckpt_async_save: bool = False,
+    ckpt_parallel_load: bool = False,
 ) -> Config[nl.Trainer]:
     strategy = Config(
         nl.MegatronStrategy,
@@ -44,8 +49,8 @@ def trainer(
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
         gradient_as_bucket_view=True,
-        ckpt_async_save=True,
-        ckpt_parallel_load=True,
+        ckpt_async_save=ckpt_async_save,
+        ckpt_parallel_load=ckpt_parallel_load,
     )
 
     trainer = Config(
@@ -54,15 +59,15 @@ def trainer(
         accumulate_grad_batches=1,
         callbacks=callbacks,
         devices=num_gpus_per_node,
-        limit_test_batches=50,
-        limit_val_batches=32,
+        limit_test_batches=limit_test_batches,
+        limit_val_batches=limit_val_batches,
         log_every_n_steps=10,
         max_steps=max_steps,
         num_nodes=num_nodes,
         plugins=bf16_mixed_plugin(),
         strategy=strategy,
         use_distributed_sampler=False,
-        val_check_interval=2000,
+        val_check_interval=val_check_interval,
     )
 
     return trainer
@@ -84,6 +89,8 @@ def pretrain_recipe(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[Config(TimingCallback)],
+            ckpt_async_save=True,
+            ckpt_parallel_load=True,
         ),
         data=Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
         log=default_log(ckpt_dir=ckpt_dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
@@ -103,18 +110,31 @@ def hf_resume() -> Config[nl.AutoResume]:
 
 def finetune_recipe(
     name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, peft_scheme: str = 'none'
-) -> Partial:
-    recipe = pretrain_recipe(
-        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
+):
+    recipe = Partial(
+        finetune,
+        model=model(),
+        trainer=trainer(
+            tensor_parallelism=1,
+            pipeline_parallelism=1,
+            pipeline_parallelism_type=None,
+            virtual_pipeline_parallelism=None,
+            context_parallelism=1,
+            sequence_parallelism=False,
+            num_nodes=num_nodes,
+            num_gpus_per_node=num_gpus_per_node,
+            max_steps=1000,
+            limit_test_batches=None,
+            limit_val_batches=None,
+            val_check_interval=30,
+        ),
+        data=Config(SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1),
+        log=default_log(ckpt_dir=ckpt_dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, adam_beta2=0.98, warmup_steps=50),
+        resume=hf_resume(),
     )
-    recipe.resume = hf_resume()
-    recipe.data = Config(SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1)
-    recipe.trainer.gradient_clip_val = 1
-    recipe.trainer.strategy.context_parallel_size = 1
-    recipe.trainer.max_steps = 1000
-    recipe.optim.config.adam_beta2 = 0.98
-    recipe.optim.lr_scheduler.warmup_steps = 50
     recipe.optim.lr_scheduler.min_lr = 0
+
     if peft_scheme.lower() == 'lora':
         recipe.peft = Config(LoRA)
         recipe.optim.config.lr = 1e-4
