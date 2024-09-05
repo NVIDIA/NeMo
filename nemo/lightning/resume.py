@@ -109,7 +109,7 @@ class AutoResume:
             new_path = path
 
         if adapter_path:
-            
+
             new_path = AdapterPath(Path(adapter_path), base_model_path=new_path)
 
         if isinstance(new_path, str):
