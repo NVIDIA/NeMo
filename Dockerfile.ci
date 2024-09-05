@@ -31,6 +31,8 @@ EOF
 
 WORKDIR /workspace
 
+RUN pip install hatchling   # needed to install nemo-run
+
 # Install NeMo requirements
 ARG TE_TAG=7d576ed25266a17a7b651f2c12e8498f67e0baea
 ARG MODELOPT_VERSION=0.15.0
