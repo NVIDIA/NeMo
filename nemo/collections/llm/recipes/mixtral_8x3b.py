@@ -30,6 +30,7 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.utils.exp_manager import TimingCallback
+from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronExpertParallelTokenDrop
 
 NAME = "mixtral_8x3b"
 
@@ -54,14 +55,14 @@ def model() -> run.Config[pl.LightningModule]:
 
 
 def trainer(
-    tensor_parallelism: int = 4,
+    tensor_parallelism: int = 1,
     pipeline_parallelism: int = 1,
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
     sequence_parallelism: bool = True,
-    expert_parallelism: int = 1,
-    num_nodes: int = 1,
+    expert_parallelism: int = 2,
+    num_nodes: int = 2,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
@@ -172,6 +173,15 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+def pretrain_recipe_performance(
+    name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
+) -> Partial:
+    recipe = pretrain_recipe(
+        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
+    )
+
+    recipe.trainer.callbacks.append(Config(MegatronExpertParallelTokenDrop))
+    return recipe
 
 def hf_resume() -> run.Config[nl.AutoResume]:
     """

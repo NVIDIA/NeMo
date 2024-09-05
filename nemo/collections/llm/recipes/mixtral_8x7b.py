@@ -54,14 +54,14 @@ def model() -> run.Config[pl.LightningModule]:
 
 
 def trainer(
-    tensor_parallelism: int = 8,
-    pipeline_parallelism: int = 2,
+    tensor_parallelism: int = 1,
+    pipeline_parallelism: int = 4,
     pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
-    virtual_pipeline_parallelism: Optional[int] = None,
+    virtual_pipeline_parallelism: Optional[int] = 8,
     context_parallelism: int = 1,
     sequence_parallelism: bool = True,
-    expert_parallelism: int = 1,
-    num_nodes: int = 2,
+    expert_parallelism: int = 8,
+    num_nodes: int = 8,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
@@ -175,6 +175,15 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+def pretrain_recipe_performance(
+    name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
+) -> Partial:
+    recipe = pretrain_recipe(
+        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
+    )
+
+    recipe.trainer.callbacks.append(Config(MegatronExpertParallelTokenDrop))
+    return recipe
 
 def hf_resume() -> run.Config[nl.AutoResume]:
     """
