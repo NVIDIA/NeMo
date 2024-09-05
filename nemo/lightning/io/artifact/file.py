@@ -60,6 +60,8 @@ class DirArtifact(Artifact[str]):
 class DirOrStringArtifact(DirArtifact):
     def dump(self, value: str, absolute_dir: Path, relative_dir: Path) -> str:
         if not pathize(value).exists():
+            # This is Artifact is just a string.
+            self.skip = True
             return value
         return super().dump(value, absolute_dir, relative_dir)
 

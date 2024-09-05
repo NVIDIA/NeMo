@@ -520,6 +520,9 @@ def _io_path_elements_fn(x):
 
 def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: Path = "."):
     for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
+        # Allow optional artifacts
+        if artifact.skip:
+            continue
         current_val = getattr(cfg, artifact.attr)
         if current_val is None:
             if artifact.required:
@@ -539,6 +542,8 @@ def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: P
 
 def _artifact_transform_load(cfg: fdl.Config, path: Path):
     for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
+        if artifact.skip:
+            continue
         current_val = getattr(cfg, artifact.attr)
         # __init__ arguments can be None
         if current_val is None:
