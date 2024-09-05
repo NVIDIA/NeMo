@@ -65,7 +65,7 @@ def train_config(args):
 
         # Run pre-training
         partial = partials[args.run_number - 1]
-        partial.log.dir=os.path.join(args.logs_dir, names[args.run_number - 1])
+        partial.log.dir = os.path.join(args.logs_dir, names[args.run_number - 1])
         pretrain = fdl.build(partial)
         pretrain()
     else:
