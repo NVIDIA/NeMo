@@ -20,7 +20,7 @@ import fiddle as fdl
 import nemo_run as run
 
 from nemo.collections.llm import GPTConfig126M
-from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, get_results, generate_configs
+from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs, get_results
 
 
 def get_args():
