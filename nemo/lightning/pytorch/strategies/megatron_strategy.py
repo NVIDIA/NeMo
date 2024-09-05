@@ -629,7 +629,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ## replace unsharded optimizer_states with sharded dict.
         ## note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
         ## the checkpoint will contain only model weights. Optimizer states will be omitted.
-        if "optimizer_states" in checkpoint and self.trainer.state.fn == TrainerFn.FITTING and self.ckpt_save_optimizer:
+        if (
+            "optimizer_states" in checkpoint
+            and self.trainer.state.fn == TrainerFn.FITTING
+            and self.ckpt_save_optimizer
+        ):
             del checkpoint["optimizer_states"]
             checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
