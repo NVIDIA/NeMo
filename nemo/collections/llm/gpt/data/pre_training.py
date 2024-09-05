@@ -36,12 +36,13 @@ if TYPE_CHECKING:
 
 
 def is_number_tryexcept(s):
-    """ Returns True if string is a number. """
+    """Returns True if string is a number."""
     try:
         float(s)
         return True
     except ValueError:
         return False
+
 
 def is_zipped_list(paths):
     # ["30", "path/to/dataset_1_prefix", "70", "path/to/dataset_2_prefix"]
@@ -52,6 +53,7 @@ def is_zipped_list(paths):
     if any(is_num):
         assert all(is_num), "Got malformatted zipped list"
     return is_num[0]
+
 
 def validate_dataset_asset_accessibility(paths):
     if paths is None:
