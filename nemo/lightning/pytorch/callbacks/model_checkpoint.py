@@ -451,7 +451,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
             if self.enable_nemo_ckpt_io and is_global_rank_zero():
                 from nemo.lightning.io.pl import TrainerContext
-                from pathlib import Path
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath))
 
             if self.async_save:

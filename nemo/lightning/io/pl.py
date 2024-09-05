@@ -62,21 +62,6 @@ class TrainerContext(IOMixin, Generic[LightningModuleT]):
 
         return extra
 
-
-
-@dataclass
-class TokenizerContext(IOMixin, Generic[LightningModuleT]):
-    tokenizer: LightningModuleT
-
-    @classmethod
-    def from_trainer(cls, trainer: pl.Trainer) -> Self:
-        if not hasattr(trainer, "__io__"):
-            raise ValueError(f"Trainer must be an instance of {IOProtocol}. Please use the Trainer from nemo.")
-        if not hasattr(trainer.lightning_module, "__io__"):
-            raise ValueError("LightningModule must extend IOMixin.")
-
-        return cls(tokenizer=trainer.lightning_module.tokenizer)
-
 class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
     """CheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
     common for most use cases.
