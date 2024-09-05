@@ -395,6 +395,7 @@ def modify_cfg(
     max_steps: int,
     num_nodes: int,
     model_name: str,
+    model_size,
 ) -> dict:
     """Modify the base configuration for the model with the new parameters that are specific to the current model, which the Auto Configurator tool heuristics selected.
 
@@ -465,7 +466,7 @@ def modify_cfg(
         # Valid config
         new_cfg["run"][
             "name"
-        ] = f"{base_cfg.model.__class__.__name__}_{num_nodes}nodes_tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_act_ckpt_{act}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}"
+        ] = f"{model_name}_{str(model_size)}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_act_ckpt_{act}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}"
         print(
             f"Valid config: SeqLen={seq_len}, GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, CP={cp}, EP={ep}, act_ckpt_layers={act}, num_mbs_act={num_mbs_act}, act_per_pipe={act_per_pipe}. Adding to directory."
         )

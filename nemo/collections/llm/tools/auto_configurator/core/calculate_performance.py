@@ -39,7 +39,7 @@ def get_results(
 
     # Define needed variables
     model_name = train_config.model_type
-    config_name = base_config.model.__class__.__name__
+    model_size = train_config.model_size_in_b
     global_batch_size = base_config.data.global_batch_size
     seq_length = base_config.data.seq_length
 
@@ -55,7 +55,8 @@ def get_results(
     final_result_logs = path_to_save
 
     result_columns = [
-        "Model Config",
+        "Model Name",
+        "Model Size",
         "Seq Length",
         "TP",
         "PP",
@@ -75,10 +76,10 @@ def get_results(
         "Samples per Second",
         "Model TFLOPS / GPU",
         "Model TFLOPS Aggregate",
-        "Config Name",
     ]
     error_columns = [
-        "Model Config",
+        "Model Name",
+        "Model Size",
         "Seq Length",
         "TP",
         "PP",
@@ -112,7 +113,8 @@ def get_results(
                 if error:
                     errors.append(
                         [
-                            config_name,
+                            model_name,
+                            model_size,
                             seq_length,
                             tp,
                             pp,
@@ -161,7 +163,8 @@ def get_results(
                     config_name = f"tp{tp}_pp{pp}_cp{cp}_ep{ep}_mbs{mbs}_act_{act_ckpt}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}"
                     result.append(
                         [
-                            config_name,
+                            model_name,
+                            model_size,
                             seq_length,
                             tp,
                             pp,
@@ -181,21 +184,20 @@ def get_results(
                             samples_per_s,
                             m_tflops_gpu,
                             m_tflops,
-                            config_name,
                         ]
                     )
                 finally:
                     continue
-    result.sort(key=lambda x: x[16])
+    result.sort(key=lambda x: x[17])
     print(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
     for i, res in enumerate(result):
-        print(f"Config #{i+1}: {res[-1]} with {res[16]:.4f}s per global step.")
+        print(f"Config #{i+1}: {res[-1]} with {res[17]:.4f}s per global step.")
         if i + 1 == output_top_n:
             break
 
-    top_config = f"{config_name}_{num_nodes}nodes_tp_{result[0][3]}_pp_{result[0][4]}_cp_{result[0][5]}_ep_{result[0][6]}_mbs_{result[0][7]}_act_ckpt_{result[0][8]}_num_mbs_act_{result[0][9]}_act_per_pipe_{result[0][10]}"
+    top_config = f"{model_name}_{model_size}b_{num_nodes}nodes_tp_{result[0][3]}_pp_{result[0][4]}_cp_{result[0][5]}_ep_{result[0][6]}_mbs_{result[0][7]}_act_ckpt_{result[0][8]}_num_mbs_act_{result[0][9]}_act_per_pipe_{result[0][10]}"
     print("\n==================================================")
-    print(f"Optimal config: {top_config} with {result[0][16]:.4f}s per global step.")
+    print(f"Optimal config: {top_config} with {result[0][17]:.4f}s per global step.")
     print("==================================================\n")
 
     # Save results as a CSV file.

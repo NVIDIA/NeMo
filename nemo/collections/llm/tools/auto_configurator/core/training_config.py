@@ -141,6 +141,7 @@ def generate_grid_search_configs(
                 "max_steps": max_steps,
                 "num_nodes": num_nodes,
                 "model_name": model_name,
+                "model_size": model_size_in_b,
             }
             if act_ckpt_layers[0] is not None:
                 if act_layers is not None and act_layers != "auto":
