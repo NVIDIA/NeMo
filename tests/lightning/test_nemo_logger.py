@@ -185,7 +185,9 @@ class TestNeMoLogger:
         nl.AutoResume(
             resume_if_exists=True,
         ).setup(trainer)
-        checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last" / "weights")
+        checkpoint = Path(
+            tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last" / "weights"
+        )
         assert Path(trainer.ckpt_path).resolve() == checkpoint.resolve()
 
         trainer = nl.Trainer(accelerator="cpu", logger=False)
