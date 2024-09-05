@@ -104,7 +104,6 @@ class TestNeMoLogger:
         with pytest.raises(NotFoundError):
             nl.AutoResume(
                 resume_from_directory=str(tmp_path / "test_resume" / "does_not_exist"),
-                path="does_not_exist",
                 resume_if_exists=True,
             ).setup(trainer)
 
@@ -137,7 +136,7 @@ class TestNeMoLogger:
         # Error because *end.ckpt is unfinished, should raise an error despite resume_ignore_no_checkpoint=True
         with pytest.raises(ValueError):
             nl.AutoResume(
-                dirpath=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
+                resume_from_directory=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
                 resume_if_exists=True,
                 resume_past_end=True,
                 resume_ignore_no_checkpoint=True,
@@ -150,7 +149,7 @@ class TestNeMoLogger:
         # Error because *last.ckpt is unfinished, should raise an error despite resume_ignore_no_checkpoint=True
         with pytest.raises(ValueError):
             nl.AutoResume(
-                dirpath=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
+                resume_from_directory=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
                 resume_if_exists=True,
                 resume_ignore_no_checkpoint=True,
             ).setup(trainer)
