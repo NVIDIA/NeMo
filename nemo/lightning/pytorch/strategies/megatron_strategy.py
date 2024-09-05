@@ -60,13 +60,6 @@ from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, Asyn
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
 
-HAVE_TE = True
-try:
-    import transformer_engine
-except (ImportError, ModuleNotFoundError):
-    HAVE_TE = False
-
-
 ConfigT = TypeVar("ConfigT")
 
 
@@ -83,26 +76,7 @@ class ParallelismConfig:
     expert_model_parallel_size: int
     moe_extended_tp: bool
     pipeline_dtype: torch.dtype
-
-
-@dataclass
-class CommOverlapConfig:
-    # Tensor parallel communication overlap (experimental)
-    tp_comm_overlap: bool = None
-    tp_comm_overlap_cfg: dict = None
-    # Pipeline parallel communication overlap
-    overlap_p2p_comm: bool = None
-    batch_p2p_comm: bool = None
-    # Data parallel communication overlap
-    overlap_grad_reduce: bool = None
-    overlap_param_gather: bool = None
-    overlap_param_gather_with_optimizer_step: bool = None
-    align_param_gather: bool = None
-    bucket_size: int = None
-    # Pipeline bubble overlap
-    defer_embedding_wgrad_compute: bool = None
-    wgrad_deferral_limit: int = None
-
+    
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
     """Megatron plugin for Pytorch Lightning.
@@ -181,7 +155,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         sequence_parallel: bool = False,
         expert_model_parallel_size: int = 1,
         moe_extended_tp: bool = False,
-        comm_overlap_cfg: Optional['CommOverlapConfig'] = CommOverlapConfig(),
         data_sampler: Optional['DataSampler'] = None,
         parallel_devices: Optional[List[torch.device]] = None,
         cluster_environment=None,  # TODO: Add type-hint
@@ -223,7 +196,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.moe_extended_tp = moe_extended_tp
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
-        self.comm_overlap_cfg = comm_overlap_cfg
 
         self.lazy_init = lazy_init
         self.ckpt_include_optimizer = ckpt_include_optimizer
@@ -259,94 +231,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
-
-    def _apply_overlap_configs(self, comm_overlap_cfg: CommOverlapConfig, cfg):
-        # override default configs with any user provided configs
-        user_comm_overlap_cfg = self.comm_overlap_cfg
-        if isinstance(user_comm_overlap_cfg, CommOverlapConfig):
-            for field in fields(user_comm_overlap_cfg):
-                user_value = getattr(user_comm_overlap_cfg, field.name)
-                if user_value is not None:
-                    setattr(comm_overlap_cfg, field.name, user_value)
-        # apply optimizations
-        for field in fields(comm_overlap_cfg):
-            if hasattr(cfg, field.name):
-                setattr(cfg, field.name, getattr(comm_overlap_cfg, field.name))
-        return cfg
-
-    def _apply_model_comm_overlap_cfgs(self, model_parallel_cfg: ModelParallelConfig) -> ModelParallelConfig:
-        from nemo.utils import AppState
-
-        app_state = AppState()
-        comm_overlap_cfg = CommOverlapConfig()
-
-        vp_size = app_state.virtual_pipeline_model_parallel_size
-        if vp_size is None:
-            vp_size = 1
-
-        # TP overlap is disabled by default, can be overriden by user
-        comm_overlap_cfg.tp_comm_overlap = False
-        comm_overlap_cfg.tp_comm_overlap_cfg = None
-        # PP overlap
-        if app_state.pipeline_model_parallel_size > 1:
-            if vp_size > 1:
-                comm_overlap_cfg.overlap_p2p_comm = True
-                comm_overlap_cfg.batch_p2p_comm = False
-            else:
-                comm_overlap_cfg.overlap_p2p_comm = False
-                comm_overlap_cfg.batch_p2p_comm = True
-        else:
-            comm_overlap_cfg.overlap_p2p_comm = False
-            comm_overlap_cfg.batch_p2p_comm = False
-        model_parallel_cfg = self._apply_overlap_configs(comm_overlap_cfg, model_parallel_cfg)
-
-        # Check if TP overlap can be safely enabled
-        if hasattr(model_parallel_cfg, "tp_comm_overlap") and model_parallel_cfg.tp_comm_overlap is True:
-            if self.tensor_model_parallel_size < 2:
-                logging.warning("Disabling tensor parallel communication overlap due to TP size < 2.")
-                model_parallel_cfg.tp_comm_overlap = False
-            elif not self.sequence_parallel:
-                logging.warning("Disabling tensor parallel communication overlap due to sequence_parallel=False.")
-                model_parallel_cfg.tp_comm_overlap = False
-            elif not HAVE_TE:
-                logging.warning(
-                    "Disabling tensor parallel communication overlap due to Tranformer Engine not detected."
-                )
-                model_parallel_cfg.tp_comm_overlap = False
-
-        return model_parallel_cfg
-
-    def _apply_optimizer_overlap_cfgs(
-        self, optim_cfg: OptimizerConfig, ddp_cfg: DistributedDataParallelConfig
-    ) -> OptimizerConfig:
-        # Data parallel overlap is only available with the Megatron DDP and Distributed optimizer
-        if not ddp_cfg.use_distributed_optimizer:
-            return
-
-        from nemo.utils import AppState
-
-        app_state = AppState()
-
-        vp_size = app_state.virtual_pipeline_model_parallel_size
-        if vp_size is None:
-            vp_size = 1
-
-        comm_overlap_cfg = CommOverlapConfig()
-        comm_overlap_cfg.bucket_size = None
-        comm_overlap_cfg.overlap_grad_reduce = False
-        comm_overlap_cfg.overlap_param_gather = False
-        comm_overlap_cfg.overlap_param_gather_with_optimizer_step = False
-        comm_overlap_cfg.align_param_gather = False
-        if app_state.data_parallel_size > 1:
-            comm_overlap_cfg.bucket_size = 128 * 1024 * 1024
-            comm_overlap_cfg.overlap_grad_reduce = True
-            comm_overlap_cfg.overlap_param_gather = True
-            if app_state.pipeline_model_parallel_size > 1 and vp_size > 1:
-                comm_overlap_cfg.overlap_param_gather_with_optimizer_step = True
-                comm_overlap_cfg.align_param_gather = True
-
-        self._apply_overlap_configs(comm_overlap_cfg, optim_cfg)
-        self._apply_overlap_configs(comm_overlap_cfg, ddp_cfg)
 
     @override
     def connect(self, model: pl.LightningModule) -> None:
@@ -460,19 +344,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             assert isinstance(self.cluster_environment, ClusterEnvironment), "Cluster environment not initialized"
             self.data_sampler.setup(self.cluster_environment.global_rank())
 
-        if hasattr(self.model, "config") and isinstance(self.model.config, ModelParallelConfig):
-            self._apply_model_comm_overlap_cfgs(self.model.config)
-        if (
-            hasattr(self.model.optim, "config")
-            and isinstance(self.model.optim.config, OptimizerConfig)
-            and hasattr(self, "ddp_config")
-            and isinstance(self.ddp_config, DistributedDataParallelConfig)
-        ):
-            self._apply_optimizer_overlap_cfgs(
-                optim_cfg=self.model.optim.config,
-                ddp_cfg=self.ddp_config,
-            )
-
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
         if self.data_sampler:
@@ -494,7 +365,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             cpu=isinstance(trainer.accelerator, CPUAccelerator),
             ddp_config=self.ddp_config,
             convert_module_fn=convert_module_fn,
-            tp_comm_overlap_need_init=self.comm_overlap_cfg.tp_comm_overlap,
+            tp_comm_overlap_need_init=self.model.config.tp_comm_overlap,
         )
 
         if self._init_model_parallel:
