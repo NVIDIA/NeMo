@@ -8,7 +8,7 @@ from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.collections.llm.gpt.model.nemotron import Nemotron4Config15B, NemotronModel
+from nemo.collections.llm.gpt.model.nemotron import Nemotron4Config22B, NemotronModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
@@ -20,7 +20,7 @@ NAME = "nemotron4_15b"
 
 
 def model() -> Config[pl.LightningModule]:
-    return Config(NemotronModel, config=Config(Nemotron4Config15B))
+    return Config(NemotronModel, config=Config(Nemotron4Config22B))
 
 
 def trainer(
@@ -77,11 +77,11 @@ def pretrain_recipe(
         fn,
         model=model(),
         trainer=trainer(
-            tensor_parallelism=2,
+            tensor_parallelism=4,
             pipeline_parallelism=1,
             pipeline_parallelism_type=None,
             virtual_pipeline_parallelism=None,
-            context_parallelism=2,
+            context_parallelism=1,
             sequence_parallelism=True,
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,

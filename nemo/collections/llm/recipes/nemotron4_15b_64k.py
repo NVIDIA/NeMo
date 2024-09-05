@@ -24,9 +24,9 @@ def pretrain_recipe(
 
     trainer = nemotron4_15b.trainer(
         tensor_parallelism=4,
-        pipeline_parallelism=4,
+        pipeline_parallelism=2,
         pipeline_parallelism_type=torch.bfloat16,
-        virtual_pipeline_parallelism=8,
+        virtual_pipeline_parallelism=None,
         context_parallelism=4,
         sequence_parallelism=True,
         num_nodes=num_nodes,
@@ -53,10 +53,10 @@ def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node:
 
     trainer = nemotron4_15b.trainer(
         tensor_parallelism=2,
-        pipeline_parallelism=4,
+        pipeline_parallelism=2,
         pipeline_parallelism_type=torch.bfloat16,
-        virtual_pipeline_parallelism=8,
-        context_parallelism=4,
+        virtual_pipeline_parallelism=None,
+        context_parallelism=1,
         sequence_parallelism=True,
         num_nodes=num_nodes,
         num_gpus_per_node=num_gpus_per_node,
