@@ -15,16 +15,14 @@
 
 from typing import Optional
 
-import torch
-from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
-import pytorch_lightning as pl
-from nemo.collections.llm.api import pretrain, finetune
-from nemo.collections.llm.recipes import mixtral_8x3b
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
 
+from nemo.collections.llm.api import finetune, pretrain
+from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.collections.llm.gpt.data.squad import SquadDataModule
+from nemo.collections.llm.recipes import mixtral_8x3b
 
 NAME = "mixtral_8x3b_16k"
 

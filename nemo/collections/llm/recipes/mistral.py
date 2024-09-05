@@ -113,8 +113,9 @@ def pretrain_recipe(
 
 @run.cli.factory(name=NAME + "_hf")
 def hf_resume() -> run.Config[nl.AutoResume]:
-    return run.Config(nl.AutoResume, restore_config=run.Config(nl.RestoreConfig, path="hf://mistralai/Mistral-7B-v0.3"))
-
+    return run.Config(
+        nl.AutoResume, restore_config=run.Config(nl.RestoreConfig, path="hf://mistralai/Mistral-7B-v0.3")
+    )
 
 
 @run.cli.factory(target=finetune, name=NAME)

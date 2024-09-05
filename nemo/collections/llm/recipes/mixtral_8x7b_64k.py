@@ -15,17 +15,15 @@
 
 from typing import Optional
 
-import torch
-from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.utils.exp_manager import TimingCallback
-import pytorch_lightning as pl
-from nemo.collections.llm.api import pretrain, finetune
-from nemo.collections.llm.recipes import mixtral_8x7b
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
 
+from nemo.collections.llm.api import finetune, pretrain
+from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.collections.llm.gpt.data.squad import SquadDataModule
+from nemo.collections.llm.recipes import mixtral_8x7b
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "mixtral_8x7b_64k"
 
@@ -68,7 +66,7 @@ def pretrain_recipe(
     recipe.model = model()
     recipe.trainer = trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
     recipe.data = run.Config(MockDataModule, seq_length=65536, global_batch_size=512, micro_batch_size=1)
-    
+
     return recipe
 
 
@@ -84,5 +82,5 @@ def finetune_recipe(
     recipe.model = model()
     recipe.trainer = trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
     recipe.data = run.Config(SquadDataModule, seq_length=65536, global_batch_size=512, micro_batch_size=1)
-    
+
     return recipe

@@ -18,6 +18,7 @@ from typing import Optional
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
+from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
@@ -29,7 +30,6 @@ from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.utils.exp_manager import TimingCallback
-from megatron.core.distributed import DistributedDataParallelConfig
 
 NAME = "mixtral_8x22b"
 
