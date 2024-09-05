@@ -1,4 +1,4 @@
-from dataclasses import dataclass, fields, asdict
+from dataclasses import asdict, dataclass, fields
 
 import pytorch_lightning as pl
 from megatron.core import ModelParallelConfig
@@ -10,7 +10,6 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import Transfor
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy, ParallelismConfig
 from nemo.utils import logging
 
-
 try:
     from megatron.core.num_microbatches_calculator import get_micro_batch_size
 except (ImportError, ModuleNotFoundError):
@@ -20,6 +19,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     import transformer_engine
+
     HAVE_TE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -261,7 +261,7 @@ class MegatronCommOverlapCallback(Callback):
 
         self.need_tp_overlap_ub_init = False
 
-    # _init_te_userbuffers must run once after Megatron Parallel setup, however there isnt 
+    # _init_te_userbuffers must run once after Megatron Parallel setup, however there isnt
     # such a unified callback each stage, so add a hook for every stage
     def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         if self.need_tp_overlap_ub_init:
