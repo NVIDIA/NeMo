@@ -52,7 +52,6 @@ def train_config(args):
         max_steps_per_run=25,
         num_tokens_in_b=10,
         vocab_size=51200,
-        tokenizer_path="/home/models/gpt2",
         data_paths=args.data_path,
         path_to_logs=args.logs_dir,
     )
@@ -66,25 +65,13 @@ def train_config(args):
         pretrain = fdl.build(configs[args.run_number - 1])
         pretrain()
     else:
-        # Get Auto Configurator results
-        candidates = [d for d in os.listdir(args.logs_dir) if os.path.isdir(os.path.join(args.logs_dir, d))]
-        for subdir in candidates:
-            default_dir = os.path.join(args.logs_dir, subdir, "default")
-            if os.path.exists(default_dir) and os.path.isdir(default_dir):
-                for item in os.listdir(default_dir):
-                    s = os.path.join(default_dir, item)
-                    d = os.path.join(args.logs_dir, subdir, item)
-                    shutil.move(s, d)
-
-                os.rmdir(default_dir)
-
+        # # Get Auto Configurator results
         get_results(base_cfg, runner, args.logs_dir)
         print(f"The results were successfully saved to {args.logs_dir}.")
 
 
 def main():
     args = get_args()
-
     train_config(args)
 
 

@@ -37,6 +37,16 @@ def get_results(
         output_top_n (Optional[int]): Number of configs to be printed out as best configs.
     """
 
+    # Define needed variables
+    model_name = train_config.model_type
+    config_name = base_config.model.__class__.__name__
+    global_batch_size = base_config.data.global_batch_size
+    seq_length=base_config.data.seq_length
+
+    vocab_size = train_config.vocab_size
+    num_nodes = train_config.num_nodes
+    gpus_per_node = train_config.gpus_per_node
+
     layers = base_config.model.num_layers
     hs = base_config.model.hidden_size
     ffn_hs = base_config.model.ffn_hidden_size
@@ -68,8 +78,7 @@ def get_results(
         "Config Name",
     ]
     error_columns = [
-        "Model Name",
-        "Model Size",
+        "Model Config",
         "Seq Length",
         "TP",
         "PP",
@@ -105,8 +114,7 @@ def get_results(
                 if error:
                     errors.append(
                         [
-                            model_name,
-                            model_size,
+                            config_name,
                             seq_length,
                             tp,
                             pp,
@@ -138,25 +146,25 @@ def get_results(
                         continue
                     timing_list = [x.value for x in timing_list[5:]]
                     avg_global_step_time = round(sum(timing_list) / len(timing_list), 4)
-                    samples_per_s = round(base_config.data.global_batch_size / avg_global_step_time, 2)
+                    samples_per_s = round(global_batch_size / avg_global_step_time, 2)
                     m_tflops, m_tflops_gpu = calculate_tflops(
-                        model_name=train_config.model_type,
-                        gbs=base_config.data.global_batch_size,
-                        enc_seq_len=base_config.data.seq_length,
-                        dec_seq_len=base_config.data.seq_length,
+                        model_name=model_name,
+                        gbs=global_batch_size,
+                        enc_seq_len=seq_length,
+                        dec_seq_len=seq_length,
                         hs=hs,
                         ffn_hs=ffn_hs,
                         layers=layers,
-                        vocab=train_config.vocab_size,
-                        nodes=train_config.num_nodes,
-                        gpus_per_node=train_config.gpus_per_node,
+                        vocab=vocab_size,
+                        nodes=num_nodes,
+                        gpus_per_node=gpus_per_node,
                         time_per_step=avg_global_step_time,
                     )
                     config_name = f"tp{tp}_pp{pp}_cp{cp}_ep{ep}_mbs{mbs}_act_{act_ckpt}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}"
                     result.append(
                         [
-                            base_config.model.__class__.__name__,
-                            base_config.data.seq_length,
+                            config_name,
+                            seq_length,
                             tp,
                             pp,
                             cp,
@@ -168,9 +176,9 @@ def get_results(
                             layers,
                             hs,
                             ffn_hs,
-                            base_config.data.global_batch_size,
-                            train_config.num_nodes,
-                            train_config.gpus_per_node,
+                            global_batch_size,
+                            num_nodes,
+                            gpus_per_node,
                             avg_global_step_time,
                             samples_per_s,
                             m_tflops_gpu,
@@ -187,7 +195,7 @@ def get_results(
         if i + 1 == output_top_n:
             break
 
-    top_config = f"{train_config.model.__class__.__name__}_{train_config.num_nodes}nodes_tp_{result[0][3]}_pp_{result[0][4]}_cp_{result[0][5]}_ep_{result[0][6]}_mbs_{result[0][7]}_act_ckpt_{result[0][8]}_num_mbs_act_{result[0][9]}_act_per_pipe_{result[0][10]}"
+    top_config = f"{config_name}_{num_nodes}nodes_tp_{result[0][3]}_pp_{result[0][4]}_cp_{result[0][5]}_ep_{result[0][6]}_mbs_{result[0][7]}_act_ckpt_{result[0][8]}_num_mbs_act_{result[0][9]}_act_per_pipe_{result[0][10]}"
     print("\n==================================================")
     print(f"Optimal config: {top_config} with {result[0][16]:.4f}s per global step.")
     print("==================================================\n")
@@ -195,10 +203,10 @@ def get_results(
     # Save results as a CSV file.
     os.makedirs(final_result_logs, exist_ok=True)
     result_df = pd.DataFrame(result, columns=result_columns)
-    result_df.to_csv(os.path.join(final_result_logs, f"final_summary_{train_config.num_nodes}nodes.csv"), index=False)
+    result_df.to_csv(os.path.join(final_result_logs, f"final_summary_{num_nodes}nodes.csv"), index=False)
 
     error_df = pd.DataFrame(errors, columns=error_columns)
-    error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{train_config.num_nodes}nodes.csv"), index=False)
+    error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{num_nodes}nodes.csv"), index=False)
 
 
 def calculate_tflops(
