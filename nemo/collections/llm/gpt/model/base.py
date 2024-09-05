@@ -28,12 +28,9 @@ from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import
 
-HAVE_TE = True
-try:
-    import transformer_engine
-except (ImportError, ModuleNotFoundError):
-    HAVE_TE = False
+_, HAVE_TE = safe_import("transformer_engine")
 
 # Gradient accumulation fusion may be enabled if available, for more information see:
 # https://github.com/NVIDIA/Megatron-LM/blob/01945b98d1ea3a2acb5e8301e181a328104f4856/megatron/core/tensor_parallel/layers.py#L575
