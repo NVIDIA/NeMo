@@ -492,10 +492,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             final_embedding = final_embedding.transpose(1, 0).contiguous()
 
         # Truncate if exceeding the language model's max sequence length.
-        if (
-            final_embedding is not None
-            and final_embedding.shape[0] > self._language_max_sequence_length
-        ):
+        if final_embedding is not None and final_embedding.shape[0] > self._language_max_sequence_length:
             final_embedding = final_embedding[: self._language_max_sequence_length]
 
         if has_labels and final_labels.shape[1] > self._language_max_sequence_length:
