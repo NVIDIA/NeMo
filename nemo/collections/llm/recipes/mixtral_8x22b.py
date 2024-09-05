@@ -54,14 +54,14 @@ def model() -> run.Config[pl.LightningModule]:
 
 
 def trainer(
-    tensor_parallelism: int = 8,
-    pipeline_parallelism: int = 8,
+    tensor_parallelism: int = 2,
+    pipeline_parallelism: int = 4,
     pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
-    virtual_pipeline_parallelism: Optional[int] = 7,
-    context_parallelism: int = 1,
+    virtual_pipeline_parallelism: Optional[int] = 14,
+    context_parallelism: int = 2,
     sequence_parallelism: bool = True,
-    expert_parallelism: int = 1,
-    num_nodes: int = 8,
+    expert_parallelism: int = 8,
+    num_nodes: int = 16,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
