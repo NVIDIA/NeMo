@@ -33,6 +33,16 @@ if os.name == "nt":
 else:
     BasePath = PosixPath
 
+def _try_restore_tokenizer(model=None, ckpt_path):
+    from nemo.lightning.io import load_context
+    try:
+        tokenizer = load_context(trainer_ckpt_path, "model.tokenizer")
+        model.tokenizer = tokenizer
+        model.__io__.tokenizer = tokenizer.__io__
+        return model
+    except:
+        # Ignore if the ckpt doesn't have a tokenizer.
+        pass
 
 @dataclass(kw_only=True)
 class AutoResume:
@@ -79,13 +89,9 @@ class AutoResume:
         if trainer_ckpt_path:
             trainer.ckpt_path = trainer_ckpt_path
             trainer.checkpoint_callback.last_model_path = trainer_ckpt_path
-            # Restore the tokenizer, if the checkpoint has one.
-            try:
-                tokenizer = load_context(trainer_ckpt_path, "model.tokenizer")
-                model.tokenizer = tokenizer
-                model.__io__.tokenizer = tokenizer.__io__
-            except:
-                pass
+            # Load artifacts
+            if getattr(restore_config, 'load_artifacts', False):
+                model = _try_restore_tokenizer(model, trainer_ckpt_path)
         elif self.restore_config:
             new_path = self._try_import_model(
                 model=model,
