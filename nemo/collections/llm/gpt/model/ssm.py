@@ -283,7 +283,6 @@ class NVIDIAMambaHybridConfig8b(SSMConfig):
 
 
 __all__ = [
-    "SSMModel",
     "SSMConfig",
     "BaseMambaConfig130m",
     "BaseMambaConfig370m",
