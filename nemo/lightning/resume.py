@@ -79,10 +79,13 @@ class AutoResume:
         if trainer_ckpt_path:
             trainer.ckpt_path = trainer_ckpt_path
             trainer.checkpoint_callback.last_model_path = trainer_ckpt_path
-            # Restore the tokenizer.
-            tokenizer = load_context(trainer_ckpt_path, "model.tokenizer")
-            model.tokenizer = tokenizer
-            model.__io__.tokenizer = tokenizer.__io__
+            # Restore the tokenizer, if the checkpoint has one.
+            try:
+                tokenizer = load_context(trainer_ckpt_path, "model.tokenizer")
+                model.tokenizer = tokenizer
+                model.__io__.tokenizer = tokenizer.__io__
+            except:
+                pass
         elif self.restore_config:
             new_path = self._try_import_model(
                 model=model,
