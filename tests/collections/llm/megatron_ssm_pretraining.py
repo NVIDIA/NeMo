@@ -62,9 +62,9 @@ if __name__ == '__main__':
     )
     model = llm.GPTModel(ssm_config, tokenizer=data.tokenizer)
     strategy = nl.MegatronStrategy(
-                                   tensor_model_parallel_size=1, 
-                                   pipeline_model_parallel_size=1,
-                                )
+        tensor_model_parallel_size=1,
+        pipeline_model_parallel_size=1,
+    )
     checkpoint_callback = ModelCheckpoint(
         every_n_train_steps=10,
         enable_nemo_ckpt_io=False,
