@@ -62,6 +62,7 @@ class TrainerContext(IOMixin, Generic[LightningModuleT]):
 
         return extra
 
+
 class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
     """CheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
     common for most use cases.
