@@ -239,3 +239,10 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             model.tokenizer = self.tokenizer
             if hasattr(model, "__io__") and hasatttr(self.tokenizer, '__io__'):
                 model.__io__.tokenizer = self.tokenizer.__io__
+
+    def save_hf_tokenizer_assets(self, tokenizer_name_or_path, save_path="/tmp/nemo_tokenizer"):
+        from transformers import AutoTokenizer
+        tok = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
+        # Save tokenizer assets to save_path.
+        tok.save_pretrained(save_path)
+        return save_path

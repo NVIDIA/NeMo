@@ -250,13 +250,8 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
     @property
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-        from transformers import AutoTokenizer as HfAutoTokenizer
-        # Save tokenizer assets to a temporary directory.
-        hf_tok = HfAutoTokenizer.from_pretrained(str(self))
-        hf_tok.save_pretrained("/tmp/nemo_tokenizer")
-        # Inialize tokenizer from assets.
-        return AutoTokenizer("/tmp/nemo_tokenizer")
 
+        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> LlamaConfig:
