@@ -41,7 +41,7 @@ def main(args):
     config = io.load_context(input_path, subpath="model.config")
 
     config_dict = {}
-    for k,v in config.__dict__:
+    for k,v in config.__dict__.items():
         if isinstance(v, (float, int, str, bool)):
             config_dict[k] = v
         elif k == "activation_func":
@@ -53,6 +53,7 @@ def main(args):
     if config_dict["activation"] == "silu":
         config_dict["activation"] = "fast-swiglu"
 
+    config_dict["mcore_gpt"] = True
     config_dict["tokenizer"] = {
         "library": args.tokenizer_type,
         "type": args.tokenizer_name,
