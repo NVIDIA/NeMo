@@ -36,7 +36,8 @@ if __name__ == "__main__":
         devices=args.devices,
         max_steps=args.max_steps,
         accelerator="gpu",
-        strategy=nl.MegatronStrategy(ckpt_include_optimizer=False,
+        strategy=nl.MegatronStrategy(ckpt_load_optimizer=False,
+                                     ckpt_save_optimizer=False,
                                      tensor_model_parallel_size=1,),        
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed",
                                           params_dtype=torch.bfloat16,
@@ -46,7 +47,6 @@ if __name__ == "__main__":
         limit_val_batches=5,
         val_check_interval=10,
         num_sanity_val_steps=0,
-        gradient_clip_val=1.0,
     )
 
     opt_config = OptimizerConfig(
@@ -54,6 +54,7 @@ if __name__ == "__main__":
         lr=1e-5,
         min_lr=1e-5,
         use_distributed_optimizer=False,
+        clip_grad=1.0,
         bf16=True,
     )
 

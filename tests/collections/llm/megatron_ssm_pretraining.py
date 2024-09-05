@@ -79,6 +79,7 @@ if __name__ == '__main__':
         optimizer='adam',
         lr=6e-4,
         min_lr=6e-5,
+        clip_grad=1.0,
         use_distributed_optimizer=False,
         bf16=True,
     )
