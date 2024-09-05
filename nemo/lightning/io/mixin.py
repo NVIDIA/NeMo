@@ -302,7 +302,11 @@ class ConnectorMixin:
         connector = self._get_connector(path)
         ckpt_path: Path = connector.local_path(base_path=base_path)
         ckpt_path = connector(ckpt_path, overwrite=overwrite)
-        connector.on_import_ckpt(self)
+
+        from pathlib import Path
+        self.tokenizer = load(ckpt_path / Path("tokenizer")).tokenizer
+        assert self.tokenizer is not None
+
         return ckpt_path
 
     @classmethod
@@ -540,6 +544,9 @@ def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: P
 def _artifact_transform_load(cfg: fdl.Config, path: Path):
     for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
         current_val = getattr(cfg, artifact.attr)
+        # __init__ arguments can be None
+        if current_val is None:
+            continue
         ## replace local path with absolute one
         new_val = str(Path(path) / current_val)
         setattr(cfg, artifact.attr, new_val)
