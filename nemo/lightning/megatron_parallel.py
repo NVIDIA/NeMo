@@ -4,7 +4,6 @@ import functools
 import inspect
 import queue
 from collections import defaultdict
-from dataclasses import asdict
 from typing import (
     Any,
     Callable,
@@ -33,16 +32,8 @@ from pytorch_lightning.utilities import move_data_to_device
 from torch import Tensor, nn
 from typing_extensions import override
 
-from nemo.utils import logging
-
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 ModelT = TypeVar("ModelT", bound=nn.Module)
-
-HAVE_TE = True
-try:
-    import transformer_engine
-except (ImportError, ModuleNotFoundError):
-    HAVE_TE = False
 
 
 @runtime_checkable
@@ -505,6 +496,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
             # Print number of parameters.
             if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
+                from nemo.utils import logging
 
                 num_params = _calc_number_of_params(list(self))
                 num_trainable_params = _calc_number_of_trainable_params(list(self))
