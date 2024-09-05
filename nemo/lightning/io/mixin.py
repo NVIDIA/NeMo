@@ -302,11 +302,7 @@ class ConnectorMixin:
         connector = self._get_connector(path)
         ckpt_path: Path = connector.local_path(base_path=base_path)
         ckpt_path = connector(ckpt_path, overwrite=overwrite)
-
-        from pathlib import Path
-        self.tokenizer = load(ckpt_path / Path("tokenizer")).tokenizer
-        assert self.tokenizer is not None
-
+        connector.on_import_ckpt(self)
         return ckpt_path
 
     @classmethod
