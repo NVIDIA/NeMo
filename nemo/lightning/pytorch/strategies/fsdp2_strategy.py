@@ -22,7 +22,7 @@ import pytorch_lightning as pl
 import torch
 from lightning.fabric.plugins.collectives.torch_collective import default_pg_timeout
 from lightning_fabric.plugins import CheckpointIO
-from pytorch_lightning.strategies import ModelParallelStrategy
+from pytorch_lightning.strategies import ModelParallelStrategy, ParallelStrategy
 from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch.distributed._composable.fsdp import FSDPModule, fully_shard
@@ -55,10 +55,11 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
         replica_size: Union[Literal["auto"], int] = "auto",
         data_parallel_size: Union[Literal["auto"], int] = "auto",
         save_distributed_checkpoint: bool = True,
-        ckpt_include_optimizer=False,
+        ckpt_load_optimizer: bool = True,
+        ckpt_save_optimizer: bool = True,
         data_sampler=None,
     ):
-        super(ModelParallelStrategy, self).__init__()  # skip ModelParallelStrategy.__init__
+        ParallelStrategy.__init__(self)  # skip ModelParallelStrategy.__init__
 
         self._data_parallel_size = data_parallel_size
         self._replica_size = replica_size
@@ -69,13 +70,15 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
         self._device_mesh: Optional[DeviceMesh] = None
         self.num_nodes = 1
 
-        self.ckpt_include_optimizer = ckpt_include_optimizer
+        self.ckpt_load_optimizer = ckpt_load_optimizer
+        self.ckpt_save_optimizer = ckpt_save_optimizer
+
         self.data_sampler = data_sampler
 
     @override
     def setup_environment(self) -> None:
         setup_parallel_ranks(self)
-        super(ModelParallelStrategy, self).setup_environment()  # skip ModelParallelStrategy.setup_environment
+        ParallelStrategy.setup_environment(self)  # skip ModelParallelStrategy.setup_environment
         self._setup_distributed()
         if self._replica_size == "auto":
             self._replica_size = self.num_nodes
@@ -235,7 +238,7 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
         for optim_state in checkpoint['optimizer_states']:
             optim_state.pop("state")
 
-        if self.trainer.state.fn == TrainerFn.FITTING and self.ckpt_include_optimizer:
+        if self.trainer.state.fn == TrainerFn.FITTING and self.ckpt_save_optimizer:
             checkpoint['optimizer'] = get_optimizer_state_dict(
                 self.model, self.optimizers, options=StateDictOptions(cpu_offload=True)
             )
@@ -269,7 +272,7 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
         pyt_to_mcore_state_dict(msd, device_mesh=self.device_mesh)
         sharded_state_dict["sharded_state_dict"] = msd
 
-        if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
+        if self.ckpt_load_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
             # osd = get_optimizer_state_dict(self.model, self.optimizers, options=StateDictOptions(cpu_offload=True))
             pyt_to_mcore_state_dict(osd['state'], prefix="optimizer.state.", device_mesh=self.device_mesh)
             sharded_state_dict["optimizer"] = osd
@@ -279,16 +282,16 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
             checkpoint['sharded_state_dict'], msd, dtensor=True, device_mesh=self.device_mesh
         )
 
-        if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
+        if self.ckpt_load_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
             mcore_to_pyt_sharded_state_dict(
                 checkpoint['optimizer']['state'], osd['state'], dtensor=True, device_mesh=self.device_mesh
             )
 
         set_state_dict(
             self.model,
-            self.optimizers if self.ckpt_include_optimizer else [],
+            self.optimizers if self.ckpt_load_optimizer else [],
             model_state_dict=checkpoint['sharded_state_dict'],
-            optim_state_dict=checkpoint['optimizer'] if self.ckpt_include_optimizer else None,
+            optim_state_dict=checkpoint['optimizer'] if self.ckpt_load_optimizer else None,
         )
 
         return checkpoint
