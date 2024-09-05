@@ -47,7 +47,6 @@ class DirArtifact(Artifact[str]):
 
         relative_dir = relative_dir / value.name
         os.makedirs(str(absolute_dir / relative_dir), exist_ok=True)
-        # for file in os.listdir(value):
         for file in value.iterdir():
             new_value = copy_file(file, absolute_dir, relative_dir)
         return str(relative_dir)
