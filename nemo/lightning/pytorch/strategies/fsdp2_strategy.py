@@ -25,7 +25,7 @@ from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
     fix_progress_bar,
-    get_checkpoint_io,
+    create_checkpoint_io,
     init_model_parallel,
     mcore_to_pyt_sharded_state_dict,
     pyt_to_mcore_state_dict,
@@ -179,8 +179,10 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
-        # TODO: modify once this is merged https://github.com/NVIDIA/NeMo/pull/10324
-        return get_checkpoint_io(self._checkpoint_io)
+        if not self._checkpoint_io:
+            self._checkpoint_io = create_checkpoint_io()
+
+        return self._checkpoint_io
     
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:
