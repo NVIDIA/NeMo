@@ -175,11 +175,13 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         trainer.strategy.setup(trainer)
         trainer.save_checkpoint(output_path)
 
-        from nemo.lightning.io.pl import TrainerContext
+        from nemo.lightning.io.pl import TrainerContext, TokenizerContext
         from nemo.utils.get_rank import is_global_rank_zero
 
         if is_global_rank_zero() and dump_io:
             TrainerContext.from_trainer(trainer).io_dump(output_path)
+            from pathlib import Path
+            TokenizerContext.from_trainer(trainer).io_dump(output_path / Path("tokenizer"))
 
     def nemo_load(
         self, path: Path, trainer: Optional[pl.Trainer] = None, cpu: bool = True
