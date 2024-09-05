@@ -43,7 +43,7 @@ class TransformerLayerTPOverlapCfg:
     proj_fprop: TPOverlapCfg
     fc2_fprop: TPOverlapCfg
 
-
+# TODO: Add more configs and create a getter function for expose a single api
 # Model configs: H100/70B/TP8/MBS1/SeqLen8K
 userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192 = TransformerLayerTPOverlapCfg(
     qkv_dgrad=BulkOverlapCfg(num_sm=4, cga_size=2, set_sm_margin=False),
