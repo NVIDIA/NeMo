@@ -11,7 +11,8 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
-from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing, \
+    distributed_fused_adam_for_finetuning
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
 from nemo.collections.llm.utils import Config, Partial
 from nemo.utils.exp_manager import TimingCallback
@@ -96,14 +97,36 @@ def hf_resume() -> Config[nl.AutoResume]:
     return Config(
         nl.AutoResume,
         restore_config=Config(nl.RestoreConfig, path="hf://meta-llama/Meta-Llama-3-8B"),
+        resume_if_exists=True,
+        resume_ignore_no_checkpoint=True,
     )
 
 
-def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int) -> Partial:
+def finetune_recipe(
+    name: str,
+    ckpt_dir: str,
+    num_nodes: int,
+    num_gpus_per_node: int,
+    peft_scheme: str = 'none'
+) -> Partial:
     recipe = pretrain_recipe(
         name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
     )
     recipe.resume = hf_resume()
-    recipe.peft = Config(LoRA)
-    recipe.data = Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
+    recipe.data = Config(SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1)
+    recipe.trainer.gradient_clip_val = 1
+    recipe.trainer.strategy.context_parallel_size = 1
+    recipe.trainer.max_steps = 1000
+    recipe.optim.config.adam_beta2 = 0.98
+    recipe.optim.lr_scheduler.warmup_steps = 50
+    recipe.optim.lr_scheduler.min_lr = 0
+    if peft_scheme.lower() == 'lora':
+        recipe.peft = Config(LoRA)
+        recipe.optim.config.lr = 1e-4
+    elif peft_scheme.lower() in ['none', 'sft']:
+        recipe.trainer.strategy.tensor_model_parallel_size = 2
+        recipe.optim.config.lr = 5e-6
+    else:
+        raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
+
     return recipe
