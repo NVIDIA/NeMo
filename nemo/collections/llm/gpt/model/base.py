@@ -21,6 +21,14 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
+# Gradient acumulation may be enabled if available, for more information see:
+# https://github.com/NVIDIA/Megatron-LM/blob/01945b98d1ea3a2acb5e8301e181a328104f4856/megatron/core/tensor_parallel/layers.py#L575
+_grad_accum_fusion_available = True
+try:
+    import fused_weight_gradient_mlp_cuda
+except ImportError:
+    _grad_accum_fusion_available = False
+
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
@@ -114,7 +122,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     attention_softmax_in_fp32: bool = False
     masked_softmax_fusion: bool = True
     cross_entropy_loss_fusion: bool = True
-    gradient_accumulation_fusion: bool = True
+    gradient_accumulation_fusion: bool = _grad_accum_fusion_available
     deallocate_pipeline_outputs = True
 
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
