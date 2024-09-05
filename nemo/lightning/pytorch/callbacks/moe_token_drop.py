@@ -7,7 +7,7 @@ from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 
 class MegatronExpertParallelTokenDrop(Callback):
     """
-    A PyTorch Lightning callback to enable token drop for MOEs. Token drop improves performance by better 
+    A PyTorch Lightning callback to enable token drop for MOEs. Token drop improves performance by better
     balancing work across experts, but may affect convergence.
 
     Args:
