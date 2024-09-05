@@ -45,12 +45,12 @@ class DirArtifact(Artifact[str]):
         absolute_dir = pathize(absolute_dir)
         relative_dir = pathize(relative_dir)
         if not value.is_dir():
-            return
+            return value
 
         relative_dir = relative_dir / value.name
         os.makedirs(str(absolute_dir / relative_dir), exist_ok=True)
         for file in value.iterdir():
-            new_value = copy_file(file, absolute_dir, relative_dir)
+            copy_file(file, absolute_dir, relative_dir)
         return str(relative_dir)
 
     def load(self, path: str) -> str:
@@ -60,7 +60,7 @@ class DirArtifact(Artifact[str]):
 class DirOrStringArtifact(DirArtifact):
     def dump(self, value: str, absolute_dir: Path, relative_dir: Path) -> str:
         if not pathize(value).exists():
-            return
+            return value
         return super().dump(value, absolute_dir, relative_dir)
 
     def load(self, path: str) -> str:
