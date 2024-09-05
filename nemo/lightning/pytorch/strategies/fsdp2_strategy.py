@@ -20,8 +20,8 @@ from typing import Any, Dict, Literal, Optional, Union
 
 import pytorch_lightning as pl
 import torch
-from lightning_fabric.plugins.collectives.torch_collective import default_pg_timeout
 from lightning_fabric.plugins import CheckpointIO
+from lightning_fabric.plugins.collectives.torch_collective import default_pg_timeout
 from pytorch_lightning.strategies import ModelParallelStrategy, ParallelStrategy
 from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.utilities.types import STEP_OUTPUT
