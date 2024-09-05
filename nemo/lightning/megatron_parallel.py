@@ -1164,7 +1164,9 @@ class MaskedTokenLossReduction(MegatronLossReduction):
 
 class MaskedTokenLossReductionWithLossMask(MaskedTokenLossReduction):
     def forward(
-            self, batch: Dict[str, torch.Tensor], forward_out: Tuple[torch.Tensor, torch.Tensor],
+        self,
+        batch: Dict[str, torch.Tensor],
+        forward_out: Tuple[torch.Tensor, torch.Tensor],
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         # expecting returns (token_level_loss, loss_mask)
         forward_out, loss_mask = forward_out
