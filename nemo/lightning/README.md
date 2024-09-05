@@ -6,7 +6,7 @@ For detailed tutorials and documentation on NeMo 2.0, refer to the [docs](https:
 
 Some of the helpful classes provided here include:
 - [`Trainer`](./pytorch/trainer.py): A lightweight wrapper around PTL's `Trainer` object which provides some additional support for capturing the arguments used to initialized the trainer. More information on NeMo 2's serialization mechanisms is available [here](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/design/serialization.html).
-- [`MegatronStrategy`](./pytorch/strategies.py): A PTL strategy that enables training of Megatron models on NVIDIA GPUs.
+- [`MegatronStrategy`](./pytorch/strategies/megatron_strategy.py): A PTL strategy that enables training of Megatron models on NVIDIA GPUs.
 - [`MegatronParallel`](./megatron_parallel.py): Class which sets up and manages Megatron's distributed model parallelism.
 - [`MegatronMixedPrecision`](./pytorch/plugins/mixed_precision.py): A specialized precision plugin for training Megatron-based models in PTL.
 
