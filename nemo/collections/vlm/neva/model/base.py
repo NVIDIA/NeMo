@@ -46,7 +46,7 @@ from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parall
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import io
-from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
+from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
 
@@ -613,7 +613,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         if labels is None or loss_mask is None:
             return output
 
-        return output, final_loss_mask
+        return output, final_loss_mask.contiguous()
 
 
 class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
@@ -676,16 +676,16 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self.forward_step(batch)
 
     @property
-    def training_loss_reduction(self) -> MaskedTokenLossReduction:
+    def training_loss_reduction(self) -> MaskedTokenLossReductionWithLossMask:
         if not self._training_loss_reduction:
-            self._training_loss_reduction = MaskedTokenLossReduction()
+            self._training_loss_reduction = MaskedTokenLossReductionWithLossMask()
 
         return self._training_loss_reduction
 
     @property
-    def validation_loss_reduction(self) -> MaskedTokenLossReduction:
+    def validation_loss_reduction(self) -> MaskedTokenLossReductionWithLossMask:
         if not self._validation_loss_reduction:
-            self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
+            self._validation_loss_reduction = MaskedTokenLossReductionWithLossMask(validation_step=True)
 
         return self._validation_loss_reduction
 

@@ -1162,6 +1162,17 @@ class MaskedTokenLossReduction(MegatronLossReduction):
         return torch.tensor(0.0, device=torch.cuda.current_device())
 
 
+class MaskedTokenLossReductionWithLossMask(MaskedTokenLossReduction):
+    def forward(
+            self, batch: Dict[str, torch.Tensor], forward_out: Tuple[torch.Tensor, torch.Tensor],
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        # expecting returns (token_level_loss, loss_mask)
+        forward_out, loss_mask = forward_out
+        batch["loss_mask"] = loss_mask
+
+        return super().forward(batch, forward_out)
+
+
 def masked_token_loss(tensor: Tensor, mask: Tensor):
     """
     The function takes as input per-token loss and masks non-required values.
