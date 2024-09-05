@@ -31,6 +31,7 @@ from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.utils.exp_manager import TimingCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronExpertParallelTokenDrop
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "mixtral_8x3b"
 
@@ -172,6 +173,7 @@ def pretrain_recipe(
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
+
 
 def pretrain_recipe_performance(
     name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
