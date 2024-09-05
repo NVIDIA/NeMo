@@ -33,6 +33,7 @@ from nemo.lightning.pytorch.optim import LRSchedulerModule, MegatronOptimizerMod
 from nemo.lightning.pytorch.plugins import MegatronDataSampler, MegatronMixedPrecision
 from nemo.lightning.pytorch.plugins import data_sampler as _data_sampler
 from nemo.lightning.pytorch.strategies import FSDP2Strategy, FSDPStrategy, MegatronStrategy
+from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.lightning.pytorch.trainer import Trainer
 from nemo.lightning.resume import AutoResume
 
@@ -59,6 +60,9 @@ __all__ = [
     "MegatronDataSampler",
     "MegatronMixedPrecision",
     "MegatronOptimizerModule",
+    "FSDP2Strategy",
+    "FSDPStrategy",
+    "RestoreConfig",
     "lr_scheduler",
     "NeMoLogger",
     "ModelCheckpoint",
