@@ -1,28 +1,27 @@
 import shutil
 from collections import OrderedDict
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Union
 
 import torch
 import pytorch_lightning as pl
 from lightning_fabric.plugins import CheckpointIO
+from lightning.fabric.plugins.collectives.torch_collective import default_pg_timeout
 from pytorch_lightning.strategies import ModelParallelStrategy, ParallelStrategy
 from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.utilities.types import STEP_OUTPUT
-from torch.distributed._composable.fsdp.fully_shard import fully_shard
+from torch.distributed._composable.fsdp import fully_shard
 from torch.distributed.checkpoint.state_dict import (
     StateDictOptions,
     get_optimizer_state_dict,
     get_state_dict,
     set_state_dict,
 )
-from torch.distributed.device_mesh import init_device_mesh
+from torch.distributed.device_mesh import DeviceMesh, init_device_mesh
 from torch.utils.data import DataLoader
 from typing_extensions import override
-
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.lightning import io
-from nemo.lightning.megatron_parallel import masked_token_loss
 from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
     fix_progress_bar,
@@ -42,16 +41,24 @@ class FSDP2Strategy(ModelParallelStrategy, io.IOMixin):
         data_parallel_size: Union[Literal["auto"], int] = "auto",
         save_distributed_checkpoint: bool = True,
         ckpt_include_optimizer=False,
-        **kwargs,
     ):
-        super().__init__(data_parallel_size=data_parallel_size, save_distributed_checkpoint=save_distributed_checkpoint, **kwargs)
-        self.ckpt_include_optimizer = ckpt_include_optimizer
+        super(ModelParallelStrategy, self).__init__()   # skip ModelParallelStrategy.__init__
+
+        self._data_parallel_size = data_parallel_size
         self._replica_size = replica_size
+
+        self._save_distributed_checkpoint = save_distributed_checkpoint
+        self._process_group_backend: Optional[str] = None
+        self._timeout: Optional[timedelta] = default_pg_timeout
+        self._device_mesh: Optional[DeviceMesh] = None
+        self.num_nodes = 1
+        
+        self.ckpt_include_optimizer = ckpt_include_optimizer
 
     @override
     def setup_environment(self) -> None:
         setup_parallel_ranks(self)
-        super(ParallelStrategy, self).setup_environment()
+        super(ModelParallelStrategy, self).setup_environment()  # skip ModelParallelStrategy.setup_environment
         self._setup_distributed()
         if self._replica_size == "auto":
             self._replica_size = self.num_nodes
