@@ -90,7 +90,7 @@ class AutoResume:
             trainer.ckpt_path = trainer_ckpt_path
             trainer.checkpoint_callback.last_model_path = trainer_ckpt_path
             # Load artifacts
-            if getattr(restore_config, 'load_artifacts', False):
+            if getattr(self.restore_config, 'load_artifacts', False):
                 model = _try_restore_tokenizer(model, trainer_ckpt_path)
         elif self.restore_config:
             new_path = self._try_import_model(
