@@ -95,7 +95,6 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
-
 def pretrain_recipe_performance(
     name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
 ) -> Partial:
@@ -103,16 +102,17 @@ def pretrain_recipe_performance(
         name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
     )
 
-    comm_overlap_cfg = Config(
-        nl.CommOverlapConfig,
-        tp_comm_overlap=True,
-        tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
-        defer_embedding_wgrad_compute=True,
-        wgrad_deferral_limit=22,
+    recipe.trainer.callbacks.append(
+        Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=True,
+            tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
+            defer_embedding_wgrad_compute=True,
+            wgrad_deferral_limit=22,
+        )
     )
-    recipe.trainer.strategy.comm_overlap_cfg = comm_overlap_cfg
-    return recipe
 
+    return recipe
 
 def hf_resume() -> Config[nl.AutoResume]:
     return Config(nl.AutoResume, import_path="hf://meta-llama/Meta-Llama-3.1-70B")

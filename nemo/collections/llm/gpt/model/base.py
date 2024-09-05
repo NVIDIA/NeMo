@@ -13,6 +13,7 @@ from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.utils import logging
 
 HAVE_TE = True
 try:
@@ -113,7 +114,6 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     attention_softmax_in_fp32: bool = False
     masked_softmax_fusion: bool = True
     cross_entropy_loss_fusion: bool = True
-    tp_comm_overlap_cfg: dict = False
     deallocate_pipeline_outputs = True
 
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec

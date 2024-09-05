@@ -10,65 +10,13 @@ from pytorch_lightning.callbacks.callback import Callback
 
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy, ParallelismConfig
 from nemo.utils import logging
-from nemo.utils.get_rank import get_rank
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import TransformerLayerTPOverlapCfg
 
 HAVE_TE = True
 try:
     import transformer_engine
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
-
-
-@dataclass
-class TPOverlapCfg:
-    pass
-
-
-@dataclass
-class PipelineOverlapCfg(TPOverlapCfg):
-    """Tensor parallel overlap via gemm, communication pipelineing."""
-
-    num_sm: int
-    cga_size: int
-    num_splits: int
-    set_sm_margin: bool
-    fp8_buf: bool = False
-    method: str = 'pipeline'
-
-
-@dataclass
-class RingExchangeOverlapCfg(TPOverlapCfg):
-    """Tensor parallel overlap via ring exchange."""
-
-    aggregate: bool = False
-    method: str = 'ring_exchange'
-
-
-@dataclass
-class BulkOverlapCfg(TPOverlapCfg):
-    """Tensor parallel overlap for comm, gemms without serial dependencies."""
-
-    num_sm: int
-    cga_size: int
-    set_sm_margin: bool
-    method: str = 'bulk'
-
-
-@dataclass
-class TransformerLayerTPOverlapCfg:
-    """Each tensor parallel gemm in the transformer layer has
-    a specific tensor parallel overlap scheme."""
-
-    qkv_dgrad: TPOverlapCfg
-    qkv_wgrad: TPOverlapCfg
-    fc1_dgrad: TPOverlapCfg
-    fc1_wgrad: TPOverlapCfg
-    qkv_fprop: TPOverlapCfg
-    proj_dgrad: TPOverlapCfg
-    fc1_fprop: TPOverlapCfg
-    fc2_dgrad: TPOverlapCfg
-    proj_fprop: TPOverlapCfg
-    fc2_fprop: TPOverlapCfg
 
 
 @dataclass
@@ -101,19 +49,19 @@ class MegatronCommOverlapCallback(Callback):
 
     Args:
         tp_comm_overlap (bool): Enable tensor parallel overlap
-        tp_comm_overlap_cfg (TransformerLayerTPOverlapCfg):
+        tp_comm_overlap_cfg (TransformerLayerTPOverlapCfg): Tensor parallel overlap config
         overlap_p2p_comm (bool): Enable pipeline parallel overlap
-        batch_p2p_comm (bool):
-        overlap_grad_reduce (bool):
-        overlap_param_gather (bool):
-        overlap_param_gather_with_optimizer_step (bool):
-        align_param_gather (bool):
-        bucket_size (int):
-        defer_embedding_wgrad_compute (bool):
-        wgrad_deferral_limit (int):
+        batch_p2p_comm (bool): Batch pipeline parallel send/recv into a single op
+        overlap_grad_reduce (bool): Overlap data parallel gradient reduction with compute 
+        overlap_param_gather (bool): Overlap data parallel parameter gather with compute
+        overlap_param_gather_with_optimizer_step (bool): Overlap data parallel parameter gather optimizer step
+        align_param_gather (bool): Align data parallel parameter gather across virtual pipeline chunks
+        bucket_size (int): The DDP bucket size, controls the data parallel overlap granularity
+        defer_embedding_wgrad_compute (bool): Overlap wgrads with the pipeline drain bubble for the last pipeline stage
+        wgrad_deferral_limit (int): Limit of how many outstanding wgrads may be overlapped with the pipeline drain bubble
 
     Example:
-        >>> callback = MegatronCommOverlapCallback()
+        >>> callback = MegatronCommOverlapCallback(tp_comm_overlap=True)
         >>> trainer = Trainer(callbacks=[callback])
     """
 
@@ -156,17 +104,16 @@ class MegatronCommOverlapCallback(Callback):
         model_parallel_cfg: ModelParallelConfig,
     ) -> ModelParallelConfig:
         comm_overlap_cfg = _CommOverlapConfig()
-
+        
         vp_size = parallelism_cfg.virtual_pipeline_model_parallel_size
         if vp_size is None:
             vp_size = 1
 
-        # TP overlap is disabled by default, can be overriden by user
+        # Optimizations disabled by default, can be overriden by user
         comm_overlap_cfg.tp_comm_overlap = False
         comm_overlap_cfg.tp_comm_overlap_cfg = None
-
-        defer_embedding_wgrad_compute = False
-        wgrad_deferral_limit = 0
+        comm_overlap_cfg.defer_embedding_wgrad_compute = False
+        comm_overlap_cfg.wgrad_deferral_limit = 0
 
         # PP overlap
         if parallelism_cfg.pipeline_model_parallel_size > 1:
@@ -180,6 +127,8 @@ class MegatronCommOverlapCallback(Callback):
             comm_overlap_cfg.overlap_p2p_comm = False
             comm_overlap_cfg.batch_p2p_comm = False
 
+        # Create a field to store the tp overlap cfg
+        model_parallel_cfg.tp_comm_overlap_cfg = None
         model_parallel_cfg = self._apply_overlap_configs(comm_overlap_cfg, model_parallel_cfg)
 
         # Check if TP overlap can be safely enabled

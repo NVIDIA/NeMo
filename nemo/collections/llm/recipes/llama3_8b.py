@@ -96,11 +96,6 @@ def pretrain_recipe(
     )
 
 
-from dataclasses import asdict
-
-from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
-
-
 def pretrain_recipe_performance(
     name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
 ) -> Partial:
@@ -109,7 +104,6 @@ def pretrain_recipe_performance(
     )
 
     recipe.trainer.callbacks.append(Config(MegatronCommOverlapCallback))
-
     return recipe
 
 
