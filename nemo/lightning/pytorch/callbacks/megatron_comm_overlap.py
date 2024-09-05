@@ -192,7 +192,7 @@ class MegatronCommOverlapCallback(Callback):
         # apply optimizations into dest_cfg
         for field in fields(src_cfg):
             if hasattr(dest_cfg, field.name):
-                setattr(dest_cfg, field.name, getattr(src_cfg, field.name))  
+                setattr(dest_cfg, field.name, getattr(src_cfg, field.name))
 
     def _override_user_cfgs(self, comm_overlap_cfg):
         # override default configs with any user provided configs
@@ -201,9 +201,8 @@ class MegatronCommOverlapCallback(Callback):
                 user_value = getattr(self.user_comm_overlap_cfg, field.name)
                 if user_value is not None:
                     setattr(comm_overlap_cfg, field.name, user_value)
-        
-        return comm_overlap_cfg
 
+        return comm_overlap_cfg
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         assert isinstance(trainer.strategy, MegatronStrategy), "MegatronCommOverlapCallback requires MegatronStrategy"
