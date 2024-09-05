@@ -76,7 +76,7 @@ class ParallelismConfig:
     expert_model_parallel_size: int
     moe_extended_tp: bool
     pipeline_dtype: torch.dtype
-    
+
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
     """Megatron plugin for Pytorch Lightning.

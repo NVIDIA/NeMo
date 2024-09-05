@@ -15,8 +15,8 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
 from nemo.collections.llm.utils import Config, Partial
-from nemo.utils.exp_manager import TimingCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "llama3_8b"
 
@@ -94,8 +94,12 @@ def pretrain_recipe(
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
+
+
+from dataclasses import asdict
+
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
-from dataclasses import asdict 
+
 
 def pretrain_recipe_performance(
     name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
@@ -104,9 +108,7 @@ def pretrain_recipe_performance(
         name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
     )
 
-    recipe.trainer.callbacks.append(
-        Config(MegatronCommOverlapCallback)
-    )
+    recipe.trainer.callbacks.append(Config(MegatronCommOverlapCallback))
 
     return recipe
 

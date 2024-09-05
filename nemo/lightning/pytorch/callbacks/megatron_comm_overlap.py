@@ -1,17 +1,16 @@
-from typing import List, Optional
 from dataclasses import dataclass, fields
+from typing import List, Optional
 
-import torch
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks.callback import Callback
-
-from nemo.utils import logging
-from nemo.utils.get_rank import get_rank
-
-from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy, ParallelismConfig
+import torch
 from megatron.core import ModelParallelConfig
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
+from pytorch_lightning.callbacks.callback import Callback
+
+from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy, ParallelismConfig
+from nemo.utils import logging
+from nemo.utils.get_rank import get_rank
 
 HAVE_TE = True
 try:
@@ -28,6 +27,7 @@ class TPOverlapCfg:
 @dataclass
 class PipelineOverlapCfg(TPOverlapCfg):
     """Tensor parallel overlap via gemm, communication pipelineing."""
+
     num_sm: int
     cga_size: int
     num_splits: int
@@ -39,6 +39,7 @@ class PipelineOverlapCfg(TPOverlapCfg):
 @dataclass
 class RingExchangeOverlapCfg(TPOverlapCfg):
     """Tensor parallel overlap via ring exchange."""
+
     aggregate: bool = False
     method: str = 'ring_exchange'
 
@@ -46,6 +47,7 @@ class RingExchangeOverlapCfg(TPOverlapCfg):
 @dataclass
 class BulkOverlapCfg(TPOverlapCfg):
     """Tensor parallel overlap for comm, gemms without serial dependencies."""
+
     num_sm: int
     cga_size: int
     set_sm_margin: bool
@@ -56,6 +58,7 @@ class BulkOverlapCfg(TPOverlapCfg):
 class TransformerLayerTPOverlapCfg:
     """Each tensor parallel gemm in the transformer layer has
     a specific tensor parallel overlap scheme."""
+
     qkv_dgrad: TPOverlapCfg
     qkv_wgrad: TPOverlapCfg
     fc1_dgrad: TPOverlapCfg
@@ -86,6 +89,7 @@ class _CommOverlapConfig:
     defer_embedding_wgrad_compute: bool = None
     wgrad_deferral_limit: int = None
 
+
 class MegatronCommOverlapCallback(Callback):
     """
     A PyTorch Lightning callback to enable communication compute overlap.
@@ -97,10 +101,10 @@ class MegatronCommOverlapCallback(Callback):
 
     Args:
         tp_comm_overlap (bool): Enable tensor parallel overlap
-        tp_comm_overlap_cfg (TransformerLayerTPOverlapCfg): 
+        tp_comm_overlap_cfg (TransformerLayerTPOverlapCfg):
         overlap_p2p_comm (bool): Enable pipeline parallel overlap
-        batch_p2p_comm (bool): 
-        overlap_grad_reduce (bool): 
+        batch_p2p_comm (bool):
+        overlap_grad_reduce (bool):
         overlap_param_gather (bool):
         overlap_param_gather_with_optimizer_step (bool):
         align_param_gather (bool):
@@ -134,20 +138,20 @@ class MegatronCommOverlapCallback(Callback):
 
         self.overlap_cfg = _CommOverlapConfig(
             tp_comm_overlap=tp_comm_overlap,
-            tp_comm_overlap_cfg = tp_comm_overlap_cfg,
-            overlap_p2p_comm = overlap_p2p_comm,
-            batch_p2p_comm = batch_p2p_comm,
-            overlap_grad_reduce = overlap_grad_reduce,
-            overlap_param_gather = overlap_param_gather,
-            overlap_param_gather_with_optimizer_step = overlap_param_gather_with_optimizer_step,
-            align_param_gather = align_param_gather,
-            bucket_size = bucket_size,
-            defer_embedding_wgrad_compute = defer_embedding_wgrad_compute,
-            wgrad_deferral_limit = wgrad_deferral_limit,
+            tp_comm_overlap_cfg=tp_comm_overlap_cfg,
+            overlap_p2p_comm=overlap_p2p_comm,
+            batch_p2p_comm=batch_p2p_comm,
+            overlap_grad_reduce=overlap_grad_reduce,
+            overlap_param_gather=overlap_param_gather,
+            overlap_param_gather_with_optimizer_step=overlap_param_gather_with_optimizer_step,
+            align_param_gather=align_param_gather,
+            bucket_size=bucket_size,
+            defer_embedding_wgrad_compute=defer_embedding_wgrad_compute,
+            wgrad_deferral_limit=wgrad_deferral_limit,
         )
 
     def _apply_model_comm_overlap_cfgs(
-        self, 
+        self,
         parallelism_cfg: ParallelismConfig,
         model_parallel_cfg: ModelParallelConfig,
     ) -> ModelParallelConfig:
@@ -196,7 +200,7 @@ class MegatronCommOverlapCallback(Callback):
     def _apply_optimizer_overlap_cfgs(
         self,
         parallelism_cfg: ParallelismConfig,
-        optim_cfg: OptimizerConfig, 
+        optim_cfg: OptimizerConfig,
         ddp_cfg: DistributedDataParallelConfig,
     ) -> OptimizerConfig:
         # Data parallel overlap is only available with the Megatron DDP and Distributed optimizer
@@ -204,6 +208,7 @@ class MegatronCommOverlapCallback(Callback):
             return
 
         from nemo.utils import AppState
+
         app_state = AppState()
         data_parallel_size = app_state.data_parallel_size
 
@@ -249,8 +254,7 @@ class MegatronCommOverlapCallback(Callback):
 
         if hasattr(trainer.model, "config") and isinstance(trainer.model.config, ModelParallelConfig):
             self._apply_model_comm_overlap_cfgs(
-                parallelism_cfg=parallelism_cfg, 
-                model_parallel_cfg=trainer.model.config
+                parallelism_cfg=parallelism_cfg, model_parallel_cfg=trainer.model.config
             )
             if trainer.model.config.tp_comm_overlap:
                 trainer.strategy.tp_comm_overlap_need_init = True
@@ -261,10 +265,7 @@ class MegatronCommOverlapCallback(Callback):
             and isinstance(trainer.strategy.ddp_config, DistributedDataParallelConfig)
         ):
             self._apply_optimizer_overlap_cfgs(
-                parallelism_cfg=parallelism_cfg, 
+                parallelism_cfg=parallelism_cfg,
                 optim_cfg=trainer.model.optim.config,
                 ddp_cfg=trainer.strategy.ddp_config,
             )
-
-
-
