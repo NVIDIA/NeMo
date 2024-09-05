@@ -23,23 +23,6 @@ from typing import Any, List, Optional, Union
 from PIL import Image
 from transformers import AutoTokenizer
 
-DEFAULT_PAD_TOKEN = "<pad>"
-DEFAULT_BOS_TOKEN = "<extra_id_6>"
-DEFAULT_EOS_TOKEN = "<extra_id_7>"
-DEFAULT_UNK_TOKEN = "<unk>"
-DEFAULT_IMAGE_TOKEN = "<image>"
-DEFAULT_VIDEO_TOKEN = "<video>"
-DEFAULT_SYSTEM_TOKEN = "<extra_id_0>"
-DEFAULT_SEPARATOR_TOKEN = "<extra_id_1>"
-DEFAULT_LABELS_TOKEN = "<extra_id_2>"
-DEFAULT_IMAGE_PATCH_TOKEN = defaultdict(lambda: "<extra_id_3>")
-DEFAULT_IM_START_TOKEN = defaultdict(lambda: "<extra_id_4>")
-DEFAULT_IM_END_TOKEN = defaultdict(lambda: "<extra_id_5>")
-
-DEFAULT_VID_START_TOKEN = "<extra_id_8>"
-DEFAULT_VID_END_TOKEN = "<extra_id_9>"
-TIME_TOKEN_TEMPLATE = "<t{t}>"
-
 
 class SeparatorStyle(Enum):
     """Different separator style."""
