@@ -18,6 +18,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     import transformer_engine
+
     HAVE_TE = True
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
@@ -144,10 +145,7 @@ class MegatronCommOverlapCallback(Callback):
         comm_overlap_cfg = self._override_user_cfgs(comm_overlap_cfg)
         return comm_overlap_cfg
 
-    def _get_optimizer_overlap_cfgs(
-        self,
-        parallelism_cfg: ParallelismConfig
-    ) -> _CommOverlapConfig:
+    def _get_optimizer_overlap_cfgs(self, parallelism_cfg: ParallelismConfig) -> _CommOverlapConfig:
         from nemo.utils import AppState
 
         app_state = AppState()
@@ -200,7 +198,7 @@ class MegatronCommOverlapCallback(Callback):
             self._apply_cfgs(comm_overlap_cfg, trainer.model.config)
             if hasattr(trainer.model, '__io__'):
                 self._apply_cfgs(comm_overlap_cfg, trainer.model.__io__.config)
-            
+
             if trainer.model.config.tp_comm_overlap:
                 self.tp_comm_overlap_cfg = comm_overlap_cfg.tp_comm_overlap_cfg
                 self.need_tp_overlap_ub_init = True
@@ -251,7 +249,7 @@ class MegatronCommOverlapCallback(Callback):
 
         self.need_tp_overlap_ub_init = False
 
-    # _init_te_userbuffers must run once before any stages, however there isnt such a 
+    # _init_te_userbuffers must run once before any stages, however there isnt such a
     # unified callback, so add a hook for every stage
     def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         if self.need_tp_overlap_ub_init:
