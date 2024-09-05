@@ -55,7 +55,7 @@ class MegatronCommOverlapCallback(Callback):
         - pipeline bubble overlap
 
     Args:
-        tp_comm_overlap (bool): Enable tensor parallel overlap
+        tp_comm_overlap (bool): Enable tensor parallel overlap (experimental)
         tp_comm_overlap_cfg (TransformerLayerTPOverlapCfg): Tensor parallel overlap config
         overlap_p2p_comm (bool): Enable pipeline parallel overlap
         batch_p2p_comm (bool): Batch pipeline parallel send/recv into a single op
@@ -74,24 +74,20 @@ class MegatronCommOverlapCallback(Callback):
 
     def __init__(
         self,
-        # Tensor parallel communication overlap (experimental)
         tp_comm_overlap: bool = None,
         tp_comm_overlap_cfg: TransformerLayerTPOverlapCfg = None,
-        # Pipeline parallel communication overlap
         overlap_p2p_comm: bool = None,
         batch_p2p_comm: bool = None,
-        # Data parallel communication overlap
         overlap_grad_reduce: bool = None,
         overlap_param_gather: bool = None,
         overlap_param_gather_with_optimizer_step: bool = None,
         align_param_gather: bool = None,
         bucket_size: int = None,
-        # Pipeline bubble overlap
         defer_embedding_wgrad_compute: bool = None,
         wgrad_deferral_limit: int = None,
     ):
 
-        self.overlap_cfg = _CommOverlapConfig(
+        self.user_comm_overlap_cfg = _CommOverlapConfig(
             tp_comm_overlap=tp_comm_overlap,
             tp_comm_overlap_cfg=tp_comm_overlap_cfg,
             overlap_p2p_comm=overlap_p2p_comm,
@@ -121,7 +117,19 @@ class MegatronCommOverlapCallback(Callback):
         comm_overlap_cfg.tp_comm_overlap = False
         comm_overlap_cfg.tp_comm_overlap_cfg = None
         comm_overlap_cfg.defer_embedding_wgrad_compute = False
-        comm_overlap_cfg.wgrad_deferral_limit = 0
+        comm_overlap_cfg.wgrad_deferral_limit = -1
+
+        # Check if TP overlap can be safely enabled
+        if self.user_comm_overlap_cfg.tp_comm_overlap is True:
+            if parallelism_cfg.tensor_model_parallel_size < 2:
+                logging.warning("Disabling tensor parallel communication overlap due to TP size < 2.")
+                self.user_comm_overlap_cfg.tp_comm_overlap = False
+            elif not parallelism_cfg.sequence_parallel:
+                logging.warning("Disabling tensor parallel communication overlap due to sequence_parallel=False.")
+                self.user_comm_overlap_cfg.tp_comm_overlap = False
+            elif not HAVE_TE:
+                logging.warning("Disabling tensor parallel communication overlap due to TE not detected.")
+                self.user_comm_overlap_cfg.tp_comm_overlap = False
 
         # PP overlap
         if parallelism_cfg.pipeline_model_parallel_size > 1:
@@ -135,24 +143,10 @@ class MegatronCommOverlapCallback(Callback):
             comm_overlap_cfg.overlap_p2p_comm = False
             comm_overlap_cfg.batch_p2p_comm = False
 
-        # Create a field to store the tp overlap cfg
-        model_parallel_cfg.tp_comm_overlap_cfg = None
-        model_parallel_cfg = self._apply_overlap_configs(comm_overlap_cfg, model_parallel_cfg)
+        comm_overlap_cfg = self._override_user_cfgs(comm_overlap_cfg)
+        self._apply_cfgs(comm_overlap_cfg, model_parallel_cfg)
 
-        # Check if TP overlap can be safely enabled
-        if hasattr(model_parallel_cfg, "tp_comm_overlap") and model_parallel_cfg.tp_comm_overlap is True:
-            if parallelism_cfg.tensor_model_parallel_size < 2:
-                logging.warning("Disabling tensor parallel communication overlap due to TP size < 2.")
-                model_parallel_cfg.tp_comm_overlap = False
-            elif not parallelism_cfg.sequence_parallel:
-                logging.warning("Disabling tensor parallel communication overlap due to sequence_parallel=False.")
-                model_parallel_cfg.tp_comm_overlap = False
-            elif not HAVE_TE:
-                logging.warning(
-                    "Disabling tensor parallel communication overlap due to Tranformer Engine not detected."
-                )
-                model_parallel_cfg.tp_comm_overlap = False
-        return model_parallel_cfg
+        return comm_overlap_cfg
 
     def _apply_optimizer_overlap_cfgs(
         self,
@@ -188,31 +182,39 @@ class MegatronCommOverlapCallback(Callback):
                 comm_overlap_cfg.overlap_param_gather_with_optimizer_step = True
                 comm_overlap_cfg.align_param_gather = True
 
-        self._apply_overlap_configs(comm_overlap_cfg, optim_cfg)
-        self._apply_overlap_configs(comm_overlap_cfg, ddp_cfg)
+        comm_overlap_cfg = self._override_user_cfgs(comm_overlap_cfg)
+        self._apply_cfgs(comm_overlap_cfg, optim_cfg)
+        self._apply_cfgs(comm_overlap_cfg, ddp_cfg)
 
-    def _apply_overlap_configs(self, comm_overlap_cfg: _CommOverlapConfig, cfg):
+        return comm_overlap_cfg
+
+    def _apply_cfgs(self, src_cfg, dest_cfg):
+        # apply optimizations into dest_cfg
+        for field in fields(src_cfg):
+            if hasattr(dest_cfg, field.name):
+                setattr(dest_cfg, field.name, getattr(src_cfg, field.name))  
+
+    def _override_user_cfgs(self, comm_overlap_cfg):
         # override default configs with any user provided configs
-        user_comm_overlap_cfg = self.overlap_cfg
-        if isinstance(user_comm_overlap_cfg, _CommOverlapConfig):
-            for field in fields(user_comm_overlap_cfg):
-                user_value = getattr(user_comm_overlap_cfg, field.name)
+        if isinstance(self.user_comm_overlap_cfg, _CommOverlapConfig):
+            for field in fields(self.user_comm_overlap_cfg):
+                user_value = getattr(self.user_comm_overlap_cfg, field.name)
                 if user_value is not None:
                     setattr(comm_overlap_cfg, field.name, user_value)
-        # apply optimizations into target cfg
-        for field in fields(comm_overlap_cfg):
-            if hasattr(cfg, field.name):
-                setattr(cfg, field.name, getattr(comm_overlap_cfg, field.name))
-        return cfg
+        
+        return comm_overlap_cfg
+
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         assert isinstance(trainer.strategy, MegatronStrategy), "MegatronCommOverlapCallback requires MegatronStrategy"
         parallelism_cfg = trainer.strategy.parallelism
 
         if hasattr(trainer.model, "config") and isinstance(trainer.model.config, ModelParallelConfig):
-            self._apply_model_comm_overlap_cfgs(
+            comm_overlap_cfg = self._apply_model_comm_overlap_cfgs(
                 parallelism_cfg=parallelism_cfg, model_parallel_cfg=trainer.model.config
             )
+            if hasattr(trainer.model, '__io__'):
+                self._apply_cfgs(comm_overlap_cfg, trainer.model.__io__.config)
             if trainer.model.config.tp_comm_overlap:
                 self.need_tp_overlap_ub_init = True
 
@@ -221,11 +223,13 @@ class MegatronCommOverlapCallback(Callback):
             and isinstance(trainer.model.optim.config, OptimizerConfig)
             and isinstance(trainer.strategy.ddp_config, DistributedDataParallelConfig)
         ):
-            self._apply_optimizer_overlap_cfgs(
+            comm_overlap_cfg = self._apply_optimizer_overlap_cfgs(
                 parallelism_cfg=parallelism_cfg,
                 optim_cfg=trainer.model.optim.config,
                 ddp_cfg=trainer.strategy.ddp_config,
             )
+            if hasattr(trainer.model, '__io__'):
+                self._apply_cfgs(comm_overlap_cfg, trainer.model.__io__.optim.config)
 
     def _init_te_userbuffers(self, model_parallel_cfg: ModelParallelConfig):
         from megatron.core import parallel_state
