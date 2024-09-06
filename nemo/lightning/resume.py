@@ -95,7 +95,9 @@ class AutoResume:
             trainer.checkpoint_callback.last_model_path = trainer_ckpt_path
             # Load artifacts
             if getattr(self.restore_config, 'load_artifacts', False):
-                model = _try_restore_tokenizer(model, trainer_ckpt_path)
+                context_path = self.get_context_path(model)
+                model = _try_restore_tokenizer(model, context_path)
+
         elif self.restore_config:
             new_path = self._try_import_model(
                 model=model,
@@ -231,6 +233,20 @@ class AutoResume:
             checkpoint = last_checkpoints[0]
 
         return checkpoint
+
+    def get_context_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
+        checkpoint = None
+        app_state = AppState()
+        app_state.restore = self.resume_if_exists
+        if self.resume_if_exists:
+            checkpoint = self._find_trainer_ckpt_path()
+
+        if checkpoint:
+            maybe_model_weights_path = Path(checkpoint) / "context"
+            if os.path.isdir(maybe_model_weights_path):
+                checkpoint = maybe_model_weights_path
+        return checkpoint
+
 
     def get_trainer_ckpt_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
         checkpoint = None
