@@ -1291,7 +1291,7 @@ class LazySupervisedDataset(Dataset):
             media_tensors = torch.tensor([])
             sources = copy.deepcopy(sources)
 
-        data_dict = preprocess_conversations(sources)
+        data_dict = preprocess_conversations(self,sources)
 
         if isinstance(i, int):
             data_dict = dict(tokens=data_dict["tokens"][0], labels=data_dict["labels"][0])
