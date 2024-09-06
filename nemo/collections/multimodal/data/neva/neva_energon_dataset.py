@@ -1,7 +1,5 @@
-import dataclasses
-import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
@@ -11,17 +9,12 @@ from megatron.energon import (
     CaptioningSample,
     DefaultTaskEncoder,
     InterleavedSample,
-    OCRSample,
     SimilarityInterleavedSample,
     VQASample,
-    batch_list,
     batch_pad_stack,
-    batch_stack,
 )
 from PIL import Image
-from transformers import CLIPImageProcessor, SiglipImageProcessor
 
-from nemo.collections.common.tokenizers import SentencePieceTokenizer
 from nemo.collections.multimodal.data.neva.neva_dataset import (
     DEFAULT_IMAGE_TOKEN,
     preprocess_interleaved_prompt,
@@ -35,7 +28,7 @@ from nemo.collections.multimodal.data.neva.neva_dataset import (
     process_image,
 )
 
-
+# Type for intermediate batch, after batch()
 @dataclass
 class ImageTaskSample:
     __key__: str
@@ -50,7 +43,7 @@ class ImageTaskSample:
     loss_mask: Optional[torch.Tensor] = None
     position_ids: Optional[torch.Tensor] = None
 
-
+# Typing for the resulting batch data after encode_batch()
 @dataclass
 class ImageTaskBatch(Batch):
     tokens: torch.Tensor
@@ -62,6 +55,10 @@ class ImageTaskBatch(Batch):
 
 
 class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatch, dict]):
+    """A task encoder for data samples for captioning, pretraining, sft and interleaved multimodal tasks.
+       It defines how the data is processed after it is loaded from the dataset.
+       Currently, it supports captioning, pretraining, sft and interleaved multimodal tasks and datasets.
+    """
     def __init__(self, tokenizer, image_processor, multimodal_cfg: dict, data_cfg: dict):
         super().__init__(batch_type=ImageTaskBatch)
         self.tokenizer = tokenizer
@@ -93,6 +90,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             return self.encode_sft(sample)
 
     def encode_captioning(self, sample: CaptioningSample) -> dict:
+        """Preprocessing function for datasets like COCO, containing image-caption pairs."""
         processed_image = self.process_images(sample.image)
 
         prompt = f"<image>\n{self.caption_prompts[self.prompt_index]}\n"
@@ -128,6 +126,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         )
 
     def encode_pretrain(self, sample: VQASample) -> dict:
+        """Preprocessing function for datasets like LlaVA-Pretrain, multimodal synthesized conversation from the image-caption pairs."""
         conversations = [{"from": "human", "value": sample.context}, {"from": "gpt", "value": sample.answers}]
         processed_sample = {"conversations": conversations}
 
@@ -158,6 +157,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         )
 
     def encode_sft(self, sample: Union[ImageTaskSample, VQASample, InterleavedSample]) -> dict:
+        """Preprocessing function for datasets like LLaVA-Instruct, conversational multimodal instruction-following data"""
         conversations = sample.texts if hasattr(sample, 'texts') else sample.conversations
         processed_sample = {"conversations": conversations}
         image_present = False
@@ -206,7 +206,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         )
 
     def encode_similarity_interleaved(self, sample: SimilarityInterleavedSample) -> dict:
-
+        """Preprocessing function for datasets like MMC4, where text and images are interleaved via a similarity matrix or matched_text_indices."""
         # 4 fields: sample.images, sample.texts, sample.similarity_matrix, sample.matched_text_index
         images, sentence_ixs = [], []
         for sample_image, sim_vec in zip(sample.images, sample.matched_text_indices):
@@ -283,6 +283,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         )
 
     def encode_interleaved(self, sample: InterleavedSample) -> dict:
+        """Preprocessing function for datasets like OBELISC, where text and images are strictly interleaved."""
         interleaved_text = []
         images = []
         for item in sample.sequence:
@@ -401,7 +402,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         return images
 
     def batch(self, samples: List[ImageTaskSample]) -> ImageTaskBatch:
-
+        """Pads and stacks the samples in the batch."""
         batch = ImageTaskBatch(
             tokens=batch_pad_stack([s.tokens for s in samples]),
             labels=batch_pad_stack([s.labels for s in samples]),

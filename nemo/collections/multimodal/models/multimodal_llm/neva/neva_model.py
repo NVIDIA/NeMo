@@ -77,7 +77,6 @@ try:
         get_loader,
         get_savable_loader,
         get_train_dataset,
-        get_val_dataset,
         get_val_datasets,
     )
 
@@ -1472,7 +1471,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
         dname = OmegaConf.to_container(self.cfg.energon.data, resolve=True)
 
-        image_processor = image_processor = (
+        image_processor = (
             self.model.module.image_processor if hasattr(self.model, "module") else self.model.image_processor
         )
 
@@ -1553,6 +1552,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     # energon dataset builder
     def build_train_valid_test_datasets_energon(self):
+        """Builds train and validation dataloaders using Megatron-Energon"""
         rank = parallel_state.get_data_parallel_rank()
         world_size = parallel_state.get_data_parallel_world_size()
         data_parallel_group = parallel_state.get_data_parallel_group()

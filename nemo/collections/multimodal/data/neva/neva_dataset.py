@@ -397,7 +397,7 @@ def process_image(processor, image, image_aspect_ratio="square"):
             image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
     else:
         assert image_aspect_ratio == 'square', 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
-        image = processor(image, return_tensors='pt')['pixel_values'][0]
+        image = processor(image)
     return image
 
 
