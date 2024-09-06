@@ -1,31 +1,48 @@
-from argparse import ArgumentParser
 import os
 import shutil
+from argparse import ArgumentParser
 
 from omegaconf import OmegaConf
 
 from nemo.lightning import io
 
+
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_path", type=str, required=True, help="Path to nemo 2.0 checkpoint",
+        "--input_path",
+        type=str,
+        required=True,
+        help="Path to nemo 2.0 checkpoint",
     )
     parser.add_argument(
-        "--output_path", type=str, required=True, help="Output path",
+        "--output_path",
+        type=str,
+        required=True,
+        help="Output path",
     )
     parser.add_argument(
-        "--tokenizer_type", type=str, default="huggingface", help="Type of tokenizer",
+        "--tokenizer_type",
+        type=str,
+        default="huggingface",
+        help="Type of tokenizer",
     )
     parser.add_argument(
-        "--tokenizer_name", type=str, default="meta-llama/Meta-Llama-3.1-8B", help="Name or path of tokenizer",
+        "--tokenizer_name",
+        type=str,
+        default="meta-llama/Meta-Llama-3.1-8B",
+        help="Name or path of tokenizer",
     )
     parser.add_argument(
-        "--symbolic_link", type=bool, default=True, help="Whether to use symbiloc link for model weights",
+        "--symbolic_link",
+        type=bool,
+        default=True,
+        help="Whether to use symbiloc link for model weights",
     )
 
     args = parser.parse_args()
     return args
+
 
 def main(args):
     input_path = args.input_path
@@ -41,7 +58,7 @@ def main(args):
     config = io.load_context(input_path, subpath="model.config")
 
     config_dict = {}
-    for k,v in config.__dict__.items():
+    for k, v in config.__dict__.items():
         if isinstance(v, (float, int, str, bool)):
             config_dict[k] = v
         elif k == "activation_func":
@@ -72,6 +89,7 @@ def main(args):
             source_path = os.path.join(input_path, file)
             target_path = os.path.join(weight_path, file)
             shutil.copy(source_path, target_path)
+
 
 if __name__ == "__main__":
     args = get_args()
