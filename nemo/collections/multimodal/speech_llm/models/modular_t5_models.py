@@ -977,27 +977,42 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         return outputs
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
-        # TODO: support text-only part of mini-batch
         # the following supports STT (audio-text) inference
 
         batch = move_to_device(batch, device=self.device)
-        encoder_input, attention_mask, enc_mask = self.prepare_llm_input(batch)
-        # enc_input = speech and text prompt
-        # dec_input and label = text output label
-        predicted_token_ids, log_probs = self.frozen_model.decode(
-            tokens_enc=None,
-            enc_mask=enc_mask,
-            num_tokens_to_generate=self._inference_config['tokens_to_generate'],
-            encoder_input=encoder_input,
-            tokenizer=self.tokenizer,
-            bos_id=self.bos_id,
-        )
+        audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_")}
+        text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
+        assert (
+            audio_batch or text_batch and not (audio_batch or text_batch)
+        ), f"Expecting only text or audio batch, got {len(text_batch)=} and {len(audio_batch)=}"
+
+        if 'audio_signal' in audio_batch:
+            input_text = audio_batch['contexts']
+            labels = audio_batch['answers']
+            encoder_input, attention_mask, enc_mask = self.prepare_llm_input(audio_batch)
+            predicted_token_ids, log_probs = self.frozen_model.decode(
+                tokens_enc=None,
+                enc_mask=enc_mask,
+                num_tokens_to_generate=self._inference_config['tokens_to_generate'],
+                encoder_input=encoder_input,
+                tokenizer=self.tokenizer,
+                bos_id=self.bos_id,
+            )
+        if text_batch:
+            input_text = text_batch['text_context_ids']
+            labels = text_batch["text_answer_ids"]
+            enc_mask = (input_text != self.tokenizer.pad_id).long().contiguous()
+            predicted_token_ids, log_probs = self.frozen_model.decode(
+                tokens_enc=input_text,
+                enc_mask=enc_mask,
+                num_tokens_to_generate=self._inference_config['tokens_to_generate'],
+                tokenizer=self.tokenizer,
+                bos_id=self.bos_id,
+            )
 
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
-        input_text = batch['contexts']
         preds_text = MegatronT5SFTModel.ids_to_text(predicted_token_ids, self.tokenizer)
         input_text = MegatronT5SFTModel.ids_to_text(input_text, self.tokenizer)
-        labels = batch['answers']
 
         if labels is not None:
             labels_text = MegatronT5SFTModel.ids_to_text(labels, self.tokenizer)
