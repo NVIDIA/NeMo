@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 
@@ -46,26 +46,26 @@ class LlavaConfig(NevaConfig):
 class Llava1_5Config7B(LlavaConfig):
     from transformers import PretrainedConfig
 
-    language_transformer_config: TransformerConfig = Llama2Config7B()
-    vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = HFCLIPVisionConfig(
+    language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama2Config7B())
+    vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(default_factory=lambda: HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
-    )
-    vision_projection_config: TransformerConfig = MultimodalProjectorConfig(
+    ))
+    vision_projection_config: TransformerConfig = field(default_factory=lambda: MultimodalProjectorConfig(
         input_size=1024, hidden_size=4096, ffn_hidden_size=4096
-    )
+    ))
 
 
 @dataclass
 class Llava1_5Config13B(LlavaConfig):
     from transformers import PretrainedConfig
 
-    language_transformer_config: TransformerConfig = Llama2Config13B()
-    vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = HFCLIPVisionConfig(
+    language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama2Config13B())
+    vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(default_factory=lambda: HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
-    )
-    vision_projection_config: TransformerConfig = MultimodalProjectorConfig(
+    ))
+    vision_projection_config: TransformerConfig = field(default_factory=lambda: MultimodalProjectorConfig(
         input_size=1024, hidden_size=5120, ffn_hidden_size=5120
-    )
+    ))
 
 
 class LlavaModel(NevaModel):
