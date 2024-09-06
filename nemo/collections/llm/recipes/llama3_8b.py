@@ -37,6 +37,7 @@ def trainer(
     limit_test_batches: Optional[Union[int, float]] = 50,
     limit_val_batches: Optional[Union[int, float]] = 32,
     val_check_interval: Optional[Union[int, float]] = 2000,
+    num_sanity_val_steps: Optional[int] = None,
     ckpt_async_save: bool = False,
     ckpt_parallel_load: bool = False,
 ) -> Config[nl.Trainer]:
@@ -68,6 +69,7 @@ def trainer(
         strategy=strategy,
         use_distributed_sampler=False,
         val_check_interval=val_check_interval,
+        num_sanity_val_steps=num_sanity_val_steps,
     )
 
     return trainer
@@ -125,13 +127,15 @@ def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node:
             limit_test_batches=None,
             limit_val_batches=None,
             val_check_interval=30,
+            num_sanity_val_steps=0,
         ),
         data=Config(SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1),
         log=default_log(ckpt_dir=ckpt_dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, adam_beta2=0.98, warmup_steps=50),
         resume=hf_resume(),
     )
-    recipe.optim.lr_scheduler.min_lr = 0
+    if recipe.optim.lr_scheduler:
+        recipe.optim.lr_scheduler.min_lr = 0
 
     if peft_scheme.lower() == 'lora':
         recipe.peft = Config(LoRA)
