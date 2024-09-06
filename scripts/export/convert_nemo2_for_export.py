@@ -1,3 +1,30 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+Convert a NeMo 2.0 checkpoint to NeMo 1.0 for TRTLLM export.
+Example to run this conversion script:
+```
+    python /opt/NeMo/scripts/scripts/export/convert_nemo2_for_export.py \
+     --input_path /path/to/nemo2/ckpt \
+     --output_path /path/to/output \
+     --tokenizer_type huggingface \
+     --tokenizer_name meta-llama/Meta-Llama-3.1-8B \
+     --symbolic_link=True
+```
+"""
+
 import os
 import shutil
 from argparse import ArgumentParser
