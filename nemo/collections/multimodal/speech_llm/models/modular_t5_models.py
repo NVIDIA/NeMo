@@ -950,7 +950,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
         output = self.predict_step(batch, batch_idx, dataloader_idx)
 
-        inputs_text = output["inputs_text"]  # [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
+        inputs_text = output["input_text"]  # [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
         labels_text = output["labels_text"]  # [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
         preds_text = output['preds_text']
         if data_cfg.get("log_every_n_steps", None) is not None:
