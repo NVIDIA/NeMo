@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Literal, Optional
@@ -38,7 +52,6 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     post_process: bool = True
     pre_process: bool = True
     seq_length: int = 2048
-    params_dtype: torch.dtype = torch.bfloat16
     # Mamba with no attention has no need for position embeddings, so none is default
     position_embedding_type: Literal['learned_absolute', 'rope', 'none'] = 'none'
     rotary_percent: float = 1.0
@@ -183,7 +196,7 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
 
 
 @dataclass
-class BaseMambaConfig130m(SSMConfig):
+class BaseMambaConfig130M(SSMConfig):
     hybrid_override_pattern: str = "M" * 24
     num_layers: int = 24
     seq_length: int = 2048
@@ -197,7 +210,7 @@ class BaseMambaConfig130m(SSMConfig):
 
 
 @dataclass
-class BaseMambaConfig370m(SSMConfig):
+class BaseMambaConfig370M(SSMConfig):
     hybrid_override_pattern: str = "M" * 48
     num_layers: int = 48
     seq_length: int = 2048
@@ -211,7 +224,7 @@ class BaseMambaConfig370m(SSMConfig):
 
 
 @dataclass
-class BaseMambaConfig780m(SSMConfig):
+class BaseMambaConfig780M(SSMConfig):
     hybrid_override_pattern: str = "M" * 48
     num_layers: int = 48
     seq_length: int = 2048
@@ -225,7 +238,7 @@ class BaseMambaConfig780m(SSMConfig):
 
 
 @dataclass
-class BaseMambaConfig1_3b(SSMConfig):
+class BaseMambaConfig1_3B(SSMConfig):
     hybrid_override_pattern: str = "M" * 48
     num_layers: int = 48
     seq_length: int = 2048
@@ -239,7 +252,7 @@ class BaseMambaConfig1_3b(SSMConfig):
 
 
 @dataclass
-class BaseMambaConfig2_7b(SSMConfig):
+class BaseMambaConfig2_7B(SSMConfig):
     hybrid_override_pattern: str = "M" * 64
     num_layers: int = 64
     seq_length: int = 2048
@@ -253,7 +266,7 @@ class BaseMambaConfig2_7b(SSMConfig):
 
 
 @dataclass
-class NVIDIAMambaConfig8b(SSMConfig):
+class NVIDIAMambaConfig8B(SSMConfig):
     hybrid_override_pattern: str = "M" * 56
     num_layers: int = 56
     seq_length: int = 4096
@@ -267,7 +280,7 @@ class NVIDIAMambaConfig8b(SSMConfig):
 
 
 @dataclass
-class NVIDIAMambaHybridConfig8b(SSMConfig):
+class NVIDIAMambaHybridConfig8B(SSMConfig):
     hybrid_override_pattern: str = "M-M-M--M-M*-M-M-M-M--M*-M-M-M-M-M*--M-M-M-M-M*-M--M-M-M-"
     num_layers: int = 56
     seq_length: int = 4096
@@ -284,11 +297,11 @@ class NVIDIAMambaHybridConfig8b(SSMConfig):
 
 __all__ = [
     "SSMConfig",
-    "BaseMambaConfig130m",
-    "BaseMambaConfig370m",
-    "BaseMambaConfig780m",
-    "BaseMambaConfig1_3b",
-    "BaseMambaConfig2_7b",
-    "NVIDIAMambaConfig8b",
-    "NVIDIAMambaHybridConfig8b",
+    "BaseMambaConfig130M",
+    "BaseMambaConfig370M",
+    "BaseMambaConfig780M",
+    "BaseMambaConfig1_3B",
+    "BaseMambaConfig2_7B",
+    "NVIDIAMambaConfig8B",
+    "NVIDIAMambaHybridConfig8B",
 ]

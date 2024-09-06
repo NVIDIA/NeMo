@@ -1,12 +1,25 @@
-import argparse
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+## NOTE: This script is present for github-actions testing only.
+## There are no guarantees that this script is up-to-date with latest NeMo.
+
+import argparse
 import torch
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import WandbLogger
-
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.api import _setup
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
@@ -92,17 +105,6 @@ if __name__ == "__main__":
         tokenizer=model.tokenizer,
         num_workers=0,
         pad_to_max_length=True,
-    )
-
-    app_state = _setup(
-        model=model,
-        data=data,
-        trainer=trainer,
-        log=None,
-        resume=None,
-        optim=optim,
-        tokenizer=model.tokenizer,
-        model_transform=None,
     )
 
     trainer.fit(model, data, ckpt_path=ckpt_path)
