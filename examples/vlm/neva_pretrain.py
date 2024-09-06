@@ -22,6 +22,7 @@ from nemo.collections import llm, vlm
 from nemo.collections.vlm import ImageDataConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+from nemo.utils.exp_manager import TimingCallback
 
 
 def main(args):
@@ -54,7 +55,7 @@ def main(args):
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
     )
     vision_projection_config = vlm.MultimodalProjectorConfig(
-        projector_type=args.projector_type, input_size=1024, hidden_size=4096
+        projector_type=args.projector_type, input_size=1024, hidden_size=4096, ffn_hidden_size=4096,
     )
 
     # NEVA model configuration
@@ -93,7 +94,7 @@ def main(args):
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-        callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback, TimingCallback()],
         val_check_interval=100,
         limit_val_batches=gbs,
         log_every_n_steps=1,
