@@ -14,16 +14,13 @@
 
 import pytorch_lightning as pl
 
-from nemo.collections.llm.utils import factory
 from nemo.collections.vlm.neva.model import Llava1_5Config7B, Llava1_5Config13B, LlavaModel
 
 
-@factory
 def llava1_5_7b() -> pl.LightningModule:
     return LlavaModel(Llava1_5Config7B())
 
 
-@factory
 def llava1_5_13b() -> pl.LightningModule:
     return LlavaModel(Llava1_5Config13B())
 

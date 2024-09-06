@@ -14,7 +14,6 @@
 
 import pytorch_lightning as pl
 
-from nemo.collections.llm.utils import factory
 from nemo.collections.vlm.neva.data.lazy import NevaLazyDataModule
 from nemo.collections.vlm.neva.data.mock import MockDataModule
 
