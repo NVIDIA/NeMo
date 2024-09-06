@@ -159,6 +159,7 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
                 for cur_input_cfg in input_cfg[0].input_cfg:
                     conf = copy.deepcopy(data_cfg)
                     conf.input_cfg[0].input_cfg = [cur_input_cfg]
+                    conf.force_finite = True
                     dls.append(
                         get_lhotse_dataloader_from_config(
                             conf,
