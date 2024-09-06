@@ -1,6 +1,21 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import io
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple, Union, cast
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
 
 import pytorch_lightning as pl
 import torch
@@ -19,6 +34,14 @@ from nemo.lightning import _strategy_lib
 from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
+
+
+@dataclass(kw_only=True)
+class RestoreConfig:
+    path: str
+    adapter_path: Optional[str] = None
+    load_model_state: bool = True
+    load_optim_state: bool = False
 
 
 def setup_parallel_ranks(strategy: pl.strategies.Strategy):
@@ -92,13 +115,10 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     return filepath
 
 
-def get_checkpoint_io(checkpoint_io, **kwargs):
-    if checkpoint_io is None:
-        checkpoint_io = MegatronCheckpointIO(**kwargs)
-        if kwargs.get("async_save", False):
-            checkpoint_io = AsyncFinalizableCheckpointIO(checkpoint_io)
-    elif isinstance(checkpoint_io, _WrappingCheckpointIO):
-        checkpoint_io.checkpoint_io = MegatronCheckpointIO()
+def create_checkpoint_io(**kwargs):
+    checkpoint_io = MegatronCheckpointIO(**kwargs)
+    if kwargs.get("async_save", False):
+        checkpoint_io = AsyncFinalizableCheckpointIO(checkpoint_io)
 
     return checkpoint_io
 
@@ -161,7 +181,6 @@ def mcore_to_pyt_sharded_state_dict(
 def pyt_to_mcore_state_dict(
     state_dict: Dict[str, Any], prefix: str = "", device_mesh: DeviceMesh = None
 ) -> Dict[str, List[ShardedBase]]:
-
     def _dtensor_to_mcore_sharded_tensor(
         key: str,
         dten: DTensor,
@@ -291,16 +310,16 @@ def pyt_to_mcore_state_dict(
     num_layers = 0
     for k in state_dict:
         if k.startswith("module.decoder.layers."):
-            num_layers = max(num_layers, int(k.split('.')[3]) + 1)
+            num_layers = max(num_layers, int(k.split(".")[3]) + 1)
 
     for k, v in state_dict.items():
         prepend_offsets = []
         sh_key = k
         allow_shape_mismatch = k.endswith(".word_embeddings.weight")  # vocab size can be different
         if k.startswith("module.decoder.layers."):
-            sh_key = k.split('.')
+            sh_key = k.split(".")
             global_layer_offset = int(sh_key.pop(3))
-            sh_key = '.'.join(sh_key)
+            sh_key = ".".join(sh_key)
             prepend_offsets.append((0, global_layer_offset, num_layers))
 
         _convert(state_dict, k, sh_key, v, prepend_offsets, prefix, allow_shape_mismatch, device_mesh)
