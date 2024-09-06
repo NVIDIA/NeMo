@@ -449,8 +449,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
             if self.always_save_context and is_global_rank_zero():
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context")
 
-            if self.enable_nemo_ckpt_io and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath))
             if self.async_save:
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:
