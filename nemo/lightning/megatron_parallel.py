@@ -545,16 +545,20 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         for model_chunk_idx, model_chunk in enumerate(self):
             module = model_chunk.module
 
-            ddp = DDP(
-                module.config,
-                self.ddp_config,
-                module,
-                data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
-                # Turn off bucketing for model_chunk 2 onwards, since communication for these
-                # model chunks is overlapped with compute anyway.
-                disable_bucketing=(model_chunk_idx > 0),
-            )
+            # Mcore DistributedDataParallel has to be called with grad. Normally this call is redundant, but for
+            # PEFT with num_sanity_val_steps > 0 this is necessary.
+            with torch.enable_grad():
+                ddp = DDP(
+                    module.config,
+                    self.ddp_config,
+                    module,
+                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                    # Turn off bucketing for model_chunk 2 onwards, since communication for these
+                    # model chunks is overlapped with compute anyway.
+                    disable_bucketing=(model_chunk_idx > 0),
+                )
+
             model_chunk.module = ddp
             model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
             model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
