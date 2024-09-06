@@ -3,8 +3,8 @@ Use Auto Configurator to Find the Optimal Configuration
 
 Auto Configurator searches for hyperparameters (HPs) that achieve the maximum highest training throughput when working with Large Language Models (LLMs) utilizing the NeMo Framework.
 
-.. note::
-   Auto Configurator is only supported now for GPT-based models: GPT3, LLama, Mixtral, Mistral, Gemma and Nemotron.
+> [!NOTE] 
+> Auto Configurator is only supported now for GPT-based models: GPT3, LLama, Mixtral, Mistral, Gemma and Nemotron.
 
 Auto Configurator Capabilities
 ------------------------------
@@ -22,7 +22,7 @@ Model Size Recommendation
 
 If you have not decided what model size you want to train, Auto Configurator can recommend a model size for your use case. If you know the number of GPUs, TFLOPS per GPU, the maximum time to train, and the number of tokens to train for, it can recommend a model size that can be trained with the specified hardware and time constraints.
 
-For example, if you had 20 NVIDIA DGX nodes available (in 80\ |_GB| GPU memory), and wanted to train a GPT model for a maximum of 5\ |_days|, Auto Configurator would recommend using a 5B parameter GPT model.
+For example, if you had 20 NVIDIA DGX nodes available (in 80 GB GPU memory), and wanted to train a GPT model for a maximum of 5 days, Auto Configurator would recommend using a 5B parameter GPT model.
 
 Training Time Estimation
 ------------------------
@@ -43,21 +43,21 @@ After Auto Configurator generates the base configuration, it searches over four 
 
 Auto Configurator initially applies heuristics to identify suitable candidates for the four key parameters, subsequently generating a grid of candidate configurations. It returns all of the candidate configurations in NeMo 2.0 format.
    
-.. note::
-   Some of the candidate configurations may not work due to high-memory usage or other issues.
+> [!NOTE]
+> Some of the candidate configurations may not work due to high-memory usage or other issues.
 
 Once the candidate configurations are generated, you can use NeMo Framework to launch the most promising candidates.
    
 When running the candidates on the cluster, you can limit job time and job max steps by using ``max_minutes_per_run`` and ``max_steps_per_run`` parameters. During this search, the jobs will run with the number of nodes specified in the configuration files, using the ``num_nodes`` parameter. Once all of the jobs have finished running, you'll need to run compare_throughput.py to get a .csv table with performance results for each succeeded job.
 
 Optimal Configuration Recommendation
-####################################
+------------------------------------
 
 After all of the candidate jobs are done, Auto Configurator calculates performance parameters for each of the candidates. 
 Auto Configurator generates two .csv files: one detailing the performance measures of the candidates and another listing the candidates that failed due to out-of-memory errors.
 
 End-To-End Example
-##################
+------------------
 
 The following list shows the required input parameters for the Auto Configurator runner:
 
