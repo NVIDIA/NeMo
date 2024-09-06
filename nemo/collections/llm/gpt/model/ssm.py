@@ -24,14 +24,14 @@ try:
     from megatron.core import parallel_state
     from megatron.core.models.mamba import MambaModel as MCoreMambaModel
     from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
-    from megatron.core.transformer.transformer_config import TransformerConfig
 
-    HAVE_MEGATRON_CORE = True
+    HAVE_MEGATRON_CORE_OR_TE = True
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("The package `megatron.core` was not imported in this environment which is needed for SSMs.")
-    HAVE_MEGATRON_CORE = False
+    HAVE_MEGATRON_CORE_OR_TE = False
 
+from megatron.core.transformer.transformer_config import TransformerConfig
 from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
 from nemo.lightning import get_vocab_size, io, teardown
 
