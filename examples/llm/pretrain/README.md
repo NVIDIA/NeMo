@@ -6,7 +6,7 @@
 nemorun llm pretrain --help
 ```
 
-![recipe-listing](img/list-recipes.png)
+![recipe-listing](https://github.com/NVIDIA/NeMo/releases/download/v2.0.0rc0/list-recipes.png)
 
 
 ### Run pre-training with a default recipe
@@ -15,7 +15,7 @@ nemorun llm pretrain --help
 nemorun llm pretrain --factory llama3_8b
 ```
 
-![llama3_70b](img/llama3_70b.png)
+![llama3_70b](https://github.com/NVIDIA/NeMo/releases/download/v2.0.0rc0/llama3_70b.png)
 
 We can also call the factory function with custom parameters:
 
@@ -23,7 +23,7 @@ We can also call the factory function with custom parameters:
 nemorun llm pretrain --factory "llama3_70b(num_nodes=128)"
 ```
 
-![llama3_70b-128-nodes](img/llama3_70b_128nodes.png)
+![llama3_70b-128-nodes](https://github.com/NVIDIA/NeMo/releases/download/v2.0.0rc0/llama3_70b_128nodes.png)
 
 
 The CLI allows you to overwrite any parameter. For example, to run the recipe with 2000 steps: 
@@ -38,11 +38,11 @@ The syntax of the CLI is the same as the Python code. Which is great but in some
 nemorun llm pretrain --factory llama3_70b --repl
 ```
 
-![repl](img/repl.gif)
+![repl](https://github.com/NVIDIA/NeMo/releases/download/v2.0.0rc0/repl.gif)
 
 We can also trigger a run from a jupyter notebook, see [pretrain.ipynb](pretrain.ipynb) for an example. This allows visualizes all configs in a structured format. See for instance the `llama3_8b` recipe:
 
-![llama3_8b_visualization](img/llama3_8b_config.svg)
+![llama3_8b_visualization](https://github.com/NVIDIA/NeMo/releases/download/v2.0.0rc0/llama3_8b_config.svg)
 
 
 ### Create and run a custom recipe
