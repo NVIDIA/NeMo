@@ -138,6 +138,7 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
                             global_rank=parallel_state.get_data_parallel_rank(),
                             world_size=parallel_state.get_data_parallel_world_size(),
                             dataset=dataset,
+                            tokenizer=dataset.text_processor.tokenizer,
                         )
                     )
             else:
@@ -158,6 +159,7 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
                             global_rank=parallel_state.get_data_parallel_rank(),
                             world_size=parallel_state.get_data_parallel_world_size(),
                             dataset=dataset,
+                            tokenizer=dataset.text_processor.tokenizer,
                         )
                     )
 

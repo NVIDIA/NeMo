@@ -476,7 +476,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             else:
                 seq_length = None  # TODO(pzelasko): not sure if it is even needed ???
 
-            data_iter = get_iterator_k_split(batch, get_num_microbatches())
+            data_iter = get_iterator_k_split(batch, 1)
+            #data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
             # TODO(pzelasko): restore this logging once we decide what's the right format for joint text-audio batches
             # if log_token_counts:
@@ -506,10 +507,10 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 forward_step_func=self.get_forward_output_and_loss_func(tuning=True, validation_step=forward_only),
                 data_iterator=self._make_data_iterator_list(data_iter),
                 model=self.model,
-                num_microbatches=get_num_microbatches(),
+                num_microbatches=1,  #get_num_microbatches(),
                 forward_only=forward_only,
                 seq_length=seq_length,
-                micro_batch_size=get_micro_batch_size(),
+                micro_batch_size=self.cfg.data.train_ds.micro_batch_size,  #get_micro_batch_size(),
                 first_val_step=first_val_step,
             )
 
@@ -1355,7 +1356,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             inference_config['end_strings'] = [self.cfg.data.end_string]
 
         global_batch_size_per_gpu = batch['tokens'].size(0)
-        num_micro_batches_before_decode = get_num_microbatches()
+        num_micro_batches_before_decode = 1  #get_num_microbatches()
 
         compute_logprob = inference_config.get('compute_logprob', False)
         if compute_logprob:

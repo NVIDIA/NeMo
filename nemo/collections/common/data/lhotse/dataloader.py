@@ -108,8 +108,10 @@ class LhotseDataLoadingConfig:
     num_workers: int = 0
     pin_memory: bool = False
     channel_selector: int | str | None = None
-    min_tps: int = -1  # allowed tokens per second
+    min_tps: int = -1  # allowed tokens per second (audio-only)
     max_tps: float = float("inf")
+    min_tpt: int = -1  # allowed tokens per token (text-only)
+    max_tpt: float = float("inf")
 
     # 4. Optional Lhotse data augmentation.
     #   a. On-the-fly noise/audio mixing.
@@ -393,6 +395,7 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
                 tokenizer = TokenizerWrapper(tokenizer)
             cuts = cuts.map(partial(tokenize, tokenizer=tokenizer), apply_fn=None)
         cuts = cuts.filter(TokenPerSecondFilter(config.min_tps, config.max_tps))
+        cuts = cuts.filter(TokenPerTokenFilter(config.min_tpt, config.max_tpt))
 
     # 2. Optional augmentations.
     # 2.a. Noise mixing.
@@ -808,6 +811,24 @@ class TokenPerSecondFilter:
             return True  # pass-through for non-audio examples.
         tps = _measure_tps(example)
         return self.tps_min <= tps <= self.tps_max
+
+class TokenPerTokenFilter:
+    """
+    Callable, returns ``True`` if a cut's num_tokens (sum of len(tokens) for each supervision)
+    is in range [tps_min, tps_max] and ``False`` otherwise.
+    """
+
+    def __init__(self, tpt_min: float, tpt_max: float) -> None:
+        assert tpt_min <= tpt_max
+        self.tpt_min = tpt_min
+        self.tpt_max = tpt_max
+        self.enabled = tpt_min > 0 or tpt_max < float("inf")
+
+    def __call__(self, example) -> bool:
+        if isinstance(example, Cut) or not self.enabled:
+            return True  # pass-through for non-text examples.
+        tpt = example.answer_ids.shape[0] / example.context_ids.shape[0]
+        return self.tpt_min <= tpt <= self.tpt_max
 
 
 def _measure_tokens(cut: Cut) -> int:
