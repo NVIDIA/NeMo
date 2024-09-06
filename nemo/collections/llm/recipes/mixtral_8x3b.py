@@ -30,7 +30,8 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.utils.exp_manager import TimingCallback
-from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronExpertParallelTokenDrop
+from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "mixtral_8x3b"
@@ -94,7 +95,7 @@ def trainer(
             $ nemo llm pretrain trainer=mixtral_8x3b ...
 
         Python API usage:
-            >>> trainer_config = trainer(num_nodes=1, num_gpus_per_node=8)
+            >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
             >>> print(trainer_config)
     """
     strategy = run.Config(
@@ -133,7 +134,7 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 2, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
     Create a pre-training recipe for Mixtral 8x3B model.
@@ -175,14 +176,50 @@ def pretrain_recipe(
     )
 
 
+@run.cli.factory(target=pretrain, name=NAME + "_performance")
 def pretrain_recipe_performance(
-    name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
-) -> Partial:
-    recipe = pretrain_recipe(
-        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 2, num_gpus_per_node: int = 8, fn=pretrain
+) -> run.Partial:
+    """
+    Create a performance-optimized pre-training recipe for Llama3 70B model.
+
+    This recipe enables performance optimizations that may not be suitable for all use cases.
+    It builds upon the standard pre-training recipe and adds additional performance enhancements.
+
+    Args:
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the pre-training run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+        fn (Callable): The pre-training function to use.
+
+    Returns:
+        run.Partial: Partial configuration for performance-optimized pre-training.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain --factory "mixtral_8x3b.pretrain_recipe_performance(num_nodes=2, name='perf_pretrain')"
+
+        Python API usage:
+            >>> recipe = pretrain_recipe_performance(name="mixtral_8x3b", num_nodes=4)
+            >>> print(recipe)
+
+    Note:
+        Use this recipe with caution and only when you need maximum performance.
+        It may not be suitable for all hardware configurations or use cases.
+    """
+    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
+
+    recipe.trainer.callbacks.append(
+        run.Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=True,
+            tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
+            defer_embedding_wgrad_compute=True,
+            wgrad_deferral_limit=22,
+        )
     )
 
-    recipe.trainer.callbacks.append(Config(MegatronExpertParallelTokenDrop))
     return recipe
 
 def hf_resume() -> run.Config[nl.AutoResume]:
