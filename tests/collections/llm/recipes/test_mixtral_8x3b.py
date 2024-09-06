@@ -7,10 +7,7 @@ from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x3B, MixtralMod
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import mixtral_8x3b
 from nemo.lightning import Trainer, AutoResume
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
-from nemo.utils.exp_manager import TimingCallback
 import nemo_run as run
-import torch
 
 
 class TestMixtral8x3B:

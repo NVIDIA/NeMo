@@ -29,6 +29,20 @@ NAME = "mixtral_8x3b_16k"
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
+    """
+    Factory function to create a Mixtral 8x3B model configuration with 16k sequence length.
+
+    Returns:
+        run.Config[pl.LightningModule]: Configuration for the Mixtral 8x3B model with 16k sequence length.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain model=mixtral_8x3b_16k ...
+
+        Python API usage:
+            >>> model_config = model()
+            >>> print(model_config)
+    """
     model_config = mixtral_8x3b.model()
     model_config.config.seq_length = 16384
     model_config.config.max_position_embeddings = 16384
@@ -39,6 +53,29 @@ def trainer(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
 ) -> run.Config:
+    """
+    Configure the NeMo Lightning Trainer for Mixtral 8x3B model with 16k sequence length.
+
+    This function sets up the distributed training strategy optimized for longer sequences.
+
+    Args:
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+
+    Returns:
+        run.Config: Configuration for the NeMo Lightning Trainer.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain trainer=mixtral_8x3b_16k ...
+
+        Python API usage:
+            >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
+            >>> print(trainer_config)
+
+    Note:
+        This configuration uses increased parallelism to handle the longer sequence length efficiently.
+    """
     return mixtral_8x3b.trainer(
         tensor_parallelism=2,
         pipeline_parallelism=2,
@@ -59,6 +96,33 @@ def pretrain_recipe(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
+    """
+    Create a pre-training recipe for Mixtral 8x3B model with 16k sequence length.
+
+    This function sets up a complete configuration for pre-training, including
+    model, trainer, and data settings optimized for 16k sequence length.
+
+    Args:
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the pre-training run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+
+    Returns:
+        run.Partial: Partial configuration for pre-training.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain --factory mixtral_8x3b_16k
+            $ nemo llm pretrain --factory "mixtral_8x3b_16k(num_nodes=2, name='my_16k_pretrain')"
+
+        Python API usage:
+            >>> recipe = pretrain_recipe(name="mixtral_8x3b_16k_pretrain", num_nodes=2)
+            >>> print(recipe)
+
+    Note:
+        This recipe is optimized for handling longer sequences (16k) compared to the standard version.
+    """
     recipe = mixtral_8x3b.pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
 
     recipe.model = model()
@@ -75,6 +139,34 @@ def finetune_recipe(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
+    """
+    Create a fine-tuning recipe for Mixtral 8x3B model with 16k sequence length.
+
+    This function sets up a complete configuration for fine-tuning, including
+    model, trainer, and data settings optimized for 16k sequence length.
+
+    Args:
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the fine-tuning run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+
+    Returns:
+        run.Partial: Partial configuration for fine-tuning.
+
+    Examples:
+        CLI usage:
+            $ nemo llm finetune --factory mixtral_8x3b_16k
+            $ nemo llm finetune --factory "mixtral_8x3b_16k(num_nodes=2, name='my_16k_finetune')"
+
+        Python API usage:
+            >>> recipe = finetune_recipe(name="mixtral_8x3b_16k_finetune", num_nodes=2)
+            >>> print(recipe)
+
+    Note:
+        This recipe is optimized for fine-tuning with longer sequences (16k) compared to the standard version.
+        It uses the SQuAD dataset adapted for 16k sequence length.
+    """
     recipe = mixtral_8x3b.finetune_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
 
     recipe.model = model()

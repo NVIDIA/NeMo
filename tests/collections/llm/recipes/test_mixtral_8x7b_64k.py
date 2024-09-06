@@ -6,7 +6,6 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
 from nemo.collections.llm.recipes import mixtral_8x7b_64k
 from nemo.lightning import Trainer
-from nemo.utils.exp_manager import TimingCallback
 import nemo_run as run
 import torch
 

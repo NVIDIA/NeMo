@@ -7,7 +7,6 @@ from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralMod
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import mixtral_8x7b
 from nemo.lightning import Trainer, AutoResume
-from nemo.utils.exp_manager import TimingCallback
 import nemo_run as run
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
