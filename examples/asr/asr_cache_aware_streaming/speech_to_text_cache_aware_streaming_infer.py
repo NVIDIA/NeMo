@@ -96,6 +96,10 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.streaming_utils import CacheAwareStreamingAudioBuffer
 from nemo.utils import logging
 
+import sys
+sys.path.append('/disk1/NVIDIA/repos/open_asr_leaderboard/')
+
+from normalizer import data_utils
 
 def extract_transcriptions(hyps):
     """
@@ -412,8 +416,14 @@ def main():
                 )
                 all_streaming_tran.extend(streaming_tran)
                 if args.compare_vs_offline:
+                    offline_tran = data_utils.normalizer(offline_tran)
                     all_offline_tran.extend(offline_tran)
                 streaming_buffer.reset_buffer()
+
+        for i, (ref, hyp) in enumerate(zip(all_refs_text, all_streaming_tran)):
+            # normalize ref text and straming text
+            all_refs_text[i] = data_utils.normalizer(ref)
+            all_streaming_tran[i] = data_utils.normalizer(hyp)
 
         if args.compare_vs_offline and len(all_refs_text) == len(all_offline_tran):
             offline_wer = word_error_rate(hypotheses=all_offline_tran, references=all_refs_text)
@@ -431,7 +441,7 @@ def main():
                 "streaming_out_"
                 + os.path.splitext(os.path.basename(args.asr_model))[0]
                 + "_"
-                + os.path.splitext(os.path.basename(args.test_manifest))[0]
+                + os.path.splitext(os.path.basename(args.manifest_file))[0]
                 + ".json"
             )
 
