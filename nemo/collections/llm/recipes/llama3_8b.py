@@ -2,7 +2,6 @@ from typing import Callable, Optional
 
 import pytorch_lightning as pl
 import torch
-from megatron.core.distributed import DistributedDataParallelConfig
 from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
@@ -15,6 +14,7 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
 from nemo.collections.llm.utils import Config, Partial
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "llama3_8b"
@@ -45,7 +45,6 @@ def trainer(
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
         gradient_as_bucket_view=True,
-        ckpt_include_optimizer=True,
         ckpt_async_save=True,
         ckpt_parallel_load=True,
     )
@@ -56,7 +55,6 @@ def trainer(
         accumulate_grad_batches=1,
         callbacks=callbacks,
         devices=num_gpus_per_node,
-        gradient_clip_val=1.0,
         limit_test_batches=50,
         limit_val_batches=32,
         log_every_n_steps=10,
@@ -95,8 +93,30 @@ def pretrain_recipe(
     )
 
 
+def pretrain_recipe_performance(
+    name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
+) -> Partial:
+    """'pretrain_recipe_performance' turns on performance optimizations that cannot be enabled by default
+    due to being model specific or lacking sufficent support. For better compatibility please use
+    the default 'pretrain_recipe()' above."""
+    recipe = pretrain_recipe(
+        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
+    )
+
+    recipe.trainer.callbacks.append(
+        Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=False,
+        )
+    )
+    return recipe
+
+
 def hf_resume() -> Config[nl.AutoResume]:
-    return Config(nl.AutoResume, import_path="hf://meta-llama/Meta-Llama-3.1-8B")
+    return Config(
+        nl.AutoResume,
+        restore_config=Config(nl.RestoreConfig, path="hf://meta-llama/Meta-Llama-3-8B"),
+    )
 
 
 def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int) -> Partial:
