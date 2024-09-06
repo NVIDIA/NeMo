@@ -1251,6 +1251,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     raise ImportError(
                         "Megatron-Energon was not found. Please see the Energon README for installation instructions: https://github.com/NVIDIA/Megatron-Energon?tab=readme-ov-file#installation."
                     )
+                assert not self.use_peft, "NeMo does not currently support the combination of Energon and PEFT."
                 self.build_train_valid_test_datasets_energon()
             else:
                 self.build_train_valid_test_datasets()
