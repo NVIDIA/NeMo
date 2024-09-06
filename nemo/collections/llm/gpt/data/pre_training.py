@@ -37,6 +37,8 @@ if TYPE_CHECKING:
 
 def is_number_tryexcept(s):
     """Returns True if string is a number."""
+    if s is None:
+        return False
     try:
         float(s)
         return True
