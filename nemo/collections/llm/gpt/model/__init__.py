@@ -72,14 +72,14 @@ from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Model,
 )
 from nemo.collections.llm.gpt.model.ssm import (
-    SSMConfig,
+    BaseMambaConfig1_3B,
+    BaseMambaConfig2_7B,
     BaseMambaConfig130M,
     BaseMambaConfig370M,
     BaseMambaConfig780M,
-    BaseMambaConfig1_3B,
-    BaseMambaConfig2_7B,
     NVIDIAMambaConfig8B,
     NVIDIAMambaHybridConfig8B,
+    SSMConfig,
 )
 from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
 from nemo.collections.llm.gpt.model.starcoder2 import (
