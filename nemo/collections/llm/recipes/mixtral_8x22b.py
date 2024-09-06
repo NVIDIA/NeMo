@@ -40,14 +40,14 @@ def model() -> run.Config[pl.LightningModule]:
 
 
 def trainer(
-    tensor_parallelism: int,
-    pipeline_parallelism: int,
-    pipeline_parallelism_type: Optional[torch.dtype],
-    virtual_pipeline_parallelism: Optional[int],
-    context_parallelism: int,
-    sequence_parallelism: bool,
-    expert_parallelism: int,
-    num_nodes: int = 1,
+    tensor_parallelism: int = 8,
+    pipeline_parallelism: int = 8,
+    pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
+    virtual_pipeline_parallelism: Optional[int] = 7,
+    context_parallelism: int = 1,
+    sequence_parallelism: bool = True,
+    expert_parallelism: int = 1,
+    num_nodes: int = 8,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
@@ -93,23 +93,13 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
 ) -> run.Partial:
     return run.Partial(
-        fn,
+        pretrain,
         model=model(),
-        trainer=trainer(
-            tensor_parallelism=8,
-            pipeline_parallelism=8,
-            pipeline_parallelism_type=torch.bfloat16,
-            virtual_pipeline_parallelism=7,
-            context_parallelism=1,
-            sequence_parallelism=True,
-            expert_parallelism=1,
-            num_nodes=num_nodes,
-            num_gpus_per_node=num_gpus_per_node,
-            callbacks=[run.Config(TimingCallback)],
-        ),
+        trainer=trainer(callbacks=[run.Config(TimingCallback)]),
         data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
@@ -128,7 +118,7 @@ def hf_resume() -> run.Config[nl.AutoResume]:
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 1,
+    num_nodes: int = 8,
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
