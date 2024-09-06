@@ -1,4 +1,7 @@
+import nemo_run as run
 import pytest
+import torch
+from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
@@ -6,10 +9,7 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import mixtral_8x7b
-from nemo.lightning import Trainer, AutoResume
-import nemo_run as run
-import torch
-from megatron.core.distributed import DistributedDataParallelConfig
+from nemo.lightning import AutoResume, Trainer
 
 
 class TestMixtral8x7B:
@@ -94,7 +94,7 @@ class TestMixtral8x7B:
             pipeline_parallelism=4,
             context_parallelism=2,
             sequence_parallelism=False,
-            expert_parallelism=2
+            expert_parallelism=2,
         )
         assert trainer_config.strategy.tensor_model_parallel_size == 4
         assert trainer_config.strategy.pipeline_model_parallel_size == 4

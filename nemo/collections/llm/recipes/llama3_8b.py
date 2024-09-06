@@ -133,11 +133,7 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None,
-    name: str = "default",
-    num_nodes: int = 1,
-    num_gpus_per_node: int = 8,
-    fn=pretrain
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
     Create a pre-training recipe for Llama3 8B model.
@@ -185,11 +181,11 @@ def pretrain_recipe(
 
 @run.cli.factory(target=pretrain, name=NAME + "_optimized")
 def pretrain_recipe_performance(
-    dir: Optional[str] = None, 
-    name: str = "default", 
-    num_nodes: int = 1, 
-    num_gpus_per_node: int = 8, 
-    fn: Callable = pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    fn: Callable = pretrain,
 ) -> run.Partial:
     """
     Create a performance-optimized pre-training recipe for Llama3 8B model.
@@ -218,9 +214,7 @@ def pretrain_recipe_performance(
         Use this recipe with caution and only when you need maximum performance.
         It may not be suitable for all hardware configurations or use cases.
     """
-    recipe = pretrain_recipe(
-        name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
-    )
+    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
 
     recipe.trainer.callbacks.append(
         run.Config(
@@ -235,8 +229,8 @@ def hf_resume() -> run.Config[nl.AutoResume]:
     """Configure automatic resumption from a Hugging Face checkpoint.
 
     This function sets up the configuration to resume training from a pre-trained
-    Hugging Face model checkpoint. 
-    
+    Hugging Face model checkpoint.
+
     More info about the model can be found at: https://huggingface.co/meta-llama/Meta-Llama-3-8B
 
     Returns:

@@ -1,4 +1,6 @@
+import nemo_run as run
 import pytest
+import torch
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
@@ -7,8 +9,6 @@ from nemo.collections.llm.gpt.model.llama import Llama3Config70B, LlamaModel
 from nemo.collections.llm.recipes import llama3_70b_64k
 from nemo.lightning import Trainer
 from nemo.utils.exp_manager import TimingCallback
-import nemo_run as run
-import torch
 
 
 class TestLlama3_70B_64k:
@@ -43,7 +43,9 @@ class TestLlama3_70B_64k:
         assert trainer_config.strategy.sequence_parallel is True
 
         # Check for TimingCallback
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in trainer_config.callbacks)
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in trainer_config.callbacks
+        )
 
     def test_pretrain_recipe(self, recipe_module):
         recipe = recipe_module.pretrain_recipe()

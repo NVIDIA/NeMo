@@ -210,9 +210,7 @@ def pretrain_recipe_performance(
         Use this recipe with caution and only when you need maximum performance.
         It may not be suitable for all hardware configurations or use cases.
     """
-    recipe = pretrain_recipe(
-        name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
-    )
+    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
 
     recipe.trainer.callbacks.append(
         run.Config(
@@ -233,7 +231,7 @@ def hf_resume() -> run.Config[nl.AutoResume]:
 
     This function sets up the configuration to resume training from a pre-trained
     Hugging Face model checkpoint.
-    
+
     More info about the model can be found at: https://huggingface.co/meta-llama/Meta-Llama-3-70B
 
     Returns:

@@ -1,4 +1,6 @@
+import nemo_run as run
 import pytest
+import torch
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
@@ -6,8 +8,6 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x3B, MixtralModel
 from nemo.collections.llm.recipes import mixtral_8x3b_16k
 from nemo.lightning import Trainer
-import nemo_run as run
-import torch
 
 
 class TestMixtral8x3B_16k:

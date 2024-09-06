@@ -1,3 +1,4 @@
+import nemo_run as run
 import pytest
 
 from nemo.collections.llm.api import finetune, pretrain
@@ -6,8 +7,7 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import mistral
-from nemo.lightning import Trainer, AutoResume
-import nemo_run as run
+from nemo.lightning import AutoResume, Trainer
 
 
 class TestMistral:
@@ -85,10 +85,7 @@ class TestMistral:
 
     def test_trainer_parallelism_options(self, recipe_module):
         trainer_config = recipe_module.trainer(
-            tensor_parallelism=2,
-            pipeline_parallelism=2,
-            context_parallelism=4,
-            sequence_parallelism=True
+            tensor_parallelism=2, pipeline_parallelism=2, context_parallelism=4, sequence_parallelism=True
         )
         assert trainer_config.strategy.tensor_model_parallel_size == 2
         assert trainer_config.strategy.pipeline_model_parallel_size == 2

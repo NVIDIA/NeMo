@@ -1,3 +1,4 @@
+import nemo_run as run
 import pytest
 
 from nemo.collections.llm.api import finetune, pretrain
@@ -6,8 +7,7 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x3B, MixtralModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import mixtral_8x3b
-from nemo.lightning import Trainer, AutoResume
-import nemo_run as run
+from nemo.lightning import AutoResume, Trainer
 
 
 class TestMixtral8x3B:
@@ -92,7 +92,7 @@ class TestMixtral8x3B:
             pipeline_parallelism=2,
             context_parallelism=4,
             sequence_parallelism=False,
-            expert_parallelism=2
+            expert_parallelism=2,
         )
         assert trainer_config.strategy.tensor_model_parallel_size == 8
         assert trainer_config.strategy.pipeline_model_parallel_size == 2

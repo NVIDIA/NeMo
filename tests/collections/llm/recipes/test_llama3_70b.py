@@ -1,4 +1,6 @@
+import nemo_run as run
 import pytest
+import torch
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
@@ -6,11 +8,9 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.llama import Llama3Config70B, LlamaModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import llama3_70b
-from nemo.lightning import Trainer, AutoResume
+from nemo.lightning import AutoResume, Trainer
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
-import nemo_run as run
-import torch
 
 
 class TestLlama3_70B:
@@ -97,10 +97,7 @@ class TestLlama3_70B:
 
     def test_trainer_parallelism_options(self, recipe_module):
         trainer_config = recipe_module.trainer(
-            tensor_parallelism=8,
-            pipeline_parallelism=2,
-            context_parallelism=4,
-            sequence_parallelism=False
+            tensor_parallelism=8, pipeline_parallelism=2, context_parallelism=4, sequence_parallelism=False
         )
         assert trainer_config.strategy.tensor_model_parallel_size == 8
         assert trainer_config.strategy.pipeline_model_parallel_size == 2

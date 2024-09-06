@@ -1,3 +1,4 @@
+import nemo_run as run
 import pytest
 
 from nemo.collections.llm.api import finetune, pretrain
@@ -7,7 +8,6 @@ from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import llama3_8b
 from nemo.lightning import AutoResume, Trainer
-import nemo_run as run
 
 
 class TestLlama3_8B:

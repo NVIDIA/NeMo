@@ -136,11 +136,7 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None,
-    name: str = "default",
-    num_nodes: int = 2,
-    num_gpus_per_node: int = 8,
-    fn=pretrain
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 2, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
     Create a pre-training recipe for Mixtral 8x7B model.
@@ -170,7 +166,9 @@ def pretrain_recipe(
     return run.Partial(
         fn,
         model=model(),
-        trainer=trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, callbacks=[run.Config(TimingCallback)]),
+        trainer=trainer(
+            num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, callbacks=[run.Config(TimingCallback)]
+        ),
         data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
@@ -184,7 +182,7 @@ def hf_resume() -> run.Config[nl.AutoResume]:
 
     This function sets up the configuration to resume training from a pre-trained
     Hugging Face model checkpoint.
-    
+
     More info about the model can be found at: https://huggingface.co/mistralai/Mixtral-8x7B-v0.1
 
     Returns:

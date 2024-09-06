@@ -1,4 +1,6 @@
+import nemo_run as run
 import pytest
+import torch
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
@@ -7,8 +9,6 @@ from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralMod
 from nemo.collections.llm.recipes import mixtral_8x7b_16k
 from nemo.lightning import Trainer
 from nemo.utils.exp_manager import TimingCallback
-import nemo_run as run
-import torch
 
 
 class TestMixtral8x7B_16k:
@@ -45,7 +45,9 @@ class TestMixtral8x7B_16k:
         assert trainer_config.strategy.expert_model_parallel_size == 1
 
         # Check for TimingCallback
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in trainer_config.callbacks)
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in trainer_config.callbacks
+        )
 
     def test_pretrain_recipe(self, recipe_module):
         recipe = recipe_module.pretrain_recipe()
