@@ -22,7 +22,7 @@ class TestMixtral8x7B_64k:
         assert isinstance(model_config.config, run.Config)
         assert model_config.config.__fn_or_cls__ == MixtralConfig8x7B
         assert model_config.config.seq_length == 65536
-        assert model_config.config.max_position_embeddings == 65536
+        assert model_config.config.max_position_embeddings == 4096
 
     def test_trainer(self, recipe_module):
         trainer_config = recipe_module.trainer()
@@ -94,5 +94,5 @@ class TestMixtral8x7B_64k:
         assert mixtral_config.hidden_size == 4096
         assert mixtral_config.num_attention_heads == 32
         assert mixtral_config.seq_length == 65536
-        assert mixtral_config.max_position_embeddings == 65536
+        assert mixtral_config.max_position_embeddings == 4096
         assert mixtral_config.num_moe_experts == 8
