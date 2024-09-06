@@ -934,7 +934,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             self._reconfigure_and_process_inference_batch(batch, data_cfg)
             metadata = batch.get('metadata', [{}] * len(batch['tokens']))
         else:
-            batch["tokens"] = batch["context_input_ids"]
+            batch["tokens"] = batch["text_context_ids"]
             self._reconfigure_and_process_inference_batch(batch, data_cfg)
             metadata = batch.get('metadata', [{}] * len(batch['tokens']))
             batch.pop("tokens")
