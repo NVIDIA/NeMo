@@ -28,6 +28,7 @@ from nemo.collections.multimodal.data.neva.neva_dataset import (
     process_image,
 )
 
+
 # Type for intermediate batch, after batch()
 @dataclass
 class ImageTaskSample:
@@ -43,6 +44,7 @@ class ImageTaskSample:
     loss_mask: Optional[torch.Tensor] = None
     position_ids: Optional[torch.Tensor] = None
 
+
 # Typing for the resulting batch data after encode_batch()
 @dataclass
 class ImageTaskBatch(Batch):
@@ -56,9 +58,10 @@ class ImageTaskBatch(Batch):
 
 class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatch, dict]):
     """A task encoder for data samples for captioning, pretraining, sft and interleaved multimodal tasks.
-       It defines how the data is processed after it is loaded from the dataset.
-       Currently, it supports captioning, pretraining, sft and interleaved multimodal tasks and datasets.
+    It defines how the data is processed after it is loaded from the dataset.
+    Currently, it supports captioning, pretraining, sft and interleaved multimodal tasks and datasets.
     """
+
     def __init__(self, tokenizer, image_processor, multimodal_cfg: dict, data_cfg: dict):
         super().__init__(batch_type=ImageTaskBatch)
         self.tokenizer = tokenizer
