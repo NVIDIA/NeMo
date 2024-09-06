@@ -460,7 +460,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     if cfg.dataset_manifest is not None:
         logging.info(f"Finished transcribing from manifest file: {cfg.dataset_manifest}")
-        if cfg.presort_manifest:
+        if cfg.presort_manifest and not partial_audio:
             transcriptions = restore_transcription_order(cfg.dataset_manifest, transcriptions)
     else:
         logging.info(f"Finished transcribing {len(filepaths)} files !")
