@@ -930,9 +930,14 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
     def inference_step(self, dataloader_iter, mode, dataloader_idx=0):
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
-        self._reconfigure_and_process_inference_batch(batch, data_cfg)
-        # Meta data from dataset
-        metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+        if "tokens" in batch:
+            self._reconfigure_and_process_inference_batch(batch, data_cfg)
+            metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+        else:
+            batch["tokens"] = batch["context_input_ids"]
+            self._reconfigure_and_process_inference_batch(batch, data_cfg)
+            metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+            batch.pop("tokens")
         loss = self._validation_step_internal(itertools.chain([batch]), batch_idx, dataloader_idx, result_mode=mode)
 
         # We need _inference_config to get generation params
@@ -945,8 +950,8 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
         output = self.predict_step(batch, batch_idx, dataloader_idx)
 
-        inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
-        labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
+        inputs_text = output["inputs_text"]  # [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
+        labels_text = output["labels_text"]  # [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
         preds_text = output['preds_text']
         if data_cfg.get("log_every_n_steps", None) is not None:
             if batch_idx % data_cfg.log_every_n_steps == 0:
