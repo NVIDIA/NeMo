@@ -344,7 +344,7 @@ def get_tarred_dataset(
 
     if 'max_utts' in config:
         logging.warning('"max_utts" parameter is not supported for tarred datasets')
-        #raise ValueError('"max_utts" parameter is not supported for tarred datasets')
+        # raise ValueError('"max_utts" parameter is not supported for tarred datasets')
 
     for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
         zip(tarred_audio_filepaths, manifest_filepaths)
