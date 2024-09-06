@@ -1127,6 +1127,7 @@ def preprocess_plain(
         labels=labels,
     )
 
+
 def preprocess_conversations(self, sources):
     if self.conv_template in ["nvgpt", "nv_steerlm"]:
         return preprocess_nvgpt(sources, self.tokenizer, self.multimodal_cfg)
