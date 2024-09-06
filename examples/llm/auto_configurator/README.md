@@ -49,13 +49,13 @@ Auto Configurator initially applies heuristics to identify suitable candidates f
 
 Once the candidate configurations are generated, you can use NeMo Framework to launch the most promising candidates.
    
-When running the candidates on the cluster, you can limit job time and job max steps by using ``max_minutes_per_run`` and ``max_steps_per_run`` parameters. During this search, the jobs will run with the number of nodes specified in the configuration files, using the ``num_nodes`` parameter. Once all of the jobs have finished running, you'll need to run compare_throughput.py to get a .csv table with performance results for each succeeded job.
+When running the candidates on the cluster, you can limit job time and job max steps by using ``max_minutes_per_run`` and ``max_steps_per_run`` parameters. During this search, the jobs will run with the number of nodes specified in the configuration files, using the ``num_nodes`` parameter. Once all of the jobs have finished running, you'll need to run compare_throughput.py to get a ``.csv`` table with performance results for each succeeded job.
 
 Optimal Configuration Recommendation
 ------------------------------------
 
 After all of the candidate jobs are done, Auto Configurator calculates performance parameters for each of the candidates. 
-Auto Configurator generates two .csv files: one detailing the performance measures of the candidates and another listing the candidates that failed due to out-of-memory errors.
+Auto Configurator generates two ``.csv`` files: one detailing the performance measures of the candidates and another listing the candidates that failed due to out-of-memory errors.
 
 End-To-End Example
 ------------------
