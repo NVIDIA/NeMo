@@ -15,13 +15,17 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Literal, Optional
-from nemo.utils import logging
+
 import torch
+
+from nemo.utils import logging
+
 try:
     from megatron.core import parallel_state
     from megatron.core.models.mamba import MambaModel as MCoreMambaModel
     from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
     from megatron.core.transformer.transformer_config import TransformerConfig
+
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
