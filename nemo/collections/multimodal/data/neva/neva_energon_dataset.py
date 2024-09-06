@@ -22,12 +22,12 @@ from nemo.collections.multimodal.data.neva.neva_dataset import (
     preprocess_interleaved_prompt,
     preprocess_llama_2,
     preprocess_llama_3,
-    preprocess_yi_34b,
     preprocess_multimodal,
     preprocess_nv_dpo,
     preprocess_nvgpt,
     preprocess_plain,
     preprocess_v1,
+    preprocess_yi_34b,
     process_image,
 )
 
@@ -152,7 +152,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
                     [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
                 )[0]
 
-        processed = preprocess_conversations(self,[processed_sample])
+        processed = preprocess_conversations(self, [processed_sample])
         tokens = processed["tokens"]
         labels = processed["labels"]
         attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
