@@ -1127,6 +1127,28 @@ def preprocess_plain(
         labels=labels,
     )
 
+def preprocess_conversations(self, sources):
+    if self.conv_template in ["nvgpt", "nv_steerlm"]:
+        return preprocess_nvgpt(sources, self.tokenizer, self.multimodal_cfg)
+    elif self.conv_template == "nv_dpo":
+        return preprocess_nv_dpo(sources, self.tokenizer, self.multimodal_cfg)
+    elif self.conv_template == "v1":
+        return preprocess_v1(sources, self.tokenizer, self.multimodal_cfg)
+    elif self.conv_template == "llama_2":
+        return preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg)
+    elif self.conv_template == "llama_3":
+        return preprocess_llama_3(sources, self.tokenizer, self.multimodal_cfg)
+    elif self.conv_template == "mistral":
+        return preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg, is_mistral=True)
+    elif self.conv_template == "yi_34b":
+        return preprocess_yi_34b(sources, self.tokenizer, self.multimodal_cfg)
+    elif self.conv_template == "plain":
+        return preprocess_plain(sources, self.tokenizer, self.multimodal_cfg)
+    elif self.conv_template == "interleaved":
+        return preprocess_interleaved_prompt(sources, self.tokenizer, self.multimodal_cfg)
+    else:
+        raise ValueError(f"Conversation template `{self.conv_template}` is not supported in Neva now.")
+
 
 class LazySupervisedDataset(Dataset):
     """Dataset for supervised fine-tuning."""
@@ -1268,57 +1290,7 @@ class LazySupervisedDataset(Dataset):
             media_tensors = torch.tensor([])
             sources = copy.deepcopy(sources)
 
-        if self.conv_template in ["nvgpt", "nv_steerlm"]:
-            data_dict = preprocess_nvgpt(
-                sources,
-                self.tokenizer,
-                self.multimodal_cfg,
-            )
-        elif self.conv_template == "nv_dpo":
-            data_dict = preprocess_nv_dpo(
-                sources,
-                self.tokenizer,
-                self.multimodal_cfg,
-            )
-        elif self.conv_template == "v1":
-            data_dict = preprocess_v1(
-                sources,
-                self.tokenizer,
-                self.multimodal_cfg,
-            )
-        elif self.conv_template == "llama_2":
-            data_dict = preprocess_llama_2(
-                sources,
-                self.tokenizer,
-                self.multimodal_cfg,
-            )
-        elif self.conv_template == "llama_3":
-            data_dict = preprocess_llama_3(
-                sources,
-                self.tokenizer,
-                self.multimodal_cfg,
-            )
-        elif self.conv_template == "mistral":
-            data_dict = preprocess_llama_2(
-                sources,
-                self.tokenizer,
-                self.multimodal_cfg,
-                is_mistral=True,
-            )
-        elif self.conv_template == "plain":
-            data_dict = preprocess_plain(
-                sources,
-                self.tokenizer,
-                self.multimodal_cfg,
-            )
-        elif self.conv_template == "yi_34b":
-            data_dict = preprocess_yi_34b(
-                sources,
-                self.tokenizer,
-                self.multimodal_cfg,
-            )
-        else:
-            raise ValueError(f"Conversation template `{self.conv_template}` is not supported in Neva now.")
+        data_dict = preprocess_conversations(sources)
 
         if isinstance(i, int):
             data_dict = dict(tokens=data_dict["tokens"][0], labels=data_dict["labels"][0])

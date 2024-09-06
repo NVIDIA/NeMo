@@ -1,3 +1,4 @@
+import dataclasses
 from dataclasses import dataclass
 from typing import List, Optional, Union
 
@@ -26,6 +27,7 @@ from nemo.collections.multimodal.data.neva.neva_dataset import (
     preprocess_plain,
     preprocess_v1,
     process_image,
+    preprocess_conversations,
 )
 
 
@@ -55,8 +57,8 @@ class ImageTaskBatch(Batch):
     position_ids: torch.Tensor
     media: Optional[torch.Tensor] = None
 
-
-class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatch, dict]):
+# Required for energon, https://nvidia.github.io/Megatron-Energon/task_encoders.html
+class TaskEncoder(DefaultTaskEncoder[CaptioningSample, VQASample, InterleavedSample, ImageTaskBatch, dict]):
     """A task encoder for data samples for captioning, pretraining, sft and interleaved multimodal tasks.
     It defines how the data is processed after it is loaded from the dataset.
     Currently, it supports captioning, pretraining, sft and interleaved multimodal tasks and datasets.
@@ -79,7 +81,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         self.prompt_index = 0
 
     def encode_sample(
-        self, sample: Union[ImageTaskSample, VQASample, InterleavedSample, SimilarityInterleavedSample]
+        self, sample: Union[ImageTaskSample, CaptioningSample, VQASample, InterleavedSample, SimilarityInterleavedSample]
     ) -> dict:
         if isinstance(sample, InterleavedSample):
             return self.encode_interleaved(sample)
@@ -91,9 +93,11 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             return self.encode_similarity_interleaved(sample)
         else:
             return self.encode_sft(sample)
-
     def encode_captioning(self, sample: CaptioningSample) -> dict:
-        """Preprocessing function for datasets like COCO, containing image-caption pairs."""
+        """Preprocessing function for datasets like COCO, containing image-caption pairs.
+           See Energon codebase for more details on CaptioningSample.
+           https://github.com/NVIDIA/Megatron-Energon/blob/develop/src/megatron/energon/flavors/captioning.py
+        """
         processed_image = self.process_images(sample.image)
 
         prompt = f"<image>\n{self.caption_prompts[self.prompt_index]}\n"
@@ -111,7 +115,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
                 [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
             )[0]
 
-        processed = self.preprocess_conversations([processed_sample])
+        processed = preprocess_conversations([processed_sample])
         tokens = processed["tokens"]
         labels = processed["labels"]
         attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
@@ -129,7 +133,10 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         )
 
     def encode_pretrain(self, sample: VQASample) -> dict:
-        """Preprocessing function for datasets like LlaVA-Pretrain, multimodal synthesized conversation from the image-caption pairs."""
+        """Preprocessing function for datasets like LlaVA-Pretrain, multimodal synthesized conversation from the image-caption pairs.
+           See Energon codebase for more details on VQASample.
+           https://github.com/NVIDIA/Megatron-Energon/blob/develop/src/megatron/energon/flavors/vqa.py
+        """
         conversations = [{"from": "human", "value": sample.context}, {"from": "gpt", "value": sample.answers}]
         processed_sample = {"conversations": conversations}
 
@@ -141,7 +148,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
                     [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
                 )[0]
 
-        processed = self.preprocess_conversations([processed_sample])
+        processed = preprocess_conversations([processed_sample])
         tokens = processed["tokens"]
         labels = processed["labels"]
         attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
@@ -160,7 +167,10 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         )
 
     def encode_sft(self, sample: Union[ImageTaskSample, VQASample, InterleavedSample]) -> dict:
-        """Preprocessing function for datasets like LLaVA-Instruct, conversational multimodal instruction-following data"""
+        """Preprocessing function for datasets like LLaVA-Instruct, conversational multimodal instruction-following data.
+           See Energon codebase for more details on VQASample.
+           https://github.com/NVIDIA/Megatron-Energon/blob/develop/src/megatron/energon/flavors/vqa.py
+        """
         conversations = sample.texts if hasattr(sample, 'texts') else sample.conversations
         processed_sample = {"conversations": conversations}
         image_present = False
@@ -185,7 +195,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
                     use_plain=(self.conv_template == "plain"),
                 )[0]
 
-        processed = self.preprocess_conversations([processed_sample])
+        processed = preprocess_conversations([processed_sample])
         tokens = processed["tokens"]
         labels = processed["labels"]
         attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
@@ -209,7 +219,10 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         )
 
     def encode_similarity_interleaved(self, sample: SimilarityInterleavedSample) -> dict:
-        """Preprocessing function for datasets like MMC4, where text and images are interleaved via a similarity matrix or matched_text_indices."""
+        """Preprocessing function for datasets like MMC4, where text and images are interleaved via a similarity matrix or matched_text_indices.
+           See Energon codebase for more details on SimilarityInterleavedSample.
+           https://github.com/NVIDIA/Megatron-Energon/blob/develop/src/megatron/energon/flavors/similarity_interleaved.py
+        """
         # 4 fields: sample.images, sample.texts, sample.similarity_matrix, sample.matched_text_index
         images, sentence_ixs = [], []
         for sample_image, sim_vec in zip(sample.images, sample.matched_text_indices):
@@ -258,7 +271,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
                     [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
                 )[0]
 
-        processed = self.preprocess_conversations([processed_sample])
+        processed = preprocess_conversations([processed_sample])
 
         tokens = processed["tokens"]
         labels = processed["labels"]
@@ -286,7 +299,10 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         )
 
     def encode_interleaved(self, sample: InterleavedSample) -> dict:
-        """Preprocessing function for datasets like OBELISC, where text and images are strictly interleaved."""
+        """Preprocessing function for datasets like OBELISC, where text and images are strictly interleaved.
+           See Energon codebase for more details on SimilarityInterleavedSample.
+           https://github.com/NVIDIA/Megatron-Energon/blob/develop/src/megatron/energon/flavors/interleaved.py
+        """
         interleaved_text = []
         images = []
         for item in sample.sequence:
@@ -325,7 +341,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
                     [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
                 )[0]
 
-        processed = self.preprocess_conversations([processed_sample])
+        processed = preprocess_conversations([processed_sample])
 
         tokens = processed["tokens"]
         labels = processed["labels"]
