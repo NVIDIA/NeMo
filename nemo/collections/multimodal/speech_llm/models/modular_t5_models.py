@@ -988,7 +988,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_")}
         text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
         assert (
-            audio_batch or text_batch and not (audio_batch or text_batch)
+            audio_batch or text_batch and not (audio_batch and text_batch)
         ), f"Expecting only text or audio batch, got {len(text_batch)=} and {len(audio_batch)=}"
 
         if 'audio_signal' in audio_batch:
