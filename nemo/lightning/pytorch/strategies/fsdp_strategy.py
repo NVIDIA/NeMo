@@ -74,6 +74,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         ckpt_load_optimizer: bool = True,
         ckpt_save_optimizer: bool = True,
         data_sampler=None,
+        overwrite_batch_progress: bool = True,
         **kwargs,
     ):
         super().__init__(auto_wrap_policy=auto_wrap_policy, state_dict_type=state_dict_type, **kwargs)
@@ -81,6 +82,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         self.data_sampler = data_sampler
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
+        self.overwrite_batch_progress = overwrite_batch_progress
 
     @override
     def setup_environment(self) -> None:
@@ -95,7 +97,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         fix_progress_bar(trainer)
 
         trainer_fn = trainer.state.fn
-        if trainer_fn == TrainerFn.FITTING:
+        if trainer_fn == TrainerFn.FITTING and self.overwrite_batch_progress:
             trainer.fit_loop.epoch_loop.batch_progress = _MegatronBatchProgress()
 
         super().setup(trainer)
