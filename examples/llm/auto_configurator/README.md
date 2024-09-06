@@ -1,3 +1,6 @@
+> [!IMPORTANT] 
+> This is an early version of the Auto Configurator, and the code base can be modified as it will be integrated into the CLI.
+
 Use Auto Configurator to Find the Optimal Configuration
 -------------------------------------------------------
 
@@ -32,9 +35,7 @@ Auto Configurator calculates the estimated training time for your model. It prov
 Base Configuration Generation
 -----------------------------
 
-When you provide the model size, or Auto Configurator has suggested one, it generates a base configuration for the target model. The base configuration is a valid configuration in NeMo 2.0 format. The optimization of throughput, however, is conducted in the next step, :ref:`Training Auto Configurator HP Search <TrainingWithPredefinedConfigurations_TrainingAutoconfiguratorHpSearch>`.
-
-.. _TrainingWithPredefinedConfigurations_TrainingAutoconfiguratorHpSearch:
+When you provide the model size, or Auto Configurator has suggested one, it generates a base configuration for the target model. The base configuration is a valid configuration in NeMo 2.0 format. The optimization of throughput, however, is conducted in the next step.
 
 Hyperparameters Recommendation
 ------------------------------
