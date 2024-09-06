@@ -84,3 +84,17 @@ def finetune_recipe(
         resume=default_resume(),
     )
 ```
+
+
+## Step 5: Import the recipe in the __init__.py file
+
+Import the recipe in the [__init__.py](__init__.py) file in the same directory:
+
+```python
+from .my_new_model_12b import pretrain_recipe, finetune_recipe
+```
+
+
+## Step 6: Add tests for the recipe
+
+Add tests for the recipe in the [tests](../../../../tests/collections/llm/recipes) directory. You can use [test_llama3_8b.py](../../../../tests/collections/llm/recipes/test_llama3_8b.py) as an example.

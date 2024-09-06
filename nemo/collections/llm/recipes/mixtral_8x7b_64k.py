@@ -37,7 +37,7 @@ def model() -> run.Config[pl.LightningModule]:
 
 
 def trainer(
-    num_nodes: int = 1,
+    num_nodes: int = 16,
     num_gpus_per_node: int = 8,
 ) -> run.Config:
     return mixtral_8x7b.trainer(

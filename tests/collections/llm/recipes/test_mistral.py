@@ -3,24 +3,24 @@ import pytest
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
+from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
 from nemo.collections.llm.peft.lora import LoRA
-from nemo.collections.llm.recipes import llama3_8b
-from nemo.lightning import AutoResume, Trainer
+from nemo.collections.llm.recipes import mistral
+from nemo.lightning import Trainer, AutoResume
 import nemo_run as run
 
 
-class TestLlama3_8B:
+class TestMistral:
     @pytest.fixture(scope="class")
     def recipe_module(self):
-        return llama3_8b
+        return mistral
 
     def test_model(self, recipe_module):
         model_config = recipe_module.model()
         assert isinstance(model_config, run.Config)
-        assert model_config.__fn_or_cls__ == LlamaModel
+        assert model_config.__fn_or_cls__ == MistralModel
         assert isinstance(model_config.config, run.Config)
-        assert model_config.config.__fn_or_cls__ == Llama3Config8B
+        assert model_config.config.__fn_or_cls__ == MistralConfig7B
 
     def test_trainer(self, recipe_module):
         trainer_config = recipe_module.trainer()
@@ -29,7 +29,6 @@ class TestLlama3_8B:
         assert trainer_config.accelerator == "gpu"
         assert trainer_config.devices == 8
         assert trainer_config.num_nodes == 1
-        assert trainer_config.max_steps == 1168251
 
         # Check strategy configuration
         assert isinstance(trainer_config.strategy, run.Config)
@@ -40,54 +39,34 @@ class TestLlama3_8B:
         assert trainer_config.strategy.virtual_pipeline_model_parallel_size is None
         assert trainer_config.strategy.context_parallel_size == 2
         assert trainer_config.strategy.sequence_parallel is False
-        assert trainer_config.strategy.gradient_as_bucket_view is True
-        assert trainer_config.strategy.ckpt_async_save is True
-        assert trainer_config.strategy.ckpt_parallel_load is True
-
-        # Check other trainer configurations
-        assert trainer_config.accumulate_grad_batches == 1
-        assert trainer_config.limit_test_batches == 50
-        assert trainer_config.limit_val_batches == 32
-        assert trainer_config.log_every_n_steps == 10
-        assert trainer_config.use_distributed_sampler is False
-        assert trainer_config.val_check_interval == 2000
-
-        # Check plugins
-        assert isinstance(trainer_config.plugins, run.Config)
-        assert trainer_config.plugins.__fn_or_cls__.__name__ == "MegatronMixedPrecision"
-
-    def test_hf_resume(self, recipe_module):
-        resume_config = recipe_module.hf_resume()
-        assert isinstance(resume_config, run.Config)
-        assert resume_config.__fn_or_cls__ == AutoResume
-        assert isinstance(resume_config.restore_config, run.Config)
-        assert resume_config.restore_config.path == "hf://meta-llama/Meta-Llama-3-8B"
 
     def test_pretrain_recipe(self, recipe_module):
         recipe = recipe_module.pretrain_recipe()
         assert isinstance(recipe, run.Partial)
         assert recipe.__fn_or_cls__ == pretrain
         assert isinstance(recipe.model, run.Config)
-        assert recipe.model.__fn_or_cls__ == LlamaModel
+        assert recipe.model.__fn_or_cls__ == MistralModel
         assert isinstance(recipe.trainer, run.Config)
         assert recipe.trainer.__fn_or_cls__ == Trainer
         assert isinstance(recipe.data, run.Config)
         assert recipe.data.__fn_or_cls__ == MockDataModule
-        assert recipe.data.seq_length == 8192
+        assert recipe.data.seq_length == 4096
         assert recipe.data.global_batch_size == 512
+        assert recipe.data.micro_batch_size == 1
 
     def test_finetune_recipe(self, recipe_module):
         recipe = recipe_module.finetune_recipe()
         assert isinstance(recipe, run.Partial)
         assert recipe.__fn_or_cls__ == finetune
         assert isinstance(recipe.model, run.Config)
-        assert recipe.model.__fn_or_cls__ == LlamaModel
+        assert recipe.model.__fn_or_cls__ == MistralModel
         assert isinstance(recipe.trainer, run.Config)
         assert recipe.trainer.__fn_or_cls__ == Trainer
         assert isinstance(recipe.data, run.Config)
         assert recipe.data.__fn_or_cls__ == SquadDataModule
-        assert recipe.data.seq_length == 8192
+        assert recipe.data.seq_length == 4096
         assert recipe.data.global_batch_size == 512
+        assert recipe.data.micro_batch_size == 1
         assert isinstance(recipe.peft, run.Config)
         assert recipe.peft.__fn_or_cls__ == LoRA
 
@@ -97,15 +76,19 @@ class TestLlama3_8B:
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus_per_node
 
-    def test_pretrain_recipe_performance(self, recipe_module):
-        recipe = recipe_module.pretrain_recipe_performance(
-            name="test_perf", dir="/tmp", num_nodes=1, num_gpus_per_node=8
-        )
-        assert any(cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback" for cb in recipe.trainer.callbacks)
+    def test_hf_resume(self, recipe_module):
+        resume_config = recipe_module.hf_resume()
+        assert isinstance(resume_config, run.Config)
+        assert resume_config.__fn_or_cls__ == AutoResume
+        assert isinstance(resume_config.restore_config, run.Config)
+        assert resume_config.restore_config.path == "hf://mistralai/Mistral-7B-v0.3"
 
     def test_trainer_parallelism_options(self, recipe_module):
         trainer_config = recipe_module.trainer(
-            tensor_parallelism=2, pipeline_parallelism=2, context_parallelism=4, sequence_parallelism=True
+            tensor_parallelism=2,
+            pipeline_parallelism=2,
+            context_parallelism=4,
+            sequence_parallelism=True
         )
         assert trainer_config.strategy.tensor_model_parallel_size == 2
         assert trainer_config.strategy.pipeline_model_parallel_size == 2
@@ -114,7 +97,8 @@ class TestLlama3_8B:
 
     def test_model_config_parameters(self, recipe_module):
         model_config = recipe_module.model()
-        llama_config = model_config.config
-        assert llama_config.num_layers == 32
-        assert llama_config.hidden_size == 4096
-        assert llama_config.num_attention_heads == 32
+        mistral_config = model_config.config
+        assert mistral_config.num_layers == 32
+        assert mistral_config.hidden_size == 4096
+        assert mistral_config.num_attention_heads == 32
+        assert mistral_config.seq_length == 32768

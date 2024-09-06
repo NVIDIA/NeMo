@@ -95,11 +95,14 @@ def trainer(
 def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
+    num_nodes: int = 8,
+    num_gpus_per_node: int = 8,
+    fn=pretrain
 ) -> run.Partial:
     return run.Partial(
-        pretrain,
+        fn,
         model=model(),
-        trainer=trainer(callbacks=[run.Config(TimingCallback)]),
+        trainer=trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, callbacks=[run.Config(TimingCallback)]),
         data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),

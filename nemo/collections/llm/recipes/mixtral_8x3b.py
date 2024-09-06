@@ -88,7 +88,11 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    fn=pretrain
 ) -> run.Partial:
     return run.Partial(
         fn,
@@ -99,7 +103,7 @@ def pretrain_recipe(
             callbacks=[run.Config(TimingCallback)],
         ),
         data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
-        log=default_log(ckpt_dir=ckpt_dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )

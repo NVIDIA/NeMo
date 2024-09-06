@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import Optional
+from typing import Callable, Optional
 
 import nemo_run as run
 import pytorch_lightning as pl
@@ -28,7 +28,7 @@ from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, bf16_mixed_plugin
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
@@ -105,13 +105,17 @@ def pretrain_recipe(
 
 
 def pretrain_recipe_performance(
-    name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
+    dir: Optional[str] = None, 
+    name: str = "default", 
+    num_nodes: int = 1, 
+    num_gpus_per_node: int = 8, 
+    fn: Callable = pretrain
 ) -> run.Partial:
     """'pretrain_recipe_performance' turns on performance optimizations that cannot be enabled by default
     due to being model specific or lacking sufficent support. For better compatibility please use
     the default 'pretrain_recipe()' above."""
     recipe = pretrain_recipe(
-        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
+        name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
     )
 
     recipe.trainer.callbacks.append(

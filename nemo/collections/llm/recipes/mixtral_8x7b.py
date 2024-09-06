@@ -95,11 +95,14 @@ def trainer(
 def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
+    num_nodes: int = 2,
+    num_gpus_per_node: int = 8,
+    fn=pretrain
 ) -> run.Partial:
     return run.Partial(
-        pretrain,
+        fn,
         model=model(),
-        trainer=trainer(callbacks=[run.Config(TimingCallback)]),
+        trainer=trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, callbacks=[run.Config(TimingCallback)]),
         data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
@@ -118,9 +121,10 @@ def hf_resume() -> run.Config[nl.AutoResume]:
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
+    num_nodes: int = 2,
+    num_gpus_per_node: int = 8,
 ) -> run.Partial:
-    recipe = pretrain_recipe(name=name, dir=dir)
-    recipe.fn = finetune
+    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
     recipe.resume = hf_resume()
     recipe.peft = run.Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
     recipe.data = run.Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)

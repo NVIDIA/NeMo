@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import Optional
+from typing import Callable, Optional
 
 import nemo_run as run
 import pytorch_lightning as pl
@@ -106,17 +106,17 @@ def pretrain_recipe(
 
 
 def pretrain_recipe_performance(
-    name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, fn: Callable = pretrain
-) -> Partial:
+    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+) -> run.Partial:
     """'pretrain_recipe_performance' turns on performance optimizations that cannot be enabled by default
     due to being model specific or lacking sufficent support. For better compatibility please use
     the default 'pretrain_recipe()' above."""
     recipe = pretrain_recipe(
-        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
+        name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn
     )
 
     recipe.trainer.callbacks.append(
-        Config(
+        run.Config(
             MegatronCommOverlapCallback,
             tp_comm_overlap=True,
             tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
