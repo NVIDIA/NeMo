@@ -59,6 +59,10 @@ class AudioNoiseBatch:
 
 
 def _parse_manifest_item(line: str, manifest_file: str) -> Dict[str, Any]:
+    """
+    Specialized function to parse the manifest file by ignoring text,
+    such that nemo dataset can save time on tokenizing text.
+    """
     item = json.loads(line)
 
     # Audio file
@@ -66,22 +70,20 @@ def _parse_manifest_item(line: str, manifest_file: str) -> Dict[str, Any]:
         item['audio_file'] = item.pop('audio_filename')
     elif 'audio_filepath' in item:
         item['audio_file'] = item.pop('audio_filepath')
+    else:
+        raise KeyError(f"No 'audio_filename' or 'audio_filepath' in manifest item: {item}")
 
-    # If the audio path is a relative path and does not exist,
-    # try to attach the parent directory of manifest to the audio path.
-    # Revert to the original path if the new path still doesn't exist.
-    # Assume that the audio path is like "wavs/xxxxxx.wav".
-    if 'audio_file' in item:
-        item['audio_file'] = get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
+    item['audio_file'] = get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
 
     # Duration.
     if 'duration' not in item:
         item['duration'] = None
 
+    # dummy text
     item['text'] = ""
 
     item = dict(
-        audio_file=item.get('audio_file', None),
+        audio_file=item['audio_file'],
         duration=item['duration'],
         text=item['text'],
         offset=item.get('offset', None),
@@ -151,6 +153,9 @@ def _audio_noise_collate_fn(batch: List[AudioNoiseItem], batch_augmentor: Any = 
 
 
 def load_noise_manifest(noise_manifest: str | ListConfig | None):
+    """
+    load noise manifest from a single or a list of manifest files
+    """
     if noise_manifest is None:
         return []
 
@@ -175,6 +180,20 @@ def load_noise_audio(
     max_white_noise_db: int = -46,
     max_trial: int = 100,
 ):
+    """
+    Load noise audio from the manifest item, and apply white noise if the loaded noise audio is empty.
+    Args:
+        sample: a sample from the noise manifest
+        sample_rate: target sample rate to resample the noise audio
+        max_audio_len: the maximum audio length to load
+        pad_to_max: whether to pad the audio to max_audio_len
+        min_white_noise_db: the minimum white noise level in dB
+        max_white_noise_db: the maximum white noise level in dB
+        max_trial: the maximum number of trials to load noise audio before giving up
+    Returns:
+        noise: the loaded noise audio
+        noise_len: the length of the loaded noise audio
+    """
     max_dur = None if max_audio_len is None else max_audio_len / sample_rate
     duration = sample.get('duration', None)
     offset = sample.get('offset', 0.0)
@@ -224,6 +243,17 @@ def load_noise_audio(
 
 
 def sample_noise(noise_data: List[Dict], sample_rate: int, max_audio_len: int | None = None, max_trial: int = 20):
+    """
+    Randomly sample noise audio from the noise manifest.
+    Args:
+        noise_data: the noise manifest data
+        sample_rate: target sample rate to resample the noise audio
+        max_audio_len: the maximum audio length to load
+        max_trial: the maximum number of trials to load noise audio before giving up
+    Returns:
+        noise_audio: the sampled noise audio
+        noise_len: the length of the sampled noise audio
+    """
     cnt = 0
     noise_audio = torch.zeros(max_audio_len).float()
     noise_len = torch.tensor(max_audio_len).long()
@@ -242,6 +272,15 @@ def sample_noise(noise_data: List[Dict], sample_rate: int, max_audio_len: int | 
 
 
 def pad_audio(audio: torch.Tensor, min_len: int, pad_audio_mode) -> torch.Tensor:
+    """
+    Pad audio to min_len with the specified mode
+    Args:
+        audio: the input audio tensor
+        min_len: the minimum length to pad to
+        pad_audio_mode: the padding mode, either 'repeat' or 'zero'
+    Returns:
+        audio: the padded audio tensor
+    """
     allowed_mode = ['repeat', 'zero']
     if audio.size(0) < min_len:
         if pad_audio_mode == 'repeat' and audio.size(0) > 0:
@@ -257,7 +296,7 @@ def pad_audio(audio: torch.Tensor, min_len: int, pad_audio_mode) -> torch.Tensor
 class AudioNoiseDataset(audio_to_text.AudioToCharDataset):
     @property
     def output_types(self):
-        # disable type checking for now
+        # disable type checking for since it doesn't support dataclass
         return None
 
     def __init__(
@@ -268,6 +307,7 @@ class AudioNoiseDataset(audio_to_text.AudioToCharDataset):
         pad_audio_mode: str = 'repeat',
         **kwargs,
     ):
+        # add bos_id=0 to avoid empty text token
         super().__init__(bos_id=0, manifest_parse_func=_parse_manifest_item, **kwargs)
         self.noise_manifest = noise_manifest
         self.batch_augmentor = batch_augmentor
@@ -316,7 +356,7 @@ class AudioNoiseDataset(audio_to_text.AudioToCharDataset):
 class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
     @property
     def output_types(self):
-        # disable type checking for now
+        # disable type checking for since it doesn't support dataclass
         return None
 
     def __init__(
@@ -364,7 +404,6 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
             audio_filestream.close()
         except Exception as e:
             logging.warning(f"Error reading audio sample: {manifest_entry}, with exception: {e}.")
-            print(f"\n[E] Error reading audio sample: {manifest_entry}, with exception: {e}\n", flush=True)
             failed = True
 
         if audio.size(0) == 0:
@@ -381,15 +420,10 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
             if len(self._audio_cache) > 0:
                 idx, audio = self._audio_cache.popitem(last=False)
                 logging.warning(
-                    f"[W] Error reading audio sample: {manifest_entry}, returning audio from cache for sample: {self.manifest_processor.collection[idx]}"
-                )
-                print(
-                    f"\n[Wp] Error reading audio sample: {manifest_entry}, returning audio from cache for sample: {self.manifest_processor.collection[idx]}\n",
-                    flush=True,
+                    f"Error reading audio sample: {manifest_entry}, returning audio from cache for sample: {self.manifest_processor.collection[idx]}"
                 )
             else:
-                logging.warning(f"[W] Error reading audio sample: {manifest_entry}, returning dummy audio for sample.")
-                print(f"\n[Wp] Error reading audio sample: {manifest_entry}, returning dummy audio\n", flush=True)
+                logging.warning(f"Error reading audio sample: {manifest_entry}, returning dummy audio for sample.")
                 audio = 0.1 * torch.ones(self.featurizer.sample_rate, dtype=torch.float32)
 
         if len(self._audio_cache) >= self._max_audio_cache:
@@ -474,13 +508,7 @@ def get_audio_noise_dataset(
         augmentor=augmentor,
         max_duration=config.get('max_duration', None),
         min_duration=config.get('min_duration', None),
-        max_utts=config.get('max_utts', 0),
-        blank_index=config.get('blank_index', -1),
-        unk_index=config.get('unk_index', -1),
-        normalize=config.get('normalize_transcripts', False),
         trim=config.get('trim_silence', False),
-        parser=config.get('parser', 'en'),
-        return_sample_id=config.get('return_sample_id', False),
         channel_selector=config.get('channel_selector', None),
     )
     return dataset
@@ -561,16 +589,11 @@ def get_tarred_audio_noise_dataset(config, shuffle_n, global_rank, world_size, a
             shuffle_n=shuffle_n,
             max_duration=config.get('max_duration', None),
             min_duration=config.get('min_duration', None),
-            blank_index=config.get('blank_index', -1),
-            unk_index=config.get('unk_index', -1),
-            normalize=config.get('normalize_transcripts', False),
             trim=config.get('trim_silence', False),
-            parser=config.get('parser', 'en'),
             shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
             shard_manifests=is_sharded_manifest,
             global_rank=global_rank,
             world_size=world_size,
-            return_sample_id=config.get('return_sample_id', False),
         )
         if bucketing_weights:
             [datasets.append(dataset) for _ in range(bucketing_weights[dataset_idx])]
