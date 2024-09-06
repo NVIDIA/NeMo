@@ -247,7 +247,6 @@ class AutoResume:
                 checkpoint = maybe_model_weights_path
         return checkpoint
 
-
     def get_trainer_ckpt_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
         checkpoint = None
         app_state = AppState()
