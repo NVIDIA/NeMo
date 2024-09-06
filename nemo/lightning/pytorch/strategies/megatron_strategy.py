@@ -60,6 +60,7 @@ from nemo.lightning import _strategy_lib, io
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
+    _MegatronBatchProgress,
     RestoreConfig,
     ckpt_to_dir,
     create_checkpoint_io,
@@ -331,6 +332,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.configure_ddp()
 
             trainer.fit_loop.epoch_loop.automatic_optimization = _MegatronAutomaticOptimization(trainer)
+            ## TODO: make this configurable!
+            ## this depends on the dataloader being used
+            trainer.fit_loop.epoch_loop.batch_progress = _MegatronBatchProgress()
 
             import torch.distributed.algorithms.ddp_comm_hooks.post_localSGD_hook as post_localSGD
 
