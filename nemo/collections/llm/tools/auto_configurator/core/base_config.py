@@ -202,7 +202,6 @@ class BaseConfig:
         ckpt = Config(
             nl.ModelCheckpoint,
             monitor="reduced_train_loss",
-            save_best_model=False,
             save_last=False,
             save_top_k=0,
         )
