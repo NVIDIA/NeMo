@@ -1,7 +1,6 @@
-import re
-
 import nemo_run as run
 import torch
+
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import TensorBoardLogger
 

@@ -12,15 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import csv
 import os
 import re
 from typing import Optional
 
 import pandas as pd
 from tensorboard.backend.event_processing import event_accumulator
-
-from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config
 
 
 def get_results(

@@ -12,11 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
-
-from nemo.collections.llm.utils import Config
 
 
 GPT_BASED_MODELS = [

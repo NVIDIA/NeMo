@@ -12,19 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
-import os
-from dataclasses import dataclass, field
-from typing import Tuple
-
 import torch
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo import lightning as nl
 from nemo.collections.common.tokenizers import AutoTokenizer, SentencePieceTokenizer
-from nemo.collections.llm import GPTModel, PreTrainingDataModule
-from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config
+from nemo.collections.llm import PreTrainingDataModule
 from nemo.collections.llm.utils import Config
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback

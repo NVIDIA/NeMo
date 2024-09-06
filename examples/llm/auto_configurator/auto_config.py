@@ -14,7 +14,6 @@
 
 import argparse
 import os
-import shutil
 
 import fiddle as fdl
 import nemo_run as run
@@ -52,7 +51,6 @@ def train_config(args):
         max_steps_per_run=25,
         num_tokens_in_b=10,
         vocab_size=51200,
-        tokenizer_path="/home/models/gpt2",
         data_paths=args.data_path,
         path_to_logs=args.logs_dir,
     )
