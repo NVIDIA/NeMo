@@ -15,12 +15,18 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Literal, Optional
-
+from nemo.utils import logging
 import torch
-from megatron.core import parallel_state
-from megatron.core.models.mamba import MambaModel as MCoreMambaModel
-from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
-from megatron.core.transformer.transformer_config import TransformerConfig
+try:
+    from megatron.core import parallel_state
+    from megatron.core.models.mamba import MambaModel as MCoreMambaModel
+    from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
+    from megatron.core.transformer.transformer_config import TransformerConfig
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("The package `megatron.core` was not imported in this environment which is needed for SSMs.")
+    HAVE_MEGATRON_CORE = False
 
 from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
 from nemo.lightning import get_vocab_size, io, teardown
@@ -123,7 +129,7 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted SSM model to Nemo, model saved to {output_path}")
+        logging.info(f"Converted SSM model to Nemo, model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
