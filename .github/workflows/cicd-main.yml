@@ -140,7 +140,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat -k 'tests/collections/asr'
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
        IS_OPTIONAL: true
 
   OPTIONAL_L0_Unit_Tests_CPU_AUDIO:
@@ -149,7 +149,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat -k 'tests/collections/audio'
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/audio -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
        IS_OPTIONAL: true
 
   OPTIONAL_L0_Unit_Tests_CPU_COMMON:
@@ -158,7 +158,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat -k 'tests/collections/common'
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/common -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
        IS_OPTIONAL: true
 
   OPTIONAL_L0_Unit_Tests_CPU_LLM:
@@ -167,7 +167,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat -k 'tests/collections/llm'
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/llm -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
        IS_OPTIONAL: true
 
   OPTIONAL_L0_Unit_Tests_CPU_MULTIMODAL:
@@ -176,7 +176,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat -k 'tests/collections/multimodal'
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/multimodal -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
        IS_OPTIONAL: true
 
   OPTIONAL_L0_Unit_Tests_CPU_NLP:
@@ -185,7 +185,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat -k 'tests/collections/nlp'
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/nlp -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
        IS_OPTIONAL: true
 
   OPTIONAL_L0_Unit_Tests_CPU_TTS:
@@ -194,7 +194,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat -k 'tests/collections/tts'
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/tts -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
        IS_OPTIONAL: true
 
   OPTIONAL_L0_Unit_Tests_CPU_CORE:
@@ -203,7 +203,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat -k 'tests/core or tests/core_ptl'
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/core tests/core_ptl -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
        IS_OPTIONAL: true
 
   OPTIONAL_L0_Unit_Tests_CPU_HYDRA:
@@ -212,7 +212,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat -k 'tests/hydra'
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/hydra -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
        IS_OPTIONAL: true
 
   OPTIONAL_L0_Unit_Tests_CPU_LIGHTNING:
@@ -221,7 +221,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat -k 'tests/lightning'
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/lightning -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
        IS_OPTIONAL: true
 
   OPTIONAL_L0_Unit_Tests_OTHERS:
