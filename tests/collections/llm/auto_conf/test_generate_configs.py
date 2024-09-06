@@ -1,14 +1,14 @@
 import nemo_run as run
 
-from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs
 from nemo.collections.llm import (
+    GemmaConfig7B,
     GPTConfig5B,
     Llama3Config70B,
     MistralConfig7B,
     MixtralConfig8x22B,
-    GemmaConfig7B,
     Nemotron3Config8B,
 )
+from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs
 
 
 def get_auto_configs(configs):
@@ -72,7 +72,7 @@ class TestGenerateConfgis:
             1,
             2,
         ], f"[4, 2, 1, 1, 2] is expected configuration output but got {auto_configs[1]}."
-    
+
     def test_llama_model(self):
         # Llama3 70B
         runner = AutoConfigurator(
@@ -125,7 +125,7 @@ class TestGenerateConfgis:
             1,
             1,
         ], f"[8, 1, 4, 1, 1] is expected configuration output but got {auto_configs[2]}."
-    
+
     def test_mistral_model(self):
         # Mistral 7B
         runner = AutoConfigurator(
@@ -170,7 +170,7 @@ class TestGenerateConfgis:
             1,
             1,
         ], f"[4, 2, 1, 1, 1] is expected configuration output but got {auto_configs[1]}."
-    
+
     def test_mixtral_model(self):
         # Mixtral 8x22B
         runner = AutoConfigurator(

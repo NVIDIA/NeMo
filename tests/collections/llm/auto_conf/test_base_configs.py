@@ -1,30 +1,30 @@
 import re
+
 import nemo_run as run
 import torch
-
 from megatron.core.optimizer import OptimizerConfig
-
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from nemo.collections.llm.tools.auto_configurator.core.base_config import BaseConfig
-from nemo.collections.llm.tools.auto_configurator import AutoConfigurator
+from nemo import lightning as nl
+from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm import (
+    GemmaConfig2B,
     GPTConfig126M,
     Llama3Config8B,
     MistralConfig7B,
     MixtralConfig8x3B,
-    GemmaConfig2B,
     Nemotron4Config22B,
-    PreTrainingDataModule
+    PreTrainingDataModule,
 )
-from nemo.collections.common.tokenizers import AutoTokenizer
+from nemo.collections.llm.tools.auto_configurator import AutoConfigurator
+from nemo.collections.llm.tools.auto_configurator.core.base_config import BaseConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
-from nemo import lightning as nl
 
 
 def get_tokenizer() -> run.Config:
     return run.Config(AutoTokenizer, pretrained_model_name="GPT2BPETokenizer")
+
 
 def get_data(seq_length, global_batch_size) -> run.Config[PreTrainingDataModule]:
     config = {
@@ -40,6 +40,7 @@ def get_data(seq_length, global_batch_size) -> run.Config[PreTrainingDataModule]
         **config,
         tokenizer=get_tokenizer(),
     )
+
 
 def get_trainer(num_nodes) -> run.Config[nl.Trainer]:
     trainer_config = {
@@ -69,6 +70,7 @@ def get_trainer(num_nodes) -> run.Config[nl.Trainer]:
         plugins=run.Config(nl.MegatronMixedPrecision, precision="bf16-mixed"),
         callbacks=[run.Config(TimingCallback)],
     )
+
 
 def get_optim() -> run.Config[OptimizerConfig]:
     optim_params = {
@@ -102,6 +104,7 @@ def get_optim() -> run.Config[OptimizerConfig]:
         config=optim_config,
         lr_scheduler=sched,
     )
+
 
 def get_logger() -> run.Config[nl.NeMoLogger]:
     tb_logger = run.Config(TensorBoardLogger, save_dir="tb_logs")
@@ -139,12 +142,8 @@ class TestBaseConfigs:
         assert (
             base_config.model == model_config
         ), f"{model_config} is expected class object but got {base_config.model}"
-        assert (
-            model_size == 0.126
-        ), f"0.126 is expected size for {model_config} but got {model_size}"
-        assert (
-            model_type == "gpt3"
-        ), f"gpt3 is expected model type for {model_config} but got {model_type}"
+        assert model_size == 0.126, f"0.126 is expected size for {model_config} but got {model_size}"
+        assert model_type == "gpt3", f"gpt3 is expected model type for {model_config} but got {model_type}"
         assert (
             base_config.data == data_config
         ), f"f{data_config} is expected data config for {model_config} but got {base_config.data}"
@@ -180,12 +179,8 @@ class TestBaseConfigs:
         assert (
             base_config.model == model_config
         ), f"{model_config} is expected class object but got {base_config.model}"
-        assert (
-            model_size == 8
-        ), f"8 is expected size for {model_config} but got {model_size}"
-        assert (
-            model_type == "llama"
-        ), f"llama is expected model type for {model_config} but got {model_type}"
+        assert model_size == 8, f"8 is expected size for {model_config} but got {model_size}"
+        assert model_type == "llama", f"llama is expected model type for {model_config} but got {model_type}"
         assert (
             base_config.data == data_config
         ), f"f{data_config} is expected data config for {model_config} but got {base_config.data}"
@@ -221,12 +216,8 @@ class TestBaseConfigs:
         assert (
             base_config.model == model_config
         ), f"{model_config} is expected class object but got {base_config.model}"
-        assert (
-            model_size == 7
-        ), f"7 is expected size for {model_config} but got {model_size}"
-        assert (
-            model_type == "mistral"
-        ), f"mistral is expected model type for {model_config} but got {model_type}"
+        assert model_size == 7, f"7 is expected size for {model_config} but got {model_size}"
+        assert model_type == "mistral", f"mistral is expected model type for {model_config} but got {model_type}"
         assert (
             base_config.data == data_config
         ), f"f{data_config} is expected data config for {model_config} but got {base_config.data}"
@@ -239,7 +230,7 @@ class TestBaseConfigs:
         assert (
             base_config.log == logger_config
         ), f"f{logger_config} is expected trainer config for {model_config} but got {logger_config}"
-    
+
     def test_mixtral_base_config(self):
         # Mixtral 8x3B
         model_config = run.Config(MixtralConfig8x3B)
@@ -262,12 +253,8 @@ class TestBaseConfigs:
         assert (
             base_config.model == model_config
         ), f"{model_config} is expected class object but got {base_config.model}"
-        assert (
-            model_size == 3
-        ), f"3 is expected size for {model_config} but got {model_size}"
-        assert (
-            model_type == "mixtral"
-        ), f"mixtral is expected model type for {model_config} but got {model_type}"
+        assert model_size == 3, f"3 is expected size for {model_config} but got {model_size}"
+        assert model_type == "mixtral", f"mixtral is expected model type for {model_config} but got {model_type}"
         assert (
             base_config.data == data_config
         ), f"f{data_config} is expected data config for {model_config} but got {base_config.data}"
@@ -280,7 +267,7 @@ class TestBaseConfigs:
         assert (
             base_config.log == logger_config
         ), f"f{logger_config} is expected trainer config for {model_config} but got {logger_config}"
-    
+
     def test_gemma_base_config(self):
         # Gemma 2B
         model_config = run.Config(GemmaConfig2B)
@@ -303,12 +290,8 @@ class TestBaseConfigs:
         assert (
             base_config.model == model_config
         ), f"{model_config} is expected class object but got {base_config.model}"
-        assert (
-            model_size == 2
-        ), f"2 is expected size for {model_config} but got {model_size}"
-        assert (
-            model_type == "gemma"
-        ), f"gemma is expected model type for {model_config} but got {model_type}"
+        assert model_size == 2, f"2 is expected size for {model_config} but got {model_size}"
+        assert model_type == "gemma", f"gemma is expected model type for {model_config} but got {model_type}"
         assert (
             base_config.data == data_config
         ), f"f{data_config} is expected data config for {model_config} but got {base_config.data}"
@@ -321,7 +304,7 @@ class TestBaseConfigs:
         assert (
             base_config.log == logger_config
         ), f"f{logger_config} is expected trainer config for {model_config} but got {logger_config}"
-    
+
     def test_nemotron_base_config(self):
         # Nemotron 22B
         model_config = run.Config(Nemotron4Config22B)
@@ -344,12 +327,8 @@ class TestBaseConfigs:
         assert (
             base_config.model == model_config
         ), f"{model_config} is expected class object but got {base_config.model}"
-        assert (
-            model_size == 22
-        ), f"22 is expected size for {model_config} but got {model_size}"
-        assert (
-            model_type == "nemotron"
-        ), f"nemotron is expected model type for {model_config} but got {model_type}"
+        assert model_size == 22, f"22 is expected size for {model_config} but got {model_size}"
+        assert model_type == "nemotron", f"nemotron is expected model type for {model_config} but got {model_type}"
         assert (
             base_config.data == data_config
         ), f"f{data_config} is expected data config for {model_config} but got {base_config.data}"
