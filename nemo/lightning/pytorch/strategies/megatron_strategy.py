@@ -60,8 +60,8 @@ from nemo.lightning import _strategy_lib, io
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
-    _MegatronBatchProgress,
     RestoreConfig,
+    _MegatronBatchProgress,
     ckpt_to_dir,
     create_checkpoint_io,
     fix_progress_bar,

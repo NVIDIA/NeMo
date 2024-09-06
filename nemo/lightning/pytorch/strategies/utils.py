@@ -16,7 +16,6 @@ import io
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
-from typing_extensions import override
 
 import pytorch_lightning as pl
 import torch
@@ -31,6 +30,7 @@ from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Replicate, Shard
 from torch.distributed.device_mesh import DeviceMesh
+from typing_extensions import override
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.io.pl import MegatronCheckpointIO
@@ -45,12 +45,14 @@ class RestoreConfig:
     load_model_state: bool = True
     load_optim_state: bool = False
 
+
 class _MegatronBatchProgress(_BatchProgress):
     @override
     def load_state_dict(self, state_dict: dict) -> None:
         ## in megatron, we want to start the batch progress over when
         ## restoring from a checkpoint
         return
+
 
 def setup_parallel_ranks(strategy: pl.strategies.Strategy):
     from megatron.core.model_parallel_config import ModelParallelConfig
