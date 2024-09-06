@@ -119,7 +119,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
                 [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
             )[0]
 
-        processed = preprocess_conversations(self,[processed_sample])
+        processed = preprocess_conversations(self, [processed_sample])
         tokens = processed["tokens"]
         labels = processed["labels"]
         attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
@@ -199,7 +199,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
                     use_plain=(self.conv_template == "plain"),
                 )[0]
 
-        processed = preprocess_conversations(self,[processed_sample])
+        processed = preprocess_conversations(self, [processed_sample])
         tokens = processed["tokens"]
         labels = processed["labels"]
         attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
@@ -275,7 +275,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
                     [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
                 )[0]
 
-        processed = preprocess_conversations(self,[processed_sample])
+        processed = preprocess_conversations(self, [processed_sample])
 
         tokens = processed["tokens"]
         labels = processed["labels"]
@@ -345,7 +345,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
                     [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
                 )[0]
 
-        processed = preprocess_conversations(self,[processed_sample])
+        processed = preprocess_conversations(self, [processed_sample])
 
         tokens = processed["tokens"]
         labels = processed["labels"]
