@@ -1,264 +1,364 @@
 import re
+import nemo_run as run
+import torch
 
 from megatron.core.optimizer import OptimizerConfig
 
-from nemo.collections.llm.tools.auto_configurator import base_configs
-from nemo.collections.llm.utils import Config
+from pytorch_lightning.loggers import TensorBoardLogger
+
+from nemo.collections.llm.tools.auto_configurator.core.base_config import BaseConfig
+from nemo.collections.llm.tools.auto_configurator import AutoConfigurator
+from nemo.collections.llm import (
+    GPTConfig126M,
+    Llama3Config8B,
+    MistralConfig7B,
+    MixtralConfig8x3B,
+    GemmaConfig2B,
+    Nemotron4Config22B,
+    PreTrainingDataModule
+)
+from nemo.collections.common.tokenizers import AutoTokenizer
+from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
+from nemo.utils.exp_manager import TimingCallback
+from nemo import lightning as nl
 
 
-def get_class_name(config_cls):
-    match = re.search(r'<Config\[(\w+)\(', repr(config_cls))
-    config_cls_name = None
-    if match:
-        config_cls_name = match.group(1)
+def get_tokenizer() -> run.Config:
+    return run.Config(AutoTokenizer, pretrained_model_name="GPT2BPETokenizer")
 
-    return config_cls_name
+def get_data(seq_length, global_batch_size) -> run.Config[PreTrainingDataModule]:
+    config = {
+        "paths": "/",
+        "seq_length": seq_length,
+        "global_batch_size": global_batch_size,
+        "num_workers": 2,
+        "index_mapping_dir": None,
+    }
+
+    return run.Config(
+        PreTrainingDataModule,
+        **config,
+        tokenizer=get_tokenizer(),
+    )
+
+def get_trainer(num_nodes) -> run.Config[nl.Trainer]:
+    trainer_config = {
+        "accelerator": "gpu",
+        "enable_checkpointing": False,
+        "use_distributed_sampler": False,
+        "max_epochs": None,
+        "log_every_n_steps": 1,
+        "limit_val_batches": 1,
+        "limit_test_batches": 1,
+        "accumulate_grad_batches": 1,
+        "num_nodes": num_nodes,
+        "devices": 8,
+        "max_steps": 50,
+        "val_check_interval": 50,
+    }
+
+    strategy = run.Config(
+        nl.MegatronStrategy,
+        pipeline_dtype=torch.bfloat16,
+    )
+
+    return run.Config(
+        nl.Trainer,
+        **trainer_config,
+        strategy=strategy,
+        plugins=run.Config(nl.MegatronMixedPrecision, precision="bf16-mixed"),
+        callbacks=[run.Config(TimingCallback)],
+    )
+
+def get_optim() -> run.Config[OptimizerConfig]:
+    optim_params = {
+        "optimizer": "adam",
+        "lr": 1e-4,
+        "min_lr": 1e-5,
+        "use_distributed_optimizer": True,
+        "bf16": True,
+        "adam_beta1": 0.9,
+        "adam_beta2": 0.95,
+        "overlap_grad_reduce": True,
+        "overlap_param_gather": True,
+        "clip_grad": 1.0,
+        "adam_eps": 1e-5,
+    }
+
+    optim_config = run.Config(
+        OptimizerConfig,
+        **optim_params,
+    )
+
+    sched = run.Config(
+        CosineAnnealingScheduler,
+        warmup_steps=10,
+        constant_steps=0,
+        min_lr=optim_config.min_lr,
+    )
+
+    return run.Config(
+        MegatronOptimizerModule,
+        config=optim_config,
+        lr_scheduler=sched,
+    )
+
+def get_logger() -> run.Config[nl.NeMoLogger]:
+    tb_logger = run.Config(TensorBoardLogger, save_dir="tb_logs")
+
+    ckpt = run.Config(
+        nl.ModelCheckpoint,
+        monitor="reduced_train_loss",
+        save_best_model=False,
+        save_last=False,
+        save_top_k=0,
+    )
+
+    return run.Config(
+        nl.NeMoLogger,
+        ckpt=ckpt,
+        tensorboard=tb_logger,
+        wandb=None,
+        dir="/",
+    )
 
 
 class TestBaseConfigs:
     def test_gpt3_base_config(self):
-        model_cls = getattr(base_configs, "GPT")
-
-        # GPT3 126M
-        model_126m = model_cls(size=126, measure="M", cfg={"nemo_sdk": True})
-        config_cls = model_126m.get_model_config()
-        config_cls_name = get_class_name(config_cls)
-        assert (
-            config_cls_name == "GPTConfig126M"
-        ), "the name of the config class for the GPT3 126M model should be 'GPTConfig126M'."
-
-        # GPT3 5B
-        model_5b = model_cls(size=5)
-        config_cls = model_5b.get_model_config()
-        assert (
-            config_cls.__class__.__name__ == "GPTConfig5B"
-        ), "the name of the config class for the GPT3 5B model should be 'GPTConfig5B'."
-
         # GPT3 7B
-        model_7b = model_cls(size=7, cfg={"nemo_sdk": True})
-        config_cls = model_7b.get_model_config()
-        config_cls_name = get_class_name(config_cls)
-        assert (
-            config_cls_name == "GPTConfig7B"
-        ), "the name of the config class for the GPT3 7B model should be 'GPTConfig7B'."
+        model_config = run.Config(GPTConfig126M)
+        runner = AutoConfigurator(model=model_config, num_nodes=8, path_to_logs="/", data_paths="/")
+        base_config = BaseConfig(runner)
+        model_size = runner._get_model_size(model_config)
+        model_type = runner._get_model_type(model_config)
+        data_config = get_data(2048, 'auto')
+        trainer_config = get_trainer(8)
+        optim_config = get_optim()
+        logger_config = get_logger()
 
-        # GPT3 20B
-        model_20b = model_cls(size=20)
-        config_cls = model_20b.get_model_config()
         assert (
-            config_cls.__class__.__name__ == "GPTConfig20B"
-        ), "the name of the config class for the GPT3 20B model should be 'GPTConfig20B'."
-
-        # GPT3 40B
-        model_40b = model_cls(size=40)
-        config_cls = model_40b.get_model_config()
+            base_config.model == model_config
+        ), f"{model_config} is expected class object but got {base_config.model}"
         assert (
-            config_cls.__class__.__name__ == "GPTConfig40B"
-        ), "the name of the config class for the GPT3 40B model should be 'GPTConfig40B'."
-
-        # GPT3 175B
-        model_175b = model_cls(size=175, cfg={"nemo_sdk": True})
-        config_cls = model_175b.get_model_config()
-        config_cls_name = get_class_name(config_cls)
+            model_size == 0.126
+        ), f"0.126 is expected size for {model_config} but got {model_size}"
         assert (
-            config_cls_name == "GPTConfig175B"
-        ), "the name of the config class for the GPT3 175B model should be 'GPTConfig175B'."
-
-        try:
-            model_111b = model_cls(size=111)
-            config_cls = model_111b.get_model_config()
-            config_cls_name = get_class_name(config_cls)
-            assert (
-                config_cls_name == "GPTConfig111B"
-            ), "the name of the config class for the GPT3 111B model should be 'GPTConfig111B'."
-        except AttributeError:
-            None
+            model_type == "gpt3"
+        ), f"gpt3 is expected model type for {model_config} but got {model_type}"
+        assert (
+            base_config.data == data_config
+        ), f"f{data_config} is expected data config for {model_config} but got {base_config.data}"
+        assert (
+            base_config.trainer == trainer_config
+        ), f"f{trainer_config} is expected trainer config for {model_config} but got {base_config.trainer}"
+        assert (
+            base_config.optim == optim_config
+        ), f"f{optim_config} is expected trainer config for {model_config} but got {base_config.optim}"
+        assert (
+            base_config.log == logger_config
+        ), f"f{logger_config} is expected trainer config for {model_config} but got {logger_config}"
 
     def test_llama_base_config(self):
-        model_cls = getattr(base_configs, "Llama")
+        # Llama3 8B
+        model_config = run.Config(Llama3Config8B)
+        runner = AutoConfigurator(
+            model=model_config,
+            num_nodes=16,
+            path_to_logs="/",
+            data_paths="/",
+            seq_length=8192,
+            global_batch_size=2048,
+        )
+        base_config = BaseConfig(runner)
+        model_size = runner._get_model_size(model_config)
+        model_type = runner._get_model_type(model_config)
+        data_config = get_data(8192, 2048)
+        trainer_config = get_trainer(16)
+        optim_config = get_optim()
+        logger_config = get_logger()
 
-        # Llama2_7B
-        model_7b = model_cls(size=7, cfg={"nemo_sdk": True})
-        config_cls = model_7b.get_model_config()
-        config_cls_name = get_class_name(config_cls)
         assert (
-            config_cls_name == "Llama2Config7B"
-        ), "the name of the config class for the Llama2 7B model should be 'Llama2Config7B'."
-
-        # Llama2_13B
-        model_13b = model_cls(size=13)
-        config_cls = model_13b.get_model_config()
+            base_config.model == model_config
+        ), f"{model_config} is expected class object but got {base_config.model}"
         assert (
-            config_cls.__class__.__name__ == "Llama2Config13B"
-        ), "the name of the config class for the Llama2 13B model should be 'Llama2Config13B'."
-
-        # Llama2_70B
-        model_70b = model_cls(size=70)
-        config_cls = model_70b.get_model_config()
+            model_size == 8
+        ), f"8 is expected size for {model_config} but got {model_size}"
         assert (
-            config_cls.__class__.__name__ == "Llama2Config70B"
-        ), "the name of the config class for the Llama2 70B model should be 'Llama2Config70B'."
-
-        # Llama3_70B
-        model_70b = model_cls(size=70, version=3)
-        config_cls = model_70b.get_model_config()
+            model_type == "llama"
+        ), f"llama is expected model type for {model_config} but got {model_type}"
         assert (
-            config_cls.__class__.__name__ == "Llama3Config70B"
-        ), "the name of the config class for the Llama3 70B model should be 'Llama3Config70B'."
-
-        # Llama3_8B
-        model_8b = model_cls(size=8, version=3, cfg={"nemo_sdk": True})
-        config_cls = model_8b.get_model_config()
-        config_cls_name = get_class_name(config_cls)
+            base_config.data == data_config
+        ), f"f{data_config} is expected data config for {model_config} but got {base_config.data}"
         assert (
-            config_cls_name == "Llama3Config8B"
-        ), "the name of the config class for the Llama3 8B model should be 'Llama3Config8B'."
-
-    def test_mixtral_base_config(self):
-        model_cls = getattr(base_configs, "Mixtral")
-
-        # Mixtral 8x7B
-        model_7b = model_cls(size=7)
-        config_cls = model_7b.get_model_config()
+            base_config.trainer == trainer_config
+        ), f"f{trainer_config} is expected trainer config for {model_config} but got {base_config.trainer}"
         assert (
-            config_cls.__class__.__name__ == "MixtralConfig8x7B"
-        ), "the name of the config class for the Mixtral 8x7B model should be 'MixtralConfig8x7B'."
+            base_config.optim == optim_config
+        ), f"f{optim_config} is expected trainer config for {model_config} but got {base_config.optim}"
+        assert (
+            base_config.log == logger_config
+        ), f"f{logger_config} is expected trainer config for {model_config} but got {logger_config}"
 
     def test_mistral_base_config(self):
-        model_cls = getattr(base_configs, "Mistral")
-
         # Mistral 7B
-        model_7b = model_cls(size=7, cfg={"nemo_sdk": True})
-        config_cls = model_7b.get_model_config()
-        config_cls_name = get_class_name(config_cls)
-        assert (
-            config_cls_name == "MistralConfig7B"
-        ), "the name of the config class for the Mistral 7B model should be 'MistralConfig7B'."
-
-    def test_basic_base_config(self):
-        model_cls = getattr(base_configs.basic, "Basic")
-
-        # Basic model class
-        model = model_cls(measure="M")
-
-        assert model.name == None
-        assert model.version == None
-        assert model.size == None
-        assert model.measure == "M"
-        assert model.cfg == {}
-
-    def test_custom_base_config(self):
-        model = base_configs.custom(name="Llama", cfg={})
-
-        assert model.name == "Llama"
-        assert model.version == 2
-        assert model.size == 7
-        assert model.measure == "B"
-        assert model.cfg == {}
-
-    def test_trainer_config(self):
-        model_cls = getattr(base_configs, "GPT")
-
-        model_126m = model_cls(size=126, measure="M")
-        trainer_config_source = model_126m.get_trainer_config()
-
-        trainer_config_target = {
-            "accelerator": "gpu",
-            "logger": False,
-            "enable_checkpointing": False,
-            "use_distributed_sampler": False,
-            "max_epochs": None,
-            "log_every_n_steps": 1,
-            "limit_val_batches": 1,
-            "limit_test_batches": 1,
-            "accumulate_grad_batches": 1,
-            "gradient_clip_val": 1.0,
-            "num_nodes": None,
-            "devices": None,
-            "max_steps": None,
-            "val_check_interval": None,
-        }
-
-        assert (
-            trainer_config_target == trainer_config_source
-        ), f"{trainer_config_target} is expected trainer config but got {trainer_config_source}"
-
-    def test_data_config(self):
-        model_cls = getattr(base_configs, "Llama")
-
-        model_70b = model_cls(size=70)
-        data_config_source = model_70b.get_data_config()
-
-        data_config_target = {
-            "paths": None,
-            "seq_length": None,
-            "global_batch_size": None,
-            "num_workers": 2,
-            "split": "99990,8,2",
-            "index_mapping_dir": None,
-        }
-
-        assert (
-            data_config_target == data_config_source
-        ), f"{data_config_target} is expected data config but got {data_config_source}"
-
-    def test_optim_config(self):
-        model_cls = getattr(base_configs, "Mixtral")
-
-        model_7b = model_cls(size=7)
-        optim_config_source = model_7b.get_optim_config()
-
-        optim_config_target = OptimizerConfig(
-            optimizer='adam',
-            lr=1e-4,
-            min_lr=1e-5,
-            use_distributed_optimizer=True,
-            bf16=True,
-            adam_beta1=0.9,
-            adam_beta2=0.95,
-            overlap_grad_reduce=False,
-            overlap_param_gather=True,
+        model_config = run.Config(MistralConfig7B)
+        runner = AutoConfigurator(
+            model=model_config,
+            num_nodes=16,
+            path_to_logs="/",
+            data_paths="/",
+            seq_length=32768,
+            global_batch_size=2048,
         )
+        base_config = BaseConfig(runner)
+        model_size = runner._get_model_size(model_config)
+        model_type = runner._get_model_type(model_config)
+        data_config = get_data(32768, 2048)
+        trainer_config = get_trainer(16)
+        optim_config = get_optim()
+        logger_config = get_logger()
 
         assert (
-            optim_config_target == optim_config_source
-        ), f"{optim_config_target} is expected optim config but got {optim_config_source}"
-
-    def test_optim_config_nemo_sdk(self):
-        model_cls = getattr(base_configs, "Mixtral")
-
-        model_7b = model_cls(size=7, cfg={"nemo_sdk": True})
-        optim_config_source = model_7b.get_optim_config()
-
-        optim_config_target = Config(
-            OptimizerConfig,
-            optimizer='adam',
-            lr=1e-4,
-            min_lr=1e-5,
-            use_distributed_optimizer=True,
-            bf16=True,
-            adam_beta1=0.9,
-            adam_beta2=0.95,
-            overlap_grad_reduce=False,
-            overlap_param_gather=True,
+            base_config.model == model_config
+        ), f"{model_config} is expected class object but got {base_config.model}"
+        assert (
+            model_size == 7
+        ), f"7 is expected size for {model_config} but got {model_size}"
+        assert (
+            model_type == "mistral"
+        ), f"mistral is expected model type for {model_config} but got {model_type}"
+        assert (
+            base_config.data == data_config
+        ), f"f{data_config} is expected data config for {model_config} but got {base_config.data}"
+        assert (
+            base_config.trainer == trainer_config
+        ), f"f{trainer_config} is expected trainer config for {model_config} but got {base_config.trainer}"
+        assert (
+            base_config.optim == optim_config
+        ), f"f{optim_config} is expected trainer config for {model_config} but got {base_config.optim}"
+        assert (
+            base_config.log == logger_config
+        ), f"f{logger_config} is expected trainer config for {model_config} but got {logger_config}"
+    
+    def test_mixtral_base_config(self):
+        # Mixtral 8x3B
+        model_config = run.Config(MixtralConfig8x3B)
+        runner = AutoConfigurator(
+            model=model_config,
+            num_nodes=16,
+            path_to_logs="/",
+            data_paths="/",
+            seq_length=4096,
+            global_batch_size=2048,
         )
+        base_config = BaseConfig(runner)
+        model_size = runner._get_model_size(model_config)
+        model_type = runner._get_model_type(model_config)
+        data_config = get_data(4096, 2048)
+        trainer_config = get_trainer(16)
+        optim_config = get_optim()
+        logger_config = get_logger()
 
         assert (
-            optim_config_target == optim_config_source
-        ), f"{optim_config_target} is expected optim config but got {optim_config_source}"
-
-    def test_run_config(self):
-        model_cls = getattr(base_configs, "Mistral")
-
-        model_7b = model_cls(size=7)
-        run_config_source = model_7b.get_run_config()
-
-        run_config_target = {
-            "name": f"Mistral_7B",
-            "results_dir": None,
-            "time_limit": "0-00:30:00",
-        }
+            base_config.model == model_config
+        ), f"{model_config} is expected class object but got {base_config.model}"
+        assert (
+            model_size == 3
+        ), f"3 is expected size for {model_config} but got {model_size}"
+        assert (
+            model_type == "mixtral"
+        ), f"mixtral is expected model type for {model_config} but got {model_type}"
+        assert (
+            base_config.data == data_config
+        ), f"f{data_config} is expected data config for {model_config} but got {base_config.data}"
+        assert (
+            base_config.trainer == trainer_config
+        ), f"f{trainer_config} is expected trainer config for {model_config} but got {base_config.trainer}"
+        assert (
+            base_config.optim == optim_config
+        ), f"f{optim_config} is expected trainer config for {model_config} but got {base_config.optim}"
+        assert (
+            base_config.log == logger_config
+        ), f"f{logger_config} is expected trainer config for {model_config} but got {logger_config}"
+    
+    def test_gemma_base_config(self):
+        # Gemma 2B
+        model_config = run.Config(GemmaConfig2B)
+        runner = AutoConfigurator(
+            model=model_config,
+            num_nodes=8,
+            path_to_logs="/",
+            data_paths="/",
+            seq_length=4096,
+            global_batch_size=1024,
+        )
+        base_config = BaseConfig(runner)
+        model_size = runner._get_model_size(model_config)
+        model_type = runner._get_model_type(model_config)
+        data_config = get_data(4096, 1024)
+        trainer_config = get_trainer(8)
+        optim_config = get_optim()
+        logger_config = get_logger()
 
         assert (
-            run_config_target == run_config_source
-        ), f"{run_config_target} is expected run config but got {run_config_source}"
+            base_config.model == model_config
+        ), f"{model_config} is expected class object but got {base_config.model}"
+        assert (
+            model_size == 2
+        ), f"2 is expected size for {model_config} but got {model_size}"
+        assert (
+            model_type == "gemma"
+        ), f"gemma is expected model type for {model_config} but got {model_type}"
+        assert (
+            base_config.data == data_config
+        ), f"f{data_config} is expected data config for {model_config} but got {base_config.data}"
+        assert (
+            base_config.trainer == trainer_config
+        ), f"f{trainer_config} is expected trainer config for {model_config} but got {base_config.trainer}"
+        assert (
+            base_config.optim == optim_config
+        ), f"f{optim_config} is expected trainer config for {model_config} but got {base_config.optim}"
+        assert (
+            base_config.log == logger_config
+        ), f"f{logger_config} is expected trainer config for {model_config} but got {logger_config}"
+    
+    def test_nemotron_base_config(self):
+        # Nemotron 22B
+        model_config = run.Config(Nemotron4Config22B)
+        runner = AutoConfigurator(
+            model=model_config,
+            num_nodes=64,
+            path_to_logs="/",
+            data_paths="/",
+            seq_length=4096,
+            global_batch_size=2048,
+        )
+        base_config = BaseConfig(runner)
+        model_size = runner._get_model_size(model_config)
+        model_type = runner._get_model_type(model_config)
+        data_config = get_data(4096, 2048)
+        trainer_config = get_trainer(64)
+        optim_config = get_optim()
+        logger_config = get_logger()
+
+        assert (
+            base_config.model == model_config
+        ), f"{model_config} is expected class object but got {base_config.model}"
+        assert (
+            model_size == 22
+        ), f"22 is expected size for {model_config} but got {model_size}"
+        assert (
+            model_type == "nemotron"
+        ), f"nemotron is expected model type for {model_config} but got {model_type}"
+        assert (
+            base_config.data == data_config
+        ), f"f{data_config} is expected data config for {model_config} but got {base_config.data}"
+        assert (
+            base_config.trainer == trainer_config
+        ), f"f{trainer_config} is expected trainer config for {model_config} but got {base_config.trainer}"
+        assert (
+            base_config.optim == optim_config
+        ), f"f{optim_config} is expected trainer config for {model_config} but got {base_config.optim}"
+        assert (
+            base_config.log == logger_config
+        ), f"f{logger_config} is expected trainer config for {model_config} but got {logger_config}"

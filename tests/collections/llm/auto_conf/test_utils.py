@@ -1,5 +1,4 @@
 from nemo.collections.llm.tools.auto_configurator.core.base_config import _estimate_training_time, calculate_model_size
-from nemo.collections.llm.tools.auto_configurator.core.utils import calculate_model_size_params
 
 
 class TestUtils:
@@ -48,6 +47,28 @@ class TestUtils:
         )
         assert model_size == 799.37, f"expected model_size is 799.37 but got {model_size}."
 
+        # Gemma
+        model_size = calculate_model_size(
+            512,
+            30,
+            None,
+            240,
+            100,
+            "gemma",
+        )
+        assert model_size == 398.13, f"expected model_size is 398.13 but got {model_size}."
+
+        # Nemotron
+        model_size = calculate_model_size(
+            256,
+            15,
+            None,
+            240,
+            120,
+            "gemma",
+        )
+        assert model_size == 82.94, f"expected model_size is 82.94 but got {model_size}."
+
     def test_calculate_train_time(self):
         # GPT
         train_time = _estimate_training_time(
@@ -89,67 +110,22 @@ class TestUtils:
         )
         assert train_time == 176.83, f"expected train_time is 176.83 but got {train_time}."
 
-    def test_calculate_model_params(self):
-        # GPT
-        params = calculate_model_size_params(
-            40,
-            51200,
-            2048,
-            "gpt3",
+        # Gemma
+        train_time = _estimate_training_time(
+            7,
+            8,
+            55,
+            100,
+            "gemma",
         )
-        assert params == (
-            48,
-            8192,
-            64,
-            None,
-            None,
-            8e-05,
-        ), f"expected model_params set is (48, 8192, 64, None, None, 8e-05) but got {params}."
+        assert train_time == 147.31, f"expected train_time is 147.31 but got {train_time}."
 
-        # Llama
-        params = calculate_model_size_params(
-            70,
-            32000,
-            8192,
-            "llama",
+        # Nemotron
+        train_time = _estimate_training_time(
+            14,
+            12,
+            11,
+            55,
+            "nemotron",
         )
-        assert params == (
-            56,
-            10240,
-            80,
-            None,
-            None,
-            7e-05,
-        ), f"expected model_params set is (56, 10240, 80, None, None, 7e-05) but got {params}."
-
-        # Mixtral
-        params = calculate_model_size_params(
-            30,
-            32000,
-            4096,
-            "mixtral",
-        )
-        assert params == (
-            36,
-            8192,
-            64,
-            None,
-            None,
-            8e-05,
-        ), f"expected model_params set is (36, 8192, 64, None, None, 8e-05) but got {params}."
-
-        # Mistral
-        params = calculate_model_size_params(
-            0.5,
-            32000,
-            4096,
-            "mistral",
-        )
-        assert params == (
-            16,
-            1536,
-            16,
-            None,
-            None,
-            0.00025,
-        ), f"expected model_params set is (16, 1536, 16, None, None, 0.00025) but got {params}."
+        assert train_time == 540.12, f"expected train_time is 540.12 but got {train_time}."

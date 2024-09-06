@@ -52,7 +52,7 @@ class AutoConfigurator:
         model: Config = None,
         num_nodes: int = None,
         data_paths: List = None,
-        path_to_logs: Optional[str] = None,
+        path_to_logs: str = None,
         tokenizer_type: Optional[str] = "autotokenizer",
         tokenizer_path: Optional[str] = "GPT2BPETokenizer",
         gpus_per_node: Optional[int] = 8,
@@ -102,12 +102,10 @@ class AutoConfigurator:
         """
 
         # Print out the config
-        for key, value in locals().items():
-            if key != 'self':
-                setattr(self, key, value)
-
         config = locals()
         config.pop('self')
+        for key, value in config.items():
+            setattr(self, key, value)
         logging.info(self._get_message(config))
 
         model_type = self._get_model_type(model)
@@ -142,8 +140,7 @@ class AutoConfigurator:
 
         message = "AutoConfigurator runner config:\n"
         for key, value in config.items():
-            if key != "self":
-                message += f"{key}: {value}\n"
+            message += f"{key}: {value}\n"
 
         return message
 
@@ -231,7 +228,7 @@ def generate_configs(runner_config: AutoConfigurator = None) -> dict:
         # Set strategy params
         trainer.strategy.tensor_model_parallel_size = config.get("tensor_model_parallel_size")
         trainer.strategy.pipeline_model_parallel_size = config.get("pipeline_model_parallel_size")
-        trainer.strategy.context_parallel_size = config.get("pipeline_model_parallel_size")
+        trainer.strategy.context_parallel_size = config.get("context_parallel_size")
         trainer.strategy.expert_model_parallel_size = config.get("expert_model_parallel_size")
         trainer.strategy.virtual_pipeline_model_parallel_size = config.get(
             "virtual_pipeline_model_parallel_size", None

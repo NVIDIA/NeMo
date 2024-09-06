@@ -1,28 +1,40 @@
-from nemo.collections.llm.tools.auto_configurator import AutoConfigurator
+import nemo_run as run
+
+from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs
+from nemo.collections.llm import (
+    GPTConfig5B,
+    Llama3Config70B,
+    MistralConfig7B,
+    MixtralConfig8x22B,
+    GemmaConfig7B,
+    Nemotron3Config8B,
+)
 
 
-def get_auto_config(configs):
+def get_auto_configs(configs):
     auto_configs = []
-    for config in configs.values():
-        auto_conf_values = config['auto_config'].values()
-        auto_configs.append(list(auto_conf_values))
+    for run_name, config in configs.items():
+        auto_configs.append(
+            [
+                config.trainer.strategy.tensor_model_parallel_size,
+                config.trainer.strategy.pipeline_model_parallel_size,
+                config.trainer.strategy.context_parallel_size,
+                config.trainer.strategy.expert_model_parallel_size,
+                config.data.micro_batch_size,
+            ]
+        )
 
-    global_batch_size = config['model'].global_batch_size
-    seq_length = config['model'].seq_length
-
-    return auto_configs, global_batch_size, seq_length
+    return auto_configs
 
 
 class TestGenerateConfgis:
     def test_gpt_model(self):
         # GPT3 126M
         runner = AutoConfigurator(
-            model_type="gpt3",
-            model_size=126,
-            model_measure="M",
-            num_nodes=8,
-            seq_length=512,
-            global_batch_size=256,
+            model=run.Config(GPTConfig5B),
+            num_nodes=16,
+            seq_length=2048,
+            global_batch_size=2048,
             tensor_parallel_sizes=[4],
             pipeline_parallel_sizes=[2],
             micro_batch_sizes=[1, 2],
@@ -30,19 +42,21 @@ class TestGenerateConfgis:
             expert_parallel_sizes=[1],
             min_model_parallel_size=8,
             max_model_parallel_size=8,
-            data_paths=[""],
+            data_paths="/",
+            path_to_logs="/",
         )
 
-        configs = runner.generate_configs()
-        auto_configs, global_batch_size, seq_length = get_auto_config(configs)
+        _, configs = generate_configs(runner)
 
-        for run_name, config in configs.items():
-            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
-            assert config['data']['seq_length'] == 512
-            assert config['data']['global_batch_size'] == 256
+        mbs = [1, 2]
+        for run_name, config, mb in zip(configs.keys(), configs.values(), mbs):
+            assert config.data.micro_batch_size == mb
+            assert config.data.seq_length == 2048
+            assert config.data.global_batch_size == 2048
 
-        assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated but 2 were expected."
+        assert len(configs) == 2, f"{len(configs)} configurations were generated but 2 were expected."
 
+        auto_configs = get_auto_configs(configs)
         assert auto_configs[0] == [
             4,
             2,
@@ -54,335 +68,190 @@ class TestGenerateConfgis:
         assert auto_configs[1] == [
             4,
             2,
+            1,
+            1,
             2,
-            1,
-            1,
-        ], f"[4, 2, 2, 1, 1] is expected configuration output but got {auto_configs[1]}."
-
-        assert global_batch_size == 256, f"expected global_batch_size is 256 but got {global_batch_size}."
-
-        assert seq_length == 512, f"expected seq_length is 512 but got {seq_length}."
-
-        # GPT3 20B
+        ], f"[4, 2, 1, 1, 2] is expected configuration output but got {auto_configs[1]}."
+    
+    def test_llama_model(self):
+        # Llama3 70B
         runner = AutoConfigurator(
-            model_type="gpt3",
-            model_size=20,
-            num_nodes=64,
-            seq_length=2048,
+            model=run.Config(Llama3Config70B),
+            num_nodes=128,
+            seq_length=8192,
             global_batch_size=2048,
+            tensor_parallel_sizes="auto",
+            pipeline_parallel_sizes="auto",
             micro_batch_sizes=[1],
-            context_parallel_sizes=[1],
+            context_parallel_sizes=[1, 2, 4],
             expert_parallel_sizes=[1],
             min_model_parallel_size=16,
-            max_model_parallel_size=32,
-            max_training_days=8,
-            data_paths=[""],
-        )
-
-        configs = runner.generate_configs()
-        auto_configs, _, _ = get_auto_config(configs)
-
-        for run_name, config in configs.items():
-            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
-            assert config['data']['seq_length'] == 2048
-            assert config['data']['global_batch_size'] == 2048
-
-        assert len(auto_configs) == 1, f"{len(auto_configs)} configurations were generated but 1 were expected."
-
-        assert auto_configs[0] == [
-            11,
-            4,
-            4,
-            1,
-            1,
-            1,
-        ], f"[11, 4, 4, 1, 1, 1] is expected configuration output but got {auto_configs[0]}."
-
-        # GPT3 175B
-        runner = AutoConfigurator(
-            model_type="gpt3",
-            model_size=175,
-            num_nodes=128,
-            seq_length=2048,
-            global_batch_size=2048,
-            context_parallel_sizes=[1],
-            expert_parallel_sizes=[1],
-            min_model_parallel_size=64,
             max_model_parallel_size=64,
-            max_training_days=16,
-            data_paths=[""],
+            data_paths="/",
+            path_to_logs="/",
         )
 
-        configs = runner.generate_configs()
-        auto_configs, _, _ = get_auto_config(configs)
+        _, configs = generate_configs(runner)
 
-        for run_name, config in configs.items():
-            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
-            assert config['data']['seq_length'] == 2048
-            assert config['data']['global_batch_size'] == 2048
+        mbs = [1, 1, 1]
+        for run_name, config, mb in zip(configs.keys(), configs.values(), mbs):
+            assert config.data.micro_batch_size == mb
+            assert config.data.seq_length == 8192
+            assert config.data.global_batch_size == 2048
 
-        assert len(auto_configs) == 3, f"{len(auto_configs)} configurations were generated but 3 were expected."
+        assert len(configs) == 3, f"{len(configs)} configurations were generated but 3 were expected."
 
+        auto_configs = get_auto_configs(configs)
         assert auto_configs[0] == [
-            12,
-            8,
-            8,
+            4,
+            1,
+            4,
             1,
             1,
-            1,
-        ], f"[12, 8, 8, 1, 1, 1] is expected configuration output but got {auto_configs[0]}."
+        ], f"[4, 1, 4, 1, 1] is expected configuration output but got {auto_configs[0]}."
 
         assert auto_configs[1] == [
-            12,
             8,
-            8,
+            1,
             2,
             1,
             1,
-        ], f"[12, 8, 8, 2, 1, 1] is expected configuration output but got {auto_configs[1]}."
+        ], f"[8, 1, 2, 1, 1] is expected configuration output but got {auto_configs[1]}."
 
         assert auto_configs[2] == [
-            12,
             8,
-            8,
+            1,
             4,
             1,
             1,
-        ], f"[12, 8, 8, 4, 1, 1] is expected configuration output but got {auto_configs[2]}."
-
-    def test_llama_model(self):
-        # Llama2 7B
+        ], f"[8, 1, 4, 1, 1] is expected configuration output but got {auto_configs[2]}."
+    
+    def test_mistral_model(self):
+        # Mistral 7B
         runner = AutoConfigurator(
-            model_type="llama",
-            model_size=7,
-            model_version=2,
+            model=run.Config(MistralConfig7B),
             num_nodes=16,
             seq_length=4096,
             global_batch_size=2048,
-            tensor_parallel_sizes=[1],
-            pipeline_parallel_sizes=[1],
+            tensor_parallel_sizes=[4],
+            pipeline_parallel_sizes=[1, 2],
             micro_batch_sizes=[1],
-            context_parallel_sizes=[1, 2],
+            context_parallel_sizes=[1],
             expert_parallel_sizes=[1],
-            min_model_parallel_size=1,
-            max_model_parallel_size=16,
-            max_training_days=8,
-            data_paths=[""],
+            min_model_parallel_size=4,
+            max_model_parallel_size=8,
+            data_paths="/",
+            path_to_logs="/",
         )
 
-        configs = runner.generate_configs()
-        auto_configs, _, _ = get_auto_config(configs)
+        _, configs = generate_configs(runner)
 
-        for run_name, config in configs.items():
-            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
-            assert config['data']['seq_length'] == 4096
-            assert config['data']['global_batch_size'] == 2048
+        mbs = [1, 1]
+        for run_name, config, mb in zip(configs.keys(), configs.values(), mbs):
+            assert config.data.micro_batch_size == mb
+            assert config.data.seq_length == 4096
+            assert config.data.global_batch_size == 2048
 
-        assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated but 2 were expected."
+        assert len(configs) == 2, f"{len(configs)} configurations were generated but 3 were expected."
 
+        auto_configs = get_auto_configs(configs)
         assert auto_configs[0] == [
+            4,
             1,
             1,
             1,
             1,
-            1,
-        ], f"[1, 1, 1, 1, 1] is expected configuration output but got {auto_configs[0]}."
+        ], f"[4, 1, 1, 1, 1] is expected configuration output but got {auto_configs[0]}."
 
         assert auto_configs[1] == [
+            4,
+            2,
             1,
+            1,
+            1,
+        ], f"[4, 2, 1, 1, 1] is expected configuration output but got {auto_configs[1]}."
+    
+    def test_mixtral_model(self):
+        # Mixtral 8x22B
+        runner = AutoConfigurator(
+            model=run.Config(MixtralConfig8x22B),
+            num_nodes=16,
+            seq_length=4096,
+            global_batch_size=2048,
+            tensor_parallel_sizes=[4],
+            pipeline_parallel_sizes=[1],
+            micro_batch_sizes=[1],
+            context_parallel_sizes=[1],
+            expert_parallel_sizes=[1, 2],
+            min_model_parallel_size=4,
+            max_model_parallel_size=8,
+            data_paths="/",
+            path_to_logs="/",
+        )
+
+        _, configs = generate_configs(runner)
+
+        mbs = [1, 1]
+        for run_name, config, mb in zip(configs.keys(), configs.values(), mbs):
+            assert config.data.micro_batch_size == mb
+            assert config.data.seq_length == 4096
+            assert config.data.global_batch_size == 2048
+
+        assert len(configs) == 2, f"{len(configs)} configurations were generated but 3 were expected."
+
+        auto_configs = get_auto_configs(configs)
+        assert auto_configs[0] == [
+            4,
+            1,
+            1,
+            1,
+            1,
+        ], f"[4, 1, 1, 1, 1] is expected configuration output but got {auto_configs[0]}."
+
+        assert auto_configs[1] == [
+            4,
             1,
             1,
             2,
             1,
-        ], f"[1, 1, 1, 2, 1] is expected configuration output but got {auto_configs[1]}."
+        ], f"[4, 1, 1, 2, 1] is expected configuration output but got {auto_configs[1]}."
 
-        # Llama3 8B
+    def test_gemma_model(self):
+        # Gemma 7B
         runner = AutoConfigurator(
-            model_type="llama",
-            model_size=8,
-            model_version=3,
+            model=run.Config(GemmaConfig7B),
             num_nodes=16,
             seq_length=8192,
             global_batch_size=2048,
             tensor_parallel_sizes=[2],
             pipeline_parallel_sizes=[2],
-            micro_batch_sizes=[2],
-            context_parallel_sizes=[2],
-            expert_parallel_sizes=[1, 2, 4],
-            min_model_parallel_size=1,
-            max_model_parallel_size=16,
-            max_training_days=8,
-            data_paths=[""],
+            micro_batch_sizes=[1, 2],
+            context_parallel_sizes=[1],
+            expert_parallel_sizes=[1],
+            min_model_parallel_size=4,
+            max_model_parallel_size=8,
+            data_paths="/",
+            path_to_logs="/",
         )
 
-        configs = runner.generate_configs()
-        auto_configs, _, _ = get_auto_config(configs)
+        _, configs = generate_configs(runner)
 
-        for run_name, config in configs.items():
-            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
-            assert config['data']['seq_length'] == 8192
-            assert config['data']['global_batch_size'] == 2048
+        mbs = [1, 2]
+        for run_name, config, mb in zip(configs.keys(), configs.values(), mbs):
+            assert config.data.micro_batch_size == mb
+            assert config.data.seq_length == 8192
+            assert config.data.global_batch_size == 2048
 
-        assert len(auto_configs) == 1, f"{len(auto_configs)} configurations were generated but 1 were expected."
+        assert len(configs) == 2, f"{len(configs)} configurations were generated but 3 were expected."
 
+        auto_configs = get_auto_configs(configs)
         assert auto_configs[0] == [
             2,
             2,
-            2,
-            2,
-            1,
-        ], f"[2, 2, 2, 2, 1] is expected configuration output but got {auto_configs[0]}."
-
-        # Llama3 70B
-        runner = AutoConfigurator(
-            model_type="llama",
-            model_size=70,
-            model_version=3,
-            num_nodes=64,
-            seq_length=8192,
-            global_batch_size=2048,
-            tensor_parallel_sizes=[1, 2],
-            pipeline_parallel_sizes=[1, 2],
-            micro_batch_sizes=[1],
-            context_parallel_sizes=[2],
-            expert_parallel_sizes=[1, 2, 4],
-            min_model_parallel_size=1,
-            max_model_parallel_size=4,
-            max_training_days=30,
-            data_paths=[""],
-        )
-
-        configs = runner.generate_configs()
-        auto_configs, global_batch_size, seq_length = get_auto_config(configs)
-
-        for run_name, config in configs.items():
-            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
-            assert config['data']['seq_length'] == 8192
-            assert config['data']['global_batch_size'] == 2048
-
-        assert len(auto_configs) == 3, f"{len(auto_configs)} configurations were generated but 3 were expected."
-
-        assert auto_configs[0] == [
             1,
             1,
             1,
-            2,
-            1,
-        ], f"[1, 1, 1, 2, 1] is expected configuration output but got {auto_configs[0]}."
-
-        assert auto_configs[1] == [
-            1,
-            2,
-            1,
-            2,
-            1,
-        ], f"[1, 2, 1, 2, 1] is expected configuration output but got {auto_configs[1]}."
-
-        assert auto_configs[2] == [
-            2,
-            1,
-            1,
-            2,
-            1,
-        ], f"[2, 1, 1, 2, 1] is expected configuration output but got {auto_configs[2]}."
-
-        assert global_batch_size == 2048, f"expected global_batch_size is 2048 but got {global_batch_size}."
-
-        assert seq_length == 8192, f"expected seq_length is 8192 but got {seq_length}."
-
-    def test_mixtral_model(self):
-        # Mixtral 8x7B
-        runner = AutoConfigurator(
-            model_type="mixtral",
-            model_size=7,
-            model_version=8,
-            num_nodes=16,
-            seq_length=4096,
-            global_batch_size=2048,
-            tensor_parallel_sizes=[2, 3, 4],
-            micro_batch_sizes=[2],
-            expert_parallel_sizes=[2, 4],
-            data_paths=[""],
-        )
-
-        configs = runner.generate_configs()
-        auto_configs, global_batch_size, seq_length = get_auto_config(configs)
-
-        for run_name, config in configs.items():
-            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
-            assert config['data']['seq_length'] == 4096
-            assert config['data']['global_batch_size'] == 2048
-
-        assert len(auto_configs) == 4, f"{len(auto_configs)} configurations were generated but 4 were expected."
-
-        assert auto_configs[0] == [
-            2,
-            1,
-            2,
-            1,
-            2,
-        ], f"[2, 1, 2, 1, 2] is expected configuration output but got {auto_configs[0]}."
-
-        assert auto_configs[1] == [
-            2,
-            1,
-            2,
-            1,
-            4,
-        ], f"[2, 1, 2, 1, 4] is expected configuration output but got {auto_configs[1]}."
-
-        assert auto_configs[2] == [
-            2,
-            2,
-            2,
-            1,
-            2,
-        ], f"[2, 2, 2, 1, 2] is expected configuration output but got {auto_configs[2]}."
-
-        assert auto_configs[3] == [
-            4,
-            1,
-            2,
-            1,
-            2,
-        ], f"[4, 1, 2, 1, 2] is expected configuration output but got {auto_configs[3]}."
-
-        assert global_batch_size == 2048, f"expected global_batch_size is 2048 but got {global_batch_size}."
-
-        assert seq_length == 4096, f"expected seq_length is 4096 but got {seq_length}."
-
-    def test_mistral_model(self):
-        # Mistral 7B
-        runner = AutoConfigurator(
-            model_type="mistral",
-            model_size=7,
-            num_nodes=16,
-            seq_length=16384,
-            global_batch_size=2048,
-            tensor_parallel_sizes=[1, 2, 3],
-            pipeline_parallel_sizes=[2, 11, 17],
-            micro_batch_sizes=[1, 256],
-            expert_parallel_sizes=[2, 13],
-            data_paths=[""],
-        )
-
-        configs = runner.generate_configs()
-        auto_configs, global_batch_size, seq_length = get_auto_config(configs)
-
-        for run_name, config in configs.items():
-            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
-            assert config['data']['seq_length'] == 16384
-            assert config['data']['global_batch_size'] == 2048
-
-        assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated but 2 were expected."
-
-        assert auto_configs[0] == [
-            1,
-            2,
-            1,
-            1,
-            2,
-        ], f"[1, 2, 1, 1, 2] is expected configuration output but got {auto_configs[0]}."
+        ], f"[2, 2, 1, 1, 1] is expected configuration output but got {auto_configs[0]}."
 
         assert auto_configs[1] == [
             2,
@@ -392,55 +261,47 @@ class TestGenerateConfgis:
             2,
         ], f"[2, 2, 1, 1, 2] is expected configuration output but got {auto_configs[1]}."
 
-        assert global_batch_size == 2048, f"expected global_batch_size is 2048 but got {global_batch_size}."
-
-        assert seq_length == 16384, f"expected seq_length is 16384 but got {seq_length}."
-
-    def test_custom_model(self):
-        # Custom 1B
+    def test_nemotron_model(self):
+        # Nemotron3 8B
         runner = AutoConfigurator(
-            model_type="llama",
-            num_nodes=4,
-            seq_length=512,
-            tensor_parallel_sizes=[1, 2],
-            pipeline_parallel_sizes=[2, 4],
-            micro_batch_sizes=[1, 256],
-            context_parallel_sizes=[2, 22],
-            expert_parallel_sizes=[1, 13],
-            min_model_parallel_size=2,
+            model=run.Config(Nemotron3Config8B),
+            num_nodes=16,
+            seq_length=4096,
+            global_batch_size=2048,
+            tensor_parallel_sizes=[1],
+            pipeline_parallel_sizes=[4],
+            micro_batch_sizes=[1, 2],
+            context_parallel_sizes=[1],
+            expert_parallel_sizes=[1],
+            min_model_parallel_size=4,
             max_model_parallel_size=8,
-            vocab_size=32000,
-            max_training_days=7,
-            custom_model=True,
-            data_paths=[""],
+            data_paths="/",
+            path_to_logs="/",
         )
 
-        configs = runner.generate_configs()
-        auto_configs, global_batch_size, seq_length = get_auto_config(configs)
+        _, configs = generate_configs(runner)
 
-        for run_name, config in configs.items():
-            assert config['data']['micro_batch_size'] == config['auto_config']['micro_batch_size']
-            assert config['data']['seq_length'] == 512
-            assert config['data']['global_batch_size'] == 1024
+        mbs = [1, 2]
+        for run_name, config, mb in zip(configs.keys(), configs.values(), mbs):
+            assert config.data.micro_batch_size == mb
+            assert config.data.seq_length == 4096
+            assert config.data.global_batch_size == 2048
 
-        assert len(auto_configs) == 2, f"{len(auto_configs)} configurations were generated but 2 were expected."
-        print(auto_configs)
+        assert len(configs) == 2, f"{len(configs)} configurations were generated but 3 were expected."
+
+        auto_configs = get_auto_configs(configs)
         assert auto_configs[0] == [
             1,
-            2,
+            4,
             1,
-            2,
             1,
-        ], f"[1, 2, 1, 2, 1] is expected configuration output but got {auto_configs[0]}."
+            1,
+        ], f"[2, 2, 1, 1, 1] is expected configuration output but got {auto_configs[0]}."
 
         assert auto_configs[1] == [
-            2,
-            2,
+            1,
+            4,
+            1,
             1,
             2,
-            1,
-        ], f"[2, 2, 1, 2, 1] is expected configuration output but got {auto_configs[1]}."
-
-        assert global_batch_size == 1024, f"expected global_batch_size is 1024 but got {global_batch_size}."
-
-        assert seq_length == 512, f"expected seq_length is 512 but got {seq_length}."
+        ], f"[2, 2, 1, 1, 2] is expected configuration output but got {auto_configs[1]}."

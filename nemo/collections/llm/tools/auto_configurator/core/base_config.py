@@ -145,8 +145,6 @@ class BaseConfig:
             callbacks=[Config(TimingCallback)],
         )
 
-        return trainer_config
-
     def get_tokenizer(self, tokenizer_type: str, tokenizer_path: str) -> Config:
         """Function that returns the tokenizer config.
 
