@@ -425,6 +425,7 @@ class _AudioTextDataset(Dataset):
         pad_id: Id of pad symbol. Defaults to 0
         return_sample_id (bool): whether to return the sample_id as a part of each sample
         channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+        manifest_parse_func: Optional function to parse manifest entries. Defaults to None.
     """
 
     @property
@@ -551,6 +552,7 @@ class AudioToCharDataset(_AudioTextDataset):
         eos_id: Id of end of sequence symbol to append if not None
         return_sample_id (bool): whether to return the sample_id as a part of each sample
         channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+        manifest_parse_func: Optional function to parse manifest entries. Defaults to None.
     """
 
     @property
@@ -815,6 +817,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        manifest_parse_func: Optional function to parse manifest entries. Defaults to None.
     """
 
     def __init__(
@@ -1107,6 +1110,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        manifest_parse_func: Optional function to parse manifest entries. Defaults to None.
     """
 
     def __init__(
