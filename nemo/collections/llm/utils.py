@@ -34,16 +34,3 @@ except ImportError:
 
     class Partial(Generic[_T]):
         pass
-
-
-def task(*args: Any, **kwargs: Any) -> Callable[[T], T]:
-    try:
-        import nemo_run as run
-
-        return run.task(*args, **kwargs)
-    except (ImportError, AttributeError):
-        # Return a no-op function
-        def noop_decorator(func: T) -> T:
-            return func
-
-        return noop_decorator
