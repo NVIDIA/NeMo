@@ -68,7 +68,7 @@ class AutoResume:
 
     WEIGHTS_PATH = "weights"
 
-    def get_weights_path(self, path):
+    def get_model_weights_path(self, path):
         return Path(path) / self.WEIGHTS_PATH
 
     def setup(self, trainer: Union[pl.Trainer, fl.Fabric], model=None):
@@ -106,9 +106,9 @@ class AutoResume:
 
         if adapter_path:
 
-            maybe_weights_path = self.get_weights_path(adapter_path)
-            if os.path.isdir(maybe_weights_path):
-                adapter_path = maybe_weights_path
+            maybe_model_weights_path = self.get_model_weights_path(adapter_path)
+            if os.path.isdir(maybe_model_weights_path):
+                adapter_path = maybe_model_weights_path
 
             new_path = AdapterPath(Path(adapter_path), base_model_path=new_path)
 
@@ -223,9 +223,9 @@ class AutoResume:
             checkpoint = self._find_trainer_ckpt_path()
 
         if checkpoint:
-            maybe_weights_path = self.get_weights_path(checkpoint)
-            if os.path.isdir(maybe_weights_path):
-                checkpoint = maybe_weights_path
+            maybe_model_weights_path = self.get_model_weights_path(checkpoint)
+            if os.path.isdir(maybe_model_weights_path):
+                checkpoint = maybe_model_weights_path
 
         if checkpoint:
             if self.adapter_path:
