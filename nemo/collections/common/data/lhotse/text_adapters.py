@@ -125,7 +125,7 @@ class SourceTargetTextExample:
             elif isinstance(prompt, T5NMTPromptFormatter):
                 ans = prompt.encode_dialog(
                     [
-                        {"role": "user", "slots": {"message": self.source.text}},
+                        {"role": "user", "slots": {"message": self.source.text, "target_lang": self.target.language}},
                         {"role": prompt.OUTPUT_ROLE, "slots": {"message": self.target.text}},
                     ]
                 )
