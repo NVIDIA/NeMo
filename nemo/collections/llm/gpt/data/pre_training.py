@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
 import warnings
 from pathlib import Path
@@ -10,6 +24,9 @@ from torch.utils import data
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
+from nemo.utils.import_utils import safe_import
+
+_, HAVE_TE = safe_import("transformer_engine")
 
 if TYPE_CHECKING:
     from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
@@ -69,6 +86,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         pin_memory: bool = True,
         persistent_workers: bool = False,
         reset_position_ids: bool = False,
+        create_attention_mask: bool = False,
         reset_attention_mask: bool = False,
         eod_mask_loss: bool = False,
         seed: int = 1234,
@@ -107,6 +125,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
         self.reset_position_ids = reset_position_ids
+        self.create_attention_mask = create_attention_mask or not HAVE_TE
         self.reset_attention_mask = reset_attention_mask
         self.eod_mask_loss = eod_mask_loss
         self.seed = seed
@@ -219,6 +238,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             tokenizer=self.tokenizer,
             path_to_cache=self.index_mapping_dir,
             reset_position_ids=self.reset_position_ids,
+            create_attention_mask=self.create_attention_mask,
             reset_attention_mask=self.reset_attention_mask,
             eod_mask_loss=self.eod_mask_loss,
             num_dataset_builder_threads=self.num_dataset_builder_threads,
