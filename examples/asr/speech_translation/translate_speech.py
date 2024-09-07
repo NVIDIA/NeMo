@@ -190,7 +190,9 @@ def main(cfg: TranslationConfig) -> Union[TranslationConfig, List[str]]:
     with autocast():
         with torch.no_grad():
             translations = asr_model.transcribe(
-                audio=filepaths, batch_size=cfg.batch_size, return_hypotheses=return_hypotheses,
+                audio=filepaths,
+                batch_size=cfg.batch_size,
+                return_hypotheses=return_hypotheses,
             )
 
     logging.info(f"Finished translating {len(filepaths)} files !")
