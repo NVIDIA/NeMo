@@ -189,18 +189,21 @@ def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
 
 
 def read_txt_paths(config: DictConfig) -> CutSet:
-    return CutSet(
+    cuts = CutSet(
         LhotseTextAdapter(
             paths=config.paths,
             language=config.language,
             shuffle_shards=config.shuffle,
             shard_seed=config.shard_seed,
         )
-    ).repeat()
+    )
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat()
+    return cuts
 
 
 def read_txt_pair_paths(config: DictConfig) -> CutSet:
-    return CutSet(
+    cuts = CutSet(
         LhotseTextPairAdapter(
             source_paths=config.source_paths,
             target_paths=config.target_paths,
@@ -211,18 +214,24 @@ def read_txt_pair_paths(config: DictConfig) -> CutSet:
             shuffle_shards=config.shuffle,
             shard_seed=config.shard_seed,
         )
-    ).repeat()
+    )
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat()
+    return cuts
 
 
 def read_nemo_sft_jsonl(config: DictConfig) -> CutSet:
-    return CutSet(
+    cuts = CutSet(
         NeMoSFTJsonlAdapter(
             paths=config.paths,
             language=config.language,
             shuffle_shards=config.shuffle,
             shard_seed=config.shard_seed,
         )
-    ).repeat()
+    )
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat()
+    return cuts
 
 
 def attach_tags(cut, tags: dict):
