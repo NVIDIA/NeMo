@@ -22,6 +22,8 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+from nemo.lightning import NeMoLogger
+from nemo.collections.llm.api import _setup
 
 
 def get_args():
@@ -42,12 +44,7 @@ if __name__ == "__main__":
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
-        save_best_model=True,
-        save_last=False,
-        monitor="reduced_train_loss",
-        save_top_k=1,
         every_n_train_steps=10,
-        enable_nemo_ckpt_io=False,
         dirpath=args.experiment_dir,
     )
 
@@ -81,7 +78,7 @@ if __name__ == "__main__":
     )
 
     optim = MegatronOptimizerModule(config=opt_config)
-    model_config = llm.BaseMambaConfig130m()
+    model_config = llm.BaseMambaConfig130M()
     model_config.tokenizer_model_path = args.tokenizer_model_path
 
     tokenizer = get_nmt_tokenizer(
@@ -97,6 +94,10 @@ if __name__ == "__main__":
         path="pytorch://" + args.model_path,
         model_config=model_config,
     )
+    
+    nemo_logger = NeMoLogger(
+        dir=args.experiment_dir,
+    )
 
     data = llm.SquadDataModule(
         seq_length=512,
@@ -105,6 +106,17 @@ if __name__ == "__main__":
         tokenizer=model.tokenizer,
         num_workers=0,
         pad_to_max_length=True,
+    )
+
+    app_state = _setup(
+        model=model,
+        data=data,
+        resume=None,
+        trainer=trainer,
+        log=nemo_logger,
+        optim=optim,
+        tokenizer=tokenizer,
+        model_transform=None,
     )
 
     trainer.fit(model, data, ckpt_path=ckpt_path)

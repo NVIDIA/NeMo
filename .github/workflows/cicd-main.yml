@@ -4974,7 +4974,7 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
 
-        python tests/collections/llm/megatron_ssm_pretraining.py \
+        python tests/collections/llm/gpt/model/megatron_ssm_pretraining.py \
         --devices 1 \
         --experiment-dir /home/TestData/nlp/megatron_mamba/nemo-ux-mamba/cicd_test_pretrain \
         --max-steps 10 \
@@ -4991,7 +4991,7 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
 
-        python tests/collections/llm/megatron_ssm_finetuning.py \
+        python tests/collections/llm/gpt/model/megatron_ssm_finetuning.py \
         --devices 1 \
         --experiment-dir /home/TestData/nlp/megatron_mamba/nemo-ux-mamba/cicd_test_sft \
         --max-steps 10 \
