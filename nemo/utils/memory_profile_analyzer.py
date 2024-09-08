@@ -54,6 +54,8 @@ def get_printed_frames(alive_memory):
     Get the printed frames for the alive_memory.
     prune_frames to get rid of '??' in the filename.
     Add `\n` in between each frame for the readability.
+
+    alive_memory: list of (addr, start_time_us, size, alloc_frames)
     """
     # Prune Frames. x: [addr, start_time_us, size, alloc_frames]. x[3]: alloc_frames.
     after_prune_frames = [prune_frames(x[3]) for x in alive_memory]
@@ -63,6 +65,11 @@ def get_printed_frames(alive_memory):
 
 
 def read_tp(timepoint):
+    """
+    Read the timepoint and return the time_us, addr, action, size, frames, stream.
+
+    timepoint: a dictionary with keys: 'time_us', 'addr', 'action', 'size', 'frames', 'stream'
+    """
     time_us = timepoint['time_us']
     addr = timepoint['addr']
     action = timepoint['action']

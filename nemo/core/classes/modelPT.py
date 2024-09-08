@@ -21,6 +21,7 @@ from abc import abstractmethod
 from os import path
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
+from packaging import version
 
 import hydra
 import torch
@@ -1750,7 +1751,9 @@ class ModelPT(LightningModule, Model):
             end_step: 10 # Global batch to end profiling
             rank: 0 # Global rank ID to profile
             output_path: None # Path to store the profile output file
+        Minimum Pytorch version for memory_profile: 2.2.0
         """
+        min_pt_version = "2.2.0"
         if self.cfg.get('nsys_profile', None) is not None:
             if self.cfg.nsys_profile.get('enabled', False):
                 # Nsys profiling options
@@ -1779,70 +1782,69 @@ class ModelPT(LightningModule, Model):
 
         if self.cfg.get('memory_profile', None) is not None:
             if self.cfg.memory_profile.get('enabled', False):
-                # CUDA memory profiling options
-                self._memory_profile_enabled = True
-                self._memory_profile_start_step = self.cfg.memory_profile.get('start_step', 0)
-                self._memory_profile_end_step = self.cfg.memory_profile.get('end_step', 0)
-                self._memory_profile_rank = self.cfg.memory_profile.get('rank', 0)
-                self._memory_profile_output_path = self.cfg.memory_profile.get('output_path', None)
-                self._memory_profile_snapshot_file_activation = (
-                    f'{self._memory_profile_output_path}/memory_profile_rank{self._memory_profile_rank}_act.pickle'
-                )
-                self._memory_profile_snapshot_file_weight = (
-                    f'{self._memory_profile_output_path}/memory_profile_rank{self._memory_profile_rank}_weight.pickle'
-                )
-                self._memory_profile_snapshot_file_oom = (
-                    f'{self._memory_profile_output_path}/memory_profile_rank{self._memory_profile_rank}_oom.pickle'
-                )
-                # CUDA memory profiling options: analysis
-                self._memory_profile_analysis_enabled = self.cfg.memory_profile.get('analysis_enabled', False)
-                self._memory_profile_analysis_path = os.path.join(self._memory_profile_output_path, f"analysis")
-                # CUDA memory profiling options: weight profile & OOM profile
-                self._memory_profile_weight_enabled = True  # Set as True
-                self._memory_profile_oom_enabled = True  # Set as True
+                # guard the memory profile availability by checking the pytorch version. Pytorch version needs to be greater than min_pt_version
+                if version.parse(torch.__version__) < version.parse(min_pt_version):
+                    raise ValueError(
+                        f"Minimum Pytorch version for memory_profile is {min_pt_version}. Found: {torch.__version__}"
+                    )
+                else:
+                    # CUDA memory profiling options
+                    self._memory_profile_enabled = True
+                    self._memory_profile_start_step = self.cfg.memory_profile.get('start_step', 0)
+                    self._memory_profile_end_step = self.cfg.memory_profile.get('end_step', 0)
+                    self._memory_profile_rank = self.cfg.memory_profile.get('rank', 0)
+                    self._memory_profile_output_path = self.cfg.memory_profile.get('output_path', None)
+                    self._memory_profile_snapshot_file_activation = (
+                        f'{self._memory_profile_output_path}/memory_profile_rank{self._memory_profile_rank}_act.pickle'
+                    )
+                    self._memory_profile_snapshot_file_weight = (
+                        f'{self._memory_profile_output_path}/memory_profile_rank{self._memory_profile_rank}_weight.pickle'
+                    )
+                    self._memory_profile_snapshot_file_oom = (
+                        f'{self._memory_profile_output_path}/memory_profile_rank{self._memory_profile_rank}_oom.pickle'
+                    )
+                    # CUDA memory profiling options: analysis
+                    self._memory_profile_analysis_enabled = self.cfg.memory_profile.get('analysis_enabled', False)
+                    self._memory_profile_analysis_path = os.path.join(self._memory_profile_output_path, f"analysis")
 
-                if (
-                    self._memory_profile_weight_enabled
-                ):  # For the weight profile, we record the snapshot from the initialization, and dump it before batch-0 start. Note: can't use `get_rank()` during initialization, since nccl_init_group is not called yet.
                     logging.info(
                         f"====== Rank[{self._memory_profile_rank}], Initialization. Start CUDA memory profiling: Weight ======"
                     )
                     torch.cuda.memory._record_memory_history()
 
-                if self._memory_profile_oom_enabled:
-                    torch._C._cuda_attach_out_of_memory_observer(self.oom_observer)
+                    torch._C._cuda_attach_out_of_memory_observer(self._oom_observer)
 
-                if type(self._memory_profile_start_step) == int:
-                    logging.info(
-                        f'CUDA memory profiling (Activation) setup with start_step: {self._memory_profile_start_step}'
-                    )
-                else:
-                    raise ValueError(
-                        f'CUDA memory start_step must be of type int. Found: {type(self._memory_profile_start_step)}'
-                    )
+                    if type(self._memory_profile_start_step) == int:
+                        logging.info(
+                            f'CUDA memory profiling (Activation) setup with start_step: {self._memory_profile_start_step}'
+                        )
+                    else:
+                        raise ValueError(
+                            f'CUDA memory start_step must be of type int. Found: {type(self._memory_profile_start_step)}'
+                        )
 
-                if type(self._memory_profile_end_step) == int:
-                    logging.info(
-                        f'CUDA memory profiling (Activation) setup with end_step: {self._memory_profile_end_step}'
-                    )
-                else:
-                    raise ValueError(
-                        f'CUDA memory end_step must be of type int. Found: {type(self._memory_profile_end_step)}'
-                    )
+                    if type(self._memory_profile_end_step) == int:
+                        logging.info(
+                            f'CUDA memory profiling (Activation) setup with end_step: {self._memory_profile_end_step}'
+                        )
+                    else:
+                        raise ValueError(
+                            f'CUDA memory end_step must be of type int. Found: {type(self._memory_profile_end_step)}'
+                        )
 
-                if self._memory_profile_end_step >= self._memory_profile_start_step:
-                    pass
-                else:
-                    raise ValueError(
-                        f'CUDA memory (Activation) end_step must be greater than or equal to memory start_step'
-                    )
+                    if self._memory_profile_end_step >= self._memory_profile_start_step:
+                        pass
+                    else:
+                        raise ValueError(
+                            f'CUDA memory (Activation) end_step must be greater than or equal to memory start_step'
+                        )
 
-                if self._memory_profile_output_path is None or not os.path.isdir(self._memory_profile_output_path):
-                    raise ValueError(
-                        f'Memory profile output path ({self._memory_profile_output_path}) is not set or does not exist.'
-                    )
+                    if self._memory_profile_output_path is None or not os.path.isdir(self._memory_profile_output_path):
+                        raise ValueError(
+                            f'Memory profile output path ({self._memory_profile_output_path}) is not set or does not exist.'
+                        )
 
-    def oom_observer(self, device, alloc, device_alloc, device_free, *args, **kwargs):
+    def _oom_observer(self, device, alloc, device_alloc, device_free, *args, **kwargs):
         if get_rank() == self._memory_profile_rank:
             logging.info(
                 f"====== Rank[{self._memory_profile_rank}]. OOM Profile. End CUDA memory profiling: Out Of Memory. Snapshot saved in {self._memory_profile_snapshot_file_oom} ======"
@@ -1850,7 +1852,7 @@ class ModelPT(LightningModule, Model):
             torch.cuda.memory._dump_snapshot(f"{self._memory_profile_snapshot_file_oom}")
             # if snapshot exists, we call the peak-memory-analyzer and export the csv file
             # Need to wait a bit after error shows up. It is running the function.
-            if self._memory_profile_oom_enabled and self._memory_profile_analysis_enabled:
+            if self._memory_profile_analysis_enabled:
                 if os.path.exists(self._memory_profile_snapshot_file_oom):
                     logging.info(f"===== Memory Profile Analysis: OOM ======")
                     peak_memory_analysis(
@@ -1886,7 +1888,6 @@ class ModelPT(LightningModule, Model):
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
         We use it here to enable nsys profiling and dynamic freezing.
         """
-        # logging.info(f"Training Real batch {self._real_batch_idx} started.")
         # nsys profiling
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
@@ -1904,8 +1905,7 @@ class ModelPT(LightningModule, Model):
             if hasattr(self, '_memory_profile_enabled'):
                 if self._memory_profile_enabled:
                     if (
-                        self._memory_profile_weight_enabled
-                        and (self._real_batch_idx == 0)
+                        (self._real_batch_idx == 0)
                         and (get_rank() == self._memory_profile_rank)
                     ):  # before batch-0 start
                         try:
@@ -1984,7 +1984,6 @@ class ModelPT(LightningModule, Model):
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-end
         We use it here to enable nsys profiling.
         """
-        # logging.info(f"Training Real batch {self._real_batch_idx} ended.")
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
                 if self._nsys_profile_enabled and not self._nsys_profile_complete:
