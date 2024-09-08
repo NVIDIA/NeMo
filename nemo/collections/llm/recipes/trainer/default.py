@@ -1,11 +1,11 @@
 from typing import Optional, Union
-from nemo import lightning as nl
 
 import torch
+from pytorch_lightning.callbacks.callback import Callback
 
+from nemo import lightning as nl
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
 from nemo.collections.llm.utils import Config, Partial
-from pytorch_lightning.callbacks.callback import Callback
 
 
 def default_trainer(
