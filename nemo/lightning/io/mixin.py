@@ -141,7 +141,7 @@ class IOMixin:
                            will be stored.
         """
         output_path = Path(output)
-        local_artifacts_dir = "artifacts"
+        local_artifacts_dir = "."
         artifacts_dir = output_path / local_artifacts_dir
         artifacts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -281,7 +281,7 @@ class ConnectorMixin:
         """
         return cls._get_connector(ext, path, importer=False)
 
-    def import_ckpt(self, path: str, overwrite: bool = False, base_path: Optional[Path] = None) -> Path:
+    def import_ckpt(self, path: str, overwrite: bool = False, base_path: Optional[Path] = None, **kwargs) -> Path:
         """
         Imports a checkpoint from a specified path, potentially overwriting existing files.
 
@@ -299,14 +299,14 @@ class ConnectorMixin:
         ------
             FileNotFoundError: If the checkpoint file does not exist at the specified path.
         """
-        connector = self._get_connector(path)
+        connector = self._get_connector(path, **kwargs)
         ckpt_path: Path = connector.local_path(base_path=base_path)
         ckpt_path = connector(ckpt_path, overwrite=overwrite)
         connector.on_import_ckpt(self)
         return ckpt_path
 
     @classmethod
-    def _get_connector(cls, ext, path=None, importer=True) -> ModelConnector:
+    def _get_connector(cls, ext, path=None, importer=True, **kwargs) -> ModelConnector:
         """
         Retrieves the appropriate model connector based on the file extension and path,
         distinguishing between importers and exporters.
@@ -341,7 +341,7 @@ class ConnectorMixin:
 
             return connector()
 
-        return connector(_path)
+        return connector(_path, **kwargs)
 
 
 def track_io(target, artifacts: Optional[List[Artifact]] = None):
@@ -518,7 +518,7 @@ def _io_path_elements_fn(x):
     return x.__io__.__path_elements__()
 
 
-def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: Path = "artifacts"):
+def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: Path = "."):
     for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
         current_val = getattr(cfg, artifact.attr)
         if current_val is None:
