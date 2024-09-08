@@ -55,3 +55,12 @@ def default_resume() -> Config[nl.AutoResume]:
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
     )
+
+
+def hf_resume(hf_path: str) -> Config[nl.AutoResume]:
+    return Config(
+        nl.AutoResume,
+        restore_config=Config(nl.RestoreConfig, path=hf_path),
+        resume_if_exists=True,
+        resume_ignore_no_checkpoint=True,
+    )

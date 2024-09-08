@@ -10,7 +10,7 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
 from nemo.collections.llm.peft.lora import LoRA
-from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
+from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger, hf_resume
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed_plugin
 from nemo.collections.llm.utils import Config, Partial
@@ -95,18 +95,11 @@ def pretrain_recipe(
     )
 
 
-def hf_resume() -> Config[nl.AutoResume]:
-    return Config(
-        nl.AutoResume,
-        restore_config=Config(nl.RestoreConfig, path="hf://mistralai/Mixtral-8x7B-v0.1"),
-    )
-
-
 def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int) -> Partial:
     recipe = pretrain_recipe(
         name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
     )
-    recipe.resume = hf_resume()
+    recipe.resume = hf_resume("hf://mistralai/Mixtral-8x7B-v0.1")
     recipe.peft = Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
     recipe.data = Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
     return recipe
