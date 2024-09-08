@@ -16,14 +16,16 @@
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
 import argparse
+
 import torch
 from megatron.core.optimizer import OptimizerConfig
+
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.lightning import NeMoLogger
 from nemo.collections.llm.api import _setup
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.lightning import NeMoLogger
+from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 
 def get_args():
@@ -94,7 +96,7 @@ if __name__ == "__main__":
         path="pytorch://" + args.model_path,
         model_config=model_config,
     )
-    
+
     nemo_logger = NeMoLogger(
         dir=args.experiment_dir,
     )
