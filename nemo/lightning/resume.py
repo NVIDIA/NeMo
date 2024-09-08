@@ -107,7 +107,7 @@ class AutoResume:
         if adapter_path:
 
             maybe_weights_path = self.get_weights_path(adapter_path)
-            if os.path.isdir(maybe_weights_path):
+            if maybe_weights_path.is_dir():
                 adapter_path = maybe_weights_path
 
             new_path = AdapterPath(Path(adapter_path), base_model_path=new_path)
@@ -224,7 +224,7 @@ class AutoResume:
 
         if checkpoint:
             maybe_weights_path = self.get_weights_path(checkpoint)
-            if os.path.isdir(maybe_weights_path):
+            if maybe_weights_path.is_dir():
                 checkpoint = maybe_weights_path
 
         if checkpoint:
