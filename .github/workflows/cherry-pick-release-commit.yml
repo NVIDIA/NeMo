@@ -23,6 +23,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT }}
         run: |
           set -x  
+          set +e
 
           git config --global user.email "nemo-bot@nvidia.com"
           git config --global user.name "NeMo Bot"
