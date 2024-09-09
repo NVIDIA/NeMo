@@ -139,6 +139,7 @@ class TensorRTMMExporter(ITritonDeployable):
             use_lora_plugin=use_lora_plugin,
             lora_target_modules=lora_target_modules,
             max_lora_rank=max_lora_rank,
+            lora_ckpt_list=self.lora_ckpt_list,
         )
 
         if model_type == "salm":

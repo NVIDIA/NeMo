@@ -833,6 +833,7 @@ class MultimodalModelRunner:
                 temperature=temperature,
                 repetition_penalty=repetition_penalty,
                 num_beams=num_beams,
+                lora_uids=lora_uids,
             )
         if self.runtime_rank == 0:
             self.print_result(input_text, output_text, batch_size, num_beams, run_profiling, check_accuracy)

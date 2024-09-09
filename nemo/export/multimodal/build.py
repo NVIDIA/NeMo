@@ -51,8 +51,9 @@ def build_trtllm_engine(
     use_lora_plugin: str = None,
     lora_target_modules: List[str] = None,
     max_lora_rank: int = 64,
+    lora_ckpt_list: List[str] = None,
 ):
-    trt_llm_exporter = TensorRTLLM(model_dir=model_dir, load_model=False)
+    trt_llm_exporter = TensorRTLLM(model_dir=model_dir, lora_ckpt_list=lora_ckpt_list, load_model=False)
     visual_checkpoint_model = ['neva', 'lita', 'vila', 'vita']
     trt_llm_exporter.export(
         nemo_checkpoint_path=visual_checkpoint_path if model_type in visual_checkpoint_model else llm_checkpoint_path,
