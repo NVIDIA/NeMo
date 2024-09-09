@@ -61,7 +61,7 @@ def trainer(
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
-    sequence_parallelism: bool = True,
+    sequence_parallelism: bool = False,
     expert_parallelism: int = 4,
     num_nodes: int = 2,
     num_gpus_per_node: int = 8,
