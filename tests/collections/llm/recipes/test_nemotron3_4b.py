@@ -1,7 +1,7 @@
 import nemo_run as run
 import pytest
 
-from nemo.collections.llm.api import finetune, pretrain
+from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.nemotron import Nemotron3Config4B, NemotronModel
 from nemo.collections.llm.recipes import nemotron3_4b

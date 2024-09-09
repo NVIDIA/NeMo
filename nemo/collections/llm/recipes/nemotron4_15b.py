@@ -146,7 +146,6 @@ def pretrain_recipe(
             max_steps=max_steps,
             precision=precision,
             accumulate_grad_batches=accumulate_grad_batches,
-            gradient_clip_val=gradient_clip_val,
             limit_test_batches=limit_test_batches,
             limit_val_batches=limit_val_batches,
             log_every_n_steps=log_every_n_steps,
@@ -166,6 +165,7 @@ def pretrain_recipe(
             constant_steps=constant_steps,
             min_lr=min_lr,
             max_lr=max_lr,
+            clip_grad=gradient_clip_val,
         ),
         resume=default_resume(),
     )

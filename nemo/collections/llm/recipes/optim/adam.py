@@ -27,6 +27,7 @@ def distributed_fused_adam_with_cosine_annealing(
     constant_steps: int = 0,
     max_lr: float = 1e-4,
     min_lr: Optional[float] = None,
+    clip_grad: float = 1.0,
 ) -> run.Config[OptimizerModule]:
 
     opt_cfg = run.Config(
@@ -42,7 +43,7 @@ def distributed_fused_adam_with_cosine_annealing(
         use_distributed_optimizer=True,
         overlap_grad_reduce=True,
         overlap_param_gather=True,
-        clip_grad=1.0,
+        clip_grad=clip_grad,
     )
 
     min_lr = min_lr or (0.1 * max_lr)

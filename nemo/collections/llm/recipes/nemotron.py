@@ -68,7 +68,6 @@ def nemotron_trainer(
     max_steps: int = 1168251,
     precision: str = "bf16-mixed",
     accumulate_grad_batches: int = 1,
-    gradient_clip_val: float = 1.0,
     limit_test_batches: int = 32,
     limit_val_batches: int = 32,
     log_every_n_steps: int = 10,
@@ -92,7 +91,6 @@ def nemotron_trainer(
         max_steps (int): Maximum number of training steps.
         precision (str): Precision configuration, one of fp32, 16-mixed or bf16-mixed.
         accumulate_grad_batches (int): Number of steps per gradient accumulation.
-        gradient_clip_val (float): Value for gradient clipping.
         limit_test_batches (int): Limit the number of test batches.
         limit_val_batches (int): Limit the number of validation batches.
         log_every_n_steps (int): Log every n steps.
@@ -128,7 +126,6 @@ def nemotron_trainer(
         callbacks=callbacks,
         devices=num_gpus_per_node,
         accumulate_grad_batches=accumulate_grad_batches,
-        gradient_clip_val=gradient_clip_val,
         limit_test_batches=limit_test_batches,
         limit_val_batches=limit_val_batches,
         log_every_n_steps=log_every_n_steps,
