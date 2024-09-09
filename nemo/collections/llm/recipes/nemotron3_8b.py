@@ -165,7 +165,6 @@ def pretrain_recipe(
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(
             precision=precision,
-            precision=precision,
             warmup_steps=warmup_steps,
             constant_steps=constant_steps,
             min_lr=min_lr,

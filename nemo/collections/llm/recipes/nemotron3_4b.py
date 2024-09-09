@@ -121,8 +121,8 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory nemotron
-            $ nemo llm pretrain --factory "nemotron(num_nodes=1, name='my_nemotron_pretrain')"
+            $ nemo llm pretrain --factory nemotron3_4b
+            $ nemo llm pretrain --factory "nemotron3_4b(num_nodes=1, name='my_nemotron_pretrain')"
 
         Python API usage:
             >>> recipe = pretrain_recipe(name="nemotron_pretrain", num_nodes=1)
@@ -158,7 +158,11 @@ def pretrain_recipe(
         ),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(
-            precision=precision, warmup_steps=warmup_steps, constant_steps=constant_steps, min_lr=min_lr, max_lr=max_lr
+            precision=precision,
+            warmup_steps=warmup_steps,
+            constant_steps=constant_steps,
+            min_lr=min_lr,
+            max_lr=max_lr,
         ),
         resume=default_resume(),
     )
