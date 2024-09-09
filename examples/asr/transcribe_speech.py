@@ -468,7 +468,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         return transcriptions
 
     # write audio transcriptions
-    import ipdb; ipdb.set_trace()
     output_filename, pred_text_attr_name = write_transcription(
         transcriptions,
         cfg,
