@@ -276,7 +276,7 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
     """Prepare audio data and decide whether it's partial_audio condition."""
     # this part may need refactor alongsides with refactor of transcribe
     partial_audio = False
-    sorted_manifest_path=None
+    sorted_manifest_path = None
 
     if cfg.audio_dir is not None and not cfg.append_pred:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
@@ -470,12 +470,14 @@ def write_transcription(
     return cfg.output_filename, pred_text_attr_name
 
 
-def transcribe_partial_audio(asr_model, path2manifest: str = None, override_config: Optional[TranscribeConfig] = None) -> List[str]:
+def transcribe_partial_audio(
+    asr_model, path2manifest: str = None, override_config: Optional[TranscribeConfig] = None
+) -> List[str]:
     """
     See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py and nemo/collections/asr/models/rnnt_models.py
     asr_model: ASRModel
     path2manifest: Path to manifest file
-    override_config: Optional[TranscribeConfig] 
+    override_config: Optional[TranscribeConfig]
     returns: List[str] - List of transcriptions
     """
 

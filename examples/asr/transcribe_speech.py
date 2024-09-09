@@ -370,13 +370,15 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         partial_audio = False
     else:
         if not partial_audio and cfg.dataset_manifest is not None:
-            raise ValueError("Partial audio transcription requested, but no 'offset' and 'duration' fields found in manifest.")
+            raise ValueError(
+                "Partial audio transcription requested, but no 'offset' and 'duration' fields found in manifest."
+            )
         elif not partial_audio and cfg.dataset_manifest is None:
             raise ValueError("Partial audio transcription requested, but no dataset manifest provided.")
-        
+
         if partial_audio and isinstance(asr_model, EncDecMultiTaskModel):
             raise ValueError("EncDecMultiTaskModel does not support partial transcription yet.")
-    
+
     # As EncDecMultiTaskModel does not support transcription on filepaths, use manifest instead
     if isinstance(asr_model, EncDecMultiTaskModel):
         filepaths = sorted_manifest_path
@@ -420,14 +422,14 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         with torch.no_grad():
             if cfg.calculate_rtfx:
                 start_time = time.time()
-            
+
             override_cfg = asr_model.get_transcribe_config()
             override_cfg.batch_size = cfg.batch_size
             override_cfg.num_workers = cfg.num_workers
             override_cfg.return_hypotheses = cfg.return_hypotheses
             override_cfg.channel_selector = cfg.channel_selector
             override_cfg.augmentor = augmentor
-            
+
             if partial_audio:
                 transcriptions = transcribe_partial_audio(
                     asr_model=asr_model,
