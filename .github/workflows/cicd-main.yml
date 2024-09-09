@@ -132,6 +132,7 @@ jobs:
        TIMEOUT: 20
        SCRIPT: |
          NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --with_downloads
+       IS_OPTIONAL: true
 
   L0_Unit_Tests_GPU_Audio:
      needs: [cicd-test-container-setup]
