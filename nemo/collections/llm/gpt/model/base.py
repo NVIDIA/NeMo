@@ -63,6 +63,11 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     required_keys = set()
     required_keys.add("attention_mask")
+    if 'cu_seqlens' in _batch:
+        required_keys.add('cu_seqlens')
+        required_keys.add('cu_seqlens_argmin')
+        required_keys.add('max_seqlen')
+        # TODO test mbs=2 case
     if parallel_state.is_pipeline_first_stage():
         required_keys.update(("tokens", "position_ids"))
     if parallel_state.is_pipeline_last_stage():
@@ -266,6 +271,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         labels: Optional[torch.Tensor] = None,
         decoder_input: Optional[torch.Tensor] = None,
         inference_params=None,
+        packed_seq_params=None,
     ) -> torch.Tensor:
         output_tensor = self.module(
             input_ids,
@@ -274,6 +280,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             decoder_input=decoder_input,
             labels=labels,
             inference_params=inference_params,
+            packed_seq_params=None,
         )
 
         return output_tensor

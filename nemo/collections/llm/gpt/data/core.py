@@ -49,9 +49,14 @@ def create_sft_dataset(
     global_sample_mapping: bool = False,
     **kwargs,
 ) -> "GPTSFTDataset":
-    from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
+    if path.suffix == '.npy':
+        from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTPackedDataset
+        dataset_cls = GPTSFTPackedDataset
+    else:
+        from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
+        dataset_cls = GPTSFTDataset
 
-    return GPTSFTDataset(
+    return dataset_cls(
         file_path=str(path),
         tokenizer=tokenizer,
         max_seq_length=seq_length,

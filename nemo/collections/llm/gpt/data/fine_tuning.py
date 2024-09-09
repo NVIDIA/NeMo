@@ -48,6 +48,11 @@ class FineTuningDataModule(pl.LightningDataModule):
         pin_memory (bool, optional): Whether to pin memory during data loading for faster GPU training. Defaults to True.
         persistent_workers (bool, optional): Whether to keep data loading workers persistent across epochs. Defaults to False.
         max_train_steps (int, optional): Maximum number of steps to train. Used to calculate samples mapping for the mmap dataset
+        pad_to_max_length (bool, optional): ... TODO
+        packed_sequence_size (int, optional): If a positive integer, this arg enables training with sequence packing and specifies the pack size
+            If less than or equal to 0, sequence packing is disabled. Defaults to -1.
+            Note: This arg is distinct from `seq_length` because `seq_length` specifies the maximum length of the original sequence
+            (i.e. the length to truncate long sequences in the input data).
     """
 
     def __init__(
@@ -64,6 +69,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         pin_memory: bool = True,
         persistent_workers: bool = False,
         pad_to_max_length: bool = False,
+        packed_sequence_size: int = -1,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -80,6 +86,20 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.data_sampler = None
         self.max_train_samples = None
         self.pad_to_max_length = pad_to_max_length
+        self.packed_sequence_size = packed_sequence_size
+
+    def prepare_data(self) -> None:
+        if self.packed_sequence_size > 0:
+            if not self.train_path.is_file():
+                from nemo.collections.llm.gpt.data.packed_sequence import prepare_packed_sequence_data
+                prepare_packed_sequence_data(
+                    input_path=self.dataset_root / "training.jsonl",
+                    output_path=self.train_path,
+                    packed_sequence_size=self.packed_sequence_size,
+                    tokenizer=self.tokenizer,
+                    max_seq_length=self.seq_length,
+                    seed=self.seed,
+                )
 
     def setup(self, stage: str):
         self.data_sampler = MegatronDataSampler(
@@ -97,7 +117,7 @@ class FineTuningDataModule(pl.LightningDataModule):
     def train_dataloader(self) -> DataLoader:
         return self._create_dataloader(
             self._create_dataset(
-                str(self.train_path),
+                self.train_path,
                 max_num_samples=self.max_train_samples,
                 pad_to_max_length=self.pad_to_max_length,
             )
@@ -106,7 +126,7 @@ class FineTuningDataModule(pl.LightningDataModule):
     def val_dataloader(self) -> DataLoader:
         return self._create_dataloader(
             self._create_dataset(
-                str(self.validation_path),
+                self.validation_path,
                 is_test=True,
                 pad_to_max_length=self.pad_to_max_length,
             ),
@@ -115,7 +135,7 @@ class FineTuningDataModule(pl.LightningDataModule):
     def test_dataloader(self) -> DataLoader:
         return self._create_dataloader(
             self._create_dataset(
-                str(self.test_path),
+                self.test_path,
                 tokens_to_generate=32,
                 is_test=True,
                 pad_to_max_length=self.pad_to_max_length,
@@ -145,6 +165,8 @@ class FineTuningDataModule(pl.LightningDataModule):
 
     @property
     def train_path(self) -> Path:
+        if self.packed_sequence_size > 0:
+            return self.dataset_root / f"training_packed{self.packed_sequence_size}.npy"
         return self.dataset_root / "training.jsonl"
 
     @property
