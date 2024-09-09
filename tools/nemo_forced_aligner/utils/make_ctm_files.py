@@ -16,12 +16,12 @@ import os
 
 import soundfile as sf
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN
-from utils.data_prep import Segment, Word
+from utils.units import Segment, Word
 from nemo.collections.asr.parts.utils.manifest_utils import get_ctm_line
 
 
 def make_ctm_files(
-    utt_obj, output_dir_root, ctm_file_config,
+    utt_obj, utt_id, output_dir_root, ctm_file_config,
 ):
     """
     Function to save CTM files for all the utterances in the incoming batch.
@@ -39,15 +39,15 @@ def make_ctm_files(
     else:
         audio_file_duration = None
 
-    utt_obj = make_ctm("tokens", utt_obj, output_dir_root, audio_file_duration, ctm_file_config,)
-    utt_obj = make_ctm("words", utt_obj, output_dir_root, audio_file_duration, ctm_file_config,)
-    utt_obj = make_ctm("segments", utt_obj, output_dir_root, audio_file_duration, ctm_file_config,)
+    utt_obj = make_ctm("tokens", utt_obj, utt_id, output_dir_root, audio_file_duration, ctm_file_config,)
+    utt_obj = make_ctm("words", utt_obj, utt_id, output_dir_root, audio_file_duration, ctm_file_config,)
+    utt_obj = make_ctm("segments", utt_obj, utt_id, output_dir_root, audio_file_duration, ctm_file_config,)
 
     return utt_obj
 
 
 def make_ctm(
-    alignment_level, utt_obj, output_dir_root, audio_file_duration, ctm_file_config,
+    alignment_level, utt_obj, utt_id, output_dir_root, audio_file_duration, ctm_file_config,
 ):
     output_dir = os.path.join(output_dir_root, "ctm", alignment_level)
     os.makedirs(output_dir, exist_ok=True)
@@ -79,7 +79,7 @@ def make_ctm(
             if alignment_level == "tokens":
                 boundary_info_utt.append(token)
 
-    with open(os.path.join(output_dir, f"{utt_obj.utt_id}.ctm"), "w") as f_ctm:
+    with open(os.path.join(output_dir, f"{utt_id}.ctm"), "w") as f_ctm:
         for boundary_info_ in boundary_info_utt:  # loop over every token/word/segment
 
             # skip if t_start = t_end = negative number because we used it as a marker to skip some blank tokens
@@ -107,7 +107,7 @@ def make_ctm(
                     text = text.replace(" ", SPACE_TOKEN)
 
                     ctm_line = get_ctm_line(
-                        source=utt_obj.utt_id,
+                        source=utt_id,
                         channel=1,
                         start_time=start_time,
                         duration=end_time - start_time,
@@ -119,7 +119,7 @@ def make_ctm(
                     f_ctm.write(ctm_line)
 
     utt_obj.saved_output_files[f"{alignment_level}_level_ctm_filepath"] = os.path.join(
-        output_dir, f"{utt_obj.utt_id}.ctm"
+        output_dir, f"{utt_id}.ctm"
     )
 
     return utt_obj

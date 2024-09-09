@@ -28,7 +28,7 @@ import os
 import soundfile as sf
 
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN
-from utils.data_prep import Segment, Token, Word
+from utils.units import Segment, Token, Word
 
 PLAYERRESX = 384
 PLAYERRESY = 288
@@ -65,7 +65,7 @@ def rgb_list_to_hex_bgr(rgb_list):
 
 
 def make_ass_files(
-    utt_obj, output_dir_root, ass_file_config,
+    utt_obj, utt_id, output_dir_root, ass_file_config,
 ):
 
     # don't try to make files if utt_obj.segments_and_tokens is empty, which will happen
@@ -81,8 +81,8 @@ def make_ass_files(
     with sf.SoundFile(utt_obj.audio_filepath) as f:
         audio_dur = f.frames / f.samplerate
 
-    utt_obj = make_word_level_ass_file(utt_obj, output_dir_root, ass_file_config, audio_dur)
-    utt_obj = make_token_level_ass_file(utt_obj, output_dir_root, ass_file_config, audio_dur)
+    utt_obj = make_word_level_ass_file(utt_obj, utt_id, output_dir_root, ass_file_config, audio_dur)
+    utt_obj = make_token_level_ass_file(utt_obj, utt_id, output_dir_root, ass_file_config, audio_dur)
 
     return utt_obj
 
@@ -173,7 +173,7 @@ def resegment_utt_obj(utt_obj, ass_file_config):
     return utt_obj
 
 
-def make_word_level_ass_file(utt_obj, output_dir_root, ass_file_config, audio_dur):
+def make_word_level_ass_file(utt_obj, utt_id, output_dir_root, ass_file_config, audio_dur):
 
     default_style_dict = {
         "Name": "Default",
@@ -212,7 +212,7 @@ def make_word_level_ass_file(utt_obj, output_dir_root, ass_file_config, audio_du
 
     output_dir = os.path.join(output_dir_root, "ass", "words")
     os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, f"{utt_obj.utt_id}.ass")
+    output_file = os.path.join(output_dir, f"{utt_id}.ass")
 
     already_spoken_color_code = r"{\c&H" + rgb_list_to_hex_bgr(ass_file_config.text_already_spoken_rgb) + r"&}"
     being_spoken_color_code = r"{\c&H" + rgb_list_to_hex_bgr(ass_file_config.text_being_spoken_rgb) + r"&}"
@@ -329,7 +329,7 @@ def make_word_level_ass_file(utt_obj, output_dir_root, ass_file_config, audio_du
     return utt_obj
 
 
-def make_token_level_ass_file(utt_obj, output_dir_root, ass_file_config, audio_dur):
+def make_token_level_ass_file(utt_obj, utt_id, output_dir_root, ass_file_config, audio_dur):
 
     default_style_dict = {
         "Name": "Default",
@@ -368,7 +368,7 @@ def make_token_level_ass_file(utt_obj, output_dir_root, ass_file_config, audio_d
 
     output_dir = os.path.join(output_dir_root, "ass", "tokens")
     os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, f"{utt_obj.utt_id}.ass")
+    output_file = os.path.join(output_dir, f"{utt_id}.ass")
 
     already_spoken_color_code = r"{\c&H" + rgb_list_to_hex_bgr(ass_file_config.text_already_spoken_rgb) + r"&}"
     being_spoken_color_code = r"{\c&H" + rgb_list_to_hex_bgr(ass_file_config.text_being_spoken_rgb) + r"&}"

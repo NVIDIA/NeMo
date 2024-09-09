@@ -20,14 +20,17 @@ def write_manifest_out_line(
 ):
 
     data = {"audio_filepath": utt_obj.audio_filepath}
-    if not utt_obj.text is None:
-        data["text"] = utt_obj.text
+    if not utt_obj.text.text is None:
+        data["text"] = utt_obj.text.text
 
     if not utt_obj.pred_text is None:
-        data["pred_text"] = utt_obj.pred_text
+        data["pred_text"] = utt_obj.pred_text.text
 
-    for key, val in utt_obj.saved_output_files.items():
-        data[key] = val
+    for key, val in utt_obj.text.saved_output_files.items():
+        data[f"{key}_text_based"] = val
+    
+    for key, val in utt_obj.pred_text.saved_output_files.items():
+        data[f"{key}_pred_text_based"] = val
 
     new_line = json.dumps(data)
     f_manifest_out.write(f"{new_line}\n")

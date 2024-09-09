@@ -11,9 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import sys
 
 BLANK_TOKEN = "<b>"
+BLANK_ID = sys.maxsize
 
 SPACE_TOKEN = "<space>"
+SPACE_ID = sys.maxsize
 
 V_NEGATIVE_NUM = -3.4e38  # this is just above the most negative number in torch.float32
