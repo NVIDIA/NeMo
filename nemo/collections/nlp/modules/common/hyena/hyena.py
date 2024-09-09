@@ -23,7 +23,7 @@ from typing import Union
 import torch
 import torch.nn as nn
 from einops import rearrange
-from megatron.core.transformer.custom_layers.transformer_engine import (
+from megatron.core.extensions.transformer_engine import (
     TELayerNormColumnParallelLinear,
     TERowParallelLinear,
 )
