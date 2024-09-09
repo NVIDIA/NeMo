@@ -361,29 +361,25 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         else:
             cfg.decoding = cfg.rnnt_decoding
 
-    remove_path_after_done = None
-    if isinstance(asr_model, EncDecMultiTaskModel):
-        # Special case for EncDecMultiTaskModel, where the input manifest is directly passed into the model's transcribe() function
-        partial_audio = False
-        if cfg.audio_dir is not None and not cfg.append_pred:
-            filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
-        else:
-            assert cfg.dataset_manifest is not None
-            if cfg.presort_manifest:
-                with NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-                    for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=True):
-                        item["audio_filepath"] = get_full_path(item["audio_filepath"], cfg.dataset_manifest)
-                        print(json.dumps(item), file=f)
-                    cfg.dataset_manifest = f.name
-                    remove_path_after_done = f.name
-            filepaths = cfg.dataset_manifest
-    else:
-        # prepare audio filepaths and decide wether it's partial audio
-        filepaths, partial_audio = prepare_audio_data(cfg)
+    filepaths, partial_audio, sorted_manifest_path = prepare_audio_data(cfg)
+
+    remove_path_after_done = sorted_manifest_path if sorted_manifest_path is not None else None
 
     if not cfg.allow_partial_transcribe:
         # by defatul, use model's transcribe() function, unless partial audio is required
         partial_audio = False
+    else:
+        if not partial_audio and cfg.dataset_manifest is not None:
+            raise ValueError("Partial audio transcription requested, but no 'offset' and 'duration' fields found in manifest.")
+        elif not partial_audio and cfg.dataset_manifest is None:
+            raise ValueError("Partial audio transcription requested, but no dataset manifest provided.")
+        
+        if partial_audio and isinstance(asr_model, EncDecMultiTaskModel):
+            raise ValueError("EncDecMultiTaskModel does not support partial transcription yet.")
+    
+    # As EncDecMultiTaskModel does not support transcription on filepaths, use manifest instead
+    if isinstance(asr_model, EncDecMultiTaskModel):
+        filepaths = sorted_manifest_path
 
     # setup AMP (optional)
     if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
@@ -424,24 +420,21 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         with torch.no_grad():
             if cfg.calculate_rtfx:
                 start_time = time.time()
+            
+            override_cfg = asr_model.get_transcribe_config()
+            override_cfg.batch_size = cfg.batch_size
+            override_cfg.num_workers = cfg.num_workers
+            override_cfg.return_hypotheses = cfg.return_hypotheses
+            override_cfg.channel_selector = cfg.channel_selector
+            override_cfg.augmentor = augmentor
+            
             if partial_audio:
                 transcriptions = transcribe_partial_audio(
                     asr_model=asr_model,
-                    path2manifest=cfg.dataset_manifest,
-                    batch_size=cfg.batch_size,
-                    num_workers=cfg.num_workers,
-                    return_hypotheses=cfg.return_hypotheses,
-                    channel_selector=cfg.channel_selector,
-                    augmentor=augmentor,
-                    decoder_type=cfg.decoder_type,
+                    path2manifest=sorted_manifest_path,
+                    override_config=override_cfg,
                 )
             else:
-                override_cfg = asr_model.get_transcribe_config()
-                override_cfg.batch_size = cfg.batch_size
-                override_cfg.num_workers = cfg.num_workers
-                override_cfg.return_hypotheses = cfg.return_hypotheses
-                override_cfg.channel_selector = cfg.channel_selector
-                override_cfg.augmentor = augmentor
                 override_cfg.text_field = cfg.gt_text_attr_name
                 override_cfg.lang_field = cfg.gt_lang_attr_name
                 if hasattr(override_cfg, "prompt"):
@@ -456,7 +449,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     if cfg.dataset_manifest is not None:
         logging.info(f"Finished transcribing from manifest file: {cfg.dataset_manifest}")
-        if cfg.presort_manifest and not partial_audio:
+        if cfg.presort_manifest:
             transcriptions = restore_transcription_order(cfg.dataset_manifest, transcriptions)
     else:
         logging.info(f"Finished transcribing {len(filepaths)} files !")
@@ -475,6 +468,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         return transcriptions
 
     # write audio transcriptions
+    import ipdb; ipdb.set_trace()
     output_filename, pred_text_attr_name = write_transcription(
         transcriptions,
         cfg,
