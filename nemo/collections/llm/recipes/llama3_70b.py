@@ -48,11 +48,36 @@ def pretrain_recipe(
     )
 
 
-def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int) -> Partial:
-    recipe = pretrain_recipe(
-        name=name, ckpt_dir=ckpt_dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune
+def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node: int, peft_scheme: str = 'none'):
+    recipe = Partial(
+        finetune,
+        model=model(),
+        trainer=default_trainer(
+            tensor_parallelism=8,
+            pipeline_parallelism=1,
+            pipeline_parallelism_type=None,
+            virtual_pipeline_parallelism=None,
+            context_parallelism=1,
+            sequence_parallelism=False,
+            num_nodes=num_nodes,
+            num_gpus_per_node=num_gpus_per_node,
+            max_steps=1000,
+            limit_test_batches=None,
+            limit_val_batches=None,
+            val_check_interval=30,
+        ),
+        data=Config(SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1),
+        log=default_log(ckpt_dir=ckpt_dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, adam_beta2=0.98, warmup_steps=50),
+        resume=hf_resume("hf://meta-llama/Meta-Llama-3-70B"),
     )
-    recipe.resume = hf_resume("hf://meta-llama/Meta-Llama-3-70B")
-    recipe.peft = Config(LoRA)
-    recipe.data = Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
+    recipe.optim.lr_scheduler.min_lr = 0
+
+    if peft_scheme.lower() == 'lora':
+        recipe.peft = Config(LoRA)
+        recipe.optim.config.lr = 1e-4
+    elif peft_scheme.lower() in ['none', 'sft']:
+        recipe.optim.config.lr = 5e-6
+    else:
+        raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
     return recipe
