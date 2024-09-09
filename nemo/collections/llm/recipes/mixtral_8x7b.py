@@ -183,7 +183,7 @@ def pretrain_recipe_performance(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 8, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
-    Create a performance-optimized pre-training recipe for Llama3 70B model.
+    Create a performance-optimized pre-training recipe for Mixtral 8x7B model.
 
     This recipe enables performance optimizations that may not be suitable for all use cases.
     It builds upon the standard pre-training recipe and adds additional performance enhancements.
