@@ -284,7 +284,7 @@ class RGLRU(nn.Module):
 class Conv1D(MegatronModule):
     def __init__(self, config, width, temporal_width):
         if not HAVE_CAUSAL_CONV1D:
-             raise ImportError("Package causal_conv1d is required to use Conv1D")
+            raise ImportError("Package causal_conv1d is required to use Conv1D")
         super().__init__(config=config)
         self.config = config
         self.width = width
