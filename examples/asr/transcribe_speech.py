@@ -378,9 +378,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         if partial_audio and isinstance(asr_model, EncDecMultiTaskModel):
             raise ValueError("EncDecMultiTaskModel does not support partial transcription yet.")
 
-    if isinstance(asr_model,EncDecMultiTaskModel) and sorted_manifest_path is not None:
+    if isinstance(asr_model, EncDecMultiTaskModel) and sorted_manifest_path is not None:
         filepaths = sorted_manifest_path
-    
 
     # setup AMP (optional)
     if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
