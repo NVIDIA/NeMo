@@ -253,6 +253,11 @@ class TextProcessing:
         else:
             self.eos_id = None
 
+        if hasattr(tokenizer, "unk_id") and tokenizer.unk_id >= 0:
+            self.unk_id = tokenizer.unk_id
+        else:
+            self.unk_id = None
+
         if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
             self.pad_id = tokenizer.pad_id
         else:
