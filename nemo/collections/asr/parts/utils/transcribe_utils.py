@@ -503,7 +503,7 @@ def transcribe_partial_audio(
             config['augmentor'] = getattr(override_config, 'augmentor')
 
         temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
-        hypotheses = asr_model.transcribe(audio=temporary_datalayer)
+        hypotheses = asr_model.transcribe(audio=temporary_datalayer, override_config=override_config)
 
     finally:
         # set mode back to its original value
