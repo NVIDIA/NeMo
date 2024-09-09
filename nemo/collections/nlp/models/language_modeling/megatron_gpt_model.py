@@ -2117,8 +2117,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.cfg.get('enable_cuda_graph', False):
             assert HAVE_TE, "Transformer Engine is required for cudagraphs."
-            assert self.cfg.get('use_te_rng_tracker', False), \
-                "Transformer engine's RNG tracker is required for cudagraphs, this can be enabled with \
+            assert self.cfg.get(
+                'use_te_rng_tracker', False
+            ), "Transformer engine's RNG tracker is required for cudagraphs, this can be enabled with \
                 'use_te_rng_tracker=True'."
 
         # any configs that are not in the nemo model config will be added here
