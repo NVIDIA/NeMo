@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import shutil
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -96,21 +97,20 @@ class TestNeMoLogger:
         # Error because explicit_log_dir does not exist
         with pytest.raises(NotFoundError):
             nl.AutoResume(
-                dirpath=str(tmp_path / "test_resume"),
+                resume_from_directory=str(tmp_path / "test_resume"),
                 resume_if_exists=True,
             ).setup(trainer)
 
         # Error because checkpoints folder does not exist
         with pytest.raises(NotFoundError):
             nl.AutoResume(
-                dirpath=str(tmp_path / "test_resume" / "does_not_exist"),
-                path="does_not_exist",
+                resume_from_directory=str(tmp_path / "test_resume" / "does_not_exist"),
                 resume_if_exists=True,
             ).setup(trainer)
 
         # No error because we tell autoresume to ignore notfounderror
         nl.AutoResume(
-            dirpath=str(tmp_path / "test_resume" / "does_not_exist"),
+            resume_from_directory=str(tmp_path / "test_resume" / "does_not_exist"),
             resume_if_exists=True,
             resume_ignore_no_checkpoint=True,
         ).setup(trainer)
@@ -119,7 +119,7 @@ class TestNeMoLogger:
         # Error because checkpoints do not exist in folder
         with pytest.raises(NotFoundError):
             nl.AutoResume(
-                dirpath=path,
+                resume_from_directory=path,
                 resume_if_exists=True,
             ).setup(trainer)
 
@@ -127,7 +127,7 @@ class TestNeMoLogger:
         # Error because *end.ckpt is in folder indicating that training has already finished
         with pytest.raises(ValueError):
             nl.AutoResume(
-                dirpath=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
+                resume_from_directory=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
                 resume_if_exists=True,
             ).setup(trainer)
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end").rmdir()
@@ -137,7 +137,7 @@ class TestNeMoLogger:
         # Error because *end.ckpt is unfinished, should raise an error despite resume_ignore_no_checkpoint=True
         with pytest.raises(ValueError):
             nl.AutoResume(
-                dirpath=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
+                resume_from_directory=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
                 resume_if_exists=True,
                 resume_past_end=True,
                 resume_ignore_no_checkpoint=True,
@@ -150,7 +150,7 @@ class TestNeMoLogger:
         # Error because *last.ckpt is unfinished, should raise an error despite resume_ignore_no_checkpoint=True
         with pytest.raises(ValueError):
             nl.AutoResume(
-                dirpath=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
+                resume_from_directory=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
                 resume_if_exists=True,
                 resume_ignore_no_checkpoint=True,
             ).setup(trainer)
@@ -160,21 +160,24 @@ class TestNeMoLogger:
         ## if there are multiple "-last" checkpoints, choose the most recent one
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last").mkdir()
         time.sleep(1)  ## sleep for a second so the checkpoints are created at different times
-        Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last").mkdir()
+        ## make a "weights" dir within the checkpoint
+        Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last" / "weights").mkdir(
+            parents=True
+        )
         time.sleep(1)
         # unfinished last, that should be ignored
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel3--last").mkdir()
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel3--last-unfinished").touch()
 
         nl.AutoResume(
-            dirpath=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
+            resume_from_directory=Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints"),
             resume_if_exists=True,
         ).setup(trainer)
+        ## if "weights" exists, we should restore from there
         assert str(trainer.ckpt_path) == str(
-            Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last")
+            Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last" / "weights")
         )
 
-        # Finally succeed
         logger = nl.NeMoLogger(
             name="default",
             dir=str(tmp_path) + "/test_resume",
@@ -182,7 +185,7 @@ class TestNeMoLogger:
             use_datetime_version=False,
         )
         logger.setup(trainer)
-        Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last").rmdir()
+        shutil.rmtree(Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last"))
         nl.AutoResume(
             resume_if_exists=True,
         ).setup(trainer)
@@ -203,6 +206,6 @@ class TestNeMoLogger:
         logger.setup(trainer)
         nl.AutoResume(
             resume_if_exists=True,
-            dirpath=str(dirpath_checkpoint_dir),
+            resume_from_directory=str(dirpath_checkpoint_dir),
         ).setup(trainer)
         assert Path(trainer.ckpt_path).resolve() == dirpath_checkpoint.resolve()

@@ -18,10 +18,9 @@ from lightning_fabric.plugins.environments import slurm
 from pytorch_lightning import plugins as _pl_plugins
 
 # This is here to import it once, which improves the speed of launch when in debug-mode
-try:
-    import transformer_engine  # noqa
-except ImportError:
-    pass
+from nemo.utils.import_utils import safe_import
+
+safe_import("transformer_engine")
 
 from nemo.lightning.base import get_vocab_size, teardown
 from nemo.lightning.fabric.fabric import Fabric
@@ -33,6 +32,7 @@ from nemo.lightning.pytorch.optim import LRSchedulerModule, MegatronOptimizerMod
 from nemo.lightning.pytorch.plugins import MegatronDataSampler, MegatronMixedPrecision
 from nemo.lightning.pytorch.plugins import data_sampler as _data_sampler
 from nemo.lightning.pytorch.strategies import FSDPStrategy, MegatronStrategy
+from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.lightning.pytorch.trainer import Trainer
 from nemo.lightning.resume import AutoResume
 
@@ -59,6 +59,8 @@ __all__ = [
     "MegatronDataSampler",
     "MegatronMixedPrecision",
     "MegatronOptimizerModule",
+    "FSDPStrategy",
+    "RestoreConfig",
     "lr_scheduler",
     "NeMoLogger",
     "ModelCheckpoint",
