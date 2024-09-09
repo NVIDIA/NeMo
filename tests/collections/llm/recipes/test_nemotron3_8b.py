@@ -4,7 +4,7 @@ import pytest
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.collections.llm.gpt.model.nemotron import NemotronModel, Nemotron3Config8B
+from nemo.collections.llm.gpt.model.nemotron import Nemotron3Config8B, NemotronModel
 from nemo.collections.llm.recipes import nemotron3_8b
 from nemo.lightning import AutoResume, Trainer
 
@@ -62,4 +62,3 @@ class TestNemotron3_8B:
         assert recipe.data.seq_length == 4096
         assert recipe.data.global_batch_size == 32
         assert recipe.data.micro_batch_size == 2
-

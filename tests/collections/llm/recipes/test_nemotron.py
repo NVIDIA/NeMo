@@ -1,10 +1,9 @@
 import nemo_run as run
 import pytest
 
-from nemo.collections.llm.gpt.model.nemotron import NemotronModel, Nemotron3Config4B
+from nemo.collections.llm.gpt.model.nemotron import Nemotron3Config4B, NemotronModel
 from nemo.collections.llm.recipes import nemotron
 from nemo.lightning import Trainer
-
 
 
 class TestNemotron:
@@ -54,13 +53,25 @@ class TestNemotron:
         assert trainer_config.devices == num_gpus_per_node
         assert trainer_config.num_nodes == num_nodes
 
-    @pytest.mark.parametrize("tensor_model_parallel_size,pipeline_model_parallel_size,context_parallel_size,sequence_parallel", [(2, 2, 4, True), (4, 1, 2, False)])
-    def test_trainer_with_different_parallelism_options(self, recipe_module, tensor_model_parallel_size, pipeline_model_parallel_size, context_parallel_size, sequence_parallel):
+    @pytest.mark.parametrize(
+        "tensor_model_parallel_size,pipeline_model_parallel_size,context_parallel_size,sequence_parallel",
+        [(2, 2, 4, True), (4, 1, 2, False)],
+    )
+    def test_trainer_with_different_parallelism_options(
+        self,
+        recipe_module,
+        tensor_model_parallel_size,
+        pipeline_model_parallel_size,
+        context_parallel_size,
+        sequence_parallel,
+    ):
         trainer_config = recipe_module.nemotron_trainer(
-            tensor_parallelism=tensor_model_parallel_size, pipeline_parallelism=pipeline_model_parallel_size, context_parallelism=context_parallel_size, sequence_parallelism=sequence_parallel
+            tensor_parallelism=tensor_model_parallel_size,
+            pipeline_parallelism=pipeline_model_parallel_size,
+            context_parallelism=context_parallel_size,
+            sequence_parallelism=sequence_parallel,
         )
         assert trainer_config.strategy.tensor_model_parallel_size == tensor_model_parallel_size
         assert trainer_config.strategy.pipeline_model_parallel_size == pipeline_model_parallel_size
         assert trainer_config.strategy.context_parallel_size == context_parallel_size
         assert trainer_config.strategy.sequence_parallel == sequence_parallel
-
