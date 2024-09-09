@@ -15,6 +15,12 @@
 from nemo.collections.llm.gpt.model.baichuan import Baichuan2Config, Baichuan2Config7B, Baichuan2Model
 from nemo.collections.llm.gpt.model.base import (
     GPTConfig,
+    GPTConfig5B,
+    GPTConfig7B,
+    GPTConfig20B,
+    GPTConfig40B,
+    GPTConfig126M,
+    GPTConfig175B,
     GPTModel,
     MaskedTokenLossReduction,
     gpt_data_step,
@@ -70,6 +76,16 @@ from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config72B,
     Qwen2Config500M,
     Qwen2Model,
+)
+from nemo.collections.llm.gpt.model.ssm import (
+    BaseMambaConfig1_3B,
+    BaseMambaConfig2_7B,
+    BaseMambaConfig130M,
+    BaseMambaConfig370M,
+    BaseMambaConfig780M,
+    NVIDIAMambaConfig8B,
+    NVIDIAMambaHybridConfig8B,
+    SSMConfig,
 )
 from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
 from nemo.collections.llm.gpt.model.starcoder2 import (
@@ -137,6 +153,14 @@ __all__ = [
     "Qwen2Config7B",
     "Qwen2Config72B",
     "Qwen2Model",
+    "SSMConfig",
+    "BaseMambaConfig130M",
+    "BaseMambaConfig370M",
+    "BaseMambaConfig780M",
+    "BaseMambaConfig1_3B",
+    "BaseMambaConfig2_7B",
+    "NVIDIAMambaConfig8B",
+    "NVIDIAMambaHybridConfig8B",
     "MaskedTokenLossReduction",
     "gpt_data_step",
     "gpt_forward_step",
