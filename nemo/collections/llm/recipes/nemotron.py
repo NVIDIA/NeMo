@@ -90,7 +90,7 @@ def nemotron_trainer(
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         max_steps (int): Maximum number of training steps.
-        precision (str): Precision configuration, one of fp32, fp16 or bf16-mixed.
+        precision (str): Precision configuration, one of fp32, 16-mixed or bf16-mixed.
         accumulate_grad_batches (int): Number of steps per gradient accumulation.
         gradient_clip_val (float): Value for gradient clipping.
         limit_test_batches (int): Limit the number of test batches.
@@ -117,7 +117,7 @@ def nemotron_trainer(
     )
 
     precision_plugin = None
-    if precision == "fp16":
+    if precision == "16-mixed":
         precision_plugin = fp16_mixed()
     elif precision == "bf16-mixed":
         precision_plugin = bf16_mixed()

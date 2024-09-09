@@ -22,6 +22,7 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptim
 
 @run.cli.factory
 def distributed_fused_adam_with_cosine_annealing(
+    precision: str = "bf16-mixed",  # or "16-mixed"
     warmup_steps: int = 2000,
     constant_steps: int = 0,
     max_lr: float = 1e-4,
@@ -33,7 +34,8 @@ def distributed_fused_adam_with_cosine_annealing(
         optimizer="adam",
         lr=max_lr,
         weight_decay=0.1,
-        bf16=True,
+        bf16=precision == "bf16-mixed",
+        fp16=precision == "16-mixed",
         adam_beta1=0.9,
         adam_beta2=0.95,
         adam_eps=1e-5,

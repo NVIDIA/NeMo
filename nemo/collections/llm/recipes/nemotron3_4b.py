@@ -101,7 +101,7 @@ def pretrain_recipe(
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         max_steps (int): Maximum number of training steps.
-        precision (str): Precision configuration, one of fp32, fp16 or bf16-mixed.
+        precision (str): Precision configuration, one of fp32, 16-mixed or bf16-mixed.
         accumulate_grad_batches (int): Number of steps per gradient accumulation.
         gradient_clip_val (float): Value for gradient clipping.
         limit_test_batches (int): Limit the number of test batches.
@@ -159,7 +159,7 @@ def pretrain_recipe(
         ),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(
-            warmup_steps=warmup_steps, constant_steps=constant_steps, min_lr=min_lr, max_lr=max_lr
+            precision=precision, warmup_steps=warmup_steps, constant_steps=constant_steps, min_lr=min_lr, max_lr=max_lr
         ),
         resume=default_resume(),
     )
