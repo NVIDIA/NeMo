@@ -169,7 +169,7 @@ def get_trt_deployable(args):
         model_dir=trt_path,
         lora_ckpt_list=args.lora_ckpt,
         load_model=(args.visual_checkpoint is None),
-        modality=args.modality
+        modality=args.modality,
     )
 
     if args.visual_checkpoint is not None:
