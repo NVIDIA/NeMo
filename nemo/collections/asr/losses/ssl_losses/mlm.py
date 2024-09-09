@@ -25,8 +25,7 @@ __all__ = ["MLMLoss"]
 class MLMLoss(Loss):
     @property
     def input_types(self):
-        """Input types definitions for Contrastive.
-        """
+        """Input types definitions for Contrastive."""
         return {
             "spec_masks": NeuralType(("B", "D", "T"), SpectrogramType(), optional=True),
             "decoder_outputs": NeuralType(("B", "T", "D"), LogprobsType()),
@@ -49,7 +48,9 @@ class MLMLoss(Loss):
         return True
 
     def __init__(
-        self, combine_time_steps: int = 1, mask_threshold: float = 0.8,
+        self,
+        combine_time_steps: int = 1,
+        mask_threshold: float = 0.8,
     ):
         super().__init__()
         self.nll_loss = nn.NLLLoss()
@@ -83,8 +84,7 @@ class MLMLoss(Loss):
 class MultiMLMLoss(Loss):
     @property
     def input_types(self):
-        """Input types definitions for Contrastive.
-        """
+        """Input types definitions for Contrastive."""
         if self.squeeze_single and self.num_decoders == 1:
             decoder_outputs = NeuralType(("B", "T", "C"), LogprobsType())
             targets = NeuralType(('B', 'T'), LabelsType())
