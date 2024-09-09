@@ -3453,10 +3453,10 @@ jobs:
         rm -rf examples/nlp/language_modeling/gpt_pretrain_results
         rm -rf examples/nlp/language_modeling/gpt_index_mappings
 
-  L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS1,2,4:
+  L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS1,2,4') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
@@ -5235,7 +5235,7 @@ jobs:
       - L2_Megatron_GPT_with_ALiBi_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2
-      - L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS1,2,4
+      - L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124
       - L2_Megatron_GPT_Finetuning_PP2
       - L2_Megatron_GPT_Finetuning_StarCoder_PP1
       - L2_Megatron_GPT_Embedding 
