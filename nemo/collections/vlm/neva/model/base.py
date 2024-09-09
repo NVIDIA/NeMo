@@ -74,9 +74,9 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         _batch = batch
 
     required_keys = set()
-    required_keys.add("attention_mask")
+    required_keys.update(("attention_mask", "media", "tokens",))
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("media", "tokens", "position_ids"))
+        required_keys.update(("position_ids"))
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
 
@@ -232,14 +232,31 @@ class NevaConfig(TransformerConfig, io.IOMixin):
     vision_model_from_pretrained: Optional[str] = None  # TODO
     vision_projection_from_pretrained: Optional[str] = None  # TODO
 
-    freeze_language_model: bool = True
+    freeze_language_model: bool = False
     freeze_vision_model: bool = True
     freeze_vision_projection: bool = False
 
     forward_step_fn: Callable = neva_forward_step
     data_step_fn: Callable = neva_data_step
 
+    def __post_init__(self):
+        model_config_attr = [
+            'num_layers', 'hidden_size', 'num_attention_heads', 'num_query_groups',
+            'ffn_hidden_size', 'kv_channels', 'hidden_dropout', 'attention_dropout',
+            'fp32_residual_connection', 'apply_residual_connection_post_layernorm',
+            'layernorm_epsilon', 'layernorm_zero_centered_gamma', 'add_bias_linear',
+            'add_qkv_bias', 'gated_linear_unit', 'activation_func',
+            'activation_func_fp8_input_store', 'num_moe_experts', 'rotary_interleaved',
+            'window_size', 'normalization', 'qk_layernorm', 'test_mode',
+            'calculate_per_token_loss'
+        ]
+
+        for attr in model_config_attr:
+            setattr(self, attr, getattr(self.language_transformer_config, attr))
+
     def configure_model(self, tokenizer) -> "MCoreLLaVAModel":
+        from megatron.core import parallel_state
+
         language_model = self.language_transformer_config.configure_model(tokenizer=tokenizer)
         vision_model = self.vision_transformer_config.configure_model()
         vision_projection = self.vision_projection_config.configure_model()
@@ -258,6 +275,8 @@ class NevaConfig(TransformerConfig, io.IOMixin):
             vision_model=vision_model,
             vision_projection=vision_projection,
             drop_vision_class_token=self.drop_vision_class_token,
+            pre_process=parallel_state.is_pipeline_first_stage(),
+            post_process=parallel_state.is_pipeline_last_stage(),
         )
         model.freeze(
             freeze_language_model=self.freeze_language_model,
@@ -286,8 +305,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self.post_process = post_process
 
         self.encoder_hidden_state = None
-        self.vision_model = vision_model
-        self.vision_projection = vision_projection
+        self.vision_model = vision_model if self.pre_process else None
+        self.vision_projection = vision_projection if self.pre_process else None
         self.language_model = language_model
         self.model_type = ModelType.encoder_or_decoder
         # This attribute is needed to check if an all-reduce is required
@@ -516,7 +535,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         """Forward function of the LLaVA model.
 
         Args:
-            images (torch.Tensor): input image of shape [num_tiles, img_h, img_w]. num_tiles means the number of image tiles in this batch.
+            media (torch.Tensor): input image of shape [num_tiles, img_h, img_w]. num_tiles means the number of image tiles in this batch.
             input_ids (torch.Tensor): input text ids [batch, text_seq_len].
             position_ids (torch.Tensor): input text position ids [batch, text_seq_len].
             attention_mask (torch.Tensor): Attention mask for the language model [batch, 1, combined_seq_len, combined_seq_len].
@@ -531,12 +550,18 @@ class MCoreNevaModel(MCoreLLaVAModel):
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
         use_inference_kv_cache = (
-            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
+            inference_params is not None and "media_tokens_count" in inference_params.key_value_memory_dict
         )
+        media = torch.tensor([], device=input_ids.device) if media is None else media
+        has_media = media.shape[0] > 0
+
         # If running inference, we can skip media token computation if they were computed already earlier for this sample.
-        if use_inference_kv_cache or media is None:
+        if use_inference_kv_cache:
             media_embeddings = None
-        elif self.add_encoder:
+        elif self.add_encoder and not has_media:
+            # If no images provided, use an empty image embeddings tensor.
+            media_embeddings = torch.tensor([], dtype=media.dtype, device=media.device)
+        elif self.add_encoder and has_media:
             # media is in shape of (num_images_in_mbs, c, h, w)
             # note num_images_in_mbs is not mbs but total images in this mbs.
             if self.vision_model_from_hf:
@@ -554,7 +579,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 media_embeddings = media_embeddings[:, class_token_len:, :]
 
             # map vision model output size to language model input size.
-            media_embeddings = self.vision_projection(media_embeddings)  # [img_seq_len, num_tiles, h_vision]
+            media_embeddings = self.vision_projection(
+                media_embeddings
+            )  # [img_seq_len, num_tiles, h_vision]
 
             # If running inference, the language model KV cache will be updated for media token positions.
             # Here we store the media tokens sequence length, which can be used as an offset to the KV cache later.
@@ -578,28 +605,25 @@ class MCoreNevaModel(MCoreLLaVAModel):
             language_embeddings = self.language_model.embedding(
                 input_ids=input_ids_text, position_ids=position_ids
             )  # [text_seq_len, b, h_language]
-            language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
+            language_embeddings = language_embeddings.transpose(
+                1, 0
+            ).contiguous()  # [b, text_seq_len, h_language]
 
-        if media is None:
-            combined_embeddings = language_embeddings.transpose(1, 0).contiguous()
-            final_labels = labels
-            final_loss_mask = loss_mask
-        else:
-            # Assume 1 tile per image if the number of tiles is not provided.
-            if num_media_tiles is None:
-                num_media_tiles = torch.ones(media.shape[0], dtype=torch.int, device=input_ids.device)
+        # Assume 1 tile per image if the number of tiles is not provided.
+        if num_media_tiles is None:
+            num_media_tiles = torch.ones(media.shape[0], dtype=torch.int, device=input_ids.device)
 
-            # Preprocess input, labels and loss mask.
-            combined_embeddings, final_labels, final_loss_mask = self._preprocess_data(
-                media_embeddings,
-                language_embeddings,
-                input_ids,
-                loss_mask,
-                labels,
-                use_inference_kv_cache,
-                media_token_index,
-                num_media_tiles,
-            )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
+        # Preprocess input, labels and loss mask.
+        combined_embeddings, final_labels, final_loss_mask = self._preprocess_data(
+            media_embeddings,
+            language_embeddings,
+            input_ids,
+            loss_mask,
+            labels,
+            use_inference_kv_cache,
+            media_token_index,
+            num_media_tiles,
+        )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
         output = self.language_model(
             input_ids=None,
