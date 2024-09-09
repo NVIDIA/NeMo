@@ -569,7 +569,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     model_chunk,
                     # Turn off bucketing for model_chunk 2 onwards, since communication for these
                     # model chunks is overlapped with compute anyway.
-                    disable_bucketing=(model_chunk_idx > 0) or self.cfg.optim.get('overlap_param_gather_with_optimizer_step', False),
+                    disable_bucketing=(model_chunk_idx > 0)
+                    or self.cfg.optim.get('overlap_param_gather_with_optimizer_step', False),
                 )
                 for (model_chunk_idx, model_chunk) in enumerate(self.model)
             ]
