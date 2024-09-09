@@ -62,7 +62,7 @@ def trainer(
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
     sequence_parallelism: bool = True,
-    expert_parallelism: int = 2,
+    expert_parallelism: int = 4,
     num_nodes: int = 2,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
