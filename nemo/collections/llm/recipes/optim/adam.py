@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
 
 import nemo_run as run
 from megatron.core.optimizer import OptimizerConfig
@@ -20,7 +21,13 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptim
 
 
 @run.cli.factory
-def distributed_fused_adam_with_cosine_annealing(max_lr: float = 1e-4) -> run.Config[OptimizerModule]:
+def distributed_fused_adam_with_cosine_annealing(
+    warmup_steps: int = 2000,
+    constant_steps: int = 0,
+    max_lr: float = 1e-4,
+    min_lr: Optional[float] = None,
+) -> run.Config[OptimizerModule]:
+
     opt_cfg = run.Config(
         OptimizerConfig,
         optimizer="adam",
@@ -36,11 +43,12 @@ def distributed_fused_adam_with_cosine_annealing(max_lr: float = 1e-4) -> run.Co
         clip_grad=1.0,
     )
 
+    min_lr = min_lr or (0.1 * max_lr)
     sched = run.Config(
         CosineAnnealingScheduler,
-        warmup_steps=2000,
-        constant_steps=0,
-        min_lr=0.1 * max_lr,
+        warmup_steps=warmup_steps,
+        constant_steps=constant_steps,
+        min_lr=min_lr,
     )
 
     return run.Config(
