@@ -366,7 +366,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     remove_path_after_done = sorted_manifest_path if sorted_manifest_path is not None else None
 
     if not cfg.allow_partial_transcribe:
-        # by defatul, use model's transcribe() function, unless partial audio is required
         partial_audio = False
     else:
         if not partial_audio and cfg.dataset_manifest is not None:
@@ -379,9 +378,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         if partial_audio and isinstance(asr_model, EncDecMultiTaskModel):
             raise ValueError("EncDecMultiTaskModel does not support partial transcription yet.")
 
-    # As EncDecMultiTaskModel does not support transcription on filepaths, use manifest instead
-    if isinstance(asr_model, EncDecMultiTaskModel):
+    if isinstance(asr_model,EncDecMultiTaskModel) and sorted_manifest_path is not None:
         filepaths = sorted_manifest_path
+    
 
     # setup AMP (optional)
     if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
