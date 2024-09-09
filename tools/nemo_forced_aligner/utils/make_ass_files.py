@@ -65,7 +65,10 @@ def rgb_list_to_hex_bgr(rgb_list):
 
 
 def make_ass_files(
-    utt_obj, utt_id, output_dir_root, ass_file_config,
+    utt_obj,
+    utt_id,
+    output_dir_root,
+    ass_file_config,
 ):
 
     # don't try to make files if utt_obj.segments_and_tokens is empty, which will happen

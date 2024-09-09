@@ -1,15 +1,15 @@
-from typing import Type, Union, List
+from typing import List, Type, Union
 
-from utils.tokenization.abc import BaseAligner
-from utils.units import Alignment, Segment, Word, Token, BlankToken
 from utils.constants import BLANK_ID
+from utils.tokenization.abc import BaseAligner
+from utils.units import Alignment, BlankToken, Segment, Token, Word
 
 
 class TokenBasedAligner(BaseAligner):
-    def __init__(self, tokenizer, **kwargs): 
+    def __init__(self, tokenizer, **kwargs):
         super().__init__(**kwargs)
         self.tokenizer = tokenizer
-    
+
     def text_to_ids(self, text: str):
         return self.tokenizer.text_to_ids(text)
 
@@ -46,7 +46,7 @@ class TokenBasedAligner(BaseAligner):
             if sub_or_superscript_to_num[text] == ref_text:
                 return True
         return False
-    
+
     @staticmethod
     def _restore_token_case(word: str, word_tokens: List[str]):
         # remove repeated "▁" and "_" from word as that is what the tokenizer will do
@@ -93,7 +93,7 @@ class TokenBasedAligner(BaseAligner):
     def align(self, alignment: Alignment, T: int, separator: str = None):
         if not self.is_alignable(alignment.text, T):
             return
-        
+
         alignment.segments_and_tokens.append(BlankToken(s_start=0, s_end=0))
         segment_s_pointer = 1
         word_s_pointer = 1
@@ -104,39 +104,39 @@ class TokenBasedAligner(BaseAligner):
         text_segments = self.text_to_segments(alignment.text, separator)
 
         for text_segment in text_segments:
-            segment, segment_tokens, segment_s_pointer = self.align_unit(unit_text=text_segment,
-                                                                         unit_type=Segment,
-                                                                         unit_s_pointer=segment_s_pointer)
-            
+            segment, segment_tokens, segment_s_pointer = self.align_unit(
+                unit_text=text_segment, unit_type=Segment, unit_s_pointer=segment_s_pointer
+            )
+
             segment_words = segment.text.split()
 
             for word_i, _word in enumerate(segment_words):
-                word, word_tokens, word_s_pointer = self.align_unit(unit=_word,
-                                                                    unit_type=Word,
-                                                                    unit_s_pointer=word_s_pointer)
-                
+                word, word_tokens, word_s_pointer = self.align_unit(
+                    unit=_word, unit_type=Word, unit_s_pointer=word_s_pointer
+                )
+
                 word_tokens_cased = self._restore_token_case(_word, word_tokens)
                 word_tokens_ids = self.text_to_ids(_word)
 
-                for token_i, (_token, token_cased, token_id) in enumerate(zip(word_tokens, word_tokens_cased, word_tokens_ids)):
+                for token_i, (_token, token_cased, token_id) in enumerate(
+                    zip(word_tokens, word_tokens_cased, word_tokens_ids)
+                ):
                     alignment.token_ids_with_blanks.extend([token_id, BLANK_ID])
-                    
-                    token, _, token_s_pointer = self.align_unit(unit=_token,
-                                                                unit_type=Token,
-                                                                unit_s_pointer=token_s_pointer)
+
+                    token, _, token_s_pointer = self.align_unit(
+                        unit=_token, unit_type=Token, unit_s_pointer=token_s_pointer
+                    )
                     token.text_cased = token_cased
 
                     word.tokens.append(token)
                     if token_i < len(word_tokens) - 1:
                         token_s_pointer += 1
                         word.tokens.append(BlankToken(s_start=token_s_pointer, s_end=token_s_pointer))
-                
+
                 segment.words_and_tokens.append(word)
                 if word_i < len(segment_words) - 1:
                     segment.words_and_tokens.append(BlankToken(s_start=token_s_pointer, s_end=token_s_pointer))
-            
-            alignment.segments_and_tokens.extend(
-                [segment, BlankToken(s_start=token_s_pointer, s_end=token_s_pointer)]
-                )
+
+            alignment.segments_and_tokens.extend([segment, BlankToken(s_start=token_s_pointer, s_end=token_s_pointer)])
 
         return
