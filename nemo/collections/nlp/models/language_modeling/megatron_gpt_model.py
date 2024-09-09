@@ -2115,6 +2115,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             raise ValueError(f"fp8 enabled but fp8_format (fp8_e4m3 | fp8_hybrid) is not set.")
 
+        if self.cfg.get('enable_cuda_graph', False):
+            assert HAVE_TE, "Transformer Engine is required for cudagraphs."
+            assert self.cfg.get('use_te_rng_tracker', False), \
+                "Transformer engine's RNG tracker is required for cudagraphs, this can be enabled with \
+                'use_te_rng_tracker=True'."
+
         # any configs that are not in the nemo model config will be added here
         model_specific_configs = {
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
