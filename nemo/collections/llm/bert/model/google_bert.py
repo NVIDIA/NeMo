@@ -17,7 +17,7 @@ class GoogleBERTConfig(BertConfig):
     add_lm_head: bool = True
     init_method_std: float = 0.02
     hidden_dropout: float = 0.1
-    normalization: float = 'layernorm'
+    normalization: float = 'LayerNorm'
     layernorm_epsilon: float = 1e-5
     
 

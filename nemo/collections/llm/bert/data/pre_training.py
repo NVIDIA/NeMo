@@ -157,12 +157,36 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
             num_val_samples = None
 
         train_valid_test_num_samples = [num_train_samples, num_val_samples, num_test_samples]
+        print('Building dataset')
         self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
             BERTMaskedWordPieceDataset,
             train_valid_test_num_samples,
             is_built_on_rank=lambda: True,
             config=self.bert_dataset_config,
         ).build()
+        print('Building Dataset Done.')
+        # from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
+        # from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
+        # data_prefix = '/lustre/fsw/coreai_dlalgo_llm/dataset/the_pile/train/my-gpt3_00_text_document'
+        # indexed_dataset = dataset_utils.get_indexed_dataset_(
+        #     data_prefix=data_prefix,
+        #     data_impl='mmap', skip_warmup=True, data_impl_kwargs={},
+        # )
+        # self._train_ds = BertDataset(
+        #     cfg=self.bert_dataset_config,
+        #     name='train',
+        #     indexed_dataset=indexed_dataset,
+        #     data_prefix=data_prefix,
+        #     num_epochs=None,
+        #     max_num_samples=1000,
+        #     masked_lm_prob=0.1,
+        #     short_seq_prob=0.15,
+        #     max_seq_length=1024,
+        #     seed=1234,
+        #     binary_head=True,
+        #     tokenizer=self.tokenizer,
+        # )
+        # print('building dataset done')
 
     # uncomment once fabric API is merged
     # def fabric_setup(

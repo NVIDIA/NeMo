@@ -13,7 +13,7 @@ from megatron.core.models.bert import bert_layer_specs
 from nemo.collections.llm.bert.model.bert_spec import bert_layer_with_transformer_engine_spec_postln, bert_layer_local_spec_postln
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
-from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
+from nemo.lightning.megatron_parallel import MaskedTokenLossReduction, BERTLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from megatron.core.models.bert.bert_model import BertModel as MCoreBert
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
@@ -48,11 +48,11 @@ def bert_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
         _batch = batch
 
     required_keys = set()
-    required_keys.add("attention_mask")
+    required_keys.add("padding_mask")
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("tokens", "position_ids"))
+        required_keys.add("text")
     if parallel_state.is_pipeline_last_stage():
-        required_keys.update(("labels", "loss_mask"))
+        required_keys.update(("labels", "loss_mask", "types", "is_random"))
 
     _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
     # slice batch along sequence dimension for context parallelism
@@ -67,19 +67,19 @@ def bert_forward_step(model: L.LightningModule, batch: Dict[str, torch.Tensor]) 
     """
     forward_args = {
         "input_ids": batch["text"],
-        "attention_mask": batch["attention_mask"],
+        "attention_mask": batch["padding_mask"],
+        "lm_labels": batch["labels"],
+        "tokentype_ids": batch["types"],
     }
 
     if "cu_seqlens" in batch:
         forward_args["packed_seq_params"] = get_packed_seq_params(batch)
 
-    forward_results = model(**forward_args)
-    return forward_results  # TODO support losses that also include the binary head, this means doing something more fancy than the one default GPT reduction function above MaskedTokenLossReduction()
+    return model(**forward_args)
 
 
-    
 def default_layer_spec(config: "BertConfig") -> ModuleSpec:
-    transformer_block_type = config.get('transformer_block_type', 'pre_ln')
+    transformer_block_type = getattr(config, 'transformer_block_type', 'pre_ln')
     assert transformer_block_type == 'pre_ln' or transformer_block_type == 'post_ln', f'Unknown transformer block type {transformer_block_type}, supported type for bert model is: pre_ln, post_ln'
     if HAVE_TE:
         if transformer_block_type == 'pre_ln':
@@ -107,6 +107,7 @@ class BertConfig(TransformerConfig, io.IOMixin):
     attention_softmax_in_fp32: bool = False
     masked_softmax_fusion: bool = True
     deallocate_pipeline_outputs = True
+    make_vocab_size_divisible_by: int = 128
 
     transformer_layer_spec: Union[ModuleSpec, Callable[["BertConfig"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = bert_forward_step
@@ -117,7 +118,6 @@ class BertConfig(TransformerConfig, io.IOMixin):
     bert_binary_head: bool = True
 
     def configure_model(self, tokenizer) -> "MCoreBertModelWrapperWithPostLNSupport":
-        breakpoint()
         vp_size = self.virtual_pipeline_model_parallel_size
         if vp_size:
             p_size = self.pipeline_model_parallel_size
@@ -159,7 +159,6 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
     def __init__(self, transformer_block_type='pre-ln', add_pooler=True, *args, **kwargs):
 
         super(MCoreBertModelWrapperWithPostLNSupport, self).__init__(*args, **kwargs)
-        breakpoint()
         self.add_pooler = add_pooler
         self.transformer_block_type = transformer_block_type
 
@@ -439,22 +438,11 @@ class BertModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def forward(
         self,
-        input_ids: torch.Tensor,
-        position_ids: torch.Tensor,
-        attention_mask: torch.Tensor,
-        labels: Optional[torch.Tensor] = None,
-        decoder_input: Optional[torch.Tensor] = None,
-        inference_params=None,
+        *args,
+        **kwargs,
     ) -> torch.Tensor:
-        output_tensor = self.module(
-            input_ids,
-            position_ids,
-            attention_mask,
-            decoder_input=decoder_input,
-            labels=labels,
-            inference_params=inference_params,
-        )
-
+        """Call the forward method of the underlying model, and return whatever it outputs."""
+        output_tensor = self.module(*args, **kwargs)  # for now just pass through to the underlying model
         return output_tensor
 
     def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
@@ -473,16 +461,16 @@ class BertModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self.forward_step(batch)
 
     @property
-    def training_loss_reduction(self) -> MaskedTokenLossReduction:
+    def training_loss_reduction(self) -> BERTLossReduction:
         if not self._training_loss_reduction:
-            self._training_loss_reduction = MaskedTokenLossReduction()
+            self._training_loss_reduction = BERTLossReduction()
 
         return self._training_loss_reduction
 
     @property
-    def validation_loss_reduction(self) -> MaskedTokenLossReduction:
+    def validation_loss_reduction(self) -> BERTLossReduction:
         if not self._validation_loss_reduction:
-            self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
+            self._validation_loss_reduction = BERTLossReduction(validation_step=True)
 
         return self._validation_loss_reduction
 
