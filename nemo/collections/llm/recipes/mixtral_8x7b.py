@@ -211,12 +211,15 @@ def pretrain_recipe_performance(
         It may not be suitable for all hardware configurations or use cases.
     """
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
-    recipe.trainer.callbacks.extend([
-        run.Config(MegatronTokenDropCallback),
-        run.Config(MegatronCommOverlapCallback),
-    ])
+    recipe.trainer.callbacks.extend(
+        [
+            run.Config(MegatronTokenDropCallback),
+            run.Config(MegatronCommOverlapCallback),
+        ]
+    )
 
     return recipe
+
 
 def hf_resume() -> run.Config[nl.AutoResume]:
     """
