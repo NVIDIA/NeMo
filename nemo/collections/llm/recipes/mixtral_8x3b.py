@@ -29,9 +29,8 @@ from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.utils.exp_manager import TimingCallback
-from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "mixtral_8x3b"
@@ -210,15 +209,10 @@ def pretrain_recipe_performance(
     """
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
 
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=True,
-            tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
-            defer_embedding_wgrad_compute=True,
-            wgrad_deferral_limit=22,
-        )
-    )
+    recipe.trainer.callbacks.extend([
+        run.Config(MegatronTokenDropCallback),
+        run.Config(MegatronCommOverlapCallback),
+    ])
 
     return recipe
 
