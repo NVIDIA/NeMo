@@ -18,7 +18,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import List, Optional, Tuple, Union
+from typing import List, Tuple, Union
 
 import torch
 from omegaconf import DictConfig
@@ -27,7 +27,6 @@ from tqdm.auto import tqdm
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel, EncDecMultiTaskModel
-from nemo.collections.asr.parts.mixins.transcription import TranscribeConfig, get_value_from_transcription_config
 from nemo.collections.asr.parts.utils import manifest_utils, rnnt_utils
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR, FrameBatchMultiTaskAED
 from nemo.collections.common.metrics.punct_er import OccurancePunctuationErrorRate

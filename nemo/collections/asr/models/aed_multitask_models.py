@@ -800,7 +800,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         """
         manifest_filepath = trcfg._internal.manifest_filepath
 
-        audio_files = self._may_be_make_dict_and_fix_paths(audio_files, None, trcfg)
+        audio_files = self._may_be_make_dict_and_fix_paths(audio_files, manifest_filepath, trcfg)
 
         return super()._transcribe_input_manifest_processing(audio_files, temp_dir, trcfg)
 
