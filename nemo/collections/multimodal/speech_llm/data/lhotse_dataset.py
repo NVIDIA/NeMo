@@ -143,8 +143,9 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             target_texts.append(target_text)
             target_text_lengths.append(target_text_length)
 
-        cuts = [c for i, c in enumerate(cuts) if i not in remove_ids]
+        # cuts = [c for i, c in enumerate(cuts) if i not in remove_ids]
 
+        audio, audio_lens, cuts = self.load_audio(cuts)
         # TODO
         # AudioSamples does not work if the audio files in the CutSet has different sampling rates
         # audio, audio_lens, cuts = zip(*[self.load_audio(CutSet([c])) for c in cuts])
@@ -269,8 +270,9 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     speech_loss_mask[:, :itl, :] = False
                     text_loss_mask[:, :itl, :] = False
             loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
+            full_lengths = target_text_lengths + 1 + features_lens + 1 + instruction_length
 
-        if getattr(cut, "direct_s2s", False):
+        elif getattr(cut, "direct_s2s", False):
             # Add 1 for eos token
             # tt[0] is the bos token
             token_list = [
@@ -291,6 +293,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     speech_loss_mask[:, :itl, :] = False
                     text_loss_mask[:, :itl, :] = False
             loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
+            full_lengths = 1 + features_lens + 1 + instruction_length
         elif getattr(cut, "s2t", False):
             # Add 1 for eos token
             token_list = [tt[: ttl + 1] for tt, ttl in zip(target_texts, target_text_lengths)]
@@ -308,6 +311,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     speech_loss_mask[:, :itl, :] = False
                     text_loss_mask[:, :itl, :] = False
             loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
+            full_lengths = target_text_lengths + 1 + instruction_length
         # Start from index 1 since the first token will not be used as a label
         loss_mask = loss_mask[:, 1:, :]
 
@@ -322,6 +326,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             "instructions": instructions,
             "instruction_lengths": instruction_lengths,
             "tokens": tokens[:, :-1, :],
+            "tokens_length": full_lengths - 1,
             "labels": tokens[:, 1:, :],
             "loss_mask": loss_mask,
             # For validation mainly

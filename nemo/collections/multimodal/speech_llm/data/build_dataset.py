@@ -85,7 +85,7 @@ def build_speechllm_dataset(model_instance, data_cfg, is_train):
             max_seq_length=data_cfg["max_seq_length"],
             context_key=data_cfg.get('context_key', "context"),
             default_context_key=data_cfg.get('default_context_key', "default_context"),
-            vocab_sizes=model_instance.cfg.get('vocab_sizes', [-1]),
+            vocab_sizes=model_instance.cfg.get('proj_head_dims', [-1]),
             decoder_reduction_factor=model_instance.cfg.get('decoder_reduction_factor', 1),
             speech_pad_id=data_cfg.get('speech_pad_id', 1001),
             speech_unk_id=data_cfg.get('speech_unk_id', 1002),

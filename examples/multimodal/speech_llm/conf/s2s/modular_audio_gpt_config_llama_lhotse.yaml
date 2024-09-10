@@ -65,7 +65,7 @@ exp_manager:
 model:
   # TBD:
   salm_model_path: ???
-  s2s_vocab_size: 40960 # This should be equal to the vocab_sizes[0] + decoder_reduction_factor * sum(vocab_sizes[1:])
+  s2s_vocab_size: 72960 # This should be equal to the vocab_sizes[0] + decoder_reduction_factor * sum(vocab_sizes[1:])
   proj_head_dims: [32000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024]
   proj_head_loss_weights: [1, 1, 1, 1, 1, 1, 1, 1, 1]
   decoder_reduction_factor: 5
@@ -240,7 +240,7 @@ model:
         weight: 1.0
         tags:
           lang: en
-          s2st: True
+          s2s: True
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
@@ -299,14 +299,14 @@ model:
           weight: 1.0
           tags:
             lang: en
-            s2st: True
+            s2s: True
           input_cfg:
             - type: lhotse_shar
               shar_path: /workspace/nemo/works/zhehuaic_works/data/s2s_shars/es_mini/
               weight: 1.0
               tags:
                 lang: en
-                s2st: True
+                s2s: True
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False
