@@ -29,8 +29,22 @@ NAME = "nemotron4_22b_16k"
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
+    """
+    Factory function to create a Nemotron4 22B model configuration with 64k sequence length.
+
+    Returns:
+        run.Config[pl.LightningModule]: Configuration for the Nemotron4 22B model with 64k sequence length.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain model=nemotron4_22b_64k ...
+
+        Python API usage:
+            >>> model_config = model()
+            >>> print(model_config)
+    """
     model_config = nemotron4_22b.model()
-    model_config.config.seq_length = 16384
+    model_config.config.seq_length = 65536
     return model_config
 
 
@@ -38,6 +52,29 @@ def trainer(
     num_nodes: int = 4,
     num_gpus_per_node: int = 8,
 ) -> run.Config:
+    """
+    Configure the NeMo Lightning Trainer for Nemotron4 22B model with 64k sequence length.
+
+    This function sets up the distributed training strategy optimized for long sequences.
+
+    Args:
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+
+    Returns:
+        run.Config: Configuration for the NeMo Lightning Trainer.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain trainer=nemotron4_22b_64k ...
+
+        Python API usage:
+            >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
+            >>> print(trainer_config)
+
+    Note:
+        This configuration uses significantly increased parallelism to handle the long sequence length efficiently.
+    """
     return nemotron4_22b.trainer(
         tensor_parallelism=4,
         pipeline_parallelism=2,
@@ -57,13 +94,41 @@ def pretrain_recipe(
     num_nodes: int = 4,
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
+    """
+    Create a pre-training recipe for Nemotron4 22B model with 64k sequence length.
+
+    This function sets up a complete configuration for pre-training, including
+    model, trainer, and data settings optimized for 64k sequence length.
+
+    Args:
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the pre-training run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+
+    Returns:
+        run.Partial: Partial configuration for pre-training.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain --factory nemotron4_22b_64k
+            $ nemo llm pretrain --factory "nemotron4_22b_64k(num_nodes=2, name='my_64k_pretrain')"
+
+        Python API usage:
+            >>> recipe = pretrain_recipe(name="nemotron4_22b_64k_pretrain", num_nodes=2)
+            >>> print(recipe)
+
+    Note:
+        This recipe is optimized for handling long sequences (64k) compared to the standard 8k version.
+        It requires significant computational resources due to the extended sequence length.
+    """
     recipe = nemotron4_22b.pretrain_recipe(
         name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node
     )
 
     recipe.model = model()
     recipe.trainer = trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
-    recipe.data = run.Config(MockDataModule, seq_length=16384, global_batch_size=512, micro_batch_size=1)
+    recipe.data = run.Config(MockDataModule, seq_length=65536, global_batch_size=512, micro_batch_size=1)
 
     return recipe
 
@@ -75,12 +140,41 @@ def finetune_recipe(
     num_nodes: int = 4,
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
+    """
+    Create a fine-tuning recipe for Nemotron4 22B model with 64k sequence length.
+
+    This function sets up a complete configuration for fine-tuning, including
+    model, trainer, and data settings optimized for 64k sequence length.
+
+    Args:
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the fine-tuning run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+
+    Returns:
+        run.Partial: Partial configuration for fine-tuning.
+
+    Examples:
+        CLI usage:
+            $ nemo llm finetune --factory nemotron4_22b_64k
+            $ nemo llm finetune --factory "nemotron4_22b_64k(num_nodes=2, name='my_64k_finetune')"
+
+        Python API usage:
+            >>> recipe = finetune_recipe(name="nemotron4_22b_64k_finetune", num_nodes=2)
+            >>> print(recipe)
+
+    Note:
+        This recipe is optimized for fine-tuning with long sequences (64k) compared to the standard 8k version.
+        It uses the SQuAD dataset adapted for 64k sequence length. Be aware that this configuration requires
+        substantial computational resources due to the extended sequence length.
+    """
     recipe = nemotron4_22b.finetune_recipe(
         name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node
     )
 
     recipe.model = model()
     recipe.trainer = trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
-    recipe.data = run.Config(SquadDataModule, seq_length=16384, global_batch_size=512, micro_batch_size=1)
+    recipe.data = run.Config(SquadDataModule, seq_length=65536, global_batch_size=512, micro_batch_size=1)
 
     return recipe
