@@ -13,18 +13,21 @@
 # limitations under the License.
 
 import unittest
+from typing import Dict, List, Union
+
 import torch
-from typing import List, Dict, Union
-from transformers import AutoProcessor
 from megatron.energon import InterleavedSample, SimilarityInterleavedSample, VQASample
+from transformers import AutoProcessor
+
 from nemo.collections.multimodal.data.energon import (
     ImageTextSample,
     ImageToken,
     MultiModalSampleConfig,
     VQASampleEncoder,
 )
-from nemo.collections.multimodal.data.energon.taskencoder import MultiModalTaskEncoder
 from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch
+from nemo.collections.multimodal.data.energon.taskencoder import MultiModalTaskEncoder
+
 
 class TestMultiModalTaskEncoder(unittest.TestCase):
 
@@ -36,13 +39,10 @@ class TestMultiModalTaskEncoder(unittest.TestCase):
 
     def setUp(self):
         self.config = MultiModalSampleConfig(
-            image_token=ImageToken(token_str="<image>", token_id=-200),
-            ignore_place_holder=-100
+            image_token=ImageToken(token_str="<image>", token_id=-200), ignore_place_holder=-100
         )
         self.encoder = MultiModalTaskEncoder(
-            tokenizer=self.tokenizer,
-            image_processor=self.image_processor,
-            multimodal_sample_config=self.config
+            tokenizer=self.tokenizer, image_processor=self.image_processor, multimodal_sample_config=self.config
         )
 
     def test_register_encoder(self):
@@ -58,7 +58,7 @@ class TestMultiModalTaskEncoder(unittest.TestCase):
             __subflavors__=[],
             context="What is this?",
             answers="This is a test.",
-            image=torch.rand(3, 224, 224), 
+            image=torch.rand(3, 224, 224),
         )
         encoded_sample = self.encoder.encode_sample(sample)
         self.assertIsInstance(encoded_sample, ImageTextSample)
@@ -68,10 +68,10 @@ class TestMultiModalTaskEncoder(unittest.TestCase):
     def test_encode_sample_interleaved(self):
         sample = InterleavedSample(
             __key__="interleaved_sample",
-             __restore_key__=None,
+            __restore_key__=None,
             __subflavor__=None,
             __subflavors__=[],
-            sequence=["This is a test.", torch.rand(3, 224, 224)]
+            sequence=["This is a test.", torch.rand(3, 224, 224)],
         )
         encoded_sample = self.encoder.encode_sample(sample)
         self.assertIsInstance(encoded_sample, ImageTextSample)
@@ -82,7 +82,7 @@ class TestMultiModalTaskEncoder(unittest.TestCase):
         sample = SimilarityInterleavedSample(
             __key__="sample_key",
             images=[torch.rand(3, 224, 224), torch.rand(3, 224, 224)],
-            matched_text_indices = [0,2],
+            matched_text_indices=[0, 2],
             texts=["This is the first sentence.", "This is the second sentence.", "This is the third sentence."],
             similarity_matrix=None,
             __restore_key__=None,
@@ -96,8 +96,20 @@ class TestMultiModalTaskEncoder(unittest.TestCase):
 
     def test_batch(self):
         samples = [
-            ImageTextSample(__key__="sample1", tokens=torch.tensor([1, 2, 3]), labels=torch.tensor([1, 2, 3]), images=torch.rand(1, 3, 224, 224), loss_mask=torch.tensor([1.0, 1.0, 1.0])),
-            ImageTextSample(__key__="sample2", tokens=torch.tensor([1,2,3,4, 5, 6]), labels=torch.tensor([1,2,3,4, 5, 6]), images=torch.rand(1, 3, 224, 224), loss_mask=torch.tensor([1.0, 1.0, 1.0,1.0, 1.0, 1.0]))
+            ImageTextSample(
+                __key__="sample1",
+                tokens=torch.tensor([1, 2, 3]),
+                labels=torch.tensor([1, 2, 3]),
+                images=torch.rand(1, 3, 224, 224),
+                loss_mask=torch.tensor([1.0, 1.0, 1.0]),
+            ),
+            ImageTextSample(
+                __key__="sample2",
+                tokens=torch.tensor([1, 2, 3, 4, 5, 6]),
+                labels=torch.tensor([1, 2, 3, 4, 5, 6]),
+                images=torch.rand(1, 3, 224, 224),
+                loss_mask=torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]),
+            ),
         ]
         batch = self.encoder.batch(samples)
         self.assertIsInstance(batch, ImageTextRawBatch)
@@ -110,8 +122,20 @@ class TestMultiModalTaskEncoder(unittest.TestCase):
 
     def test_encode_batch(self):
         samples = [
-            ImageTextSample(__key__="sample1", tokens=torch.tensor([1, 2, 3]), labels=torch.tensor([1, 2, 3]), images=torch.rand(1, 3, 224, 224), loss_mask=torch.tensor([1.0, 1.0, 1.0])),
-            ImageTextSample(__key__="sample2", tokens=torch.tensor([4, 5, 6]), labels=torch.tensor([4, 5, 6]), images=torch.rand(1, 3, 224, 224), loss_mask=torch.tensor([1.0, 1.0, 1.0]))
+            ImageTextSample(
+                __key__="sample1",
+                tokens=torch.tensor([1, 2, 3]),
+                labels=torch.tensor([1, 2, 3]),
+                images=torch.rand(1, 3, 224, 224),
+                loss_mask=torch.tensor([1.0, 1.0, 1.0]),
+            ),
+            ImageTextSample(
+                __key__="sample2",
+                tokens=torch.tensor([4, 5, 6]),
+                labels=torch.tensor([4, 5, 6]),
+                images=torch.rand(1, 3, 224, 224),
+                loss_mask=torch.tensor([1.0, 1.0, 1.0]),
+            ),
         ]
         batch = self.encoder.batch(samples)
         encoded_batch = self.encoder.encode_batch(batch)
@@ -122,6 +146,7 @@ class TestMultiModalTaskEncoder(unittest.TestCase):
         self.assertIn('loss_mask', encoded_batch)
         self.assertIn('attention_mask', encoded_batch)
         self.assertEqual(encoded_batch['tokens'].shape[0], len(samples))
+
 
 if __name__ == '__main__':
     unittest.main()

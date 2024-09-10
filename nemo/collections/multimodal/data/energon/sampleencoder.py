@@ -205,7 +205,9 @@ class VQASampleEncoder(BaseSampleEncoder):
             messages.append({'role': self.conversation_template_config.roles[0], 'content': input_text.context})
             messages.append({'role': self.conversation_template_config.roles[1], 'content': input_text.answers})
         else:
-            raise ValueError(f"VQA Sample context/answers should either be a List[str] or str. Other types not supported")
+            raise ValueError(
+                f"VQA Sample context/answers should either be a List[str] or str. Other types not supported"
+            )
         # Set the chat template if defined
         if self.conversation_template_config.chat_template:
             self.tokenizer.chat_template = self.conversation_template_config.chat_template
@@ -264,7 +266,7 @@ class VQASampleEncoder(BaseSampleEncoder):
         search_start_index = 0  # Initialize search index to start labeling answers sequentially
 
         stop_str = getattr(self.conversation_template_config, "stop_string", None)
-       
+
         # Check if answers is a single string or a list
         answers = sample.answers if isinstance(sample.answers, list) else [sample.answers]
 
@@ -272,9 +274,7 @@ class VQASampleEncoder(BaseSampleEncoder):
         for answer in answers:
             # Encode the answer with the stop string
             answer_tokens = self.tokenizer.encode(
-                answer + ("" if stop_str is None else stop_str),
-                add_special_tokens=False,
-                return_tensors="pt"
+                answer + ("" if stop_str is None else stop_str), add_special_tokens=False, return_tensors="pt"
             )[0]
 
             # Find the start and end indices of the answer tokens in the prompt
@@ -285,7 +285,7 @@ class VQASampleEncoder(BaseSampleEncoder):
 
             # Update the search start index to the end of the current answer tokens
             search_start_index = answer_end
-        return  labels
+        return labels
 
     def encode(self, input_sample: VQASample, output_sample: ImageTextSample):
         """
@@ -307,7 +307,7 @@ class VQASampleEncoder(BaseSampleEncoder):
         # tokenize prompt
         tokens = self.tokenize(conversation_prompt)
         labels = self.compute_labels(tokens, input_sample)
-        
+
         tokens = tokens[:-1].contiguous()
         labels = labels[1:].contiguous()
         logging.debug(f"task encoder encode_sample after tokenize prompt tokens {tokens}")
@@ -526,4 +526,3 @@ def _find_pattern_indices(template, pattern, search_start_index=0, allow_first_t
         if torch.all(match) or (allow_first_token_mismatch and torch.all(match[1:])):
             return i, i + pattern_len
     return -1, -1
-

@@ -14,7 +14,12 @@
 
 
 from nemo.collections.multimodal.data.energon.base import SimpleMultiModalDataModule
-from nemo.collections.multimodal.data.energon.config import ImageToken, MultiModalSampleConfig,ConversationTemplateConfig, ImageTextSample
+from nemo.collections.multimodal.data.energon.config import (
+    ConversationTemplateConfig,
+    ImageTextSample,
+    ImageToken,
+    MultiModalSampleConfig,
+)
 from nemo.collections.multimodal.data.energon.sampleencoder import (
     BaseSampleEncoder,
     InterleavedSampleEncoder,
