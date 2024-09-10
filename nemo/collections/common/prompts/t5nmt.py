@@ -55,13 +55,18 @@ def t5nmt(cuts: CutSet, tokenizer: TokenizerSpec) -> tuple[list[torch.Tensor], l
                 f"Expected input audio to have a single channel (required MonoCut/MixedCut, but we received: {cut=})"
             )
 
-        assert hasattr(cut, "context"), cut
+        if hasattr(cut, "context"):
+            context = cut.context
+        elif hasattr(cut, "default_context"):
+            context = cut.default_context
+        else:
+            raise RuntimeError("Missing context/default_context custom field in cut: {cut}")
 
         turns = [
             dict(
                 role="user",
                 # "message" slot is the audio portion of the cut; currently it is populated inside model's forward.
-                slots={"target_lang": cut.context, "message": ""},
+                slots={"target_lang": context, "message": ""},
             ),
         ]
         if len(cut.supervisions) > 0 and cut.supervisions[0].text:
