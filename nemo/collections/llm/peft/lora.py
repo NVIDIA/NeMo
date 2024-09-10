@@ -143,10 +143,10 @@ class LoRA(PEFT):
                 input_is_parallel = True
                 if HAVE_TE:
                     in_features = m.in_features * tp_size
-                out_features = m.out_features
+                    out_features = m.out_features
                 else:
                     in_features = m.input_size * tp_size
-                out_features = m.output_size
+                    out_features = m.output_size
 
             logging.info(f"Adding lora to: {prefix}.{name}")
             adapter = ParallelLinearAdapter(
