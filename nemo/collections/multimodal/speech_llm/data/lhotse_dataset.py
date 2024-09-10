@@ -323,8 +323,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             "audio_ratio": torch.FloatTensor(audio_ratio),
             "metadata": metadata,
             # For forward
-            "instructions": instructions,
-            "instruction_lengths": instruction_lengths,
+            "contexts": instructions,
+            "context_lengths": instruction_lengths,
             "tokens": tokens[:, :-1, :],
             "tokens_length": full_lengths - 1,
             "labels": tokens[:, 1:, :],

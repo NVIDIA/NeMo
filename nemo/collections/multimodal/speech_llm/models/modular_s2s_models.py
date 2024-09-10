@@ -2,6 +2,7 @@ import itertools
 import json
 import os
 from collections import OrderedDict
+from typing import List, Optional, Union
 
 import numpy as np
 import sacrebleu
@@ -58,9 +59,19 @@ class SumMultiEmbedding(LanguageModelEmbedding):
 
 class S2sMCoreGPTModel(MCoreGPTModel):
 
-    def __init__(self, config: TransformerConfig, n_proj_heads: int, *args, **kwargs) -> None:
+    def __init__(
+        self,
+        config: TransformerConfig,
+        proj_head_dims: List[int],
+        proj_head_loss_weights: List[float],
+        *args,
+        **kwargs,
+    ) -> None:
         super().__init__(config=config, *args, **kwargs)
         # TODO: confirm the state dict is loaded and stored
+        self.n_proj_heads = len(proj_head_dims)
+        self.proj_head_dims = proj_head_dims
+        self.proj_head_loss_weights = proj_head_loss_weights
         self.output_layers = torch.nn.ModuleList(
             [
                 tensor_parallel.ColumnParallelLinear(
@@ -75,10 +86,9 @@ class S2sMCoreGPTModel(MCoreGPTModel):
                     embedding_activation_buffer=self.embedding_activation_buffer,
                     grad_output_buffer=self.grad_output_buffer,
                 )
-                for i in range(n_proj_heads)
+                for i in range(self.n_proj_heads)
             ]
         )
-        self.n_proj_heads = n_proj_heads
 
     # TODO rewrite setup_embeddings_and_output_layer to include self.output_layers
 
@@ -153,7 +163,7 @@ class S2sMCoreGPTModel(MCoreGPTModel):
             return hidden_states
 
         # logits and loss
-        all_logits = [self.output_layer[i](hidden_states) for i in range(len(self.output_layer))]
+        all_logits = [self.output_layers[i](hidden_states)[0] for i in range(self.n_proj_heads)]
         output_weight = None
         if self.share_embeddings_and_output_weights:
             output_weight = self.shared_embedding_or_output_weight()
@@ -177,7 +187,6 @@ class S2sMCoreGPTModel(MCoreGPTModel):
             * torch.FloatTensor(self.proj_head_loss_weights).to(tokens_loss.device)
             / sum(self.proj_head_loss_weights)
         )
-        breakpoint()
         return tokens_loss
 
 
@@ -187,6 +196,20 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         if self.mcore_gpt:
+            if not hasattr(self.cfg, 'decoder_reduction_factor'):
+                self.decoder_reduction_factor = 1
+            else:
+                self.decoder_reduction_factor = self.cfg.decoder_reduction_factor
+            self.proj_head_dims = self.cfg.proj_head_dims
+            self.proj_head_loss_weights = self.cfg.get('proj_head_loss_weights', [1.0])
+            if self.decoder_reduction_factor != 1:
+                self.proj_head_dims = [self.proj_head_dims[0]] + self.proj_head_dims[
+                    1:
+                ] * self.decoder_reduction_factor
+                self.proj_head_loss_weights = [self.cfg.proj_head_loss_weights[0]] + self.cfg.proj_head_loss_weights[
+                    1:
+                ] * self.decoder_reduction_factor
+
             model = S2sMCoreGPTModel(
                 config=self.transformer_config,
                 transformer_layer_spec=get_specs(
@@ -205,7 +228,8 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
-                n_proj_heads=self.cfg.get('n_proj_heads', 1),
+                proj_head_dims=self.proj_head_dims,
+                proj_head_loss_weights=self.proj_head_loss_weights,
             )
 
             if self.cfg.get('scale_positional_embedding', False):
@@ -237,11 +261,21 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         """Shift labels to the right by the length of the audio embeddings."""
         shifted_labels = []
         for label, label_len, emb_len in zip(labels, label_lens, emb_lens):
-            shifted_label = torch.full([max_len, self.cfg.proj_head_dims], pad_token, device=label.device)
+            shifted_label = torch.full([max_len, label[0].shape[0]], pad_token, device=label.device)
             shifted_label[emb_len : emb_len + label_len] = label[:label_len]
             shifted_labels.append(shifted_label)
         shifted_labels = torch.stack(shifted_labels, dim=0)
         return shifted_labels
+
+    def _concat_features(self, embs1, emb1_lens, embs2, emb2_lens):
+        """Concatenate two sets of embeddings and their lengths."""
+
+        def _reduce_sum_to_3d(tensor):
+            if tensor.ndim == 4:
+                return tensor.sum(dim=2)
+            return tensor
+
+        return super()._concat_features(_reduce_sum_to_3d(embs1), emb1_lens, _reduce_sum_to_3d(embs2), emb2_lens)
 
     def inference_step(self, dataloader_iter, mode):
         """
