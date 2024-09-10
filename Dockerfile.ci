@@ -36,12 +36,12 @@ ARG NEMU_RUN_TAG=34259bd3e752fef94045a9a019e4aaf62bd11ce2
 RUN pip install nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@${NEMU_RUN_TAG}
 
 # Install Mamba
-# v2.0.3= https://github.com/state-spaces/mamba/commit/28f623d6542987733283d8e7ea43743afd2072f3
-RUN pip3 install mamba-ssm@git+https://github.com/state-spaces/mamba.git@28f623d6542987733283d8e7ea43743afd2072f3
+ARG MAMBA_TAG=v2.0.3
+RUN pip3 install mamba-ssm@git+https://github.com/state-spaces/mamba.git@${MAMBA_TAG}
 
 # Install Causal-conv1d
-# v1.2.2.post1= https://github.com/Dao-AILab/causal-conv1d/commit/de688f7650aafee4804ffa0875c9c92054d737c4
-RUN pip3 install causal-conv1d@git+https://github.com/Dao-AILab/causal-conv1d.git@de688f7650aafee4804ffa0875c9c92054d737c4
+ARG CAUSAL_CONV_TAG=v1.2.2.post1
+RUN pip3 install causal-conv1d@git+https://github.com/Dao-AILab/causal-conv1d.git@${CAUSAL_CONV_TAG}
 
 
 # Install NeMo requirements
