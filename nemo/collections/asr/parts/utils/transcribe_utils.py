@@ -294,6 +294,7 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
     if cfg.audio_dir is not None and not cfg.append_pred:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
     else:
+        filepaths = []
         if os.stat(cfg.dataset_manifest).st_size == 0:
             logging.error(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
             return None
@@ -313,6 +314,7 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
             for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=cfg.presort_manifest):
                 audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
                 item[audio_key] = audio_file
+                filepaths.append(audio_file)
                 f.write(json.dumps(item) + "\n")
         sorted_manifest_path = f.name
 
