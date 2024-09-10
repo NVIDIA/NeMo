@@ -36,7 +36,6 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
     prepare_audio_data,
     restore_transcription_order,
     setup_model,
-    transcribe_partial_audio,
     write_transcription,
 )
 from nemo.core.config import hydra_runner
@@ -64,6 +63,7 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
 
   output_filename: Output filename where the transcriptions will be written
   batch_size: batch size during inference
+  presort_manifest: sorts the provided manifest by audio length for faster inference (default: True)
 
   cuda: Optional int to enable or disable execution of model on certain CUDA device.
   allow_mps: Bool to allow using MPS (Apple Silicon M-series GPU) device if available
@@ -201,10 +201,6 @@ class TranscriptionConfig:
     gt_text_attr_name: str = "text"
     gt_lang_attr_name: str = "lang"
 
-    # Use model's transcribe() function instead of transcribe_partial_audio() by default
-    # Only use transcribe_partial_audio() when the audio is too long to fit in memory
-    # Your manifest input should have `offset` field to use transcribe_partial_audio()
-    allow_partial_transcribe: bool = False
     extract_nbest: bool = False  # Extract n-best hypotheses from the model
 
     calculate_rtfx: bool = False
@@ -356,22 +352,11 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         else:
             cfg.decoding = cfg.rnnt_decoding
 
-    filepaths, partial_audio, sorted_manifest_path = prepare_audio_data(cfg)
+    filepaths, sorted_manifest_path = prepare_audio_data(cfg)
 
     remove_path_after_done = sorted_manifest_path if sorted_manifest_path is not None else None
 
-    if not cfg.allow_partial_transcribe:
-        partial_audio = False
-    else:
-        if not partial_audio and cfg.dataset_manifest is not None:
-            raise ValueError(
-                "Partial audio transcription requested, but no 'offset' and 'duration' fields found in manifest."
-            )
-        elif not partial_audio and cfg.dataset_manifest is None:
-            raise ValueError("Partial audio transcription requested, but no dataset manifest provided.")
-
-    if isinstance(asr_model, EncDecMultiTaskModel) and sorted_manifest_path is not None:
-        filepaths = sorted_manifest_path
+    filepaths = sorted_manifest_path if sorted_manifest_path is not None else filepaths
 
     # setup AMP (optional)
     if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
@@ -419,23 +404,15 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             override_cfg.return_hypotheses = cfg.return_hypotheses
             override_cfg.channel_selector = cfg.channel_selector
             override_cfg.augmentor = augmentor
+            override_cfg.text_field = cfg.gt_text_attr_name
+            override_cfg.lang_field = cfg.gt_lang_attr_name
+            if hasattr(override_cfg, "prompt"):
+                override_cfg.prompt = parse_multitask_prompt(OmegaConf.to_container(cfg.prompt))
 
-            if partial_audio:
-                transcriptions = transcribe_partial_audio(
-                    asr_model=asr_model,
-                    path2manifest=sorted_manifest_path,
-                    override_config=override_cfg,
-                )
-            else:
-                override_cfg.text_field = cfg.gt_text_attr_name
-                override_cfg.lang_field = cfg.gt_lang_attr_name
-                if hasattr(override_cfg, "prompt"):
-                    override_cfg.prompt = parse_multitask_prompt(OmegaConf.to_container(cfg.prompt))
-
-                transcriptions = asr_model.transcribe(
-                    audio=filepaths,
-                    override_config=override_cfg,
-                )
+            transcriptions = asr_model.transcribe(
+                audio=filepaths,
+                override_config=override_cfg,
+            )
             if cfg.calculate_rtfx:
                 transcribe_time = time.time() - start_time
 

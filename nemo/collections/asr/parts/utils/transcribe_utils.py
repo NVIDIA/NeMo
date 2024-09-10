@@ -273,16 +273,28 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
 
 
 def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
-    """Prepare audio data and decide whether it's partial_audio condition."""
-    # this part may need refactor alongsides with refactor of transcribe
-    partial_audio = False
+    """
+    Prepare audio data for transcription.
+    Args:
+        cfg (DictConfig): Configuration dictionary containing the following parameters:
+            - audio_dir (str): Path to the directory containing audio files.
+            - append_pred (bool): Flag indicating whether to append predictions to an existing dataset.
+            - audio_type (str): Type of audio files to consider.
+            - dataset_manifest (str): Path to the dataset manifest file.
+            - audio_key (str, optional): Key in the manifest file specifying the audio file path. Defaults to 'audio_filepath'.
+            - presort_manifest (bool, optional): Flag indicating whether to presort the manifest file. Defaults to True.
+    Returns:
+        Tuple[List[str], bool]: A tuple containing the following:
+            - filepaths (List[str]): List of filepaths to the audio files if path to the directory containing audio files is provided.
+            - sorted_manifest_path (bool): Path to the sorted manifest file if path to the dataset manifest file is provided.
+    """
+    
+    filepaths = None
     sorted_manifest_path = None
 
     if cfg.audio_dir is not None and not cfg.append_pred:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
     else:
-        # get filenames from manifest
-        filepaths = []
         if os.stat(cfg.dataset_manifest).st_size == 0:
             logging.error(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
             return None
@@ -297,20 +309,15 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
                     raise ValueError(
                         f"Requested presort_manifest=True, but line {line} in manifest {cfg.dataset_manifest} lacks a 'duration' field."
                     )
-        all_entries_have_offset_and_duration = True
+        
         with NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=cfg.presort_manifest):
-                if not ("offset" in item and "duration" in item):
-                    all_entries_have_offset_and_duration = False
                 audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
                 item[audio_key] = audio_file
-                filepaths.append(audio_file)
                 f.write(json.dumps(item) + "\n")
-        partial_audio = all_entries_have_offset_and_duration
         sorted_manifest_path = f.name
-    logging.info(f"\nTranscribing {len(filepaths)} files...\n")
 
-    return filepaths, partial_audio, sorted_manifest_path
+    return filepaths, sorted_manifest_path
 
 
 def read_and_maybe_sort_manifest(path: str, try_sort: bool = False) -> List[dict]:
@@ -468,33 +475,6 @@ def write_transcription(
                     f.write(json.dumps(item) + "\n")
 
     return cfg.output_filename, pred_text_attr_name
-
-
-def transcribe_partial_audio(
-    asr_model, path2manifest: str = None, override_config: Optional[TranscribeConfig] = None
-) -> List[str]:
-    """
-    See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py and nemo/collections/asr/models/rnnt_models.py
-    asr_model: ASRModel
-    path2manifest: Path to manifest file
-    override_config: Optional[TranscribeConfig]
-    returns: List[str] - List of transcriptions
-    """
-
-    config = {
-        'manifest_filepath': path2manifest,
-        'batch_size': get_value_from_transcription_config(override_config, 'batch_size', 4),
-        'num_workers': get_value_from_transcription_config(override_config, 'num_workers', 1),
-        'channel_selector': get_value_from_transcription_config(override_config, 'channel_selector', None),
-    }
-
-    if get_value_from_transcription_config(override_config, 'augmentor', None) is not None:
-        config['augmentor'] = getattr(override_config, 'augmentor')
-
-    temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
-    hypotheses = asr_model.transcribe(audio=temporary_datalayer, override_config=override_config)
-
-    return hypotheses
 
 
 def compute_metrics_per_sample(

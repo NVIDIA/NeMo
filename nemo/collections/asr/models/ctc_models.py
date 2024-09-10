@@ -130,9 +130,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         override_config: Optional[TranscribeConfig] = None,
     ) -> TranscriptionReturnType:
         """
-        If modify this function, please remember update transcribe_partial_audio() in
-        nemo/collections/asr/parts/utils/trancribe_utils.py
-
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
         Args:

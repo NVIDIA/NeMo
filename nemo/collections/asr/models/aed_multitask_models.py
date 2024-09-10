@@ -783,16 +783,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     trcfg._internal.primary_language = self.tokenizer.langs[0]
                     logging.debug(f"Transcribing with default setting of {trcfg._internal.primary_language}.")
 
-        elif isinstance(audio, str):
-            logging.debug(f"Found 'audio' to be a string. Assuming it is a path to manifest file.")
-            assert os.path.exists(audio), f"File {audio} doesn't exist"
-            # assert audio.endswith('.json') or audio.endswith('.jsonl'), f"File {audio} must be a json or jsonl file"
-
-            # load json lines
-            manifest_path = audio  # need to save this as we are overwriting paths2audio_files in nextline
-            if audio.endswith('.json') or audio.endswith('.jsonl'):
-                if hasattr(trcfg, '_internal') and hasattr(trcfg._internal, 'manifest_path'):
-                    trcfg._internal.manifest_filepath = manifest_path
 
     def _transcribe_input_manifest_processing(
         self, audio_files: List[str], temp_dir: str, trcfg: MultiTaskTranscriptionConfig
@@ -809,23 +799,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         Returns:
             A config dict that is used to setup the dataloader for transcription.
         """
-        manifest_filepath = None
-        if len(audio_files) == 1 and isinstance(audio_files[0], str):
-            # Check if manifest file is provided
-            if (
-                hasattr(trcfg._internal, 'manifest_filepath')
-                and getattr(trcfg._internal, 'manifest_filepath') is not None
-            ):
-                manifest_filepath = trcfg._internal.manifest_filepath
+        manifest_filepath = trcfg._internal.manifest_filepath
 
-            elif audio_files[0].endswith('.json') or audio_files[0].endswith('.jsonl'):
-                # Assume it is a path to a manifest file
-                manifest_filepath = audio_files[0]
-
-            if manifest_filepath is not None:
-                audio_files = manifest_utils.read_manifest(audio_files[0])
-
-        audio_files = self._may_be_make_dict_and_fix_paths(audio_files, manifest_filepath, trcfg)
+        audio_files = self._may_be_make_dict_and_fix_paths(audio_files, None, trcfg)
 
         return super()._transcribe_input_manifest_processing(audio_files, temp_dir, trcfg)
 
