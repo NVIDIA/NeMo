@@ -252,7 +252,7 @@ class AutoResume:
     def get_trainer_ckpt_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
         if self.resume_from_path:
             maybe_weights_path = self.get_weights_path(self.resume_from_path)
-            return maybe_weights_path if os.path.isdir(maybe_weights_path) else self.resume_from_path
+            return maybe_weights_path if maybe_weights_path.is_dir() else self.resume_from_path
 
         checkpoint = None
         app_state = AppState()
