@@ -69,6 +69,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
 
         """
         if not hasattr(module, "module"):
+            print("no module")
             return module
 
         from megatron.core.transformer.module import Float16Module
@@ -80,6 +81,9 @@ class FabricMegatronMixedPrecision(MixedPrecision):
             config.bf16 = self.precision == "bf16-mixed"
             if not isinstance(module.module, Float16Module):
                 module.module = Float16Module(config, module.module)
+                
+            print("Converted module to Float16Module")
+            print(module)
 
         return module
 

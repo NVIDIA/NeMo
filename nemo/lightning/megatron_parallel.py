@@ -261,6 +261,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             use_global_batch_sampler = isinstance(
                 self.trainer.predict_dataloaders.batch_sampler, MegatronPretrainingBatchSampler
             )
+        elif _num_microbatches == 1:
+            use_global_batch_sampler = False
         else:
             raise ValueError("Unsure how to check for nemo1 global_batch_sampler status. TODO maybe default to False?")
         if use_global_batch_sampler:
