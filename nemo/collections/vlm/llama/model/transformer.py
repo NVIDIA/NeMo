@@ -13,16 +13,13 @@ import math
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import fairscale.nn.model_parallel.initialize as fs_init
-
 import torch
 import torch.nn.functional as F
-from fairscale.nn.model_parallel.layers import (
-    ColumnParallelLinear,
-    RowParallelLinear,
-)
-
 from PIL import Image as PIL_Image
-
+from megatron.core import tensor_parallel
+from megatron.core.transformer.custom_layers.transformer_engine import TEColumnParallelLinear
+from megatron.core.transformer.module import MegatronModule
+from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 from torch.distributed import _functional_collectives as funcol
 
@@ -35,7 +32,6 @@ from nemo.collections.vlm.llama.model.encoder_utils import (
     resize_local_position_embedding,
 )
 from nemo.collections.vlm.llama.utils import get_negative_inf_value, to_2tuple
-
 
 logger = logging.getLogger(__name__)
 MP_SCALE = 8
@@ -67,11 +63,9 @@ def gather_from_tensor_model_parallel_region(input_):
     return output
 
 
-
-
 def _get_full_row_masked_out_mask(
-    attn_bias,
-    negative_inf_value,
+        attn_bias,
+        negative_inf_value,
 ):
     """
     attn_bias should be a 4D tensor of shape [B, H, S1, S2]
@@ -103,14 +97,14 @@ def apply_scaling(freqs: torch.Tensor):
         else:
             assert low_freq_wavelen != high_freq_wavelen
             smooth = (old_context_len / wavelen - low_freq_factor) / (
-                high_freq_factor - low_freq_factor
+                    high_freq_factor - low_freq_factor
             )
             new_freqs.append((1 - smooth) * freq / scale_factor + smooth * freq)
     return torch.tensor(new_freqs, dtype=freqs.dtype, device=freqs.device)
 
 
 def precompute_freqs_cis(
-    dim: int, end: int, theta: float = 10000.0, use_scaled: bool = False
+        dim: int, end: int, theta: float = 10000.0, use_scaled: bool = False
 ):
     freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))
     t = torch.arange(end, device=freqs.device, dtype=torch.float32)
@@ -130,9 +124,9 @@ def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
 
 
 def apply_rotary_emb(
-    xq: torch.Tensor,
-    xk: torch.Tensor,
-    freqs_cis: torch.Tensor,
+        xq: torch.Tensor,
+        xk: torch.Tensor,
+        freqs_cis: torch.Tensor,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
     xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
@@ -140,7 +134,6 @@ def apply_rotary_emb(
     xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
     xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
     return xq_out.type_as(xq), xk_out.type_as(xk)
-
 
 
 class RMSNorm(torch.nn.Module):
@@ -156,6 +149,7 @@ class RMSNorm(torch.nn.Module):
         output = self._norm(x.float()).type_as(x)
         return output * self.weight
 
+
 # Image encoder for inference
 class LayerNorm(nn.LayerNorm):
     """Subclass torch's LayerNorm to handle fp16."""
@@ -165,8 +159,7 @@ class LayerNorm(nn.LayerNorm):
         return x
 
 
-
-class ColumnParallelConv2dPatch(torch.nn.Module):
+class ColumnParallelConv2dPatch(MegatronModule):
     """Conv2D Patching layer with model parallelism.
     Column parallel over unfolded input.
     Arguments:
@@ -180,40 +173,48 @@ class ColumnParallelConv2dPatch(torch.nn.Module):
     """
 
     def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        kernel_size: Union[int, Tuple[int, int]],
-        stride: Union[int, Tuple[int, int]],
-        bias: Optional[bool] = False,
+            self,
+            config: TransformerConfig,
+            in_channels: int,
+            out_channels: int,
+            kernel_size: Union[int, Tuple[int, int]],
+            stride: Union[int, Tuple[int, int]],
+            bias: Optional[bool] = False,
     ) -> None:
-        super().__init__()
+        super().__init__(config=config)
         if isinstance(kernel_size, int):
             kernel_size = (kernel_size, kernel_size)
         self._unfold = torch.nn.Unfold(kernel_size=kernel_size, stride=stride)
-        self._linear = ColumnParallelLinear(
+        self._linear = TEColumnParallelLinear(
             in_channels * kernel_size[0] * kernel_size[1],
             out_channels,
             bias=bias,
+            config=self.config,
+            init_method=self.config.init_method,
+            gather_output=False,
+            skip_bias_add=False,
+            is_expert=False,
+            tp_comm_buffer_name='conv1',
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self._unfold(x)
         x = x.permute(0, 2, 1)
         x = F.linear(x, self._linear.weight)
-        x = gather_from_tensor_model_parallel_region(x)
+        x = tensor_parallel.gather_from_tensor_model_parallel_region(x)
         return x
 
 
-class ImageFeedForward(torch.nn.Module):
+class ImageFeedForward(MegatronModule):
     def __init__(
-        self,
-        dim: int,
-        hidden_dim: int,
-        dropout: float,
-        act_layer: Callable = nn.GELU,
+            self,
+            config,
+            dim: int,
+            hidden_dim: int,
+            dropout: float,
+            act_layer: Callable = nn.GELU,
     ):
-        super().__init__()
+        super().__init__(config=config)
         # layers
         self.c_fc = ColumnParallelLinear(
             dim,
@@ -241,14 +242,15 @@ class ImageFeedForward(torch.nn.Module):
         return hidden
 
 
-class ImageAttention(nn.Module):
+class ImageAttention(MegatronModule):
     def __init__(
-        self,
-        dim,
-        head_dim,
-        n_heads,
+            self,
+            config,
+            dim,
+            head_dim,
+            n_heads,
     ):
-        super().__init__()
+        super().__init__(config=config)
         model_parallel_size = fs_init.get_model_parallel_world_size()
         qkvo_replication = 1
         if model_parallel_size > 16:
@@ -257,7 +259,7 @@ class ImageAttention(nn.Module):
         self.n_kv_heads = n_heads
         self.n_local_heads = n_heads * qkvo_replication // model_parallel_size
         self.n_local_kv_heads = (
-            self.n_kv_heads * qkvo_replication // model_parallel_size
+                self.n_kv_heads * qkvo_replication // model_parallel_size
         )
         self.n_rep = self.n_local_heads // self.n_local_kv_heads
         self.head_dim = dim // n_heads
@@ -293,11 +295,10 @@ class ImageAttention(nn.Module):
         self.qkvo_replication = qkvo_replication
 
     def forward(
-        self,
-        x: torch.Tensor,
-        mask: torch.Tensor = None,
+            self,
+            x: torch.Tensor,
+            mask: torch.Tensor = None,
     ):
-
         xq, xk, xv = [
             F.linear(x, w, b)
             for (w, b) in [
@@ -331,20 +332,22 @@ class ImageAttention(nn.Module):
         return out
 
 
-class ImageTransformerBlock(nn.Module):
+class ImageTransformerBlock(MegatronModule):
     def __init__(
-        self,
-        d_model: int,
-        n_head: int,
-        mlp_ratio: float = 4.0,
-        act_layer: Callable = nn.GELU,
-        gated: bool = False,
+            self,
+            config,
+            d_model: int,
+            n_head: int,
+            mlp_ratio: float = 4.0,
+            act_layer: Callable = nn.GELU,
+            gated: bool = False,
     ):
-        super().__init__()
+        super().__init__(config=config)
         assert d_model % n_head == 0
         self.n_heads = n_head
         self.head_dim = d_model // self.n_heads
         self.attn = ImageAttention(
+            config,
             dim=d_model,
             head_dim=self.head_dim,
             n_heads=self.n_heads,
@@ -363,9 +366,9 @@ class ImageTransformerBlock(nn.Module):
             self.gate_ffn = nn.Parameter(torch.zeros(1))
 
     def forward(
-        self,
-        x: torch.Tensor,
-        mask: torch.Tensor = None,
+            self,
+            x: torch.Tensor,
+            mask: torch.Tensor = None,
     ):
         _gate_attn = 1 if not self.gated else self.gate_attn.tanh()
         _gate_ffn = 1 if not self.gated else self.gate_ffn.tanh()
@@ -374,28 +377,29 @@ class ImageTransformerBlock(nn.Module):
         return x
 
 
-class ImageTransformer(nn.Module):
+class ImageTransformer(MegatronModule):
     def __init__(
-        self,
-        width: int,
-        layers: int,
-        heads: int,
-        mlp_ratio: float = 4.0,
-        act_layer: Callable = nn.GELU,
-        gated: bool = False,
+            self,
+            config,
+            width: int,
+            layers: int,
+            heads: int,
+            mlp_ratio: float = 4.0,
+            act_layer: Callable = nn.GELU,
+            gated: bool = False,
     ):
-        super().__init__()
+        super().__init__(config=config)
         self.width = width
         self.layers = layers
         self.resblocks = nn.ModuleList(
             [
-                ImageTransformerBlock(
-                    d_model=width,
-                    n_head=heads,
-                    mlp_ratio=mlp_ratio,
-                    act_layer=act_layer,
-                    gated=gated,
-                )
+                ImageTransformerBlock(config,
+                                      d_model=width,
+                                      n_head=heads,
+                                      mlp_ratio=mlp_ratio,
+                                      act_layer=act_layer,
+                                      gated=gated,
+                                      )
                 for _ in range(self.layers)
             ]
         )
@@ -411,25 +415,26 @@ class ImageTransformer(nn.Module):
         return x
 
 
-class VisionEncoder(nn.Module):
+class VisionEncoder(MegatronModule):
     def __init__(
-        self,
-        max_num_tiles: int,
-        ckpt_path: str = None,
-        image_size: int = 224,
-        patch_size: int = 14,
-        width: int = 1280,
-        layers: int = 32,
-        heads: int = 16,
-        mlp_ratio: float = 4.0,
-        act_layer: Callable = nn.GELU,
-        in_channels: int = 3,
-        load_ckpt: bool = False,
-        n_global_layers: int = 2,
-        global_model: bool = False,
-        return_intermediate=None,
+            self,
+            config: TransformerConfig,
+            max_num_tiles: int,
+            ckpt_path: str = None,
+            image_size: int = 224,
+            patch_size: int = 14,
+            width: int = 1280,
+            layers: int = 32,
+            heads: int = 16,
+            mlp_ratio: float = 4.0,
+            act_layer: Callable = nn.GELU,
+            in_channels: int = 3,
+            load_ckpt: bool = False,
+            n_global_layers: int = 2,
+            global_model: bool = False,
+            return_intermediate=None,
     ):
-        super().__init__()
+        super().__init__(config=config)
         self.global_model = global_model
         self.return_intermediate = return_intermediate
         self.max_num_tiles = max_num_tiles
@@ -440,26 +445,28 @@ class VisionEncoder(nn.Module):
             self.image_size[1] // self.patch_size[1],
         )
         self.conv1 = ColumnParallelConv2dPatch(
+            config=config,
             in_channels=in_channels,
             out_channels=width,
             kernel_size=patch_size,
             stride=patch_size,
             bias=False,
         )
-        scale = width**-0.5
+        scale = width ** -0.5
         self.class_embedding = nn.Parameter(scale * torch.randn(width))
         self.positional_embedding = nn.Parameter(
             scale * torch.randn(self.grid_size[0] * self.grid_size[1] + 1, width)
         )
         self.ln_post = LayerNorm(width)
         self.ln_pre = LayerNorm(width)
-        self.transformer = ImageTransformer(
-            width, layers, heads, mlp_ratio, act_layer=act_layer
-        )
+        self.transformer = ImageTransformer(config,
+                                            width, layers, heads, mlp_ratio, act_layer=act_layer
+                                            )
         # pre and post tile position embedding
-        self.global_transformer = ImageTransformer(
-            width, n_global_layers, heads, mlp_ratio, act_layer=act_layer, gated=True
-        )
+        self.global_transformer = ImageTransformer(config,
+                                                   width, n_global_layers, heads, mlp_ratio, act_layer=act_layer,
+                                                   gated=True
+                                                   )
         # pre and post tile position embedding
         self.pre_tile_pos_embed = TilePositionEmbedding(
             num_tiles=max_num_tiles,
@@ -485,15 +492,15 @@ class VisionEncoder(nn.Module):
         self._register_load_state_dict_pre_hook(self.load_hook)
 
     def load_hook(
-        self,
-        state_dict: Dict[str, Any],
-        prefix: str,
-        local_metadata: Dict[str, Any],
-        strict: bool = True,
-        missing_keys: List[str] = None,
-        unexpected_keys: List[str] = None,
-        error_msgs: List[str] = None,
-        return_state_dict: bool = False,
+            self,
+            state_dict: Dict[str, Any],
+            prefix: str,
+            local_metadata: Dict[str, Any],
+            strict: bool = True,
+            missing_keys: List[str] = None,
+            unexpected_keys: List[str] = None,
+            error_msgs: List[str] = None,
+            return_state_dict: bool = False,
     ) -> None:
         orig_pos_embed = state_dict.get(prefix + "positional_embedding")
         if orig_pos_embed is not None:
@@ -537,14 +544,14 @@ class VisionEncoder(nn.Module):
         bsz, num_chunks, num_tokens, dim = x.shape
         x = x.view(bsz * num_chunks, num_tokens, dim)
         x = x + self.positional_embedding * (
-            1 - self.gated_positional_embedding_gate.tanh()
+                1 - self.gated_positional_embedding_gate.tanh()
         )
         x = x.view(bsz, num_chunks, num_tokens, dim)
         for idx, arx in enumerate(ar):
             _pos_embed = self.gated_positional_embedding[: arx[0], : arx[1]]
             _pos_embed = _pos_embed.reshape(arx[0] * arx[1], *_pos_embed.shape[2:])
             x[idx, : arx[0] * arx[1]] += (
-                _pos_embed * self.gated_positional_embedding_gate.tanh()
+                    _pos_embed * self.gated_positional_embedding_gate.tanh()
             )
         return x
 
@@ -615,10 +622,10 @@ class VisionEncoder(nn.Module):
         return x
 
 
-class Attention(nn.Module):
+class Attention(MegatronModule):
     """Multi-head attention module."""
 
-    def __init__(self, args: ModelArgs):
+    def __init__(self, config):
         """
         Initialize the Attention module.
         Args:
@@ -636,62 +643,62 @@ class Attention(nn.Module):
             cache_k (torch.Tensor): Cached keys for attention.
             cache_v (torch.Tensor): Cached values for attention.
         """
-        super().__init__()
+        super().__init__(config=config)
         model_parallel_size = fs_init.get_model_parallel_world_size()
         replication_factor = 1
         if model_parallel_size > 8:
             replication_factor = model_parallel_size // MP_SCALE
 
-        self.n_kv_heads = args.n_heads if args.n_kv_heads is None else args.n_kv_heads
+        self.n_kv_heads = config.num_attention_heads if config.num_query_groups is None else config.num_query_groups
         self.n_kv_heads *= replication_factor
 
-        self.n_local_heads = args.n_heads // model_parallel_size
+        self.n_local_heads = config.num_attention_heads // model_parallel_size
         self.n_local_kv_heads = self.n_kv_heads // model_parallel_size
         self.n_rep = self.n_local_heads // self.n_local_kv_heads
-        self.head_dim = args.dim // args.n_heads
-        self.max_seq_len = args.max_seq_len
+        self.head_dim = config.hidden_size // config.num_attention_heads
+        self.max_seq_len = config.seq_len
 
         self.wq = ColumnParallelLinear(
-            args.dim,
-            args.n_heads * self.head_dim,
+            config.hidden_size,
+            config.num_attention_heads * self.head_dim,
             bias=False,
             gather_output=False,
             init_method=lambda x: x,
         )
         self.wk = ColumnParallelLinear(
-            args.dim,
+            config.hidden_size,
             self.n_kv_heads * self.head_dim,
             bias=False,
             gather_output=False,
             init_method=lambda x: x,
         )
         self.wv = ColumnParallelLinear(
-            args.dim,
+            config.hidden_size,
             self.n_kv_heads * self.head_dim,
             bias=False,
             gather_output=False,
             init_method=lambda x: x,
         )
         self.wo = RowParallelLinear(
-            args.n_heads * self.head_dim,
-            args.dim,
+            config.num_attention_heads * self.head_dim,
+            config.hidden_size,
             bias=False,
             input_is_parallel=True,
             init_method=lambda x: x,
         )
-        self.n_heads = args.n_heads
+        self.n_heads = config.num_attention_heads
 
         self._register_load_state_dict_pre_hook(self.load_hook)
 
     def load_hook(
-        self,
-        state_dict: Dict[str, Any],
-        prefix: str,
-        local_metadata: Dict[str, Any],
-        strict: bool,
-        missing_keys: List[str],
-        unexpected_keys: List[str],
-        error_msgs: List[str],
+            self,
+            state_dict: Dict[str, Any],
+            prefix: str,
+            local_metadata: Dict[str, Any],
+            strict: bool,
+            missing_keys: List[str],
+            unexpected_keys: List[str],
+            error_msgs: List[str],
     ) -> None:
         if prefix + "wqkv.weight" in state_dict:
             total_n_heads = self.n_heads + self.n_kv_heads * 2
@@ -737,11 +744,11 @@ class Attention(nn.Module):
         )
 
     def forward(
-        self,
-        x: torch.Tensor,
-        mask: torch.Tensor,
-        freqs_cis: torch.Tensor,
-        position_ids: torch.LongTensor,
+            self,
+            x: torch.Tensor,
+            mask: torch.Tensor,
+            freqs_cis: torch.Tensor,
+            position_ids: torch.LongTensor,
     ):
 
         xq, xk, xv = [
@@ -779,13 +786,13 @@ class Attention(nn.Module):
         return out
 
 
-class FeedForward(nn.Module):
+class FeedForward(MegatronModule):
     def __init__(
-        self,
-        dim: int,
-        hidden_dim: int,
-        multiple_of: int,
-        ffn_dim_multiplier: Optional[float],
+            self,
+            dim: int,
+            hidden_dim: int,
+            multiple_of: int,
+            ffn_dim_multiplier: Optional[float],
     ):
         """
         Initialize the FeedForward module.
@@ -799,7 +806,7 @@ class FeedForward(nn.Module):
             w2 (RowParallelLinear): Linear transformation for the second layer.
             w3 (ColumnParallelLinear): Linear transformation for the third layer.
         """
-        super().__init__()
+        super().__init__(config=config)
         hidden_dim = int(2 * hidden_dim / 3)
         # custom dim factor multiplier
         if ffn_dim_multiplier is not None:
@@ -826,14 +833,14 @@ class FeedForward(nn.Module):
         return out
 
     def load_hook(
-        self,
-        state_dict,
-        prefix,
-        local_metadata,
-        strict,
-        missing_keys,
-        unexpected_keys,
-        error_msgs,
+            self,
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
     ):
         if prefix + "mlp.fc1_weight" in state_dict:
             fc1_weight, fc3_weight = state_dict.pop(prefix + "mlp.fc1_weight").chunk(2)
@@ -845,8 +852,8 @@ class FeedForward(nn.Module):
             state_dict[prefix + "w2.weight"] = fc2_weight
 
 
-class TransformerBlock(nn.Module):
-    def __init__(self, layer_id: int, args: ModelArgs):
+class TransformerBlock(MegatronModule):
+    def __init__(self, layer_id: int, config):
         """
         Initialize a TransformerBlock.
         Args:
@@ -862,31 +869,31 @@ class TransformerBlock(nn.Module):
             attention_norm (RMSNorm): Layer normalization for attention output.
             ffn_norm (RMSNorm): Layer normalization for feedforward output.
         """
-        super().__init__()
-        self.n_heads = args.n_heads
-        self.dim = args.dim
-        self.head_dim = args.dim // args.n_heads
-        self.attention = Attention(args)
+        super().__init__(config=config)
+        self.n_heads = config.num_attention_heads
+        self.dim = config.hidden_size
+        self.head_dim = config.hidden_size // config.num_attention_heads
+        self.attention = Attention(config)
         self.feed_forward = FeedForward(
-            dim=args.dim,
-            hidden_dim=4 * args.dim,
-            multiple_of=args.multiple_of,
-            ffn_dim_multiplier=args.ffn_dim_multiplier,
+            dim=config.hidden_size,
+            hidden_dim=4 * config.hidden_size,
+            multiple_of=256,
+            ffn_dim_multiplier=1.2,
         )
         self.layer_id = layer_id
-        self.attention_norm = RMSNorm(args.dim, eps=args.norm_eps)
-        self.ffn_norm = RMSNorm(args.dim, eps=args.norm_eps)
+        self.attention_norm = RMSNorm(config.hidden_size, eps=config.layernorm_epsilon)
+        self.ffn_norm = RMSNorm(config.hidden_size, eps=config.layernorm_epsilon)
         self._register_load_state_dict_pre_hook(self.load_hook)
 
     def load_hook(
-        self,
-        state_dict: Dict[str, Any],
-        prefix: str,
-        local_metadata: Dict[str, Any],
-        strict: bool,
-        missing_keys: List[str],
-        unexpected_keys: List[str],
-        error_msgs: List[str],
+            self,
+            state_dict: Dict[str, Any],
+            prefix: str,
+            local_metadata: Dict[str, Any],
+            strict: bool,
+            missing_keys: List[str],
+            unexpected_keys: List[str],
+            error_msgs: List[str],
     ) -> None:
         if prefix + "feed_forward.mlp.layer_norm_weight" in state_dict:
             state_dict[prefix + "ffn_norm.weight"] = state_dict.pop(
@@ -901,11 +908,11 @@ class TransformerBlock(nn.Module):
         self.attention.setup_cache(max_batch_size, dtype)
 
     def forward(
-        self,
-        x: torch.Tensor,
-        freqs_cis: torch.Tensor,
-        mask: torch.Tensor,
-        position_ids: torch.LongTensor,
+            self,
+            x: torch.Tensor,
+            freqs_cis: torch.Tensor,
+            mask: torch.Tensor,
+            position_ids: torch.LongTensor,
     ) -> torch.Tensor:
         """
         Perform a forward pass through the TransformerBlock.
@@ -928,12 +935,12 @@ class TransformerBlock(nn.Module):
         return out
 
 
-class TilePositionEmbedding(nn.Module):
+class TilePositionEmbedding(torch.nn.Module):
     def __init__(
-        self,
-        num_tiles: int,
-        width: int,
-        gated: bool = False,
+            self,
+            num_tiles: int,
+            width: int,
+            gated: bool = False,
     ):
         super().__init__()
         self.num_tiles = num_tiles
@@ -948,14 +955,14 @@ class TilePositionEmbedding(nn.Module):
         self._register_load_state_dict_pre_hook(self.load_hook)
 
     def load_hook(
-        self,
-        state_dict,
-        prefix,
-        local_metadata,
-        strict,
-        missing_keys,
-        unexpected_keys,
-        error_msgs,
+            self,
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
     ):
         # load the weights from the checkpoint
         embed = state_dict.get(prefix + "embedding")
@@ -1006,18 +1013,18 @@ def _noinit(x):
     return x
 
 
-class CrossAttention(torch.nn.Module):
+class CrossAttention(MegatronModule):
     """Cross attention layer with model-parallel attention layers."""
 
     def __init__(
-        self,
-        dim: int,
-        head_dim: int,
-        n_heads: int,
-        n_kv_heads: int,
-        norm_eps: float,
+            self,
+            dim: int,
+            head_dim: int,
+            n_heads: int,
+            n_kv_heads: int,
+            norm_eps: float,
     ):
-        super().__init__()
+        super().__init__(config=config)
         self.model_parallel_size = fs_init.get_model_parallel_world_size()
         replication_factor = 1
         if self.model_parallel_size > 8:
@@ -1083,14 +1090,14 @@ class CrossAttention(torch.nn.Module):
         self._register_load_state_dict_pre_hook(self.load_hook)
 
     def load_hook(
-        self,
-        state_dict: Dict[str, Any],
-        prefix: str,
-        local_metadata: Dict[str, Any],
-        strict: bool,
-        missing_keys: List[str],
-        unexpected_keys: List[str],
-        error_msgs: List[str],
+            self,
+            state_dict: Dict[str, Any],
+            prefix: str,
+            local_metadata: Dict[str, Any],
+            strict: bool,
+            missing_keys: List[str],
+            unexpected_keys: List[str],
+            error_msgs: List[str],
     ) -> None:
         if prefix + "inner_attention.q_norm.weight" in state_dict:
             q_weight = state_dict.pop(prefix + "inner_attention.q_norm.weight")
@@ -1127,11 +1134,11 @@ class CrossAttention(torch.nn.Module):
         return self._compute_xattn_kv_cache(xattn_tokens)
 
     def forward(
-        self,
-        x: torch.Tensor,
-        xattn_mask: torch.Tensor,
-        full_text_row_masked_out_mask: torch.Tensor,
-        xattn_cache: torch.Tensor,
+            self,
+            x: torch.Tensor,
+            xattn_mask: torch.Tensor,
+            full_text_row_masked_out_mask: torch.Tensor,
+            xattn_cache: torch.Tensor,
     ) -> torch.Tensor:
         xq = F.linear(x, self.wq.weight)
         bsz, seqlen, _ = x.shape
@@ -1153,44 +1160,44 @@ class CrossAttention(torch.nn.Module):
         return out
 
 
-class CrossAttentionTransformerBlock(torch.nn.Module):
+class CrossAttentionTransformerBlock(MegatronModule):
     """Cross-attention transformer block with tanh-gated attention and feedforward."""
 
     def __init__(
-        self,
-        args: ModelArgs,
-        layer_id: int,
-        no_ffn: bool = False,
+            self,
+            config,
+            layer_id: int,
+            no_ffn: bool = False,
     ) -> None:
-        super().__init__()
+        super().__init__(config=config)
         self.layer_id = layer_id
-        self.n_heads = args.n_heads
-        self.n_kv_heads = args.n_heads if args.n_kv_heads is None else args.n_kv_heads
-        self.dim = args.dim
-        self.head_dim = args.dim // args.n_heads
+        self.n_heads = config.num_attention_heads
+        self.n_kv_heads = config.num_attention_heads if config.num_query_groups is None else config.num_query_groups
+        self.dim = config.hidden_size
+        self.head_dim = config.hidden_size // config.num_attention_heads
         self.attention = CrossAttention(
-            dim=args.dim,
+            dim=config.hidden_size,
             head_dim=self.head_dim,
             n_heads=self.n_heads,
             n_kv_heads=self.n_kv_heads,
-            norm_eps=args.norm_eps,
+            norm_eps=config.layernorm_epsilon,
         )
 
         self.attention_norm = RMSNorm(
-            args.dim,
-            eps=args.norm_eps,
+            config.hidden_size,
+            eps=config.layernorm_epsilon,
         )
         self.gate_attn = torch.nn.Parameter(torch.zeros(1))
 
         self.feed_forward = FeedForward(
-            dim=args.dim,
-            hidden_dim=4 * args.dim,
-            ffn_dim_multiplier=args.ffn_dim_multiplier,
-            multiple_of=args.multiple_of,
+            dim=config.hidden_size,
+            hidden_dim=4 * config.hidden_size,
+            ffn_dim_multiplier=1.2,
+            multiple_of=256,
         )
         self.ffn_norm = RMSNorm(
-            args.dim,
-            eps=args.norm_eps,
+            config.hidden_size,
+            eps=config.layernorm_epsilon,
         )
         self.gate_ffwd = torch.nn.Parameter(torch.zeros(1))
 
@@ -1198,14 +1205,14 @@ class CrossAttentionTransformerBlock(torch.nn.Module):
         self.no_ffn = no_ffn
 
     def load_hook(
-        self,
-        state_dict: Dict[str, Any],
-        prefix: str,
-        local_metadata: Dict[str, Any],
-        strict: bool,
-        missing_keys: List[str],
-        unexpected_keys: List[str],
-        error_msgs: List[str],
+            self,
+            state_dict: Dict[str, Any],
+            prefix: str,
+            local_metadata: Dict[str, Any],
+            strict: bool,
+            missing_keys: List[str],
+            unexpected_keys: List[str],
+            error_msgs: List[str],
     ) -> None:
         if prefix + "gate_attn" in state_dict:
             attn_gate = state_dict.pop(prefix + "gate_attn")
@@ -1234,11 +1241,11 @@ class CrossAttentionTransformerBlock(torch.nn.Module):
         return self.attention.compute_xattn_kv_cache(xattn_tokens)
 
     def forward(
-        self,
-        x: torch.Tensor,
-        xattn_mask: torch.Tensor,
-        full_text_row_masked_out_mask: Tuple[torch.Tensor, torch.Tensor],
-        xattn_cache: torch.Tensor,
+            self,
+            x: torch.Tensor,
+            xattn_mask: torch.Tensor,
+            full_text_row_masked_out_mask: Tuple[torch.Tensor, torch.Tensor],
+            xattn_cache: torch.Tensor,
     ) -> torch.Tensor:
         _attn_out = self.attention(
             x=self.attention_norm(x),
@@ -1257,10 +1264,10 @@ class DummyCrossAttentionTransformerBlock:
     """Dummy cross-attention transformer block with tanh-gated attention and feedforward."""
 
     def __call__(
-        self,
-        x: torch.Tensor,
-        *args,
-        **kwargs,
+            self,
+            x: torch.Tensor,
+            *args,
+            **kwargs,
     ) -> torch.Tensor:
         return x
 
@@ -1269,19 +1276,19 @@ class DummySelfAttentionTransformerBlock:
     """Dummy self-attention transformer block"""
 
     def __call__(
-        self,
-        x: torch.Tensor,
-        *args,
-        **kwargs,
+            self,
+            x: torch.Tensor,
+            *args,
+            **kwargs,
     ) -> torch.Tensor:
         return x
 
 
 def _stack_images(
-    images: List[List[PIL_Image.Image]],
-    max_num_chunks: int,
-    image_res: int,
-    max_num_images: int,
+        images: List[List[PIL_Image.Image]],
+        max_num_chunks: int,
+        image_res: int,
+        max_num_images: int,
 ) -> Tuple[torch.Tensor, List[int]]:
     """
     Takes a list of list of images and stacks them into a tensor.
@@ -1307,10 +1314,10 @@ def _stack_images(
 
 
 def _pad_masks(
-    all_masks: List[List[List[int]]],
-    all_num_chunks: List[List[int]],
-    total_len: int,
-    max_num_chunks: int,
+        all_masks: List[List[List[int]]],
+        all_num_chunks: List[List[int]],
+        total_len: int,
+        max_num_chunks: int,
 ) -> torch.Tensor:
     dtype = torch.bfloat16
     inf_value = get_negative_inf_value(dtype)
@@ -1331,7 +1338,7 @@ def _pad_masks(
                 if mask_elem[1] == -1:
                     mask_elem[1] = total_len
                 out_masks[
-                    idx, mask_elem[0] : mask_elem[1], mask_idx, :mask_num_chunks
+                idx, mask_elem[0]: mask_elem[1], mask_idx, :mask_num_chunks
                 ].fill_(0.0)
 
     return out_masks

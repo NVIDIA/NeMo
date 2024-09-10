@@ -31,7 +31,7 @@ from megatron.core.optimizer import OptimizerConfig
 from megatron.core.tensor_parallel.mappings import gather_from_tensor_model_parallel_region
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.transformer_config import TransformerConfig
-from torch import nn
+from torch import nn, Tensor
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
@@ -41,7 +41,7 @@ from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.vlm.llama.image_transform import VariableSizeImageTransform
 from nemo.collections.vlm.llama.model.transformer import (
     TransformerBlock, CrossAttentionTransformerBlock, DummyCrossAttentionTransformerBlock, precompute_freqs_cis,
-    _get_full_row_masked_out_mask, _stack_images, _pad_masks
+    _get_full_row_masked_out_mask, _stack_images, _pad_masks, VisionEncoder
 )
 from nemo.collections.vlm.llama.utils import get_negative_inf_value
 from nemo.lightning import io
@@ -188,6 +188,7 @@ class CrossAttentionModelVision(MegatronModule):
                                     ) * self.vision_input_dim
         self.patch_size = 14
         self.vision_encoder = VisionEncoder(
+            config=config,
             max_num_tiles=4,
             image_size=config.vision_chunk_size,
             patch_size=self.patch_size,
