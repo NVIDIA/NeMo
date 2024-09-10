@@ -75,6 +75,7 @@ exp_manager:
 
 model:
   virtual_prompt_style: 'no-prompts'  # make cls happy
+  audio_prompt_first: False
   seed: 1234
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
@@ -218,7 +219,8 @@ model:
       multi_config: true
       audio:
         input_cfg: ???
-        sampler_fusion: zip
+        sampler_fusion: round_robin
+        prompt_format: t5nmt
         seed: 0
         shard_seed: "trng"
         batch_size: null
@@ -231,6 +233,7 @@ model:
         shuffle: true
       text:
         input_cfg: ???
+        prompt_format: t5nmt
         use_multimodal_sampling: true
         batch_tokens: 8000
         quadratic_factor: 192
@@ -253,10 +256,12 @@ model:
       separate_prompt_and_response_with_newline: False
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
-      prompt_template: "Q: {context}\nA: {answer}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
+      prompt_template: "{context}{answer}"
+      #prompt_template: "Q: {context}\nA: {answer}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
 
     validation_ds:
       force_finite: true  # workaround to allow using input_cfg
+      prompt_format: t5nmt
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False
@@ -289,6 +294,7 @@ model:
     # test_ds:
     #   manifest_filepath: null # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
     #   force_finite: true  # workaround to allow using input_cfg
+    #   prompt_format: t5nmt
     #   names: null # Names of the corresponding datasets used to log metrics.
     #   global_batch_size: ${model.global_batch_size}
     #   micro_batch_size: ${model.micro_batch_size}

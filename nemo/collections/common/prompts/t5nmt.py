@@ -64,7 +64,7 @@ def t5nmt(cuts: CutSet, tokenizer: TokenizerSpec) -> tuple[list[torch.Tensor], l
                 slots={"target_lang": cut.context, "message": ""},
             ),
         ]
-        if len(cut.supervisions) > 1 and cut.supervisions[0].text:
+        if len(cut.supervisions) > 0 and cut.supervisions[0].text:
             turns.append(
                 dict(
                     role="assistant",
@@ -75,10 +75,7 @@ def t5nmt(cuts: CutSet, tokenizer: TokenizerSpec) -> tuple[list[torch.Tensor], l
         prompts_with_answers.append(encoded["input_ids"])
         prompts.append(encoded["context_ids"])
         if "answer_ids" in encoded:
-            assert (
-                encoded["answer_ids"][-1].item() == formatter.tokenizer.eos
-            ), f"Expected the last token in answer_ids to be EOS, but we got {encoded['answer_ids']=}"
-            answers.append(encoded["answer_ids"][:-1])  # Strip Canary's EOS
+            answers.append(encoded["answer_ids"])
         else:
             answers.append([])
 
