@@ -113,5 +113,5 @@ class TestNemotron4_22B_16k:
         model_config = recipe_module.model()
         nemotron_config = model_config.config
         assert nemotron_config.num_layers == 32
-        assert nemotron_config.hidden_size == 4096
+        assert nemotron_config.hidden_size == 6144
         assert nemotron_config.num_attention_heads == 48
