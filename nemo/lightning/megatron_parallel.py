@@ -35,6 +35,7 @@ from typing import (
     cast,
     runtime_checkable,
 )
+from dataclasses import dataclass
 
 import torch
 import torch.distributed
@@ -207,7 +208,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]],
         forward_only: bool = True,
         data_step: Optional[Callable[[Iterator[DataT]], DataT]] = None,
-        forward_step: Optional[Callable[[nn.Module, DataT], Tensor]] = None,
+        forward_step: Optional[Callable[[ModelT, DataT], Tensor]] = None,
         loss_reduction: Optional["MegatronLossReduction[DataT, Any]"] = None,
         seq_length: Optional[int] = None,
         micro_batch_size: Optional[int] = None,
@@ -238,44 +239,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         """
         _forward_step = forward_step or self.forward_step
         _loss_reduction = loss_reduction or self.loss_reduction
-        _micro_batch_size: int = micro_batch_size or self.infer_micro_batch_size(data)
-        _seq_length: int = seq_length or self.infer_seq_length(data)
-        _num_microbatches: int = num_microbatches or self.infer_num_microbatches(data)
 
         pipeline = self.pipeline
-
-        # FIXME: cleanup the following code block which is here for backwards compatibility with nemo1. The "batch"
-        #  sampler is a nemo1 sampler. It requires some custom code here to use (if use_global_batch_sampler).
-        #  by default we shouldn't use this "batch" sampler probably.
-        if getattr(self.trainer, "datamodule", None) is not None:
-            use_global_batch_sampler = self.trainer.datamodule.data_sampler.dataloader_type == 'batch'
-        elif getattr(self.trainer, "predict_dataloaders", None) is not None:
-            from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (  # noqa: I001
-                MegatronPretrainingBatchSampler,
-            )
-
-            # The batch_sampler gets injected into the dataloader by the data_sampler. When doing predict without a
-            #  datamodule we can look inside the dataloader's batch_sampler to see if it is the nemo1 style sampler
-            #  that we need to handle specially below.
-            use_global_batch_sampler = isinstance(
-                self.trainer.predict_dataloaders.batch_sampler, MegatronPretrainingBatchSampler
-            )
-        else:
-            raise ValueError("Unsure how to check for nemo1 global_batch_sampler status. TODO maybe default to False?")
-        if use_global_batch_sampler:
-            from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
-
-            # The current way of using a batch sampler + split to micro iterator results in
-            # extraneous padding, and is only implemented to ensure bit-exactness with NeMo 1.
-            # This part in NeMo 1 was written when megatron fwd_bwd_function did not support unequal
-            # sequence lengths, but it does now. Hence this part should be revisited in the future.
-            batch = next(data)
-            if isinstance(batch, tuple) and len(batch) == 3:
-                batch = batch[0]
-            data = get_iterator_k_split(batch, _num_microbatches, True)
-
-        data_iterator: List[Iterator[DataT]] = self.to_data_iterator_list(data)
-        context = self._build_context({**locals()})
+        context = {}
 
         if wrap_forward_step:
             _data_step = data_step or self.data_step
@@ -288,19 +254,20 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         else:
             forward_step_func = _forward_step
 
-        self.callbacks.event("on_megatron_step_start", **context)
-        self.callbacks.event("on_megatron_microbatches_start", **context)
-
-        microbatch_outputs = self.forward_backward_func(
-            forward_step_func=forward_step_func,
-            data_iterator=data_iterator,
-            model=pipeline,
+        step = MegatronStep.infer(
+            data, 
+            forward_step_func, 
+            pipeline, 
             forward_only=forward_only,
-            micro_batch_size=_micro_batch_size,
-            seq_length=_seq_length,
-            num_microbatches=_num_microbatches,
+            micro_batch_size=micro_batch_size,
+            num_microbatches=num_microbatches,
+            seq_length=seq_length,
         )
-
+        
+        step = self.callbacks.transform_event("on_megatron_step_start", step, **context)
+        context["step"] = step
+        self.callbacks.event("on_megatron_microbatches_start", **context)
+        microbatch_outputs = step()
         context["microbatch_outputs"] = microbatch_outputs
 
         self.callbacks.event("on_megatron_microbatches_end", **context)
@@ -392,102 +359,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         return wrapped_forward_step_func
 
-    def to_data_iterator_list(
-        self, data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]]
-    ) -> List[Iterator[DataT]]:
-        """
-        Converts the provided data into a list of iterators.
-
-        This method is used to convert the input data into a list of iterators that can be used
-        for data parallelism in the Megatron model. The input data can be a single data item,
-        an iterator, or a list of iterators.
-
-        Args:
-            data (Union[DataT, Iterator[DataT], List[Iterator[DataT]]]): The input data to be
-                converted into a list of iterators. This can be a single data item, an iterator,
-                or a list of iterators.
-
-        Returns
-        -------
-            List[Iterator[DataT]]: A list of iterators created from the input data.
-        """
-        if isinstance(data, Iterator):
-            return _make_data_iterator_list(self.pipeline, data)
-        elif isinstance(data, list) and all(isinstance(item, Iterator) for item in data):
-            # If data is already a list of iterators, return it as is
-            return cast(List[Iterator[DataT]], data)
-
-        # For a single data item or any other type, wrap it in an iterator and return as a list
-        return cast(List[Iterator[DataT]], [iter([data])])
-
-    def infer_micro_batch_size(self, data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]]) -> int:
-        """
-        Infers the micro batch size from the provided data.
-
-        This method attempts to infer the micro batch size by checking for specific attributes
-        in the data object. If the data object has a `micro_batch_size` attribute, it is returned.
-        If the data object has a `data_config` attribute with a `micro_batch_size` attribute,
-        it is returned. Otherwise, the method attempts to infer the micro batch size from the
-        first dimension of the data tensor, if the data is a tensor. If the data is a dictionary,
-        the method is called recursively on the first value of the dictionary. If the data is a
-        list or tuple with at least one element, the method is called recursively on the first
-        element. If none of these conditions are met, a ValueError is raised.
-
-        Args:
-            data (Union[DataT, Iterator[DataT], List[Iterator[DataT]]]): The data to infer the
-                micro batch size from.
-
-        Returns
-        -------
-            int: The inferred micro batch size.
-
-        Raises
-        ------
-            ValueError: If the micro batch size cannot be inferred from the data.
-        """
-        if hasattr(data, "micro_batch_size"):
-            return data.micro_batch_size
-        if hasattr(data, "data_config"):
-            return data.data_config.micro_batch_size
-
-        if isinstance(data, Tensor):
-            return data.size(0)
-        elif isinstance(data, dict):
-            return self.infer_micro_batch_size(next(iter(data.values())))
-        elif isinstance(data, (list, tuple)) and len(data) > 0:
-            _tensor: Tensor = data[0]
-            return self.infer_micro_batch_size(_tensor)
-
-        raise ValueError("Cannot infer `micro_batch_size` from data, please specify it manually")
-
-    def infer_seq_length(self, data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]]) -> int:
-        if hasattr(data, "seq_length"):
-            return data.seq_length
-        if hasattr(data, "data_config"):
-            return data.data_config.seq_length
-
-        if isinstance(data, Tensor):
-            # TODO: Check if at least 2 dims
-            return data.size(1)
-        elif isinstance(data, dict):
-            return self.infer_seq_length(next(iter(data.values())))
-        elif isinstance(data, (list, tuple)) and len(data) > 0:
-            _tensor: Tensor = data[0]
-            return self.infer_seq_length(_tensor)
-
-        raise ValueError("Cannot infer `seq_length` from data, please specify it manually")
-
-    def infer_num_microbatches(self, data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]]) -> int:
-        if hasattr(data, "num_microbatches"):
-            return data.num_microbatches
-        if hasattr(data, "data_config"):
-            return data.data_config.num_microbatches
-
-        if isinstance(data, (dict, tuple, list, Tensor)):
-            return 1
-
-        raise ValueError("Cannot infer `num_microbatches` from data, please specify it manually")
-
     def init_model_parallel(self):
         from megatron.core import parallel_state
         from megatron.core.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
@@ -564,24 +435,12 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             module.config.no_sync_func = no_sync_func
             module.config.grad_sync_func = grad_sync_func
 
-    def _build_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        if "self" in context:
-            del context["self"]
+    def _build_context(self) -> Dict[str, Any]:
+        context = {}
+        
         context["pl_module"] = self
         if hasattr(self, "trainer"):
             context["trainer"] = self.trainer
-
-        for val in [
-            "data_step",
-            "forward_step",
-            "loss_reduction",
-            "micro_batch_size",
-            "seq_length",
-            "num_microbatches",
-        ]:
-            if "_" + val in context:
-                context[val] = context["_" + val]
-                del context["_" + val]
 
         return context
 
@@ -743,6 +602,10 @@ class DDP(McoreDDP):
         return getattr_proxy(self, item)
 
 
+from typing import Any, TypeVar, Generic
+
+T = TypeVar('T')
+
 class CallbackConnector:
     """
     A connector for managing and invoking callbacks.
@@ -860,6 +723,39 @@ class CallbackConnector:
                     filtered_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
                     callback_method(*filtered_args, **filtered_kwargs)
 
+    def transform_event(self, name: str, obj: T, **kwargs) -> T:
+        """
+        Triggers an event that allows callbacks to transform and return an object.
+
+        This method applies a series of potential transformations to the input object
+        by calling registered callbacks. Each callback has the opportunity to modify
+        and return a new version of the object.
+
+        Parameters
+        ----------
+        name : str
+            The name of the event to trigger.
+        obj : T
+            The object to be potentially transformed by callbacks.
+        **kwargs : Any
+            Additional keyword arguments to pass to the callbacks.
+
+        Returns
+        -------
+        T
+            The potentially transformed object.
+        """
+        for callback in self.callbacks.get(name, []):
+            callback_method = getattr(callback, name, None)
+            if callable(callback_method):
+                result = callback_method(obj, **kwargs)
+
+                # Update obj if the callback returned a value of the same type
+                if result is not None and isinstance(result, type(obj)):
+                    obj = result
+
+        return obj
+
     def __add__(self, other) -> "CallbackConnector":
         """
         Adds another CallbackConnector's callbacks to this one.
@@ -943,10 +839,128 @@ class CallbackConnector:
                 return True
 
         return False
+    
+    
+@dataclass
+class MegatronStep:
+    data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]]
+    forward_step_func: Callable    
+    model: nn.Module
+    forward_only: bool
+    micro_batch_size: Optional[int] = None
+    seq_length: Optional[int] = None
+    num_microbatches: Optional[int] = None
+    
+    @classmethod
+    def infer(
+        cls, 
+        data: DataT,
+        forward_step_func: Callable,
+        model: nn.Module,
+        forward_only: bool,
+        micro_batch_size: Optional[int] = None,
+        seq_length: Optional[int] = None,
+        num_microbatches: Optional[int] = None,
+    ) -> "MegatronStep":
+        return cls(
+            data=data,
+            forward_step_func=forward_step_func,
+            model=model,
+            forward_only=forward_only,
+            micro_batch_size=micro_batch_size or cls.infer_micro_batch_size(data),
+            seq_length=seq_length or cls.infer_seq_length(data),
+            num_microbatches=num_microbatches or cls.infer_num_microbatches(data),
+        )
+    
+    def __call__(self):
+        if self.num_microbatches is None:
+            raise ValueError("num_microbatches is not set")
+        
+        if self.seq_length is None:
+            raise ValueError("seq_length is not set")
+        
+        if self.micro_batch_size is None:
+            raise ValueError("micro_batch_size is not set")
+        
+        data_iterator_list = self.to_data_iterator_list(self.data)
+        return self.forward_backward_func(
+            forward_step_func=self.forward_step_func,
+            data_iterator=data_iterator_list,
+            model=self.model,
+            num_microbatches=self.num_microbatches,
+            seq_length=self.seq_length,
+            micro_batch_size=self.micro_batch_size,
+        )
+    
+    def to_data_iterator_list(
+        self, data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]]
+    ) -> List[Iterator[DataT]]:
+        """
+        Converts the provided data into a list of iterators.
+
+        This method is used to convert the input data into a list of iterators that can be used
+        for data parallelism in the Megatron model. The input data can be a single data item,
+        an iterator, or a list of iterators.
+
+        Args:
+            data (Union[DataT, Iterator[DataT], List[Iterator[DataT]]]): The input data to be
+                converted into a list of iterators. This can be a single data item, an iterator,
+                or a list of iterators.
+
+        Returns
+        -------
+            List[Iterator[DataT]]: A list of iterators created from the input data.
+        """
+        if isinstance(data, Iterator):
+            return _make_data_iterator_list(self.pipeline, data)
+        elif isinstance(data, list) and all(isinstance(item, Iterator) for item in data):
+            # If data is already a list of iterators, return it as is
+            return cast(List[Iterator[DataT]], data)
+
+        # For a single data item or any other type, wrap it in an iterator and return as a list
+        return cast(List[Iterator[DataT]], [iter([data])])
+    
+    @classmethod
+    def infer_micro_batch_size(cls, data: DataT) -> Optional[int]:
+        if isinstance(data, Tensor):
+            return data.size(0)
+        elif isinstance(data, dict):
+            return cls.infer_micro_batch_size(next(iter(data.values())))
+        elif isinstance(data, (list, tuple)) and len(data) > 0:
+            _tensor: Tensor = data[0]
+            return cls.infer_micro_batch_size(_tensor)
+
+        return None
+
+    @classmethod
+    def infer_seq_length(cls, data: DataT) -> Optional[int]:
+        if isinstance(data, Tensor):
+            # TODO: Check if at least 2 dims
+            return data.size(1)
+        elif isinstance(data, dict):
+            return cls.infer_seq_length(next(iter(data.values())))
+        elif isinstance(data, (list, tuple)) and len(data) > 0:
+            _tensor: Tensor = data[0]
+            return cls.infer_seq_length(_tensor)
+
+        return None
+
+    @classmethod
+    def infer_num_microbatches(cls, data: DataT) -> Optional[int]:
+        if isinstance(data, (dict, tuple, list, Tensor)):
+            return 1
+
+        return None
+    
+    @property
+    def forward_backward_func(self) -> "MegatronStepProtocol":
+        from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+
+        return get_forward_backward_func()
 
 
 class CallbackMethods:
-    def on_megatron_step_start(self, *args, **kwargs) -> None: ...
+    def on_megatron_step_start(self, step: MegatronStep, **kwargs) -> MegatronStep: ...
 
     def on_megatron_microbatch_start(self, *args, **kwargs) -> None: ...
 

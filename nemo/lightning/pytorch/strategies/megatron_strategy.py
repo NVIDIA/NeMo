@@ -601,7 +601,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             kwargs["forward_step"] = self._get_forward_step(step_name)
         if "loss_reduction" not in kwargs:
             kwargs["loss_reduction"] = self._get_loss_reduction(step_name)
-        kwargs.update(self._data_config_kwargs(dataloader_iter))
 
         return kwargs
 
@@ -780,13 +779,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 return _ModuleStepFunction(fn_name, is_property=True)
 
         return None
-
-    def _data_config_kwargs(self, dataloader_iter) -> Dict[str, Any]:
-        if not hasattr(dataloader_iter, "data_config") and self.data_sampler:
-            if hasattr(self.data_sampler, "megatron_data_kwargs"):
-                return self.data_sampler.megatron_data_kwargs
-
-        return {}
 
     @property
     def distributed_sampler_kwargs(self) -> Dict[str, Any]:

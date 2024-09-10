@@ -13,10 +13,13 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Dict, List, Literal, Optional
+from typing import List, Literal, Optional
+import dataclasses
 
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
+
+from nemo.lightning.megatron_parallel import MegatronStep
 
 
 class DataSampler:
@@ -91,7 +94,16 @@ class MegatronDataSampler(DataSampler):
         return int(consumed_samples)
 
     # Megatron callbacks
-    def on_megatron_step_start(self, trainer: pl.Trainer) -> None:
+    
+    def on_megatron_step_start(self, step: MegatronStep) -> MegatronStep:
+        return dataclasses.replace(
+            step, 
+            seq_length=self.seq_len,
+            micro_batch_size=self.micro_batch_size,
+            num_microbatches=self.num_microbatches,
+        )
+    
+    def on_megatron_microbatches_start(self, trainer: pl.Trainer) -> None:
         # do validation and save the checkpoint when gbs is changed
         if (
             self.rampup_batch_size is not None
@@ -136,13 +148,7 @@ class MegatronDataSampler(DataSampler):
             )
         self.if_first_step = 1
 
-    @property
-    def megatron_data_kwargs(self) -> Dict[str, Any]:
-        return {
-            "seq_length": self.seq_len,
-            "micro_batch_size": self.micro_batch_size,
-            "num_microbatches": self.num_microbatches,
-        }
+    
 
     @property
     def num_microbatches(self) -> int:
