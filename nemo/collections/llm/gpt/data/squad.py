@@ -77,11 +77,9 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
 
     def prepare_data(self) -> None:
         # if train file is specified, no need to do anything
-        if self.train_path.exists() and not self.force_redownload:
-            return
-
-        dset = self._download_data()
-        self._preprocess_and_split_data(dset)
+        if not self.train_path.exists() or self.force_redownload:
+            dset = self._download_data()
+            self._preprocess_and_split_data(dset)
         super().prepare_data()
 
     def _download_data(self):

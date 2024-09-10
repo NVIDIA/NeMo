@@ -48,7 +48,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         pin_memory (bool, optional): Whether to pin memory during data loading for faster GPU training. Defaults to True.
         persistent_workers (bool, optional): Whether to keep data loading workers persistent across epochs. Defaults to False.
         max_train_steps (int, optional): Maximum number of steps to train. Used to calculate samples mapping for the mmap dataset
-        pad_to_max_length (bool, optional): ... TODO
+        pad_to_max_length (bool, optional): Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         packed_sequence_size (int, optional): If a positive integer, this arg enables training with sequence packing and specifies the pack size
             If less than or equal to 0, sequence packing is disabled. Defaults to -1.
             Note: This arg is distinct from `seq_length` because `seq_length` specifies the maximum length of the original sequence
@@ -89,18 +89,16 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.packed_sequence_size = packed_sequence_size
 
     def prepare_data(self) -> None:
-        if self.packed_sequence_size > 0:
-            if not self.train_path.is_file():
-                from nemo.collections.llm.gpt.data.packed_sequence import prepare_packed_sequence_data
-
-                prepare_packed_sequence_data(
-                    input_path=self.dataset_root / "training.jsonl",
-                    output_path=self.train_path,
-                    packed_sequence_size=self.packed_sequence_size,
-                    tokenizer=self.tokenizer,
-                    max_seq_length=self.seq_length,
-                    seed=self.seed,
-                )
+        if self.packed_sequence_size > 0 and not self.train_path_packed.is_file():
+            from nemo.collections.llm.gpt.data.packed_sequence import prepare_packed_sequence_data
+            prepare_packed_sequence_data(
+                input_path=self.train_path,
+                output_path=self.train_path_packed,
+                packed_sequence_size=self.packed_sequence_size,
+                tokenizer=self.tokenizer,
+                max_seq_length=self.seq_length,
+                seed=self.seed,
+            )
 
     def setup(self, stage: str):
         self.data_sampler = MegatronDataSampler(
@@ -118,7 +116,7 @@ class FineTuningDataModule(pl.LightningDataModule):
     def train_dataloader(self) -> DataLoader:
         return self._create_dataloader(
             self._create_dataset(
-                self.train_path,
+                self.train_path if self.packed_sequence_size <= 0 else self.train_path_packed,
                 max_num_samples=self.max_train_samples,
                 pad_to_max_length=self.pad_to_max_length,
             )
@@ -144,13 +142,15 @@ class FineTuningDataModule(pl.LightningDataModule):
         )
 
     @lru_cache
-    def _create_dataset(self, path, **kwargs):
+    def _create_dataset(self, path, is_test=False, **kwargs):
         return create_sft_dataset(
             path,
             tokenizer=self.tokenizer,
-            seq_length=self.seq_length if self.packed_sequence_size <= 0 else self.packed_sequence_size,
+            seq_length=self.seq_length if is_test or self.packed_sequence_size <= 0
+                                       else self.packed_sequence_size * self.micro_batch_size,
             memmap_workers=self.memmap_workers,
             seed=self.seed,
+            is_test=is_test,
             **kwargs,
         )
 
@@ -160,15 +160,27 @@ class FineTuningDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
-            collate_fn=dataset.collate_fn,
+            collate_fn=self._collate_fn_wrapper(dataset.collate_fn, dataset.is_test),
             **kwargs,
         )
 
+    def _collate_fn_wrapper(self, collate_fn, is_test):
+        if not is_test and self.packed_sequence_size > 0 and self.micro_batch_size > 1:
+            from nemo.collections.llm.gpt.data.packed_sequence import manipulate_batch_to_mbs1
+            return lambda batch: collate_fn(manipulate_batch_to_mbs1(batch, self.micro_batch_size))
+        else:
+            return collate_fn
+
     @property
     def train_path(self) -> Path:
+        return self.dataset_root / "training.jsonl"
+
+    @property
+    def train_path_packed(self) -> Path:
         if self.packed_sequence_size > 0:
             return self.dataset_root / f"training_packed{self.packed_sequence_size}.npy"
-        return self.dataset_root / "training.jsonl"
+        else:
+            raise ValueError("`train_path_packed` invalid since packed sequence size is not specified.")
 
     @property
     def validation_path(self) -> Path:
