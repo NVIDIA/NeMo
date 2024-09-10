@@ -28,7 +28,8 @@ import pytest
 import pytorch_lightning as pl
 import torch
 import torch.distributed
-from megatron.core import ModelParallelConfig, parallel_state
+from megatron.core import parallel_state
+from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.module import MegatronModule
@@ -55,7 +56,7 @@ T = TypeVar("T")
 
 
 @dataclass
-class ExampleConfig(ModelParallelConfig):
+class ExampleConfig(TransformerConfig):
     """ExampleConfig is a dataclass that is used to configure the model.
 
     Timers from ModelParallelConfig are required for megatron forward compatibility.
