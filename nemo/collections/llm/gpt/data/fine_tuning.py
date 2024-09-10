@@ -91,6 +91,7 @@ class FineTuningDataModule(pl.LightningDataModule):
     def prepare_data(self) -> None:
         if self.packed_sequence_size > 0 and not self.train_path_packed.is_file():
             from nemo.collections.llm.gpt.data.packed_sequence import prepare_packed_sequence_data
+
             prepare_packed_sequence_data(
                 input_path=self.train_path,
                 output_path=self.train_path_packed,
@@ -146,8 +147,11 @@ class FineTuningDataModule(pl.LightningDataModule):
         return create_sft_dataset(
             path,
             tokenizer=self.tokenizer,
-            seq_length=self.seq_length if is_test or self.packed_sequence_size <= 0
-                                       else self.packed_sequence_size * self.micro_batch_size,
+            seq_length=(
+                self.seq_length
+                if is_test or self.packed_sequence_size <= 0
+                else self.packed_sequence_size * self.micro_batch_size
+            ),
             memmap_workers=self.memmap_workers,
             seed=self.seed,
             is_test=is_test,
@@ -167,6 +171,7 @@ class FineTuningDataModule(pl.LightningDataModule):
     def _collate_fn_wrapper(self, collate_fn, is_test):
         if not is_test and self.packed_sequence_size > 0 and self.micro_batch_size > 1:
             from nemo.collections.llm.gpt.data.packed_sequence import manipulate_batch_to_mbs1
+
             return lambda batch: collate_fn(manipulate_batch_to_mbs1(batch, self.micro_batch_size))
         else:
             return collate_fn

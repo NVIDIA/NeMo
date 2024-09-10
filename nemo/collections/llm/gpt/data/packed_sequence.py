@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -40,6 +40,7 @@ def prepare_packed_sequence_data(
     np.save(output_path, output_data)
     logging.info(f"Packed sequence is prepared and saved to {output_path}")
 
+
 def manipulate_batch_to_mbs1(batch: List[Dict[str, List]], micro_batch_size: int) -> List[Dict[str, List]]:
     """
     Manipulate batch to mbs=1 by concatenating samples in a micro batch.
@@ -55,14 +56,18 @@ def manipulate_batch_to_mbs1(batch: List[Dict[str, List]], micro_batch_size: int
     for i, sample in enumerate(batch):
         if i % micro_batch_size == 0:
             # Beginning of new micro batch
-            new_batch.append({
-                "input_ids": sample["input_ids"],
-                "seq_boundaries": sample["seq_boundaries"],
-                "loss_mask": sample["loss_mask"],
-            })
+            new_batch.append(
+                {
+                    "input_ids": sample["input_ids"],
+                    "seq_boundaries": sample["seq_boundaries"],
+                    "loss_mask": sample["loss_mask"],
+                }
+            )
         else:
             # Middle of new micro batch
-            new_batch[-1]["seq_boundaries"].extend(np.array(sample["seq_boundaries"]) + len(new_batch[-1]["input_ids"]))
+            new_batch[-1]["seq_boundaries"].extend(
+                np.array(sample["seq_boundaries"]) + len(new_batch[-1]["input_ids"])
+            )
             new_batch[-1]["input_ids"].extend(sample["input_ids"])
             new_batch[-1]["loss_mask"].extend(sample["loss_mask"])
 
