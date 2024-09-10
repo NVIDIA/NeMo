@@ -705,11 +705,28 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def load_optimizer_state_dict(self, checkpoint: Mapping[str, Any], selective_restore: bool = False) -> None:
-        if self._fsdp or not self.should_restore_optimizer_states(selective_restore=selective_restore):
+        if not self.should_restore_optimizer_states(selective_restore=selective_restore):
             return
 
+        from megatron.core import parallel_state
+        from torch.distributed import DeviceMesh
+        from torch.distributed._tensor import DTensor, Shard
+
+        mesh = DeviceMesh.from_group(parallel_state.get_data_parallel_group(), "cuda")
+        
         optimizer_states = checkpoint["optimizer"]
         for optimizer, opt_state in zip(self.optimizers, optimizer_states):
+            if self._fsdp:
+                opt_state['fp32_from_fp16_params'] = OrderedDict()
+                for opt_param in opt_state['optimizer']['state'].values():
+                    if isinstance(opt_param, Dict):
+                        for opt_param_state_key, opt_param_state in opt_param.items():
+                            opt_param[opt_param_state_key] = DTensor.from_local(
+                                opt_param_state,
+                                mesh,
+                                (Shard(dim=0),),
+                            )
+
             optimizer.load_state_dict(opt_state)
             _optimizer_to_device(optimizer, self.root_device)
 
