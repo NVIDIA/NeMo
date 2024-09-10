@@ -23,7 +23,7 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, EncDecMultiTaskModel
+from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, EncDecMultiTaskModel, EncDecRNNTModel
 from nemo.collections.asr.models.aed_multitask_models import parse_multitask_prompt
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
@@ -288,7 +288,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     elif isinstance(asr_model, EncDecHybridRNNTCTCModel):
         if cfg.decoder_type and cfg.decoder_type not in ['ctc', 'rnnt']:
             raise ValueError('Hybrid model only support ctc or rnnt decoding!')
-    else:  # rnnt model, there could be other models needs to be addressed.
+    elif isinstance(asr_model, EncDecRNNTModel):
         if cfg.decoder_type and cfg.decoder_type != 'rnnt':
             raise ValueError('RNNT model only support rnnt decoding!')
 
@@ -369,9 +369,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             )
         elif not partial_audio and cfg.dataset_manifest is None:
             raise ValueError("Partial audio transcription requested, but no dataset manifest provided.")
-
-        if partial_audio and isinstance(asr_model, EncDecMultiTaskModel):
-            raise ValueError("EncDecMultiTaskModel does not support partial transcription yet.")
 
     if isinstance(asr_model, EncDecMultiTaskModel) and sorted_manifest_path is not None:
         filepaths = sorted_manifest_path

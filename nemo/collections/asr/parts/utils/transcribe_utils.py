@@ -481,37 +481,19 @@ def transcribe_partial_audio(
     returns: List[str] - List of transcriptions
     """
 
-    # Model's mode and device
-    mode = asr_model.training
+    config = {
+        'manifest_filepath': path2manifest,
+        'batch_size': get_value_from_transcription_config(override_config, 'batch_size', 4),
+        'num_workers': get_value_from_transcription_config(override_config, 'num_workers', 1),
+        'channel_selector': get_value_from_transcription_config(override_config, 'channel_selector', None),
+    }
 
-    try:
-        asr_model.eval()
-        # Freeze the encoder and decoder modules
-        asr_model.encoder.freeze()
-        asr_model.decoder.freeze()
-        logging_level = logging.get_verbosity()
-        logging.set_verbosity(logging.WARNING)
+    if get_value_from_transcription_config(override_config, 'augmentor', None) is not None:
+        config['augmentor'] = getattr(override_config, 'augmentor')
 
-        config = {
-            'manifest_filepath': path2manifest,
-            'batch_size': get_value_from_transcription_config(override_config, 'batch_size', 4),
-            'num_workers': get_value_from_transcription_config(override_config, 'num_workers', 1),
-            'channel_selector': get_value_from_transcription_config(override_config, 'channel_selector', None),
-        }
-        # if override_config.get('augmentor') is not None:
-        if get_value_from_transcription_config(override_config, 'augmentor', None) is not None:
-            config['augmentor'] = getattr(override_config, 'augmentor')
+    temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
+    hypotheses = asr_model.transcribe(audio=temporary_datalayer, override_config=override_config)
 
-        temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
-        hypotheses = asr_model.transcribe(audio=temporary_datalayer, override_config=override_config)
-
-    finally:
-        # set mode back to its original value
-        asr_model.train(mode=mode)
-        if mode is True:
-            asr_model.encoder.unfreeze()
-            asr_model.decoder.unfreeze()
-        logging.set_verbosity(logging_level)
     return hypotheses
 
 
