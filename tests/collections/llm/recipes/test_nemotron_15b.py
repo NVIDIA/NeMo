@@ -58,7 +58,7 @@ class TestNemotron4_15B:
 
     def test_hf_resume(self, recipe_module):
         with pytest.raises(NotImplementedError):
-            resume_config = recipe_module.hf_resume()
+            recipe_module.hf_resume()
 
     def test_pretrain_recipe(self, recipe_module):
         recipe = recipe_module.pretrain_recipe()
