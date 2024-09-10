@@ -26,7 +26,7 @@ from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel, EncDecMultiTaskModel
+from nemo.collections.asr.models import ASRModel, EncDecMultiTaskModel
 from nemo.collections.asr.parts.mixins.transcription import TranscribeConfig, get_value_from_transcription_config
 from nemo.collections.asr.parts.utils import manifest_utils, rnnt_utils
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR, FrameBatchMultiTaskAED

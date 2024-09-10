@@ -13,12 +13,10 @@
 # limitations under the License.
 
 import contextlib
-import glob
 import json
 import os
 import time
 from dataclasses import dataclass, field, is_dataclass
-from tempfile import NamedTemporaryFile
 from typing import List, Optional, Union
 
 import pytorch_lightning as pl
@@ -31,19 +29,16 @@ from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
-from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import GreedyBatchedRNNTInferConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
-    read_and_maybe_sort_manifest,
     restore_transcription_order,
     setup_model,
     transcribe_partial_audio,
     write_transcription,
 )
-from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
