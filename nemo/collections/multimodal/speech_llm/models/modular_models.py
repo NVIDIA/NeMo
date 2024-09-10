@@ -477,7 +477,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 seq_length = None  # TODO(pzelasko): not sure if it is even needed ???
 
             data_iter = get_iterator_k_split(batch, 1)
-            #data_iter = get_iterator_k_split(batch, get_num_microbatches())
+            # data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
             # TODO(pzelasko): restore this logging once we decide what's the right format for joint text-audio batches
             # if log_token_counts:
@@ -507,10 +507,10 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 forward_step_func=self.get_forward_output_and_loss_func(tuning=True, validation_step=forward_only),
                 data_iterator=self._make_data_iterator_list(data_iter),
                 model=self.model,
-                num_microbatches=1,  #get_num_microbatches(),
+                num_microbatches=1,  # get_num_microbatches(),
                 forward_only=forward_only,
                 seq_length=seq_length,
-                micro_batch_size=self.cfg.data.train_ds.micro_batch_size,  #get_micro_batch_size(),
+                micro_batch_size=self.cfg.data.train_ds.micro_batch_size,  # get_micro_batch_size(),
                 first_val_step=first_val_step,
             )
 
@@ -1254,9 +1254,14 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         # Evaluation of multimodal data follows the same pattern as training except predict_step
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
-        self._reconfigure_and_process_inference_batch(batch, data_cfg)
-        # Meta data from dataset
-        metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+        if "tokens" in batch:
+            self._reconfigure_and_process_inference_batch(batch, data_cfg)
+            metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+        else:
+            batch["tokens"] = batch["text_input_ids"]
+            self._reconfigure_and_process_inference_batch(batch, data_cfg)
+            metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+            batch.pop("tokens")
         loss = super(MegatronGPTSFTModel, self).validation_step(itertools.chain([batch]), dataloader_idx)
 
         # We need _inference_config to get generation params
@@ -1269,12 +1274,22 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         output = self.predict_step(batch, batch_idx, dataloader_idx)
 
-        inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
-        labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
-        preds_text = [
-            self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
-            for t, l in zip(output['token_ids'], batch['context_lengths'])
-        ]
+        audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_")}
+        text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
+        if audio_batch:
+            inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in audio_batch['contexts']]
+            labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in audio_batch['answers']]
+            preds_text = [
+                self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
+                for t, l in zip(output['token_ids'], audio_batch['context_lengths'])
+            ]
+        else:
+            inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in text_batch['text_context_ids']]
+            labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in text_batch['text_answer_ids']]
+            preds_text = [
+                self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
+                for t, l in zip(output['token_ids'], text_batch['text_context_lens'])
+            ]
 
         if data_cfg.get("end_string", None):
             # sometimes data_cfg.end_string != self.tokenizer.ids_to_text(self.tokenizer.text_to_ids(data_cfg.end_string))
@@ -1356,7 +1371,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             inference_config['end_strings'] = [self.cfg.data.end_string]
 
         global_batch_size_per_gpu = batch['tokens'].size(0)
-        num_micro_batches_before_decode = 1  #get_num_microbatches()
+        num_micro_batches_before_decode = 1  # get_num_microbatches()
 
         compute_logprob = inference_config.get('compute_logprob', False)
         if compute_logprob:
@@ -1371,6 +1386,12 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             # for megatron_gpt_eval.py
             if isinstance(batch, list):
                 inference_config['inputs'] = batch
+            elif "text_context_ids" in batch:
+                # Text mini-batch
+                inference_config['inputs'] = (
+                    batch['text_context_ids'].cuda(),
+                    batch['text_context_lens'].cuda(),
+                )
             elif 'num_audios' in batch:
                 # peft_eval.py
                 inference_config['inputs'] = (
@@ -1401,7 +1422,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         )
 
         # add audio offsets to context lengths for properly decoding only the response
-        batch['context_lengths'] = batch['context_lengths'].cuda() + response['audio_feat_lens']
+        if 'context_lengths' in batch:
+            batch['context_lengths'] = batch['context_lengths'].cuda() + response['audio_feat_lens']
 
         return response
 
