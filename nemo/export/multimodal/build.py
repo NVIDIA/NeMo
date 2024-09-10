@@ -224,7 +224,7 @@ def build_neva_engine(
     #     temp_path = Path(temp)
     #     mp0_weights, nemo_config, _ = load_nemo_model(visual_checkpoint_path, temp_path)
 
-    #load untar checkpoint
+    # load untar checkpoint
     config_path = os.path.join(visual_checkpoint_path, 'model_config.yaml')
     with open(config_path, 'r') as f:
         nemo_config = yaml.safe_load(f)
