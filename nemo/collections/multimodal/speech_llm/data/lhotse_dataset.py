@@ -150,32 +150,38 @@ def collate_text_data(
     def get_max_len(input_list):
         return max([len(x) for x in input_list])
 
-    max_length = tokens_to_generate + max(
-        get_max_len(fields["input_ids"]), get_max_len(fields["context_ids"]), get_max_len(fields["answer_ids"])
-    )
+    # max_length = tokens_to_generate + max(
+    #     get_max_len(fields["input_ids"]), get_max_len(fields["context_ids"]), get_max_len(fields["answer_ids"])
+    # )
+    input_id_maxlen = get_max_len(fields["input_ids"])
+    context_id_maxlen = get_max_len(fields["context_ids"])
+    answer_id_maxlen = get_max_len(fields["answer_ids"])
     # increase max length to nearest multiple of 4 or 8
     if pad_to_max_length:
-        max_length = max_seq_length
-    else:
-        max_length = min(max_seq_length, ceil_to_nearest(max_length, 8))
+        input_id_maxlen = max_seq_length
+        context_id_maxlen = max_seq_length
+        answer_id_maxlen = max_seq_length
+        # max_length = max_seq_length
+    # else:
+    #     max_length = min(max_seq_length, ceil_to_nearest(max_length, 8))
 
-    all_tokens = collate_vectors(fields["input_ids"], max_length=max_length, padding_value=pad_id)
+    all_tokens = collate_vectors(fields["input_ids"], max_length=input_id_maxlen, padding_value=pad_id)
     full_lengths = torch.LongTensor([len(item) for item in fields["input_ids"]])
 
-    assert max_length <= max_seq_length, f"{max_length=} <= {max_seq_length=}"
+    assert input_id_maxlen <= max_seq_length, f"{input_id_maxlen=} <= {max_seq_length=}"
 
     return {
         "tokens": all_tokens[:, :-1],
         "tokens_length": full_lengths - 1,
         "labels": all_tokens[:, 1:],
         "loss_mask": collate_vectors(
-            [torch.as_tensor(build_loss_mask(item)) for item in examples], max_length=max_length, padding_value=0
+            [torch.as_tensor(build_loss_mask(item)) for item in examples], max_length=input_id_maxlen, padding_value=0
         )[:, 1:],
-        "position_ids": torch.arange(max_length, dtype=torch.long).repeat(batch_size, 1),
-        "contexts": collate_vectors(fields["context_ids"], max_length=max_length, padding_value=pad_id),
+        "position_ids": torch.arange(input_id_maxlen, dtype=torch.long).repeat(batch_size, 1),
+        "contexts": collate_vectors(fields["context_ids"], max_length=context_id_maxlen, padding_value=pad_id),
         "context_lengths": torch.LongTensor([len(seq) for seq in fields["context_ids"]]),
-        "answers": collate_vectors(fields["answer_ids"], max_length=max_length, padding_value=pad_id),
-        "max_length": torch.LongTensor([max_length] * batch_size),
+        "answers": collate_vectors(fields["answer_ids"], max_length=answer_id_maxlen, padding_value=pad_id),
+        "max_length": torch.LongTensor([input_id_maxlen] * batch_size),
     }
 
 
