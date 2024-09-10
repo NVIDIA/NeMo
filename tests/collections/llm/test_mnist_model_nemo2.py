@@ -28,11 +28,10 @@ import pytest
 import pytorch_lightning as pl
 import torch
 import torch.distributed
-from megatron.core import parallel_state
+from megatron.core import ModelParallelConfig, parallel_state
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.module import MegatronModule
-from megatron.core.transformer.transformer_config import TransformerConfig
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
@@ -56,13 +55,14 @@ T = TypeVar("T")
 
 
 @dataclass
-class ExampleConfig(TransformerConfig):
+class ExampleConfig(ModelParallelConfig):
     """ExampleConfig is a dataclass that is used to configure the model.
 
-    Timers from TransformerConfig are required for megatron forward compatibility.
+    Timers from ModelParallelConfig are required for megatron forward compatibility.
     """
 
     calculate_per_token_loss: bool = False
+    fp8: bool = False
 
     def configure_model(self) -> nn.Module:
         """This function is called by the strategy to construct the model.
@@ -293,7 +293,7 @@ class LitAutoEncoder(pl.LightningModule, io.IOMixin, io.ConnectorMixin):
 
 
 class ExampleModel(MegatronModule):  # noqa: D101
-    def __init__(self, config: TransformerConfig) -> None:
+    def __init__(self, config: ModelParallelConfig) -> None:
         """Constructor of the model.
 
         Args:
