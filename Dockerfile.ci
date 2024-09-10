@@ -48,6 +48,21 @@ RUN \
 --mount=type=bind,source=setup.py,target=setup.py \
 --mount=type=bind,source=nemo/package_info.py,target=nemo/package_info.py \
 --mount=type=bind,source=nemo/__init__.py,target=nemo/__init__.py <<"EOF" bash -ex
+# Mamba dependancy installation
+git clone https://github.com/state-spaces/mamba.git && \
+  cd mamba && \
+  git checkout v2.0.3 && \
+  python setup.py install && \
+  cd .. && \
+  rm -rf mamba
+
+git clone https://github.com/Dao-AILab/causal-conv1d && \
+  cd causal-conv1d && \
+  git checkout v1.2.2.post1 && \
+  python setup.py install && \
+  cd .. && \
+  rm -rf causal-conv1d
+
 pip install --no-cache-dir --no-build-isolation --extra-index-url https://pypi.nvidia.com \
 "transformer-engine @ git+https://github.com/NVIDIA/TransformerEngine.git@${TE_TAG}" \
 "megatron_core @ git+https://github.com/NVIDIA/Megatron-LM.git@${MCORE_TAG}" \
@@ -68,21 +83,6 @@ git checkout ${MCORE_TAG} && \
   popd && \
 popd
 export PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
-
-# Mamba dependancy installation
-git clone https://github.com/state-spaces/mamba.git && \
-  cd mamba && \
-  git checkout v2.0.3 && \
-  python setup.py install && \
-  cd .. && \
-  rm -rf mamba
-
-git clone https://github.com/Dao-AILab/causal-conv1d && \
-  cd causal-conv1d && \
-  git checkout v1.2.2.post1 && \
-  python setup.py install && \
-  cd .. && \
-  rm -rf causal-conv1d
 
 EOF
 
