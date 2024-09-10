@@ -147,7 +147,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         return create_sft_dataset(
             path,
             tokenizer=self.tokenizer,
-            seq_length=self.seq_length,
+            seq_length=self.seq_length if self.packed_sequence_size <= 0 else self.packed_sequence_size,
             memmap_workers=self.memmap_workers,
             seed=self.seed,
             **kwargs,
