@@ -29,10 +29,10 @@ import pytorch_lightning as pl
 import torch
 import torch.distributed
 from megatron.core import parallel_state
-from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.module import MegatronModule
+from megatron.core.transformer.transformer_config import TransformerConfig
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
