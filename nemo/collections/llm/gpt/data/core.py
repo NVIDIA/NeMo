@@ -51,9 +51,11 @@ def create_sft_dataset(
 ) -> "GPTSFTDataset":
     if path.suffix == '.npy':
         from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTPackedDataset
+
         dataset_cls = GPTSFTPackedDataset
     else:
         from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
+
         dataset_cls = GPTSFTDataset
 
     return dataset_cls(

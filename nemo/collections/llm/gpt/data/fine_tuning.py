@@ -92,6 +92,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         if self.packed_sequence_size > 0:
             if not self.train_path.is_file():
                 from nemo.collections.llm.gpt.data.packed_sequence import prepare_packed_sequence_data
+
                 prepare_packed_sequence_data(
                     input_path=self.dataset_root / "training.jsonl",
                     output_path=self.train_path,

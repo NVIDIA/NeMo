@@ -1,11 +1,12 @@
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
+
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
 from nemo.utils import logging
 from nemo.utils.sequence_packing_utils import create_hist, create_packing_strategy, fill_packing_strategy
-import numpy as np
 
 
 def tokenize_dataset(path, tokenizer, max_seq_length, seed):
@@ -17,6 +18,7 @@ def tokenize_dataset(path, tokenizer, max_seq_length, seed):
         is_test=True,
     )
     return np.array([dataset[i] for i in range(len(dataset))])
+
 
 def prepare_packed_sequence_data(
     input_path: Path,
