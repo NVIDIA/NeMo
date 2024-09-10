@@ -62,7 +62,14 @@ git clone https://github.com/Dao-AILab/causal-conv1d && \
   python setup.py install && \
   cd .. && \
   rm -rf causal-conv1d
+EOF
 
+RUN \
+--mount=type=bind,source=requirements,target=requirements \
+--mount=type=bind,source=tools,target=tools \
+--mount=type=bind,source=setup.py,target=setup.py \
+--mount=type=bind,source=nemo/package_info.py,target=nemo/package_info.py \
+--mount=type=bind,source=nemo/__init__.py,target=nemo/__init__.py <<"EOF" bash -ex
 pip install --no-cache-dir --no-build-isolation --extra-index-url https://pypi.nvidia.com \
 "transformer-engine @ git+https://github.com/NVIDIA/TransformerEngine.git@${TE_TAG}" \
 "megatron_core @ git+https://github.com/NVIDIA/Megatron-LM.git@${MCORE_TAG}" \
