@@ -12,20 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+import math
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional
+from functools import partial
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
+import fairscale.nn.model_parallel.initialize as fs_init
 import pytorch_lightning as L
 import torch
 import torch.distributed
 import torch.nn.functional as F
+from PIL import Image as PIL_Image
+from fairscale.nn.model_parallel.layers import (
+    ColumnParallelLinear,
+)
 from megatron.core import dist_checkpointing
-from megatron.core.inference_params import InferenceParams
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.tensor_parallel.mappings import gather_from_tensor_model_parallel_region
 from megatron.core.transformer.enums import ModelType
-from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 
@@ -35,7 +39,11 @@ from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.vlm.llama.image_transform import VariableSizeImageTransform
-
+from nemo.collections.vlm.llama.model.transformer import (
+    TransformerBlock, CrossAttentionTransformerBlock, DummyCrossAttentionTransformerBlock, precompute_freqs_cis,
+    _get_full_row_masked_out_mask, _stack_images, _pad_masks
+)
+from nemo.collections.vlm.llama.utils import get_negative_inf_value
 from nemo.lightning import io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
@@ -572,7 +580,7 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
 class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
             self,
-            config: LlamaConfig,
+            config: LlamaCrossAttentionConfig,
             # TODO: Add transformer_layer_spec when we update mcore
             optim: Optional[OptimizerModule] = None,
             tokenizer: Optional["TokenizerSpec"] = None,
@@ -593,25 +601,31 @@ class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin,
 
     def forward(
             self,
-            input_ids: torch.Tensor,
-            position_ids: torch.Tensor,
-            loss_mask: Optional[torch.Tensor] = None,
-            attention_mask: Optional[torch.Tensor] = None,
-            media: Optional[torch.Tensor] = None,
-            labels: Optional[torch.Tensor] = None,
-            inference_params: InferenceParams = None,
+            batch_images: List[List[PIL_Image.Image]],
+            batch_masks: List[List[List[int]]],
+            total_len: int,
+            tokens: torch.LongTensor,
+            position_ids: torch.LongTensor,
+            xattn_mask: Optional[torch.Tensor] = None,
+            full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
+            xattn_caches: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        output_tensor = self.module(
-            media=media,
-            input_ids=input_ids,
-            position_ids=position_ids,
-            loss_mask=loss_mask,
-            attention_mask=attention_mask,
-            labels=labels,
-            inference_params=inference_params,
+        xattn_caches, cross_attention_masks, full_text_row_masked_out_mask = (
+            self.module.compute_vision_tokens_masks(
+                batch_images=batch_images,
+                batch_masks=batch_masks,
+                total_len=total_len,
+            )
+        )
+        logits = self.module(
+            position_ids,
+            tokens,
+            cross_attention_masks,
+            full_text_row_masked_out_mask,
+            xattn_caches,
         )
 
-        return output_tensor
+        return logits
 
     def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
         return self.config.data_step_fn(dataloader_iter)
@@ -644,8 +658,8 @@ class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin,
 
 
 __all__ = [
-    "LlamaModel",
-    "LlamaConfig",
+    "LlamaCrossAttentionModel",
+    "LlamaCrossAttentionConfig",
     "llama_data_step",
     "llama_forward_step",
     "transformer_engine_layer_spec",
