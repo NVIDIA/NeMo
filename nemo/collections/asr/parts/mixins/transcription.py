@@ -483,10 +483,10 @@ class TranscriptionMixin(ABC):
         if isinstance(audio[0], str):
             trcfg._internal.manifest_filepath = None
             if len(audio) == 1 and audio[0].endswith('.json') or audio[0].endswith('.jsonl'):
-                    # Assume it is a path to a manifest file
-                    trcfg._internal.manifest_filepath = audio[0] 
-                    audio = manifest_utils.read_manifest(audio[0])
-                    
+                # Assume it is a path to a manifest file
+                trcfg._internal.manifest_filepath = audio[0]
+                audio = manifest_utils.read_manifest(audio[0])
+
             audio_files = list(audio)
 
             tmp_dir = trcfg._internal.temp_dir
