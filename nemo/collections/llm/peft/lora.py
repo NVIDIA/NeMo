@@ -20,6 +20,9 @@ from torch import nn
 
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import
+
+_, HAVE_TE = safe_import("transformer_engine")
 
 
 class AdapterParallelAdd(AdapterWrapper):
@@ -124,8 +127,12 @@ class LoRA(PEFT):
             if name in ['linear_qkv', 'linear_fc1']:
                 # Column Parallel Linear
                 input_is_parallel = False
-                in_features = m.in_features
-                out_features = m.out_features * tp_size
+                if HAVE_TE:
+                    in_features = m.in_features
+                    out_features = m.out_features * tp_size
+                else:
+                    in_features = m.input_size
+                    out_features = m.output_size * tp_size
                 # LoRA is applied after layernorm, so layernorm output must be returned
                 m.return_layernorm_output = True
                 # perf optimization for LoRA + SP
@@ -134,8 +141,12 @@ class LoRA(PEFT):
             else:  # name in ['linear_proj', 'linear_fc2']
                 # Row Parallel Linear
                 input_is_parallel = True
-                in_features = m.in_features * tp_size
+                if HAVE_TE:
+                    in_features = m.in_features * tp_size
                 out_features = m.out_features
+                else:
+                    in_features = m.input_size * tp_size
+                out_features = m.output_size
 
             logging.info(f"Adding lora to: {prefix}.{name}")
             adapter = ParallelLinearAdapter(
