@@ -395,6 +395,23 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         return monitor_candidates
 
+    @staticmethod
+    def _link_checkpoint(trainer: "pl.Trainer", filepath: str, linkpath: str) -> None:
+        filepath = ckpt_to_dir(filepath)
+        linkpath = ckpt_to_dir(linkpath)
+        if trainer.is_global_zero:
+            if os.path.islink(linkpath) or os.path.isfile(linkpath):
+                os.remove(linkpath)
+            elif os.path.isdir(linkpath):
+                shutil.rmtree(linkpath)
+            try:
+                os.symlink(os.path.relpath(filepath, os.path.dirname(linkpath)), linkpath)
+            except OSError:
+                # on Windows, special permissions are required to create symbolic links as a regular user
+                # fall back to copying the file
+                shutil.copy(filepath, linkpath)
+        trainer.strategy.barrier()
+
     def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
         from nemo.utils.get_rank import is_global_rank_zero
 
@@ -494,9 +511,13 @@ class ModelCheckpoint(PTLModelCheckpoint):
         is actually finished so we can't remove it. Instead we add it to
         `self.deferred_ckpts_to_remove` for future removal.
         """
+        filepath = ckpt_to_dir(filepath)
         if self.async_save and not override_async:
             # Register checkpoint removal in the last (active) checkpoint removal list
             self.deferred_ckpts_to_remove[-1].append(filepath)
+            return
+        if os.path.islink(filepath):
+            os.unlink(filepath)
             return
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during removal, we should be able to detect that data is incomplete.
