@@ -10,7 +10,6 @@
 
 import logging
 import math
-from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import fairscale.nn.model_parallel.initialize as fs_init
@@ -20,15 +19,14 @@ import torch.nn.functional as F
 from fairscale.nn.model_parallel.layers import (
     ColumnParallelLinear,
     RowParallelLinear,
-    VocabParallelEmbedding,
 )
 
 from PIL import Image as PIL_Image
 
-from torch import nn, Tensor
+from torch import nn
 from torch.distributed import _functional_collectives as funcol
 
-from nemo.collections.vlm.llama.encoder_utils import (
+from nemo.collections.vlm.llama.model.encoder_utils import (
     build_encoder_attention_mask,
     contract_num_tokens_from_mult8,
     expand_num_tokens_to_mult8,

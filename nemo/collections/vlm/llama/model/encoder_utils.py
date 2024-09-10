@@ -12,7 +12,7 @@ from logging import getLogger
 import torch
 import torch.nn.functional as F
 
-from .utils import get_negative_inf_value, to_2tuple
+from nemo.collections.vlm.llama.utils import get_negative_inf_value, to_2tuple
 
 logger = getLogger()
 

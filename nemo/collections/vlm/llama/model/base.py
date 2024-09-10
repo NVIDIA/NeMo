@@ -92,9 +92,9 @@ def llama_forward_step(model, batch) -> torch.Tensor:
 def set_input_tensor(self, tensor):
     pass
 
+
 @dataclass
 class CrossAttentionModelVisionConfig(TransformerConfig, io.IOMixin):
-
     # vision model params
     vision_chunk_size: int = -1  # image resolution for image models
     vision_max_num_chunks: int = 4
@@ -108,8 +108,6 @@ class CrossAttentionModelVisionConfig(TransformerConfig, io.IOMixin):
 @dataclass
 class CrossAttentionModelTextConfig(TransformerConfig, io.IOMixin):
 
-    vision_num_cross_attention_layers: int = -1
-
     def configure_model(self) -> "CrossAttentionModelText":
         return CrossAttentionModelVision(
             self,
@@ -121,6 +119,7 @@ class LlamaCrossAttentionConfig(TransformerConfig, io.IOMixin):
     language_model_config: Optional[TransformerConfig] = None
     vision_model_config: Optional[TransformerConfig] = None
 
+    vision_num_cross_attention_layers: int = -1
     num_layers: int = 1  # Placeholder, NOT used!
     num_attention_heads: int = 8  # Placeholder, NOT used!
 
@@ -165,7 +164,6 @@ class LlamaCrossAttentionConfig(TransformerConfig, io.IOMixin):
         )
 
         return model
-
 
 
 class CrossAttentionModelVision(MegatronModule):
@@ -432,7 +430,6 @@ class CrossAttentionModelText(MegatronModule):
             cross_attention_masks.to(device=text_device, dtype=text_dtype),
             full_text_row_masked_out_mask,
         )
-
 
 
 class MCoreLlamaCrossAttentionModel(MegatronModule):
