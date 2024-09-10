@@ -14,6 +14,7 @@
 
 from functools import partial
 from .module_import_proxy import ModuleImportProxy
+
 namespace = globals()
 lazy_import = partial(ModuleImportProxy, global_namespace=namespace)
 

@@ -4,9 +4,9 @@ Code adapted from TensorFlow.
 """
 
 import importlib
-import types
-from typing import Dict, Any, Optional
 import sys
+import types
+from typing import Any, Dict, Optional
 
 
 class ModuleImportProxy(types.ModuleType):

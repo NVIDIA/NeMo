@@ -14,6 +14,7 @@
 
 from functools import partial
 from ..module_import_proxy import ModuleImportProxy
+
 namespace = globals()
 lazy_import = partial(ModuleImportProxy, global_namespace=namespace)
 
@@ -21,7 +22,7 @@ lazy_import("nemo.collections.common.tokenizers.aggregate_tokenizer", "Aggregate
 lazy_import("nemo.collections.common.tokenizers.bytelevel_tokenizers", "ByteLevelTokenizer")
 lazy_import("nemo.collections.common.tokenizers.canary_tokenizer", "CanaryTokenizer")
 lazy_import("nemo.collections.common.tokenizers.char_tokenizer", "CharTokenizer")
-lazy_import("nemo.collections.common.tokenizers.huggingface",  "AutoTokenizer")
+lazy_import("nemo.collections.common.tokenizers.huggingface", "AutoTokenizer")
 lazy_import("nemo.collections.common.tokenizers.regex_tokenizer", "RegExTokenizer")
 lazy_import("nemo.collections.common.tokenizers.sentencepiece_tokenizer", "SentencePieceTokenizer")
 lazy_import("nemo.collections.common.tokenizers.tiktoken_tokenizer", "TiktokenTokenizer")

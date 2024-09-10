@@ -15,6 +15,7 @@
 
 from functools import partial
 from nemo.collections.common.module_import_proxy import ModuleImportProxy
+
 namespace = globals()
 lazy_import = partial(ModuleImportProxy, global_namespace=namespace)
 
