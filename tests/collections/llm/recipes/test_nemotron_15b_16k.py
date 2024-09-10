@@ -7,7 +7,7 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.nemotron import Nemotron4Config15B, NemotronModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import nemotron4_15b_16k
-from nemo.lightning import AutoResume, Trainer
+from nemo.lightning import Trainer
 
 
 class TestNemotron4_15B_16k:
