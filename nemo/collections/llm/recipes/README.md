@@ -19,7 +19,7 @@ Recipes are designed to be modular and extensible, allowing users to easily cust
 You can use these recipes via the NeMo CLI:
 
 ```bash
-nemorun llm <task> --factory <recipe_name>
+nemo llm <task> --factory <recipe_name>
 ```
 Where:
 - `<task>` is either `pretrain` or `finetune`
@@ -27,7 +27,7 @@ Where:
 
 For example:
 ```bash
-nemorun llm pretrain --factory llama3_8b
+nemo llm pretrain --factory llama3_8b
 ```
 
 
@@ -36,7 +36,7 @@ nemorun llm pretrain --factory llama3_8b
 You can override any parameter in the recipe:
 
 ```bash
-nemorun llm pretrain --factory llama3_8b trainer.max_steps=2000
+nemo llm pretrain --factory llama3_8b trainer.max_steps=2000
 ```
 
 For more details around running recipes, see [pre-train](../../../../examples/llm/pretrain/README.md).
