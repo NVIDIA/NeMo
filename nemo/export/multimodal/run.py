@@ -55,7 +55,7 @@ def trt_dtype_to_torch(dtype):
 
 class MultimodalModelRunner:
 
-    def __init__(self, visual_engine_dir, llm_engine_dir, lora_ckpt_list, modality='vision'):
+    def __init__(self, visual_engine_dir, llm_engine_dir, modality='vision'):
         self.modality = modality
         self.runtime_rank = tensorrt_llm.mpi_rank()
         device_id = self.runtime_rank % torch.cuda.device_count()
@@ -80,7 +80,7 @@ class MultimodalModelRunner:
         if modality == 'vision':
             self.init_image_encoder(visual_engine_dir)
         self.init_tokenizer(llm_engine_dir)
-        self.init_llm(llm_engine_dir, lora_ckpt_list)
+        self.init_llm(llm_engine_dir)
         if self.model_type == 'lita' or self.model_type == 'vila' or self.model_type == 'vita':
             self.init_vision_preprocessor(visual_engine_dir)
 
@@ -169,11 +169,9 @@ class MultimodalModelRunner:
         else:
             raise ValueError(f"Invalid model type: {self.model_type}")
 
-    def init_llm(self, llm_engine_dir, lora_ckpt_list):
+    def init_llm(self, llm_engine_dir):
         self.model = ModelRunner.from_dir(
             llm_engine_dir,
-            lora_dir=lora_ckpt_list,
-            lora_ckpt_source="nemo",
             rank=tensorrt_llm.mpi_rank(),
             debug_mode=False,
             stream=self.stream,

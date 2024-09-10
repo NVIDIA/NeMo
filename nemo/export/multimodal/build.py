@@ -56,7 +56,7 @@ def build_trtllm_engine(
     trt_llm_exporter = TensorRTLLM(model_dir=model_dir, lora_ckpt_list=lora_ckpt_list, load_model=False)
     visual_checkpoint_model = ['neva', 'lita', 'vila', 'vita']
     trt_llm_exporter.export(
-        nemo_checkpoint_path=visual_checkpoint_path if model_type in visual_checkpoint_model else llm_checkpoint_path,
+        nemo_checkpoint_path=visual_checkpoint_path if llm_checkpoint_path is None else llm_checkpoint_path,
         model_type=llm_model_type,
         tensor_parallelism_size=tensor_parallelism_size,
         max_input_len=max_input_len,
@@ -220,9 +220,20 @@ def build_neva_engine(
 ):
     device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
     # extract NeMo checkpoint
-    with tempfile.TemporaryDirectory() as temp:
-        temp_path = Path(temp)
-        mp0_weights, nemo_config, _ = load_nemo_model(visual_checkpoint_path, temp_path)
+    # with tempfile.TemporaryDirectory() as temp:
+    #     temp_path = Path(temp)
+    #     mp0_weights, nemo_config, _ = load_nemo_model(visual_checkpoint_path, temp_path)
+
+    #load untar checkpoint
+    config_path = os.path.join(visual_checkpoint_path, 'model_config.yaml')
+    with open(config_path, 'r') as f:
+        nemo_config = yaml.safe_load(f)
+    try:
+        weights_path = os.path.join(visual_checkpoint_path, 'model_weights.ckpt')
+        mp0_weights = torch.load(weights_path, map_location=device)
+    except FileNotFoundError:
+        weights_path = os.path.join(visual_checkpoint_path, 'mp_rank_00/model_weights.ckpt')
+        mp0_weights = torch.load(weights_path, map_location=device)
 
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
 

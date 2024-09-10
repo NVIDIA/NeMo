@@ -110,8 +110,9 @@ def build_and_save_engine(
             lora_dir=lora_ckpt_list,
             lora_ckpt_source='nemo',
             max_lora_rank=max_lora_rank,
-            lora_target_modules=lora_target_modules,
         )
+        if lora_target_modules is not None:
+            lora_config.lora_target_modules = lora_target_modules
         build_config.lora_config = lora_config
 
     model = model_cls.from_config(model_config)

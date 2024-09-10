@@ -265,7 +265,7 @@ class TensorRTMMExporter(ITritonDeployable):
         llm_dir = os.path.join(self.model_dir, "llm_engine")
         if self.modality == "vision":
             visual_dir = os.path.join(self.model_dir, "visual_engine")
-            self.runner = MultimodalModelRunner(visual_dir, llm_dir, self.lora_ckpt_list, self.modality)
+            self.runner = MultimodalModelRunner(visual_dir, llm_dir, self.modality)
         elif self.modality == "audio":
             perception_dir = os.path.join(self.model_dir, "perception_engine")
             self.runner = SpeechllmModelRunner(perception_dir, llm_dir, self.modality)
