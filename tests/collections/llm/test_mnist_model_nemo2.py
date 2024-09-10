@@ -59,7 +59,7 @@ T = TypeVar("T")
 class ExampleConfig(TransformerConfig):
     """ExampleConfig is a dataclass that is used to configure the model.
 
-    Timers from ModelParallelConfig are required for megatron forward compatibility.
+    Timers from TransformerConfig are required for megatron forward compatibility.
     """
 
     calculate_per_token_loss: bool = False
@@ -293,7 +293,7 @@ class LitAutoEncoder(pl.LightningModule, io.IOMixin, io.ConnectorMixin):
 
 
 class ExampleModel(MegatronModule):  # noqa: D101
-    def __init__(self, config: ModelParallelConfig) -> None:
+    def __init__(self, config: TransformerConfig) -> None:
         """Constructor of the model.
 
         Args:
