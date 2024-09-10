@@ -181,6 +181,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_optimizer: bool = True,
         ckpt_save_optimizer: bool = True,
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
+        fsdp: bool = False,
         lazy_init: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
         save_ckpt_format: str = "torch_dist",
@@ -243,11 +244,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.restore_config = restore_config
 
         self._ddp = ddp
+        self._fsdp = fsdp
         if ddp == "megatron":
             self.ddp_config = DistributedDataParallelConfig(check_for_nan_in_grad=True)
         elif isinstance(ddp, DistributedDataParallelConfig):
             self.ddp_config = ddp
         elif ddp == "pytorch":
+            if fsdp:
+                raise ValueError("Please set ddp to megatron to run Torch FSDP2.")
             self.ddp_config = None
             self.no_ddp_communication_hook = False
         else:
@@ -392,6 +396,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             vp_size=self.virtual_pipeline_model_parallel_size,
             cpu=isinstance(trainer.accelerator, CPUAccelerator),
             ddp_config=self.ddp_config,
+            fsdp=self._fsdp,
             convert_module_fn=convert_module_fn,
         )
 
@@ -700,7 +705,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def load_optimizer_state_dict(self, checkpoint: Mapping[str, Any], selective_restore: bool = False) -> None:
-        if not self.should_restore_optimizer_states(selective_restore=selective_restore):
+        if self._fsdp or not self.should_restore_optimizer_states(selective_restore=selective_restore):
             return
 
         optimizer_states = checkpoint["optimizer"]
@@ -713,6 +718,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             shutil.rmtree(ckpt_to_dir(filepath))
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
+        if self._fsdp:
+            return
+
         assert self.megatron_parallel is not None
 
         _strategy_lib.load_model_state_dict(self.megatron_parallel, checkpoint, strict=strict)

@@ -40,6 +40,7 @@ import torch
 import torch.distributed
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
+from megatron.core.distributed.torch_fsdp2 import FullyShardedDataParallel as McoreFSDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from pytorch_lightning.utilities import move_data_to_device
@@ -132,6 +133,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         vp_size (Optional[int]): Virtual pipeline parallel size.
         ddp_config (Optional[DistributedDataParallelConfig]): An instance of Megatron core's
             DistributedDataParallelConfig which controls the Megatron DDP configuration.
+        fsdp (bool): Whether model should run Torch FSDP2 instead of DDP.
         cpu (bool): Whether model should reside on CPU.
         convert_module_fn (Optional[Callable[[ModelT], nn.Module]]): An optional function to
             apply to the model parameters after initialization.
@@ -166,6 +168,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         loss_reduction: Optional[Callable[[ModelT], "MegatronLossReduction"]] = None,
         vp_size: Optional[int] = None,
         ddp_config: Optional[DistributedDataParallelConfig] = None,
+        fsdp: bool = False,
         cpu: bool = False,
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
@@ -200,6 +203,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.forward_step = forward_step or default_forward_step
         self.loss_reduction: MegatronLossReduction = loss_reduction
         self.ddp_config = ddp_config
+        self.fsdp = fsdp
         self.convert_module_fn = convert_module_fn
 
     def forward(
@@ -541,10 +545,15 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         from megatron.core import parallel_state
 
+        if self.fsdp:
+            DP = FSDP
+        else:
+            DP = DDP
+
         for model_chunk_idx, model_chunk in enumerate(self):
             module = model_chunk.module
 
-            ddp = DDP(
+            ddp = DP(
                 module.config,
                 self.ddp_config,
                 module,
@@ -715,6 +724,34 @@ def getattr_proxy(self, item: Any) -> Any:
 
 
 class DDP(McoreDDP):
+    def __init__(
+        self,
+        config: TransformerConfig,
+        ddp_config: DistributedDataParallelConfig,
+        module: torch.nn.Module,
+        disable_bucketing: bool = False,
+        **kwargs,
+    ):
+        init_parameters = inspect.signature(McoreDDP.__init__).parameters
+        # Updates to the McoreDDP class have removed some parameters, so we need to
+        #  filter out any kwargs that are not part of the updated signature, if a new
+        #  version of mcore is being used.
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in init_parameters}
+        super().__init__(
+            config=config,
+            ddp_config=ddp_config,
+            module=module,
+            disable_bucketing=disable_bucketing,
+            **filtered_kwargs,
+        )
+
+    def state_dict(self, prefix='', keep_vars=False, **kwargs):
+        self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
+
+    def __getattr__(self, item: Any) -> Any:
+        return getattr_proxy(self, item)
+    
+class FSDP(McoreFSDP):
     def __init__(
         self,
         config: TransformerConfig,
