@@ -181,23 +181,28 @@ __all__ = [
 
 
 from nemo.utils import logging
+
 try:
     import nemo_run as run
     from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
     from nemo.collections.llm.recipes import *  # noqa
-    __all__.extend([
-        "train",
-        "import_ckpt",
-        "export_ckpt",
-        "pretrain",
-        "validate",
-        "finetune",
-    ])
+
+    __all__.extend(
+        [
+            "train",
+            "import_ckpt",
+            "export_ckpt",
+            "pretrain",
+            "validate",
+            "finetune",
+        ]
+    )
 except ImportError as error:
     logging.warning(f"Failed to import nemo.collections.llm.[api,recipes]: {error}")
 
 try:
     from nemo.collections.llm.api import deploy
+
     __all__.append("deploy")
 except ImportError as error:
     logging.warning(f"The deploy module could not be imported: {error}")
