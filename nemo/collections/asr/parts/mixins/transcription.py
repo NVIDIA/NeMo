@@ -50,6 +50,7 @@ class InternalTranscribeConfig:
 
     # Scratch space
     temp_dir: Optional[str] = None
+    manifest_filepath: Optional[str] = None
 
 
 @dataclass
@@ -481,7 +482,6 @@ class TranscriptionMixin(ABC):
 
         # Check if audio is a list of strings (filepaths or manifests)
         if isinstance(audio[0], str):
-            trcfg._internal.manifest_filepath = None
             if len(audio) == 1 and audio[0].endswith('.json') or audio[0].endswith('.jsonl'):
                 # Assume it is a path to a manifest file
                 trcfg._internal.manifest_filepath = audio[0]
