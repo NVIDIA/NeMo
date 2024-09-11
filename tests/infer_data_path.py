@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import urllib.request as req
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Optional, Tuple
 
 
@@ -150,16 +148,3 @@ def get_infer_test_data():
     )
 
     return test_data
-
-
-def download_nemo_checkpoint(checkpoint_link, checkpoint_dir, checkpoint_path):
-    if not Path(checkpoint_path).exists():
-        print("Checkpoint: {0}, will be downloaded to {1}".format(checkpoint_link, checkpoint_path))
-        Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
-        ckp_path = Path("/opt/checkpoints/")
-        if not ckp_path.exists():
-            ckp_path.mkdir(parents=True, exist_ok=False)
-        req.urlretrieve(checkpoint_link, checkpoint_path)
-        print("Checkpoint: {0}, download completed.".format(checkpoint_link))
-    else:
-        print("Checkpoint: {0}, has already been downloaded.".format(checkpoint_link))
