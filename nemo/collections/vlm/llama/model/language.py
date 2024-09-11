@@ -133,6 +133,14 @@ class LlamaGPTModel(MCoreGPTModel):
             post_process=self.post_process,
         )
 
+        self.learnable_embedding = tensor_parallel.VocabParallelEmbedding(
+            num_embeddings=8,
+            embedding_dim=self.config.hidden_size,
+            init_method=self.config.init_method,
+            reduce_scatter_embeddings=False, # TODO double check this
+            config=self.config,
+        )
+
 
 from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
@@ -394,6 +402,9 @@ class LlamaCrossAttention(Attention):
             eps=self.config.layernorm_epsilon,
         )
 
+        self.gate_attn = torch.nn.Parameter(torch.zeros(1))
+        self.gate_ffwd = torch.nn.Parameter(torch.zeros(1))
+
     def get_query_key_value_tensors(self, hidden_states, key_value_states):
         """
         Derives `query` tensor from `hidden_states`, and `key`/`value` tensors
@@ -431,6 +442,119 @@ class LlamaCrossAttention(Attention):
         key = self.k_layernorm(key)
 
         return query, key, value
+
+
+    def forward(
+        self,
+        hidden_states,
+        attention_mask,
+        full_text_row_masked_out_mask,
+        key_value_states=None,
+        inference_params=None,
+        rotary_pos_emb=None,
+        packed_seq_params=None,
+    ):
+        # hidden_states: [sq, b, h]
+
+        # For self attention we just duplicate the rotary_pos_emb if it isn't already
+        if rotary_pos_emb is not None and not isinstance(rotary_pos_emb, tuple):
+            rotary_pos_emb = (rotary_pos_emb,) * 2
+
+        # =====================
+        # Query, Key, and Value
+        # =====================
+        # Get the query, key and value tensors based on the type of attention -
+        # self or cross attn.
+        query, key, value = self.get_query_key_value_tensors(hidden_states, key_value_states)
+
+        # ===================================================
+        # Adjust key, value, and rotary_pos_emb for inference
+        # ===================================================
+        key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
+            inference_params, key, value, rotary_pos_emb
+        )
+
+        if packed_seq_params is not None:
+            query = query.squeeze(1)
+            key = key.squeeze(1)
+            value = value.squeeze(1)
+
+        # ================================================
+        # relative positional embedding (rotary embedding)
+        # ================================================
+        if rotary_pos_emb is not None:
+            q_pos_emb, k_pos_emb = rotary_pos_emb
+
+            if packed_seq_params is not None:
+                cu_seqlens_q = packed_seq_params.cu_seqlens_q
+                cu_seqlens_kv = packed_seq_params.cu_seqlens_kv
+            else:
+                cu_seqlens_q = cu_seqlens_kv = None
+            query = apply_rotary_pos_emb(
+                query,
+                q_pos_emb,
+                config=self.config,
+                cu_seqlens=cu_seqlens_q,
+            )
+            key = apply_rotary_pos_emb(
+                key,
+                k_pos_emb,
+                config=self.config,
+                cu_seqlens=cu_seqlens_kv,
+            )
+
+            # TODO, can apply positional embedding to value_layer so it has
+            # absolute positional embedding.
+            # otherwise, only relative positional embedding takes effect
+            # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
+
+        # ==================================
+        # core attention computation
+        # ==================================
+
+        if self.checkpoint_core_attention and self.training:
+            core_attn_out = self._checkpointed_attention_forward(
+                query,
+                key,
+                value,
+                attention_mask,
+                attn_mask_type=attn_mask_type,
+                packed_seq_params=packed_seq_params,
+            )
+        else:
+            core_attn_out = self.core_attention(
+                query,
+                key,
+                value,
+                attention_mask,
+                attn_mask_type=attn_mask_type,
+                packed_seq_params=packed_seq_params,
+            )
+
+        if packed_seq_params is not None:
+            # reshape to same output shape as unpacked case
+            # (t, np, hn) -> (t, b=1, h=np*hn)
+            # t is the pack size = sum (sq_i)
+            # note that batch is a dummy dimension in the packed case
+            core_attn_out = core_attn_out.reshape(core_attn_out.size(0), 1, -1)
+
+
+        # Apply gate_attn (Added for Llama)
+        # TODO check shape
+        h = hidden_states + self.gate_attn.tanh() * core_attn_out
+
+        # =================
+        # Output. [sq, b, h]
+        # =================
+
+        output, bias = self.linear_proj(h)
+
+        # Here we assume we do not have bias
+        # Also assume no_ffn is False
+        h = h + self.gate_ffwd.tanh() * output
+
+        return output, bias
+
 
 class LlamaModel(GPTModel):
     def __init__(
