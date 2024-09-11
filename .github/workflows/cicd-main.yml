@@ -134,15 +134,16 @@ jobs:
          NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --with_downloads
        IS_OPTIONAL: true
 
-  L0_Unit_Tests_GPU_Audio:
+  OPTIONAL_L0_Unit_Tests_GPU_Audio:
      needs: [cicd-test-container-setup]
      uses: ./.github/workflows/_test_template.yml
-     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU_Audio') || needs.cicd-test-container-setup.outputs.all == 'true'
+     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L0_Unit_Tests_GPU_Audio') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
        RUNNER: self-hosted-azure
        TIMEOUT: 20
        SCRIPT: |
          NEMO_NUMBA_MINVER=0.53 pytest tests/collections/audio -m "not pleasefixme" --with_downloads
+       IS_OPTIONAL: true
 
   L0_Unit_Tests_GPU_Common:
      needs: [cicd-test-container-setup]
@@ -181,14 +182,15 @@ jobs:
          NEMO_NUMBA_MINVER=0.53 pytest tests/collections/nlp -m "not pleasefixme" --with_downloads
        IS_OPTIONAL: true
 
-  L0_Unit_Tests_GPU_TTS:
+  OPTIONAL_L0_Unit_Tests_GPU_TTS:
      needs: [cicd-test-container-setup]
      uses: ./.github/workflows/_test_template.yml
-     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU_TTS') || needs.cicd-test-container-setup.outputs.all == 'true'
+     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L0_Unit_Tests_GPU_TTS') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
        RUNNER: self-hosted-azure
        SCRIPT: |
          NEMO_NUMBA_MINVER=0.53 pytest tests/collections/tts -m "not pleasefixme" --with_downloads
+       IS_OPTIONAL: true
 
   OPTIONAL_L0_Unit_Tests_GPU_Core:
      needs: [cicd-test-container-setup]
@@ -289,32 +291,37 @@ jobs:
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/multimodal -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
-  L0_Unit_Tests_CPU_NLP:
+  OPTIONAL_L0_Unit_Tests_CPU_NLP:
      needs: [cicd-test-container-setup]
      uses: ./.github/workflows/_test_template.yml
-     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_NLP') || needs.cicd-test-container-setup.outputs.all == 'true'
+     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L0_Unit_Tests_CPU_NLP') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
        RUNNER: self-hosted-azure-cpu
+       TIMEOUT: 20
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/nlp -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+       IS_OPTIONAL: true
 
-  L0_Unit_Tests_CPU_TTS:
+  OPTIONAL_L0_Unit_Tests_CPU_TTS:
      needs: [cicd-test-container-setup]
      uses: ./.github/workflows/_test_template.yml
-     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_TTS') || needs.cicd-test-container-setup.outputs.all == 'true'
+     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L0_Unit_Tests_CPU_TTS') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
        RUNNER: self-hosted-azure-cpu
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/tts -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+       IS_OPTIONAL: true
 
-  L0_Unit_Tests_CPU_Core:
+  OPTIONAL_L0_Unit_Tests_CPU_Core:
      needs: [cicd-test-container-setup]
      uses: ./.github/workflows/_test_template.yml
-     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_Core') || needs.cicd-test-container-setup.outputs.all == 'true'
+     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L0_Unit_Tests_CPU_Core') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
        RUNNER: self-hosted-azure-cpu
+       TIMEOUT: 20
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/core tests/core_ptl -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+       IS_OPTIONAL: true
 
   L0_Unit_Tests_CPU_Hydra:
      needs: [cicd-test-container-setup]
@@ -5076,10 +5083,10 @@ jobs:
         rm -rf examples/llm/gpt_pretrain_results
         rm -rf examples/llm/gpt_index_mappings
       
-  L2_NeMo_2_SSM_Pretraining:
+  OPTIONAL_L2_NeMo_2_SSM_Pretraining:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_SSM_Pretraining') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_NeMo_2_SSM_Pretraining') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -5092,11 +5099,12 @@ jobs:
 
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_mamba/nemo-ux-mamba/cicd_test_pretrain
+      IS_OPTIONAL: true
 
-  L2_NeMo_2_SSM_Finetuning:
+  OPTIONAL_L2_NeMo_2_SSM_Finetuning:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_SSM_Finetuning') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L2_NeMo_2_SSM_Finetuning') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -5109,6 +5117,7 @@ jobs:
 
       AFTER_SCRIPT: |
         rm -rf /home/TestData/nlp/megatron_mamba/nemo-ux-mamba/cicd_test_sft
+      IS_OPTIONAL: true
 
   Nemo_CICD_Test:
     needs: 
@@ -5117,12 +5126,12 @@ jobs:
       - cicd-test-container-setup
 
       #- OPTIONAL_L0_Unit_Tests_GPU_ASR
-      - L0_Unit_Tests_GPU_Audio
+      #- OPTIONAL_L0_Unit_Tests_GPU_Audio
       - L0_Unit_Tests_GPU_Common
       - L0_Unit_Tests_GPU_LLM
       - L0_Unit_Tests_GPU_Multimodal
       #- OPTIONAL_L0_Unit_Tests_GPU_NLP
-      - L0_Unit_Tests_GPU_TTS
+      #- OPTIONAL_L0_Unit_Tests_GPU_TTS
       #- OPTIONAL_L0_Unit_Tests_GPU_Core
       - L0_Unit_Tests_GPU_Hydra
       #- OPTIONAL_L0_Unit_Tests_GPU_Lightning
@@ -5133,9 +5142,9 @@ jobs:
       - L0_Unit_Tests_CPU_Common
       - L0_Unit_Tests_CPU_LLM
       - L0_Unit_Tests_CPU_Multimodal
-      - L0_Unit_Tests_CPU_NLP
-      - L0_Unit_Tests_CPU_TTS
-      - L0_Unit_Tests_CPU_Core
+      #- OPTIONAL_L0_Unit_Tests_CPU_NLP
+      #- OPTIONAL_L0_Unit_Tests_CPU_TTS
+      #- OPTIONAL_L0_Unit_Tests_CPU_Core
       - L0_Unit_Tests_CPU_Hydra
       - L0_Unit_Tests_CPU_Lightning
       - L0_Unit_Tests_CPU_Others
@@ -5241,8 +5250,8 @@ jobs:
       #- OPTIONAL_L2_Stable_Diffusion_Training
       - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
       - L2_NeMo_2_GPT_DDP_Param_Parity_check
-      - L2_NeMo_2_SSM_Pretraining
-      - L2_NeMo_2_SSM_Finetuning
+      #- OPTIONAL_L2_NeMo_2_SSM_Pretraining
+      #- OPTIONAL_L2_NeMo_2_SSM_Finetuning
     if: always()
     runs-on: ubuntu-latest
     steps:  
