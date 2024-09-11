@@ -15,15 +15,20 @@
 import logging
 import os
 import shutil
+import tempfile
 from pathlib import Path
 from typing import List
-import tempfile
 
 import numpy as np
 import wrapt
 
 from nemo.deploy import ITritonDeployable
-from nemo.export.multimodal.build import build_perception_engine, build_trtllm_engine, build_visual_engine, extract_lora_ckpt
+from nemo.export.multimodal.build import (
+    build_perception_engine,
+    build_trtllm_engine,
+    build_visual_engine,
+    extract_lora_ckpt,
+)
 from nemo.export.multimodal.run import MultimodalModelRunner, SpeechllmModelRunner
 from nemo.export.tarutils import unpack_tarball
 
@@ -162,7 +167,9 @@ class TensorRTMMExporter(ITritonDeployable):
             build_perception_engine(perception_dir, visual_checkpoint_path, model_type, vision_max_batch_size)
         else:
             visual_dir = os.path.join(self.model_dir, "visual_engine")
-            build_visual_engine(visual_dir, visual_checkpoint_path if lora_dir is None else lora_dir, model_type, vision_max_batch_size)
+            build_visual_engine(
+                visual_dir, visual_checkpoint_path if lora_dir is None else lora_dir, model_type, vision_max_batch_size
+            )
 
         if tmp_dir is not None:
             tmp_dir.cleanup()
