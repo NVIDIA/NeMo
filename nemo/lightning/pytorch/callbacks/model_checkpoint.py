@@ -86,6 +86,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # that `self._remove_checkpoint` adds to. Once `self._save_checkpoint`
         # is called, the last element is frozen and a new element is added.
         self.deferred_ckpts_to_remove: List[List[str]] = []
+        self.checkpoints_to_link: List[tuple[str | Path]] = []
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(
@@ -395,9 +396,12 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         return monitor_candidates
 
-    ## TODO: figure out how to make this work with async checkpointing!
-    @staticmethod
-    def _link_checkpoint(trainer: "pl.Trainer", filepath: str, linkpath: str) -> None:
+    def _link_checkpoint(self, trainer: "pl.Trainer", filepath: str, linkpath: str, override_async=False) -> None:
+        ## linking will happen as part of the finalize fn
+        if self.async_save and not override_async:
+            self.checkpoints_to_link.append((filepath, linkpath))
+            return
+
         filepath = ckpt_to_dir(filepath)
         linkpath = ckpt_to_dir(linkpath)
         if trainer.is_global_zero:
@@ -468,6 +472,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context")
 
             if self.async_save:
+                self._last_checkpoint_saved = filepath
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:
                 finalize_fn()
@@ -518,6 +523,10 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
             if not self.async_save:
                 return
+
+            if len(self.checkpoints_to_link) > 0:
+                link = self.checkpoints_to_link.pop(0)
+                self._link_checkpoint(trainer, link[0], link[1], override_async=True)
 
             logging.info(f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully.')
 
