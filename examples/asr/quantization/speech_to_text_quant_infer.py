@@ -38,16 +38,6 @@ except ImportError:
     )
 
 
-try:
-    from torch.cuda.amp import autocast
-except ImportError:
-    from contextlib import contextmanager
-
-    @contextmanager
-    def autocast(enabled=None):
-        yield
-
-
 can_gpu = torch.cuda.is_available()
 
 
@@ -199,7 +189,7 @@ def evaluate(asr_model, labels_map, wer):
     for test_batch in asr_model.test_dataloader():
         if can_gpu:
             test_batch = [x.cuda() for x in test_batch]
-        with autocast():
+        with torch.amp.autocast('cuda' if can_gpu else 'cpu'):
             log_probs, encoded_len, greedy_predictions = asr_model(
                 input_signal=test_batch[0], input_signal_length=test_batch[1]
             )

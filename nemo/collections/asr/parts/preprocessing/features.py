@@ -627,7 +627,7 @@ class FilterbankFeaturesTA(nn.Module):
 
     def _extract_spectrograms(self, signals: torch.Tensor) -> torch.Tensor:
         # Complex FFT needs to be done in single precision
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast('cuda', enabled=False):
             features = self._mel_spec_extractor(waveform=signals)
         return features
 
