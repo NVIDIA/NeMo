@@ -174,7 +174,7 @@ def main(cfg: TranslationConfig) -> Union[TranslationConfig, List[str]]:
         return cfg
 
     # translate audio
-    with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu', enabled=cfg.amp):
+    with torch.amp.autocast('cuda' if accelerator=='gpu' else 'cpu', enabled=cfg.amp):
         with torch.no_grad():
             translations = asr_model.translate(
                 paths2audio_files=filepaths, batch_size=cfg.batch_size, return_hypotheses=return_hypotheses,

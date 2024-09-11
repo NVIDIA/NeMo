@@ -43,16 +43,6 @@ TRT_LOGGER = trt.Logger()
 
 can_gpu = torch.cuda.is_available()
 
-try:
-    from torch.cuda.amp import autocast
-except ImportError:
-    from contextlib import contextmanager
-
-    @contextmanager
-    def autocast(enabled=None):
-        yield
-
-
 def main():
     parser = ArgumentParser()
     parser.add_argument(

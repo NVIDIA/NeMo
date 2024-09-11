@@ -42,15 +42,6 @@ from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.utils import logging
 
-try:
-    from torch.cuda.amp import autocast
-except ImportError:
-    from contextlib import contextmanager
-
-    @contextmanager
-    def autocast(enabled=None):
-        yield
-
 
 def score_with_sctk(sctk_dir, ref_fname, hyp_fname, out_dir, glm=""):
     sclite_path = os.path.join(sctk_dir, "bin", "sclite")
@@ -123,7 +114,7 @@ def main():
     references = [data['text'] for data in manifest_data]
     audio_filepaths = [data['audio_filepath'] for data in manifest_data]
 
-    with autocast():
+    with torch.amp.autocast('cuda' if can_gpu else 'cpu'):
         hypotheses = asr_model.transcribe(audio_filepaths, batch_size=args.batch_size)
 
         # if transcriptions form a tuple (from RNNT), extract just "best" hypothesis
