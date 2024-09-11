@@ -51,6 +51,7 @@ from nemo.collections.nlp.parts.utils_funcs import activation_to_func, get_last_
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import, safe_import_from
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -102,14 +103,8 @@ except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
-try:
-    import transformer_engine
-    from transformer_engine.pytorch import module as te_module
-
-    HAVE_TE = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_TE = False
+_, HAVE_TE = safe_import("transformer_engine")
+te_module, _ = safe_import_from("transformer_engine.pytorch", "module")
 
 
 @cache
@@ -429,24 +424,26 @@ class MCoreCLIPViTModel(CLIPViTModel):
         # TODO (yuya): need to handle post_process correctly in order to enable PP
         self.output_dim = kwargs.pop('output_dim')
         super().__init__(*args, **kwargs)
-        self.final_layernorm = TENorm(
-            config=self.config,
-            hidden_size=self.config.hidden_size,
-            eps=self.config.layernorm_epsilon,
-        )
-        self.head = torch.nn.Linear(
-            self.config.hidden_size,
-            self.output_dim,
-            bias=False,
-        )
+        if self.post_process:
+            self.final_layernorm = TENorm(
+                config=self.config,
+                hidden_size=self.config.hidden_size,
+                eps=self.config.layernorm_epsilon,
+            )
+            self.head = torch.nn.Linear(
+                self.config.hidden_size,
+                self.output_dim,
+                bias=False,
+            )
 
     def forward(self, x):
         x = super().forward(
             x,
         )
-        x = self.final_layernorm(x)
-        x = x[:, 0]
-        x = self.head(x)
+        if self.post_process:
+            x = self.final_layernorm(x)
+            x = x[:, 0]
+            x = self.head(x)
         return x
 
 
