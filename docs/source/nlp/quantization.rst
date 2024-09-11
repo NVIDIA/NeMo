@@ -184,10 +184,11 @@ This script will produce a quantized ``.nemo`` checkpoint at the experiment mana
 It can also optionally produce an exported TensorRT-LLM engine directory or a ``.qnemo`` file that can be used for inference by setting the ``export`` parameters similar to the PTQ example.
 Note that you may tweak the QAT trainer steps and learning rate if needed to achieve better model quality.
 
-FP8-trained NeMo checkpoints
+NeMo checkpoints trained in FP8 with `NVIDIA Transformer Engine <https://github.com/NVIDIA/TransformerEngine>`_.
 ---------------------------------
 
-For NeMo checkpoints, which are already FP8-quantized, you can convert them to TRT-LLM engine directly using ``nemo.export``. The API is the same as with ``.qnemo`` files:
+If you have an FP8-quantized checkpoint, produced during pre-training or fine-tuning with Transformer Engine, you can convert it to TRT-LLM engine directly using ``nemo.export``.
+The API is the same as with regular ``.nemo`` and ``.qnemo`` checkpoints:
 
 .. code-block:: python
 
@@ -203,12 +204,12 @@ For NeMo checkpoints, which are already FP8-quantized, you can convert them to T
 
 
 
-The export settings for quantization can be adjusted via ``trt_llm_exporter.export`` with arguments:
+The export settings for quantization can be adjusted via ``trt_llm_exporter.export`` arguments:
 
-* ``fp8_quantized: Optional[bool] = None``: manually enables/disabeles FP8 quantization
+* ``fp8_quantized: Optional[bool] = None``: manually enables/disables FP8 quantization
 * ``fp8_kvcache: Optional[bool] = None``: manually enables/disables FP8 quantization for KV-cache
 
-By default quantization settings are autodetected from a NeMo checkpoint.
+By default quantization settings are auto-detected from the NeMo checkpoint.
 
 
 References
