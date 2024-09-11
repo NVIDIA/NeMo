@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional, Union
@@ -18,10 +32,9 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class MixtralConfig8x7B(GPTConfig):
+class MixtralConfig(GPTConfig):
     """
-    Config for Mixtral-8x7B model
-    Official announcement: https://mistral.ai/news/mixtral-of-experts/
+    Base config for Mixtral models.
     """
 
     normalization: str = "RMSNorm"
@@ -29,61 +42,78 @@ class MixtralConfig8x7B(GPTConfig):
     position_embedding_type: str = "rope"
     add_bias_linear: bool = False
     gated_linear_unit: bool = True
-    apply_query_key_layer_scaling: bool = False  # TODO: Should this be True?
 
     num_layers: int = 32
     hidden_size: int = 4096
     num_attention_heads: int = 32
     num_query_groups: int = 8
     ffn_hidden_size: int = 14336
-    max_position_embeddings: int = 4096  # 32768
-    seq_length: int = 4096  # 32768
+    max_position_embeddings: int = 4096
+    seq_length: int = 4096
+    attention_dropout: float = 0.0
+    hidden_dropout: float = 0.0
+    share_embeddings_and_output_weights: bool = False
+
     # MoE
     num_moe_experts: int = 8
-    moe_router_topk: int = 1
+    moe_aux_loss_coeff: float = 0.01
+    moe_expert_capacity_factor: float = 1.0
+    moe_pad_expert_input_to_capacity: bool = True
+    moe_router_topk: int = 2
     moe_router_pre_softmax: bool = True
+    moe_token_dispatcher_type: str = "alltoall"
 
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
     # rotary
-    rotary_percent: float = 0.5
-    rotary_base: float = 10000
+    rotary_percent: float = 1.0
+    rotary_base: float = 1000000.0
     bf16: bool = True
     params_dtype: torch.dtype = torch.bfloat16
 
 
 @dataclass
-class MixtralConfig8x22B(GPTConfig):
+class MixtralConfig8x3B(MixtralConfig):
     """
-    Config for Mixtral-8x7B model
-    Official announcement: https://mistral.ai/news/mixtral-8x22b/
+    NeMo's Mixtral-8x3B model variant
+    https://github.com/NVIDIA/NeMo-Framework-Launcher/blob/main/launcher_scripts/conf/training/mixtral/mixtral_8x3b.yaml
     """
 
-    normalization: str = "RMSNorm"
-    activation_func: Callable = F.silu
-    position_embedding_type: str = "rope"
-    add_bias_linear: bool = False
-    gated_linear_unit: bool = True
-    apply_query_key_layer_scaling: bool = False  # TODO: Should this be True?
+    num_layers: int = 32
+    hidden_size: int = 2560
+    num_attention_heads: int = 32
+    ffn_hidden_size: int = 8960
+    max_position_embeddings: int = 4096
+    seq_length: int = 4096
+
+
+@dataclass
+class MixtralConfig8x7B(MixtralConfig):
+    """
+    Config for Mixtral-8x7B model
+    Official announcement: https://mistral.ai/news/mixtral-of-experts/
+    """
+
+    num_layers: int = 32
+    hidden_size: int = 4096
+    ffn_hidden_size: int = 14336
+    max_position_embeddings: int = 4096
+    seq_length: int = 4096
+
+
+@dataclass
+class MixtralConfig8x22B(MixtralConfig):
+    """
+    Config for Mixtral-8x22B model
+    Official announcement: https://mistral.ai/news/mixtral-8x22b/
+    """
 
     num_layers: int = 56
     hidden_size: int = 6144
     num_attention_heads: int = 48
-    num_query_groups: int = 8
     ffn_hidden_size: int = 16384
-    max_position_embeddings: int = 65536
-    seq_length: int = 4096  # 65536
-    # MoE
-    num_moe_experts: int = 8
-    moe_router_topk: int = 2
-
-    init_method_std: float = 0.02
-    layernorm_epsilon: float = 1e-5
-    # rotary
-    rotary_percent: float = 0  # TODO: @akoumparouli: is this correct?
-    rotary_base: float = 1000000
-    bf16: bool = True
-    params_dtype: torch.dtype = torch.bfloat16
+    max_position_embeddings: int = 4096
+    seq_length: int = 4096
 
 
 class MixtralModel(GPTModel):
@@ -138,7 +168,7 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
-        return AutoTokenizer(str(self))
+        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> MixtralConfig8x7B | MixtralConfig8x22B:
@@ -155,7 +185,7 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
             num_layers=config.num_hidden_layers,
             hidden_size=config.hidden_size,
             ffn_hidden_size=config.intermediate_size,
-            kv_channels=config.get('head_dim', config.hidden_size // config.num_attention_heads),
+            kv_channels=getattr(config, 'head_dim', config.hidden_size // config.num_attention_heads),
             max_position_embeddings=config.max_position_embeddings,  # TODO
             seq_length=config.max_position_embeddings,
             # RoPE
