@@ -103,16 +103,19 @@ class MegatronDataSampler(DataSampler):
             num_microbatches=self.num_microbatches,
         )
     
-    def on_megatron_microbatches_start(self, trainer: pl.Trainer) -> None:
+    def on_megatron_microbatches_start(self, step: MegatronStep) -> None:
         # do validation and save the checkpoint when gbs is changed
         if (
             self.rampup_batch_size is not None
             and self.prev_global_batch_size != self.current_global_batch_size
             and self.prev_global_batch_size
         ):
-            trainer.should_stop = True
+            step.trainer.should_stop = True
 
-    def on_megatron_step_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+    def on_megatron_step_end(self, step: MegatronStep) -> None:
+        trainer = step.trainer
+        pl_module = step.pl_module
+        
         try:
             from megatron.core.num_microbatches_calculator import update_num_microbatches
 
@@ -147,8 +150,6 @@ class MegatronDataSampler(DataSampler):
                 batch_size=1,
             )
         self.if_first_step = 1
-
-    
 
     @property
     def num_microbatches(self) -> int:
