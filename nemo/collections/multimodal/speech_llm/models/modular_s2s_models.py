@@ -300,7 +300,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
         output = self.predict_step(batch, batch_idx, dataloader_idx)
 
-        inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['source_texts']]
+        inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['instructions']]
         labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['target_texts']]
         preds_text = [
             self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
@@ -366,7 +366,14 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 self.test_step_outputs[-1] = outputs
         return outputs
 
-    def parse_decoder_outputs(self, decoder_output, text_separator, speech_pad_id=1001, speech_eos_id=1004):
+    def parse_decoder_outputs(
+        self, input_decoder_output, text_separator, context_length, speech_pad_id=1001, speech_eos_id=1004
+    ):
+        # remove text context
+        max_len = input_decoder_output.shape[0]
+        decoder_output = input_decoder_output[-1:].tile([max_len, 1])
+        decoder_output[: max_len - context_length] = input_decoder_output[context_length:]
+
         # Split text and speech part based on the position of the first separator token
         sep_pos = (decoder_output[:, 0] == text_separator).long()
         if torch.any(sep_pos):
@@ -458,9 +465,11 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                     for pred, answer, input, metadata in zip(
                         batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
                     ):
+                        context_length = len(self.tokenizer.text_to_ids(input))
                         text_answer, speech_answer = self.parse_decoder_outputs(
                             answer,
                             self.tokenizer.eos_id,
+                            context_length,
                             self.cfg.data.train_ds.speech_pad_id,
                             self.cfg.data.train_ds.speech_eos_id,
                         )
@@ -475,6 +484,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                                 text_pred, speech_pred = self.parse_decoder_outputs(
                                     pred,
                                     self.tokenizer.eos_id,
+                                    context_length,
                                     self.cfg.data.train_ds.speech_pad_id,
                                     self.cfg.data.train_ds.speech_eos_id,
                                 )

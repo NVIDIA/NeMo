@@ -113,8 +113,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             metadata.append({'audio_filepath': cut.id + '.wav'})
 
             instruction = self.text_processor._process_example(context=cut.supervisions[0].text, output="")
-            instruction, instruction_length = torch.as_tensor(instruction["input_ids"]), torch.as_tensor(
-                len(instruction["input_ids"])
+            instruction, instruction_length = torch.as_tensor(instruction["input_ids"][:-1]), torch.as_tensor(
+                len(instruction["input_ids"]) - 1
             )
 
             source_text = self.text_processor._process_example(context=cut.supervisions[1].text, output="")

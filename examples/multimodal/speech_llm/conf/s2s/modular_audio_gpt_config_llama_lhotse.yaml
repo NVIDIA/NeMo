@@ -225,7 +225,7 @@ model:
     # preprocessor: null
 
   data:
-    end_string: "[EOG]"
+    end_string: ""
     train_ds:
       input_cfg:
       # - type: nemo_tarred
