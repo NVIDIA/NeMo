@@ -49,7 +49,6 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
     trainer.strategy.setup_environment()
 
     if not model.state_dict():
-        # with trainer.strategy.tensor_init_context(), trainer.strategy.model_sharded_context(), trainer.precision_plugin.module_init_context():  # noqa: E501
         model.configure_model()
 
     trainer.state.fn = TrainerFn.TESTING
