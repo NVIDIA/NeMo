@@ -54,7 +54,6 @@ def build_trtllm_engine(
     lora_ckpt_list: List[str] = None,
 ):
     trt_llm_exporter = TensorRTLLM(model_dir=model_dir, lora_ckpt_list=lora_ckpt_list, load_model=False)
-    visual_checkpoint_model = ['neva', 'lita', 'vila', 'vita']
     trt_llm_exporter.export(
         nemo_checkpoint_path=visual_checkpoint_path if llm_checkpoint_path is None else llm_checkpoint_path,
         model_type=llm_model_type,
@@ -219,21 +218,23 @@ def build_neva_engine(
     vision_max_batch_size: int = 1,
 ):
     device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
-    # extract NeMo checkpoint
-    # with tempfile.TemporaryDirectory() as temp:
-    #     temp_path = Path(temp)
-    #     mp0_weights, nemo_config, _ = load_nemo_model(visual_checkpoint_path, temp_path)
 
-    # load untar checkpoint
-    config_path = os.path.join(visual_checkpoint_path, 'model_config.yaml')
-    with open(config_path, 'r') as f:
-        nemo_config = yaml.safe_load(f)
-    try:
-        weights_path = os.path.join(visual_checkpoint_path, 'model_weights.ckpt')
-        mp0_weights = torch.load(weights_path, map_location=device)
-    except FileNotFoundError:
-        weights_path = os.path.join(visual_checkpoint_path, 'mp_rank_00/model_weights.ckpt')
-        mp0_weights = torch.load(weights_path, map_location=device)
+    if os.path.isdir(visual_checkpoint_path):
+        # load untar checkpoint
+        config_path = os.path.join(visual_checkpoint_path, 'model_config.yaml')
+        with open(config_path, 'r') as f:
+            nemo_config = yaml.safe_load(f)
+        try:
+            weights_path = os.path.join(visual_checkpoint_path, 'model_weights.ckpt')
+            mp0_weights = torch.load(weights_path, map_location=device)
+        except FileNotFoundError:
+            weights_path = os.path.join(visual_checkpoint_path, 'mp_rank_00/model_weights.ckpt')
+            mp0_weights = torch.load(weights_path, map_location=device)
+    else:
+        # extract NeMo checkpoint
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+        mp0_weights, nemo_config, _ = load_nemo_model(visual_checkpoint_path, temp_path)
 
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
 
@@ -515,3 +516,37 @@ def build_visual_engine(
         build_video_neva_engine(model_dir, visual_checkpoint_path, vision_max_batch_size)
     else:
         raise RuntimeError(f"Invalid model type {model_type}")
+
+
+def extract_lora_ckpt(
+    lora_ckpt: str,
+    output_dir: str,
+):
+    if os.path.exists(os.path.join(lora_ckpt, "model_weights.ckpt")):
+        model_weight = torch.load(os.path.join(lora_ckpt, "model_weights.ckpt"))
+    elif os.path.exists(os.path.join(lora_ckpt, "mp_rank_00", "model_weights.ckpt")):
+        model_weight = torch.load(os.path.join(lora_ckpt, "mp_rank_00", "model_weights.ckpt"))
+    else:
+        raise RuntimeError(f"Imcompatible lora checkpoint format")
+
+    model_config = os.path.join(lora_ckpt, "model_config.yaml")
+
+    if not os.path.exists(model_config):
+        raise RuntimeError(f"Imcompatible lora checkpoint format")
+
+    llm_lora_weight = {}
+
+    for k, v in model_weight.items():
+        if "mm_projector" not in k:
+            llm_lora_weight[k] = v
+
+    llm_lora_path = os.path.join(output_dir, "llm_lora.nemo")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        llm_weight_path = os.path.join(tmp_dir, "model_weights.ckpt")
+        torch.save(llm_lora_weight, llm_weight_path)
+
+        with tarfile.open(llm_lora_path, "w") as tar:
+            tar.add(llm_weight_path, arcname="model_weights.ckpt")
+            tar.add(model_config, arcname="model_config.yaml")
+
+    return llm_lora_path

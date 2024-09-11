@@ -131,7 +131,7 @@ def get_args(argv):
         help='maximum lora rank for different lora modules. '
         'It is used to compute the workspace size of lora plugin.',
     )
-    parser.add_argument("--lora_ckpt", default=None, type=str, nargs="+", help="The checkpoint list of LoRA weights")
+    parser.add_argument("--lora_checkpoint_path", default=None, type=str, nargs="+", help="The checkpoint path of LoRA weights")
     args = parser.parse_args(argv)
     return args
 
@@ -165,7 +165,6 @@ def get_trt_deployable(args):
 
     exporter = TensorRTMMExporter(
         model_dir=trt_path,
-        lora_ckpt_list=args.lora_ckpt,
         load_model=(args.visual_checkpoint is None),
         modality=args.modality,
     )
@@ -188,6 +187,7 @@ def get_trt_deployable(args):
                 use_lora_plugin=args.use_lora_plugin,
                 lora_target_modules=args.lora_target_modules,
                 max_lora_rank=args.max_lora_rank,
+                lora_checkpoint_path=args.lora_checkpoint_path,
             )
         except Exception as error:
             raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))

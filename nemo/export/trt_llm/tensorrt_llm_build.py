@@ -105,7 +105,7 @@ def build_and_save_engine(
 
     if use_lora_plugin is not None:
         # build_config.plugin_config.set_lora_plugin(use_lora_plugin)
-        # build_config.plugin_config._lora_plugin = use_lora_plugin
+        build_config.plugin_config._lora_plugin = use_lora_plugin
         lora_config = LoraConfig(
             lora_dir=lora_ckpt_list,
             lora_ckpt_source='nemo',

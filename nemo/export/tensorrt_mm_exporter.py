@@ -17,13 +17,15 @@ import os
 import shutil
 from pathlib import Path
 from typing import List
+import tempfile
 
 import numpy as np
 import wrapt
 
 from nemo.deploy import ITritonDeployable
-from nemo.export.multimodal.build import build_perception_engine, build_trtllm_engine, build_visual_engine
+from nemo.export.multimodal.build import build_perception_engine, build_trtllm_engine, build_visual_engine, extract_lora_ckpt
 from nemo.export.multimodal.run import MultimodalModelRunner, SpeechllmModelRunner
+from nemo.export.tarutils import unpack_tarball
 
 use_deploy = True
 try:
@@ -74,12 +76,10 @@ class TensorRTMMExporter(ITritonDeployable):
     def __init__(
         self,
         model_dir: str,
-        lora_ckpt_list: List[str] = None,
         load_model: bool = True,
         modality: str = "vision",
     ):
         self.model_dir = model_dir
-        self.lora_ckpt_list = lora_ckpt_list
         self.runner = None
         # vision modality is for image and video
         assert modality in ["vision", "audio"]
@@ -105,6 +105,7 @@ class TensorRTMMExporter(ITritonDeployable):
         load_model: bool = True,
         use_lora_plugin: str = None,
         lora_target_modules: List[str] = None,
+        lora_checkpoint_path: str = None,
         max_lora_rank: int = 64,
     ):
         if Path(self.model_dir).exists():
@@ -123,6 +124,20 @@ class TensorRTMMExporter(ITritonDeployable):
         else:
             Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
+        if lora_checkpoint_path is not None:
+            tmp_dir = tempfile.TemporaryDirectory()
+            if os.path.isdir(lora_checkpoint_path):
+                lora_dir = lora_checkpoint_path
+            else:
+                lora_dir = os.path.join(tmp_dir.name, "unpacked_lora")
+                unpack_tarball(lora_checkpoint_path, lora_dir)
+
+            llm_lora_path = [extract_lora_ckpt(lora_dir, tmp_dir.name)]
+        else:
+            tmp_dir = None
+            llm_lora_path = None
+            lora_dir = None
+
         llm_dir = os.path.join(self.model_dir, "llm_engine")
         build_trtllm_engine(
             model_dir=llm_dir,
@@ -139,7 +154,7 @@ class TensorRTMMExporter(ITritonDeployable):
             use_lora_plugin=use_lora_plugin,
             lora_target_modules=lora_target_modules,
             max_lora_rank=max_lora_rank,
-            lora_ckpt_list=self.lora_ckpt_list,
+            lora_ckpt_list=llm_lora_path,
         )
 
         if model_type == "salm":
@@ -147,7 +162,10 @@ class TensorRTMMExporter(ITritonDeployable):
             build_perception_engine(perception_dir, visual_checkpoint_path, model_type, vision_max_batch_size)
         else:
             visual_dir = os.path.join(self.model_dir, "visual_engine")
-            build_visual_engine(visual_dir, visual_checkpoint_path, model_type, vision_max_batch_size)
+            build_visual_engine(visual_dir, visual_checkpoint_path if lora_dir is None else lora_dir, model_type, vision_max_batch_size)
+
+        if tmp_dir is not None:
+            tmp_dir.cleanup()
 
         if load_model:
             self._load()
@@ -263,6 +281,8 @@ class TensorRTMMExporter(ITritonDeployable):
 
     def _load(self):
         llm_dir = os.path.join(self.model_dir, "llm_engine")
+        if not os.path.exists(llm_dir):
+            return
         if self.modality == "vision":
             visual_dir = os.path.join(self.model_dir, "visual_engine")
             self.runner = MultimodalModelRunner(visual_dir, llm_dir, self.modality)

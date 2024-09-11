@@ -33,6 +33,7 @@ def main(cfg):
         temperature=cfg.infer.temperature,
         repetition_penalty=cfg.infer.repetition_penalty,
         num_beams=cfg.infer.num_beams,
+        lora_uids=cfg.infer.lora_uids,
     )
 
     print(output)
