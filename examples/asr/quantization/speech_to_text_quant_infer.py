@@ -189,7 +189,7 @@ def evaluate(asr_model, labels_map, wer):
     for test_batch in asr_model.test_dataloader():
         if can_gpu:
             test_batch = [x.cuda() for x in test_batch]
-        with torch.amp.autocast('cuda' if can_gpu else 'cpu'):
+        with torch.amp.autocast(asr_model.device.type):
             log_probs, encoded_len, greedy_predictions = asr_model(
                 input_signal=test_batch[0], input_signal_length=test_batch[1]
             )

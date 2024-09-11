@@ -207,7 +207,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         asr_model=asr_model, frame_len=chunk_len, total_buffer=cfg.total_buffer_in_secs, batch_size=cfg.batch_size,
     )
 
-    with torch.amp.autocast('cuda' if accelerator == 'gpu' else 'cpu', enabled=cfg.amp):
+    with torch.amp.autocast(asr_model.device.type, enabled=cfg.amp):
         hyps = get_buffered_pred_feat(
             frame_asr,
             chunk_len,

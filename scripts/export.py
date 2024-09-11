@@ -154,11 +154,8 @@ def nemo_export(argv):
             kv[k] = v
         model.set_export_config(kv)
 
-    autocast = nullcontext
-    if args.autocast:
-        autocast = torch.cuda.amp.autocast
     try:
-        with autocast(), torch.no_grad(), torch.inference_mode():
+        with torch.amp.autocast(args.device, enabled=args.autocast), torch.no_grad(), torch.inference_mode():
             model.to(device=args.device).freeze()
             model.eval()
             input_example = None

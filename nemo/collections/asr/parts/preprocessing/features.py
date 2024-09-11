@@ -433,7 +433,7 @@ class FilterbankFeatures(nn.Module):
             x = torch.cat((x[:, 0].unsqueeze(1), x[:, 1:] - self.preemph * x[:, :-1]), dim=1)
 
         # disable autocast to get full range of stft values
-        with torch.amp.autocast('cuda', enabled=False):
+        with torch.amp.autocast(x.device.type, enabled=False):
             x = self.stft(x)
 
         # torch stft returns complex tensor (of shape [B,N,T]); so convert to magnitude

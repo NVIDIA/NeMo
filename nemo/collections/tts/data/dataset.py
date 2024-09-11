@@ -504,7 +504,7 @@ class TTSDataset(Dataset):
             raise NotImplementedError(f"Reference audio type \"{reference_audio_type}\" is not supported.")
 
     def get_spec(self, audio):
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast(audio.device.type, enabled=False):
             spec = self.stft(audio)
             if spec.dtype in [torch.cfloat, torch.cdouble]:
                 spec = torch.view_as_real(spec)
@@ -512,7 +512,7 @@ class TTSDataset(Dataset):
         return spec
 
     def get_log_mel(self, audio):
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast(audio.device.type, enabled=False):
             spec = self.get_spec(audio)
             mel = torch.matmul(self.fb.to(spec.dtype), spec)
             log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))

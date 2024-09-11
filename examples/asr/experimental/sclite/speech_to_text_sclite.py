@@ -114,7 +114,7 @@ def main():
     references = [data['text'] for data in manifest_data]
     audio_filepaths = [data['audio_filepath'] for data in manifest_data]
 
-    with torch.amp.autocast('cuda' if can_gpu else 'cpu'):
+    with torch.amp.autocast(asr_model.device.type):
         hypotheses = asr_model.transcribe(audio_filepaths, batch_size=args.batch_size)
 
         # if transcriptions form a tuple (from RNNT), extract just "best" hypothesis
