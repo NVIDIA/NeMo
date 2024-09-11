@@ -547,13 +547,16 @@ class ModelCheckpoint(PTLModelCheckpoint):
         is actually finished so we can't remove it. Instead we add it to
         `self.deferred_ckpts_to_remove` for future removal.
         """
+        from nemo.utils.get_rank import is_global_rank_zero
+
         filepath = ckpt_to_dir(filepath)
         if self.async_save and not override_async:
             # Register checkpoint removal in the last (active) checkpoint removal list
             self.deferred_ckpts_to_remove[-1].append(filepath)
             return
         if os.path.islink(filepath):
-            os.unlink(filepath)
+            if is_global_rank_zero():
+                os.unlink(filepath)
             return
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during removal, we should be able to detect that data is incomplete.
