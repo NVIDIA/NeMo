@@ -239,7 +239,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         self._ddp = ddp
         if ddp == "megatron":
-            self.ddp_config = DistributedDataParallelConfig(check_for_nan_in_grad=True)
+            self.ddp_config = DistributedDataParallelConfig(
+                check_for_nan_in_grad=True,
+                overlap_grad_reduce=True,
+                overlap_param_gather=True)
         elif isinstance(ddp, DistributedDataParallelConfig):
             self.ddp_config = ddp
         elif ddp == "pytorch":
