@@ -131,7 +131,7 @@ def get_args(argv):
         help='maximum lora rank for different lora modules. '
         'It is used to compute the workspace size of lora plugin.',
     )
-    parser.add_argument("--lora_checkpoint_path", default=None, type=str, nargs="+", help="The checkpoint path of LoRA weights")
+    parser.add_argument("--lora_checkpoint_path", default=None, type=str, help="The checkpoint path of LoRA weights")
     args = parser.parse_args(argv)
     return args
 

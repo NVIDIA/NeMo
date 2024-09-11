@@ -1084,6 +1084,7 @@ class SpeechllmModelRunner(MultimodalModelRunner):
         check_accuracy=False,
         input_signal=None,
         input_signal_length=None,
+        lora_uids=None,
     ):
         """
         Args:
