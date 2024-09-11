@@ -150,8 +150,6 @@ class ProgressPrinter(ProgressBar):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
-        if not self.has_dataloader_changed(dataloader_idx):
-            return
         self.total_validation_steps = int(self.total_val_batches_current_dataloader / get_num_microbatches())
 
     @override
