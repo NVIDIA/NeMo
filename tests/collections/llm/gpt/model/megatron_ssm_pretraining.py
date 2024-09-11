@@ -80,7 +80,7 @@ if __name__ == '__main__':
     )
     checkpoint_callback = ModelCheckpoint(
         every_n_train_steps=10,
-        enable_nemo_ckpt_io=False,
+        dirpath=args.experiment_dir,
     )
     callbacks = [checkpoint_callback]
 
