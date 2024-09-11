@@ -493,7 +493,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 # p2p now, broadcast later at ckpt. only with pp, some ranks will log 0.0
                 # WHICH IS OK because we broadcast later at checkpoint time
                 _strategy_lib._sync_from_last_pipeline_stage(reduced_train_loss, broadcast=False)
-                self.lightning_module.log('reduced_train_loss', reduced_train_loss, prog_bar=True, batch_size=1, sync_dist=False)
+                self.lightning_module.log(
+                    'reduced_train_loss', reduced_train_loss, prog_bar=True, batch_size=1, sync_dist=False
+                )
 
             return model_outputs
 
