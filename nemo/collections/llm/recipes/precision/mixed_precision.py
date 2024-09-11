@@ -44,6 +44,7 @@ def fp16_mixed() -> run.Config[MegatronMixedPrecision]:
 
 
 def bf16_with_fp8_mixed_plugin() -> Config[MegatronMixedPrecision]:
+    """FP8 recipes are experimental and have not been tested for training convergence."""
     cfg = bf16_mixed_plugin()
     cfg.fp8 = 'hybrid'
     cfg.fp8_margin = 0
@@ -54,6 +55,7 @@ def bf16_with_fp8_mixed_plugin() -> Config[MegatronMixedPrecision]:
 
 
 def fp16_with_fp8_mixed_plugin() -> Config[MegatronMixedPrecision]:
+    """FP8 recipes are experimental and have not been tested for training convergence."""
     cfg = fp16_mixed_plugin()
     cfg.fp8 = 'hybrid'
     cfg.fp8_margin = 0
