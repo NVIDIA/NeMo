@@ -380,7 +380,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.setup_optimizers(trainer)
 
         self.model = self.megatron_parallel
-        self.model.callbacks.add(getattr(trainer, "callbacks"))
+        self.model.callbacks.add(*getattr(trainer, "callbacks"))
 
         if self.data_sampler:
             self.model.callbacks.add(self.data_sampler)
