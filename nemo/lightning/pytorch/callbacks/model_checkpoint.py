@@ -395,6 +395,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         return monitor_candidates
 
+    ## TODO: figure out how to make this work with async checkpointing!
     @staticmethod
     def _link_checkpoint(trainer: "pl.Trainer", filepath: str, linkpath: str) -> None:
         filepath = ckpt_to_dir(filepath)
@@ -470,6 +471,32 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:
                 finalize_fn()
+
+    def _save_last_checkpoint(self, trainer: "pl.Trainer", monitor_candidates: Dict[str, torch.Tensor]) -> None:
+        if not self.save_last:
+            return
+
+        filepath = self.format_checkpoint_name(monitor_candidates, self.CHECKPOINT_NAME_LAST)
+
+        if self._enable_version_counter:
+            version_cnt = self.STARTING_VERSION
+            while self.file_exists(filepath, trainer) and filepath != self.last_model_path:
+                filepath = self.format_checkpoint_name(monitor_candidates, self.CHECKPOINT_NAME_LAST, ver=version_cnt)
+                version_cnt += 1
+
+        # set the last model path before saving because it will be part of the state.
+        previous, self.last_model_path = self.last_model_path, filepath
+
+        ## check to see whether this step has already been saved as top_k
+        ## in which case we can create a symlink
+        saved_current_step = (str(ckpt_to_dir(filepath)).replace("-last", "") == str(ckpt_to_dir(self._last_checkpoint_saved)))
+
+        if self.save_last == "link" and self._last_checkpoint_saved and self.save_top_k != 0 and saved_current_step:
+            self._link_checkpoint(trainer, self._last_checkpoint_saved, filepath)
+        else:
+            self._save_checkpoint(trainer, filepath)
+        if previous and self._should_remove_checkpoint(trainer, previous, filepath):
+            self._remove_checkpoint(trainer, previous)
 
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
