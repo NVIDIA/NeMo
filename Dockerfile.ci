@@ -82,9 +82,8 @@ pip install --no-cache-dir --no-build-isolation --extra-index-url https://pypi.n
 ".[all]"
 
 # Megatron Core installation
-git clone https://github.com/NVIDIA/Megatron-LM.git && \
+git clone --depth 1 --branch ${MCORE_TAG} https://github.com/NVIDIA/Megatron-LM.git && \
 pushd Megatron-LM && \
-git checkout ${MCORE_TAG} && \
   pushd megatron/core/datasets && \
   make && \
   popd && \
