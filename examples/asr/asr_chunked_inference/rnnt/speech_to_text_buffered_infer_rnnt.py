@@ -84,8 +84,6 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
-can_gpu = torch.cuda.is_available()
-
 
 @dataclass
 class TranscriptionConfig:
@@ -274,6 +272,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         batch_size=cfg.batch_size,
         manifest=manifest,
         filepaths=filepaths,
+        accelerator=accelerator
     )
 
     output_filename, pred_text_attr_name = write_transcription(

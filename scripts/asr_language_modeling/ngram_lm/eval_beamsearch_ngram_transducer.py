@@ -296,23 +296,8 @@ def main(cfg: EvalBeamSearchNGramConfig):
             )
     else:
 
-        @contextlib.contextmanager
-        def default_autocast():
-            yield
-
-        if cfg.use_amp:
-            if torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
-                logging.info("AMP is enabled!\n")
-                autocast = torch.cuda.amp.autocast
-
-            else:
-                autocast = default_autocast
-        else:
-
-            autocast = default_autocast
-
         # manual calculation of encoder_embeddings
-        with autocast():
+        with torch.amp.autocast(asr_model.device.type, enabled=cfg.use_amp):
             with torch.no_grad():
                 asr_model.eval()
                 asr_model.encoder.freeze()

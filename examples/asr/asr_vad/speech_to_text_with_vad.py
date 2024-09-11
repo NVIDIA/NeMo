@@ -267,7 +267,7 @@ def extract_audio_features(manifest_filepath: str, cfg: DictConfig, record_fn: C
     with record_fn("feat_extract_loop"):
         for i, test_batch in enumerate(tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))):
             test_batch = [x.to(vad_model.device) for x in test_batch]
-            with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu'):
+            with torch.amp.autocast(vad_model.device.type):
                 with record_fn("feat_extract_infer"):
                     processed_signal, processed_signal_length = vad_model.preprocessor(
                         input_signal=test_batch[0], length=test_batch[1],
@@ -431,7 +431,7 @@ def generate_vad_frame_pred(
     with record_fn("vad_infer_loop"):
         for i, test_batch in enumerate(tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))):
             test_batch = [x.to(vad_model.device) for x in test_batch]
-            with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu'):
+            with torch.amp.autocast(vad_model.device.type):
                 with record_fn("vad_infer_model"):
                     if use_feat:
                         log_probs = vad_model(processed_signal=test_batch[0], processed_signal_length=test_batch[1])
@@ -565,7 +565,7 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
     hypotheses = []
     all_hypotheses = []
     t0 = time.time()
-    with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu'):
+    with torch.amp.autocast(asr_model.device.type):
         with torch.no_grad():
             with record_fn("asr_infer_loop"):
                 for test_batch in tqdm(dataloader, desc="Transcribing"):

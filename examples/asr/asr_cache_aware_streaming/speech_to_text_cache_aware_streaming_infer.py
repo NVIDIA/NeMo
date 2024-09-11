@@ -313,7 +313,7 @@ def main():
             raise ValueError("Model does not support multiple lookaheads.")
 
     global autocast
-    autocast = torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu', enabled=args.use_amp)
+    autocast = torch.amp.autocast(asr_model.device.type, enabled=args.use_amp)
 
     # configure the decoding config
     decoding_cfg = asr_model.cfg.decoding

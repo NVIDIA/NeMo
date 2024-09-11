@@ -108,7 +108,7 @@ def main():
     for i, test_batch in enumerate(asr_model.test_dataloader()):
         if can_gpu:
             test_batch = [x.cuda() for x in test_batch]
-            with torch.amp.autocast('cuda' if can_gpu else 'cpu', enabled=args.amp):
+            with torch.amp.autocast(asr_model.device.type, enabled=args.amp):
                 _ = asr_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
         if i >= args.num_calib_batch:
             break

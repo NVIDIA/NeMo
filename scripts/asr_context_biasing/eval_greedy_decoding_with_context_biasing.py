@@ -356,17 +356,8 @@ def main(cfg: EvalContextBiasingConfig):
             durations.append(data['duration'])
             audio_file_paths.append(str(audio_file.absolute()))
 
-    if cfg.use_amp:
-        if torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
-            logging.info("AMP is enabled!\n")
-            autocast = torch.cuda.amp.autocast
-        else:
-            autocast = contextlib.nullcontext
-    else:
-        autocast = contextlib.nullcontext
-
     # manual calculation of encoder_embeddings
-    with autocast():
+    with torch.amp.autocast(asr_model.device.type, enabled=cfg.use_amp):
         with torch.no_grad():
             asr_model.eval()
             asr_model.encoder.freeze()

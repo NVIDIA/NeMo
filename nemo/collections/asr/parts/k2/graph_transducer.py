@@ -25,7 +25,7 @@ from nemo.core.utils.k2_guard import k2
 def force_float32_context() -> ContextManager:
     """Get context manager to force float32 precision in autocast mode."""
     if torch.is_autocast_enabled():
-        return torch.cuda.amp.autocast(dtype=torch.float32)
+        return torch.amp.autocast('cuda', dtype=torch.float32)
     return nullcontext()
 
 

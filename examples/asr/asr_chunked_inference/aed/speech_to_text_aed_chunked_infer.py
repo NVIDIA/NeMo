@@ -198,7 +198,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     amp_dtype = torch.float16 if cfg.amp_dtype == "float16" else torch.bfloat16
 
-    with torch.amp.autocast('cuda' if accelerator == 'gpu' else 'cpu', enabled=cfg.amp, dtype=amp_dtype):
+    with torch.amp.autocast(asr_model.device.type, enabled=cfg.amp, dtype=amp_dtype):
         with torch.no_grad():
             hyps = get_buffered_pred_feat_multitaskAED(
                 frame_asr,

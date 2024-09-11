@@ -678,7 +678,7 @@ class MaskEstimatorGSS(NeuralModule):
         if num_outputs == 1:
             raise ValueError(f'Expecting multiple outputs, got {num_outputs}')
 
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast(self.device.type, enabled=False):
             input = input.to(dtype=self.dtype)
 
             assert input.is_complex(), f'Expecting complex input, got {input.dtype}'
@@ -1040,7 +1040,7 @@ class MaskBasedDereverbWPE(NeuralModule):
         """
         io_dtype = input.dtype
 
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast(self.device.type, enabled=False):
             output = input.to(dtype=self.dtype)
 
             if not output.is_complex():
