@@ -272,14 +272,42 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
         return batch, tensor_shape
 
 
+class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
+    def init_batch(
+        self,
+        context_tokens: torch.Tensor,
+        context_lengths: torch.Tensor,
+        audio_signal: torch.Tensor,
+        audio_length: torch.Tensor,
+        compute_attention_mask: bool,
+        num_audios: Optional[torch.Tensor] = None,
+        context_start_idx: Optional[List[List[int]]] = None,
+    ):
+        """initialize the batch data before the inference steps."""
+        new_context_tokens, encoder_input, audio_feat_lens = super().init_batch(
+            context_tokens,
+            context_lengths,
+            audio_signal,
+            audio_length,
+            compute_attention_mask,
+            num_audios,
+            context_start_idx,
+        )
+        # TODO: this is to bypass inference error for now
+        return new_context_tokens[:, :, 0], encoder_input, audio_feat_lens
+
+
 def model_inference_strategy_dispatcher(model, **args):
     from nemo.collections.multimodal.speech_llm.models.modular_models import (
         CrossAttendModularAudioGPTModel,
         ModularAudioGPTModel,
     )
+    from nemo.collections.multimodal.speech_llm.models.modular_s2s_models import S2sModularAudioGPTModel
 
     if isinstance(model, CrossAttendModularAudioGPTModel):
         return CrossAttendAudioToTextGenerationStrategy(model, **args)
+    elif isinstance(model, S2sModularAudioGPTModel):
+        return AudioToAudioGenerationStrategy(model, **args)
     elif isinstance(model, ModularAudioGPTModel):
         return AudioToTextGenerationStrategy(model, **args)
     else:

@@ -76,7 +76,7 @@ class S2sMCoreGPTModel(MCoreGPTModel):
             [
                 tensor_parallel.ColumnParallelLinear(
                     config.hidden_size,
-                    self.vocab_size,
+                    output_size=self.proj_head_dims[i],
                     config=config,
                     init_method=config.init_method,
                     bias=False,
@@ -171,7 +171,8 @@ class S2sMCoreGPTModel(MCoreGPTModel):
 
         if labels is None:
             # [s b h] => [b s h]
-            return [logits.transpose(0, 1).contiguous() for logits in all_logits]
+            return_logits = [logits.transpose(0, 1).contiguous() for logits in all_logits]
+            return return_logits[0]  # TODO: this is to bypass inference error for now
 
         # labels[:, :, i]-sum(self.proj_head_dims[:i]) is the label for the i-th projection head
         # which shuold consider the offset of previous projection heads
@@ -455,7 +456,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                     for pred, answer, input, metadata in zip(
                         batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
                     ):
-                        key = input + label + str(metadata)
+                        key = input + answer + str(metadata)
                         total_size += 1
                         if key not in inp_label_set:
                             inp_label_set.add(key)

@@ -224,9 +224,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         source_texts, source_text_lengths = collate_and_pad(source_texts)
 
-        def _convert_text_to_3d_tensor(texts, include_eos=True):
+        def _convert_text_to_3d_tensor(texts, include_eos=True, tokens_to_generate=0):
             texts, text_lengths = collate_and_pad(texts)
-            texts_expanded = get_3d_empty_tensor(texts.shape[0], texts.shape[1] + 1, text_pad_id, self.speech_pad_id)
+            texts_expanded = get_3d_empty_tensor(
+                texts.shape[0], texts.shape[1] + 1 + tokens_to_generate, text_pad_id, self.speech_pad_id
+            )
             for i, text_length in enumerate(text_lengths):
                 texts_expanded[i, :text_length, 0] = texts[i, :text_length]
                 texts_expanded[i, :text_length, 1:] = self.speech_unk_id
@@ -241,9 +243,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             return texts, text_lengths, texts_expanded
 
         target_texts, target_text_lengths, target_texts_expanded = _convert_text_to_3d_tensor(target_texts)
-        target_texts = target_texts_expanded
         instructions, instruction_lengths, instructions_expanded_no_eos = _convert_text_to_3d_tensor(
-            instructions, include_eos=False
+            # tokens_to_generate is used in inference
+            instructions,
+            include_eos=False,
+            tokens_to_generate=self.tokens_to_generate,
         )
 
         # answers = torch.concat([speaker_context, bos_tensor, target_codec], 1)
@@ -252,7 +256,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             # Add 1 for eos token
             token_list = [
                 torch.concat([tt[: ttl + 1], tc[: tcl + 1]], 0)
-                for tt, ttl, tc, tcl in zip(target_texts, target_text_lengths, target_codec, features_lens)
+                for tt, ttl, tc, tcl in zip(target_texts_expanded, target_text_lengths, target_codec, features_lens)
             ]
             if not self.t5_style:
                 token_list = [
@@ -277,7 +281,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             # tt[0] is the bos token
             token_list = [
                 torch.concat([tt[:1], tc[: tcl + 1]], 0)
-                for tt, tc, tcl in zip(target_texts, target_codec, features_lens)
+                for tt, tc, tcl in zip(target_texts_expanded, target_codec, features_lens)
             ]
             if not self.t5_style:
                 token_list = [
@@ -296,7 +300,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             full_lengths = 1 + features_lens + 1 + instruction_length
         elif getattr(cut, "s2t", False):
             # Add 1 for eos token
-            token_list = [tt[: ttl + 1] for tt, ttl in zip(target_texts, target_text_lengths)]
+            token_list = [tt[: ttl + 1] for tt, ttl in zip(target_texts_expanded, target_text_lengths)]
             if not self.t5_style:
                 token_list = [
                     torch.concat([it[:itl], tt], 0)
@@ -323,7 +327,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             "audio_ratio": torch.FloatTensor(audio_ratio),
             "metadata": metadata,
             # For forward
-            "contexts": instructions,
+            "instructions": instructions,
+            "contexts": instructions_expanded_no_eos,  # used in inference
             "context_lengths": instruction_lengths,
             "tokens": tokens[:, :-1, :],
             "tokens_length": full_lengths - 1,
