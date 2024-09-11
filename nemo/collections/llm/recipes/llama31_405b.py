@@ -39,14 +39,14 @@ NAME = "llama31_405b"
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Llama3 70B model configuration.
+    Factory function to create a Llama3.1 405B model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Llama3 70B model.
+        run.Config[pl.LightningModule]: Configuration for the Llama3.1 405B model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=llama3_70b ...
+            $ nemo llm pretrain model=llama31_405b ...
 
         Python API usage:
             >>> model_config = model()
@@ -70,10 +70,9 @@ def trainer(
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    TODO: target is TP8PP9CP4DP2
-    Configure the NeMo Lightning Trainer for Llama3 70B model.
+    Configure the NeMo Lightning Trainer for Llama3.1 405B model.
 
-    This function sets up the distributed training strategy optimized for the large 70B model.
+    This function sets up the distributed training strategy optimized for the large 405B model.
 
     Args:
         tensor_parallelism (int): Degree of tensor model parallelism.
@@ -92,7 +91,7 @@ def trainer(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=llama3_70b ...
+            $ nemo llm pretrain trainer=llama31_405b ...
 
         Python API usage:
             >>> trainer_config = trainer(num_nodes=4, num_gpus_per_node=8)
@@ -139,7 +138,7 @@ def pretrain_recipe(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Llama3 70B model.
+    Create a pre-training recipe for Llama3.1 405B model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -156,15 +155,15 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory llama3_70b
-            $ nemo llm pretrain --factory "llama3_70b(num_nodes=4, name='my_70b_pretrain')"
+            $ nemo llm pretrain --factory llama31_405b
+            $ nemo llm pretrain --factory "llama31_405b(num_nodes=4, name='my_405b_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="llama3_70b_pretrain", num_nodes=4)
+            >>> recipe = pretrain_recipe(name="llama31_405b_pretrain", num_nodes=4)
             >>> print(recipe)
 
     Note:
-        This recipe is optimized for the large 70B model and requires significant computational resources.
+        This recipe is optimized for the large 405B model and requires significant computational resources.
     """
     return run.Partial(
         fn,
@@ -186,7 +185,7 @@ def pretrain_recipe_performance(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
 ) -> run.Partial:
     """
-    Create a performance-optimized pre-training recipe for Llama3 70B model.
+    Create a performance-optimized pre-training recipe for Llama3.1 405B model.
 
     This recipe enables performance optimizations that may not be suitable for all use cases.
     It builds upon the standard pre-training recipe and adds additional performance enhancements.
@@ -203,10 +202,10 @@ def pretrain_recipe_performance(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory "llama3_70b.pretrain_recipe_performance(num_nodes=4, name='perf_pretrain')"
+            $ nemo llm pretrain --factory "llama3.1_405b.pretrain_recipe_performance(num_nodes=4, name='perf_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="llama3_70b_perf", num_nodes=4)
+            >>> recipe = pretrain_recipe_performance(name="llama3.1_405b_perf", num_nodes=4)
             >>> print(recipe)
 
     Note:
@@ -230,23 +229,23 @@ def pretrain_recipe_performance(
 
 def hf_resume() -> run.Config[nl.AutoResume]:
     """
-    Configure automatic resumption from a Hugging Face checkpoint for Llama3 70B model.
+    Configure automatic resumption from a Hugging Face checkpoint for Llama3.1 405B model.
 
     This function sets up the configuration to resume training from a pre-trained
     Hugging Face model checkpoint.
 
-    More info about the model can be found at: https://huggingface.co/meta-llama/Meta-Llama-3-70B
+    More info about the model can be found at: https://huggingface.co/meta-llama/Meta-Llama-3.1-405B
 
     Returns:
         run.Config[nl.AutoResume]: Configuration for resuming from HuggingFace checkpoint.
 
     Note:
         This is particularly useful for fine-tuning scenarios where you want to
-        start from the pre-trained Llama3 70B model.
+        start from the pre-trained Llama3.1 405B model.
     """
     return run.Config(
         nl.AutoResume,
-        restore_config=run.Config(nl.RestoreConfig, path="hf://meta-llama/Meta-Llama-3-70B"),
+        restore_config=run.Config(nl.RestoreConfig, path="hf://meta-llama/Meta-Llama-3.1-405B"),
     )
 
 
@@ -258,7 +257,7 @@ def finetune_recipe(
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Llama3 70B model.
+    Create a fine-tuning recipe for Llama3.1 405B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -275,15 +274,15 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory llama3_70b
-            $ nemo llm finetune --factory "llama3_70b(num_nodes=4, name='my_70b_finetune')"
+            $ nemo llm finetune --factory llama3.1_405b
+            $ nemo llm finetune --factory "llama3.1_405b(num_nodes=4, name='my_405b_finetune')"
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="llama3_70b_finetune", num_nodes=4)
+            >>> recipe = finetune_recipe(name="llama3.1_405b_finetune", num_nodes=4)
             >>> print(recipe)
 
     Note:
-        This recipe uses the SQuAD dataset for fine-tuning. Be aware that fine-tuning a 70B model
+        This recipe uses the SQuAD dataset for fine-tuning. Be aware that fine-tuning a 405B model
         requires substantial computational resources.
     """
     recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
