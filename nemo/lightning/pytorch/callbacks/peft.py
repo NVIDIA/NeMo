@@ -137,7 +137,9 @@ class PEFT(ABC, ModelTransform):
             if trainer.state.fn == TrainerFn.FITTING:
                 trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=True)
 
-        self.trainable_params = set(name for name, param in trainer.lightning_module.named_parameters() if param.requires_grad)
+        self.trainable_params = set(
+            name for name, param in trainer.lightning_module.named_parameters() if param.requires_grad
+        )
 
     def adapter_key_filter(self, key: str) -> bool:
         return key in self.trainable_params or ".adapter." in key or key.endswith(".adapters")
