@@ -504,7 +504,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         kwargs = self._update_step_kwargs(dataloader_iter, kwargs, "validation")
 
         with self.precision_plugin.val_step_context():  # TODO: Do we need this?
-            out = self.model(dataloader_iter, forward_only=True, *args, **kwargs)
+            model_outputs = self.model(dataloader_iter, forward_only=True, *args, **kwargs)
+            if torch.is_tensor(model_outputs):
+                reduced_val_loss = model_outputs
+            else:
+                reduced_val_loss = model_outputs["loss"]
 
             from megatron.core import parallel_state
 
@@ -514,16 +518,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 # groups (due to sync_dist), which divides val_loss by pp_size. so we multiply by pp_size to cancel out
                 self.lightning_module.log(
                     'val_loss',
-                    out * pp_size,
+                    reduced_val_loss * pp_size,
                     prog_bar=True,
                     sync_dist=True,
                     sync_dist_group=parallel_state.get_pipeline_model_parallel_group(),
                     on_epoch=True,
                 )
             else:
-                self.lightning_module.log('val_loss', out, prog_bar=True, on_epoch=True)
+                self.lightning_module.log('val_loss', reduced_val_loss, prog_bar=True, on_epoch=True)
 
-            return out
+            return model_outputs
 
     @override
     def test_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
