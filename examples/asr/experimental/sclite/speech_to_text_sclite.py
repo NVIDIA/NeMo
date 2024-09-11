@@ -82,7 +82,11 @@ def get_utt_info(manifest_path):
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--asr_model", type=str, default="QuartzNet15x5Base-En", required=False, help="Pass: 'QuartzNet15x5Base-En'",
+        "--asr_model",
+        type=str,
+        default="QuartzNet15x5Base-En",
+        required=False,
+        help="Pass: 'QuartzNet15x5Base-En'",
     )
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=4)

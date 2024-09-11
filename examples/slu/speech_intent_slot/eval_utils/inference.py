@@ -59,7 +59,12 @@ class InferenceConfig:
     sequence_generator: SequenceGeneratorConfig = SequenceGeneratorConfig(type="greedy")
 
 
-def slurp_inference(model, path2manifest: str, batch_size: int = 4, num_workers: int = 0,) -> List[str]:
+def slurp_inference(
+    model,
+    path2manifest: str,
+    batch_size: int = 4,
+    num_workers: int = 0,
+) -> List[str]:
 
     if num_workers is None:
         num_workers = min(batch_size, os.cpu_count() - 1)

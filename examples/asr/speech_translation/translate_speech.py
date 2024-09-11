@@ -177,7 +177,9 @@ def main(cfg: TranslationConfig) -> Union[TranslationConfig, List[str]]:
     with torch.amp.autocast(asr_model.device.type, enabled=cfg.amp):
         with torch.no_grad():
             translations = asr_model.translate(
-                paths2audio_files=filepaths, batch_size=cfg.batch_size, return_hypotheses=return_hypotheses,
+                paths2audio_files=filepaths,
+                batch_size=cfg.batch_size,
+                return_hypotheses=return_hypotheses,
             )
 
     logging.info(f"Finished translating {len(filepaths)} files !")
