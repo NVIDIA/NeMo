@@ -386,8 +386,8 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         speech_tokens = speech_tokens[speech_mask]
         # Revert decoder output reduction
         new_shape = (
-            speech_tokens.shape[0] * self.model.decoder_reduction_factor,
-            speech_tokens.shape[1] // self.model.decoder_reduction_factor,
+            speech_tokens.shape[0] * self.cfg.decoder_reduction_factor,
+            speech_tokens.shape[1] // self.cfg.decoder_reduction_factor,
         )
         speech_tokens = speech_tokens.reshape(new_shape)
         return text_tokens, speech_tokens
@@ -449,6 +449,8 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 'labels': [],
                 'inputs': [],
                 'metadata': [],
+                'speech_preds': [],
+                'speech_answers': [],
             }
             total_size = 0
             for rank in range(0, parallel_state.get_data_parallel_world_size()):
@@ -456,31 +458,32 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                     for pred, answer, input, metadata in zip(
                         batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
                     ):
-                        key = input + answer + str(metadata)
+                        text_answer, speech_answer = self.parse_decoder_outputs(
+                            answer,
+                            self.tokenizer.eos_id,
+                            self.cfg.data.train_ds.speech_pad_id,
+                            self.cfg.data.train_ds.speech_eos_id,
+                        )
+                        key = input + self.tokenizer.ids_to_text(text_answer) + str(metadata)
                         total_size += 1
                         if key not in inp_label_set:
                             inp_label_set.add(key)
                             #  Remove leading BOS
                             pred = pred[1:]
 
-                            text_pred, speech_pred = self.parse_decoder_outputs(
-                                pred,
-                                self.tokenizer.eos_id,
-                                self.cfg.data.train_ds.speech_pad_id,
-                                self.cfg.data.train_ds.speech_eos_id,
-                            )
-                            text_answer, speech_answer = self.parse_decoder_outputs(
-                                answer,
-                                self.tokenizer.eos_id,
-                                self.cfg.data.train_ds.speech_pad_id,
-                                self.cfg.data.train_ds.speech_eos_id,
-                            )
-                            deduplicated_outputs['preds'].append(
-                                self.tokenizer.ids_to_text(text_pred.unsqueeze(0), self.tokenizer)
-                            )
-                            deduplicated_outputs['labels'].append(
-                                self.tokenizer.ids_to_text(text_answer.unsqueeze(0), self.tokenizer)
-                            )
+                            if 0:
+                                text_pred, speech_pred = self.parse_decoder_outputs(
+                                    pred,
+                                    self.tokenizer.eos_id,
+                                    self.cfg.data.train_ds.speech_pad_id,
+                                    self.cfg.data.train_ds.speech_eos_id,
+                                )
+                            else:  # TODO: this is to bypass inference error for now
+                                text_pred = torch.Tensor(self.tokenizer.text_to_ids(pred)).long()
+                                speech_pred = speech_answer
+
+                            deduplicated_outputs['preds'].append(self.tokenizer.ids_to_text(text_pred.unsqueeze(0)))
+                            deduplicated_outputs['labels'].append(self.tokenizer.ids_to_text(text_answer.unsqueeze(0)))
                             deduplicated_outputs['speech_preds'].append(speech_pred.cpu().numpy())
                             deduplicated_outputs['speech_answers'].append(speech_answer.cpu().numpy())
 

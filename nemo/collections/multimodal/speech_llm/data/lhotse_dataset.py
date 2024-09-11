@@ -143,7 +143,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             target_texts.append(target_text)
             target_text_lengths.append(target_text_length)
 
-        # cuts = [c for i, c in enumerate(cuts) if i not in remove_ids]
+        cuts = [c for i, c in enumerate(cuts) if i not in remove_ids]
 
         audio, audio_lens, cuts = self.load_audio(cuts)
         # TODO
