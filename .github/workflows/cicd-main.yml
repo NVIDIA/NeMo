@@ -5093,13 +5093,8 @@ jobs:
 
         python tests/collections/llm/gpt/model/megatron_ssm_pretraining.py \
         --devices 1 \
-        --experiment-dir /home/TestData/nlp/megatron_mamba/nemo-ux-mamba/cicd_test_pretrain \
         --max-steps 10 \
         --data-path /home/TestData/nlp/megatron_mamba/toy_ssm_dataset/legal_pile_text_document
-
-      AFTER_SCRIPT: |
-        rm -rf /home/TestData/nlp/megatron_mamba/nemo-ux-mamba/cicd_test_pretrain
-      IS_OPTIONAL: true
 
   OPTIONAL_L2_NeMo_2_SSM_Finetuning:
     needs: [cicd-test-container-setup]
@@ -5111,13 +5106,8 @@ jobs:
 
         python tests/collections/llm/gpt/model/megatron_ssm_finetuning.py \
         --devices 1 \
-        --experiment-dir /home/TestData/nlp/megatron_mamba/nemo-ux-mamba/cicd_test_sft \
         --max-steps 10 \
         --model-path /home/TestData/nlp/megatron_mamba/model_optim_rng.pt
-
-      AFTER_SCRIPT: |
-        rm -rf /home/TestData/nlp/megatron_mamba/nemo-ux-mamba/cicd_test_sft
-      IS_OPTIONAL: true
 
   Nemo_CICD_Test:
     needs: 
