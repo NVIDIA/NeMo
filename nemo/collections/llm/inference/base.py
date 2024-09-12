@@ -44,6 +44,8 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
     trainer.strategy.restore_config = restore_config
     trainer.ckpt_path = None
     trainer.strategy.connect(model)
+    if trainer.strategy.launcher is not None:
+        trainer.strategy.launcher.launch(lambda: None, trainer=trainer)
     trainer.strategy.setup_environment()
 
     if not model.state_dict():
