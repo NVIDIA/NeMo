@@ -236,7 +236,7 @@ model:
       #     lang: en
       #     pnc: no
       - type: lhotse_shar
-        shar_path: /workspace/nemo/works/zhehuaic_works/data/s2s_shars/es_mini/
+        shar_path: manifests/es_mini_prompt3 #/workspace/nemo/works/zhehuaic_works/data/s2s_shars/es_mini/
         weight: 1.0
         tags:
           lang: en
@@ -266,6 +266,7 @@ model:
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: "{context}\n{answer}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
+      # prompt_template: "[INST]\n<<SYS>>\nPlease answer the following based on the previous speech feature.\n<</SYS>>\n\n{context}[/INST] {answer}"
       speech_pad_id: 1001
       speech_unk_id: 1002
       speech_bos_id: 1003
@@ -302,7 +303,7 @@ model:
             s2s: True
           input_cfg:
             - type: lhotse_shar
-              shar_path: /workspace/nemo/works/zhehuaic_works/data/s2s_shars/es_mini/
+              shar_path: manifests/es_mini_prompt3 #/workspace/nemo/works/zhehuaic_works/data/s2s_shars/es_mini/
               weight: 1.0
               tags:
                 lang: en

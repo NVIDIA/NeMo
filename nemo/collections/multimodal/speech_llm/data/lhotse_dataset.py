@@ -320,6 +320,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         loss_mask = loss_mask[:, 1:, :]
 
         # Merge batch
+        # note: the codec id in labels and contexts and others do not consider the offset e.g. speech_eos is 1002
+        # the offset is all considered by SumVocabParallelEmbedding
         return_batch = {
             "sample_ids": list(cuts.ids),
             "audio_signal": audio,

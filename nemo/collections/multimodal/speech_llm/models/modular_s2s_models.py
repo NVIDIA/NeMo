@@ -49,12 +49,48 @@ except (ImportError, ModuleNotFoundError):
 default_inference_config = {'tokens_to_generate': 30}
 
 
+class SumVocabParallelEmbedding(tensor_parallel.VocabParallelEmbedding):
+
+    def __init__(
+        self,
+        proj_head_dims,
+        *args,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.proj_head_dims = proj_head_dims
+
+    def forward(self, input_):
+        if input_.ndim == 3:
+            for i in range(len(self.proj_head_dims)):
+                # shuold consider the offset of previous projection heads
+                input_[:, :, i] += sum(self.proj_head_dims[:i])
+        embeddings = super().forward(input_)
+        if input_.ndim == 3:
+            # sum the multi proj embeddings as the final embeddings
+            embeddings = torch.sum(embeddings, axis=2)
+        return embeddings
+
+
 class SumMultiEmbedding(LanguageModelEmbedding):
     """Language model embeddings with multiple tokens at each time step. The embeddings of the tokens of the same time step will be computed separately and then be summed together."""
 
-    def forward(self, input_ids: Tensor, position_ids: Tensor, tokentype_ids: int = None) -> Tensor:
-        embeddings = super().forward(input_ids, position_ids, tokentype_ids)
-        return torch.sum(embeddings, axis=2)
+    def __init__(
+        self,
+        proj_head_dims,
+        *args,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        del self.word_embeddings
+        self.word_embeddings = SumVocabParallelEmbedding(
+            num_embeddings=self.vocab_size,
+            embedding_dim=self.config.hidden_size,
+            init_method=self.config.init_method,
+            reduce_scatter_embeddings=self.reduce_scatter_embeddings,
+            config=self.config,
+            proj_head_dims=proj_head_dims,
+        )
 
 
 class S2sMCoreGPTModel(MCoreGPTModel):
@@ -103,6 +139,7 @@ class S2sMCoreGPTModel(MCoreGPTModel):
             vocab_size=vocab_size,
             max_sequence_length=self.max_sequence_length,
             position_embedding_type=self.position_embedding_type,
+            proj_head_dims=self.proj_head_dims,
         )
         self.embedding.word_embeddings.weight.data[: pretrained_emb.word_embeddings.weight.shape[0]] = (
             pretrained_emb.word_embeddings.weight.data
@@ -174,13 +211,8 @@ class S2sMCoreGPTModel(MCoreGPTModel):
             return_logits = [logits.transpose(0, 1).contiguous() for logits in all_logits]
             return return_logits[0]  # TODO: this is to bypass inference error for now
 
-        # labels[:, :, i]-sum(self.proj_head_dims[:i]) is the label for the i-th projection head
-        # which shuold consider the offset of previous projection heads
         tokens_loss = torch.stack(
-            [
-                self.compute_language_model_loss(labels[:, :, i] - sum(self.proj_head_dims[:i]), all_logits[i])
-                for i in range(self.n_proj_heads)
-            ],
+            [self.compute_language_model_loss(labels[:, :, i], all_logits[i]) for i in range(self.n_proj_heads)],
             axis=2,
         )
         tokens_loss = (
@@ -242,20 +274,24 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             raise ValueError("S2S ModularAudioGPTModel requires Megatron-core GPT model.")
         return model
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer):
-        self.cfg = cfg
-        super().__init__(cfg, trainer)
-        if cfg.get('salm_model_path') is not None:
-            torch_state_dict = torch.load(cfg.get('salm_model_path'))['state_dict']
-            self.setup_complete = False
-            # breakpoint()
-            self.load_state_dict(torch_state_dict, strict=False)
-            logging.info(f"loading from {cfg.get('salm_model_path')}: {torch_state_dict.keys()}")
+    @classmethod
+    def restore_from_pretrained_models(
+        cls,
+        cfg: Optional[Union[OmegaConf, str]] = None,
+        trainer: Optional[Trainer] = None,
+    ):
+        model = super().restore_from_pretrained_models(cfg, trainer)
+        if cfg.model.get('salm_model_path') is not None:
+            torch_state_dict = torch.load(cfg.model.get('salm_model_path'))['state_dict']
+            model.setup_complete = False
+            model.load_state_dict(torch_state_dict, strict=False)
+            logging.info(f"loading from {cfg.model.get('salm_model_path')}: {torch_state_dict.keys()}")
 
-        self.padded_vocab_size = cfg.s2s_vocab_size
-        self.model.extend_embedding(self.padded_vocab_size)
+        model.padded_vocab_size = cfg.model.s2s_vocab_size
+        model.model.extend_embedding(model.padded_vocab_size)
         # print out params in more details
-        self.summarize(max_depth=2)
+        model.summarize(max_depth=2)
+        return model
 
     # change to add one more dimension
     def _shift_labels_by_emb_len(self, labels, label_lens, emb_lens, max_len, pad_token=0):
@@ -267,16 +303,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             shifted_labels.append(shifted_label)
         shifted_labels = torch.stack(shifted_labels, dim=0)
         return shifted_labels
-
-    def _concat_features(self, embs1, emb1_lens, embs2, emb2_lens):
-        """Concatenate two sets of embeddings and their lengths."""
-
-        def _reduce_sum_to_3d(tensor):
-            if tensor.ndim == 4:
-                return tensor.sum(dim=2)
-            return tensor
-
-        return super()._concat_features(_reduce_sum_to_3d(embs1), emb1_lens, _reduce_sum_to_3d(embs2), emb2_lens)
 
     def inference_step(self, dataloader_iter, mode):
         """
@@ -638,7 +664,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 f_json.write(json.dumps(json_string) + '\n')
 
                 # np.save(speaker_contexts_path.format(i), speaker_context.cpu().numpy())
-                np.save(speech_pred_path.format(i), speech_pred)
-                np.save(speech_answer_path.format(i), speech_answer)
+                np.save(speech_pred_path.format(m['audio_filepath']), speech_pred)
+                np.save(speech_answer_path.format(m['audio_filepath']), speech_answer)
 
         logging.info(f'Predictions saved to {output_file_path}')
