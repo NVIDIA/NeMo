@@ -69,14 +69,18 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core.num_microbatches_calculator import get_num_microbatches, reconfigure_num_microbatches_calculator
+    from megatron.core.num_microbatches_calculator import (
+        get_micro_batch_size,
+        get_num_microbatches,
+        reconfigure_num_microbatches_calculator,
+    )
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
     )
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
 __all__ = ["ModularAudioGPTModel", "CrossAttendModularAudioGPTModel"]
 
@@ -431,7 +435,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         # TODO(pzelasko): I marked the sections that are modified from the original with TODOs like this one.
 
         # Local imports mimic global imports in the original file that had this func.
-        from apex.transformer.pipeline_parallel.utils import get_micro_batch_size
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
         from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 
