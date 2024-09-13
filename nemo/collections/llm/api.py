@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import json
 import os
 from copy import deepcopy
@@ -8,24 +22,9 @@ import pytorch_lightning as pl
 from typing_extensions import Annotated
 
 from nemo.collections.llm.utils import Config, task
-from nemo.deploy import DeployPyTriton
 from nemo.lightning import AutoResume, NeMoLogger, OptimizerModule, Trainer, io
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
-
-trt_llm_supported = True
-try:
-    from nemo.export.tensorrt_llm import TensorRTLLM
-except ImportError as error:
-    logging.warning(f"TensorRTLLM could not be imported from nemo.export: {error}")
-    trt_llm_supported = False
-
-uvicorn_supported = True
-try:
-    import uvicorn
-except ImportError as error:
-    logging.warning(f"uvicorn could not be imported: {error}")
-    uvicorn_supported = False
 
 TokenizerType = Any
 
@@ -253,6 +252,8 @@ def get_trtllm_deployable(
     max_batch_size,
     dtype,
 ):
+    from nemo.export.tensorrt_llm import TensorRTLLM
+
     if triton_model_repository is None:
         trt_llm_path = "/tmp/trt_llm_model_dir/"
         Path(trt_llm_path).mkdir(parents=True, exist_ok=True)
@@ -274,8 +275,6 @@ def get_trtllm_deployable(
     if nemo_checkpoint is not None and model_type is None:
         raise ValueError("Model type is required to be defined if a nemo checkpoint is provided.")
 
-    if not trt_llm_supported:
-        raise ValueError("TensorRT-LLM engine is not supported in this environment.")
     trt_llm_exporter = TensorRTLLM(
         model_dir=trt_llm_path,
         load_model=(nemo_checkpoint is None),
@@ -334,6 +333,8 @@ def deploy(
     rest_service_port: int = 8000,
     openai_format_response: bool = False,
 ):
+    from nemo.deploy import DeployPyTriton
+
     if start_rest_service:
         if triton_port == rest_service_port:
             logging.error("REST service port and Triton server port cannot use the same port.")
@@ -369,6 +370,13 @@ def deploy(
     except Exception as error:
         logging.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
+
+    uvicorn_supported = True
+    try:
+        import uvicorn
+    except ImportError as error:
+        logging.warning(f"uvicorn could not be imported: {error}")
+        uvicorn_supported = False
 
     try:
         logging.info("Model serving on Triton is will be started.")

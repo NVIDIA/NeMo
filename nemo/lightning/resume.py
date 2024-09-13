@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 from pathlib import Path, PosixPath, WindowsPath
 from typing import Optional, Union
@@ -109,8 +123,26 @@ class AutoResume(Resume, io.IOMixin):
             end_dist_checkpoints = [d for d in dist_checkpoints if d.match("*end")]
             last_dist_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
 
+            end_chkpt_cnt = len(end_dist_checkpoints)
             end_checkpoints = _filter_out_unfinished_checkpoints(end_dist_checkpoints)
+            finished_end_chkpt_cnt = len(end_checkpoints)
+            if end_chkpt_cnt > 0 and finished_end_chkpt_cnt == 0:
+                raise ValueError(
+                    "End checkpoint is unfinished and cannot be used to resume the training."
+                    " Please remove the checkpoint manually to avoid unexpected cosequences, such as"
+                    " restarting from scratch."
+                )
+
+            last_chkpt_cnt = len(last_dist_checkpoints)
             last_checkpoints = _filter_out_unfinished_checkpoints(last_dist_checkpoints)
+            finished_last_chkpt_cnt = len(last_checkpoints)
+            if last_chkpt_cnt > 0 and finished_last_chkpt_cnt == 0:
+                raise ValueError(
+                    "Last checkpoint is unfinished and cannot be used to resume the training."
+                    " Please remove the checkpoint manually to avoid unexpected cosequences, such as"
+                    " restarting from scratch. Hint: Iteration number can be added to the checkpoint name pattern"
+                    " to maximize chance that there is at least one finished last checkpoint to resume from."
+                )
 
             if not checkpoint_dir.exists() or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
                 if self.resume_ignore_no_checkpoint:

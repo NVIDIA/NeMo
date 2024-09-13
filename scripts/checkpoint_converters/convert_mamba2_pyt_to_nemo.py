@@ -26,7 +26,7 @@ from nemo.utils import logging
 '''
 Example
 
-CUDA_VISIBLE_DEVICES="0" python /NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
+CUDA_VISIBLE_DEVICES="0" python /opt/NeMo/scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py \
                                 --input_name_or_path <path to the source pytorch model> \
                                 --output_path <path to target .nemo model> \
                                 --mamba_ssm_ngroups 8 \
@@ -72,10 +72,24 @@ def get_args():
 
 def convert(args):
 
-    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')["model"]
+    checkpoint_weights = torch.load(args.input_name_or_path, map_location='cpu')['model']
     new_state_dict = {}
 
     if 'backbone' in list(checkpoint_weights.keys())[0]:
+        if 'model' in list(checkpoint_weights.keys())[0]:
+            checkpoint_weights = {key.replace('model.', '', 1): value for key, value in checkpoint_weights.items()}
+
+            # Codestral Mamba Model Tokenizer Settings
+            tokenizer_library = 'megatron'
+            tokenizer_type = 'GPTSentencePieceTokenizer'
+            tokenizer_model = args.tokenizer_model_dir
+
+        else:
+
+            # Tri Dao and Albert Gu Mamba Model Tokenizer Settings
+            tokenizer_library = 'huggingface'
+            tokenizer_type = 'EleutherAI/gpt-neox-20b'
+            tokenizer_model = None
 
         layer_keys = [key for key in checkpoint_weights.keys() if re.match(r'backbone\.layers\.\d+\.', key)]
         layer_numbers = set(int(re.search(r'backbone\.layers\.(\d+)\.', key).group(1)) for key in layer_keys)
@@ -122,6 +136,11 @@ def convert(args):
             if '.norm.weight' in key and 'mixer' not in key:
                 key = key[:-11] + 'mixer.in_proj.layer_norm_weight'
             new_state_dict["model." + key] = value
+
+        # Tokenizer settings
+        tokenizer_library = 'megatron'
+        tokenizer_type = 'GPTSentencePieceTokenizer'
+        tokenizer_model = args.tokenizer_model_dir
 
     layers = defaultdict(list)
 

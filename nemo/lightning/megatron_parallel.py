@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import abc
 import collections.abc
 import functools
@@ -231,7 +245,24 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         pipeline = self.pipeline
 
-        use_global_batch_sampler = self.trainer.datamodule.data_sampler.dataloader_type == 'batch'
+        # FIXME: cleanup the following code block which is here for backwards compatibility with nemo1. The "batch"
+        #  sampler is a nemo1 sampler. It requires some custom code here to use (if use_global_batch_sampler).
+        #  by default we shouldn't use this "batch" sampler probably.
+        if getattr(self.trainer, "datamodule", None) is not None:
+            use_global_batch_sampler = self.trainer.datamodule.data_sampler.dataloader_type == 'batch'
+        elif getattr(self.trainer, "predict_dataloaders", None) is not None:
+            from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (  # noqa: I001
+                MegatronPretrainingBatchSampler,
+            )
+
+            # The batch_sampler gets injected into the dataloader by the data_sampler. When doing predict without a
+            #  datamodule we can look inside the dataloader's batch_sampler to see if it is the nemo1 style sampler
+            #  that we need to handle specially below.
+            use_global_batch_sampler = isinstance(
+                self.trainer.predict_dataloaders.batch_sampler, MegatronPretrainingBatchSampler
+            )
+        else:
+            raise ValueError("Unsure how to check for nemo1 global_batch_sampler status. TODO maybe default to False?")
         if use_global_batch_sampler:
             from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 

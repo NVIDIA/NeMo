@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 
@@ -13,6 +27,7 @@ from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.utils import logging
 
 HAVE_TE = True
 try:
@@ -46,8 +61,6 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         required_keys.update(("tokens", "position_ids"))
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
-    # if self.get_attention_mask_from_fusion:
-    #     required_keys.remove('attention_mask')
 
     _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
     # slice batch along sequence dimension for context parallelism
@@ -60,9 +73,16 @@ def gpt_forward_step(model, batch) -> torch.Tensor:
     forward_args = {
         "input_ids": batch["tokens"],
         "position_ids": batch["position_ids"],
-        "attention_mask": batch["attention_mask"],
         "labels": batch["labels"],
     }
+
+    if 'attention_mask' not in batch:
+        assert (
+            HAVE_TE
+        ), "The dataloader did not provide an attention mask, however Transformer Engine was not detected. \
+            This requires Transformer Engine's implementation of fused or flash attention."
+    else:
+        forward_args["attention_mask"] = batch['attention_mask']
 
     if 'cu_seqlens' in batch:
         forward_args['packed_seq_params'] = get_packed_seq_params(batch)
@@ -109,9 +129,6 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     masked_softmax_fusion: bool = True
     deallocate_pipeline_outputs = True
 
-    # TODO: Move this to better places?
-    get_attention_mask_from_fusion: bool = False
-
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
@@ -131,10 +148,19 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(self)
 
+        if hasattr(self, 'vocab_size'):
+            vocab_size = self.vocab_size
+            logging.info(
+                f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
+                f" {vocab_size - tokenizer.vocab_size}."
+            )
+        else:
+            vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
+
         return MCoreGPTModel(
             self,
             transformer_layer_spec=transformer_layer_spec,
-            vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
+            vocab_size=vocab_size,
             max_sequence_length=self.seq_length,
             fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
             parallel_output=self.parallel_output,
@@ -174,7 +200,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self,
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
-        attention_mask: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
         decoder_input: Optional[torch.Tensor] = None,
         inference_params=None,
