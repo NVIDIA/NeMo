@@ -363,6 +363,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         # Shift labels to the right
         labels = self._shift_labels_by_emb_len(labels, input_length, encoded_len, encoder_max_length, pad_token=0)
         # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
+        breakpoint()
         loss_mask = self._shift_labels_by_emb_len(
             loss_mask, input_length, encoded_len, encoder_max_length, pad_token=0
         )

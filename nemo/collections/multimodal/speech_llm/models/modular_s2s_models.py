@@ -104,7 +104,6 @@ class S2sMCoreGPTModel(MCoreGPTModel):
         **kwargs,
     ) -> None:
         super().__init__(config=config, *args, **kwargs)
-        # TODO: confirm the state dict is loaded and stored
         self.n_proj_heads = len(proj_head_dims)
         self.proj_head_dims = proj_head_dims
         self.proj_head_loss_weights = proj_head_loss_weights

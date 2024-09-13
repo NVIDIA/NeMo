@@ -111,7 +111,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         remove_ids = []
         for id, cut in enumerate(cuts):
             metadata.append({'audio_filepath': cut.id + '.wav'})
-
+            # TODO: the following use of _process_example is not ideal. Should update
             instruction = self.text_processor._process_example(context=cut.supervisions[0].text, output="")
             instruction, instruction_length = torch.as_tensor(instruction["input_ids"][:-1]), torch.as_tensor(
                 len(instruction["input_ids"]) - 1
@@ -122,10 +122,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 len(source_text["input_ids"])
             )
 
-            target_text = self.text_processor._process_example(context=cut.supervisions[2].text, output="")
+            target_text = self.text_processor._process_example(context="", output=cut.supervisions[2].text)
             # -1 to remove the eos token added by the text processor
-            target_text, target_text_length = torch.as_tensor(target_text["input_ids"][:-1]), torch.as_tensor(
-                len(target_text["input_ids"]) - 1
+            target_text, target_text_length = torch.as_tensor(target_text["answer_ids"][:-1]), torch.as_tensor(
+                len(target_text["answer_ids"]) - 1
             )
 
             if self.filter_by_source_target_text_ratio:
