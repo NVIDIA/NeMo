@@ -103,6 +103,7 @@ class MegatronMixedPrecision(Precision):
             assert HAVE_TE, "FP8 precision requires transformer engine."
             if fp8_params:
                 from transformer_engine.pytorch.fp8 import FP8GlobalStateManager
+
                 FP8GlobalStateManager.FP8_PARAMETERS = True
                 fp8_param_gather = True
 
