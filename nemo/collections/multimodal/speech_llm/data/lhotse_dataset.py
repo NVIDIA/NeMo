@@ -145,17 +145,19 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         cuts = [c for i, c in enumerate(cuts) if i not in remove_ids]
 
-        audio, audio_lens, cuts = self.load_audio(cuts)
+        # audio, audio_lens, cuts = self.load_audio(cuts)
         # TODO
         # AudioSamples does not work if the audio files in the CutSet has different sampling rates
-        # audio, audio_lens, cuts = zip(*[self.load_audio(CutSet([c])) for c in cuts])
+        audio, audio_lens, cuts = zip(*[self.load_audio(CutSet([c])) for c in cuts])
         # Resample audio waveform here since cuts.resample causes core dump sometimes
         # cuts_sample_rates = [c.recording.sampling_rate for c in cuts]
         # import torchaudio
         # audio = [torchaudio.functional.resample(a, orig_sample_rate, self.sample_rate).squeeze(0) for a, orig_sample_rate in zip(audio, cuts_sample_rates)]
         # audio_lens = (torch.IntTensor(audio_lens) * (self.sample_rate / torch.IntTensor(cuts_sample_rates))).int()
         # audio = collate_vectors(audio, max_length=max(audio_lens), padding_value=0.0)
-        # cuts = CutSet([c[0] for c in cuts])
+        audio = torch.concat(audio, axis=0)
+        audio_lens = torch.concat(audio_lens, axis=0)
+        cuts = CutSet([c[0] for c in cuts])
 
         audio_ratio = []
         for id, cut in enumerate(cuts):
