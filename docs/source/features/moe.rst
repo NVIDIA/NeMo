@@ -73,3 +73,19 @@ Other options include:
 7. ``moe_token_drop_policy`` the policy to drop tokens. Can be either "probs" or "position". If "probs", the tokens with the lowest probabilities will be dropped. If "position", tokens at the end of each batch will be dropped. The default value is "probs".
 
 8. ``moe_layer_recompute`` if True, checkpointing moe_layer to save activation memory. The default is False.
+
+Upycle Dense Checkpoints to MoE Models
+--------------------------------------
+
+NeMo provides the ability to upcycle a dense checkpoint to a Mixture-of-Experts model. 
+To do this you can refer to the sample command below:
+
+.. code-block:: python
+   
+   python NeMo/examples/nlp/language_modeling/megatron_gpt_upcycling.py \
+   --config-path=/path/to/MoE/config/ \
+   --config-name=MoE/config/name.yaml \
+   +restore_from_path=/path/to/base/model 
+
+Where your MoE config should contain the target MoE model config you want to train i.e. it should contains the MoE specific arguments as described above. 
+The base model you want to upcycle can also be directly added to this config under the argument ``restore_from_path``.
