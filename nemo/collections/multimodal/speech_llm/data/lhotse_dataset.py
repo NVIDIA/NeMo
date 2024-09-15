@@ -154,8 +154,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         # import torchaudio
         # audio = [torchaudio.functional.resample(a, orig_sample_rate, self.sample_rate).squeeze(0) for a, orig_sample_rate in zip(audio, cuts_sample_rates)]
         # audio_lens = (torch.IntTensor(audio_lens) * (self.sample_rate / torch.IntTensor(cuts_sample_rates))).int()
-        # audio = collate_vectors(audio, max_length=max(audio_lens), padding_value=0.0)
-        audio = torch.concat(audio, axis=0)
+        audio = collate_vectors([a.squeeze(0) for a in audio], max_length=max(audio_lens), padding_value=0.0)
         audio_lens = torch.concat(audio_lens, axis=0)
         cuts = CutSet([c[0] for c in cuts])
 
