@@ -326,6 +326,7 @@ class ConnectorMixin:
                         when required.
         """
         _path = None
+        ext = str(ext)
         if "://" in ext:
             ext, _path = ext.split("://")
         else:
