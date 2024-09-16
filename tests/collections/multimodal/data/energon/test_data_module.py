@@ -56,6 +56,7 @@ class TestSimpleMultiModalDataModuleWithDummyData(TestCase):
             image_processor=self.image_processor,
             num_workers=0,
             micro_batch_size=1,
+            global_batch_size=2,
             multimodal_sample_config=self.config,
         )
 

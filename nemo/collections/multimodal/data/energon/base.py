@@ -65,9 +65,11 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         image_processor,
         seq_length: int = 2048,
         micro_batch_size: int = 1,
+        global_batch_size: int = 1,
         num_workers: int = 1,
         pin_memory: bool = True,
         multimodal_sample_config: Optional[MultiModalSampleConfig] = MultiModalSampleConfig(),
+        task_encoder: Optional[MultiModalTaskEncoder] = None,
     ) -> None:
         """
         Initialize the SimpleMultiModalDataModule.
@@ -81,6 +83,7 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         num_workers (int, optional): Number of workers for data loading. Defaults to 1.
         pin_memory (bool, optional): Whether to pin memory in the DataLoader. Defaults to True.
         multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples. Defaults to MultiModalSampleConfig().
+        task_encoder (MultiModalTaskEncoder, optional): Encoder responsible for encoding and batching samples. If not provided, a default (MultimodalTaskEncoder) encoder will be created. Defaults to None.
         """
 
         super().__init__()
@@ -89,18 +92,18 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         self.image_processor = image_processor
         self.seq_length = seq_length
         self.micro_batch_size = micro_batch_size
+        self.global_batch_size = global_batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.multimodal_sample_config = multimodal_sample_config
-        self.task_encoder = MultiModalTaskEncoder(
+        self.task_encoder = task_encoder or MultiModalTaskEncoder(
             tokenizer=self.tokenizer,
             image_processor=self.image_processor,
             multimodal_sample_config=multimodal_sample_config,
         )
         self.init_global_step = 0
         self.data_sampler = SequentialMegatronSampler(
-            seq_len=self.seq_length,
-            micro_batch_size=self.micro_batch_size,
+            seq_len=self.seq_length, micro_batch_size=self.micro_batch_size, global_batch_size=self.global_batch_size
         )
         self.train_dataloader_object = None
         self.val_dataloader_object = None
@@ -310,7 +313,14 @@ class SequentialMegatronSampler(MegatronDataSampler):
     init_global_step (int): The initial global step at the start of training.
     """
 
-    def __init__(self, seq_len: int, micro_batch_size: int = 4, init_consumed_samples: int = 0, init_global_step=0):
+    def __init__(
+        self,
+        seq_len: int,
+        micro_batch_size: int = 4,
+        global_batch_size: int = 8,
+        init_consumed_samples: int = 0,
+        init_global_step=0,
+    ):
         """
         Initialize the SequentialMegatronSampler.
 
@@ -323,26 +333,12 @@ class SequentialMegatronSampler(MegatronDataSampler):
         super().__init__(seq_len=seq_len, micro_batch_size=micro_batch_size)
         self.seq_len = seq_len
         self.micro_batch_size = micro_batch_size
+        self.global_batch_size = global_batch_size
         self.init_consumed_samples = init_consumed_samples
         self.prev_consumed_samples = self.init_consumed_samples
         self.if_first_step = 0
         self.prev_global_batch_size = None
         self.init_global_step = init_global_step
-
-    def setup(self, global_rank: int) -> None:
-        """
-        Setup the sampler for the given global rank.
-
-        This method initializes the micro-batch calculator based on the global rank and batch size.
-        It ensures that the data is properly distributed across multiple devices in a distributed setting.
-
-        Parameters:
-        global_rank (int): The global rank of the current process in the distributed training setup.
-        """
-        from nemo.lightning.data import setup_microbatch_calculator
-
-        self.global_batch_size = self.micro_batch_size * parallel_state.get_data_parallel_world_size()
-        setup_microbatch_calculator(global_rank, self.micro_batch_size, self.global_batch_size, rampup_batch_size=None)
 
     def transform_dataloader(self, dataloader: DataLoader) -> DataLoader:
         """
