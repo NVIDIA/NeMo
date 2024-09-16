@@ -1,3 +1,18 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional
@@ -9,6 +24,7 @@ from torch import nn
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.utils import logging
 
 if TYPE_CHECKING:
     from transformers import LlamaConfig as HFLlamaConfig
@@ -66,13 +82,12 @@ class Llama3Config(GPTConfig):
     num_query_groups: int = 8
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
-    normalization = "RMSNorm"
+    normalization: str = "RMSNorm"
     init_method_std: float = 0.01
     layernorm_epsilon: float = 1.0e-05
     add_bias_linear: bool = False
     activation_func: Callable = F.silu
     gated_linear_unit: bool = True
-    apply_query_key_layer_scaling: bool = True
     # Fusions
     bias_activation_fusion: bool = True
     masked_softmax_fusion: bool = True
@@ -80,8 +95,29 @@ class Llama3Config(GPTConfig):
     bias_dropout_fusion: bool = True
     apply_rope_fusion: bool = True
     share_embeddings_and_output_weights: bool = False
-    position_embedding_type = "rope"
+    position_embedding_type: str = "rope"
     rotary_percent: float = 1.0
+
+
+@dataclass
+class Llama31Config(Llama3Config):
+    scale_factor: int = 8
+    low_freq_factor: int = 1
+    high_freq_factor: int = 4
+    old_context_len: int = 8192
+    init_method_std: float = 0.02
+
+    def configure_model(self, tokenizer) -> "MCoreGPTModel":
+        model = super().configure_model(tokenizer)
+        # Apply rope scaling for Llama3.1 model
+        model.rotary_pos_emb.inv_freq = apply_rope_scaling(
+            model.rotary_pos_emb.inv_freq,
+            factor=self.scale_factor,
+            low_freq_factor=self.low_freq_factor,
+            high_freq_factor=self.high_freq_factor,
+            old_context_len=self.old_context_len,
+        )
+        return model
 
 
 @dataclass
@@ -103,6 +139,38 @@ class Llama3Config70B(Llama3Config):
     ffn_hidden_size: int = 28672
     num_attention_heads: int = 64
     init_method_std: float = 0.008944
+    make_vocab_size_divisible_by: int = 128
+
+
+@dataclass
+class Llama31Config8B(Llama31Config):
+    rotary_base: int = 500_000
+    seq_length: int = 131072
+    num_layers: int = 32
+    hidden_size: int = 4096
+    ffn_hidden_size: int = 14336
+    num_attention_heads: int = 32
+
+
+@dataclass
+class Llama31Config70B(Llama31Config):
+    rotary_base: int = 500_000
+    seq_length: int = 131072
+    num_layers: int = 80
+    hidden_size: int = 8192
+    ffn_hidden_size: int = 28672
+    num_attention_heads: int = 64
+    make_vocab_size_divisible_by: int = 128
+
+
+@dataclass
+class Llama31Config405B(Llama31Config):
+    rotary_base: int = 500_000
+    seq_length: int = 131072
+    num_layers: int = 126
+    hidden_size: int = 16384
+    ffn_hidden_size: int = 53248
+    num_attention_heads: int = 128
     make_vocab_size_divisible_by: int = 128
 
 
@@ -183,7 +251,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
-        return AutoTokenizer(str(self))
+        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> LlamaConfig:
@@ -365,6 +433,33 @@ def _export_linear_fc1(linear_fc1):
     return gate_proj, up_proj
 
 
+def apply_rope_scaling(
+    inv_freq,
+    factor: int = 8,
+    low_freq_factor: int = 1,
+    high_freq_factor: int = 4,
+    old_context_len: int = 8192,
+):
+    logging.info(
+        f"Apply rope scaling with factor={factor}, low_freq_factor={low_freq_factor}, high_freq_factor={high_freq_factor}, old_context_len={old_context_len}."
+    )
+
+    low_freq_wavelen = old_context_len / low_freq_factor
+    high_freq_wavelen = old_context_len / high_freq_factor
+
+    wavelen = 2 * math.pi / inv_freq
+    # wavelen < high_freq_wavelen: do nothing
+    # wavelen > low_freq_wavelen: divide by factor
+    inv_freq_llama = torch.where(wavelen > low_freq_wavelen, inv_freq / factor, inv_freq)
+    # otherwise: interpolate between the two, using a smooth factor
+    smooth_factor = (old_context_len / wavelen - low_freq_factor) / (high_freq_factor - low_freq_factor)
+    smoothed_inv_freq = (1 - smooth_factor) * inv_freq_llama / factor + smooth_factor * inv_freq_llama
+    is_medium_freq = ~(wavelen < high_freq_wavelen) * ~(wavelen > low_freq_wavelen)
+    inv_freq_llama = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
+
+    return inv_freq_llama
+
+
 __all__ = [
     "LlamaConfig",
     "Llama2Config7B",
@@ -372,6 +467,9 @@ __all__ = [
     "Llama2Config70B",
     "Llama3Config8B",
     "Llama3Config70B",
+    "Llama31Config8B",
+    "Llama31Config70B",
+    "Llama31Config405B",
     "CodeLlamaConfig7B",
     "CodeLlamaConfig13B",
     "CodeLlamaConfig34B",
