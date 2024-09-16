@@ -55,8 +55,7 @@ def main() -> None:
     from nemo.collections.vlm.llama.model.base import CrossAttentionModelVisionConfig, CrossAttentionModelVision, CrossAttentionModelTextConfig, CrossAttentionModelText
 
     vision_config = CrossAttentionModelVisionConfig(num_layers=2, hidden_size=12, num_attention_heads=4)
-    vision_model = vision_config.configure_model()
-    # model = LlavaModel(tokenizer=hf_tokenizer)
+    # vision_model = vision_config.configure_model()
 
     # fabric = trainer.to_fabric()
     #

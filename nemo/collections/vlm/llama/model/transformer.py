@@ -10,16 +10,17 @@
 
 import logging
 import math
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-import fairscale.nn.model_parallel.initialize as fs_init
 import torch
 import torch.nn.functional as F
 from PIL import Image as PIL_Image
 from megatron.core import tensor_parallel
-from megatron.core.transformer.custom_layers.transformer_engine import TEColumnParallelLinear
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.utils import (
+    make_viewless_tensor,
+)
 from torch import nn
 from torch.distributed import _functional_collectives as funcol
 
@@ -205,214 +206,167 @@ class ColumnParallelConv2dPatch(MegatronModule):
         return x
 
 
-class ImageFeedForward(MegatronModule):
+from megatron.core.transformer.transformer_layer import TransformerLayer
+from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+from megatron.core.transformer.custom_layers.transformer_engine import (
+    TEColumnParallelLinear,
+    TEDotProductAttention,
+    TENorm,
+    TERowParallelLinear,
+)
+from megatron.core.transformer.enums import AttnMaskType
+from megatron.core.transformer.identity_op import IdentityOp
+from megatron.core.transformer.mlp import MLP, MLPSubmodules
+from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
+from megatron.core.transformer.transformer_block import TransformerBlock
+
+
+# Use this spec for an implementation using modules in TE
+def get_image_transformer_layer_spec() -> ModuleSpec:
+    image_transformer_submodules = TransformerLayerSubmodules(
+        input_layernorm=TENorm,
+        self_attention=ModuleSpec(
+            module=SelfAttention,
+            params={"attn_mask_type": AttnMaskType.padding},
+            submodules=SelfAttentionSubmodules(
+                linear_qkv=TEColumnParallelLinear,
+                core_attention=TEDotProductAttention,
+                linear_proj=TERowParallelLinear,
+                q_layernorm=IdentityOp,
+                k_layernorm=IdentityOp,
+            ),
+        ),
+        self_attn_bda=get_bias_dropout_add,
+        pre_mlp_layernorm=TENorm,
+        mlp=ModuleSpec(
+            module=MLP, submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear, ),
+        ),
+        mlp_bda=get_bias_dropout_add,
+    )
+    return ModuleSpec(module=ImageTransformerLayer, submodules=image_transformer_submodules)
+
+
+class ImageTransformerLayer(TransformerLayer):
     def __init__(
             self,
-            config,
-            dim: int,
-            hidden_dim: int,
-            dropout: float,
-            act_layer: Callable = nn.GELU,
+            config: TransformerConfig,
+            submodules: TransformerLayerSubmodules,
+            layer_number: int = 1,
+            hidden_dropout: float = None,
     ):
-        super().__init__(config=config)
-        # layers
-        self.c_fc = ColumnParallelLinear(
-            dim,
-            hidden_dim,
-            bias=True,
-            gather_output=False,
-            init_method=lambda x: x,
+        super().__init__(
+            config=config,
+            submodules=submodules,
+            layer_number=layer_number,
+            hidden_dropout=hidden_dropout,
         )
-        self.c_proj = RowParallelLinear(
-            hidden_dim,
-            dim,
-            bias=True,
-            input_is_parallel=True,
-            init_method=lambda x: x,
-        )
-        self.non_linearity = act_layer()
-        self.dropout = dropout
-
-    def forward(self, x):
-        hidden = F.linear(x, self.c_fc.weight, self.c_fc.bias)
-        hidden = self.non_linearity(hidden)
-        hidden = F.linear(hidden, self.c_proj.weight)
-        hidden = reduce_from_tensor_model_parallel_region(hidden)
-        hidden += self.c_proj.bias
-        return hidden
-
-
-class ImageAttention(MegatronModule):
-    def __init__(
-            self,
-            config,
-            dim,
-            head_dim,
-            n_heads,
-    ):
-        super().__init__(config=config)
-        model_parallel_size = fs_init.get_model_parallel_world_size()
-        qkvo_replication = 1
-        if model_parallel_size > 16:
-            qkvo_replication = model_parallel_size // 8
-
-        self.n_kv_heads = n_heads
-        self.n_local_heads = n_heads * qkvo_replication // model_parallel_size
-        self.n_local_kv_heads = (
-                self.n_kv_heads * qkvo_replication // model_parallel_size
-        )
-        self.n_rep = self.n_local_heads // self.n_local_kv_heads
-        self.head_dim = dim // n_heads
-
-        self.wq = ColumnParallelLinear(
-            dim,
-            qkvo_replication * n_heads * self.head_dim,
-            bias=True,
-            gather_output=False,
-            init_method=lambda x: x,
-        )
-        self.wk = ColumnParallelLinear(
-            dim,
-            qkvo_replication * self.n_kv_heads * self.head_dim,
-            bias=True,
-            gather_output=False,
-            init_method=lambda x: x,
-        )
-        self.wv = ColumnParallelLinear(
-            dim,
-            qkvo_replication * self.n_kv_heads * self.head_dim,
-            bias=True,
-            gather_output=False,
-            init_method=lambda x: x,
-        )
-        self.wo = RowParallelLinear(
-            qkvo_replication * n_heads * self.head_dim,
-            dim,
-            bias=True,
-            input_is_parallel=True,
-            init_method=lambda x: x,
-        )
-        self.qkvo_replication = qkvo_replication
-
-    def forward(
-            self,
-            x: torch.Tensor,
-            mask: torch.Tensor = None,
-    ):
-        xq, xk, xv = [
-            F.linear(x, w, b)
-            for (w, b) in [
-                (self.wq.weight, self.wq.bias),
-                (self.wk.weight, self.wk.bias),
-                (self.wv.weight, self.wv.bias),
-            ]
-        ]
-
-        bs, slen, _ = xq.shape
-
-        xq = xq.view(bs, slen, self.n_local_heads, self.head_dim)
-        xk = xk.view(bs, xk.shape[1], self.n_local_kv_heads, self.head_dim)
-        xv = xv.view(bs, xv.shape[1], self.n_local_kv_heads, self.head_dim)
-
-        xq, xk, xv = [tensor.transpose(1, 2) for tensor in (xq, xk, xv)]
-
-        xk = xk.repeat_interleave(self.n_rep, dim=1)
-        xv = xv.repeat_interleave(self.n_rep, dim=1)
-
-        attn_output = F.scaled_dot_product_attention(
-            xq, xk, xv, attn_mask=mask, dropout_p=0.0
-        )
-
-        attn_output = attn_output.transpose(1, 2).contiguous().reshape(bs, slen, -1)
-
-        out = F.linear(attn_output, self.wo.weight)
-        out = reduce_from_tensor_model_parallel_region(out)
-        out = out / self.qkvo_replication
-        out += self.wo.bias
-        return out
-
-
-class ImageTransformerBlock(MegatronModule):
-    def __init__(
-            self,
-            config,
-            d_model: int,
-            n_head: int,
-            mlp_ratio: float = 4.0,
-            act_layer: Callable = nn.GELU,
-            gated: bool = False,
-    ):
-        super().__init__(config=config)
-        assert d_model % n_head == 0
-        self.n_heads = n_head
-        self.head_dim = d_model // self.n_heads
-        self.attn = ImageAttention(
-            config,
-            dim=d_model,
-            head_dim=self.head_dim,
-            n_heads=self.n_heads,
-        )
-        self.ln_1 = LayerNorm(d_model)
-        self.mlp = ImageFeedForward(
-            dim=d_model,
-            hidden_dim=int(mlp_ratio * d_model),
-            dropout=0.0,
-            act_layer=act_layer,
-        )
-        self.ln_2 = LayerNorm(d_model)
-        self.gated = gated
-        if gated:
+        self.gated = self.config.gated
+        if self.gated:
             self.gate_attn = nn.Parameter(torch.zeros(1))
             self.gate_ffn = nn.Parameter(torch.zeros(1))
 
     def forward(
             self,
-            x: torch.Tensor,
-            mask: torch.Tensor = None,
+            hidden_states,
+            attention_mask,
+            context=None,
+            context_mask=None,
+            rotary_pos_emb=None,
+            inference_params=None,
+            packed_seq_params=None,
     ):
+        if len(hidden_states.shape) == 4:
+            intermediate_output = hidden_states[:-1]
+            hidden_states = hidden_states[-1]
+        else:
+            intermediate_output = torch.empty((0, *hidden_states.shape), dtype=hidden_states.dtype,
+                                              device=hidden_states.device)
+
+        # hidden_states: [s, b, h]
+
+        # Residual connection.
+        residual = hidden_states
+
+        # Optional Input Layer norm
+        input_layernorm_output = self.input_layernorm(hidden_states)
+
+        # Self attention.
+        attention_output_with_bias = self.self_attention(
+            input_layernorm_output,
+            attention_mask=attention_mask,
+            inference_params=inference_params,
+            rotary_pos_emb=rotary_pos_emb,
+            packed_seq_params=packed_seq_params,
+        )
         _gate_attn = 1 if not self.gated else self.gate_attn.tanh()
-        _gate_ffn = 1 if not self.gated else self.gate_ffn.tanh()
-        x = x + _gate_attn * self.attn(self.ln_1(x), mask=mask)
-        x = x + _gate_ffn * self.mlp(self.ln_2(x))
-        return x
+        attention_output_with_bias = _gate_attn * attention_output_with_bias
 
+        # TODO: could we move `bias_dropout_add_exec_handler` itself
+        # inside the module provided in the `bias_dropout_add_spec` module?
+        with self.bias_dropout_add_exec_handler():
+            hidden_states = self.self_attn_bda(self.training, self.config.bias_dropout_fusion)(
+                attention_output_with_bias, residual, self.hidden_dropout
+            )
 
-class ImageTransformer(MegatronModule):
-    def __init__(
-            self,
-            config,
-            width: int,
-            layers: int,
-            heads: int,
-            mlp_ratio: float = 4.0,
-            act_layer: Callable = nn.GELU,
-            gated: bool = False,
-    ):
-        super().__init__(config=config)
-        self.width = width
-        self.layers = layers
-        self.resblocks = nn.ModuleList(
-            [
-                ImageTransformerBlock(config,
-                                      d_model=width,
-                                      n_head=heads,
-                                      mlp_ratio=mlp_ratio,
-                                      act_layer=act_layer,
-                                      gated=gated,
-                                      )
-                for _ in range(self.layers)
-            ]
+        # Residual connection.
+        residual = hidden_states
+
+        # Optional Layer norm after self-attention
+        pre_cross_attn_layernorm_output = self.pre_cross_attn_layernorm(hidden_states)
+
+        # Cross attention.
+        attention_output_with_bias = self.cross_attention(
+            pre_cross_attn_layernorm_output,
+            attention_mask=context_mask,
+            key_value_states=context,
+            inference_params=inference_params,
         )
 
-    def forward(self, x: torch.Tensor, return_intermediate=None, mask=None):
-        out = []
-        for idx, r in enumerate(self.resblocks):
-            if return_intermediate is not None and idx in return_intermediate:
-                out.append(x)
-            x = r(x, mask=mask)
-        if return_intermediate is not None:
-            return x, torch.stack(out, dim=-1)
-        return x
+        if isinstance(attention_output_with_bias, dict) and "context" in attention_output_with_bias:
+            context = attention_output_with_bias["context"]
+
+        # TODO: could we move `bias_dropout_add_exec_handler` itself
+        # inside the module provided in the `bias_dropout_add_spec` module?
+        with self.bias_dropout_add_exec_handler():
+            hidden_states = self.cross_attn_bda(self.training, self.config.bias_dropout_fusion)(
+                attention_output_with_bias, residual, self.hidden_dropout
+            )
+
+        # Residual connection.
+        residual = hidden_states
+
+        # Optional Layer norm post the cross-attention.
+        pre_mlp_layernorm_output = self.pre_mlp_layernorm(hidden_states)
+
+        # MLP.
+        mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
+
+        _gate_ffn = 1 if not self.gated else self.gate_ffn.tanh()
+        mlp_output_with_bias = _gate_ffn * mlp_output_with_bias
+
+        # TODO: could we move `bias_dropout_add_exec_handler` itself
+        # inside the module provided in the `bias_dropout_add_spec` module?
+        with self.bias_dropout_add_exec_handler():
+            hidden_states = self.mlp_bda(self.training, self.config.bias_dropout_fusion)(
+                mlp_output_with_bias, residual, self.hidden_dropout
+            )
+
+        # Jit compiled function creates 'view' tensor. This tensor
+        # potentially gets saved in the MPU checkpoint function context,
+        # which rejects view tensors. While making a viewless tensor here
+        # won't result in memory savings (like the data loader, or
+        # p2p_communication), it serves to document the origin of this
+        # 'view' tensor.
+        output = make_viewless_tensor(
+            inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True
+        )
+
+        output = output.unsqueeze(0)
+        output = torch.cat((intermediate_output, output, output), dim=0)
+
+        return output, context
 
 
 class VisionEncoder(MegatronModule):
@@ -420,22 +374,14 @@ class VisionEncoder(MegatronModule):
             self,
             config: TransformerConfig,
             max_num_tiles: int,
-            ckpt_path: str = None,
             image_size: int = 224,
             patch_size: int = 14,
-            width: int = 1280,
-            layers: int = 32,
-            heads: int = 16,
-            mlp_ratio: float = 4.0,
-            act_layer: Callable = nn.GELU,
             in_channels: int = 3,
-            load_ckpt: bool = False,
-            n_global_layers: int = 2,
-            global_model: bool = False,
+            pre_process: bool = True,
+            post_process: bool = True,
             return_intermediate=None,
     ):
         super().__init__(config=config)
-        self.global_model = global_model
         self.return_intermediate = return_intermediate
         self.max_num_tiles = max_num_tiles
         self.image_size = to_2tuple(image_size)
@@ -444,6 +390,10 @@ class VisionEncoder(MegatronModule):
             self.image_size[0] // self.patch_size[0],
             self.image_size[1] // self.patch_size[1],
         )
+        self.pre_process = pre_process
+        self.post_process = post_process
+
+        width = config.hidden_size
         self.conv1 = ColumnParallelConv2dPatch(
             config=config,
             in_channels=in_channels,
@@ -459,14 +409,23 @@ class VisionEncoder(MegatronModule):
         )
         self.ln_post = LayerNorm(width)
         self.ln_pre = LayerNorm(width)
-        self.transformer = ImageTransformer(config,
-                                            width, layers, heads, mlp_ratio, act_layer=act_layer
-                                            )
+        self.transformer = TransformerBlock(
+            config=self.config,
+            spec=get_image_transformer_layer_spec(),
+            post_layer_norm=False,
+            pre_process=self.pre_process,
+            post_process=self.post_process,
+        )
         # pre and post tile position embedding
-        self.global_transformer = ImageTransformer(config,
-                                                   width, n_global_layers, heads, mlp_ratio, act_layer=act_layer,
-                                                   gated=True
-                                                   )
+        global_config = self.config
+        global_config.num_layers = self.config.num_global_layers
+        self.global_transformer = TransformerBlock(
+            config=self.config,
+            spec=get_image_transformer_layer_spec(),
+            post_layer_norm=False,
+            pre_process=self.pre_process,
+            post_process=self.post_process,
+        )
         # pre and post tile position embedding
         self.pre_tile_pos_embed = TilePositionEmbedding(
             num_tiles=max_num_tiles,
@@ -622,319 +581,6 @@ class VisionEncoder(MegatronModule):
         return x
 
 
-class Attention(MegatronModule):
-    """Multi-head attention module."""
-
-    def __init__(self, config):
-        """
-        Initialize the Attention module.
-        Args:
-            args (ModelArgs): Model configuration parameters.
-        Attributes:
-            n_kv_heads (int): Number of key and value heads.
-            n_local_heads (int): Number of local query heads.
-            n_local_kv_heads (int): Number of local key and value heads.
-            n_rep (int): Number of repetitions for local heads.
-            head_dim (int): Dimension size of each attention head.
-            wq (ColumnParallelLinear): Linear transformation for queries.
-            wk (ColumnParallelLinear): Linear transformation for keys.
-            wv (ColumnParallelLinear): Linear transformation for values.
-            wo (RowParallelLinear): Linear transformation for output.
-            cache_k (torch.Tensor): Cached keys for attention.
-            cache_v (torch.Tensor): Cached values for attention.
-        """
-        super().__init__(config=config)
-        model_parallel_size = fs_init.get_model_parallel_world_size()
-        replication_factor = 1
-        if model_parallel_size > 8:
-            replication_factor = model_parallel_size // MP_SCALE
-
-        self.n_kv_heads = config.num_attention_heads if config.num_query_groups is None else config.num_query_groups
-        self.n_kv_heads *= replication_factor
-
-        self.n_local_heads = config.num_attention_heads // model_parallel_size
-        self.n_local_kv_heads = self.n_kv_heads // model_parallel_size
-        self.n_rep = self.n_local_heads // self.n_local_kv_heads
-        self.head_dim = config.hidden_size // config.num_attention_heads
-        self.max_seq_len = config.seq_len
-
-        self.wq = ColumnParallelLinear(
-            config.hidden_size,
-            config.num_attention_heads * self.head_dim,
-            bias=False,
-            gather_output=False,
-            init_method=lambda x: x,
-        )
-        self.wk = ColumnParallelLinear(
-            config.hidden_size,
-            self.n_kv_heads * self.head_dim,
-            bias=False,
-            gather_output=False,
-            init_method=lambda x: x,
-        )
-        self.wv = ColumnParallelLinear(
-            config.hidden_size,
-            self.n_kv_heads * self.head_dim,
-            bias=False,
-            gather_output=False,
-            init_method=lambda x: x,
-        )
-        self.wo = RowParallelLinear(
-            config.num_attention_heads * self.head_dim,
-            config.hidden_size,
-            bias=False,
-            input_is_parallel=True,
-            init_method=lambda x: x,
-        )
-        self.n_heads = config.num_attention_heads
-
-        self._register_load_state_dict_pre_hook(self.load_hook)
-
-    def load_hook(
-            self,
-            state_dict: Dict[str, Any],
-            prefix: str,
-            local_metadata: Dict[str, Any],
-            strict: bool,
-            missing_keys: List[str],
-            unexpected_keys: List[str],
-            error_msgs: List[str],
-    ) -> None:
-        if prefix + "wqkv.weight" in state_dict:
-            total_n_heads = self.n_heads + self.n_kv_heads * 2
-            wqkv = state_dict.pop(prefix + "wqkv.weight")
-            head_dim = wqkv.shape[0] // total_n_heads
-            dim1 = head_dim * self.n_heads
-            dim2 = dim1 + head_dim * self.n_kv_heads
-            dim3 = dim1 + head_dim * self.n_kv_heads * 2
-
-            wq = wqkv[:dim1]
-            wk = wqkv[dim1:dim2]
-            wv = wqkv[dim2:dim3]
-
-            state_dict[prefix + "wq.weight"] = wq
-            state_dict[prefix + "wk.weight"] = wk
-            state_dict[prefix + "wv.weight"] = wv
-
-    def setup_cache(self, max_batch_size: int, dtype: torch.dtype):
-        cache_shape = (
-            max_batch_size,
-            self.max_seq_len,
-            self.n_local_kv_heads,
-            self.head_dim,
-        )
-        device = next(self.parameters()).device
-        self.register_buffer(
-            "key_cache",
-            torch.zeros(
-                cache_shape,
-                dtype=dtype,
-                device=device,
-            ),
-            persistent=False,
-        )
-        self.register_buffer(
-            "value_cache",
-            torch.zeros(
-                cache_shape,
-                dtype=dtype,
-                device=device,
-            ),
-            persistent=False,
-        )
-
-    def forward(
-            self,
-            x: torch.Tensor,
-            mask: torch.Tensor,
-            freqs_cis: torch.Tensor,
-            position_ids: torch.LongTensor,
-    ):
-
-        xq, xk, xv = [
-            F.linear(x, w) for w in [self.wq.weight, self.wk.weight, self.wv.weight]
-        ]
-
-        bs, slen, _ = xq.shape
-
-        xq = xq.view(bs, slen, self.n_local_heads, self.head_dim)
-        xk = xk.view(bs, xk.shape[1], self.n_local_kv_heads, self.head_dim)
-        xv = xv.view(bs, xv.shape[1], self.n_local_kv_heads, self.head_dim)
-
-        xq, xk = apply_rotary_emb(xq, xk, freqs_cis)
-
-        self.key_cache[:bs, position_ids, ...] = xk
-        self.value_cache[:bs, position_ids, ...] = xv
-
-        # TODO: we can avoid slicing on first dimension by always padding to max_batch_size()
-        xk = self.key_cache[:bs, ...]
-        xv = self.value_cache[:bs, ...]
-
-        xq, xk, xv = [tensor.transpose(1, 2) for tensor in (xq, xk, xv)]
-
-        xk = xk.repeat_interleave(self.n_rep, dim=1)
-        xv = xv.repeat_interleave(self.n_rep, dim=1)
-
-        attn_output = F.scaled_dot_product_attention(
-            xq, xk, xv, attn_mask=mask, dropout_p=0.0
-        )
-
-        attn_output = attn_output.transpose(1, 2).contiguous().reshape(bs, slen, -1)
-
-        out = F.linear(attn_output, self.wo.weight)
-        out = reduce_from_tensor_model_parallel_region(out)
-        return out
-
-
-class FeedForward(MegatronModule):
-    def __init__(
-            self,
-            dim: int,
-            hidden_dim: int,
-            multiple_of: int,
-            ffn_dim_multiplier: Optional[float],
-    ):
-        """
-        Initialize the FeedForward module.
-        Args:
-            dim (int): Input dimension.
-            hidden_dim (int): Hidden dimension of the feedforward layer.
-            multiple_of (int): Value to ensure hidden dimension is a multiple of this value.
-            ffn_dim_multiplier (float, optional): Custom multiplier for hidden dimension. Defaults to None.
-        Attributes:
-            w1 (ColumnParallelLinear): Linear transformation for the first layer.
-            w2 (RowParallelLinear): Linear transformation for the second layer.
-            w3 (ColumnParallelLinear): Linear transformation for the third layer.
-        """
-        super().__init__(config=config)
-        hidden_dim = int(2 * hidden_dim / 3)
-        # custom dim factor multiplier
-        if ffn_dim_multiplier is not None:
-            hidden_dim = int(ffn_dim_multiplier * hidden_dim)
-        hidden_dim = multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
-
-        self.w1 = ColumnParallelLinear(
-            dim, hidden_dim, bias=False, gather_output=False, init_method=lambda x: x
-        )
-        self.w2 = RowParallelLinear(
-            hidden_dim, dim, bias=False, input_is_parallel=True, init_method=lambda x: x
-        )
-        self.w3 = ColumnParallelLinear(
-            dim, hidden_dim, bias=False, gather_output=False, init_method=lambda x: x
-        )
-        self._register_load_state_dict_pre_hook(self.load_hook)
-
-    def forward(self, x):
-        x1, x3 = [F.linear(x, w) for w in [self.w1.weight, self.w3.weight]]
-        x1 = F.silu(x1)
-        x_in = x1 * x3
-        out = F.linear(x_in, self.w2.weight)
-        out = reduce_from_tensor_model_parallel_region(out)
-        return out
-
-    def load_hook(
-            self,
-            state_dict,
-            prefix,
-            local_metadata,
-            strict,
-            missing_keys,
-            unexpected_keys,
-            error_msgs,
-    ):
-        if prefix + "mlp.fc1_weight" in state_dict:
-            fc1_weight, fc3_weight = state_dict.pop(prefix + "mlp.fc1_weight").chunk(2)
-            state_dict[prefix + "w1.weight"] = fc1_weight
-            state_dict[prefix + "w3.weight"] = fc3_weight
-
-        if prefix + "mlp.fc2_weight" in state_dict:
-            fc2_weight = state_dict.pop(prefix + "mlp.fc2_weight")
-            state_dict[prefix + "w2.weight"] = fc2_weight
-
-
-class TransformerBlock(MegatronModule):
-    def __init__(self, layer_id: int, config):
-        """
-        Initialize a TransformerBlock.
-        Args:
-            layer_id (int): Identifier for the layer.
-            args (ModelArgs): Model configuration parameters.
-        Attributes:
-            n_heads (int): Number of attention heads.
-            dim (int): Dimension size of the model.
-            head_dim (int): Dimension size of each attention head.
-            attention (Attention): Attention module.
-            feed_forward (FeedForward): FeedForward module.
-            layer_id (int): Identifier for the layer.
-            attention_norm (RMSNorm): Layer normalization for attention output.
-            ffn_norm (RMSNorm): Layer normalization for feedforward output.
-        """
-        super().__init__(config=config)
-        self.n_heads = config.num_attention_heads
-        self.dim = config.hidden_size
-        self.head_dim = config.hidden_size // config.num_attention_heads
-        self.attention = Attention(config)
-        self.feed_forward = FeedForward(
-            dim=config.hidden_size,
-            hidden_dim=4 * config.hidden_size,
-            multiple_of=256,
-            ffn_dim_multiplier=1.2,
-        )
-        self.layer_id = layer_id
-        self.attention_norm = RMSNorm(config.hidden_size, eps=config.layernorm_epsilon)
-        self.ffn_norm = RMSNorm(config.hidden_size, eps=config.layernorm_epsilon)
-        self._register_load_state_dict_pre_hook(self.load_hook)
-
-    def load_hook(
-            self,
-            state_dict: Dict[str, Any],
-            prefix: str,
-            local_metadata: Dict[str, Any],
-            strict: bool,
-            missing_keys: List[str],
-            unexpected_keys: List[str],
-            error_msgs: List[str],
-    ) -> None:
-        if prefix + "feed_forward.mlp.layer_norm_weight" in state_dict:
-            state_dict[prefix + "ffn_norm.weight"] = state_dict.pop(
-                prefix + "feed_forward.mlp.layer_norm_weight"
-            )
-        if prefix + "attention.wqkv.layer_norm_weight" in state_dict:
-            state_dict[prefix + "attention_norm.weight"] = state_dict.pop(
-                prefix + "attention.wqkv.layer_norm_weight"
-            )
-
-    def setup_cache(self, max_batch_size: int, dtype: torch.dtype):
-        self.attention.setup_cache(max_batch_size, dtype)
-
-    def forward(
-            self,
-            x: torch.Tensor,
-            freqs_cis: torch.Tensor,
-            mask: torch.Tensor,
-            position_ids: torch.LongTensor,
-    ) -> torch.Tensor:
-        """
-        Perform a forward pass through the TransformerBlock.
-        Args:
-            x (torch.Tensor): Input tensor.
-            start_pos (int): Starting position for attention caching.
-            freqs_cis (torch.Tensor): Precomputed cosine and sine frequencies.
-            mask (torch.Tensor, optional): Masking tensor for attention. Defaults to None.
-        Returns:
-            torch.Tensor: Output tensor after applying attention and feedforward layers.
-        """
-        h = self.attention.forward(
-            x=self.attention_norm(x),
-            freqs_cis=freqs_cis,
-            mask=mask,
-            position_ids=position_ids,
-        )
-        h = h + x
-        out = h + self.feed_forward.forward(self.ffn_norm(h))
-        return out
-
-
 class TilePositionEmbedding(torch.nn.Module):
     def __init__(
             self,
@@ -1006,281 +652,6 @@ class TilePositionEmbedding(torch.nn.Module):
         if self.gated:
             out_pos_embed = out_pos_embed * self.gate.tanh()
         x = x + out_pos_embed
-        return x
-
-
-def _noinit(x):
-    return x
-
-
-class CrossAttention(MegatronModule):
-    """Cross attention layer with model-parallel attention layers."""
-
-    def __init__(
-            self,
-            dim: int,
-            head_dim: int,
-            n_heads: int,
-            n_kv_heads: int,
-            norm_eps: float,
-    ):
-        super().__init__(config=config)
-        self.model_parallel_size = fs_init.get_model_parallel_world_size()
-        replication_factor = 1
-        if self.model_parallel_size > 8:
-            replication_factor = self.model_parallel_size // MP_SCALE
-        n_kv_heads *= replication_factor
-
-        assert n_heads % n_kv_heads == 0
-
-        self.wq = ColumnParallelLinear(
-            dim,
-            n_heads * head_dim,
-            bias=False,
-            gather_output=False,
-            init_method=_noinit,
-        )
-
-        self.wk = ColumnParallelLinear(
-            dim,
-            n_kv_heads * head_dim,
-            bias=False,
-            gather_output=False,
-            init_method=_noinit,
-        )
-        self.wv = ColumnParallelLinear(
-            dim,
-            n_kv_heads * head_dim,
-            bias=False,
-            gather_output=False,
-            init_method=_noinit,
-        )
-        self.wo = RowParallelLinear(
-            n_heads * head_dim,
-            dim,
-            bias=False,
-            input_is_parallel=True,
-            init_method=_noinit,
-        )
-
-        self.n_heads = n_heads
-        self.head_dim = head_dim
-        self.n_kv_heads = n_kv_heads
-
-        self.q_norm = RMSNorm(
-            self.head_dim,
-            eps=norm_eps,
-        )
-        self.k_norm = RMSNorm(
-            self.head_dim,
-            eps=norm_eps,
-        )
-
-        # cross-attention heads are model parallel similar to
-        # self-attention, and we also use the identical KV head
-        # combination to ensure parity with the corresponding
-        # trunk LLM (i.e., group query attention) -- @dubeya
-        # local heads
-        assert self.n_heads % self.n_kv_heads == 0
-        assert self.n_heads % self.model_parallel_size == 0
-        assert self.n_kv_heads % self.model_parallel_size == 0
-        self.n_local_heads = self.n_heads // self.model_parallel_size
-        self.n_local_kv_heads = self.n_kv_heads // self.model_parallel_size
-        self.n_rep = self.n_local_heads // self.n_local_kv_heads
-        self._register_load_state_dict_pre_hook(self.load_hook)
-
-    def load_hook(
-            self,
-            state_dict: Dict[str, Any],
-            prefix: str,
-            local_metadata: Dict[str, Any],
-            strict: bool,
-            missing_keys: List[str],
-            unexpected_keys: List[str],
-            error_msgs: List[str],
-    ) -> None:
-        if prefix + "inner_attention.q_norm.weight" in state_dict:
-            q_weight = state_dict.pop(prefix + "inner_attention.q_norm.weight")
-            state_dict[prefix + "q_norm.weight"] = q_weight
-        if prefix + "inner_attention.k_norm.weight" in state_dict:
-            k_weight = state_dict.pop(prefix + "inner_attention.k_norm.weight")
-            state_dict[prefix + "k_norm.weight"] = k_weight
-        if prefix + "wkv.weight" in state_dict:
-            wk, wv = state_dict.pop(prefix + "wkv.weight").chunk(2)
-            state_dict[prefix + "wk.weight"] = wk
-            state_dict[prefix + "wv.weight"] = wv
-
-    def _compute_xattn_kv_cache(self, xattn_tokens: torch.Tensor) -> torch.Tensor:
-        bsz = xattn_tokens.shape[0]
-        xk = self.wk(xattn_tokens)
-        xv = self.wv(xattn_tokens)
-
-        _, seqlen_y, _ = xk.shape
-
-        xk = xk.view(bsz, seqlen_y, self.n_local_kv_heads, self.head_dim)
-        xv = xv.view(bsz, seqlen_y, self.n_local_kv_heads, self.head_dim)
-
-        xk, xv = [tensor.transpose(1, 2) for tensor in (xk, xv)]
-
-        # repeat k/v heads if n_kv_heads < n_heads
-        xk = xk.repeat_interleave(self.n_rep, dim=1)
-        xv = xv.repeat_interleave(self.n_rep, dim=1)
-
-        xk = self.k_norm(xk)
-
-        return torch.stack([xk, xv])
-
-    def compute_xattn_kv_cache(self, xattn_tokens: torch.Tensor) -> torch.Tensor:
-        return self._compute_xattn_kv_cache(xattn_tokens)
-
-    def forward(
-            self,
-            x: torch.Tensor,
-            xattn_mask: torch.Tensor,
-            full_text_row_masked_out_mask: torch.Tensor,
-            xattn_cache: torch.Tensor,
-    ) -> torch.Tensor:
-        xq = F.linear(x, self.wq.weight)
-        bsz, seqlen, _ = x.shape
-
-        xq = xq.view(bsz, seqlen, self.n_local_heads, self.head_dim)
-        xq = self.q_norm(xq)
-        xq = xq.transpose(1, 2)
-
-        xk, xv = xattn_cache
-
-        output = F.scaled_dot_product_attention(
-            xq, xk, xv, attn_mask=xattn_mask, dropout_p=0.0
-        )
-        output = output * full_text_row_masked_out_mask
-        output = output.transpose(1, 2).contiguous().reshape(bsz, seqlen, -1)
-
-        out = F.linear(output, self.wo.weight)
-        out = reduce_from_tensor_model_parallel_region(out)
-        return out
-
-
-class CrossAttentionTransformerBlock(MegatronModule):
-    """Cross-attention transformer block with tanh-gated attention and feedforward."""
-
-    def __init__(
-            self,
-            config,
-            layer_id: int,
-            no_ffn: bool = False,
-    ) -> None:
-        super().__init__(config=config)
-        self.layer_id = layer_id
-        self.n_heads = config.num_attention_heads
-        self.n_kv_heads = config.num_attention_heads if config.num_query_groups is None else config.num_query_groups
-        self.dim = config.hidden_size
-        self.head_dim = config.hidden_size // config.num_attention_heads
-        self.attention = CrossAttention(
-            dim=config.hidden_size,
-            head_dim=self.head_dim,
-            n_heads=self.n_heads,
-            n_kv_heads=self.n_kv_heads,
-            norm_eps=config.layernorm_epsilon,
-        )
-
-        self.attention_norm = RMSNorm(
-            config.hidden_size,
-            eps=config.layernorm_epsilon,
-        )
-        self.gate_attn = torch.nn.Parameter(torch.zeros(1))
-
-        self.feed_forward = FeedForward(
-            dim=config.hidden_size,
-            hidden_dim=4 * config.hidden_size,
-            ffn_dim_multiplier=1.2,
-            multiple_of=256,
-        )
-        self.ffn_norm = RMSNorm(
-            config.hidden_size,
-            eps=config.layernorm_epsilon,
-        )
-        self.gate_ffwd = torch.nn.Parameter(torch.zeros(1))
-
-        self._register_load_state_dict_pre_hook(self.load_hook)
-        self.no_ffn = no_ffn
-
-    def load_hook(
-            self,
-            state_dict: Dict[str, Any],
-            prefix: str,
-            local_metadata: Dict[str, Any],
-            strict: bool,
-            missing_keys: List[str],
-            unexpected_keys: List[str],
-            error_msgs: List[str],
-    ) -> None:
-        if prefix + "gate_attn" in state_dict:
-            attn_gate = state_dict.pop(prefix + "gate_attn")
-            if attn_gate.dim() == 1:
-                attn_gate = attn_gate[0].view(1)
-            if attn_gate.dim() == 3:
-                attn_gate = attn_gate.view(1)
-            state_dict[prefix + "gate_attn"] = attn_gate
-        if prefix + "gate_ffwd" in state_dict:
-            ffn_gate = state_dict.pop(prefix + "gate_ffwd")
-            if ffn_gate.dim() == 1:
-                ffn_gate = ffn_gate[0].view(1)
-            if ffn_gate.dim() == 3:
-                ffn_gate = ffn_gate.view(1)
-            state_dict[prefix + "gate_ffwd"] = ffn_gate
-        if prefix + "feed_forward.mlp.layer_norm_weight" in state_dict:
-            state_dict[prefix + "ffn_norm.weight"] = state_dict.pop(
-                prefix + "feed_forward.mlp.layer_norm_weight"
-            )
-        if prefix + "attention.wq.layer_norm_weight" in state_dict:
-            state_dict[prefix + "attention_norm.weight"] = state_dict.pop(
-                prefix + "attention.wq.layer_norm_weight"
-            )
-
-    def compute_xattn_kv_cache(self, xattn_tokens: torch.Tensor) -> torch.Tensor:
-        return self.attention.compute_xattn_kv_cache(xattn_tokens)
-
-    def forward(
-            self,
-            x: torch.Tensor,
-            xattn_mask: torch.Tensor,
-            full_text_row_masked_out_mask: Tuple[torch.Tensor, torch.Tensor],
-            xattn_cache: torch.Tensor,
-    ) -> torch.Tensor:
-        _attn_out = self.attention(
-            x=self.attention_norm(x),
-            xattn_mask=xattn_mask,
-            xattn_cache=xattn_cache,
-            full_text_row_masked_out_mask=full_text_row_masked_out_mask,
-        )
-        h = x + self.gate_attn.tanh() * _attn_out
-        _ffn = self.feed_forward(self.ffn_norm(h))
-        _ffn = full_text_row_masked_out_mask[:, 0] * _ffn  # type: ignore
-        h = h + self.gate_ffwd.tanh() * _ffn * float(not self.no_ffn)
-        return h
-
-
-class DummyCrossAttentionTransformerBlock:
-    """Dummy cross-attention transformer block with tanh-gated attention and feedforward."""
-
-    def __call__(
-            self,
-            x: torch.Tensor,
-            *args,
-            **kwargs,
-    ) -> torch.Tensor:
-        return x
-
-
-class DummySelfAttentionTransformerBlock:
-    """Dummy self-attention transformer block"""
-
-    def __call__(
-            self,
-            x: torch.Tensor,
-            *args,
-            **kwargs,
-    ) -> torch.Tensor:
         return x
 
 

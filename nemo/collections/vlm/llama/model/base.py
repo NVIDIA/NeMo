@@ -17,15 +17,11 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import fairscale.nn.model_parallel.initialize as fs_init
 import pytorch_lightning as L
 import torch
 import torch.distributed
 import torch.nn.functional as F
 from PIL import Image as PIL_Image
-from fairscale.nn.model_parallel.layers import (
-    ColumnParallelLinear,
-)
 from megatron.core import dist_checkpointing
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.tensor_parallel.mappings import gather_from_tensor_model_parallel_region
@@ -40,7 +36,7 @@ from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parall
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.vlm.llama.image_transform import VariableSizeImageTransform
 from nemo.collections.vlm.llama.model.transformer import (
-    TransformerBlock, CrossAttentionTransformerBlock, DummyCrossAttentionTransformerBlock, precompute_freqs_cis,
+    precompute_freqs_cis,
     _get_full_row_masked_out_mask, _stack_images, _pad_masks, VisionEncoder
 )
 from nemo.collections.vlm.llama.utils import get_negative_inf_value
@@ -48,6 +44,10 @@ from nemo.lightning import io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
+
+from megatron.core.transformer.mlp import MLPSubmodules
+from megatron.core.tensor_parallel.layers import ColumnParallelLinear
+from megatron.core.models.vision.multimodal_projector import MultimodalProjector
 
 
 def llama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
@@ -102,22 +102,23 @@ def set_input_tensor(self, tensor):
 
 
 @dataclass
-class CrossAttentionModelVisionConfig(TransformerConfig, io.IOMixin):
+class CrossAttentionVisionModelConfig(TransformerConfig, io.IOMixin):
     # vision model params
     vision_chunk_size: int = -1  # image resolution for image models
     vision_max_num_chunks: int = 4
+    num_global_layers: int = 8
 
-    def configure_model(self) -> "CrossAttentionModelVision":
-        return CrossAttentionModelVision(
+    def configure_model(self) -> "CrossAttentionVisionModel":
+        return CrossAttentionVisionModel(
             self,
         )
 
 
 @dataclass
-class CrossAttentionModelTextConfig(TransformerConfig, io.IOMixin):
+class CrossAttentionTextModelConfig(TransformerConfig, io.IOMixin):
 
-    def configure_model(self) -> "CrossAttentionModelText":
-        return CrossAttentionModelVision(
+    def configure_model(self) -> "CrossAttentionTextModel":
+        return CrossAttentionVisionModel(
             self,
         )
 
@@ -174,7 +175,7 @@ class LlamaCrossAttentionConfig(TransformerConfig, io.IOMixin):
         return model
 
 
-class CrossAttentionModelVision(MegatronModule):
+class CrossAttentionVisionModel(MegatronModule):
     def __init__(self, config) -> None:
         super().__init__(config=config)
         return_intermediate = "3,7,15,23,30"
@@ -187,21 +188,21 @@ class CrossAttentionModelVision(MegatronModule):
                                             len(return_intermediate) + 1
                                     ) * self.vision_input_dim
         self.patch_size = 14
+        config.num_global_layers = 8
         self.vision_encoder = VisionEncoder(
             config=config,
             max_num_tiles=4,
             image_size=config.vision_chunk_size,
             patch_size=self.patch_size,
-            n_global_layers=8,
-            global_model=True,
             return_intermediate=return_intermediate,
         )
-        # vision token projection
-        self.vision_projection = ColumnParallelLinear(
-            self.vision_input_dim,
-            config.dim,
-            bias=True,
-            init_method=lambda x: x,
+
+        affine_layer_spec = MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=None)
+        self.vision_projection = MultimodalProjector(
+            config=config,
+            submodules=affine_layer_spec,
+            projector_type="affine",
+            input_size=self.vision_input_dim,
         )
 
     def forward(
@@ -218,227 +219,6 @@ class CrossAttentionModelVision(MegatronModule):
         vision_tokens = gather_from_tensor_model_parallel_region(vision_tokens)
         return vision_tokens
 
-
-class CrossAttentionModelText(MegatronModule):
-    INFERENCE_IMAGE_TOKEN_ID = 128010
-
-    def __init__(self, config) -> None:
-        super().__init__(config=config)
-        self.model_parallel_size = fs_init.get_model_parallel_world_size()
-        assert config.vocab_size > 0
-        self.vocab_size = config.vocab_size
-        self.n_layers = config.n_layers
-        self.dim = config.dim
-        self.head_dim = config.dim // config.n_heads
-        self.n_kv_heads = config.n_heads if config.n_kv_heads is None else config.n_kv_heads
-        self.n_local_kv_heads = self.n_kv_heads // self.model_parallel_size
-        assert self.vocab_size % self.model_parallel_size == 0
-        self.tok_embeddings = VocabParallelEmbedding(
-            config.vocab_size, config.dim, init_method=lambda x: x
-        )
-        self.pos_embeddings = None
-        # final norm layer (not necessary for post-norm)
-        self.norm = RMSNorm(config.dim, eps=config.norm_eps)
-
-        # output layer
-        self.output = ColumnParallelLinear(
-            config.dim, config.vocab_size, bias=False, init_method=lambda x: x
-        )
-
-        self.n_llama_layers = config.n_layers
-        self.model_dim = config.dim
-
-        # BLOCKS
-
-        self.fusion_schedule = self._init_fusion_schedule(
-            config.vision_num_cross_attention_layers
-        )
-        self.learnable_embedding = VocabParallelEmbedding(
-            max(fs_init.get_model_parallel_world_size(), 8),
-            config.dim,
-            init_method=lambda x: x,
-        )
-        self.num_frozen_embeddings = self.tok_embeddings.num_embeddings
-        self._thresh = self.num_frozen_embeddings - 1
-
-        # transformer blocks
-        self.layers = torch.nn.ModuleList()
-        self.cross_attention_layers = torch.nn.ModuleList()
-        for i in range(config.n_layers):
-            layer_id = i
-            block = TransformerBlock(config=config, layer_id=layer_id)
-            self.layers.append(block)
-            if layer_id in self.fusion_schedule:
-                xa_layer_id = self.fusion_schedule.index(layer_id) + config.n_layers
-                block = CrossAttentionTransformerBlock(
-                    config,
-                    layer_id=xa_layer_id,
-                )
-                self.cross_attention_layers.append(block)
-
-        # add xattn and dummy layers to avoid conditionals in forward()
-        self.text_and_xattn_layers = []
-
-        for idx, layer in enumerate(self.layers):
-            if idx in self.fusion_schedule:
-                xattn_layer_idx = self.fusion_schedule.index(idx)
-                xattn_layer = self.cross_attention_layers[xattn_layer_idx]
-            else:
-                xattn_layer_idx = 0
-                xattn_layer = DummyCrossAttentionTransformerBlock()
-
-            self.text_and_xattn_layers.append(
-                (
-                    layer,
-                    xattn_layer,
-                    xattn_layer_idx,
-                )
-            )
-        self.freqs_cis = precompute_freqs_cis(
-            config.dim // config.n_heads,
-            config.max_seq_len * 2,
-            config.rope_theta,
-            config.use_scaled_rope,
-        )
-
-        self._register_load_state_dict_pre_hook(self.load_hook)
-
-        self.config = config
-        self.cache_is_setup = False
-        self.max_seq_len = config.max_seq_len
-
-    def _init_fusion_schedule(
-            self,
-            num_layers: int,
-    ) -> List[int]:
-        llama_layers = list(range(self.n_llama_layers))
-
-        # uniformly spread the layers
-        k = math.ceil(len(llama_layers) / num_layers)
-        return llama_layers[::-1][::k][:num_layers][::-1]
-
-    def get_partially_trainable_embedding(self, x):
-        xz = torch.zeros_like(x, device=x.device)
-        oz = torch.ones_like(x, device=x.device)
-        x_orig = torch.minimum(x, torch.tensor(self._thresh, device=x.device))
-        x_new = (
-                torch.maximum(x, torch.tensor(self._thresh + 1, device=x.device))
-                - self.num_frozen_embeddings
-        )
-
-        mask_orig = torch.where(x >= self.num_frozen_embeddings, xz, oz).unsqueeze(-1)
-        mask_new = torch.where(x < self.num_frozen_embeddings, xz, oz).unsqueeze(-1)
-
-        x_orig = self.tok_embeddings(x_orig)
-        x_new = self.learnable_embedding(x_new).type_as(x_orig)
-        return x_orig * mask_orig.type_as(x_orig) + x_new * mask_new.type_as(x_new)
-
-    def load_hook(
-            self,
-            state_dict: Dict[str, Any],
-            prefix: str,
-            local_metadata: Dict[str, Any],
-            strict: bool,
-            missing_keys: List[str],
-            unexpected_keys: List[str],
-            error_msgs: List[str],
-    ) -> None:
-        if "rope.freqs" in state_dict:
-            del state_dict["rope.freqs"]
-
-    def forward(
-            self,
-            position_ids: torch.LongTensor,
-            h: torch.Tensor,
-            xattn_mask: torch.Tensor,
-            full_text_row_masked_out_mask: torch.Tensor,
-            xattn_caches: torch.Tensor,
-    ):
-        assert self.cache_is_setup, "Please set up cache before calling forward"
-        mask = self.mask_cache.index_select(2, position_ids)
-        freqs_cis = self.freqs_cis.index_select(0, position_ids)
-
-        for idx, (
-                layer,
-                xattn_layer,
-                xattn_layer_idx,
-        ) in enumerate(self.text_and_xattn_layers):
-            h = xattn_layer(
-                x=h,
-                xattn_mask=xattn_mask,
-                xattn_cache=xattn_caches[xattn_layer_idx],
-                full_text_row_masked_out_mask=full_text_row_masked_out_mask,
-            )
-            h = layer(
-                x=h,
-                mask=mask,
-                freqs_cis=freqs_cis,
-                position_ids=position_ids,
-            )
-
-        h = self.norm(h)
-
-        output = F.linear(h, self.output.weight)
-        output = gather_from_tensor_model_parallel_region(output)
-        return output.float()
-
-    def setup_cache(self, max_batch_size: int, dtype=torch.bfloat16):
-        # Set up the text kv caches
-        device = next(self.parameters()).device
-        ones = torch.ones(
-            (self.max_seq_len, self.max_seq_len),
-            dtype=torch.bool,
-            device=device,
-        )
-        self.register_buffer(
-            "mask_cache",
-            torch.tril(
-                ones,
-            )
-            .unsqueeze(0)
-            .unsqueeze(0),
-            persistent=False,
-        )
-        for layer in self.layers:
-            layer.setup_cache(max_batch_size, dtype=dtype)
-        self.cache_is_setup = True
-
-    def _get_xattn_mask(
-            self,
-            num_tokens,
-            text_device,
-            text_dtype,
-            vision_tokens,
-            cross_attention_masks,
-    ) -> Tuple[Tensor, Tensor]:
-        assert vision_tokens is not None, "Vision tokens must be provided"
-        vision_seqlen = vision_tokens.shape[3]
-        assert (
-                vision_tokens.shape[1] == cross_attention_masks.shape[2]
-        ), f"Mismatch in number of images given and number of masks given {vision_tokens.shape} {cross_attention_masks.shape}"
-        assert (
-                vision_tokens.shape[2] == cross_attention_masks.shape[3]
-        ), f"Vision tokens shape {vision_tokens.shape} mismatch with xattn shape {cross_attention_masks.shape}"
-        assert (
-                num_tokens == cross_attention_masks.shape[1]
-        ), f"Mismatch in text sequence length and cross attention mask sequence length {num_tokens} {cross_attention_masks.shape}"
-        _, _, _, num_image_tokens, image_token_dim = tuple(vision_tokens.shape)
-        bsz, ntext, nimg, nchunks = cross_attention_masks.shape
-        cross_attention_masks = (
-            cross_attention_masks.repeat_interleave(vision_seqlen, dim=2)
-            .view(bsz, ntext, -1)
-            .unsqueeze(1)
-        )
-        full_text_row_masked_out_mask = _get_full_row_masked_out_mask(
-            cross_attention_masks,
-            get_negative_inf_value(cross_attention_masks.dtype),
-        )
-        cross_attention_masks *= full_text_row_masked_out_mask
-
-        return (
-            cross_attention_masks.to(device=text_device, dtype=text_dtype),
-            full_text_row_masked_out_mask,
-        )
 
 
 class MCoreLlamaCrossAttentionModel(MegatronModule):
