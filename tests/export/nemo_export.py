@@ -538,7 +538,7 @@ def run_existing_checkpoints(
             save_trt_engine=save_trt_engine,
             fp8_quantized=fp8_quantized,
             fp8_kvcache=fp8_kvcache,
-            **trt_llm_export_kwargs,
+            trt_llm_export_kwargs=trt_llm_export_kwargs,
         )
 
 
