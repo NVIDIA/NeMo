@@ -26,6 +26,7 @@ def test_qwen2_config():
     assert config.rotary_base == 1000000.0
     assert config.position_embedding_type == "rope"
 
+
 def test_qwen2_config_500m():
     config = Qwen2Config500M()
     assert config.num_layers == 24
@@ -33,6 +34,7 @@ def test_qwen2_config_500m():
     assert config.num_attention_heads == 14
     assert config.num_query_groups == 2
     assert config.ffn_hidden_size == 4864
+
 
 def test_qwen2_config_1p5b():
     config = Qwen2Config1P5B()
@@ -42,6 +44,7 @@ def test_qwen2_config_1p5b():
     assert config.num_query_groups == 2
     assert config.ffn_hidden_size == 8960
 
+
 def test_qwen2_config_7b():
     config = Qwen2Config7B()
     assert config.num_layers == 28
@@ -50,6 +53,7 @@ def test_qwen2_config_7b():
     assert config.num_query_groups == 4
     assert config.ffn_hidden_size == 18944
     assert config.vocab_size == 152064
+
 
 def test_qwen2_config_72b():
     config = Qwen2Config72B()

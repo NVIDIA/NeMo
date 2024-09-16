@@ -1,10 +1,6 @@
 import torch.nn.functional as F
 
-from nemo.collections.llm.gpt.model.chatglm import (
-    ChatGLM2Config6B,
-    ChatGLM3Config6B,
-    ChatGLMConfig,
-)
+from nemo.collections.llm.gpt.model.chatglm import ChatGLM2Config6B, ChatGLM3Config6B, ChatGLMConfig
 
 
 def test_chatglm_config():
@@ -28,9 +24,11 @@ def test_chatglm_config():
     assert config.share_embeddings_and_output_weights is False
     assert config.make_vocab_size_divisible_by == 65024
 
+
 def test_chatglm2_config_6b():
     config = ChatGLM2Config6B()
     assert config.seq_length == 32768
+
 
 def test_chatglm3_config_6b():
     config = ChatGLM3Config6B()

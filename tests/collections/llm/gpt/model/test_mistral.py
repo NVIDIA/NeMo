@@ -1,10 +1,6 @@
 import torch.nn.functional as F
 
-from nemo.collections.llm.gpt.model.mistral import (
-    MistralConfig7B,
-    MistralNeMo2407Config12B,
-    MistralNeMo2407Config123B,
-)
+from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralNeMo2407Config12B, MistralNeMo2407Config123B
 
 
 def test_mistral_config7b():
@@ -26,6 +22,7 @@ def test_mistral_config7b():
     assert config.init_method_std == 0.02
     assert config.layernorm_epsilon == 1e-5
     assert config.window_size == [4096, 0]
+
 
 def test_mistral_nemo_config_12b():
     config = MistralNeMo2407Config12B()
@@ -49,6 +46,7 @@ def test_mistral_nemo_config_12b():
     assert config.rotary_percent == 1.0
     assert config.rotary_base == 1000000.0
     assert config.kv_channels == 128
+
 
 def test_mistral_nemo_config_123b():
     config = MistralNeMo2407Config123B()

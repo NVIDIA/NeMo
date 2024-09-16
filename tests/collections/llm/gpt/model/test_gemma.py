@@ -22,6 +22,7 @@ def test_gemma_config():
     assert config.share_embeddings_and_output_weights is True
     assert config.layernorm_zero_centered_gamma is True
 
+
 def test_gemma_config_2b():
     config = GemmaConfig2B()
     assert config.num_layers == 18
@@ -29,6 +30,7 @@ def test_gemma_config_2b():
     assert config.num_attention_heads == 8
     assert config.num_query_groups == 1
     assert config.ffn_hidden_size == 16384
+
 
 def test_gemma_config_7b():
     config = GemmaConfig7B()
@@ -38,6 +40,7 @@ def test_gemma_config_7b():
     assert config.num_query_groups == 16
     assert config.ffn_hidden_size == 24576
 
+
 def test_code_gemma_config_2b():
     config = CodeGemmaConfig2B()
     assert config.num_layers == 18
@@ -45,6 +48,7 @@ def test_code_gemma_config_2b():
     assert config.num_attention_heads == 8
     assert config.num_query_groups == 1
     assert config.ffn_hidden_size == 16384
+
 
 def test_code_gemma_config_7b():
     config = CodeGemmaConfig7B()

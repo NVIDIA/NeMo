@@ -19,7 +19,7 @@ def test_starcoder2_config():
     assert config.attention_dropout == 0.0
     assert config.init_method_std == 0.01
     assert config.share_embeddings_and_output_weights is False
-    assert config.kv_channels == 3072//24
+    assert config.kv_channels == 3072 // 24
     assert config.num_query_groups == 24
     assert config.attention_softmax_in_fp32 is True
     assert config.bias_activation_fusion is True
@@ -27,6 +27,7 @@ def test_starcoder2_config():
     assert config.layernorm_epsilon == 1e-5
     assert config.rotary_percent == 1.0
     assert config.window_size is None
+
 
 def test_starcoder2_config_3b():
     config = Starcoder2Config3B()
@@ -38,6 +39,7 @@ def test_starcoder2_config_3b():
     assert config.init_method_std == 0.018042
     assert config.rotary_base == 999999.4420358813
 
+
 def test_starcoder2_config_7b():
     config = Starcoder2Config7B()
     assert config.num_layers == 32
@@ -47,6 +49,7 @@ def test_starcoder2_config_7b():
     assert config.num_query_groups == 4
     assert config.init_method_std == 0.018042
     assert config.rotary_base == 1_000_000
+
 
 def test_starcoder2_config_15b():
     config = Starcoder2Config15B()

@@ -1,9 +1,6 @@
 import torch.nn.functional as F
 
-from nemo.collections.llm.gpt.model.starcoder import (
-    StarcoderConfig,
-    StarcoderConfig15B,
-)
+from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B
 
 
 def test_starcoder_config():
@@ -18,11 +15,12 @@ def test_starcoder_config():
     assert config.init_method_std == 0.01
     assert config.layernorm_epsilon == 1e-5
     assert config.share_embeddings_and_output_weights is False
-    assert config.kv_channels is 6144//48
+    assert config.kv_channels is 6144 // 48
     assert config.num_query_groups == 1
     assert config.attention_softmax_in_fp32 is True
     assert config.bias_activation_fusion is True
     assert config.bias_dropout_fusion is True
+
 
 def test_starcoder_config_15b():
     config = StarcoderConfig15B()

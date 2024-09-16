@@ -39,6 +39,7 @@ def test_mixtral_config():
     assert config.bf16 is True
     assert config.params_dtype == torch.bfloat16
 
+
 def test_mixtral_config_8x3b():
     config = MixtralConfig8x3B()
     assert config.num_layers == 32
@@ -48,6 +49,7 @@ def test_mixtral_config_8x3b():
     assert config.max_position_embeddings == 4096
     assert config.seq_length == 4096
 
+
 def test_mixtral_config_8x7b():
     config = MixtralConfig8x7B()
     assert config.num_layers == 32
@@ -55,6 +57,7 @@ def test_mixtral_config_8x7b():
     assert config.ffn_hidden_size == 14336
     assert config.max_position_embeddings == 4096
     assert config.seq_length == 4096
+
 
 def test_mixtral_config_8x22b():
     config = MixtralConfig8x22B()

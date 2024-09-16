@@ -1,8 +1,4 @@
-from nemo.collections.llm.gpt.model.ssm import (
-    SSMConfig,
-    gpt_data_step,
-    ssm_forward_step,
-)
+from nemo.collections.llm.gpt.model.ssm import SSMConfig, gpt_data_step, ssm_forward_step
 
 
 def test_ssm_config():

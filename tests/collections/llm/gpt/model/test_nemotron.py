@@ -33,6 +33,7 @@ def test_nemotron_config():
     assert config.kv_channels == 128
     assert config.init_method_std == 0.0134
 
+
 def test_nemotron3_config_4b():
     config = Nemotron3Config4B()
     assert config.num_layers == 32
@@ -44,6 +45,7 @@ def test_nemotron3_config_4b():
     assert config.kv_channels == 128
     assert config.init_method_std == 0.0134
 
+
 def test_nemotron3_config_8b():
     config = Nemotron3Config8B()
     assert config.num_layers == 32
@@ -52,8 +54,9 @@ def test_nemotron3_config_8b():
     assert config.ffn_hidden_size == 16384
     assert config.num_attention_heads == 32
     assert config.num_query_groups == 32
-    assert config.kv_channels == 4096//32
+    assert config.kv_channels == 4096 // 32
     assert config.init_method_std == 0.010
+
 
 def test_nemotron4_config_15b():
     config = Nemotron4Config15B()
@@ -63,8 +66,9 @@ def test_nemotron4_config_15b():
     assert config.ffn_hidden_size == 24576
     assert config.num_attention_heads == 48
     assert config.num_query_groups == 8
-    assert config.kv_channels == 6144//48
+    assert config.kv_channels == 6144 // 48
     assert config.init_method_std == 0.0134
+
 
 def test_nemotron4_config_22b():
     config = Nemotron4Config22B()
@@ -74,8 +78,9 @@ def test_nemotron4_config_22b():
     assert config.ffn_hidden_size == 24576
     assert config.num_attention_heads == 48
     assert config.num_query_groups == 48
-    assert config.kv_channels == 6144//48
+    assert config.kv_channels == 6144 // 48
     assert config.init_method_std == 0.008
+
 
 def test_nemotron4_config_340b():
     config = Nemotron4Config340B()
@@ -85,5 +90,5 @@ def test_nemotron4_config_340b():
     assert config.ffn_hidden_size == 73728
     assert config.num_attention_heads == 96
     assert config.num_query_groups == 8
-    assert config.kv_channels == 18432//96
+    assert config.kv_channels == 18432 // 96
     assert config.init_method_std == 0.0063

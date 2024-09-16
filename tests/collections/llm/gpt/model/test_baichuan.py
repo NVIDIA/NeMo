@@ -1,9 +1,6 @@
 import torch.nn.functional as F
 
-from nemo.collections.llm.gpt.model.baichuan import (
-    Baichuan2Config,
-    Baichuan2Config7B,
-)
+from nemo.collections.llm.gpt.model.baichuan import Baichuan2Config, Baichuan2Config7B
 
 
 def test_baichuan2_config():
@@ -18,6 +15,7 @@ def test_baichuan2_config():
     assert config.hidden_dropout == 0.0
     assert config.attention_dropout == 0.0
     assert config.share_embeddings_and_output_weights is False
+
 
 def test_baichuan2_config_7b():
     config = Baichuan2Config7B()
