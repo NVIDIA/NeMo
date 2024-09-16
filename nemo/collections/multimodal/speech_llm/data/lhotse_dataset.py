@@ -317,7 +317,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     text_loss_mask[:, :itl, :] = False
             loss_mask = torch.cat([text_loss_mask, speech_loss_mask], 2)
             full_lengths = target_text_lengths + 1 + instruction_length
-        full_lengths = torch.clamp(full_lengths, max=tokens.shape[1] + 1)
+        full_lengths = torch.clamp(full_lengths, max=tokens.shape[1])
         # simplify above code
         # Start from index 1 since the first token will not be used as a label
         loss_mask = loss_mask[:, 1:, :]
