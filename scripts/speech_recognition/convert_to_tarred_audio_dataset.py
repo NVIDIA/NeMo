@@ -99,130 +99,6 @@ try:
 except (ImportError, ModuleNotFoundError, FileNotFoundError):
     DALI_INDEX_SCRIPT_AVAILABLE = False
 
-parser = argparse.ArgumentParser(
-    description="Convert an existing ASR dataset to tarballs compatible with TarredAudioToTextDataLayer."
-)
-parser.add_argument(
-    "--manifest_path", default=None, type=str, required=False, help="Path to the existing dataset's manifest."
-)
-
-parser.add_argument(
-    '--concat_manifest_paths',
-    nargs='+',
-    default=None,
-    type=str,
-    required=False,
-    help="Path to the additional dataset's manifests that will be concatenated with base dataset.",
-)
-
-# Optional arguments
-parser.add_argument(
-    "--target_dir",
-    default='./tarred',
-    type=str,
-    help="Target directory for resulting tarballs and manifest. Defaults to `./tarred`. Creates the path if necessary.",
-)
-
-parser.add_argument(
-    "--metadata_path",
-    required=False,
-    default=None,
-    type=str,
-    help="Path to metadata file for the dataset.",
-)
-
-parser.add_argument(
-    "--num_shards",
-    default=-1,
-    type=int,
-    help="Number of shards (tarballs) to create. Used for partitioning data among workers.",
-)
-parser.add_argument(
-    '--max_duration',
-    default=None,
-    required=True,
-    type=float,
-    help='Maximum duration of audio clip in the dataset. By default, it is None and is required to be set.',
-)
-parser.add_argument(
-    '--min_duration',
-    default=None,
-    type=float,
-    help='Minimum duration of audio clip in the dataset. By default, it is None and will not filter files.',
-)
-parser.add_argument(
-    "--shuffle",
-    action='store_true',
-    help="Whether or not to randomly shuffle the samples in the manifest before tarring/sharding.",
-)
-
-parser.add_argument(
-    "--keep_files_together",
-    action='store_true',
-    help="Whether or not to keep entries from the same file (but different offsets) together when sorting before tarring/sharding.",
-)
-parser.add_argument(
-    "--slice_with_offset",
-    action='store_true',
-    help="If set, only slices the audio based on duration and offset parameters."
-)
-parser.add_argument(
-    "--sort_in_shards",
-    action='store_true',
-    help="Whether or not to sort samples inside the shards based on their duration.",
-)
-
-parser.add_argument(
-    "--buckets_num",
-    type=int,
-    default=1,
-    help="Number of buckets to create based on duration.",
-)
-
-parser.add_argument(
-    "--dynamic_buckets_num",
-    type=int,
-    default=30,
-    help="Intended for dynamic (on-the-fly) bucketing; this option will not bucket your dataset during tar conversion. "
-    "Estimates optimal bucket duration bins for a given number of buckets.",
-)
-
-parser.add_argument("--shuffle_seed", type=int, default=None, help="Random seed for use if shuffling is enabled.")
-parser.add_argument(
-    '--write_metadata',
-    action='store_true',
-    help=(
-        "Flag to write a blank metadata with the current call config. "
-        "Note that the metadata will not contain the number of shards, "
-        "and it must be filled out by the user."
-    ),
-)
-parser.add_argument(
-    "--no_shard_manifests",
-    action='store_true',
-    help="Do not write sharded manifests along with the aggregated manifest.",
-)
-parser.add_argument(
-    "--force_codec",
-    type=str,
-    default=None,
-    help=(
-        "If specified, transcode the audio to the given format. "
-        "Supports libnsndfile formats (example values: 'opus', 'flac')."
-    ),
-)
-parser.add_argument(
-    "--dry_run",
-    action='store_true',
-    help=(
-        "If set, only creates manifests for each shard without creating the actual tar files. "
-        "This allows you to verify the output structure and content before committing to the full tarball creation process."
-    ),
-)
-parser.add_argument('--workers', type=int, default=1, help='Number of worker processes')
-args = parser.parse_args()
-
-
 @dataclass
 class ASRTarredDatasetConfig:
     num_shards: int = -1
@@ -290,7 +166,7 @@ class ASRTarredDatasetBuilder:
         if self.config.num_shards < 0:
             raise ValueError("`num_shards` must be > 0. Please fill in the metadata information correctly.")
 
-    def create_new_dataset(self, manifest_path: str, target_dir: str = "./tarred/", num_workers: int = 0, dry_run: bool = False):
+    def create_new_dataset(self, manifest_path: str, target_dir: str = "./tarred/", num_workers: int = 0, buckets_num: int = 1, dynamic_buckets_num: int = 30, dry_run: bool = False):
         """
         Creates a new tarred dataset from a given manifest file.
 
@@ -370,7 +246,7 @@ class ASRTarredDatasetBuilder:
         with Parallel(n_jobs=num_workers, verbose=config.num_shards) as parallel:
             # Call parallel tarfile construction
             new_entries_list = parallel(
-                delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, i, manifest_folder, self.config.slice_with_offset, dry_run)
+                delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, i, manifest_folder, dry_run)
                 for i, (start_idx, end_idx) in enumerate(zip(start_indices, end_indices))
             )
 
@@ -408,10 +284,10 @@ class ASRTarredDatasetBuilder:
         metadata.dataset_config = config
         metadata.num_samples_per_shard = len(new_entries) // config.num_shards
 
-        if args.buckets_num <= 1:
+        if buckets_num <= 1:
             # Estimate and update dynamic bucketing args
             bucketing_kwargs = self.estimate_dynamic_bucketing_duration_bins(
-                new_manifest_path, num_buckets=args.dynamic_buckets_num
+                new_manifest_path, num_buckets=dynamic_buckets_num
             )
             for k, v in bucketing_kwargs.items():
                 setattr(metadata.dataset_config, k, v)
@@ -562,7 +438,7 @@ class ASRTarredDatasetBuilder:
         with Parallel(n_jobs=num_workers, verbose=num_added_shards) as parallel:
             # Call parallel tarfile construction
             new_entries_list = parallel(
-                delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, shard_idx, manifest_folder, self.config.slice_with_offset, dry_run)
+                delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, shard_idx, manifest_folder, dry_run)
                 for i, (start_idx, end_idx, shard_idx) in enumerate(zip(start_indices, end_indices, shard_indices))
             )
 
@@ -688,7 +564,7 @@ class ASRTarredDatasetBuilder:
             ti.size = len(encoded_audio.getvalue())
             tar.addfile(ti, encoded_audio)
 
-    def _create_shard(self, entries, target_dir, shard_id, manifest_folder, slice_with_offset: bool = False, dry_run: bool = False):
+    def _create_shard(self, entries, target_dir, shard_id, manifest_folder: str = None, dry_run: bool = False):
         """Creates a tarball containing the audio files from `entries`."""
         if self.config.sort_in_shards:
             entries.sort(key=lambda x: x["duration"], reverse=False)
@@ -705,6 +581,9 @@ class ASRTarredDatasetBuilder:
             if os.path.exists(entry["audio_filepath"]):
                 audio_filepath = entry["audio_filepath"]
             else:
+                if not manifest_folder:
+                    raise FileNotFoundError(f"Could not find {entry['audio_filepath']}!")
+                
                 audio_filepath = os.path.join(manifest_folder, entry["audio_filepath"])
                 if not os.path.exists(audio_filepath):
                     raise FileNotFoundError(f"Could not find {entry['audio_filepath']}!")
@@ -715,7 +594,7 @@ class ASRTarredDatasetBuilder:
             base = base.replace('.', '_')
             squashed_filename = f'{base}{ext}'
             
-            if slice_with_offset:
+            if self.config.slice_with_offset:
                 if squashed_filename not in count:
                     count[squashed_filename] = 1
                 
@@ -764,7 +643,7 @@ class ASRTarredDatasetBuilder:
             history.append(metadata_copy)
 
 
-def main():
+def main(args):
     if args.buckets_num > 1:
         bucket_length = (args.max_duration - args.min_duration) / float(args.buckets_num)
         for i in range(args.buckets_num):
@@ -779,27 +658,30 @@ def main():
             create_tar_datasets(min_duration=min_duration, max_duration=max_duration, target_dir=target_dir)
             print(f"Bucket {i+1} is created.")
     else:
-        create_tar_datasets(min_duration=args.min_duration, max_duration=args.max_duration, target_dir=args.target_dir)
+        create_tar_datasets(**args)
 
 
-def create_tar_datasets(min_duration: float, max_duration: float, target_dir: str):
+def create_tar_datasets(manifest_path: str = None, concat_manifest_paths: str = None, target_dir: str = None, metadata_path: str = None, num_shards: int = -1, max_duration: float = None,
+                        min_duration: float = None, shuffle: bool = False, keep_files_together: bool = False, sort_in_shards: bool = False, buckets_num: int = 1,
+                        dynamic_buckets_num: int = 30, shuffle_seed: int = None, write_metadata: bool = False, no_shard_manifests: bool = False, force_codec: str = None, 
+                        workers: int = 1, slice_with_offset: bool = False, dry_run: bool = False):
     builder = ASRTarredDatasetBuilder()
 
-    shard_manifests = False if args.no_shard_manifests else True
+    shard_manifests = False if no_shard_manifests else True
 
-    if args.write_metadata:
+    if write_metadata:
         metadata = ASRTarredDatasetMetadata()
         dataset_cfg = ASRTarredDatasetConfig(
-            num_shards=args.num_shards,
-            shuffle=args.shuffle,
+            num_shards=num_shards,
+            shuffle=shuffle,
             max_duration=max_duration,
             min_duration=min_duration,
-            shuffle_seed=args.shuffle_seed,
-            sort_in_shards=args.sort_in_shards,
+            shuffle_seed=shuffle_seed,
+            sort_in_shards=sort_in_shards,
             shard_manifests=shard_manifests,
-            keep_files_together=args.keep_files_together,
-            force_codec=args.force_codec,
-            slice_with_offset=args.slice_with_offset,
+            keep_files_together=keep_files_together,
+            force_codec=force_codec,
+            slice_with_offset=slice_with_offset,
         )
         metadata.dataset_config = dataset_cfg
 
@@ -808,33 +690,33 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
         print(f"Default metadata written to {output_path}")
         exit(0)
 
-    if args.concat_manifest_paths is None or len(args.concat_manifest_paths) == 0:
+    if concat_manifest_paths is None or len(concat_manifest_paths) == 0:
         print("Creating new tarred dataset ...")
 
         # Create a tarred dataset from scratch
         config = ASRTarredDatasetConfig(
-            num_shards=args.num_shards,
-            shuffle=args.shuffle,
+            num_shards=num_shards,
+            shuffle=shuffle,
             max_duration=max_duration,
             min_duration=min_duration,
-            shuffle_seed=args.shuffle_seed,
-            sort_in_shards=args.sort_in_shards,
+            shuffle_seed=shuffle_seed,
+            sort_in_shards=sort_in_shards,
             shard_manifests=shard_manifests,
-            keep_files_together=args.keep_files_together,
-            force_codec=args.force_codec,
-            slice_with_offset=args.slice_with_offset,
+            keep_files_together=keep_files_together,
+            force_codec=force_codec,
+            slice_with_offset=slice_with_offset,
         )
         builder.configure(config)
-        builder.create_new_dataset(manifest_path=args.manifest_path, target_dir=target_dir, num_workers=args.workers, dry_run=args.dry_run)
+        builder.create_new_dataset(manifest_path=manifest_path, target_dir=target_dir, num_workers=workers, buckets_num=buckets_num, dynamic_buckets_num=dynamic_buckets_num, dry_run=dry_run)
 
     else:
-        if args.buckets_num > 1:
+        if buckets_num > 1:
             raise ValueError("Concatenation feature does not support buckets_num > 1.")
         print("Concatenating multiple tarred datasets ...")
 
         # Implicitly update config from base details
-        if args.metadata_path is not None:
-            metadata = ASRTarredDatasetMetadata.from_file(args.metadata_path)
+        if metadata_path is not None:
+            metadata = ASRTarredDatasetMetadata.from_file(metadata_path)
         else:
             raise ValueError("`metadata` yaml file path must be provided!")
 
@@ -846,29 +728,151 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
         # Add command line overrides (everything other than num_shards)
         metadata.dataset_config.max_duration = max_duration
         metadata.dataset_config.min_duration = min_duration
-        metadata.dataset_config.shuffle = args.shuffle
-        metadata.dataset_config.shuffle_seed = args.shuffle_seed
-        metadata.dataset_config.sort_in_shards = args.sort_in_shards
+        metadata.dataset_config.shuffle = shuffle
+        metadata.dataset_config.shuffle_seed = shuffle_seed
+        metadata.dataset_config.sort_in_shards = sort_in_shards
         metadata.dataset_config.shard_manifests = shard_manifests
 
         builder.configure(metadata.dataset_config)
 
         # Concatenate a tarred dataset onto a previous one
         builder.create_concatenated_dataset(
-            base_manifest_path=args.manifest_path,
-            manifest_paths=args.concat_manifest_paths,
+            base_manifest_path=manifest_path,
+            manifest_paths=concat_manifest_paths,
             metadata=metadata,
             target_dir=target_dir,
-            num_workers=args.workers,
-            slice_with_offset=args.slice_with_offset,
-            dry_run=args.dry_run,
+            num_workers=workers,
+            slice_with_offset=slice_with_offset,
+            dry_run=dry_run,
         )
 
     if DALI_INDEX_SCRIPT_AVAILABLE and dali_index.INDEX_CREATOR_AVAILABLE:
         print("Constructing DALI Tarfile Index - ", target_dir)
-        index_config = dali_index.DALITarredIndexConfig(tar_dir=target_dir, workers=args.workers)
+        index_config = dali_index.DALITarredIndexConfig(tar_dir=target_dir, workers=workers)
         dali_index.main(index_config)
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+    description="Convert an existing ASR dataset to tarballs compatible with TarredAudioToTextDataLayer."
+    )
+    parser.add_argument(
+        "--manifest_path", default=None, type=str, required=False, help="Path to the existing dataset's manifest."
+    )
+
+    parser.add_argument(
+        '--concat_manifest_paths',
+        nargs='+',
+        default=None,
+        type=str,
+        required=False,
+        help="Path to the additional dataset's manifests that will be concatenated with base dataset.",
+    )
+
+    # Optional arguments
+    parser.add_argument(
+        "--target_dir",
+        default='./tarred',
+        type=str,
+        help="Target directory for resulting tarballs and manifest. Defaults to `./tarred`. Creates the path if necessary.",
+    )
+
+    parser.add_argument(
+        "--metadata_path",
+        required=False,
+        default=None,
+        type=str,
+        help="Path to metadata file for the dataset.",
+    )
+
+    parser.add_argument(
+        "--num_shards",
+        default=-1,
+        type=int,
+        help="Number of shards (tarballs) to create. Used for partitioning data among workers.",
+    )
+    parser.add_argument(
+        '--max_duration',
+        default=None,
+        required=True,
+        type=float,
+        help='Maximum duration of audio clip in the dataset. By default, it is None and is required to be set.',
+    )
+    parser.add_argument(
+        '--min_duration',
+        default=None,
+        type=float,
+        help='Minimum duration of audio clip in the dataset. By default, it is None and will not filter files.',
+    )
+    parser.add_argument(
+        "--shuffle",
+        action='store_true',
+        help="Whether or not to randomly shuffle the samples in the manifest before tarring/sharding.",
+    )
+
+    parser.add_argument(
+        "--keep_files_together",
+        action='store_true',
+        help="Whether or not to keep entries from the same file (but different offsets) together when sorting before tarring/sharding.",
+    )
+    parser.add_argument(
+        "--slice_with_offset",
+        action='store_true',
+        help="If set, only slices the audio based on duration and offset parameters."
+    )
+    parser.add_argument(
+        "--sort_in_shards",
+        action='store_true',
+        help="Whether or not to sort samples inside the shards based on their duration.",
+    )
+
+    parser.add_argument(
+        "--buckets_num",
+        type=int,
+        default=1,
+        help="Number of buckets to create based on duration.",
+    )
+
+    parser.add_argument(
+        "--dynamic_buckets_num",
+        type=int,
+        default=30,
+        help="Intended for dynamic (on-the-fly) bucketing; this option will not bucket your dataset during tar conversion. "
+        "Estimates optimal bucket duration bins for a given number of buckets.",
+    )
+
+    parser.add_argument("--shuffle_seed", type=int, default=None, help="Random seed for use if shuffling is enabled.")
+    parser.add_argument(
+        '--write_metadata',
+        action='store_true',
+        help=(
+            "Flag to write a blank metadata with the current call config. "
+            "Note that the metadata will not contain the number of shards, "
+            "and it must be filled out by the user."
+        ),
+    )
+    parser.add_argument(
+        "--no_shard_manifests",
+        action='store_true',
+        help="Do not write sharded manifests along with the aggregated manifest.",
+    )
+    parser.add_argument(
+        "--force_codec",
+        type=str,
+        default=None,
+        help=(
+            "If specified, transcode the audio to the given format. "
+            "Supports libnsndfile formats (example values: 'opus', 'flac')."
+        ),
+    )
+    parser.add_argument(
+        "--dry_run",
+        action='store_true',
+        help=(
+            "If set, only creates manifests for each shard without creating the actual tar files. "
+            "This allows you to verify the output structure and content before committing to the full tarball creation process."
+        ),
+    )
+    parser.add_argument('--workers', type=int, default=1, help='Number of worker processes')
+    args = parser.parse_args()
+    main(args)
