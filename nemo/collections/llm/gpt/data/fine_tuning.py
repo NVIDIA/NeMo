@@ -18,11 +18,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Union
 
 import pytorch_lightning as pl
-from nemo.utils import logging
 from torch.utils.data import DataLoader
 
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
+from nemo.utils import logging
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
@@ -92,12 +92,14 @@ class FineTuningDataModule(pl.LightningDataModule):
 
     def _adjust_batch_sizes_for_packed_sequence(self):
         if self.packed_sequence_size > 0 and self.micro_batch_size > 1:
-            logging.warning("Micro batch size should be 1 when training with packed sequence, but your micro batch size "
-                            f"is {self.micro_batch_size}. Your config will be automatically updated to the following: "
-                            f"MBS will be set to 1 (from {self.micro_batch_size}), "
-                            f"GBS will be set to {self.global_batch_size // self.micro_batch_size} (from {self.global_batch_size}), "
-                            f"packed sequence length will be set to {self.packed_sequence_size*self.micro_batch_size} (from {self.packed_sequence_size}). "
-                            f"For details please visit https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/features/optimizations/sequence_packing.html")
+            logging.warning(
+                "Micro batch size should be 1 when training with packed sequence, but your micro batch size "
+                f"is {self.micro_batch_size}. Your config will be automatically updated to the following: "
+                f"MBS will be set to 1 (from {self.micro_batch_size}), "
+                f"GBS will be set to {self.global_batch_size // self.micro_batch_size} (from {self.global_batch_size}), "
+                f"packed sequence length will be set to {self.packed_sequence_size*self.micro_batch_size} (from {self.packed_sequence_size}). "
+                f"For details please visit https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/features/optimizations/sequence_packing.html"
+            )
             self.global_batch_size //= self.micro_batch_size
             self.packed_sequence_size *= self.micro_batch_size
             self.micro_batch_size = 1
@@ -161,11 +163,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         return create_sft_dataset(
             path,
             tokenizer=self.tokenizer,
-            seq_length=(
-                self.seq_length
-                if is_test or self.packed_sequence_size <= 0
-                else self.packed_sequence_size
-            ),
+            seq_length=(self.seq_length if is_test or self.packed_sequence_size <= 0 else self.packed_sequence_size),
             memmap_workers=self.memmap_workers,
             seed=self.seed,
             is_test=is_test,
@@ -181,7 +179,6 @@ class FineTuningDataModule(pl.LightningDataModule):
             collate_fn=dataset.collate_fn,
             **kwargs,
         )
-
 
     @property
     def train_path(self) -> Path:
