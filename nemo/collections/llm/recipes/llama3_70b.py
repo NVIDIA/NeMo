@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 import nemo_run as run
 import pytorch_lightning as pl
@@ -27,10 +27,10 @@ from nemo.collections.llm.gpt.model.llama import Llama3Config70B, LlamaModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, hf_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.recipes.trainer.default import default_trainer
-from nemo.collections.llm.utils import Config, Partial
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
+from nemo.collections.llm.recipes.trainer.default import default_trainer
+from nemo.collections.llm.utils import Config, Partial
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
@@ -217,7 +217,7 @@ def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node:
         log=default_log(ckpt_dir=ckpt_dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, adam_beta2=0.98, warmup_steps=50),
         resume=hf_resume("hf://meta-llama/Meta-Llama-3-70B"),
-        )
+    )
     recipe.optim.lr_scheduler.min_lr = 0
     if peft_scheme.lower() == 'lora':
         recipe.peft = Config(LoRA)
@@ -228,7 +228,7 @@ def finetune_recipe(name: str, ckpt_dir: str, num_nodes: int, num_gpus_per_node:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
     return recipe
 
-  
+
 @run.cli.factory(target=pretrain, name=NAME + "_performance")
 def pretrain_recipe_performance(
     dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain

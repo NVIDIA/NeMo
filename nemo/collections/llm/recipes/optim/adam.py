@@ -18,6 +18,7 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule, OptimizerModule
 
+
 @run.cli.factory
 def distributed_fused_adam_with_cosine_annealing(
     max_lr: float = 1e-4,
