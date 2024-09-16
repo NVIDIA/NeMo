@@ -280,7 +280,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             decoder_input=decoder_input,
             labels=labels,
             inference_params=inference_params,
-            packed_seq_params=None,
+            packed_seq_params=packed_seq_params,
         )
 
         return output_tensor

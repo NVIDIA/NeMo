@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Union
 
 import pytorch_lightning as pl
+from nemo.utils import logging
 from torch.utils.data import DataLoader
 
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
@@ -87,6 +88,19 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.max_train_samples = None
         self.pad_to_max_length = pad_to_max_length
         self.packed_sequence_size = packed_sequence_size
+        self._adjust_batch_sizes_for_packed_sequence()
+
+    def _adjust_batch_sizes_for_packed_sequence(self):
+        if self.packed_sequence_size > 0 and self.micro_batch_size > 1:
+            logging.warning("Micro batch size should be 1 when training with packed sequence, but your micro batch size "
+                            f"is {self.micro_batch_size}. Your config will be automatically updated to the following: "
+                            f"MBS will be set to 1 (from {self.micro_batch_size}), "
+                            f"GBS will be set to {self.global_batch_size // self.micro_batch_size} (from {self.global_batch_size}), "
+                            f"packed sequence length will be set to {self.packed_sequence_size*self.micro_batch_size} (from {self.packed_sequence_size}). "
+                            f"For details please visit https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/features/optimizations/sequence_packing.html")
+            self.global_batch_size //= self.micro_batch_size
+            self.packed_sequence_size *= self.micro_batch_size
+            self.micro_batch_size = 1
 
     def prepare_data(self) -> None:
         if self.packed_sequence_size > 0 and not self.train_path_packed.is_file():
@@ -150,7 +164,7 @@ class FineTuningDataModule(pl.LightningDataModule):
             seq_length=(
                 self.seq_length
                 if is_test or self.packed_sequence_size <= 0
-                else self.packed_sequence_size * self.micro_batch_size
+                else self.packed_sequence_size
             ),
             memmap_workers=self.memmap_workers,
             seed=self.seed,
@@ -164,17 +178,10 @@ class FineTuningDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
-            collate_fn=self._collate_fn_wrapper(dataset.collate_fn, dataset.is_test),
+            collate_fn=dataset.collate_fn,
             **kwargs,
         )
 
-    def _collate_fn_wrapper(self, collate_fn, is_test):
-        if not is_test and self.packed_sequence_size > 0 and self.micro_batch_size > 1:
-            from nemo.collections.llm.gpt.data.packed_sequence import manipulate_batch_to_mbs1
-
-            return lambda batch: collate_fn(manipulate_batch_to_mbs1(batch, self.micro_batch_size))
-        else:
-            return collate_fn
 
     @property
     def train_path(self) -> Path:
