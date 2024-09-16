@@ -34,6 +34,7 @@ class MCoreTokenizerWrappper:
         return self.tokenizer.text_to_ids(prompt)
 
 
+# TODO: Move to lightning Fabric API.
 def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.LightningModule):
     assert isinstance(trainer.strategy, MegatronStrategy), "Only MegatronStrategy is supported for trainer.strategy."
     restore_config = RestoreConfig(
