@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from transformers import AutoProcessor
+
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.multimodal.data.energon import SimpleMultiModalDataModule
-from transformers import AutoProcessor
 
 if __name__ == "__main__":
     gbs = 4
