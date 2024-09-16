@@ -124,7 +124,7 @@ class CrossAttentionTextModelConfig(TransformerConfig, io.IOMixin):
 
 
 @dataclass
-class LlamaCrossAttentionConfig(TransformerConfig, io.IOMixin):
+class LlamaCrossAttentionModelConfig(TransformerConfig, io.IOMixin):
     language_model_config: Optional[TransformerConfig] = None
     vision_model_config: Optional[TransformerConfig] = None
 

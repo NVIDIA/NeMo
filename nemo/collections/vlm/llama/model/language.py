@@ -46,7 +46,6 @@ from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning import get_vocab_size
 from nemo.utils import logging
 
-
 from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.identity_op import IdentityOp
@@ -136,7 +135,6 @@ class Llama32TextConfig11B(Llama31Config8B):
         return model
 
 
-
 @dataclass
 class LlamaCrossAttentionSubmodules:
     linear_q: Union[ModuleSpec, type] = None
@@ -185,7 +183,6 @@ class CrossAttentionTextModel(MCoreGPTModel):
             config=self.config,
         )
 
-
     def _get_xattn_mask(
             self,
             num_tokens,
@@ -222,6 +219,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
             cross_attention_masks.to(device=text_device, dtype=text_dtype),
             full_text_row_masked_out_mask,
         )
+
 
 class CrossAttentionTransformerBlock(TransformerBlock):
     def __init__(self, *args, **kwargs):
@@ -424,10 +422,9 @@ class CrossAttentionTransformerLayer(TransformerLayer):
             layer_number=layer_number,
             hidden_dropout=hidden_dropout,
         )
-        self.gated = self.config.gated
-        if self.gated:
-            self.gate_attn = nn.Parameter(torch.zeros(1))
-            self.gate_ffn = nn.Parameter(torch.zeros(1))
+
+        self.gate_attn = nn.Parameter(torch.zeros(1))
+        self.gate_ffn = nn.Parameter(torch.zeros(1))
 
     def forward(
             self,
@@ -439,7 +436,6 @@ class CrossAttentionTransformerLayer(TransformerLayer):
             inference_params=None,
             packed_seq_params=None,
     ):
-
         # hidden_states: [s, b, h]
 
         # Residual connection.
@@ -481,7 +477,7 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         if isinstance(attention_output_with_bias, dict) and "context" in attention_output_with_bias:
             context = attention_output_with_bias["context"]
 
-        _gate_attn = 1 if not self.gated else self.gate_attn.tanh()
+        _gate_attn = self.gate_attn.tanh()
         attention_output_with_bias = _gate_attn * attention_output_with_bias
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
@@ -500,7 +496,7 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         # MLP.
         mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
 
-        _gate_ffn = 1 if not self.gated else self.gate_ffn.tanh()
+        _gate_ffn = self.gate_ffn.tanh()
         mlp_output_with_bias = _gate_ffn * mlp_output_with_bias
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
@@ -533,7 +529,6 @@ class DummyCrossAttentionTransformerLayer(MegatronModule):
             **kwargs,
     ) -> torch.Tensor:
         return x
-
 
 
 class LlamaCrossAttention(Attention):
@@ -599,7 +594,6 @@ class LlamaCrossAttention(Attention):
             config=self.config,
             eps=self.config.layernorm_epsilon,
         )
-
 
     def get_query_key_value_tensors(self, hidden_states, key_value_states):
         """
