@@ -83,59 +83,6 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class Llama32TextConfig11B(Llama31Config8B):
-    num_cross_attention_layers: int = 8
-
-    def _init_fusion_schedule(self, num_layers: int) -> List[int]:
-        llama_layers = list(range(self.num_layers))
-        # uniformly spread the layers
-        k = math.ceil(len(llama_layers) / num_layers)
-        return llama_layers[::-1][::k][:num_layers][::-1]
-
-    def configure_model(self, tokenizer):
-        self.fusion_schedule = self._init_fusion_schedule(self.num_cross_attention_layers)
-        vp_size = self.virtual_pipeline_model_parallel_size
-        if vp_size:
-            p_size = self.pipeline_model_parallel_size
-            assert (
-                           self.num_layers // p_size
-                   ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
-
-        from megatron.core import parallel_state
-
-        transformer_layer_spec = self.transformer_layer_spec
-        if not isinstance(transformer_layer_spec, ModuleSpec):
-            transformer_layer_spec = transformer_layer_spec(self)
-
-        if hasattr(self, 'vocab_size'):
-            vocab_size = self.vocab_size
-            logging.info(
-                f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
-                f" {vocab_size - tokenizer.vocab_size}."
-            )
-        else:
-            vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
-
-        model = CrossAttentionTextModel(
-            self,
-            transformer_layer_spec=transformer_layer_spec,
-            vocab_size=vocab_size,
-            max_sequence_length=self.seq_length,
-            fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
-            parallel_output=self.parallel_output,
-            share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
-            position_embedding_type=self.position_embedding_type,
-            rotary_percent=self.rotary_percent,
-            rotary_base=self.rotary_base,
-            seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-            pre_process=parallel_state.is_pipeline_first_stage(),
-            post_process=parallel_state.is_pipeline_last_stage(),
-        )
-        breakpoint()
-        return model
-
-
-@dataclass
 class LlamaCrossAttentionSubmodules:
     linear_q: Union[ModuleSpec, type] = None
     linear_kv: Union[ModuleSpec, type] = None

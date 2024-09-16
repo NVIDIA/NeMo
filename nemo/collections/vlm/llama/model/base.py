@@ -117,10 +117,10 @@ class CrossAttentionVisionModelConfig(TransformerConfig, io.IOMixin):
 from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel
 from megatron.core.transformer.spec_utils import ModuleSpec
 from nemo.lightning import get_vocab_size
-from nemo.collections.llm.gpt.model.llama import Llama3Config
+from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
 
 @dataclass
-class CrossAttentionTextModelConfig(Llama3Config):
+class CrossAttentionTextModelConfig(Llama31Config):
     num_cross_attention_layers: int = 8
 
     def _init_fusion_schedule(self, num_layers: int) -> List[int]:
@@ -167,6 +167,13 @@ class CrossAttentionTextModelConfig(Llama3Config):
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
+        )
+        model.rotary_pos_emb.inv_freq = apply_rope_scaling(
+            model.rotary_pos_emb.inv_freq,
+            factor=self.scale_factor,
+            low_freq_factor=self.low_freq_factor,
+            high_freq_factor=self.high_freq_factor,
+            old_context_len=self.old_context_len,
         )
         return model
 
