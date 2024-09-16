@@ -22,6 +22,7 @@ if __name__ == "__main__":
     gbs = 4
     mbs = 2
     seq_length = 256
+    # Change data path accordingly
     data_path = '/home/ykarnati/Downloads/LLaVA-Pretrain/wds'  # VQA
     # data_path ='/home/ykarnati/Downloads/datasets/energon_datasets/mmc4/stage2/core_faces' # similarity interleaved
     # data_path = '/home/ykarnati/Downloads/datasets/energon_datasets/obelics/stage4/no-partial/' # interleaved
@@ -63,12 +64,10 @@ if __name__ == "__main__":
     strategy = nl.MegatronStrategy(tensor_model_parallel_size=1)
 
     checkpoint_callback = nl.ModelCheckpoint(
-        save_best_model=True,
         save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
         every_n_train_steps=10,
-        enable_nemo_ckpt_io=False,
         dirpath=log_dir,
     )
 
@@ -89,6 +88,6 @@ if __name__ == "__main__":
         resume_if_exists=True,
     )
 
-    resume = nl.AutoResume(resume_if_exists=True, resume_ignore_no_checkpoint=True, dirpath=log_dir)
+    resume = nl.AutoResume(resume_if_exists=True, resume_ignore_no_checkpoint=True, resume_from_directory=log_dir)
     resume.setup(trainer, model)
     trainer.fit(model, data)
