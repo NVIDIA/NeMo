@@ -37,6 +37,7 @@ DATA_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_te
 VOCAB_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json"
 MERGES_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt"
 
+
 def load_dcp(ckpt_dir, torch_tensor=True):
     from pathlib import Path
 
