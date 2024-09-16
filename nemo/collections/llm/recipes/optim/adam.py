@@ -41,8 +41,6 @@ def distributed_fused_adam_with_cosine_annealing(
         adam_beta2=0.95,
         adam_eps=1e-5,
         use_distributed_optimizer=True,
-        overlap_grad_reduce=True,
-        overlap_param_gather=True,
         clip_grad=clip_grad,
     )
 
