@@ -1,7 +1,7 @@
-import pytest
 import math
 import random
 
+import pytest
 import torch
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.callbacks import Callback
