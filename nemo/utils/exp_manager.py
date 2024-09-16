@@ -569,7 +569,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         )
 
     # add loggers timing callbacks
-    if cfg.log_on_train_end or trainer.barebones:
+    if cfg.log_on_train_end:
         timing_callback = DeltaTimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
         trainer.callbacks.insert(0, timing_callback)
     elif cfg.log_step_timing:
