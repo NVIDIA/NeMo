@@ -23,8 +23,8 @@ from nemo.core.classes import ModelPT
 from nemo.utils.exp_manager import exp_manager
 
 try:
-    # `ptl_resiliency` is included in `gwe_resiliency_pkg` package
-    from ptl_resiliency import StragglerDetectionCallback
+    # `nvidia_resiliency_ext.ptl_resiliency` is included in `nvidia_resiliency_ext` package
+    from nvidia_resiliency_ext.ptl_resiliency import StragglerDetectionCallback
 
     HAVE_STRAGGLER_DET = True
 except (ImportError, ModuleNotFoundError):
@@ -123,7 +123,8 @@ class TestStragglerDetection:
                     "report_time_interval": 1.0,
                     "calc_relative_gpu_perf": True,
                     "calc_individual_gpu_perf": True,
-                    "num_gpu_perf_scores_to_log": 1,
+                    "num_gpu_perf_scores_to_print": 1,
+                    "enable_ptl_logging": True,
                 },
             },
         )

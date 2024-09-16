@@ -53,15 +53,15 @@ from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
 
 try:
-    # `ptl_resiliency` is included in `gwe_resiliency_pkg` package
-    from ptl_resiliency import StragglerDetectionCallback
+    # `ptl_resiliency` is included in `nvidia_resiliency_ext` package
+    from nvidia_resiliency_ext.ptl_resiliency import StragglerDetectionCallback
 
     HAVE_STRAGGLER_DET = True
 except (ImportError, ModuleNotFoundError):
     HAVE_STRAGGLER_DET = False
 
 try:
-    from ptl_resiliency import FaultToleranceCallback
+    from nvidia_resiliency_ext.ptl_resiliency import FaultToleranceCallback
 
     HAVE_FT = True
 except (ImportError, ModuleNotFoundError):
@@ -150,10 +150,11 @@ class StragglerDetectionParams:
     report_time_interval: float = 300
     calc_relative_gpu_perf: bool = True
     calc_individual_gpu_perf: bool = True
-    num_gpu_perf_scores_to_log: int = 5
+    num_gpu_perf_scores_to_print: int = 5
     gpu_relative_perf_threshold: float = 0.7
     gpu_individual_perf_threshold: float = 0.7
     stop_if_detected: bool = False
+    enable_ptl_logging: bool = True
 
 
 @dataclass

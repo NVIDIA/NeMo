@@ -19,7 +19,7 @@ import pytorch_lightning as pl
 from nemo.utils.exp_manager import exp_manager
 
 try:
-    from ptl_resiliency import FaultToleranceCallback
+    from nvidia_resiliency_ext.ptl_resiliency import FaultToleranceCallback
 
     HAVE_FT = True
 except (ImportError, ModuleNotFoundError):
