@@ -380,7 +380,7 @@ class TensorRTLLM(ITritonDeployable):
 
                     trtllm_model_weights_list, trtllm_model_config_list = (
                         trtllm_helper.get_trtllm_pretrained_config_and_model_weights(
-                            model_state_dict=model, export_config=export_config, dtype=input_dtype, num_process=1
+                            model_state_dict=model, export_config=export_config, dtype=input_dtype, num_process=1, state_dict_split_by_layer_numbers=False
                         )
                     )
 
