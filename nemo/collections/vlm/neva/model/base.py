@@ -620,7 +620,6 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
         self,
         config: NevaConfig,
-        # TODO: Add transformer_layer_spec when we update mcore
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,

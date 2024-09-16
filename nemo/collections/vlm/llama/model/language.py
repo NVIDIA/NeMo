@@ -15,7 +15,7 @@
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, Optional, List, Literal, Union
+from typing import TYPE_CHECKING, Annotated, Callable, Optional, List, Tuple, Literal, Union
 
 import torch
 from megatron.core import InferenceParams, parallel_state, tensor_parallel

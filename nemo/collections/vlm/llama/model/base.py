@@ -107,21 +107,68 @@ class CrossAttentionVisionModelConfig(TransformerConfig, io.IOMixin):
     vision_chunk_size: int = -1  # image resolution for image models
     vision_max_num_chunks: int = 4
     num_global_layers: int = 8
+    gated: bool = False
 
     def configure_model(self) -> "CrossAttentionVisionModel":
         return CrossAttentionVisionModel(
             self,
         )
 
+from nemo.collections.vlm.llama.model.language import CrossAttentionTextModel
+from megatron.core.transformer.spec_utils import ModuleSpec
+from nemo.lightning import get_vocab_size
+from nemo.collections.llm.gpt.model.llama import Llama3Config
 
 @dataclass
-class CrossAttentionTextModelConfig(TransformerConfig, io.IOMixin):
+class CrossAttentionTextModelConfig(Llama3Config):
+    num_cross_attention_layers: int = 8
 
-    def configure_model(self) -> "CrossAttentionTextModel":
-        return CrossAttentionVisionModel(
+    def _init_fusion_schedule(self, num_layers: int) -> List[int]:
+        llama_layers = list(range(self.num_layers))
+        # uniformly spread the layers
+        k = math.ceil(len(llama_layers) / num_layers)
+        return llama_layers[::-1][::k][:num_layers][::-1]
+
+    def configure_model(self, tokenizer):
+        self.fusion_schedule = self._init_fusion_schedule(self.num_cross_attention_layers)
+        vp_size = self.virtual_pipeline_model_parallel_size
+        if vp_size:
+            p_size = self.pipeline_model_parallel_size
+            assert (
+                           self.num_layers // p_size
+                   ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
+
+        from megatron.core import parallel_state
+
+        transformer_layer_spec = self.transformer_layer_spec
+        if not isinstance(transformer_layer_spec, ModuleSpec):
+            transformer_layer_spec = transformer_layer_spec(self)
+
+        if hasattr(self, 'vocab_size'):
+            vocab_size = self.vocab_size
+            logging.info(
+                f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
+                f" {vocab_size - tokenizer.vocab_size}."
+            )
+        else:
+            vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
+
+        model = CrossAttentionTextModel(
             self,
+            transformer_layer_spec=transformer_layer_spec,
+            vocab_size=vocab_size,
+            max_sequence_length=self.seq_length,
+            fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
+            parallel_output=self.parallel_output,
+            share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
+            position_embedding_type=self.position_embedding_type,
+            rotary_percent=self.rotary_percent,
+            rotary_base=self.rotary_base,
+            seq_len_interpolation_factor=self.seq_len_interpolation_factor,
+            pre_process=parallel_state.is_pipeline_first_stage(),
+            post_process=parallel_state.is_pipeline_last_stage(),
         )
-
+        return model
 
 @dataclass
 class LlamaCrossAttentionModelConfig(TransformerConfig, io.IOMixin):
@@ -132,7 +179,7 @@ class LlamaCrossAttentionModelConfig(TransformerConfig, io.IOMixin):
     num_layers: int = 1  # Placeholder, NOT used!
     num_attention_heads: int = 8  # Placeholder, NOT used!
 
-    language_model_from_pretrained: Optional[str] = None
+    language_model_from_pretrained: Optional[str] = None  # TODO
     vision_model_from_pretrained: Optional[str] = None  # TODO
 
     forward_step_fn: Callable = llama_forward_step
@@ -151,11 +198,11 @@ class LlamaCrossAttentionModelConfig(TransformerConfig, io.IOMixin):
         ]
 
         for attr in model_config_attr:
-            setattr(self, attr, getattr(self.language_transformer_config, attr))
+            setattr(self, attr, getattr(self.language_model_config, attr))
 
     def configure_model(self, tokenizer) -> "MCoreLlamaCrossAttentionModel":
-        language_model = self.language_transformer_config.configure_model(tokenizer=tokenizer)
-        vision_model = self.vision_transformer_config.configure_model()
+        language_model = self.language_model_config.configure_model(tokenizer=tokenizer)
+        vision_model = self.vision_model_config.configure_model()
 
         if self.language_model_from_pretrained is not None:
             sharded_state_dict = dict(state_dict=language_model.sharded_state_dict(prefix="module."))
@@ -240,12 +287,13 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
         self.language_model = language_model
         self.model_type = ModelType.encoder_or_decoder
 
-        self.image_res = config.vision_chunk_size
-        self.max_num_chunks = config.vision_max_num_chunks
+        self.image_res = config.vision_model_config.vision_chunk_size
+        self.max_num_chunks = config.vision_model_config.vision_max_num_chunks
         self.image_transform = partial(
-            VariableSizeImageTransform(size=config.vision_chunk_size),
-            max_num_chunks=config.vision_max_num_chunks,
+            VariableSizeImageTransform(size=self.image_res),
+            max_num_chunks=self.max_num_chunks,
         )
+        import pdb; pdb.set_trace()
 
     def setup_cache(self, max_batch_size: int, dtype: torch.dtype):
         self.language_model.setup_cache(max_batch_size, dtype)
@@ -361,8 +409,7 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
 class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
             self,
-            config: LlamaCrossAttentionConfig,
-            # TODO: Add transformer_layer_spec when we update mcore
+            config: LlamaCrossAttentionModelConfig,
             optim: Optional[OptimizerModule] = None,
             tokenizer: Optional["TokenizerSpec"] = None,
             model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
@@ -440,7 +487,7 @@ class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin,
 
 __all__ = [
     "LlamaCrossAttentionModel",
-    "LlamaCrossAttentionConfig",
+    "LlamaCrossAttentionModelConfig",
     "llama_data_step",
     "llama_forward_step",
     "transformer_engine_layer_spec",
