@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import math
 from functools import lru_cache
 from pathlib import Path
@@ -49,15 +63,13 @@ class FineTuningDataModule(pl.LightningDataModule):
         num_workers: int = 8,
         pin_memory: bool = True,
         persistent_workers: bool = False,
+        pad_to_max_length: bool = False,
     ):
         super().__init__()
         self.seq_length = seq_length
         self.seed = seed
         self.dataset_root = Path(dataset_root)
-
-        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-
-        self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
+        self.tokenizer = tokenizer
         self.memmap_workers = memmap_workers
         self.num_workers = num_workers
         self.pin_memory = pin_memory
@@ -67,6 +79,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.rampup_batch_size = rampup_batch_size
         self.data_sampler = None
         self.max_train_samples = None
+        self.pad_to_max_length = pad_to_max_length
 
     def setup(self, stage: str):
         self.data_sampler = MegatronDataSampler(
@@ -86,6 +99,7 @@ class FineTuningDataModule(pl.LightningDataModule):
             self._create_dataset(
                 str(self.train_path),
                 max_num_samples=self.max_train_samples,
+                pad_to_max_length=self.pad_to_max_length,
             )
         )
 
@@ -94,6 +108,7 @@ class FineTuningDataModule(pl.LightningDataModule):
             self._create_dataset(
                 str(self.validation_path),
                 is_test=True,
+                pad_to_max_length=self.pad_to_max_length,
             ),
         )
 
@@ -103,6 +118,7 @@ class FineTuningDataModule(pl.LightningDataModule):
                 str(self.test_path),
                 tokens_to_generate=32,
                 is_test=True,
+                pad_to_max_length=self.pad_to_max_length,
             )
         )
 

@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional, Union
@@ -28,7 +42,6 @@ class MixtralConfig(GPTConfig):
     position_embedding_type: str = "rope"
     add_bias_linear: bool = False
     gated_linear_unit: bool = True
-    apply_query_key_layer_scaling: bool = False
 
     num_layers: int = 32
     hidden_size: int = 4096
@@ -43,8 +56,11 @@ class MixtralConfig(GPTConfig):
 
     # MoE
     num_moe_experts: int = 8
-    moe_router_topk: int = 1
+    moe_aux_loss_coeff: float = 0.01
+    moe_router_topk: int = 2
     moe_router_pre_softmax: bool = True
+    moe_token_dispatcher_type: str = "alltoall"
+    moe_router_load_balancing_type: str = 'aux_loss'
 
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
@@ -87,7 +103,7 @@ class MixtralConfig8x7B(MixtralConfig):
 @dataclass
 class MixtralConfig8x22B(MixtralConfig):
     """
-    Config for Mixtral-8x7B model
+    Config for Mixtral-8x22B model
     Official announcement: https://mistral.ai/news/mixtral-8x22b/
     """
 
@@ -97,9 +113,6 @@ class MixtralConfig8x22B(MixtralConfig):
     ffn_hidden_size: int = 16384
     max_position_embeddings: int = 4096
     seq_length: int = 4096
-    # MoE
-    num_moe_experts: int = 8
-    moe_router_topk: int = 2
 
 
 class MixtralModel(GPTModel):
@@ -154,7 +167,7 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
-        return AutoTokenizer(str(self))
+        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> MixtralConfig8x7B | MixtralConfig8x22B:
