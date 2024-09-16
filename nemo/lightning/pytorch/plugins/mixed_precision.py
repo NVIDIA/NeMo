@@ -99,12 +99,10 @@ class MegatronMixedPrecision(Precision):
 
         fp8_param_gather = False
         if fp8 is not None:
-            _, HAVE_TE = safe_import("transformer_engine")
+            te_fp8, HAVE_TE = safe_import("transformer_engine.pytorch.fp8")
             assert HAVE_TE, "FP8 precision requires transformer engine."
             if fp8_params:
-                from transformer_engine.pytorch.fp8 import FP8GlobalStateManager
-
-                FP8GlobalStateManager.FP8_PARAMETERS = True
+                te_fp8.FP8GlobalStateManager.FP8_PARAMETERS = True
                 fp8_param_gather = True
 
         dtype = torch.bfloat16 if precision in ['bf16', 'bf16-mixed'] else torch.float32
