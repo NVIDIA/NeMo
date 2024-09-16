@@ -82,9 +82,13 @@ class MLMLoss(Loss):
 
 
 class MultiMLMLoss(Loss):
+    """
+    Masked language model loss for multiple decoders, where cross-entropy loss is applied separately on each decoder.
+    This loss can be used with `nemo.collections.asr.modules.ssl_modules.MultiSoftmaxDecoder` to train a model with multiple targets per frame.
+    """
+
     @property
     def input_types(self):
-        """Input types definitions for Contrastive."""
         if self.squeeze_single and self.num_decoders == 1:
             decoder_outputs = NeuralType(("B", "T", "C"), LogprobsType())
             targets = NeuralType(('B', 'T'), LabelsType())

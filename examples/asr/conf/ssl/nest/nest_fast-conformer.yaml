@@ -13,7 +13,7 @@
 #  +--------------+---------+--------+-----------+----------------+--------------+------------+
 #  | XLarge (616M)|   1024  |    8   |    24     |        9       |     1e-3     |    False   |
 #  +--------------+---------+--------+-----------+----------------+--------------+------------+
-#  | XXLarge(1.2B)|   1024  |    8   |    42     |        5       |     1e-3     |    False   |
+#  | XXLarge(1.2B)|   1024  |    8   |    42     |        9       |     1e-3     |    False   |
 #  +--------------------------------------------------------------+--------------+------------+ 
 
 
@@ -41,6 +41,8 @@ model:
     min_duration: 1.0
     drop_last: true
     is_concat: false
+    concat_sampling_technique: temperature
+    concat_sampling_temperature: 1.0 
     # tarred datasets
     is_tarred: false
     tarred_audio_filepaths: null

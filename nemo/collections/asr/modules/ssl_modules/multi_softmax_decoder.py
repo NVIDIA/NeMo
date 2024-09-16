@@ -23,6 +23,12 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, LogprobsType, 
 
 
 class MultiSoftmaxDecoder(NeuralModule):
+    """
+    A linear decoder that takes encoder output and produces log probabilities, which also handles the
+    case where each frame has multiple output targets. This can be used together with
+    `nemo.collections.asr.losses.ssl_losses.MultiMLMLoss` to train a model with multiple targets per frame.
+    """
+
     @property
     def input_types(self):
         return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
@@ -39,7 +45,7 @@ class MultiSoftmaxDecoder(NeuralModule):
         num_classes: int,
         num_decoders: int = 1,
         init_mode: str = "xavier_uniform",
-        use_bias: bool = True,
+        use_bias: bool = False,
         squeeze_single: bool = False,
     ) -> None:
         """

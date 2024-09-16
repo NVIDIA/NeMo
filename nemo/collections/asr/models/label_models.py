@@ -243,7 +243,11 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
                 logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
                 return None
 
-            data_cls = AudioPairToLabelDataset if config.get("is_audio_pair", False) else AudioToSpeechLabelDataset
+            if config.get("is_audio_pair", False):
+                data_cls = AudioPairToLabelDataset
+                logging.warning("Using AudioPairToLabelDataset, where Angular loss will not be computed.")
+            else:
+                data_cls = AudioToSpeechLabelDataset
 
             dataset = data_cls(
                 manifest_filepath=config['manifest_filepath'],

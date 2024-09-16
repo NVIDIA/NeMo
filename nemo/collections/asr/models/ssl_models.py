@@ -746,15 +746,15 @@ class EncDecMaskedTokenPredModel(SpeechEncDecSelfSupervisedModel):
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    def inference_pass(self, batch, batch_idx, dataloader_idx=0, mode='val'):
+    def inference_pass(self, batch, batch_idx, dataloader_idx=0, mode='val', apply_mask=False):
         input_signal, input_signal_length, _, _ = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             log_probs, encoded_len, masks, tokens = self.forward(
-                processed_signal=input_signal, processed_signal_length=input_signal_length, apply_mask=True
+                processed_signal=input_signal, processed_signal_length=input_signal_length, apply_mask=apply_mask
             )
         else:
             log_probs, encoded_len, masks, tokens = self.forward(
-                input_signal=input_signal, input_signal_length=input_signal_length, apply_mask=True
+                input_signal=input_signal, input_signal_length=input_signal_length, apply_mask=apply_mask
             )
 
         loss_value = self.loss(masks=masks, decoder_outputs=log_probs, targets=tokens, decoder_lengths=encoded_len)
@@ -762,7 +762,7 @@ class EncDecMaskedTokenPredModel(SpeechEncDecSelfSupervisedModel):
         return {f'{mode}_loss': loss_value}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        metrics = self.inference_pass(batch, batch_idx, dataloader_idx)
+        metrics = self.inference_pass(batch, batch_idx, dataloader_idx, apply_mask=True)
         if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
             self.validation_step_outputs[dataloader_idx].append(metrics)
         else:
@@ -770,7 +770,7 @@ class EncDecMaskedTokenPredModel(SpeechEncDecSelfSupervisedModel):
         return metrics
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        metrics = self.inference_pass(batch, batch_idx, dataloader_idx, mode="test")
+        metrics = self.inference_pass(batch, batch_idx, dataloader_idx, mode="test", apply_mask=True)
         if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
             self.validation_step_outputs[dataloader_idx].append(metrics)
         else:
@@ -778,7 +778,6 @@ class EncDecMaskedTokenPredModel(SpeechEncDecSelfSupervisedModel):
         return metrics
 
     def multi_validation_epoch_end(self, outputs: list, dataloader_idx: int = 0):
-        # loss_list = [x['val_loss'] for x in outputs]
         loss_list = []
         for i, x in enumerate(outputs):
             if not isinstance(x, dict):

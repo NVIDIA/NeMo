@@ -1321,6 +1321,22 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
 
 
 class AudioPairToLabelDataset(AudioToSpeechLabelDataset):
+    """
+    Dataset class for audio pairs classification tasks, such as calculating EER for speaker verification.
+    The input manifest file should contain pairs of audio files and a label. It's format is almost the same as
+    `AudioToSpeechLabelDataset` except that the `audio_filepath` field should be a list of two audio file paths
+    instead of one, and that `offset` and `duration` are not used as the dataset class will load the whole audio.
+
+    Example of a line in the manifest file:
+    {
+        "audio_filepath": ["/path/to/audio_wav_0.wav", "/path/to/audio_wav_1.wav"],
+        "duration": null,  # not used, will load the whole audio
+        "offset": 0.0,  # not used, will load the whole audio
+        "label": "0"
+    }
+
+    """
+
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
