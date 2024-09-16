@@ -1,4 +1,19 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
+import os
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -10,11 +25,74 @@ from torch.utils import data
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
+from nemo.utils.import_utils import safe_import
+
+_, HAVE_TE = safe_import("transformer_engine")
 
 if TYPE_CHECKING:
     from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+
+
+def is_number_tryexcept(s):
+    """Returns True if string is a number."""
+    if s is None:
+        return False
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+
+def is_zipped_list(paths):
+    # ["30", "path/to/dataset_1_prefix", "70", "path/to/dataset_2_prefix"]
+    even = paths[::2]
+    if len(even) == 0:
+        return False
+    is_num = list(map(is_number_tryexcept, even))
+    if any(is_num):
+        assert all(is_num), "Got malformatted zipped list"
+    return is_num[0]
+
+
+def validate_dataset_asset_accessibility(paths):
+    if paths is None:
+        raise ValueError("Expected path to have a value.")
+
+    if isinstance(paths, tuple) or isinstance(paths, list):
+        if is_zipped_list(paths):
+            # remove weights from paths.
+            paths = paths[1::2]
+        for p in paths:
+            validate_dataset_asset_accessibility(p)
+        return
+    elif isinstance(paths, dict):
+        for p in paths.values():
+            validate_dataset_asset_accessibility(p)
+        return
+
+    if not isinstance(paths, str) and not isisntance(paths, Path):
+        raise ValueError("Expected path to be of string or Path type.")
+
+    path = Path(paths)
+    suffices = ('.bin', '.idx')
+    if path.is_dir():
+        if not os.access(path, os.R_OK):
+            raise PermissionError(f"Expected {str(path)} to be readable.")
+        # Will let the downstream class confirm contents are ok.
+        return
+    if path.exists():
+        if not os.access(path, os.R_OK):
+            raise PermissionError(f"Expected {str(path)} to be readable.")
+        return
+    for suffix in suffices:
+        file_path = Path(str(path) + suffix)
+        if not file_path.exists():
+            raise FileNotFoundError(f"Expected {str(file_path)} to exist.")
+        if not os.access(file_path, os.R_OK):
+            raise PermissionError(f"Expected {str(file_path)} to be readable.")
 
 
 class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
@@ -54,6 +132,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         split (str): A string of 3 comma-separated integers denoting how much of the distribution
             to allocate to train, validation, and test sets, respectively. Unused if ``paths`` is a dict.
         index_mapping_dir (Optional[str]): Path to a directory to write index mapping files.
+        num_dataset_builder_threads (int): The number of threads to use for dataset building.
     """
 
     def __init__(
@@ -68,17 +147,21 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         pin_memory: bool = True,
         persistent_workers: bool = False,
         reset_position_ids: bool = False,
+        create_attention_mask: bool = False,
         reset_attention_mask: bool = False,
         eod_mask_loss: bool = False,
         seed: int = 1234,
         split: str = "900,50,50",
         index_mapping_dir: Optional[str] = None,
+        num_dataset_builder_threads: int = 1,
     ) -> None:
         super().__init__()
         if not isinstance(paths, (list, tuple, dict)):
             paths = [paths]
 
         from megatron.core.datasets.utils import get_blend_from_list
+
+        validate_dataset_asset_accessibility(paths)
 
         build_kwargs = {}
         if isinstance(paths, dict):
@@ -105,11 +188,13 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
         self.reset_position_ids = reset_position_ids
+        self.create_attention_mask = create_attention_mask or not HAVE_TE
         self.reset_attention_mask = reset_attention_mask
         self.eod_mask_loss = eod_mask_loss
         self.seed = seed
         self.split = split
         self.index_mapping_dir = index_mapping_dir
+        self.num_dataset_builder_threads = num_dataset_builder_threads
         self.init_global_step = 0
 
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
@@ -139,7 +224,11 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         num_val_samples = int(eval_iters * self.data_sampler.global_batch_size)
         num_test_samples = int(test_iters * self.data_sampler.global_batch_size)
 
-        if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
+        if (
+            self.trainer.limit_val_batches > 0.0
+            and self.trainer.limit_val_batches <= 1.0
+            and isinstance(self.trainer.limit_val_batches, float)
+        ):
             assert "blend" not in self.build_kwargs, (
                 "When using a single data distribution, limit_val_batches <= 1.0 is not supported. If you'd "
                 "like to run with a fractional value of limit_val_batches, please pass in separate datasets for "
@@ -212,8 +301,10 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             tokenizer=self.tokenizer,
             path_to_cache=self.index_mapping_dir,
             reset_position_ids=self.reset_position_ids,
+            create_attention_mask=self.create_attention_mask,
             reset_attention_mask=self.reset_attention_mask,
             eod_mask_loss=self.eod_mask_loss,
+            num_dataset_builder_threads=self.num_dataset_builder_threads,
             **self.build_kwargs,
         )
 

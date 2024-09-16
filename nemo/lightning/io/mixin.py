@@ -22,8 +22,9 @@ from nemo.lightning.io.artifact.base import Artifact
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.connector import ModelConnector
 from nemo.lightning.io.fdl_torch import enable as _enable_ext
+from nemo.utils import logging
 
-ConnT = TypeVar('ConnT', bound=ModelConnector)
+ConnT = TypeVar("ConnT", bound=ModelConnector)
 CkptType = TypeVar("CkptType")
 _enable_ext()
 
@@ -140,7 +141,7 @@ class IOMixin:
                            will be stored.
         """
         output_path = Path(output)
-        local_artifacts_dir = "artifacts"
+        local_artifacts_dir = "."
         artifacts_dir = output_path / local_artifacts_dir
         artifacts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -280,7 +281,7 @@ class ConnectorMixin:
         """
         return cls._get_connector(ext, path, importer=False)
 
-    def import_ckpt(self, path: str, overwrite: bool = False, base_path: Optional[Path] = None) -> Path:
+    def import_ckpt(self, path: str, overwrite: bool = False, base_path: Optional[Path] = None, **kwargs) -> Path:
         """
         Imports a checkpoint from a specified path, potentially overwriting existing files.
 
@@ -298,19 +299,14 @@ class ConnectorMixin:
         ------
             FileNotFoundError: If the checkpoint file does not exist at the specified path.
         """
-        connector = self._get_connector(path)
+        connector = self._get_connector(path, **kwargs)
         ckpt_path: Path = connector.local_path(base_path=base_path)
-        # If already in multiproc environment (e.g. due to torchrun invocation) run only on RANK = 0
-        from nemo.utils.get_rank import is_global_rank_zero
-
-        if is_global_rank_zero():
-            ckpt_path = connector(ckpt_path, overwrite=overwrite)
-            connector.on_import_ckpt(self)
-
+        ckpt_path = connector(ckpt_path, overwrite=overwrite)
+        connector.on_import_ckpt(self)
         return ckpt_path
 
     @classmethod
-    def _get_connector(cls, ext, path=None, importer=True) -> ModelConnector:
+    def _get_connector(cls, ext, path=None, importer=True, **kwargs) -> ModelConnector:
         """
         Retrieves the appropriate model connector based on the file extension and path,
         distinguishing between importers and exporters.
@@ -345,7 +341,7 @@ class ConnectorMixin:
 
             return connector()
 
-        return connector(_path)
+        return connector(_path, **kwargs)
 
 
 def track_io(target, artifacts: Optional[List[Artifact]] = None):
@@ -366,7 +362,7 @@ def track_io(target, artifacts: Optional[List[Artifact]] = None):
     """
 
     def _add_io_to_class(cls):
-        if inspect.isclass(cls) and hasattr(cls, '__init__') and not hasattr(cls, '__io__'):
+        if inspect.isclass(cls) and hasattr(cls, "__init__") and not hasattr(cls, "__io__"):
             if cls in [str, int, float, tuple, list, dict, bool, type(None)]:
                 return cls
 
@@ -502,7 +498,6 @@ def _io_flatten_object(instance):
 
 
 def _io_unflatten_object(values, metadata):
-
     assert hasattr(_thread_local, "output_dir")
     output_dir = _thread_local.output_dir
 
@@ -517,14 +512,17 @@ def _io_unflatten_object(values, metadata):
 def _io_path_elements_fn(x):
     try:
         serialization.dump_json(x.__io__)
-    except (serialization.UnserializableValueError, AttributeError) as e:
+    except (serialization.UnserializableValueError, AttributeError):
         return (serialization.IdentityElement(),)
 
     return x.__io__.__path_elements__()
 
 
-def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: Path = "artifacts"):
+def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: Path = "."):
     for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
+        # Allow optional artifacts
+        if artifact.skip:
+            continue
         current_val = getattr(cfg, artifact.attr)
         if current_val is None:
             if artifact.required:
@@ -544,7 +542,12 @@ def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: P
 
 def _artifact_transform_load(cfg: fdl.Config, path: Path):
     for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
+        if artifact.skip:
+            continue
         current_val = getattr(cfg, artifact.attr)
+        # __init__ arguments can be None
+        if current_val is None:
+            continue
         ## replace local path with absolute one
         new_val = str(Path(path) / current_val)
         setattr(cfg, artifact.attr, new_val)
@@ -557,13 +560,14 @@ def _artifact_transform_load(cfg: fdl.Config, path: Path):
             pass
 
 
-def load(path: Path, output_type: Type[CkptType] = Any) -> CkptType:
+def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] = None) -> CkptType:
     """
     Loads a configuration from a pickle file and constructs an object of the specified type.
 
     Args:
         path (Path): The path to the pickle file or directory containing 'io.pkl'.
         output_type (Type[CkptType]): The type of the object to be constructed from the loaded data.
+        subpath (Optional[str]): Subpath to selectively load only specific objects inside the output_type. Defaults to None.
 
     Returns
     -------
@@ -576,29 +580,48 @@ def load(path: Path, output_type: Type[CkptType] = Any) -> CkptType:
     Example:
         loaded_model = load("/path/to/model", output_type=MyModel)
     """
-    del output_type  # Just for type-hint
-
     _path = Path(path)
     _thread_local.output_dir = _path
 
-    if hasattr(_path, 'is_dir') and _path.is_dir():
+    if hasattr(_path, "is_dir") and _path.is_dir():
         _path = Path(_path) / "io.json"
-    elif hasattr(_path, 'isdir') and _path.isdir:
+    elif hasattr(_path, "isdir") and _path.isdir:
         _path = Path(_path) / "io.json"
 
     if not _path.is_file():
         raise FileNotFoundError(f"No such file: '{_path}'")
 
+    if subpath:
+        subpath = "<root>." + subpath
+
     ## add IO functionality to custom objects present in the json file
     with open(_path) as f:
         j = json.load(f)
-        for obj, val in j["objects"].items():
-            clss = ".".join([val["type"]["module"], val["type"]["name"]])
-            if not serialization.find_node_traverser(locate(clss)):
-                track_io(locate(clss))
+    for obj, val in j.get("objects", {}).items():
+        clss = ".".join([val["type"]["module"], val["type"]["name"]])
+        if subpath and "paths" in val:
+            if all(map(lambda p: subpath not in p, val["paths"])):
+                continue
+
+        if not serialization.find_node_traverser(locate(clss)):
+            track_io(locate(clss))
 
     with open(_path, "rb") as f:
-        config = serialization.load_json(f.read())
-        _artifact_transform_load(config, path)
+        json_config = json.loads(f.read())
+
+    root_key = None
+    for obj, val in json_config.get("objects", {}).items():
+        if "paths" in val and subpath in val["paths"]:
+            root_key = obj
+            break
+
+    if subpath and not root_key:
+        logging.warning(f"Could not find {subpath} for {output_type} in {_path}")
+
+    if root_key:
+        json_config["root"]["key"] = root_key
+
+    config = serialization.Deserialization(json_config).result
+    _artifact_transform_load(config, path)
 
     return fdl.build(config)

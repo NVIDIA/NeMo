@@ -302,7 +302,7 @@ class FabricMegatronStrategy(DDPStrategy):
         def monkey_patched(config):
             return {"device": "meta"}
 
-        from megatron.core.transformer.custom_layers import transformer_engine as _te
+        from megatron.core.extensions import transformer_engine as _te
 
         original = _te._get_extra_te_kwargs  # noqa: SLF001
         _te._get_extra_te_kwargs = monkey_patched  # noqa: SLF001
@@ -326,7 +326,7 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @property
     def parallelism(self):
-        from nemo.lightning.pytorch.strategies import ParallelismConfig
+        from nemo.lightning.pytorch.strategies.megatron_strategy import ParallelismConfig
 
         return ParallelismConfig(
             tensor_model_parallel_size=self.tensor_model_parallel_size,
