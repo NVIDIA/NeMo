@@ -80,8 +80,6 @@ def get_optim() -> run.Config[OptimizerConfig]:
         "bf16": True,
         "adam_beta1": 0.9,
         "adam_beta2": 0.95,
-        "overlap_grad_reduce": True,
-        "overlap_param_gather": True,
         "clip_grad": 1.0,
         "adam_eps": 1e-5,
     }
@@ -120,7 +118,7 @@ def get_logger() -> run.Config[nl.NeMoLogger]:
         ckpt=ckpt,
         tensorboard=tb_logger,
         wandb=None,
-        dir="/",
+        log_dir="/",
     )
 
 
