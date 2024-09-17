@@ -1375,7 +1375,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 batch = batch[0]
             extra_arg = {}
             if len(batch) == 3:
-                batch = [x.cuda() for x in batch]
+                # Handles cases like position_ids being None, which is allowed
+                batch = [x.cuda() if x is not None else x for x in batch]
                 tokens, attention_mask, position_ids = batch
                 attention_mask = attention_mask[0:1]
             else:
