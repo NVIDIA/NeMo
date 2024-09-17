@@ -20,7 +20,6 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
@@ -144,7 +143,9 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
-        return AutoTokenizer(str(self))
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> Starcoder2Config:
