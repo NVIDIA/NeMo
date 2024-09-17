@@ -324,23 +324,36 @@ model:
             s2s: True
           input_cfg:
             - type: lhotse_shar
-              shar_path: /workspace/data/s2s_shars/es_validation/
+              shar_path: /workspace/data/s2s_shars/es_validation/ # ST
               weight: 1.0
               tags:
                 lang: en
                 s2s: True
             - type: lhotse_shar
-              shar_path: /workspace/data/s2s_shars/msmacro/
+              shar_path: /workspace/data/s2s_shars/msmacro/ # text SQA
               weight: 1.0
               tags:
                 lang: en
                 s2s: True
             - type: lhotse_shar
-              shar_path: /workspace/data/s2s_shars/alpaca/
+              shar_path: /workspace/data/s2s_shars/alpaca/ # text SQA
               weight: 1.0
               tags:
                 lang: en
                 s2s: True
+            - type: lhotse_shar
+              shar_path: /workspace/data/s2s_shars/squadv2/ # speech SQA
+              weight: 0.1
+              tags:
+                lang: en
+                s2s: True
+            - type: lhotse_shar
+              shar_path: /workspace/data/s2s_shars/msmacro_speech_instruct/ # speech SQA
+              weight: 0.9
+              tags:
+                lang: en
+                s2s: True
+          
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False
