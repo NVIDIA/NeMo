@@ -18,9 +18,8 @@ import torch
 from einops import rearrange
 from megatron.energon import InterleavedSample, SimilarityInterleavedSample, VQASample
 
-from nemo.utils import logging
-
 from nemo.collections.multimodal.data.energon.config import ImageTextSample, MultiModalSampleConfig
+from nemo.utils import logging
 
 
 class SampleEncoder(ABC):
