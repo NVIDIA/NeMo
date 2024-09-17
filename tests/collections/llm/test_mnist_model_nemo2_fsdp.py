@@ -519,20 +519,19 @@ def run_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
             # Configure our custom Checkpointer
             name = "test_experiment"
             checkpoint_callback = nl_callbacks.ModelCheckpoint(
-                save_best_model=True,
                 save_last=True,
                 monitor="val_loss",
                 save_top_k=1,
                 every_n_train_steps=5,
                 # Enables the .nemo file-like checkpointing where all IOMixins are under SerDe
-                enable_nemo_ckpt_io=True,
+                always_save_context=True,
             )
             root_dir = tmpdir
             save_dir = root_dir / name
             tb_logger = TensorBoardLogger(save_dir=str(save_dir), name=name)
             # Setup the logger and train the model
             nemo_logger = NeMoLogger(
-                dir=str(root_dir),  # WARNING: passing a path in here results in mutating the Path class.
+                log_dir=str(root_dir),  # WARNING: passing a path in here results in mutating the Path class.
                 name=name,
                 tensorboard=tb_logger,
                 ckpt=checkpoint_callback,
@@ -583,6 +582,9 @@ def run_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
             ckpt_path = checkpoint_callback.last_model_path.replace(
                 ".ckpt", ""
             )  # strip .ckpt off the end of the last path
+            ckpt_path = (
+                Path(ckpt_path) / "weights"
+            )  ## weights are saved to the "weights" directory within the checkpoint
 
             assert Path(
                 ckpt_path

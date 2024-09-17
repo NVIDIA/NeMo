@@ -28,12 +28,18 @@ from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import
 
-HAVE_TE = True
+_, HAVE_TE = safe_import("transformer_engine")
+
+# Gradient accumulation fusion may be enabled if available, for more information see:
+# https://github.com/NVIDIA/Megatron-LM/blob/01945b98d1ea3a2acb5e8301e181a328104f4856/megatron/core/tensor_parallel/layers.py#L575
+# TODO: Clean this up with a getter and install instructions
+_grad_accum_fusion_available = True
 try:
-    import transformer_engine
-except (ImportError, ModuleNotFoundError):
-    HAVE_TE = False
+    import fused_weight_gradient_mlp_cuda
+except ImportError:
+    _grad_accum_fusion_available = False
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
@@ -127,6 +133,8 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     seq_length: int = 1024
     attention_softmax_in_fp32: bool = False
     masked_softmax_fusion: bool = True
+    cross_entropy_loss_fusion: bool = True
+    gradient_accumulation_fusion: bool = _grad_accum_fusion_available
     deallocate_pipeline_outputs = True
 
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
@@ -172,6 +180,60 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
         )
+
+
+@dataclass
+class GPTConfig126M(GPTConfig):
+    seq_length: int = 2048
+    num_layers: int = 12
+    hidden_size: int = 768
+    ffn_hidden_size: int = 3072
+    num_attention_heads: int = 12
+
+
+@dataclass
+class GPTConfig5B(GPTConfig):
+    seq_length: int = 2048
+    num_layers: int = 24
+    hidden_size: int = 4096
+    ffn_hidden_size: int = 16384
+    num_attention_heads: int = 32
+
+
+@dataclass
+class GPTConfig7B(GPTConfig):
+    seq_length: int = 2048
+    num_layers: int = 32
+    hidden_size: int = 4096
+    ffn_hidden_size: int = 10880
+    num_attention_heads: int = 32
+
+
+@dataclass
+class GPTConfig20B(GPTConfig):
+    seq_length: int = 2048
+    num_layers: int = 44
+    hidden_size: int = 6144
+    ffn_hidden_size: int = 24576
+    num_attention_heads: int = 48
+
+
+@dataclass
+class GPTConfig40B(GPTConfig):
+    seq_length: int = 2048
+    num_layers: int = 48
+    hidden_size: int = 8192
+    ffn_hidden_size: int = 32768
+    num_attention_heads: int = 64
+
+
+@dataclass
+class GPTConfig175B(GPTConfig):
+    seq_length: int = 2048
+    num_layers: int = 96
+    hidden_size: int = 12288
+    ffn_hidden_size: int = 49152
+    num_attention_heads: int = 96
 
 
 class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
