@@ -35,7 +35,7 @@ Initializing this checkpoint_io requires the dirpath be an S3 dirpath.
 .. code-block:: bash
     
     checkpoint_callback_params:
-    dirpath: s3://mstar-eks-dev-us-east-2/alxzhang/nemo123/1n/checkpoints
+    dirpath: s3://\<bucket\>/\<path\>
     
     ...
 
