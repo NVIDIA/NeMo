@@ -26,10 +26,13 @@ from megatron.energon import (
     batch_pad_stack,
 )
 
-from nemo.utils import logging
-
-from .config import ImageTextRawBatch, ImageTextSample
-from .sampleencoder import InterleavedSampleEncoder, SampleEncoder, SimilarityInterleavedEncoder, VQASampleEncoder
+from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, ImageTextSample
+from nemo.collections.multimodal.data.energon.sample_encoder import (
+    InterleavedSampleEncoder,
+    SampleEncoder,
+    SimilarityInterleavedEncoder,
+    VQASampleEncoder,
+)
 
 
 class MultiModalTaskEncoder(

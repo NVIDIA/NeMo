@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ from nemo.collections.multimodal.data.energon import (
     VQASampleEncoder,
 )
 from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch
-from nemo.collections.multimodal.data.energon.taskencoder import MultiModalTaskEncoder
+from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 
 
 class TestMultiModalTaskEncoder(unittest.TestCase):

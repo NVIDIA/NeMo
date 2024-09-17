@@ -18,7 +18,6 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import TestCase
 
 import numpy as np
 import webdataset as wds
@@ -29,7 +28,7 @@ from transformers import AutoProcessor
 from nemo.collections.multimodal.data.energon import ImageToken, MultiModalSampleConfig, SimpleMultiModalDataModule
 
 
-class TestSimpleMultiModalDataModuleWithDummyData(TestCase):
+class TestSimpleMultiModalDataModuleWithDummyData(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):

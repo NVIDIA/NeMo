@@ -20,7 +20,7 @@ from megatron.energon import InterleavedSample, SimilarityInterleavedSample, VQA
 
 from nemo.utils import logging
 
-from .config import ImageTextSample, MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.config import ImageTextSample, MultiModalSampleConfig
 
 
 class SampleEncoder(ABC):

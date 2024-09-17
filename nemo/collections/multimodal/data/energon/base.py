@@ -23,8 +23,8 @@ from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
-from .config import MultiModalSampleConfig
-from .taskencoder import MultiModalTaskEncoder
+from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec

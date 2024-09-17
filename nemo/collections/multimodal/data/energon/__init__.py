@@ -20,7 +20,7 @@ from nemo.collections.multimodal.data.energon.config import (
     ImageToken,
     MultiModalSampleConfig,
 )
-from nemo.collections.multimodal.data.energon.sampleencoder import (
+from nemo.collections.multimodal.data.energon.sample_encoder import (
     BaseSampleEncoder,
     InterleavedSampleEncoder,
     SimilarityInterleavedEncoder,
