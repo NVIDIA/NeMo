@@ -19,6 +19,7 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.vlm.neva.model.base import MultimodalProjectorConfig
 from nemo.collections.vlm import ImageDataConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -63,7 +64,7 @@ def main(args):
     from nemo.collections.vlm.llama.model.base import LlamaCrossAttentionModel, CrossAttentionVisionModelConfig, LlamaCrossAttentionModelConfig, CrossAttentionTextModelConfig
 
     vision_config = CrossAttentionVisionModelConfig(
-        num_layers=2, hidden_size=12, num_attention_heads=4
+        num_layers=32, hidden_size=1280, num_attention_heads=16, vision_chunk_size=448, vision_max_num_chunks=4,
     )
     text_config = CrossAttentionTextModelConfig(
         num_layers=2, hidden_size=12, num_attention_heads=4, num_query_groups=None,

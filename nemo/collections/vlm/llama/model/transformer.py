@@ -4,7 +4,7 @@
 # This source code is licensed under the terms described in the LICENSE file in
 # top-level folder for each specific model found within the models/ directory at
 # the top-level of this source tree.
-
+import copy
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # This software may be used and distributed according to the terms of the Llama 2 Community License Agreement.
 
@@ -417,10 +417,10 @@ class VisionEncoder(MegatronModule):
             post_process=self.post_process,
         )
         # pre and post tile position embedding
-        global_config = self.config
+        global_config = copy.deepcopy(self.config)
         global_config.num_layers = self.config.num_global_layers
         self.global_transformer = TransformerBlock(
-            config=self.config,
+            config=global_config,
             spec=get_image_transformer_layer_spec(),
             post_layer_norm=False,
             pre_process=self.pre_process,

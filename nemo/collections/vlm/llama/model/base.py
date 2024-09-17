@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import copy
 import math
 from dataclasses import dataclass
 from functools import partial
@@ -107,6 +107,7 @@ class CrossAttentionVisionModelConfig(TransformerConfig, io.IOMixin):
     vision_chunk_size: int = -1  # image resolution for image models
     vision_max_num_chunks: int = 4
     num_global_layers: int = 8
+    text_hidden_size: int = 4096
     gated: bool = False
 
     def configure_model(self) -> "CrossAttentionVisionModel":
@@ -251,9 +252,11 @@ class CrossAttentionVisionModel(MegatronModule):
             return_intermediate=return_intermediate,
         )
 
+        projection_config = copy.deepcopy(config)
+        projection_config.hidden_size = config.text_hidden_size
         affine_layer_spec = MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=None)
         self.vision_projection = MultimodalProjector(
-            config=config,
+            config=projection_config,
             submodules=affine_layer_spec,
             projector_type="affine",
             input_size=self.vision_input_dim,
@@ -273,6 +276,8 @@ class CrossAttentionVisionModel(MegatronModule):
         vision_tokens = gather_from_tensor_model_parallel_region(vision_tokens)
         return vision_tokens
 
+    def set_input_tensor(self, tensor):
+        pass
 
 
 class MCoreLlamaCrossAttentionModel(MegatronModule):
@@ -300,6 +305,8 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             VariableSizeImageTransform(size=self.image_res),
             max_num_chunks=self.max_num_chunks,
         )
+        print([(k,v.shape) for k,v in vision_model.state_dict().items() if "_extra" not in k])
+        exit(0)
         import pdb; pdb.set_trace()
 
     def setup_cache(self, max_batch_size: int, dtype: torch.dtype):
@@ -392,6 +399,9 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
 
         return (xattn_caches, cross_attention_masks, full_text_row_masked_out_mask)
 
+    def set_input_tensor(self, tensor):
+        pass
+
     def forward(
             self,
             position_ids: torch.Tensor,
@@ -441,23 +451,24 @@ class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin,
             total_len: int,
             tokens: torch.LongTensor,
             position_ids: torch.LongTensor,
-            xattn_mask: Optional[torch.Tensor] = None,
+            cross_attention_masks: Optional[torch.Tensor] = None,
             full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
             xattn_caches: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        xattn_caches, cross_attention_masks, full_text_row_masked_out_mask = (
-            self.module.compute_vision_tokens_masks(
-                batch_images=batch_images,
-                batch_masks=batch_masks,
-                total_len=total_len,
+        if xattn_caches is None:
+            xattn_caches, cross_attention_masks, full_text_row_masked_out_mask = (
+                self.module.compute_vision_tokens_masks(
+                    batch_images=batch_images,
+                    batch_masks=batch_masks,
+                    total_len=total_len,
+                )
             )
-        )
         logits = self.module(
-            position_ids,
-            tokens,
-            cross_attention_masks,
-            full_text_row_masked_out_mask,
-            xattn_caches,
+            position_ids=position_ids,
+            tokens=tokens,
+            cross_attention_masks=cross_attention_masks,
+            full_text_row_masked_out_mask=full_text_row_masked_out_mask,
+            xattn_caches=xattn_caches,
         )
 
         return logits
