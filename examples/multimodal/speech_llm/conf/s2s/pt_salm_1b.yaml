@@ -44,7 +44,7 @@ exp_manager:
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
-    monitor: validation_${model.data.validation_ds.metric.name}
+    monitor: validation_${model.data.validation_ds.metrics[0].name}
     save_top_k: 1
     mode: min
     save_nemo_on_train_end: True
@@ -65,6 +65,7 @@ exp_manager:
 model:
   # TBD:
   salm_model_path: ???
+  speech_eos_id: 1004
   s2s_vocab_size: 72960 # This should be equal to the vocab_sizes[0] + decoder_reduction_factor * sum(vocab_sizes[1:])
   proj_head_dims: [32000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024]
   proj_head_loss_weights: [1, 1, 1, 1, 1, 1, 1, 1, 1]
@@ -224,6 +225,9 @@ model:
     # encoder: null
     # preprocessor: null
 
+  codec_model_path: ???
+  asr_model_path: "stt_en_fastconformer_transducer_large"
+
   data:
     end_string: ""
     train_ds:
@@ -263,7 +267,7 @@ model:
       speech_pad_id: 1001
       speech_unk_id: 1002
       speech_bos_id: 1003
-      speech_eos_id: 1004
+      speech_eos_id: ${model.speech_eos_id}
       filter_by_source_target_text_ratio: False # If the length of the source and target texts differ too much, the instance will be discarded
       source_target_text_ratio_limit: 4.0
       # ASR configs
@@ -326,17 +330,26 @@ model:
       speech_pad_id: 1001
       speech_unk_id: 1002
       speech_bos_id: 1003
-      speech_eos_id: 1004
+      speech_eos_id: ${model.speech_eos_id}
       filter_by_source_target_text_ratio: False # If the length of the source and target texts differ too much, the instance will be discarded
       source_target_text_ratio_limit: 4.0
       # ASR configs
       sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
 
       log_every_n_steps: 10
-      metric:
-        name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
-        average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
-        num_classes: null
+      metrics:
+        - name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
+          average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
+          num_classes: null
+        - name: "bleu"
+          average: null
+          num_classes: null
+        - name: "asr-bleu"
+          average: null
+          num_classes: null
+        - name: "asr-wer"
+          average: null
+          num_classes: null
 
   optim:
     name: fused_adam
