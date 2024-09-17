@@ -171,14 +171,26 @@ class ASRTarredDatasetBuilder:
         Creates a new tarred dataset from a given manifest file.
 
         Args:
-            manifest_path: Path to the original ASR manifest.
-            target_dir: Output directory.
-            num_workers: Integer denoting number of parallel worker processes which will write tarfiles.
-                Defaults to 1 - which denotes sequential worker process.
+            manifest_path (str): Path to the original ASR manifest file.
+            target_dir (str, optional): Output directory where tarred files and manifests will be saved. Defaults to "./tarred/".
+            num_workers (int, optional): Number of parallel worker processes for writing tar files. Defaults to 0 (sequential processing).
+            buckets_num (int, optional): Number of buckets for static bucketing. Defaults to 1 (no bucketing).
+            dynamic_buckets_num (int, optional): Number of buckets to estimate for dynamic bucketing. Defaults to 30.
+            dry_run (bool, optional): If True, performs a dry run without creating actual tar files. Defaults to False.
+
+        Raises:
+            ValueError: If the configuration has not been set.
+            FileNotFoundError: If the manifest file does not exist.
 
         Output:
-            Writes tarfiles, along with the tarred dataset compatible manifest file.
-            Also preserves a record of the metadata used to construct this tarred dataset.
+            - Creates tar files and a tarred dataset compatible manifest file in the specified `target_dir`.
+            - Preserves a record of the metadata used to construct the tarred dataset in `metadata.yaml`.
+            - Optionally creates shard manifests if `config.shard_manifests` is enabled.
+
+        Notes:
+            - The function reads the manifest, applies filtering and shuffling if specified, and creates shards of tar files.
+            - It generates shard manifests and the main tarred dataset manifest.
+            - Metadata is updated and saved based on the tarred dataset configuration.
         """
         if self.config is None:
             raise ValueError("Config has not been set. Please call `configure(config: ASRTarredDatasetConfig)`")
@@ -331,23 +343,30 @@ class ASRTarredDatasetBuilder:
         dry_run: bool = False,
     ):
         """
-        Creates new tarfiles in order to create a concatenated dataset, whose manifest contains the data for
-        both the original dataset as well as the new data submitted in manifest paths.
+        Creates a concatenated tarred dataset from the base manifest and additional manifest files.
 
         Args:
-            base_manifest_path: Path to the manifest file which contains the information for the original
+            base_manifest_path (str): Path to the base manifest file that contains information for the original
                 tarred dataset (with flattened paths).
-            manifest_paths: List of one or more paths to manifest files that will be concatenated with above
-                base tarred dataset.
-            metadata: ASRTarredDatasetMetadata dataclass instance with overrides from command line.
-            target_dir: Output directory
+            manifest_paths (List[str]): List of paths to additional manifest files that will be concatenated with
+                the base tarred dataset.
+            metadata (ASRTarredDatasetMetadata): Metadata instance containing configuration and overrides.
+            target_dir (str, optional): Output directory where tarred files and manifests will be saved. Defaults to "./tarred_concatenated/".
+            num_workers (int, optional): Number of parallel worker processes for creating tar files. Defaults to 1.
+            dry_run (bool, optional): If True, performs a dry run without creating actual tar files. Defaults to False.
+
+        Raises:
+            FileNotFoundError: If the base manifest file or any of the additional manifest files does not exist.
 
         Output:
-            Writes tarfiles which with indices mapping to a "concatenated" tarred dataset,
-            along with the tarred dataset compatible manifest file which includes information
-            about all the datasets that comprise the concatenated dataset.
+            - Creates tar files and a concatenated tarred dataset compatible manifest file in the specified `target_dir`.
+            - Updates metadata to reflect the concatenated dataset, including the version and historical data.
 
-            Also preserves a record of the metadata used to construct this tarred dataset.
+        Notes:
+            - The function reads the base manifest and additional manifests, filters and shuffles entries as needed,
+            and creates new shards of tar files.
+            - It generates a new concatenated dataset manifest and updates metadata with versioning and historical context.
+            - If `metadata` is provided, the function updates its version and includes historical data in the new metadata.
         """
         if not os.path.exists(target_dir):
             os.makedirs(target_dir)
@@ -646,25 +665,26 @@ class ASRTarredDatasetBuilder:
 def main(args):
     if args.buckets_num > 1:
         bucket_length = (args.max_duration - args.min_duration) / float(args.buckets_num)
-        for i in range(args.buckets_num):
-            min_duration = args.min_duration + i * bucket_length
-            max_duration = min_duration + bucket_length
-            if i == args.buckets_num - 1:
+        for i_bucket in range(args.buckets_num):
+            bucket_config = copy.deepcopy(args)
+            bucket_config.min_duration = args.min_duration + i_bucket * bucket_length
+            bucket_config.max_duration = bucket_config.min_duration + bucket_length
+            if i_bucket == args.buckets_num - 1:
                 # add a small number to cover the samples with exactly duration of max_duration in the last bucket.
-                max_duration += 1e-5
-            target_dir = os.path.join(args.target_dir, f"bucket{i+1}")
-            print(f"Creating bucket {i+1} with min_duration={min_duration} and max_duration={max_duration} ...")
-            print(f"Results are being saved at: {target_dir}.")
-            create_tar_datasets(min_duration=min_duration, max_duration=max_duration, target_dir=target_dir)
-            print(f"Bucket {i+1} is created.")
+                bucket_config.max_duration += 1e-5
+            bucket_config.target_dir = os.path.join(args.target_dir, f"bucket{i_bucket+1}")
+            print(f"Creating bucket {i_bucket+1} with min_duration={bucket_config.min_duration} and max_duration={bucket_config.max_duration} ...")
+            print(f"Results are being saved at: {bucket_config.target_dir}.")
+            create_tar_datasets(**vars(bucket_config))
+            print(f"Bucket {i_bucket+1} is created.")
     else:
-        create_tar_datasets(**args)
+        create_tar_datasets(**vars(args))
 
 
 def create_tar_datasets(manifest_path: str = None, concat_manifest_paths: str = None, target_dir: str = None, metadata_path: str = None, num_shards: int = -1, max_duration: float = None,
                         min_duration: float = None, shuffle: bool = False, keep_files_together: bool = False, sort_in_shards: bool = False, buckets_num: int = 1,
                         dynamic_buckets_num: int = 30, shuffle_seed: int = None, write_metadata: bool = False, no_shard_manifests: bool = False, force_codec: str = None, 
-                        workers: int = 1, slice_with_offset: bool = False, dry_run: bool = False):
+                        workers: int = 1, slice_with_offset: bool = False, dry_run: bool = False):    
     builder = ASRTarredDatasetBuilder()
 
     shard_manifests = False if no_shard_manifests else True
@@ -818,7 +838,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--slice_with_offset",
         action='store_true',
-        help="If set, only slices the audio based on duration and offset parameters."
+        help="If set, only slices the audio based on `duration` and `offset` entry parameters."
     )
     parser.add_argument(
         "--sort_in_shards",
