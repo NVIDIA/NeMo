@@ -1,8 +1,21 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # This is here to import it once, which improves the speed of launch when in debug-mode
-try:
-    import transformer_engine  # noqa
-except ImportError:
-    pass
+from nemo.utils.import_utils import safe_import
+
+safe_import("transformer_engine")
 
 from nemo.collections.llm import peft, tokenizer
 from nemo.collections.llm.api import export_ckpt, finetune, import_ckpt, pretrain, train, validate
@@ -18,6 +31,11 @@ from nemo.collections.llm.gpt.model import (
     Baichuan2Config,
     Baichuan2Config7B,
     Baichuan2Model,
+    BaseMambaConfig1_3B,
+    BaseMambaConfig2_7B,
+    BaseMambaConfig130M,
+    BaseMambaConfig370M,
+    BaseMambaConfig780M,
     ChatGLM2Config6B,
     ChatGLM3Config6B,
     ChatGLMConfig,
@@ -33,6 +51,12 @@ from nemo.collections.llm.gpt.model import (
     GemmaConfig7B,
     GemmaModel,
     GPTConfig,
+    GPTConfig5B,
+    GPTConfig7B,
+    GPTConfig20B,
+    GPTConfig40B,
+    GPTConfig126M,
+    GPTConfig175B,
     GPTModel,
     Llama2Config7B,
     Llama2Config13B,
@@ -58,12 +82,15 @@ from nemo.collections.llm.gpt.model import (
     Nemotron4Config340B,
     NemotronConfig,
     NemotronModel,
+    NVIDIAMambaConfig8B,
+    NVIDIAMambaHybridConfig8B,
     Qwen2Config,
     Qwen2Config1P5B,
     Qwen2Config7B,
     Qwen2Config72B,
     Qwen2Config500M,
     Qwen2Model,
+    SSMConfig,
     Starcoder2Config,
     Starcoder2Config3B,
     Starcoder2Config7B,
@@ -107,6 +134,14 @@ __all__ = [
     "Nemotron4Config22B",
     "Nemotron4Config340B",
     "NemotronConfig",
+    "SSMConfig",
+    "BaseMambaConfig130M",
+    "BaseMambaConfig370M",
+    "BaseMambaConfig780M",
+    "BaseMambaConfig1_3B",
+    "BaseMambaConfig2_7B",
+    "NVIDIAMambaConfig8B",
+    "NVIDIAMambaHybridConfig8B",
     "LlamaConfig",
     "Llama2Config7B",
     "Llama2Config13B",

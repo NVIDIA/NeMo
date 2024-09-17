@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
 from typing import Any, Dict, List, Literal, Optional
 
@@ -97,7 +111,7 @@ class MegatronDataSampler(DataSampler):
         self.prev_global_batch_size = self.current_global_batch_size
 
         consumed_samples = self.compute_consumed_samples(trainer.global_step + 1 - self.init_global_step)
-        if self.output_log:
+        if self.output_log and self.trainer.training:
             # You may need to turn off logging, for example when doing trainer.predict(model, data)
             pl_module.log(
                 'consumed_samples',

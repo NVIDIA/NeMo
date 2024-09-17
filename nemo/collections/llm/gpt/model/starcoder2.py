@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, List, Optional
@@ -6,7 +20,6 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
@@ -35,7 +48,6 @@ class Starcoder2Config(GPTConfig):
     kv_channels: int = None
     num_query_groups: int = None
     window_size: Optional[List[int]] = None
-    apply_query_key_layer_scaling: bool = True
     attention_softmax_in_fp32: bool = True
     bias_activation_fusion: bool = True
     bias_dropout_fusion: bool = True
@@ -131,7 +143,9 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
-        return AutoTokenizer(str(self))
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> Starcoder2Config:
