@@ -65,6 +65,7 @@ exp_manager:
 model:
   # TBD:
   salm_model_path: ???
+  speech_eos_id: 1004
   s2s_vocab_size: 72960 # This should be equal to the vocab_sizes[0] + decoder_reduction_factor * sum(vocab_sizes[1:])
   proj_head_dims: [32000, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024]
   proj_head_loss_weights: [1, 1, 1, 1, 1, 1, 1, 1, 1]
@@ -270,7 +271,7 @@ model:
       speech_pad_id: 1001
       speech_unk_id: 1002
       speech_bos_id: 1003
-      speech_eos_id: 1004
+      speech_eos_id: ${model.speech_eos_id}
       filter_by_source_target_text_ratio: False # If the length of the source and target texts differ too much, the instance will be discarded
       source_target_text_ratio_limit: 4.0
       # ASR configs
@@ -333,7 +334,7 @@ model:
       speech_pad_id: 1001
       speech_unk_id: 1002
       speech_bos_id: 1003
-      speech_eos_id: 1004
+      speech_eos_id: ${model.speech_eos_id}
       filter_by_source_target_text_ratio: False # If the length of the source and target texts differ too much, the instance will be discarded
       source_target_text_ratio_limit: 4.0
       # ASR configs

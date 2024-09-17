@@ -62,9 +62,12 @@ class SumVocabParallelEmbedding(tensor_parallel.VocabParallelEmbedding):
 
     def forward(self, input_):
         if input_.ndim == 3:
+            assert input_.shape[2] == len(self.proj_head_dims)
+            input_ = input_.clone()
             for i in range(len(self.proj_head_dims)):
                 # shuold consider the offset of previous projection heads
                 input_[:, :, i] += sum(self.proj_head_dims[:i])
+            assert input_.max() < sum(self.proj_head_dims)
         embeddings = super().forward(input_)
         if input_.ndim == 3:
             # sum the multi proj embeddings as the final embeddings
@@ -208,7 +211,7 @@ class S2sMCoreGPTModel(MCoreGPTModel):
         if labels is None:
             # [s b h] => [b s h]
             return_logits = [logits.transpose(0, 1).contiguous() for logits in all_logits]
-            return return_logits[0]  # TODO: this is to bypass inference error for now
+            return torch.cat(return_logits, dim=-1)  # cat the last dim together to make other mcore code happy
 
         tokens_loss = torch.stack(
             [self.compute_language_model_loss(labels[:, :, i], all_logits[i]) for i in range(self.n_proj_heads)],
@@ -327,9 +330,11 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
         inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['instructions']]
         labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['target_texts']]
+        # only do ids_to_text on the first channel which is text
+        output['token_ids_text'] = (np.array(output['token_ids'])[:, :, 0]).tolist()
         preds_text = [
             self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
-            for t, l in zip(output['token_ids'], batch['context_lengths'])
+            for t, l in zip(output['token_ids_text'], batch['context_lengths'])
         ]
 
         if data_cfg.get("end_string", None):
@@ -354,12 +359,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             preds_text = [remove_punctuations(p.lower(), data_cfg.get("punctuations", None)) for p in preds_text]
             labels_text = [remove_punctuations(l.lower(), data_cfg.get("punctuations", None)) for l in labels_text]
 
-        if data_cfg.get("log_every_n_steps", None) is not None:
-            if batch_idx % data_cfg.log_every_n_steps == 0:
-                logging.info(f"Input: `{inputs_text[0]}`")
-                logging.info(f"Label: `{labels_text[0]}`")
-                logging.info(f"Pred: `{preds_text[0]}`")
-
         # if loss is nan, print the input, label and pred
         if loss.isnan():
             logging.info("++++++++++++++ NaN loss detected ++++++++++++++")
@@ -371,10 +370,12 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
         outputs = {
             'loss': loss,
-            'preds': preds_text,  # [str]
+            'preds': output['token_ids'],
+            'context_lengths': batch['context_lengths'],
             'labels': batch['answers'],  # [str]
             'inputs': inputs_text,  # [str]
             'metadata': metadata,  # [dict]
+            'batch_idx': batch_idx,
         }
 
         if mode == 'validation':
@@ -422,7 +423,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             speech_tokens.shape[1] // self.cfg.decoder_reduction_factor,
         )
         speech_tokens = speech_tokens.reshape(new_shape)
-        return text_tokens, speech_tokens
+        return text_tokens.long(), speech_tokens.long()
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
@@ -468,7 +469,14 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             torch.distributed.all_gather_object(
                 gathered_outputs,
                 [
-                    {'preds': x['preds'], 'labels': x['labels'], 'inputs': x['inputs'], 'metadata': x['metadata']}
+                    {
+                        'preds': x['preds'],
+                        'labels': x['labels'],
+                        'inputs': x['inputs'],
+                        'metadata': x['metadata'],
+                        'context_lengths': x['context_lengths'],
+                        'batch_idx': x['batch_idx'],
+                    }
                     for x in output
                 ],
                 group=parallel_state.get_data_parallel_group(),
@@ -487,8 +495,8 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             total_size = 0
             for rank in range(0, parallel_state.get_data_parallel_world_size()):
                 for batch in gathered_outputs[rank]:
-                    for pred, answer, input, metadata in zip(
-                        batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
+                    for pred, answer, input, metadata, pred_context_length in zip(
+                        batch['preds'], batch['labels'], batch['inputs'], batch['metadata'], batch['context_lengths']
                     ):
                         context_length = len(self.tokenizer.text_to_ids(input))
                         text_answer, speech_answer = self.parse_decoder_outputs(
@@ -502,32 +510,37 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                         total_size += 1
                         if key not in inp_label_set:
                             inp_label_set.add(key)
-                            #  Remove leading BOS
-                            pred = pred[1:]
 
-                            if 0:
-                                text_pred, speech_pred = self.parse_decoder_outputs(
-                                    pred,
-                                    self.tokenizer.eos_id,
-                                    context_length,
-                                    self.cfg.data.train_ds.speech_pad_id,
-                                    self.cfg.data.train_ds.speech_eos_id,
-                                )
-                            else:  # TODO: this is to bypass inference error for now
-                                text_pred = torch.Tensor(self.tokenizer.text_to_ids(pred)).long()
-                                speech_pred = speech_answer
-
-                            deduplicated_outputs['preds'].append(self.tokenizer.ids_to_text(text_pred.unsqueeze(0)))
-                            deduplicated_outputs['labels'].append(self.tokenizer.ids_to_text(text_answer.unsqueeze(0)))
+                            text_pred, speech_pred = self.parse_decoder_outputs(
+                                torch.Tensor(pred),
+                                self.tokenizer.eos_id,
+                                pred_context_length,
+                                self.cfg.data.train_ds.speech_pad_id,
+                                self.cfg.data.train_ds.speech_eos_id,
+                            )
+                            text_pred_text = self.tokenizer.ids_to_text(text_pred.unsqueeze(0))
+                            deduplicated_outputs['preds'].append(text_pred_text)
+                            labels_text = self.tokenizer.ids_to_text(text_answer.unsqueeze(0))
+                            deduplicated_outputs['labels'].append(labels_text)
                             deduplicated_outputs['speech_preds'].append(speech_pred.cpu().numpy())
                             deduplicated_outputs['speech_answers'].append(speech_answer.cpu().numpy())
 
                             deduplicated_outputs['inputs'].append(input)
                             deduplicated_outputs['metadata'].append(metadata)
+                            if data_cfg.get("log_every_n_steps", None) is not None:
+                                if batch['batch_idx'] % data_cfg.log_every_n_steps == 0:
+                                    logging.info(f"Label: `{labels_text}`")
+                                    logging.info(f"Pred: `{text_pred_text}`")
+                                    logging.info(
+                                        f"Speech out len: pred {speech_pred.shape} label {speech_answer.shape}"
+                                    )
 
             # Compute metric score
             metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
             metric_label_key = self.val_metric_label_key if mode == 'validation' else self.test_metric_label_key
+            run_codec = any(("asr" in metric_name or "mos" in metric_name) for metric_name in metric_name)
+            run_asr = any("asr" in metric_name for metric_name in metric_name)
+            run_mos = any("mos" in metric_name for metric_name in metric_name)
             if metric_name != 'loss':
                 metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
                 metric_fn = self.val_metric[0] if mode == 'validation' else self.test_metric[0]
@@ -667,3 +680,11 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 np.save(speech_answer_path.format(m['audio_filepath']), speech_answer)
 
         logging.info(f'Predictions saved to {output_file_path}')
+
+    def de_concat_multiproj_logits(self, logits):
+        logits_list = []
+        prev = 0
+        for i in self.model.proj_head_dims:
+            logits_list.append(logits[:, prev : prev + i])
+            prev += i
+        return logits_list

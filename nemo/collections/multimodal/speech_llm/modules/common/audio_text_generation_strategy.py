@@ -273,28 +273,66 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
 
 
 class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
-    def init_batch(
+    def end_of_generation_condition(
         self,
-        context_tokens: torch.Tensor,
+        tokens: torch.Tensor,
+        prev: torch.Tensor,
+        eod_id: int,
+        end_strings: List[str],
+        speech_eos_id: int,
+    ) -> torch.Tensor:
+        """
+        return whether the generation should stop based on the previous token
+        Args:
+            tokens (torch.Tensor): the generated tokens so far
+            prev  (torch.Tensor): the previous token
+            eod_id (int): the end of document token id
+            end_strings (List[str]): the list of end of generation strings
+        returns:
+            a boolean tensor indicating whether the generation should stop
+        """
+        from nemo.utils import logging
+
+        text_done_token = super().end_of_generation_condition(tokens, prev, eod_id, end_strings).any(dim=1)
+        speech_done_token = (prev[:, 1:] == speech_eos_id).all(dim=1)
+        if speech_done_token.any():
+            logging.debug(f"speech done text {text_done_token}")
+        return speech_done_token
+
+    def prepare_batch_at_step(
+        self,
+        tokens: torch.Tensor,
+        input_embeddings: torch.Tensor,
+        maxlen: int,
+        micro_batch_size: int,
+        step: int,
         context_lengths: torch.Tensor,
-        audio_signal: torch.Tensor,
-        audio_length: torch.Tensor,
+        curr_context_length: int,
         compute_attention_mask: bool,
-        num_audios: Optional[torch.Tensor] = None,
-        context_start_idx: Optional[List[List[int]]] = None,
-    ):
-        """initialize the batch data before the inference steps."""
-        new_context_tokens, encoder_input, audio_feat_lens = super().init_batch(
-            context_tokens,
-            context_lengths,
-            audio_signal,
-            audio_length,
-            compute_attention_mask,
-            num_audios,
-            context_start_idx,
+    ) -> Tuple[List[torch.Tensor], List[int]]:
+        if step == 0:
+            set_inference_key_value_memory = True
+            tokens2use = tokens[:, :curr_context_length]
+            positions2use = self.position_ids[:, :curr_context_length]
+            embeddings2use = input_embeddings[:curr_context_length]
+        else:
+            set_inference_key_value_memory = False
+            # handle positions2use and tokens2use differently
+            tokens2use = tokens[:, curr_context_length - 1].view(micro_batch_size, 1, -1)
+            positions2use = self.position_ids[:, curr_context_length - 1].view(micro_batch_size, 1, -1)
+            # embedding offset and sum is handled inside
+            embeddings2use = self.model._get_text_embeddings(tokens2use, positions2use)
+            started = context_lengths <= curr_context_length
+            embeddings2use = switch(input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use, started)
+
+        setkey_value_array = torch.tensor(
+            [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
         )
-        # TODO: this is to bypass inference error for now
-        return new_context_tokens[:, :, 0], encoder_input, audio_feat_lens
+        len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
+
+        batch = [tokens2use, embeddings2use, self.attention_mask, positions2use, setkey_value_array, len_array]
+        tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
+        return batch, tensor_shape
 
 
 def model_inference_strategy_dispatcher(model, **args):

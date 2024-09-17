@@ -17,6 +17,7 @@
 import pickle
 from collections.abc import Iterable
 from typing import List, Optional, Tuple, Union
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -24,6 +25,7 @@ import torch.nn.functional as F
 import nemo.collections.nlp.modules.common.text_generation_utils as text_generation_utils
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_strategy import (
+    AudioToAudioGenerationStrategy,
     model_inference_strategy_dispatcher,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import OutputType
@@ -407,7 +409,12 @@ def generate(
             context_start_idx,
         ) = receive_generate_info(has_multi_audios)
 
-    output = synced_generate(
+    if isinstance(inference_strategy, AudioToAudioGenerationStrategy):
+        generate_func = s2s_synced_generate
+    else:
+        generate_func = synced_generate
+
+    output = generate_func(
         model,
         inference_strategy,
         context_tokens_tensor,
@@ -445,50 +452,12 @@ def generate(
         special_tokens.add(tokenizer.mask_token)
     if output is not None:
         decode_tokens, output_logits, full_logits, audio_feat_lens = output
-        resp_sentences = []
-        resp_sentences_seg = []
-
         decode_tokens = decode_tokens.cpu().numpy().tolist()
-        for decode_token in decode_tokens:
-            sentence = tokenizer.ids_to_text(decode_token)
-            resp_sentences.append(sentence)
-            if not isinstance(tokenizer, TabularTokenizer):
-                words = []
-                for token in decode_token:
-                    if not isinstance(token, Iterable):
-                        token = [token]
-                    word = tokenizer.ids_to_tokens(token)
-                    if isinstance(word, Iterable):
-                        word = word[0]
-                    if hasattr(tokenizer.tokenizer, 'byte_decoder'):
-                        word = bytearray([tokenizer.tokenizer.byte_decoder[c] for c in word]).decode(
-                            'utf-8', errors='replace'
-                        )
-                    words.append(word)
-                resp_sentences_seg.append(words)
-            else:
-                words = tokenizer.text_to_tokens(sentence)
-                resp_sentences_seg.append(words)
-
-        # offsets calculation
-        all_offsets = []
-        for item in resp_sentences_seg:
-            offsets = [0]
-            for index, token in enumerate(item):
-                if index != len(item) - 1:
-                    if token in special_tokens:
-                        offsets.append(offsets[-1])
-                    else:
-                        offsets.append(len(token) + offsets[-1])
-            all_offsets.append(offsets)
 
         output = {}
-        output['sentences'] = resp_sentences
-        output['tokens'] = resp_sentences_seg
         output['logprob'] = output_logits
         output['full_logprob'] = full_logits
         output['token_ids'] = decode_tokens
-        output['offsets'] = all_offsets
         output['audio_feat_lens'] = audio_feat_lens
         output = inference_strategy.post_generation_process(output)
         return output
@@ -696,3 +665,283 @@ def sample_sequence_batch(
             counter += 1
             if done:
                 break
+
+
+def s2s_sample_sequence_batch(
+    model,
+    inference_strategy,
+    context_tokens,
+    context_lengths,
+    audio_signal,
+    audio_signal_length,
+    tokens_to_generate,
+    all_probs=False,
+    compute_attention_mask=True,
+    compute_logprob=False,
+    type_ids=None,
+    temperature=None,
+    end_strings=['<|endoftext|>'],
+    extra={},
+    num_audios: Optional[torch.Tensor] = None,
+    context_start_idx: Optional[List[List[int]]] = None,
+):
+    app_state = AppState()
+    micro_batch_size = context_tokens.shape[0]
+    reconfigure_num_microbatches_calculator(
+        rank=app_state.global_rank,
+        rampup_batch_size=None,
+        global_batch_size=micro_batch_size,
+        micro_batch_size=micro_batch_size,
+        data_parallel_size=1,
+    )
+    assert tokens_to_generate > 0, "tokens_to_generate should be > 0"
+    assert (
+        model.cfg.get('sequence_parallel', False) == False
+    ), 'sequence_parallel should be False during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+    assert (
+        model.cfg.get('activations_checkpoint_granularity', None) is None
+    ), 'activations_checkpoint_granularity should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+    assert (
+        model.cfg.get('activations_checkpoint_method', None) is None
+    ), 'activations_checkpoint_method should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+
+    tokenizer = model.tokenizer
+    # initialize the batch
+    with torch.no_grad():
+        context_tokens, input_embeddings, audio_feat_lens = inference_strategy.init_batch(
+            context_tokens,
+            context_lengths,
+            audio_signal,
+            audio_signal_length,
+            compute_attention_mask,
+            num_audios,
+            context_start_idx,
+        )
+        audio_text_context_lengths = context_lengths + audio_feat_lens
+        context_length = audio_text_context_lengths.min().item()
+        # added eos_id to support the function generate_samples_eval that passes
+        # eos_id as an argument and needs termination when that id id found.
+        # TODO:
+        eod_id = tokenizer.eos_id
+        counter = 0
+        batch_size = context_tokens.size(0)
+        is_done = torch.zeros([batch_size]).byte().cuda()
+        tokens = context_tokens
+        output_logits = None
+        all_generated_indices = None  # used to track all generated indices
+        # Generate enough tokens for the longest sequence
+        maxlen = tokens_to_generate + audio_text_context_lengths.max().item()
+        maxlen = inference_strategy.clip_max_len(maxlen)
+        lengths = torch.ones([batch_size]).long().cuda() * maxlen
+        while context_length < maxlen:
+            batch, tensor_shape = inference_strategy.prepare_batch_at_step(
+                tokens,
+                input_embeddings,
+                maxlen,
+                micro_batch_size,
+                counter,
+                audio_text_context_lengths,
+                context_length,
+                compute_attention_mask,
+            )
+            output = inference_strategy.forward_step(batch, tensor_shape)
+            if parallel_state.is_pipeline_last_stage():
+                if compute_logprob:
+                    output = output[0]['logits']
+                    output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
+                    assert output is not None
+                    logits = output[:, -1].view(batch_size, -1).contiguous()
+
+                else:
+                    logits = output[0]['logits'][:, -1].contiguous()
+                    logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
+                    assert logits is not None
+                    logits = logits.view(batch_size, -1)
+
+                # make sure it will generate at least min_length
+                min_length = extra.get('min_tokens_to_generate', 0)
+                assert min_length == 0
+                # make sure it won't sample outside the vocab_size range
+                logits[:, model.cfg.s2s_vocab_size :] = -float('Inf')
+                logits = model.de_concat_multiproj_logits(logits)
+
+                # started indicates whether the current token step passes the context_length, so we make sure not to overwrite the context tokens
+                started = audio_text_context_lengths <= context_length
+
+                # sample prev for each channel and concat them together as [b, c]
+                def get_prev(logits, started, temperature, extra):
+                    if extra.get('greedy', False):
+                        prev = torch.argmax(logits, dim=-1).view(-1)
+                    else:
+                        logits = logits.float()
+                        logits /= temperature
+                        # handle repetition penality
+                        logits = text_generation_utils.repetition_penalty(
+                            logits, extra.get('repetition_penalty', 1.2), all_generated_indices
+                        )
+                        logits = text_generation_utils.top_k_logits(
+                            logits, top_k=extra.get('top_k', 0), top_p=extra.get('top_p', 0.9), started=started
+                        )
+                        probs = F.softmax(logits, dim=-1)
+                        probs = probs.nan_to_num(1.0)
+                        prev = torch.multinomial(probs, num_samples=1).view(-1)
+                    return prev
+
+                prev = [get_prev(logits_i, started, temperature, extra) for logits_i in logits]
+                prev = torch.stack(prev, dim=1)
+                started_expand = started.unsqueeze(1).expand(-1, prev.size(1))
+                new_tokens = switch(tokens[:, context_length], prev, started_expand)
+
+                # Replace sampled tokens w/ done token if EOD has already been sampled
+                is_done_expand = is_done.unsqueeze(1).expand(-1, new_tokens.size(1))
+                new_tokens = switch(new_tokens, eod_id, is_done_expand)
+
+                # post process the inference tokens based on the strategy
+                inference_strategy.post_process(tokens, new_tokens, context_length)
+
+                # Insert either new predicted or next prompt token
+                tokens[:, context_length] = new_tokens
+
+                assert compute_logprob is False
+
+                src = parallel_state.get_pipeline_model_parallel_last_rank()
+                group = parallel_state.get_embedding_group()
+                torch.distributed.broadcast(new_tokens, src, group)
+
+                #                done_token = (prev == eod_id).byte() & started.byte()
+                done_token = inference_strategy.end_of_generation_condition(
+                    tokens[:, : context_length + 1],
+                    prev,
+                    eod_id,
+                    end_strings,
+                    model.cfg.speech_eos_id,
+                )
+                done_token = done_token.byte() & started.byte()
+
+                just_finished = (done_token & ~is_done).bool()
+                lengths[just_finished.view(-1)] = context_length
+                is_done = is_done | done_token
+
+                done = torch.all(is_done)
+                src = parallel_state.get_pipeline_model_parallel_last_rank()
+                group = parallel_state.get_pipeline_model_parallel_group()
+                torch.distributed.broadcast(done, src, group)
+                yield tokens, lengths, None, None, audio_feat_lens
+
+            else:
+                if parallel_state.is_pipeline_first_stage():
+                    src = parallel_state.get_pipeline_model_parallel_last_rank()
+                    group = parallel_state.get_embedding_group()
+                    new_tokens = torch.empty_like(tokens[:, context_length])
+                    torch.distributed.broadcast(new_tokens, src, group)
+                    tokens[:, context_length] = new_tokens
+                    yield tokens, None, None, None, audio_feat_lens
+                else:
+                    yield None, None, None, None, audio_feat_lens
+
+                done = torch.cuda.ByteTensor([0])
+                src = parallel_state.get_pipeline_model_parallel_last_rank()
+                group = parallel_state.get_pipeline_model_parallel_group()
+                torch.distributed.broadcast(done, src, group)
+
+            context_length += 1
+            counter += 1
+            if done:
+                break
+
+
+def s2s_synced_generate(
+    model,
+    inference_strategy,
+    context_tokens_tensor,
+    context_length_tensor,
+    audio_signal,
+    audio_signal_length,
+    tokens_to_generate,
+    all_probs,
+    temperature,
+    top_k=0,
+    top_p=0.0,
+    greedy=False,
+    compute_attention_mask=True,
+    compute_logprob=False,
+    repetition_penalty=1.2,
+    end_strings=[],
+    min_tokens_to_generate=0,
+    num_audios: Optional[torch.Tensor] = None,
+    context_start_idx: Optional[List[List[int]]] = None,
+):
+    context_length = context_length_tensor.min().item()
+    tokenizer = model.tokenizer
+    if isinstance(tokenizer, TabularTokenizer):
+        raise NotImplementedError("Tabular generation is not supported yet")
+    else:
+        batch_token_iterator = s2s_sample_sequence_batch(
+            model,
+            inference_strategy,
+            context_tokens_tensor,
+            context_length_tensor,
+            audio_signal,
+            audio_signal_length,
+            tokens_to_generate,
+            all_probs,
+            compute_attention_mask=compute_attention_mask,
+            compute_logprob=compute_logprob,
+            temperature=temperature,
+            end_strings=end_strings,
+            extra={
+                "top_p": top_p,
+                "top_k": top_k,
+                "greedy": greedy,
+                "repetition_penalty": repetition_penalty,
+                "min_tokens_to_generate": min_tokens_to_generate,
+            },
+            num_audios=num_audios,
+            context_start_idx=context_start_idx,
+        )
+
+    for tokens, lengths, output_logits, full_logits, audio_feat_lens in batch_token_iterator:
+        context_length += 1
+    context_length += audio_feat_lens.min().item()
+    if parallel_state.is_pipeline_last_stage():
+        src = parallel_state.get_pipeline_model_parallel_last_rank()
+        group = parallel_state.get_embedding_group()
+        if compute_logprob:
+            torch.distributed.broadcast(output_logits, src, group)
+        if all_probs:
+            src = parallel_state.get_pipeline_model_parallel_last_rank()
+            group = parallel_state.get_embedding_group()
+            torch.distributed.broadcast(full_logits, src, group)
+
+    else:
+        if parallel_state.is_pipeline_first_stage():
+            src = parallel_state.get_pipeline_model_parallel_last_rank()
+            group = parallel_state.get_embedding_group()
+
+            if compute_logprob:
+                precision = model._trainer.precision
+                if precision in [16, "16"]:
+                    dtype = torch.float16
+                elif precision == "bf16":
+                    dtype = torch.bfloat16
+                else:
+                    dtype = torch.float32
+                output_logits = torch.empty(
+                    tokens.size(0), context_length - 1, dtype=dtype, device=torch.device("cuda")
+                )
+                torch.distributed.broadcast(output_logits, src, group)
+
+            if all_probs:
+                src = parallel_state.get_pipeline_model_parallel_last_rank()
+                group = parallel_state.get_embedding_group()
+                full_logits = torch.empty(
+                    tokens.size(0),
+                    context_length - 1,
+                    model.padded_vocab_size,
+                    dtype=dtype,
+                    device=torch.device("cuda"),
+                )
+                torch.distributed.broadcast(full_logits, src, group)
+    if tokens is not None:
+        return tokens[:, :context_length], output_logits, full_logits, audio_feat_lens
+    return None
