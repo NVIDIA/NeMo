@@ -20,6 +20,12 @@ from nemo.collections.vlm.neva.model import (
     NevaModel,
 )
 
+from nemo.collections.vlm.llama.model.base import (
+    CrossAttentionTextModelConfig,
+    LlamaCrossAttentionModel,
+    CrossAttentionTextModelConfig8B,
+)
+
 __all__ = [
     "MockDataModule",
     "NevaLazyDataModule",
@@ -38,4 +44,7 @@ __all__ = [
     "Llava1_5Config7B",
     "Llava1_5Config13B",
     "LlavaModel",
+    "LlamaCrossAttentionModel",
+    "CrossAttentionTextModelConfig",
+    "CrossAttentionTextModelConfig8B",
 ]

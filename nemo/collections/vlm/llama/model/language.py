@@ -75,10 +75,6 @@ except ImportError:
         LayerNormImpl = WrappedTorchLayerNorm
 
 if TYPE_CHECKING:
-    from transformers import LlamaConfig as HFLlamaConfig
-    from transformers import LlamaForCausalLM
-
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -174,7 +170,8 @@ class CrossAttentionTransformerBlock(TransformerBlock):
         # initialize cross attention layers
 
         self.fusion_schedule = self.config.fusion_schedule
-        self.xlayers = []
+        self.xattn_layers = torch.nn.ModuleList([])  # for state dict to match up with Meta's
+        self.xattn_and_dummy_layers = []  # for forward call, not in state dict
         for i in range(self.num_layers_per_pipeline_rank):
             # TODO Handle with PP
             if i in self.fusion_schedule:
@@ -206,12 +203,13 @@ class CrossAttentionTransformerBlock(TransformerBlock):
                         # mlp_bda=get_bias_dropout_add,
                     ),
                 )
-                self.xlayers.append(build_module(layer_spec, config=self.config, layer_number=i + 1))
+                xattn_layer = build_module(layer_spec, config=self.config, layer_number=i + 1)
+                self.xattn_layers.append(xattn_layer)
+                self.xattn_and_dummy_layers.append(xattn_layer)
             else:
-                self.xlayers.append(DummyCrossAttentionTransformerLayer(config=self.config))
-        self.xlayers = torch.nn.ModuleList(self.xlayers)
-        assert len(self.xlayers) == len(self.layers), 'Check PP implementation for cross attention layers!'
+                self.xattn_and_dummy_layers.append(DummyCrossAttentionTransformerLayer(config=self.config))
 
+        assert len(self.xattn_and_dummy_layers) == len(self.layers), 'Check PP implementation for cross attention layers!'
     def forward(
             self,
             hidden_states: torch.Tensor,
@@ -291,15 +289,15 @@ class CrossAttentionTransformerBlock(TransformerBlock):
                     packed_seq_params=packed_seq_params,
                 )
             else:
-                for l_no, (layer, xlayer) in enumerate(zip(self.layers, self.xlayers)):
+                for l_no, (layer, xattn_layer) in enumerate(zip(self.layers, self.xattn_and_dummy_layers)):
                     with self.offload_context:
                         if (len(self.cuda_graphs) == 0) or (not self.training):
-                            # hidden_states = xlayer(
+                            # hidden_states = xattn_layer(
                             #     x=hidden_states,
                             #     xattn_mask=xattn_mask,
                             #     xattn_cache=xattn_caches[l_no//4] # TODO correct mapping 3->0, 7->1, etc, for PP
                             # )
-                            hidden_states, context = xlayer(
+                            hidden_states, context = xattn_layer(
                                 hidden_states=hidden_states,
                                 attention_mask=attention_mask,
                                 context=context,
@@ -694,74 +692,6 @@ class LlamaModel(GPTModel):
         super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
 
-# @io.model_importer(LlamaModel, "hf")
-# class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
-#     def init(self) -> LlamaModel:
-#         return LlamaModel(self.config, tokenizer=self.tokenizer)
-#
-#     def apply(self, output_path: Path) -> Path:
-#         from transformers import LlamaForCausalLM
-#
-#         source = LlamaForCausalLM.from_pretrained(str(self))
-#         target = self.init()
-#         trainer = self.nemo_setup(target)
-#         self.convert_state(source, target)
-#         self.nemo_save(output_path, trainer)
-#
-#         print(f"Converted Llama model to Nemo, model saved to {output_path}")
-#
-#         teardown(trainer, target)
-#         del trainer, target
-#
-#         return output_path
-#
-#     def convert_state(self, source, target):
-#         mapping = {
-#             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
-#             "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
-#             "model.layers.*.mlp.down_proj.weight": "decoder.layers.*.mlp.linear_fc2.weight",
-#             "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
-#             "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-#             "model.norm.weight": "decoder.final_layernorm.weight",
-#             "lm_head.weight": "output_layer.weight",
-#         }
-#
-#         return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_linear_fc1])
-#
-#     @property
-#     def tokenizer(self) -> "AutoTokenizer":
-#         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-#
-#         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
-#
-#     @property
-#     def config(self) -> LlamaConfig:
-#         from transformers import LlamaConfig as HFLlamaConfig
-#
-#         source = HFLlamaConfig.from_pretrained(str(self))
-#
-#         def make_vocab_size_divisible_by(vocab_size):
-#             base = 128
-#             while vocab_size % base != 0:
-#                 base //= 2
-#             return base
-#
-#         output = LlamaConfig(
-#             num_layers=source.num_hidden_layers,
-#             hidden_size=source.hidden_size,
-#             ffn_hidden_size=source.intermediate_size,
-#             num_attention_heads=source.num_attention_heads,
-#             init_method_std=source.initializer_range,
-#             layernorm_epsilon=source.rms_norm_eps,
-#             num_query_groups=source.num_key_value_heads,
-#             rotary_base=source.rope_theta,
-#             gated_linear_unit=True,
-#             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-#             share_embeddings_and_output_weights=False,
-#         )
-#
-#         return output
-
 # @io.model_exporter(LlamaModel, "hf")
 # class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 #     def init(self) -> "LlamaForCausalLM":
@@ -938,8 +868,3 @@ def apply_rope_scaling(
     inv_freq_llama = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
 
     return inv_freq_llama
-
-
-__all__ = [
-    "Llama32TextConfig11B",
-]
