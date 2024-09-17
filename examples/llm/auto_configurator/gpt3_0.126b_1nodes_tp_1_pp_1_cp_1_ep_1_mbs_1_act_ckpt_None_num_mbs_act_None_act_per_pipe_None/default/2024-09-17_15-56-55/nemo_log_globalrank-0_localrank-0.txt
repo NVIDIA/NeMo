@@ -1,0 +1,305 @@
+[NeMo W 2024-09-17 15:56:52 nemo_logging:349] /opt/megatron-lm/megatron/core/tensor_parallel/layers.py:280: FutureWarning: `torch.cuda.amp.custom_fwd(args...)` is deprecated. Please use `torch.amp.custom_fwd(args..., device_type='cuda')` instead.
+      def forward(ctx, input, weight, bias, allreduce_dgrad):
+    
+[NeMo W 2024-09-17 15:56:52 nemo_logging:349] /opt/megatron-lm/megatron/core/tensor_parallel/layers.py:290: FutureWarning: `torch.cuda.amp.custom_bwd(args...)` is deprecated. Please use `torch.amp.custom_bwd(args..., device_type='cuda')` instead.
+      def backward(ctx, grad_output):
+    
+[NeMo W 2024-09-17 15:56:52 nemo_logging:349] /opt/megatron-lm/megatron/core/tensor_parallel/layers.py:381: FutureWarning: `torch.cuda.amp.custom_fwd(args...)` is deprecated. Please use `torch.amp.custom_fwd(args..., device_type='cuda')` instead.
+      def forward(
+    
+[NeMo W 2024-09-17 15:56:52 nemo_logging:349] /opt/megatron-lm/megatron/core/tensor_parallel/layers.py:420: FutureWarning: `torch.cuda.amp.custom_bwd(args...)` is deprecated. Please use `torch.amp.custom_bwd(args..., device_type='cuda')` instead.
+      def backward(ctx, grad_output):
+    
+[NeMo W 2024-09-17 15:56:52 nemo_logging:349] /opt/megatron-lm/megatron/core/dist_checkpointing/strategies/torch.py:17: DeprecationWarning: `torch.distributed._sharded_tensor` will be deprecated, use `torch.distributed._shard.sharded_tensor` instead
+      from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
+    
+[NeMo W 2024-09-17 15:56:52 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/mamba_ssm-2.0.3-py3.10-linux-x86_64.egg/mamba_ssm/ops/selective_scan_interface.py:164: FutureWarning: `torch.cuda.amp.custom_fwd(args...)` is deprecated. Please use `torch.amp.custom_fwd(args..., device_type='cuda')` instead.
+      def forward(ctx, xz, conv1d_weight, conv1d_bias, x_proj_weight, delta_proj_weight,
+    
+[NeMo W 2024-09-17 15:56:52 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/mamba_ssm-2.0.3-py3.10-linux-x86_64.egg/mamba_ssm/ops/selective_scan_interface.py:240: FutureWarning: `torch.cuda.amp.custom_bwd(args...)` is deprecated. Please use `torch.amp.custom_bwd(args..., device_type='cuda')` instead.
+      def backward(ctx, dout):
+    
+[NeMo W 2024-09-17 15:56:53 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/mamba_ssm-2.0.3-py3.10-linux-x86_64.egg/mamba_ssm/ops/triton/layer_norm.py:959: FutureWarning: `torch.cuda.amp.custom_fwd(args...)` is deprecated. Please use `torch.amp.custom_fwd(args..., device_type='cuda')` instead.
+      def forward(
+    
+[NeMo W 2024-09-17 15:56:53 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/mamba_ssm-2.0.3-py3.10-linux-x86_64.egg/mamba_ssm/ops/triton/layer_norm.py:1018: FutureWarning: `torch.cuda.amp.custom_bwd(args...)` is deprecated. Please use `torch.amp.custom_bwd(args..., device_type='cuda')` instead.
+      def backward(ctx, dout, *args):
+    
+[NeMo W 2024-09-17 15:56:53 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/mamba_ssm-2.0.3-py3.10-linux-x86_64.egg/mamba_ssm/distributed/tensor_parallel.py:26: FutureWarning: `torch.cuda.amp.custom_fwd(args...)` is deprecated. Please use `torch.amp.custom_fwd(args..., device_type='cuda')` instead.
+      def forward(ctx, x, weight, bias, process_group=None, sequence_parallel=True):
+    
+[NeMo W 2024-09-17 15:56:53 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/mamba_ssm-2.0.3-py3.10-linux-x86_64.egg/mamba_ssm/distributed/tensor_parallel.py:62: FutureWarning: `torch.cuda.amp.custom_bwd(args...)` is deprecated. Please use `torch.amp.custom_bwd(args..., device_type='cuda')` instead.
+      def backward(ctx, grad_output):
+    
+[NeMo W 2024-09-17 15:56:53 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/mamba_ssm-2.0.3-py3.10-linux-x86_64.egg/mamba_ssm/ops/triton/ssd_combined.py:736: FutureWarning: `torch.cuda.amp.custom_fwd(args...)` is deprecated. Please use `torch.amp.custom_fwd(args..., device_type='cuda')` instead.
+      def forward(ctx, zxbcdt, conv1d_weight, conv1d_bias, dt_bias, A, D, chunk_size, initial_states=None, seq_idx=None, dt_limit=(0.0, float("inf")), return_final_states=False, activation="silu",
+    
+[NeMo W 2024-09-17 15:56:53 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/mamba_ssm-2.0.3-py3.10-linux-x86_64.egg/mamba_ssm/ops/triton/ssd_combined.py:814: FutureWarning: `torch.cuda.amp.custom_bwd(args...)` is deprecated. Please use `torch.amp.custom_bwd(args..., device_type='cuda')` instead.
+      def backward(ctx, dout, *args):
+    
+[NeMo I 2024-09-17 15:56:53 runner:105] AutoConfigurator runner config:
+    model: <Config[GPTConfig126M()]>
+    num_nodes: 1
+    data_paths: /home/data/test_text_document
+    path_to_logs: .
+    tokenizer_type: autotokenizer
+    tokenizer_path: /home/models/gpt2
+    gpus_per_node: 1
+    gpu_memory_gb: 40
+    seq_length: 512
+    global_batch_size: 16
+    tensor_parallel_sizes: [1]
+    pipeline_parallel_sizes: [1]
+    micro_batch_sizes: [1, 2, 4]
+    context_parallel_sizes: [1]
+    expert_parallel_sizes: [1]
+    min_model_parallel_size: auto
+    max_model_parallel_size: auto
+    num_tokens_in_b: 10
+    tflops_per_gpu: 140
+    max_minutes_per_run: 30
+    max_training_days: 1
+    max_steps_per_run: 25
+    vocab_size: 51200
+    
+[NeMo W 2024-09-17 15:56:54 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/modelopt/torch/quantization/tensor_quant.py:166: FutureWarning: `torch.library.impl_abstract` was renamed to `torch.library.register_fake`. Please use that instead; we will remove `torch.library.impl_abstract` in a future version of PyTorch.
+      quantize_op_abstract = torch.library.impl_abstract("tensorrt::quantize_op")(
+    
+[NeMo W 2024-09-17 15:56:55 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/pyannote/core/notebook.py:134: MatplotlibDeprecationWarning: The get_cmap function was deprecated in Matplotlib 3.7 and will be removed in 3.11. Use ``matplotlib.colormaps[name]`` or ``matplotlib.colormaps.get_cmap()`` or ``pyplot.get_cmap()`` instead.
+      cm = get_cmap("Set1")
+    
+[NeMo W 2024-09-17 15:56:55 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/nvidia/dali/_autograph/pyct/gast_util.py:79: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+      if get_gast_version() < LooseVersion("0.5"):
+    
+[NeMo W 2024-09-17 15:56:55 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/setuptools/_distutils/version.py:345: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+      other = LooseVersion(other)
+    
+[NeMo I 2024-09-17 15:56:55 nemo_logger:145] Experiments will be logged at gpt3_0.126b_1nodes_tp_1_pp_1_cp_1_ep_1_mbs_1_act_ckpt_None_num_mbs_act_None_act_per_pipe_None/default/2024-09-17_15-56-55
+[NeMo W 2024-09-17 15:56:55 nemo_logger:173] "update_logger_directory" is True. Overwriting tensorboard logger "save_dir" to gpt3_0.126b_1nodes_tp_1_pp_1_cp_1_ep_1_mbs_1_act_ckpt_None_num_mbs_act_None_act_per_pipe_None/tb_logs
+[NeMo W 2024-09-17 15:56:55 mixed_precision:219] Overwrote Config.bf16  False -> True
+[NeMo W 2024-09-17 15:56:55 mixed_precision:219] Overwrote Config.autocast_dtype  None -> torch.bfloat16
+[NeMo W 2024-09-17 15:56:55 mixed_precision:219] Overwrote GPTConfig126M.bf16  False -> True
+[NeMo W 2024-09-17 15:56:55 mixed_precision:219] Overwrote GPTConfig126M.autocast_dtype  torch.float32 -> torch.bfloat16
+[NeMo W 2024-09-17 15:56:55 mixed_precision:219] Overwrote DistributedDataParallelConfig.grad_reduce_in_fp32  False -> True
+[NeMo I 2024-09-17 15:56:55 megatron_strategy:287] Fixing mis-match between ddp-config & mcore-optimizer config
+[NeMo I 2024-09-17 15:56:55 megatron_init:314] Rank 0 has data parallel group : [0]
+[NeMo I 2024-09-17 15:56:55 megatron_init:320] Rank 0 has combined group of data parallel and context parallel : [0]
+[NeMo I 2024-09-17 15:56:55 megatron_init:325] All data parallel group ranks with context parallel combined: [[0]]
+[NeMo I 2024-09-17 15:56:55 megatron_init:328] Ranks 0 has data parallel rank: 0
+[NeMo I 2024-09-17 15:56:55 megatron_init:336] Rank 0 has context parallel group: [0]
+[NeMo I 2024-09-17 15:56:55 megatron_init:339] All context parallel group ranks: [[0]]
+[NeMo I 2024-09-17 15:56:55 megatron_init:340] Ranks 0 has context parallel rank: 0
+[NeMo I 2024-09-17 15:56:55 megatron_init:347] Rank 0 has model parallel group: [0]
+[NeMo I 2024-09-17 15:56:55 megatron_init:348] All model parallel group ranks: [[0]]
+[NeMo I 2024-09-17 15:56:55 megatron_init:357] Rank 0 has tensor model parallel group: [0]
+[NeMo I 2024-09-17 15:56:55 megatron_init:361] All tensor model parallel group ranks: [[0]]
+[NeMo I 2024-09-17 15:56:55 megatron_init:362] Rank 0 has tensor model parallel rank: 0
+[NeMo I 2024-09-17 15:56:55 megatron_init:382] Rank 0 has pipeline model parallel group: [0]
+[NeMo I 2024-09-17 15:56:55 megatron_init:394] Rank 0 has embedding group: [0]
+[NeMo I 2024-09-17 15:56:55 megatron_init:400] All pipeline model parallel group ranks: [[0]]
+[NeMo I 2024-09-17 15:56:55 megatron_init:401] Rank 0 has pipeline model parallel rank 0
+[NeMo I 2024-09-17 15:56:55 megatron_init:402] All embedding group ranks: [[0]]
+[NeMo I 2024-09-17 15:56:55 megatron_init:403] Rank 0 has embedding rank: 0
+[NeMo I 2024-09-17 15:56:55 utils:230] Let split_matrix = [(0, 0.9), (0.9, 0.9500000000000001), (0.9500000000000001, 1.0)]
+[NeMo I 2024-09-17 15:56:55 utils:230] Building dataset splits with cls=GPTDataset, sizes=[400, 32, 16], and config=GPTDatasetConfig(random_seed=1234, sequence_length=512, blend=[['/home/data/test_text_document'], None], blend_per_split=None, renormalize_blend_weights=False, split='900,50,50', split_matrix=[(0, 0.9), (0.9, 0.9500000000000001), (0.9500000000000001, 1.0)], num_dataset_builder_threads=1, path_to_cache=None, mmap_bin_files=True, mock=False, tokenizer=<nemo.collections.common.tokenizers.huggingface.auto_tokenizer.AutoTokenizer object at 0x78bd2f75f670>, reset_position_ids=False, reset_attention_mask=False, eod_mask_loss=False, create_attention_mask=False, drop_last_partial_validation_sequence=True, add_extra_token_to_sequence=True, s3_cache_path=None)
+[NeMo I 2024-09-17 15:56:55 utils:230] Load the _IndexReader from /home/data/test_text_document.idx
+[NeMo I 2024-09-17 15:56:55 utils:230] 	Extract the sequence lengths
+[NeMo I 2024-09-17 15:56:55 utils:230] 	Extract the sequence pointers
+[NeMo I 2024-09-17 15:56:55 utils:230] 	Extract the document indices
+[NeMo I 2024-09-17 15:56:55 utils:230] > total number of sequences: 10042
+[NeMo I 2024-09-17 15:56:55 utils:230] > total number of documents: 10042
+[NeMo I 2024-09-17 15:56:55 utils:230] Load the GPTDataset train indices
+[NeMo I 2024-09-17 15:56:55 utils:230] 	Load the document index from d2eaebd99e6b8c29ac2ad7161786400b-GPTDataset-train-document_index.npy
+[NeMo I 2024-09-17 15:56:55 utils:230] 	Load the sample index from d2eaebd99e6b8c29ac2ad7161786400b-GPTDataset-train-sample_index.npy
+[NeMo I 2024-09-17 15:56:55 utils:230] 	Load the shuffle index from d2eaebd99e6b8c29ac2ad7161786400b-GPTDataset-train-shuffle_index.npy
+[NeMo I 2024-09-17 15:56:55 utils:230] > total number of samples: 1378
+[NeMo I 2024-09-17 15:56:55 utils:230] Load the GPTDataset valid indices
+[NeMo I 2024-09-17 15:56:55 utils:230] 	Load the document index from b72fa00a1237265533cce7de0312d217-GPTDataset-valid-document_index.npy
+[NeMo I 2024-09-17 15:56:55 utils:230] 	Load the sample index from b72fa00a1237265533cce7de0312d217-GPTDataset-valid-sample_index.npy
+[NeMo I 2024-09-17 15:56:55 utils:230] 	Load the shuffle index from b72fa00a1237265533cce7de0312d217-GPTDataset-valid-shuffle_index.npy
+[NeMo I 2024-09-17 15:56:55 utils:230] > total number of samples: 95
+[NeMo I 2024-09-17 15:56:55 utils:230] Load the GPTDataset test indices
+[NeMo I 2024-09-17 15:56:55 utils:230] 	Load the document index from 6d91950b244860d832b2c6cf0533c697-GPTDataset-test-document_index.npy
+[NeMo I 2024-09-17 15:56:55 utils:230] 	Load the sample index from 6d91950b244860d832b2c6cf0533c697-GPTDataset-test-sample_index.npy
+[NeMo I 2024-09-17 15:56:55 utils:230] 	Load the shuffle index from 6d91950b244860d832b2c6cf0533c697-GPTDataset-test-shuffle_index.npy
+[NeMo I 2024-09-17 15:56:55 utils:230] > total number of samples: 94
+[NeMo I 2024-09-17 15:56:55 base:44] Padded vocab_size: 50304, original vocab_size: 50257, dummy tokens: 47.
+[NeMo I 2024-09-17 15:56:56 num_microbatches_calculator:218] setting number of microbatches to constant 16
+[NeMo I 2024-09-17 15:56:56 megatron_parallel:522]  > number of parameters on (tensor, pipeline) model parallel rank (0, 0): 124082688
+[NeMo I 2024-09-17 15:56:56 utils:230] Setting up DistributedDataParallel with config DistributedDataParallelConfig(grad_reduce_in_fp32=True, overlap_grad_reduce=False, overlap_param_gather=False, align_param_gather=False, use_distributed_optimizer=True, check_for_nan_in_grad=True, bucket_size=None, average_in_collective=False, fp8_param_gather=False)
+[NeMo I 2024-09-17 15:56:56 utils:251] Number of buckets for gradient all-reduce / reduce-scatter: 1
+    Params for bucket 1 (124082688 elements):
+    	module.decoder.layers.10.self_attention.linear_qkv.bias
+    	module.decoder.layers.7.mlp.linear_fc1.layer_norm_bias
+    	module.decoder.layers.5.mlp.linear_fc1.layer_norm_weight
+    	module.decoder.layers.2.self_attention.linear_qkv.layer_norm_bias
+    	module.decoder.layers.11.self_attention.linear_qkv.weight
+    	module.decoder.layers.8.mlp.linear_fc1.bias
+    	module.decoder.layers.6.mlp.linear_fc2.bias
+    	module.decoder.layers.3.self_attention.linear_qkv.bias
+    	module.decoder.layers.0.mlp.linear_fc1.weight
+    	module.decoder.layers.10.self_attention.linear_proj.weight
+    	module.decoder.layers.7.mlp.linear_fc2.weight
+    	module.decoder.layers.4.self_attention.linear_qkv.weight
+    	module.decoder.layers.1.mlp.linear_fc1.weight
+    	module.decoder.layers.11.mlp.linear_fc1.layer_norm_weight
+    	module.decoder.layers.8.self_attention.linear_qkv.layer_norm_weight
+    	module.decoder.layers.7.self_attention.linear_proj.bias
+    	module.decoder.layers.3.self_attention.linear_proj.weight
+    	module.decoder.layers.0.mlp.linear_fc1.layer_norm_weight
+    	module.decoder.layers.9.self_attention.linear_qkv.bias
+    	module.decoder.layers.6.mlp.linear_fc1.layer_norm_bias
+    	module.decoder.layers.4.mlp.linear_fc1.layer_norm_weight
+    	module.decoder.layers.1.self_attention.linear_qkv.layer_norm_bias
+    	module.decoder.layers.0.self_attention.linear_proj.weight
+    	module.decoder.layers.10.self_attention.linear_qkv.weight
+    	module.decoder.layers.7.mlp.linear_fc1.bias
+    	module.decoder.layers.5.mlp.linear_fc2.bias
+    	module.decoder.layers.2.self_attention.linear_qkv.bias
+    	module.decoder.layers.0.mlp.linear_fc1.bias
+    	module.decoder.final_layernorm.bias
+    	module.decoder.layers.8.mlp.linear_fc1.weight
+    	module.decoder.layers.6.mlp.linear_fc2.weight
+    	module.decoder.layers.3.self_attention.linear_qkv.weight
+    	module.decoder.layers.1.self_attention.linear_proj.weight
+    	module.decoder.layers.10.mlp.linear_fc1.layer_norm_weight
+    	module.decoder.layers.7.self_attention.linear_qkv.layer_norm_weight
+    	module.decoder.layers.6.self_attention.linear_proj.bias
+    	module.decoder.layers.2.self_attention.linear_proj.weight
+    	module.decoder.layers.11.mlp.linear_fc2.bias
+    	module.decoder.layers.8.self_attention.linear_qkv.layer_norm_bias
+    	module.decoder.layers.5.mlp.linear_fc1.layer_norm_bias
+    	module.decoder.layers.3.mlp.linear_fc1.layer_norm_weight
+    	module.decoder.layers.0.mlp.linear_fc2.bias
+    	module.decoder.layers.9.self_attention.linear_qkv.weight
+    	module.decoder.layers.6.mlp.linear_fc1.bias
+    	module.decoder.layers.4.mlp.linear_fc2.bias
+    	module.decoder.layers.1.self_attention.linear_qkv.bias
+    	module.decoder.final_layernorm.weight
+    	module.decoder.layers.7.mlp.linear_fc1.weight
+    	module.decoder.layers.5.mlp.linear_fc2.weight
+    	module.decoder.layers.2.self_attention.linear_qkv.weight
+    	module.decoder.layers.11.mlp.linear_fc1.layer_norm_bias
+    	module.decoder.layers.9.mlp.linear_fc1.layer_norm_weight
+    	module.decoder.layers.6.self_attention.linear_qkv.layer_norm_weight
+    	module.decoder.layers.5.self_attention.linear_proj.bias
+    	module.decoder.layers.1.self_attention.linear_proj.bias
+    	module.decoder.layers.10.mlp.linear_fc2.bias
+    	module.decoder.layers.7.self_attention.linear_qkv.layer_norm_bias
+    	module.decoder.layers.4.mlp.linear_fc1.layer_norm_bias
+    	module.decoder.layers.2.mlp.linear_fc1.layer_norm_weight
+    	module.decoder.layers.11.mlp.linear_fc2.weight
+    	module.decoder.layers.8.self_attention.linear_qkv.bias
+    	module.decoder.layers.5.mlp.linear_fc1.bias
+    	module.decoder.layers.3.mlp.linear_fc2.bias
+    	module.decoder.layers.11.self_attention.linear_proj.bias
+    	module.decoder.layers.6.mlp.linear_fc1.weight
+    	module.decoder.layers.4.mlp.linear_fc2.weight
+    	module.decoder.layers.1.self_attention.linear_qkv.weight
+    	module.decoder.layers.0.self_attention.linear_qkv.layer_norm_bias
+    	module.decoder.layers.10.mlp.linear_fc1.layer_norm_bias
+    	module.decoder.layers.8.self_attention.linear_proj.weight
+    	module.decoder.layers.5.self_attention.linear_qkv.layer_norm_weight
+    	module.decoder.layers.4.self_attention.linear_proj.bias
+    	module.decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
+    	module.embedding.position_embeddings.weight
+    	module.decoder.layers.11.mlp.linear_fc1.bias
+    	module.decoder.layers.9.mlp.linear_fc2.bias
+    	module.decoder.layers.6.self_attention.linear_qkv.layer_norm_bias
+    	module.decoder.layers.3.mlp.linear_fc1.layer_norm_bias
+    	module.decoder.layers.1.mlp.linear_fc1.layer_norm_weight
+    	module.decoder.layers.10.mlp.linear_fc2.weight
+    	module.decoder.layers.7.self_attention.linear_qkv.bias
+    	module.decoder.layers.4.mlp.linear_fc1.bias
+    	module.decoder.layers.2.mlp.linear_fc2.bias
+    	module.decoder.layers.11.self_attention.linear_qkv.layer_norm_weight
+    	module.decoder.layers.8.self_attention.linear_qkv.weight
+    	module.decoder.layers.5.mlp.linear_fc1.weight
+    	module.decoder.layers.3.mlp.linear_fc2.weight
+    	module.embedding.word_embeddings.weight
+    	module.decoder.layers.9.mlp.linear_fc1.layer_norm_bias
+    	module.decoder.layers.7.self_attention.linear_proj.weight
+    	module.decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
+    	module.decoder.layers.3.self_attention.linear_proj.bias
+    	module.decoder.layers.10.mlp.linear_fc1.bias
+    	module.decoder.layers.8.mlp.linear_fc1.layer_norm_weight
+    	module.decoder.layers.5.self_attention.linear_qkv.layer_norm_bias
+    	module.decoder.layers.2.mlp.linear_fc1.layer_norm_bias
+    	module.decoder.layers.0.self_attention.linear_qkv.bias
+    	module.decoder.layers.11.mlp.linear_fc1.weight
+    	module.decoder.layers.9.mlp.linear_fc2.weight
+    	module.decoder.layers.6.self_attention.linear_qkv.bias
+    	module.decoder.layers.3.mlp.linear_fc1.bias
+    	module.decoder.layers.1.mlp.linear_fc2.bias
+    	module.decoder.layers.10.self_attention.linear_qkv.layer_norm_weight
+    	module.decoder.layers.7.self_attention.linear_qkv.weight
+    	module.decoder.layers.4.mlp.linear_fc1.weight
+    	module.decoder.layers.2.mlp.linear_fc2.weight
+    	module.decoder.layers.11.self_attention.linear_qkv.layer_norm_bias
+    	module.decoder.layers.10.self_attention.linear_proj.bias
+    	module.decoder.layers.6.self_attention.linear_proj.weight
+    	module.decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
+    	module.decoder.layers.2.self_attention.linear_proj.bias
+    	module.decoder.layers.9.mlp.linear_fc1.bias
+    	module.decoder.layers.7.mlp.linear_fc1.layer_norm_weight
+    	module.decoder.layers.4.self_attention.linear_qkv.layer_norm_bias
+    	module.decoder.layers.1.mlp.linear_fc1.layer_norm_bias
+    	module.decoder.layers.0.mlp.linear_fc2.weight
+    	module.decoder.layers.10.mlp.linear_fc1.weight
+    	module.decoder.layers.8.mlp.linear_fc2.bias
+    	module.decoder.layers.5.self_attention.linear_qkv.bias
+    	module.decoder.layers.2.mlp.linear_fc1.bias
+    	module.decoder.layers.9.self_attention.linear_qkv.layer_norm_weight
+    	module.decoder.layers.6.self_attention.linear_qkv.weight
+    	module.decoder.layers.3.mlp.linear_fc1.weight
+    	module.decoder.layers.1.mlp.linear_fc2.weight
+    	module.decoder.layers.0.mlp.linear_fc1.layer_norm_bias
+    	module.decoder.layers.0.self_attention.linear_qkv.weight
+    	module.decoder.layers.0.self_attention.linear_proj.bias
+    	module.decoder.layers.10.self_attention.linear_qkv.layer_norm_bias
+    	module.decoder.layers.9.self_attention.linear_proj.bias
+    	module.decoder.layers.5.self_attention.linear_proj.weight
+    	module.decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
+    	module.decoder.layers.11.self_attention.linear_qkv.bias
+    	module.decoder.layers.8.mlp.linear_fc1.layer_norm_bias
+    	module.decoder.layers.6.mlp.linear_fc1.layer_norm_weight
+    	module.decoder.layers.3.self_attention.linear_qkv.layer_norm_bias
+    	module.decoder.layers.9.mlp.linear_fc1.weight
+    	module.decoder.layers.7.mlp.linear_fc2.bias
+    	module.decoder.layers.4.self_attention.linear_qkv.bias
+    	module.decoder.layers.1.mlp.linear_fc1.bias
+    	module.decoder.layers.11.self_attention.linear_proj.weight
+    	module.decoder.layers.9.self_attention.linear_proj.weight
+    	module.decoder.layers.8.mlp.linear_fc2.weight
+    	module.decoder.layers.5.self_attention.linear_qkv.weight
+    	module.decoder.layers.2.mlp.linear_fc1.weight
+    	module.decoder.layers.9.self_attention.linear_qkv.layer_norm_bias
+    	module.decoder.layers.8.self_attention.linear_proj.bias
+    	module.decoder.layers.4.self_attention.linear_proj.weight
+    	module.decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
+[NeMo I 2024-09-17 15:56:56 utils:230] Setting up optimizer with config OptimizerConfig(optimizer='adam', lr=0.0001, min_lr=1e-05, decoupled_lr=None, decoupled_min_lr=None, weight_decay=0.01, fp16=False, bf16=True, params_dtype=torch.float32, loss_scale=None, initial_loss_scale=4294967296, min_loss_scale=1.0, loss_scale_window=1000, hysteresis=2, adam_beta1=0.9, adam_beta2=0.95, adam_eps=1e-05, sgd_momentum=0.9, use_distributed_optimizer=True, overlap_param_gather_with_optimizer_step=False, clip_grad=1.0, log_num_zeros_in_grad=False, barrier_with_L1_time=False, timers=None, config_logger_dir='')
+[NeMo W 2024-09-17 15:56:56 nemo_logging:349] /opt/megatron-lm/megatron/core/tensor_parallel/layers.py:609: UserWarning: async_grad_allreduce is deprecated, not in use anymore and will be fully removed with 0.10.0. Please use allreduce_dgrad instead.
+      warnings.warn(
+    
+[NeMo W 2024-09-17 15:57:00 nemo_logging:349] /opt/megatron-lm/megatron/core/tensor_parallel/layers.py:609: UserWarning: async_grad_allreduce is deprecated, not in use anymore and will be fully removed with 0.10.0. Please use allreduce_dgrad instead.
+      warnings.warn(
+    
+[NeMo W 2024-09-17 15:57:00 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/pytorch_lightning/trainer/connectors/logger_connector/result.py:431: It is recommended to use `self.log('global_batch_size', ..., sync_dist=True)` when logging on epoch level in distributed setting to accumulate the metric across devices.
+    
+[NeMo W 2024-09-17 15:57:00 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/pytorch_lightning/trainer/connectors/logger_connector/result.py:431: It is recommended to use `self.log('val_loss', ..., sync_dist=True)` when logging on epoch level in distributed setting to accumulate the metric across devices.
+    
+[NeMo W 2024-09-17 15:57:00 nemo_logging:349] /opt/megatron-lm/megatron/core/tensor_parallel/layers.py:609: UserWarning: async_grad_allreduce is deprecated, not in use anymore and will be fully removed with 0.10.0. Please use allreduce_dgrad instead.
+      warnings.warn(
+    
+[NeMo W 2024-09-17 15:57:01 nemo_logging:349] /opt/megatron-lm/megatron/core/tensor_parallel/layers.py:609: UserWarning: async_grad_allreduce is deprecated, not in use anymore and will be fully removed with 0.10.0. Please use allreduce_dgrad instead.
+      warnings.warn(
+    
+[NeMo W 2024-09-17 15:57:02 nemo_logging:349] /opt/megatron-lm/megatron/core/distributed/param_and_grad_buffer.py:259: FutureWarning: `torch.distributed._reduce_scatter_base` is a private function and will be deprecated. Please use `torch.distributed.reduce_scatter_tensor` instead.
+      torch.distributed._reduce_scatter_base(
+    
+[NeMo W 2024-09-17 15:57:02 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/torch/distributed/c10d_logger.py:78: FutureWarning: `torch.distributed._all_gather_base` is a private function and will be deprecated. Please use `torch.distributed.all_gather_into_tensor` instead.
+      return func(*args, **kwargs)
+    
+[NeMo W 2024-09-17 15:57:14 nemo_logging:349] /usr/lib/python3.10/tempfile.py:999: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmptsrald2z'>
+      _warnings.warn(warn_message, ResourceWarning)
+    

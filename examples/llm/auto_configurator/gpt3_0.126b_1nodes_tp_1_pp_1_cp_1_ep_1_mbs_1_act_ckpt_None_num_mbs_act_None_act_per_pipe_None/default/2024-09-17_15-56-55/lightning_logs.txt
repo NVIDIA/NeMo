@@ -1,0 +1,23 @@
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+HPU available: False, using: 0 HPUs
+`Trainer(limit_val_batches=1)` was configured so 1 batch will be used.
+`Trainer(limit_test_batches=1)` was configured so 1 batch will be used.
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 1 processes
+----------------------------------------------------------------------------------------------------
+
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1,2,3]
+
+  | Name   | Type | Params | Mode 
+----------------------------------------
+0 | module | DDP  | 124 M  | train
+----------------------------------------
+124 M     Trainable params
+0         Non-trainable params
+124 M     Total params
+496.331   Total estimated model params size (MB)
+251       Modules in train mode
+0         Modules in eval mode
+`Trainer.fit` stopped: `max_steps=25` reached.

@@ -478,6 +478,8 @@ class NLPDDPStrategy(DDPStrategy):
         # @akoumparouli: check if it contains an mcore dist opt
         if common_state_dict.get('optimizer_states', [{}])[0].get('param_groups', None) is None:
             return False
+        if sharded_state_dict.get('optimizer_states') is None:
+            return False
         model_param_groups = self._get_param_group(common_state_dict)
         checkpoint_param_groups = self._get_param_group(sharded_state_dict)
         return len(model_param_groups) != len(checkpoint_param_groups)
