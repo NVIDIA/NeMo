@@ -71,7 +71,6 @@ if __name__ == '__main__':
     strategy = nl.MegatronStrategy()
     checkpoint_callback = ModelCheckpoint(
         every_n_train_steps=5000,
-        enable_nemo_ckpt_io=False,
     )
     callbacks = [checkpoint_callback]
 
@@ -103,7 +102,7 @@ if __name__ == '__main__':
     )
 
     nemo_logger = NeMoLogger(
-        dir=args.experiment_dir,
+        log_dir=args.experiment_dir,
     )
 
     train(
