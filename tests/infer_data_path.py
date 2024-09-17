@@ -41,8 +41,20 @@ class ModelInfo:
 def get_infer_test_data():
     test_data = {}
 
-    test_data["NEMOTRON3-22B-base-32k"] = ModelInfo(
-        checkpoint= "/opt/checkpoints/nemotron-3-22b-base-32k_v1.0/mcore-gpt3-22b-3_8T-pi32k-3_5T-cont-10k.nemo",
+    test_data["NEMOTRON3-22B-base-32k-v1"] = ModelInfo(
+        checkpoint="/opt/checkpoints/nemotron-3-22b-chat-32k-sft_v1.0/nemotron-3-22b-chat-32k-sft.nemo",
+        model_type="gptnext",
+        min_tps=2,
+    )
+
+    test_data["NEMOTRON3-22B-base-32k-v2"] = ModelInfo(
+        checkpoint="/opt/checkpoints/nemotron-3-22b-chat-32k-sft_v2.0/nemotron-3-22b-chat-32k-sft.nemo",
+        model_type="gptnext",
+        min_tps=2,
+    )
+
+    test_data["NEMOTRON3-22B-base-32k-v3"] = ModelInfo(
+        checkpoint="/opt/checkpoints/nemotron-3-22b-chat-32k-steerlm_v1.0/nemotron-3-22b-chat-32k-steerlm.nemo",
         model_type="gptnext",
         min_tps=2,
     )
@@ -57,6 +69,11 @@ def get_infer_test_data():
         model_type="llama",
         p_tuning_checkpoint="/opt/checkpoints/LLAMA2-7B-PTuning/LLAMA2-7B-PTuning-1.nemo",
         lora_checkpoint="/opt/checkpoints/LLAMA2-7B-Lora/LLAMA2-7B-Lora-1.nemo",
+    )
+
+    test_data["LLAMA2-7B-fp8-sft"] = ModelInfo(
+        checkpoint="/opt/checkpoints/LLAMA2-7B-base/LLAMA2-7B-fp8-sft.nemo",
+        model_type="llama",
     )
 
     test_data["LLAMA2-13B-base"] = ModelInfo(
@@ -124,8 +141,8 @@ def get_infer_test_data():
         min_tps=8,
     )
 
-    test_data["STARCODER1-15B-base"] = ModelInfo(
-        checkpoint="/opt/checkpoints/STARCODER1-15B-base/STARCODER1-15B-base-1.nemo",
+    test_data["STARCODER1-15B-python"] = ModelInfo(
+        checkpoint="/opt/checkpoints/STARCODER1-15B-python/STARCODER1-15B-python-1.nemo",
         model_type="starcoder",
         prompt_template=("def fibonnaci(n",),
         expected_keyword=("fibonnaci",),
@@ -133,8 +150,8 @@ def get_infer_test_data():
         max_batch_size=5,
     )
 
-    test_data["STARCODER2-15B-base"] = ModelInfo(
-        checkpoint="/opt/checkpoints/starcoder-2_15b_4k_vfinal/4194b.nemo",  # TODO naming
+    test_data["STARCODER2-15B-4k-vfinal"] = ModelInfo(
+        checkpoint="/opt/checkpoints/STARCODER2-15B-4k-vfinal/STARCODER2-15B-4k-vfinal-1.nemo",
         model_type="starcoder",
         prompt_template=("def fibonnaci(n",),
         expected_keyword=("fibonnaci",),
@@ -143,7 +160,7 @@ def get_infer_test_data():
     )
 
     test_data["GEMMA-2B-base"] = ModelInfo(
-        checkpoint="/opt/checkpoints/GEMMA-2B-base/GEMMA-2B-base-1.nemo",  # TODO naming
+        checkpoint="/opt/checkpoints/GEMMA-2B-base/GEMMA-2B-base-1.nemo",
         model_type="gemma",
     )
 
