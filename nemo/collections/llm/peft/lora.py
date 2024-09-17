@@ -56,6 +56,7 @@ class AdapterParallelAdd(AdapterWrapper):
 
 class LoRAModuleConnector:
     """Gets and sets attributes of a module that are relevant to LoRA."""
+
     @staticmethod
     def get_in_features(m: nn.Module):
         """Gets the number of input features for the module.
