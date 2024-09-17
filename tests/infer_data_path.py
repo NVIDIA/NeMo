@@ -60,7 +60,7 @@ def get_infer_test_data():
     )
 
     test_data["NEMOTRON4-340B-base-fp8"] = ModelInfo(
-        checkpoint= "/opt/checkpoints/NEMOTRON4-340B-base-fp8/NEMOTRON4-340B-base-fp8-1-qnemo",
+        checkpoint="/opt/checkpoints/NEMOTRON4-340B-base-fp8/NEMOTRON4-340B-base-fp8-1-qnemo",
         min_tps=8,
     )
 
