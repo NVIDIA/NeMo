@@ -44,7 +44,7 @@ exp_manager:
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
-    monitor: validation_${model.data.validation_ds.metric.name}
+    monitor: validation_${model.data.validation_ds.metrics[0].name}
     save_top_k: 1
     mode: min
     save_nemo_on_train_end: True
@@ -225,6 +225,9 @@ model:
     # encoder: null
     # preprocessor: null
 
+  codec_model_path: ???
+  asr_model_path: "stt_en_fastconformer_transducer_large"
+
   data:
     end_string: ""
     train_ds:
@@ -241,7 +244,7 @@ model:
         weight: 1.0
         tags:
           lang: en
-          s2s: True
+          direct_s2s: True
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
@@ -301,14 +304,14 @@ model:
           weight: 1.0
           tags:
             lang: en
-            s2s: True
+            direct_s2s: True
           input_cfg:
             - type: lhotse_shar
               shar_path: manifests/es_mini_prompt3 #/workspace/nemo/works/zhehuaic_works/data/s2s_shars/es_mini/
               weight: 1.0
               tags:
                 lang: en
-                s2s: True
+                direct_s2s: True
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False
@@ -341,10 +344,19 @@ model:
       sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
 
       log_every_n_steps: 10
-      metric:
-        name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
-        average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
-        num_classes: null
+      metrics:
+        - name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
+          average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
+          num_classes: null
+        - name: "bleu"
+          average: null
+          num_classes: null
+        - name: "asr-bleu"
+          average: null
+          num_classes: null
+        - name: "asr-wer"
+          average: null
+          num_classes: null
 
   optim:
     name: fused_adam

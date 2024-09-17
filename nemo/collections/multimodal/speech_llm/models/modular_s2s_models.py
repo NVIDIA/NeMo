@@ -14,6 +14,7 @@ from pytorch_lightning.utilities import rank_zero_only
 from torch import Tensor
 
 from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
+from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
 from nemo.collections.common.parts.utils import apply_rope_scaling, extend_instance
 from nemo.collections.multimodal.speech_llm.models.modular_models import ModularAudioGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import EmbeddingScalingMixin, get_specs
@@ -352,6 +353,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                         l = l[: -len(es)].strip()
                 preds_text_cleaned.append(p)
                 labels_text_cleaned.append(l)
+            # TODO: remove preds_text here since it is not used. the real preds_text is obtained by parse_decoder_outputs()
             preds_text = preds_text_cleaned
             labels_text = labels_text_cleaned
 
@@ -373,6 +375,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             'preds': output['token_ids'],
             'context_lengths': batch['context_lengths'],
             'labels': batch['answers'],  # [str]
+            'labels_text': labels_text,  # [str]
             'inputs': inputs_text,  # [str]
             'metadata': metadata,  # [dict]
             'batch_idx': batch_idx,
@@ -425,6 +428,26 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         speech_tokens = speech_tokens.reshape(new_shape)
         return text_tokens.long(), speech_tokens.long()
 
+    def decode_and_save_wavs(self, codec_model, codes_list, wav_dir, metadata_list):
+        import soundfile as sf
+
+        sample_rate = 22050
+        os.makedirs(wav_dir, exist_ok=True)
+        wavs = []
+        for codes, metadata in zip(codes_list, metadata_list):
+            codes = torch.tensor(codes).to(codec_model.device).T
+            codec_len = torch.Tensor([codes.shape[1]]).long().to(codec_model.device)
+            wav, _ = codec_model.decode(tokens=codes.unsqueeze(0), tokens_len=codec_len)
+            wav = wav[0]
+            wavs.append(wav)
+            sf.write(
+                os.path.join(wav_dir, metadata['audio_filepath'].replace(".wav", ".gen.wav")),
+                wav.detach().cpu().numpy(),
+                sample_rate,
+            )
+
+        return wavs
+
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
         if not outputs or (all([not x for x in outputs])):
@@ -434,7 +457,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             outputs = [outputs]
 
         averaged_loss = []
-        averaged_metric = []
         # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
             if len(output) == 0:
@@ -476,6 +498,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                         'metadata': x['metadata'],
                         'context_lengths': x['context_lengths'],
                         'batch_idx': x['batch_idx'],
+                        'labels_text': x['labels_text'],
                     }
                     for x in output
                 ],
@@ -491,12 +514,19 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 'metadata': [],
                 'speech_preds': [],
                 'speech_answers': [],
+                'text_answers': [],
+                'batch_idx': [],
             }
             total_size = 0
             for rank in range(0, parallel_state.get_data_parallel_world_size()):
                 for batch in gathered_outputs[rank]:
-                    for pred, answer, input, metadata, pred_context_length in zip(
-                        batch['preds'], batch['labels'], batch['inputs'], batch['metadata'], batch['context_lengths']
+                    for pred, answer, input, metadata, pred_context_length, labels_text in zip(
+                        batch['preds'],
+                        batch['labels'],
+                        batch['inputs'],
+                        batch['metadata'],
+                        batch['context_lengths'],
+                        batch['labels_text'],
                     ):
                         context_length = len(self.tokenizer.text_to_ids(input))
                         text_answer, speech_answer = self.parse_decoder_outputs(
@@ -518,61 +548,169 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                                 self.cfg.data.train_ds.speech_pad_id,
                                 self.cfg.data.train_ds.speech_eos_id,
                             )
-                            text_pred_text = self.tokenizer.ids_to_text(text_pred.unsqueeze(0))
+                            text_pred_text = self.tokenizer.ids_to_text(text_pred)
                             deduplicated_outputs['preds'].append(text_pred_text)
-                            labels_text = self.tokenizer.ids_to_text(text_answer.unsqueeze(0))
                             deduplicated_outputs['labels'].append(labels_text)
+                            text_answer_text = self.tokenizer.ids_to_text(text_answer.unsqueeze(0))
+                            deduplicated_outputs['text_answers'].append(text_answer_text)
                             deduplicated_outputs['speech_preds'].append(speech_pred.cpu().numpy())
                             deduplicated_outputs['speech_answers'].append(speech_answer.cpu().numpy())
 
                             deduplicated_outputs['inputs'].append(input)
                             deduplicated_outputs['metadata'].append(metadata)
-                            if data_cfg.get("log_every_n_steps", None) is not None:
-                                if batch['batch_idx'] % data_cfg.log_every_n_steps == 0:
-                                    logging.info(f"Label: `{labels_text}`")
-                                    logging.info(f"Pred: `{text_pred_text}`")
-                                    logging.info(
-                                        f"Speech out len: pred {speech_pred.shape} label {speech_answer.shape}"
-                                    )
+                            deduplicated_outputs['batch_idx'].append(batch['batch_idx'])
 
             # Compute metric score
             metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
-            metric_label_key = self.val_metric_label_key if mode == 'validation' else self.test_metric_label_key
+            metric = self.val_metric if mode == 'validation' else self.test_metric
+            averaged_metric = [[] for _ in range(len(metric_name))]
+            output_dir = data_cfg.get("output_dir", "./")
             run_codec = any(("asr" in metric_name or "mos" in metric_name) for metric_name in metric_name)
             run_asr = any("asr" in metric_name for metric_name in metric_name)
             run_mos = any("mos" in metric_name for metric_name in metric_name)
-            if metric_name != 'loss':
-                metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
-                metric_fn = self.val_metric[0] if mode == 'validation' else self.test_metric[0]
-                if metric_label_key in deduplicated_outputs['metadata'][0]:
-                    labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
+
+            # TODO: move the following model init code to init() function
+            if run_codec:
+                if 'codec_model' not in self.additional_models:
+                    from nemo.collections.tts.models import AudioCodecModel
+
+                    codec_model = AudioCodecModel.restore_from(self.cfg.codec_model_path)
+                    codec_model.to(self.device)
+                    codec_model.eval()
+                    self.additional_models['codec_model'] = codec_model
+                    logging.info(f"Loaded Codec Model: {codec_model}")
                 else:
+                    codec_model = self.additional_models['codec_model']
+
+                with torch.no_grad():
+                    logging.info(f"Decoding and saving audio")
+                    pred_wavs = self.decode_and_save_wavs(
+                        codec_model,
+                        deduplicated_outputs['speech_preds'],
+                        os.path.join(output_dir, "wav", "pred"),
+                        deduplicated_outputs['metadata'],
+                    )
+                    answer_wavs = self.decode_and_save_wavs(
+                        codec_model,
+                        deduplicated_outputs['speech_answers'],
+                        os.path.join(output_dir, "wav", "answer"),
+                        deduplicated_outputs['metadata'],
+                    )
+
+            if run_asr:
+                if 'asr_model' not in self.additional_models:
+                    import nemo.collections.asr as nemo_asr
+
+                    asr_model = nemo_asr.models.ASRModel.from_pretrained(self.cfg.asr_model_path).to(self.device)
+                    asr_model.encoder.disable_torch_distributed = True  # For multi-gpu training validation
+                    asr_model.eval()
+                    self.additional_models['asr_model'] = asr_model
+                    logging.info(f"Loaded ASR Model: {asr_model}")
+                else:
+                    asr_model = self.additional_models['asr_model']
+
+                with torch.no_grad():
+                    logging.info(f"Running ASR on speech preds")
+                    speech_preds_transcribed = asr_model.transcribe(pred_wavs)[0]
+                    speech_answers_transcribed = asr_model.transcribe(answer_wavs)[0]
+                    deduplicated_outputs['speech_preds_transcribed'] = speech_preds_transcribed
+                    deduplicated_outputs['speech_answers_transcribed'] = speech_answers_transcribed
+
+            if run_mos:
+                if 'squim_mos_model' not in self.additional_models:
+                    from torchaudio.pipelines import SQUIM_SUBJECTIVE
+
+                    squim_mos_model = SQUIM_SUBJECTIVE.get_model().to(self.device)
+                    self.additional_models['squim_mos_model'] = squim_mos_model
+                else:
+                    squim_mos_model = self.additional_models['squim_mos_model']
+
+                import torchaudio
+
+                with torch.no_grad():
+                    logging.info(f"Running MOS prediction")
+                    pred_wavs_resampled = [
+                        torchaudio.functional.resample(wav, 22050, 16000).unsqueeze(0) for wav in pred_wavs
+                    ]
+                    answer_wavs_resampled = [
+                        torchaudio.functional.resample(wav, 22050, 16000).unsqueeze(0) for wav in answer_wavs
+                    ]
+                    squim_mos_scores = [
+                        squim_mos_model(pred_wav, answer_wav)
+                        for pred_wav, answer_wav in zip(pred_wavs_resampled, answer_wavs_resampled)
+                    ]
+                    deduplicated_outputs['mos_scores'] = squim_mos_scores
+
+            if self.global_rank == 0:
+                for (
+                    labels,
+                    text_answer_text,
+                    preds,
+                    speech_preds_transcribed,
+                    speech_answer,
+                    speech_pred,
+                    inputs,
+                    batch_idx,
+                    speech_answers_transcribed,
+                ) in zip(
+                    deduplicated_outputs['labels'],
+                    deduplicated_outputs['text_answers'],
+                    deduplicated_outputs['preds'],
+                    deduplicated_outputs['speech_preds_transcribed'],
+                    deduplicated_outputs['speech_answers'],
+                    deduplicated_outputs['speech_preds'],
+                    deduplicated_outputs['inputs'],
+                    deduplicated_outputs['batch_idx'],
+                    deduplicated_outputs['speech_answers_transcribed'],
+                ):
+                    if (
+                        data_cfg.get("log_every_n_steps", None) is not None
+                        and batch_idx % data_cfg.log_every_n_steps == 0
+                    ):
+                        logging.info(f"Input: `{inputs}`")
+                        logging.info(f"Label: `{labels}` text_answer_text: `{text_answer_text}`")
+                        logging.info(f"Pred: `{preds}`")
+                        logging.info(f"speech_preds_transcribed: `{speech_preds_transcribed}`")
+                        logging.info(f"speech_answers_transcribed: `{speech_answers_transcribed}`")
+                        logging.info(f"Speech out len: pred {speech_pred.shape} label {speech_answer.shape}")
+
+            # Compute metric score
+            for metric_name, metric_fn, averaged_metric in zip(metric_name, metric, averaged_metric):
+                if metric_name != 'loss':
+                    metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
                     labels = deduplicated_outputs['labels']
+                    # sacrebleu.corpus_bleu is commonly used which does not share
+                    # the same interface as other metrics. We handle it separately.
+                    text_preds = deduplicated_outputs['preds']
+                    if "asr-" in metric_name:
+                        text_preds = deduplicated_outputs['speech_preds_transcribed']
 
-                # sacrebleu.corpus_bleu is commonly used which does not share
-                # the same interface as other metrics. We handle it separately.
-                if metric_name == 'bleu':
-                    metric_result = torch.Tensor(
-                        [sacrebleu.corpus_bleu(deduplicated_outputs['preds'], [labels]).score]
-                    ).to(self.device)
-                else:
-                    for pred, label in zip(deduplicated_outputs['preds'], labels):
-                        _ = metric_fn(pred, label)
+                    text_metric_name = metric_name.replace("asr-", "")
+                    if text_metric_name == 'bleu':  # asr-bleu, bleu
+                        metric_result = torch.Tensor([sacrebleu.corpus_bleu(text_preds, [labels]).score]).to(
+                            self.device
+                        )
+                    elif text_metric_name == 'wer':  # asr-wer, wer
+                        for pred, label in zip(text_preds, labels):
+                            _ = metric_fn(pred, label)
 
-                    metric_result = metric_fn.compute()
+                        metric_result = metric_fn.compute()
+                        metric_fn.reset()
+                    elif metric_name == 'mos':
+                        metric_result = sum(deduplicated_outputs['mos_scores']) / len(
+                            deduplicated_outputs['mos_scores']
+                        )
+                    else:
+                        for pred, label in zip(deduplicated_outputs['preds'], labels):
+                            _ = metric_fn(pred, label)
 
-                if metric_name == 'rouge':
-                    for k, v in metric_result.items():
-                        if 'fmeasure' in k:
-                            self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True, batch_size=1)
-                            logging.info(f"{mode} {metric_name} {k}: {v.item()}")
-                    metric_result = metric_result['rouge1_fmeasure']
-                else:
-                    self.log(metric_log_key, metric_result.item(), sync_dist=True, batch_size=1)
+                        metric_result = metric_fn.compute()
+                        metric_fn.reset()
+
+                    self.log(metric_log_key, metric_result.item(), sync_dist=True)
                     logging.info(f"{mode} {metric_name}: {metric_result.item()}")
 
-                metric_fn.reset()
-                averaged_metric.append(metric_result)
+                    averaged_metric.append(metric_result)
 
             # Write predictions to file
             if self.global_rank == 0 and data_cfg.get("write_predictions_to_file", False):
@@ -647,37 +785,31 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         os.makedirs(output_dir, exist_ok=True)
         for folder_name in ['speech_pred', 'speech_answer', 'speaker_contexts']:
             os.makedirs(os.path.join(output_dir, 'npy', folder_name), exist_ok=True)
-        # speaker_contexts_path = os.path.join(output_dir, 'npy', 'speaker_contexts', output_file_path_prefix + "_speaker_context_{}.npy")
-        speech_pred_path = os.path.join(
-            output_dir, 'npy', 'speech_pred', output_file_path_prefix + "_speech_pred_{}.npy"
-        )
-        speech_answer_path = os.path.join(
-            output_dir, 'npy', 'speech_answer', output_file_path_prefix + "_speech_answer_{}.npy"
-        )
-
         output_file_path = output_file_path_prefix + "_inputs_preds_labels.jsonl"
         output_file_path = os.path.join(output_dir, output_file_path)
         with open(output_file_path, "w") as f_json:
             assert (
                 len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels']) == len(outputs['metadata'])
             )
-            for i, p, l, m, speech_pred, speech_answer in zip(
+            for i, p, l, m, speech_preds_transcribed, speech_answers_transcribed in zip(
                 outputs['inputs'],
                 outputs['preds'],
                 outputs['labels'],
                 outputs['metadata'],
-                outputs['speech_preds'],
-                outputs['speech_answers'],
+                outputs['speech_preds_transcribed'],
+                outputs['speech_answers_transcribed'],
             ):
-                json_string = {'input': i, 'pred_text': p, 'text': l}
+                json_string = {
+                    'input': i,
+                    'pred_text': p,
+                    'text': l,
+                    'speech_preds_transcribed': speech_preds_transcribed,
+                    'speech_answers_transcribed': speech_answers_transcribed,
+                }
                 for k, v in m.items():
                     if k not in json_string:
                         json_string[k] = v
                 f_json.write(json.dumps(json_string) + '\n')
-
-                # np.save(speaker_contexts_path.format(i), speaker_context.cpu().numpy())
-                np.save(speech_pred_path.format(m['audio_filepath']), speech_pred)
-                np.save(speech_answer_path.format(m['audio_filepath']), speech_answer)
 
         logging.info(f'Predictions saved to {output_file_path}')
 
@@ -688,3 +820,59 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             logits_list.append(logits[:, prev : prev + i])
             prev += i
         return logits_list
+
+    def setup_metric(self, data_cfg):
+        metric_name = "exact_string_match"
+        if not hasattr(data_cfg, "metrics"):
+            metrics = [(MetricStringToTorchMetric["exact_string_match"], "exact_string_match")]
+        else:
+            metrics = []
+            for metric in data_cfg.metrics:
+                if not hasattr(metric, "name"):
+                    raise ValueError("Metric name is not provided in the metric config.")
+                base_metric_name = metric.name.replace("asr-", "")
+                if metric.name == "loss" or metric.name == "mos":
+                    metrics.append((None, metric.name))
+                    continue
+                if base_metric_name not in MetricStringToTorchMetric:
+                    raise KeyError(
+                        f"{metric.name} is not supported. List of supported metrics: {MetricStringToTorchMetric.keys()}"
+                    )
+                if base_metric_name in self._metrics_require_string2category_map:
+                    if metric.average is None:
+                        raise ValueError(
+                            f"{metric.name} requires specifying whether you want to compute a micro or macro average. Found None."
+                        )
+                if (
+                    metric.get('labels_are_strings', False)
+                    and base_metric_name in self._metrics_require_string2category_map
+                ):
+                    if metric.num_classes is None:
+                        raise ValueError(
+                            "Number of classes is not provided in the metric section within the data config. "
+                            f"Please provide the number of classes in the data config to use the {metric.name} metric."
+                        )
+                    if metric.get('class_labels', None) is None or not isinstance(
+                        metric.get('class_labels', None), ListConfig
+                    ):
+                        raise ValueError(
+                            "Class labels are not provided properly in the metric section witnin the data config. "
+                            f"Please provide the class labels as a list of strings in the data config to use the {metric.name} metric."
+                        )
+                    if len(metric.get('class_labels', None)) != metric.num_classes:
+                        raise ValueError(
+                            f"Number of class labels {len(metric.get('class_labels', None))} does not match `num_classes` : {metric.num_classes}"
+                        )
+
+                metric_cls = MetricStringToTorchMetric[base_metric_name]
+                if base_metric_name not in TextMetricsSet:
+                    metric_fn = metric_cls(**data_cfg.metric)
+                else:
+                    metric_fn = metric_cls()
+                metrics.append((metric_fn, metric.name))
+        return zip(*metrics)
+
+    def __init__(self, cfg: DictConfig, trainer: Trainer):
+        self.cfg = cfg
+        self.additional_models = {}
+        super().__init__(cfg, trainer)
