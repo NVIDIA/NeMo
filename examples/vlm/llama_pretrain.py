@@ -19,6 +19,7 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.vlm.llama.data.mock import MockDataModule
 from nemo.collections.vlm.neva.model.base import MultimodalProjectorConfig
 from nemo.collections.vlm import ImageDataConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
@@ -28,9 +29,9 @@ from nemo.utils.exp_manager import TimingCallback
 
 def main(args):
     # Global and micro batch sizes
-    gbs = 256
-    mbs = 8
-    seq_length = 256
+    gbs = 8
+    mbs = 2
+    seq_length = 512
 
     # Data configuration
     # data_config = ImageDataConfig(
@@ -51,7 +52,7 @@ def main(args):
     # )
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B-Instruct")
-    data = vlm.MockDataModule(
+    data = MockDataModule(
         seq_length=seq_length,
         global_batch_size=gbs,
         micro_batch_size=mbs,

@@ -14,7 +14,6 @@
 
 import math
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, List, Tuple, Literal, Union
 
 import torch
@@ -51,7 +50,7 @@ from megatron.core.transformer.transformer_layer import TransformerLayer, Transf
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.module import MegatronModule
-
+from nemo.collections.vlm.llama.model.transformer import _get_full_row_masked_out_mask, get_negative_inf_value
 try:
     from megatron.core.transformer.custom_layers.transformer_engine import (
         TEDelayedScaling,
@@ -209,7 +208,9 @@ class CrossAttentionTransformerBlock(TransformerBlock):
             else:
                 self.xattn_and_dummy_layers.append(DummyCrossAttentionTransformerLayer(config=self.config))
 
-        assert len(self.xattn_and_dummy_layers) == len(self.layers), 'Check PP implementation for cross attention layers!'
+        assert len(self.xattn_and_dummy_layers) == len(
+            self.layers), 'Check PP implementation for cross attention layers!'
+
     def forward(
             self,
             hidden_states: torch.Tensor,

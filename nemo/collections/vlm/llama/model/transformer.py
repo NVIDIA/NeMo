@@ -4,13 +4,21 @@
 # This source code is licensed under the terms described in the LICENSE file in
 # top-level folder for each specific model found within the models/ directory at
 # the top-level of this source tree.
-import copy
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # This software may be used and distributed according to the terms of the Llama 2 Community License Agreement.
 
-import logging
+import copy
 import math
+import types
+from megatron.core.transformer.attention import Attention
+from megatron.core.transformer.spec_utils import ModuleSpec, build_module
+
+from nemo.utils import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
+from megatron.core import InferenceParams, parallel_state, tensor_parallel
+from megatron.core.packed_seq_params import PackedSeqParams
+from torch import Tensor
+from contextlib import nullcontext
 
 import torch
 import torch.nn.functional as F
@@ -34,34 +42,43 @@ from nemo.collections.vlm.llama.model.encoder_utils import (
 )
 from nemo.collections.vlm.llama.utils import get_negative_inf_value, to_2tuple
 
-logger = logging.getLogger(__name__)
-MP_SCALE = 8
+from megatron.core.transformer.transformer_layer import TransformerLayer
+from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+from megatron.core.transformer.custom_layers.transformer_engine import (
+    TEColumnParallelLinear,
+    TEDotProductAttention,
+    TENorm,
+    TERowParallelLinear,
+)
+from megatron.core.transformer.enums import AttnMaskType
+from megatron.core.transformer.identity_op import IdentityOp
+from megatron.core.transformer.mlp import MLP, MLPSubmodules
+from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
+from megatron.core.transformer.transformer_block import TransformerBlock
 
-
-def reduce_from_tensor_model_parallel_region(input_):
-    """All-reduce the input tensor across model parallel group."""
-    output = funcol.all_reduce(input_, "sum", group=fs_init.get_model_parallel_group())
-    output = funcol.wait_tensor(output)
-    return output
-
-
-def gather_from_tensor_model_parallel_region(input_):
-    """Gather tensors and concatenate along the last dimension."""
-
-    world_size = fs_init.get_model_parallel_world_size()
-    # Size and dimension.
-    last_dim = input_.dim() - 1
-    rank = fs_init.get_model_parallel_rank()
-
-    tensor_list = [torch.empty_like(input_) for _ in range(world_size)]
-    tensor_list[rank] = input_
-    output = funcol.all_gather_tensor(
-        input_,
-        gather_dim=last_dim,
-        group=fs_init.get_model_parallel_group(),
+try:
+    from megatron.core.transformer.custom_layers.transformer_engine import (
+        TEDelayedScaling,
+        TENorm,
+        get_cpu_offload_context,
+        te_checkpoint,
     )
-    output = funcol.wait_tensor(output)
-    return output
+
+    HAVE_TE = True
+    LayerNormImpl = TENorm
+except ImportError:
+    HAVE_TE = False
+    get_cpu_offload_context = None
+    try:
+        import apex
+
+        LayerNormImpl = FusedLayerNorm
+    except ModuleNotFoundError:
+        from megatron.core.transformer.torch_layer_norm import WrappedTorchLayerNorm
+
+        LayerNormImpl = WrappedTorchLayerNorm
 
 
 def _get_full_row_masked_out_mask(
@@ -137,6 +154,166 @@ def apply_rotary_emb(
     return xq_out.type_as(xq), xk_out.type_as(xk)
 
 
+# Use this spec for an implementation using modules in TE
+def get_image_transformer_layer_spec() -> ModuleSpec:
+    image_transformer_submodules = TransformerLayerSubmodules(
+        input_layernorm=TENorm,
+        self_attention=ModuleSpec(
+            module=SelfAttentionNoBias,
+            params={"attn_mask_type": AttnMaskType.no_mask},
+            submodules=SelfAttentionSubmodules(
+                linear_qkv=TEColumnParallelLinear,
+                core_attention=TEDotProductAttention,
+                linear_proj=TERowParallelLinear,
+                q_layernorm=IdentityOp,
+                k_layernorm=IdentityOp,
+            ),
+        ),
+        self_attn_bda=get_bias_dropout_add,
+        pre_mlp_layernorm=TENorm,
+        mlp=ModuleSpec(
+            module=MLP, submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear, ),
+        ),
+        mlp_bda=get_bias_dropout_add,
+    )
+    return ModuleSpec(module=ImageTransformerLayer, submodules=image_transformer_submodules)
+
+
+def forward_with_return_intermediate(
+        self,
+        hidden_states: Tensor,
+        attention_mask: Tensor,
+        context: Tensor = None,
+        context_mask: Tensor = None,
+        rotary_pos_emb: Tensor = None,
+        inference_params: InferenceParams = None,
+        packed_seq_params: PackedSeqParams = None,
+        return_intermediate: List[int] = None
+):
+    # hidden_states (float): [s, b, h]
+    # attention_mask (bool): [1, 1, s, s]
+
+    if not self.pre_process:
+        # See set_input_tensor()
+        hidden_states = self.input_tensor
+
+    # Viewless tensor.
+    # - We only need to create a viewless tensor in the case of micro batch
+    #   size (mbs) == 1, since in this case, 'hidden_states.transpose()'
+    #   above creates a view tensor, and '.contiguous()' is a pass-through.
+    #   For mbs >= 2, '.contiguous()' creates a new tensor, eliminating
+    #   the need to make it viewless.
+    #
+    #   However, we don't explicitly check mbs == 1 here because
+    #   make_viewless_tensor() has negligible overhead when its input
+    #   is already viewless.
+    #
+    # - For the 'else' case above, calling make_viewless_tensor() here is
+    #   likely redundant, since p2p_communication.py (likely originator)
+    #   already creates viewless tensors. That said, make_viewless_tensor()
+    #   is called here to be future-proof and corner-case-proof.
+    hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True)
+
+    if self.config.sequence_parallel:
+        rng_context = tensor_parallel.get_cuda_rng_tracker().fork()
+    else:
+        rng_context = nullcontext()
+
+    if self.config.fp8:
+        import transformer_engine  # To keep out TE dependency when not training in fp8
+
+        if self.config.fp8 == "e4m3":
+            fp8_format = transformer_engine.common.recipe.Format.E4M3
+        elif self.config.fp8 == "hybrid":
+            fp8_format = transformer_engine.common.recipe.Format.HYBRID
+        else:
+            raise ValueError("E4M3 and HYBRID are the only supported FP8 formats.")
+
+        fp8_recipe = TEDelayedScaling(
+            config=self.config,
+            fp8_format=fp8_format,
+            override_linear_precision=(False, False, not self.config.fp8_wgrad),
+        )
+        fp8_group = None
+        if parallel_state.model_parallel_is_initialized():
+            fp8_group = parallel_state.get_amax_reduction_group(with_context_parallel=True)
+        fp8_context = transformer_engine.pytorch.fp8_autocast(
+            enabled=True, fp8_recipe=fp8_recipe, fp8_group=fp8_group
+        )
+    else:
+        fp8_context = nullcontext()
+
+    with rng_context and fp8_context:
+        # Forward pass.
+        if self.config.recompute_granularity == 'full' and self.training:
+            assert return_intermediate is None, "Config `return_intermediate` cannot be used with " \
+                                                "`recompute_granularity='full'`. "
+            hidden_states = self._checkpointed_forward(
+                hidden_states=hidden_states,
+                attention_mask=attention_mask,
+                context=context,
+                context_mask=context_mask,
+                rotary_pos_emb=rotary_pos_emb,
+                packed_seq_params=packed_seq_params,
+            )
+        else:
+            intermediate_hidden_states = []
+            for l_no, layer in enumerate(self.layers):
+                with self.offload_context:
+                    if (len(self.cuda_graphs) == 0) or (not self.training):
+                        hidden_states, context = layer(
+                            hidden_states=hidden_states,
+                            attention_mask=attention_mask,
+                            context=context,
+                            context_mask=context_mask,
+                            rotary_pos_emb=rotary_pos_emb,
+                            inference_params=inference_params,
+                            packed_seq_params=packed_seq_params,
+                        )
+                        # CUDA graph doesn't output context and is expected to be None
+                        assert (
+                                (context is None)
+                                or (not self.config.enable_cuda_graph)
+                                or (not self.training)
+                        )
+                    else:
+                        # CUDA graph replay for layer `l_no` and microbatch `self.current_microbatch`
+                        # CUDA graph requires positional arguments with the exception of is_first_microbatch.
+                        # Also CUDA graph accepts only Tensor inputs and outputs. Hence, the arg list and
+                        # returned list is limited to `hidden_states`.
+                        assert (len(self.cuda_graphs) > l_no) and (
+                                self.current_microbatch < len(self.cuda_graphs[l_no])
+                        )
+                        hidden_states = self.cuda_graphs[l_no][self.current_microbatch](
+                            hidden_states, is_first_microbatch=(self.current_microbatch == 0)
+                        )
+
+                if (
+                        torch.is_grad_enabled()
+                        and self.config.cpu_offloading
+                        and self.group_prefetch_offload_commit_async is not None
+                ):
+                    hidden_states = self.group_prefetch_offload_commit_async(hidden_states)
+
+                if return_intermediate is not None and l_no in return_intermediate:
+                    intermediate_hidden_states.append(hidden_states)
+
+        # Final layer norm.
+        if self.final_layernorm is not None:
+            hidden_states = self.final_layernorm(hidden_states)
+            # TENorm produces a "viewed" tensor. This will result in schedule.py's
+            # deallocate_output_tensor() throwing an error, so a viewless tensor is
+            # created to prevent this.
+            hidden_states = make_viewless_tensor(
+                inp=hidden_states, requires_grad=True, keep_graph=True
+            )
+
+        if return_intermediate is not None:
+            return hidden_states, torch.stack(intermediate_hidden_states, dim=-1)
+
+        return hidden_states
+
+
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim: int, eps: float = 1e-6):
         super().__init__()
@@ -206,46 +383,52 @@ class ColumnParallelConv2dPatch(MegatronModule):
         return x
 
 
-from megatron.core.transformer.transformer_layer import TransformerLayer
-from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-from megatron.core.transformer.custom_layers.transformer_engine import (
-    TEColumnParallelLinear,
-    TEDotProductAttention,
-    TENorm,
-    TERowParallelLinear,
-)
-from megatron.core.transformer.enums import AttnMaskType
-from megatron.core.transformer.identity_op import IdentityOp
-from megatron.core.transformer.mlp import MLP, MLPSubmodules
-from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
-from megatron.core.transformer.transformer_block import TransformerBlock
+class SelfAttentionNoBias(SelfAttention):
+    """Self-attention layer class
 
+    Self-attention layer takes input with size [s, b, h]
+    and returns output of the same size.
+    """
 
-# Use this spec for an implementation using modules in TE
-def get_image_transformer_layer_spec() -> ModuleSpec:
-    image_transformer_submodules = TransformerLayerSubmodules(
-        input_layernorm=TENorm,
-        self_attention=ModuleSpec(
-            module=SelfAttention,
-            params={"attn_mask_type": AttnMaskType.padding},
-            submodules=SelfAttentionSubmodules(
-                linear_qkv=TEColumnParallelLinear,
-                core_attention=TEDotProductAttention,
-                linear_proj=TERowParallelLinear,
-                q_layernorm=IdentityOp,
-                k_layernorm=IdentityOp,
-            ),
-        ),
-        self_attn_bda=get_bias_dropout_add,
-        pre_mlp_layernorm=TENorm,
-        mlp=ModuleSpec(
-            module=MLP, submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear, ),
-        ),
-        mlp_bda=get_bias_dropout_add,
-    )
-    return ModuleSpec(module=ImageTransformerLayer, submodules=image_transformer_submodules)
+    def __init__(
+        self,
+        config: TransformerConfig,
+        submodules: SelfAttentionSubmodules,
+        layer_number: int,
+        attn_mask_type=AttnMaskType.padding,
+    ):
+        super().__init__(
+            config=config,
+            submodules=submodules,
+            layer_number=layer_number,
+            attn_mask_type=attn_mask_type,
+        )
+
+        self.linear_qkv = build_module(
+            submodules.linear_qkv,
+            self.config.hidden_size,
+            self.query_projection_size + 2 * self.kv_projection_size,
+            config=self.config,
+            init_method=self.config.init_method,
+            gather_output=False,
+            bias=False,
+            skip_bias_add=False,
+            is_expert=False,
+            tp_comm_buffer_name='qkv',
+        )
+
+        self.linear_proj = build_module(
+            submodules.linear_proj,
+            self.query_projection_size,
+            self.config.hidden_size,
+            config=self.config,
+            init_method=self.config.output_layer_init_method,
+            bias=False,
+            input_is_parallel=True,
+            skip_bias_add=True,
+            is_expert=False,
+            tp_comm_buffer_name='proj',
+        )
 
 
 class ImageTransformerLayer(TransformerLayer):
@@ -277,13 +460,6 @@ class ImageTransformerLayer(TransformerLayer):
             inference_params=None,
             packed_seq_params=None,
     ):
-        if len(hidden_states.shape) == 4:
-            intermediate_output = hidden_states[:-1]
-            hidden_states = hidden_states[-1]
-        else:
-            intermediate_output = torch.empty((0, *hidden_states.shape), dtype=hidden_states.dtype,
-                                              device=hidden_states.device)
-
         # hidden_states: [s, b, h]
 
         # Residual connection.
@@ -363,9 +539,6 @@ class ImageTransformerLayer(TransformerLayer):
             inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True
         )
 
-        output = output.unsqueeze(0)
-        output = torch.cat((intermediate_output, output, output), dim=0)
-
         return output, context
 
 
@@ -416,9 +589,11 @@ class VisionEncoder(MegatronModule):
             pre_process=self.pre_process,
             post_process=self.post_process,
         )
+        self.transformer.forward = types.MethodType(forward_with_return_intermediate, self.transformer)
         # pre and post tile position embedding
         global_config = copy.deepcopy(self.config)
         global_config.num_layers = self.config.num_global_layers
+        global_config.gated = True
         self.global_transformer = TransformerBlock(
             config=global_config,
             spec=get_image_transformer_layer_spec(),
@@ -480,7 +655,7 @@ class VisionEncoder(MegatronModule):
                 state_dict[prefix + "gated_positional_embedding_gate"] = torch.zeros(
                     1, dtype=global_pos_embed.dtype
                 )
-                logger.info(
+                logging.info(
                     f"Initialized global positional embedding with size {global_pos_embed.size()}"
                 )
             else:
@@ -490,7 +665,7 @@ class VisionEncoder(MegatronModule):
                     self.max_num_tiles,
                     self.max_num_tiles,
                 )
-                logger.info(
+                logging.info(
                     f"Resized global positional embedding from {state_dict[prefix + 'gated_positional_embedding'].size()} to {global_pos_embed.size()}"
                 )
                 state_dict[prefix + "gated_positional_embedding"] = global_pos_embed
@@ -557,25 +732,35 @@ class VisionEncoder(MegatronModule):
 
         x = self.ln_pre(x)
         npad, attn_mask = 0, None
-        x, npad = expand_num_tokens_to_mult8(x)
-        attn_mask = build_encoder_attention_mask(x, ar, ntok, num_chunks, 1)
+        # TODO(yuya): padding for parallism and perf
+        # x, npad = expand_num_tokens_to_mult8(x)
+        # attn_mask = build_encoder_attention_mask(x, ar, ntok, num_chunks, 1)
         x = x.view(bsz * num_concurrent_media, -1, dim)
+        # TODO(yuya): optimize the transposes
+        x = x.transpose(0, 1).contiguous()
         x, int_x = self.transformer(
-            x, return_intermediate=self.return_intermediate, mask=attn_mask
+            hidden_states=x,
+            attention_mask=attn_mask,
+            return_intermediate=self.return_intermediate,
         )
-
+        x, int_x = x.transpose(0, 1), int_x.transpose(1, 2)
         x = self.ln_post(x)
         x = x.reshape(bsz * num_concurrent_media, num_chunks, ntok + npad, dim)
         x = self.post_tile_pos_embed(x, ar)
         x = x.reshape(bsz * num_concurrent_media, num_chunks * (ntok + npad), dim)
-        x = self.global_transformer(x, mask=attn_mask)
+        x = x.transpose(0, 1).contiguous()
+        x = self.global_transformer(
+            hidden_states=x,
+            attention_mask=attn_mask
+        )
+        x = x.transpose(0, 1)
         x = x.reshape(bsz * num_concurrent_media, num_chunks, ntok + npad, dim)
-        x = contract_num_tokens_from_mult8(x, npad)
+        # x = contract_num_tokens_from_mult8(x, npad)
 
         # adding back intermediate layer outputs
         x = x.reshape(bsz, num_concurrent_media, num_chunks, ntok, dim)
         int_x = int_x.reshape(bsz * num_concurrent_media, num_chunks, ntok + npad, -1)
-        int_x = contract_num_tokens_from_mult8(int_x, npad)
+        # int_x = contract_num_tokens_from_mult8(int_x, npad)
         int_x = int_x.reshape(bsz, num_concurrent_media, num_chunks, ntok, -1)
         x = torch.cat([x, int_x], dim=-1)
         return x

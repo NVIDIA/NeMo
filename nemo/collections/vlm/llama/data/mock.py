@@ -136,17 +136,18 @@ class _MockNevaDataset(Dataset):
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
-        tokens[2] = IMAGE_TOKEN_INDEX  # ImageToken token index
         labels = tokens.clone()
-        images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
         tokens = tokens[:-1]
         labels = labels[1:]
+        c = torch.load("/lustre/fsw/coreai_dlalgo_genai/yuya/evian3/evian3_input.pt")
+
         return {
-            "media": images,
+            "images": c["images"],  # [<PIL.Image.Image image mode=RGB size=512x512>]
+            "masks": c["mask"],  # [[5, 512]]
             "tokens": tokens,
-            "labels": labels,
             "loss_mask": self.loss_mask,
             "position_ids": self.position_ids,
+            "labels": labels
         }
 
     def _collate_fn(self, batch):
@@ -154,8 +155,12 @@ class _MockNevaDataset(Dataset):
         A default implementation of a collation function.
         Users should override this method to define custom data loaders.
         """
-        collated_batch = data.dataloader.default_collate(batch)
+        collated_batch = {}
+        collated_batch["total_len"] = self.seq_length
+        collated_batch["batch_images"] = [sample.pop("images") for sample in batch]
+        collated_batch["batch_masks"] = [sample.pop("masks") for sample in batch]
         collated_batch["attention_mask"] = None
+        collated_batch.update(data.dataloader.default_collate(batch))
         return collated_batch
 
     def collate_fn(self, batch):

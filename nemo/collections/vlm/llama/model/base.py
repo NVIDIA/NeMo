@@ -66,14 +66,15 @@ def llama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         _batch = batch
 
     required_keys = set()
-    required_keys.update(("attention_mask", "media", "tokens",))
+    required_keys.update(("attention_mask", "tokens",))
     if parallel_state.is_pipeline_first_stage():
-        required_keys.update(("position_ids"))
+        required_keys.update(("batch_images", "batch_masks", "total_len", "position_ids"))
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
 
     _batch = {
-        key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
+        key: val.cuda(non_blocking=True)
+        if key in required_keys and isinstance(val, torch.Tensor) else val
         for key, val in _batch.items()
     }
     # slice batch along sequence dimension for context parallelism
@@ -84,12 +85,11 @@ def llama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
 def llama_forward_step(model, batch) -> torch.Tensor:
     forward_config = {
-        "media": batch["media"],
-        "input_ids": batch["tokens"],
-        "position_ids": batch["position_ids"],
-        "attention_mask": batch.get("attention_mask", None),
-        "loss_mask": batch.get("loss_mask", None),
-        "labels": batch.get("labels", None),
+        "batch_images": batch["batch_images"],
+        "batch_masks": batch["batch_masks"],
+        "total_len": batch["total_len"],
+        "tokens": batch.get("tokens", None),
+        "position_ids": batch.get("position_ids", None),
     }
 
     if 'cu_seqlens' in batch:
@@ -282,8 +282,7 @@ class CrossAttentionVisionModel(MegatronModule):
             images.to(dtype=torch.bfloat16), aspect_ratios
         )
 
-        vision_tokens = F.linear(vision_tokens, self.vision_projection.weight, self.vision_projection.bias)
-        vision_tokens = gather_from_tensor_model_parallel_region(vision_tokens)
+        vision_tokens = self.vision_projection(vision_tokens)
         return vision_tokens
 
     def set_input_tensor(self, tensor):
@@ -315,9 +314,6 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             VariableSizeImageTransform(size=self.image_res),
             max_num_chunks=self.max_num_chunks,
         )
-        print([(k,v.shape) for k,v in vision_model.state_dict().items() if "_extra" not in k])
-        exit(0)
-        import pdb; pdb.set_trace()
 
     def setup_cache(self, max_batch_size: int, dtype: torch.dtype):
         self.language_model.setup_cache(max_batch_size, dtype)
@@ -358,7 +354,7 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             stacked_images, num_chunks = _stack_images(
                 transformed_images,
                 max_num_chunks=self.max_num_chunks,
-                image_res=self.params.vision_chunk_size,
+                image_res=self.image_res,
                 max_num_images=max_num_images,
             )
 
@@ -374,12 +370,12 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
                         + 1
                     ),
                     self.model_dim,
-                ),
+                ), device="cuda"
             )
         else:
+            stacked_images = stacked_images.cuda(non_blocking=True)
+            aspect_ratios = aspect_ratios.cuda(non_blocking=True)
             vision_tokens = self.vision_model(stacked_images, aspect_ratios)
-
-        vision_tokens = vision_tokens.to("cuda")
 
         bsz, nimg, nchunk, ntok, image_token_dim = tuple(vision_tokens.shape)
         xattn_caches = torch.stack(
@@ -416,10 +412,22 @@ class MCoreLlamaCrossAttentionModel(MegatronModule):
             self,
             position_ids: torch.Tensor,
             tokens: torch.Tensor,
-            cross_attention_masks: torch.Tensor,
-            full_text_row_masked_out_mask: torch.Tensor,
-            xattn_caches: torch.Tensor,
+            batch_images: Optional[List[List[PIL_Image.Image]]] = None,
+            batch_masks: Optional[List[List[List[int]]]] = None,
+            total_len: Optional[int] = None,
+            cross_attention_masks: Optional[torch.Tensor] = None,
+            full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
+            xattn_caches: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        if xattn_caches is None:
+            xattn_caches, cross_attention_masks, full_text_row_masked_out_mask = (
+                self.compute_vision_tokens_masks(
+                    batch_images=batch_images,
+                    batch_masks=batch_masks,
+                    total_len=total_len,
+                )
+            )
+
         h = self.language_model.get_partially_trainable_embedding(tokens[:, position_ids])
         logits = self.language_model.forward(
             position_ids=position_ids,
@@ -465,17 +473,13 @@ class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin,
             full_text_row_masked_out_mask: Optional[torch.Tensor] = None,
             xattn_caches: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        if xattn_caches is None:
-            xattn_caches, cross_attention_masks, full_text_row_masked_out_mask = (
-                self.module.compute_vision_tokens_masks(
-                    batch_images=batch_images,
-                    batch_masks=batch_masks,
-                    total_len=total_len,
-                )
-            )
+
         logits = self.module(
             position_ids=position_ids,
             tokens=tokens,
+            batch_images=batch_images,
+            batch_masks=batch_masks,
+            total_len=total_len,
             cross_attention_masks=cross_attention_masks,
             full_text_row_masked_out_mask=full_text_row_masked_out_mask,
             xattn_caches=xattn_caches,
