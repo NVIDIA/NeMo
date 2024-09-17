@@ -15,6 +15,7 @@ import copy
 import math
 from dataclasses import dataclass
 from functools import partial
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import pytorch_lightning as L
@@ -40,7 +41,7 @@ from nemo.collections.vlm.llama.model.transformer import (
     _get_full_row_masked_out_mask, _stack_images, _pad_masks, VisionEncoder
 )
 from nemo.collections.vlm.llama.utils import get_negative_inf_value
-from nemo.lightning import io
+from nemo.lightning import io, teardown
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
@@ -177,6 +178,15 @@ class CrossAttentionTextModelConfig(Llama31Config):
             old_context_len=self.old_context_len,
         )
         return model
+
+@dataclass
+class CrossAttentionTextModelConfig8B(CrossAttentionTextModelConfig):
+    rotary_base: int = 500_000
+    seq_length: int = 8192
+    num_layers: int = 32
+    hidden_size: int = 4096
+    ffn_hidden_size: int = 14336
+    num_attention_heads: int = 32
 
 @dataclass
 class LlamaCrossAttentionModelConfig(TransformerConfig, io.IOMixin):
@@ -501,6 +511,95 @@ class LlamaCrossAttentionModel(L.LightningModule, io.IOMixin, io.ConnectorMixin,
             self._validation_loss_reduction = MaskedTokenLossReductionWithLossMask(validation_step=True)
 
         return self._validation_loss_reduction
+
+@io.model_importer(LlamaCrossAttentionModel, "pytorch")
+class PytorchLlamaCrossAttentionImporter(io.ModelConnector["LlamaCrossAttentionModel", LlamaCrossAttentionModel]):
+    def init(self) -> LlamaCrossAttentionModel:
+        return LlamaCrossAttentionModel(self.config, tokenizer=self.tokenizer)
+
+    def apply(self, output_path: Path) -> Path:
+        source = torch.load(str(self), map_location='cpu')
+        class ModelState:
+            def __init__(self, state_dict):
+                self._state_dict = state_dict
+
+            def state_dict(self):
+                return self._state_dict
+
+        source = ModelState(source)
+
+        target = self.init()
+        trainer = self.nemo_setup(target)
+
+        self.convert_state(source, target)
+        self.nemo_save(output_path, trainer)
+
+        logging.info(f"Converted Llama Cross Attention model to Nemo, model saved to {output_path}")
+
+        teardown(trainer, target)
+        del trainer, target
+
+        return output_path
+
+    def convert_state(self, source, target):
+        mapping = {
+            "text_model.layers.*.feed_forward.mlp.layer_norm_weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+            "text_model.layers.*.feed_forward.mlp.fc1_weight": "decoder.layers.*.mlp.linear_fc1.weight",
+            "text_model.layers.*.feed_forward.mlp.fc2_weight": "decoder.layers.*.mlp.linear_fc2.weight",
+            "text_model.layers.*.attention.wo.weight": "decoder.layers.*.self_attention.linear_proj.weight",
+            "text_model.layers.*.attention.wqkv.layer_norm_weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+            "text_model.layers.*.attention.wqkv.weight": "decoder.layers.*.self_attention.linear_qkv.weight",
+            "text_model.cross_attention_layers.*.attention.inner_attention.k_norm.weight": "decoder.xattn_layers.*.cross_attention.k_layernorm.weight",
+            "text_model.cross_attention_layers.*.attention.wkv.weight": "decoder.xattn_layers.*.cross_attention.linear_kv.weight",
+            "text_model.cross_attention_layers.*.attention.wo.weight": "decoder.xattn_layers.*.cross_attention.linear_proj.weight",
+            "text_model.cross_attention_layers.*.attention.wq.layer_norm_weight": "decoder.xattn_layers.*.cross_attention.linear_q.layer_norm_weight",
+            "text_model.cross_attention_layers.*.attention.wq.weight": "decoder.xattn_layers.*.cross_attention.linear_q.weight",
+            "text_model.cross_attention_layers.*.attention.inner_attention.q_norm.weight": "decoder.xattn_layers.*.cross_attention.q_layernorm.weight",
+            "text_model.cross_attention_layers.*.feed_forward.mlp.layer_norm_weight": "decoder.xattn_layers.*.mlp.linear_fc1.layer_norm_weight",
+            "text_model.cross_attention_layers.*.feed_forward.mlp.fc1_weight": "decoder.xattn_layers.*.mlp.linear_fc1.weight",
+            "text_model.cross_attention_layers.*.feed_forward.mlp.fc2_weight": "decoder.xattn_layers.*.mlp.linear_fc2.weight",
+            "text_model.norm.weight": "decoder.final_layernorm.weight",
+            "text_model.tok_embeddings.weight": "embedding.word_embeddings.weight",
+            "text_model.learnable_embedding.weight": "learnable_embedding.weight",
+            "text_model.output.weight": "output_layer.weight",
+        }
+
+        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_gate_attn, _import_gate_ffwd])
+
+    @property
+    def tokenizer(self) -> "AutoTokenizer":
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        # TODO: switch to using actual tokenizer of llama 3.2
+        return AutoTokenizer(self.save_hf_tokenizer_assets("meta-llama/Meta-Llama-3.1-8B"))
+
+    @property
+    def config(self) -> CrossAttentionTextModelConfig:
+        import json
+        with open(self.parent / "params.json") as f:
+            source = json.load(f)
+
+        return CrossAttentionTextModelConfig(
+            rotary_base=source['rope_theta'],
+            seq_length=8192,
+            num_layers=source['n_layers'],
+            hidden_size=source['dim'],
+            ffn_hidden_size=14336, #source['?']
+            num_attention_heads=source['n_heads'],
+        )
+
+@io.state_transform(
+    source_key="text_model.cross_attention_layers.*.gate_attn",
+    target_key="decoder.xattn_layers.*.gate_attn",
+)
+def _import_gate_attn(gate_attn):
+    return gate_attn[0:1]
+
+@io.state_transform(
+    source_key="text_model.cross_attention_layers.*.gate_ffwd",
+    target_key="decoder.xattn_layers.*.gate_ffn",
+)
+def _import_gate_ffwd(gate_ffwd):
+    return gate_ffwd[0:1]
 
 
 __all__ = [
