@@ -11,25 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
+from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
 
 import pytorch_lightning as pl
 from megatron.core import parallel_state
-from megatron.energon import WorkerConfig, get_savable_loader, get_train_dataset, get_val_datasets
+from megatron.energon import WorkerConfig, get_savable_loader, get_train_dataset
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils.data import DataLoader
 
-from nemo.collections.multimodal.data.energon.config import ImageToken
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
-from .config import ImageToken, MultiModalSampleConfig
+from .config import MultiModalSampleConfig
 from .taskencoder import MultiModalTaskEncoder
 
 if TYPE_CHECKING:
-
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -330,15 +327,13 @@ class SequentialMegatronSampler(MegatronDataSampler):
         init_consumed_samples (int, optional): The initial number of samples that have been consumed. Defaults to 0.
         init_global_step (int, optional): The initial global step at the start of training. Defaults to 0.
         """
-        super().__init__(seq_len=seq_len, micro_batch_size=micro_batch_size)
-        self.seq_len = seq_len
-        self.micro_batch_size = micro_batch_size
-        self.global_batch_size = global_batch_size
-        self.init_consumed_samples = init_consumed_samples
-        self.prev_consumed_samples = self.init_consumed_samples
-        self.if_first_step = 0
-        self.prev_global_batch_size = None
-        self.init_global_step = init_global_step
+        super().__init__(
+            seq_len=seq_len,
+            micro_batch_size=micro_batch_size,
+            global_batch_size=global_batch_size,
+            init_consumed_samples=init_consumed_samples,
+            init_global_step=init_global_step,
+        )
 
     def transform_dataloader(self, dataloader: DataLoader) -> DataLoader:
         """

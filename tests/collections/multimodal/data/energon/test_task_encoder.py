@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import unittest
-from typing import Dict, List, Union
-
 import torch
 from megatron.energon import InterleavedSample, SimilarityInterleavedSample, VQASample
 from transformers import AutoProcessor

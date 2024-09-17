@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import dataclasses
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Union
 
 import torch
 from megatron.energon import (
@@ -28,7 +28,7 @@ from megatron.energon import (
 
 from nemo.utils import logging
 
-from .config import ImageTextRawBatch, ImageTextSample, ImageToken
+from .config import ImageTextRawBatch, ImageTextSample
 from .sampleencoder import InterleavedSampleEncoder, SampleEncoder, SimilarityInterleavedEncoder, VQASampleEncoder
 
 

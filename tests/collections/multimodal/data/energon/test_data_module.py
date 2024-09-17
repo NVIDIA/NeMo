@@ -21,9 +21,7 @@ from pathlib import Path
 from unittest import TestCase
 
 import numpy as np
-import torch
 import webdataset as wds
-import yaml
 from megatron.energon.flavors import BaseWebdataset
 from PIL import Image
 from transformers import AutoProcessor
