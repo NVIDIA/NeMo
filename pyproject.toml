@@ -63,7 +63,10 @@ classifiers = [
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements/requirements.txt"] }
 
-[project.entry-points."run.factories"]
+[tool.setuptools]
+py-modules = ["nemo"]
+
+[project.entry-points."nemo_run.cli"]
 llm = "nemo.collections.llm"
 
 [project.urls]
