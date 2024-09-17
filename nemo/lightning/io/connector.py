@@ -145,6 +145,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             pl.Trainer: The trainer configured with the model and strategy.
         """
         from nemo.lightning import MegatronStrategy, Trainer
+        from nemo.lightning._strategy_lib import megatron_lazy_init_context
 
         _trainer = trainer or Trainer(
             devices=1, accelerator="cpu", strategy=MegatronStrategy(store_optimizer_states=False)
@@ -155,7 +156,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
 
         if not model.state_dict():
             _trainer.strategy.lazy_init = True
-            with _trainer.init_module():
+            with _trainer.init_module(), megatron_lazy_init_context(model.config):
                 model.configure_model()
 
         return _trainer
@@ -236,5 +237,13 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
     def on_import_ckpt(self, model: pl.LightningModule):
         if hasattr(self, "tokenizer"):
             model.tokenizer = self.tokenizer
-            if hasattr(model, "__io__"):
-                model.__io__.tokenizer = self.tokenizer
+            if hasattr(model, "__io__") and hasattr(self.tokenizer, '__io__'):
+                model.__io__.tokenizer = self.tokenizer.__io__
+
+    def save_hf_tokenizer_assets(self, tokenizer_name_or_path, save_path="/tmp/nemo_tokenizer"):
+        from transformers import AutoTokenizer
+
+        tok = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
+        # Save tokenizer assets to save_path.
+        tok.save_pretrained(save_path)
+        return save_path
