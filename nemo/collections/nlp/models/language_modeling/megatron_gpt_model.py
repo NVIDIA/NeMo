@@ -175,6 +175,7 @@ def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict =
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
     return name_spec_dict[spec_name]
 
+
 def drop_layers(model, layers_to_drop: List[int]):
     def noop_forward_patch(
         hidden_states,
@@ -183,7 +184,7 @@ def drop_layers(model, layers_to_drop: List[int]):
         context=None,
         rotary_pos_emb=None,
         inference_params=None,
-        packed_seq_params=None
+        packed_seq_params=None,
     ):
         return hidden_states.clone(), context
 
@@ -191,7 +192,8 @@ def drop_layers(model, layers_to_drop: List[int]):
     for layer_id in layers_to_drop:
         assert layer_id > 0 and layer_id <= num_layers, f"Layers to drop should be in range (1, {num_layers})"
         logging.info(f"Patching layer {layer_id} to noop-layer in forward pass")
-        model.decoder.layers[layer_id-1].forward = noop_forward_patch
+        model.decoder.layers[layer_id - 1].forward = noop_forward_patch
+
 
 def mcore_model_customize(cfg, model):
     if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
