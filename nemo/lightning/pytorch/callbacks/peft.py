@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -86,7 +100,7 @@ class PEFT(ABC, ModelTransform):
         super().setup(trainer, pl_module, stage=stage)
 
         trainer.strategy.trainer = trainer
-        self.wrapped_io = WrappedAdapterIO(trainer.strategy.checkpoint_io)
+        self.wrapped_io = WrappedAdapterIO(trainer.strategy.checkpoint_io, self)
         trainer.strategy._checkpoint_io = self.wrapped_io
         trainer.strategy._init_model_parallel = False
         trainer.strategy._setup_optimizers = False
@@ -94,10 +108,13 @@ class PEFT(ABC, ModelTransform):
     def apply_transform(self, trainer):
         super().apply_transform(trainer)
 
+        adapter_sharded_state_dict = {}
         if self.wrapped_io.adapter_ckpt_path is not None:
             logging.info(f"Loading adapters from {self.wrapped_io.adapter_ckpt_path}")
-            adapter_state = self.wrapped_io.load_checkpoint(self.wrapped_io.adapter_ckpt_path)
-            trainer.strategy.load_model_state_dict(adapter_state, strict=False)
+            # create sharded state dict for adapter weights only to enable PEFT resume
+            adapter_sharded_state_dict['state_dict'] = {
+                k: v for k, v in trainer.model.sharded_state_dict().items() if self.adapter_key_filter(k)
+            }
 
         if hasattr(trainer.strategy, "init_model_parallel"):
             logging.info("Initializing model parallel")
@@ -106,23 +123,26 @@ class PEFT(ABC, ModelTransform):
         if trainer.state.fn == TrainerFn.FITTING:
             logging.info("Setting up optimizers")
             trainer.strategy.setup_optimizers(trainer)
+            if self.wrapped_io.adapter_ckpt_path is not None and trainer.strategy.should_restore_optimizer_states():
+                # PEFT resume, load optimizer state
+                adapter_sharded_state_dict['optimizer'] = [
+                    trainer.strategy.optimizer_sharded_state_dict(is_loading=True)
+                ]
 
-    def on_save_checkpoint(
-        self, trainer: pl.Trainer, pl_module: pl.LightningModule, checkpoint: Dict[str, Any]
-    ) -> None:
-        # Filter out non-trainable parameters
-        trainable_params = set(name for name, param in pl_module.named_parameters() if param.requires_grad)
-        filtered_state_dict = {}
-        for name, value in trainer.strategy.megatron_parallel.sharded_state_dict().items():
-            if name in trainable_params:
-                filtered_state_dict[name] = value
-            elif self.adapter_key_filter(name):  # Include all adapter-related parameters
-                filtered_state_dict[name] = value
+        if adapter_sharded_state_dict:
+            adapter_state = self.wrapped_io.load_checkpoint(
+                self.wrapped_io.adapter_ckpt_path, sharded_state_dict=adapter_sharded_state_dict
+            )
+            trainer.strategy.load_model_state_dict(adapter_state, strict=False)
+            if trainer.state.fn == TrainerFn.FITTING:
+                trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=True)
 
-        checkpoint['sharded_state_dict'] = filtered_state_dict
+        self.trainable_params = set(
+            name for name, param in trainer.lightning_module.named_parameters() if param.requires_grad
+        )
 
     def adapter_key_filter(self, key: str) -> bool:
-        return ".adapter." in key or key.endswith(".adapters")
+        return key in self.trainable_params or ".adapter." in key or key.endswith(".adapters")
 
 
 class AdapterWrapper(nn.Module):
@@ -239,13 +259,21 @@ class AdapterWrapper(nn.Module):
 
 
 class WrappedAdapterIO(_WrappingCheckpointIO):
+    peft: Optional[PEFT] = None
     model_ckpt_path: Optional[Path] = None
     adapter_ckpt_path: Optional[Path] = None
+
+    def __init__(self, checkpoint_io: Optional["CheckpointIO"] = None, peft: Optional[PEFT] = None) -> None:
+        self.peft = peft
+        super().__init__(checkpoint_io)
 
     @override
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
         assert self.checkpoint_io is not None
 
+        checkpoint['sharded_state_dict'] = dict(
+            filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint['sharded_state_dict'].items())
+        )
         self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
 
         from nemo.utils.get_rank import is_global_rank_zero
@@ -260,21 +288,53 @@ class WrappedAdapterIO(_WrappingCheckpointIO):
     def load_checkpoint(
         self, path: _PATH, sharded_state_dict=None, map_location: Optional[Callable] = None
     ) -> Dict[str, Any]:
+        """
+        =====================
+        Initial PEFT Training
+        =====================
+        Initial PEFT training requires loading the base model weights. In this case, this function is called by
+        trainer.strategy.setup() -> megatron_strategy.restore_model() -> megatron_strategy.load_checkpoint().
+        `path = PosixPath(<base_path>)`, and sharded_state_dict contains only base model weights
+
+        ===========
+        PEFT Resume
+        ===========
+        PEFT resume requires loading two set of model weights, 1) base model weights and 2) adapter weights
+        Base model weights could be imported from e.g. HF, and is frozen during PEFT training.
+        Adapter weights contains the training metadata that will need to be loaded.
+        As such, this function will be entered twice during PEFT training resume.
+
+        For the FIRST TIME this function is called by trainer._checkpoint_connector._restore_modules_and_callbacks.
+        `path = AdapterPath(<adapter_path>, base_model_path=<base_path>)`, and sharded_state_dict contains only base model weights
+
+        For the SECOND TIME this function is called by PEFT.apply_transform (above, in the same file).
+        `path = PosixPath(<adapter_path>)`, and sharded_state_dict contains only adapter weights.
+        """
+
         assert self.checkpoint_io is not None
 
         adapter_meta_path = ckpt_to_dir(path) / _ADAPTER_META_FILENAME
-        if getattr(path, "adapter_path", None):
-            self.model_ckpt_path = path
-            self.adapter_ckpt_path = path.adapter_path
+        adapter_ckpt = None
+        if getattr(path, "base_model_path", None):
+            ## PEFT Resume, FIRST TIME
+            self.adapter_ckpt_path = Path(str(path))
+            adapter_ckpt = self.checkpoint_io.load_checkpoint(path)  # Loads only metadata
+            # path is adapter path to restore the training metadata, but switch to loading base model here.
+            path = self.model_ckpt_path = path.base_model_path
         elif adapter_meta_path.exists():
+            ## PEFT Resume, SECOND TIME
             with open(adapter_meta_path, "r") as f:
                 metadata = json.load(f)
             self.model_ckpt_path = Path(metadata['model_ckpt_path'])
             self.adapter_ckpt_path = path
         else:
+            ## Initial PEFT Training
             self.model_ckpt_path = path
 
         # Note: this will include the Trainer-state of the model-checkpoint
         model_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict, map_location)
-
+        if adapter_ckpt is not None:
+            ## PEFT Resume, FIRST TIME
+            adapter_ckpt['state_dict'].update(model_ckpt['state_dict'])
+            return adapter_ckpt
         return model_ckpt

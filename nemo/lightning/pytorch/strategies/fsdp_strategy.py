@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import shutil
 from collections import OrderedDict
 from pathlib import Path
@@ -21,9 +35,10 @@ from typing_extensions import override
 
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
+    _MegatronBatchProgress,
     ckpt_to_dir,
+    create_checkpoint_io,
     fix_progress_bar,
-    get_checkpoint_io,
     init_model_parallel,
     mcore_to_pyt_sharded_state_dict,
     pyt_to_mcore_state_dict,
@@ -56,14 +71,18 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         self,
         auto_wrap_policy={TransformerLayer},
         state_dict_type="sharded",
-        ckpt_include_optimizer=False,
+        ckpt_load_optimizer: bool = True,
+        ckpt_save_optimizer: bool = True,
         data_sampler=None,
+        overwrite_batch_progress: bool = True,
         **kwargs,
     ):
         super().__init__(auto_wrap_policy=auto_wrap_policy, state_dict_type=state_dict_type, **kwargs)
 
         self.data_sampler = data_sampler
-        self.ckpt_include_optimizer = ckpt_include_optimizer
+        self.ckpt_load_optimizer = ckpt_load_optimizer
+        self.ckpt_save_optimizer = ckpt_save_optimizer
+        self.overwrite_batch_progress = overwrite_batch_progress
 
     @override
     def setup_environment(self) -> None:
@@ -76,6 +95,11 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         self.trainer = trainer
         setup_data_sampler(self.trainer)
         fix_progress_bar(trainer)
+
+        trainer_fn = trainer.state.fn
+        if trainer_fn == TrainerFn.FITTING and self.overwrite_batch_progress:
+            trainer.fit_loop.epoch_loop.batch_progress = _MegatronBatchProgress()
+
         super().setup(trainer)
 
     def _get_loss_reduction(self, step_type: str):
@@ -159,7 +183,10 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
-        return get_checkpoint_io(self._checkpoint_io)
+        if not self._checkpoint_io:
+            self._checkpoint_io = create_checkpoint_io()
+
+        return self._checkpoint_io
 
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:
@@ -189,11 +216,15 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         checkpoint["sharded_state_dict"] = pyt_to_mcore_state_dict(checkpoint.pop("state_dict"))
         checkpoint["state_dict"] = OrderedDict([])
 
-        # TODO: do we still need to keep this?
-        for optim_state in checkpoint['optimizer_states']:
-            optim_state.pop("state")
-
-        if self.trainer.state.fn == TrainerFn.FITTING and self.ckpt_include_optimizer:
+        ## replace unsharded optimizer_states with sharded dict.
+        ## note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
+        ## the checkpoint will contain only model weights. Optimizer states will be omitted.
+        if (
+            "optimizer_states" in checkpoint
+            and self.trainer.state.fn == TrainerFn.FITTING
+            and self.ckpt_save_optimizer
+        ):
+            checkpoint["optimizer_states"] = {}
             checkpoint['optimizer'] = get_optimizer_state_dict(self.model, self.optimizers)
             pyt_to_mcore_state_dict(checkpoint['optimizer']['state'], prefix="optimizer.state.")
 
@@ -224,7 +255,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
             pyt_to_mcore_state_dict(msd)
             sharded_state_dict["sharded_state_dict"] = msd
 
-        if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
+        if self.ckpt_load_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
             osd = get_optimizer_state_dict(self.model, self.optimizers, options=StateDictOptions(cpu_offload=True))
             pyt_to_mcore_state_dict(osd['state'], prefix="optimizer.state.")
             sharded_state_dict["optimizer"] = osd
@@ -232,14 +263,14 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         checkpoint = self.checkpoint_io.load_checkpoint(path, sharded_state_dict=sharded_state_dict)
         mcore_to_pyt_sharded_state_dict(checkpoint['sharded_state_dict'], msd)
 
-        if self.ckpt_include_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
+        if self.ckpt_load_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
             mcore_to_pyt_sharded_state_dict(checkpoint['optimizer']['state'], osd['state'])
 
         set_state_dict(
             self.model,
-            self.optimizers if self.ckpt_include_optimizer else [],
+            self.optimizers if self.ckpt_load_optimizer else [],
             model_state_dict=checkpoint['sharded_state_dict'],
-            optim_state_dict=checkpoint['optimizer'] if self.ckpt_include_optimizer else None,
+            optim_state_dict=checkpoint['optimizer'] if self.ckpt_load_optimizer else None,
         )
 
         return checkpoint
