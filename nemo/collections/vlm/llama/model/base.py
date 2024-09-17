@@ -41,7 +41,7 @@ from nemo.collections.vlm.llama.model.transformer import (
     _get_full_row_masked_out_mask, _stack_images, _pad_masks, VisionEncoder
 )
 from nemo.collections.vlm.llama.utils import get_negative_inf_value
-from nemo.lightning import io
+from nemo.lightning import io, teardown
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
