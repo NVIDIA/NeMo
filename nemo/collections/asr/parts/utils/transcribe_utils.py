@@ -18,7 +18,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import List, Tuple, Union, Optional
+from typing import List, Optional, Tuple, Union
 
 import torch
 from omegaconf import DictConfig
