@@ -99,6 +99,7 @@ try:
 except (ImportError, ModuleNotFoundError, FileNotFoundError):
     DALI_INDEX_SCRIPT_AVAILABLE = False
 
+
 @dataclass
 class ASRTarredDatasetConfig:
     num_shards: int = -1
@@ -153,7 +154,7 @@ class ASRTarredDatasetBuilder:
 
     def __init__(self):
         self.config = None
-    
+
     def configure(self, config: ASRTarredDatasetConfig):
         """
         Sets the config generated from command line overrides.
@@ -166,7 +167,15 @@ class ASRTarredDatasetBuilder:
         if self.config.num_shards < 0:
             raise ValueError("`num_shards` must be > 0. Please fill in the metadata information correctly.")
 
-    def create_new_dataset(self, manifest_path: str, target_dir: str = "./tarred/", num_workers: int = 0, buckets_num: int = 1, dynamic_buckets_num: int = 30, dry_run: bool = False):
+    def create_new_dataset(
+        self,
+        manifest_path: str,
+        target_dir: str = "./tarred/",
+        num_workers: int = 0,
+        buckets_num: int = 1,
+        dynamic_buckets_num: int = 30,
+        dry_run: bool = False,
+    ):
         """
         Creates a new tarred dataset from a given manifest file.
 
@@ -457,7 +466,9 @@ class ASRTarredDatasetBuilder:
         with Parallel(n_jobs=num_workers, verbose=num_added_shards) as parallel:
             # Call parallel tarfile construction
             new_entries_list = parallel(
-                delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, shard_idx, manifest_folder, dry_run)
+                delayed(self._create_shard)(
+                    entries[start_idx:end_idx], target_dir, shard_idx, manifest_folder, dry_run
+                )
                 for i, (start_idx, end_idx, shard_idx) in enumerate(zip(start_indices, end_indices, shard_indices))
             )
 
@@ -535,7 +546,9 @@ class ASRTarredDatasetBuilder:
                 entry = json.loads(line)
                 audio_key = "audio_filepath" if "audio_filepath" in entry else "audio_file"
                 if config.slice_with_offset and "offset" not in entry:
-                    raise KeyError(f"Manifest entry does not contain 'offset' field, but '--slice_with_offset' is enabled: {entry}")
+                    raise KeyError(
+                        f"Manifest entry does not contain 'offset' field, but '--slice_with_offset' is enabled: {entry}"
+                    )
                 if audio_key not in entry:
                     raise KeyError(f"Manifest entry does not contain 'audio_filepath' or  'audio_file' key: {entry}")
                 audio_filepath = entry[audio_key]
@@ -555,17 +568,19 @@ class ASRTarredDatasetBuilder:
 
         return entries, total_duration, filtered_entries, filtered_duration
 
-    def _write_to_tar(self, tar, audio_filepath: str, squashed_filename: str, duration: float = None, offset: float = 0) -> None:
+    def _write_to_tar(
+        self, tar, audio_filepath: str, squashed_filename: str, duration: float = None, offset: float = 0
+    ) -> None:
         if ((codec := self.config.force_codec) is None or audio_filepath.endswith(f".{codec}")) and not duration:
             # Add existing file without transcoding.
             tar.add(audio_filepath, arcname=squashed_filename)
         else:
             # Read audio file
-            audio, sampling_rate = soundfile.read(audio_filepath, dtype=np.float32)        
+            audio, sampling_rate = soundfile.read(audio_filepath, dtype=np.float32)
             # Calculate start and end points for slicing
             start_sample = int(offset * sampling_rate)
             end_sample = int((offset + duration) * sampling_rate) if duration else None
-            audio = audio[start_sample:end_sample]    
+            audio = audio[start_sample:end_sample]
             # Transcode and write to tar
             encoded_audio = BytesIO()
             if codec is not None:
@@ -589,7 +604,7 @@ class ASRTarredDatasetBuilder:
             entries.sort(key=lambda x: x["duration"], reverse=False)
 
         new_entries = []
-        
+
         tar_filepath = os.path.join(target_dir, f'audio_{shard_id}.tar')
         if not dry_run:
             tar = tarfile.open(tar_filepath, mode='w', dereference=True)
@@ -602,7 +617,7 @@ class ASRTarredDatasetBuilder:
             else:
                 if not manifest_folder:
                     raise FileNotFoundError(f"Could not find {entry['audio_filepath']}!")
-                
+
                 audio_filepath = os.path.join(manifest_folder, entry["audio_filepath"])
                 if not os.path.exists(audio_filepath):
                     raise FileNotFoundError(f"Could not find {entry['audio_filepath']}!")
@@ -612,14 +627,16 @@ class ASRTarredDatasetBuilder:
             # Need the following replacement as long as WebDataset splits on first period
             base = base.replace('.', '_')
             squashed_filename = f'{base}{ext}'
-            
+
             if self.config.slice_with_offset:
                 if squashed_filename not in count:
                     count[squashed_filename] = 1
-                
+
                 to_write = base + "_" + str(count[squashed_filename]) + ext
                 if not dry_run:
-                    self._write_to_tar(tar, audio_filepath, to_write, duration=entry['duration'], offset=entry['offset'])
+                    self._write_to_tar(
+                        tar, audio_filepath, to_write, duration=entry['duration'], offset=entry['offset']
+                    )
                 count[squashed_filename] += 1
 
                 entry['source_audio_offset'] = entry['offset']
@@ -633,7 +650,7 @@ class ASRTarredDatasetBuilder:
                 else:
                     to_write = base + "-sub" + str(count[squashed_filename]) + ext
                     count[squashed_filename] += 1
-            
+
             if dry_run:
                 entry['abs_audio_filepath'] = audio_filepath
 
@@ -673,7 +690,9 @@ def main(args):
                 # add a small number to cover the samples with exactly duration of max_duration in the last bucket.
                 bucket_config.max_duration += 1e-5
             bucket_config.target_dir = os.path.join(args.target_dir, f"bucket{i_bucket+1}")
-            print(f"Creating bucket {i_bucket+1} with min_duration={bucket_config.min_duration} and max_duration={bucket_config.max_duration} ...")
+            print(
+                f"Creating bucket {i_bucket+1} with min_duration={bucket_config.min_duration} and max_duration={bucket_config.max_duration} ..."
+            )
             print(f"Results are being saved at: {bucket_config.target_dir}.")
             create_tar_datasets(**vars(bucket_config))
             print(f"Bucket {i_bucket+1} is created.")
@@ -681,10 +700,27 @@ def main(args):
         create_tar_datasets(**vars(args))
 
 
-def create_tar_datasets(manifest_path: str = None, concat_manifest_paths: str = None, target_dir: str = None, metadata_path: str = None, num_shards: int = -1, max_duration: float = None,
-                        min_duration: float = None, shuffle: bool = False, keep_files_together: bool = False, sort_in_shards: bool = False, buckets_num: int = 1,
-                        dynamic_buckets_num: int = 30, shuffle_seed: int = None, write_metadata: bool = False, no_shard_manifests: bool = False, force_codec: str = None, 
-                        workers: int = 1, slice_with_offset: bool = False, dry_run: bool = False):    
+def create_tar_datasets(
+    manifest_path: str = None,
+    concat_manifest_paths: str = None,
+    target_dir: str = None,
+    metadata_path: str = None,
+    num_shards: int = -1,
+    max_duration: float = None,
+    min_duration: float = None,
+    shuffle: bool = False,
+    keep_files_together: bool = False,
+    sort_in_shards: bool = False,
+    buckets_num: int = 1,
+    dynamic_buckets_num: int = 30,
+    shuffle_seed: int = None,
+    write_metadata: bool = False,
+    no_shard_manifests: bool = False,
+    force_codec: str = None,
+    workers: int = 1,
+    slice_with_offset: bool = False,
+    dry_run: bool = False,
+):
     builder = ASRTarredDatasetBuilder()
 
     shard_manifests = False if no_shard_manifests else True
@@ -727,7 +763,14 @@ def create_tar_datasets(manifest_path: str = None, concat_manifest_paths: str = 
             slice_with_offset=slice_with_offset,
         )
         builder.configure(config)
-        builder.create_new_dataset(manifest_path=manifest_path, target_dir=target_dir, num_workers=workers, buckets_num=buckets_num, dynamic_buckets_num=dynamic_buckets_num, dry_run=dry_run)
+        builder.create_new_dataset(
+            manifest_path=manifest_path,
+            target_dir=target_dir,
+            num_workers=workers,
+            buckets_num=buckets_num,
+            dynamic_buckets_num=dynamic_buckets_num,
+            dry_run=dry_run,
+        )
 
     else:
         if buckets_num > 1:
@@ -774,7 +817,7 @@ def create_tar_datasets(manifest_path: str = None, concat_manifest_paths: str = 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-    description="Convert an existing ASR dataset to tarballs compatible with TarredAudioToTextDataLayer."
+        description="Convert an existing ASR dataset to tarballs compatible with TarredAudioToTextDataLayer."
     )
     parser.add_argument(
         "--manifest_path", default=None, type=str, required=False, help="Path to the existing dataset's manifest."
@@ -838,7 +881,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--slice_with_offset",
         action='store_true',
-        help="If set, only slices the audio based on `duration` and `offset` entry parameters."
+        help="If set, only slices the audio based on `duration` and `offset` entry parameters.",
     )
     parser.add_argument(
         "--sort_in_shards",
