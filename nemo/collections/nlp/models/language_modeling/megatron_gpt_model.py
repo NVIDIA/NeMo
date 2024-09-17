@@ -444,6 +444,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         if self.mcore_gpt:
+            self.transformer_config.apply_rope_fusion = True
+            self.transformer_config.gradient_accumulation_fusion = True
 
             model = MCoreGPTModel(
                 config=self.transformer_config,
@@ -462,7 +464,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
-                rotary_base=self.cfg.get('rotary_base', 10000),
+                rotary_base=self.cfg.get('rotary_base', 1000000),
             )
             mcore_model_customize(self.cfg, model)
         else:
