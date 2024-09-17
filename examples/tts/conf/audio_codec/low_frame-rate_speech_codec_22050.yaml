@@ -1,4 +1,4 @@
-# This config contains the default values for training 22.05kHz NeMo Audio Codec model.
+# This config contains the default values for training 22.05kHz Low-frame rate Speech Codec model.
 # If you want to train model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
