@@ -54,6 +54,89 @@ class AdapterParallelAdd(AdapterWrapper):
         return linear_output + adapter_output, bias
 
 
+class LoRAModuleConnector:
+    """Gets and sets attributes of a module that are relevant to LoRA."""
+    @staticmethod
+    def get_in_features(m: nn.Module):
+        """Gets the number of input features for the module.
+
+        Args:
+            m: The module to get the input features for.
+
+        Returns:
+            int: The number of input features.
+        """
+        return m.in_features
+
+    @staticmethod
+    def get_out_features(m: nn.Module):
+        """Gets the number of output features for the module.
+
+        Args:
+            m: The module to get the output features for.
+
+        Returns:
+            int
+        """
+        return m.out_features
+
+    @staticmethod
+    def get_sequence_parallel(m: nn.Module):
+        """Gets the sequence parallel configuration for the module.
+
+        Args:
+            m: The module to get the sequence parallel configuration for.
+
+        Returns:
+            The sequence parallel configuration.
+        """
+        return m.config.sequence_parallel
+
+    @staticmethod
+    def get_ub_overlap_ag(m: nn.Module):
+        """Gets the ub_overlap_ag attribute of the module.
+
+        Args:
+            m: The module to get the ub_overlap_ag attribute for.
+
+        Returns:
+            The ub_overlap_ag attribute.
+        """
+        return m.ub_overlap_ag
+
+    @staticmethod
+    def get_config(m: nn.Module):
+        """Gets the configuration for the module.
+
+        Args:
+            m: The module to get the configuration for.
+
+        Returns:
+            The configuration.
+        """
+        return getattr(m, 'config', None)
+
+    @staticmethod
+    def set_layer_norm_output(m: nn.Module, value: bool):
+        """Sets the return_layernorm_output attribute of the module.
+
+        Args:
+            m: nn.Module: The module to set the attribute for.
+            value: bool: The value to set the attribute to.
+        """
+        m.return_layernorm_output = value
+
+    @staticmethod
+    def set_layer_norm_output_gathered(m: nn.Module, value: bool):
+        """Sets the return_layernorm_output_gathered attribute of the module.
+
+        Args:
+            m: nn.Module: The module to set the attribute for.
+            value: bool: The value to set the attribute to.
+        """
+        m.return_layernorm_output_gathered = value
+
+
 @dataclass
 class LoRA(PEFT):
     """
@@ -103,6 +186,10 @@ class LoRA(PEFT):
     lora_A_init_method: str = "xavier"
     lora_B_init_method: str = "zero"
 
+    def __post_init__(self):
+        """Initializes the LoRA module connector."""
+        self.module_connector = LoRAModuleConnector()
+
     def transform(self, m: nn.Module, name=None, prefix=None):
         """
         Applies LoRA to a specific module within the model architecture.
@@ -124,18 +211,18 @@ class LoRA(PEFT):
             if name in ['linear_qkv', 'linear_fc1']:
                 # Column Parallel Linear
                 input_is_parallel = False
-                in_features = m.in_features
-                out_features = m.out_features * tp_size
+                in_features = self.module_connector.get_in_features(m)
+                out_features = self.module_connector.get_out_features(m) * tp_size
                 # LoRA is applied after layernorm, so layernorm output must be returned
-                m.return_layernorm_output = True
+                self.module_connector.set_layer_norm_output(m, True)
                 # perf optimization for LoRA + SP
-                if m.config.sequence_parallel and not m.ub_overlap_ag:
-                    m.return_layernorm_output_gathered = True
+                if self.module_connector.get_sequence_parallel(m) and not self.module_connector.get_ub_overlap_ag(m):
+                    self.module_connector.set_layer_norm_output_gathered(m, True)
             else:  # name in ['linear_proj', 'linear_fc2']
                 # Row Parallel Linear
                 input_is_parallel = True
-                in_features = m.in_features * tp_size
-                out_features = m.out_features
+                in_features = self.module_connector.get_in_features(m) * tp_size
+                out_features = self.module_connector.get_out_features(m)
 
             logging.info(f"Adding lora to: {prefix}.{name}")
             adapter = ParallelLinearAdapter(
@@ -151,7 +238,7 @@ class LoRA(PEFT):
                 input_is_parallel=input_is_parallel,
                 dropout=self.dropout,
                 dropout_position=self.dropout_position,
-                model_parallel_config=getattr(m, "config", None),
+                model_parallel_config=self.module_connector.get_config(m),
                 alpha=self.alpha,
             )
             return AdapterParallelAdd(m, adapter)
